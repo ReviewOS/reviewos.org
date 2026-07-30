@@ -1,35 +1,41 @@
 import type { BunPressOptions } from '@stacksjs/bunpress'
 
+/**
+ * **Documentation Configuration**
+ *
+ * The documentation site is bunpress, wrapped by Stacks. `./buddy dev:docs` serves
+ * it and `./buddy build:docs` builds it; both read this file.
+ *
+ * The roadmap under `/todo` is the source of truth for what exists and what does
+ * not, so it sits at the top of the sidebar rather than in a project footnote.
+ */
 const config: BunPressOptions = {
   verbose: false,
   docsDir: './docs',
   outDir: './dist/docs',
 
-  // Navigation
+  // Top-level, not only under `markdown`: bunpress prefers these when both are
+  // present, and they are what the browser tab and the social cards show.
+  title: 'ReviewOS',
+  description: 'An open source, self-hostable git forge built around code review.',
+
   nav: [
+    { text: 'Roadmap', link: '/todo/' },
     {
-      text: 'Changelog',
-      link: 'https://github.com/stacksjs/stacks/blob/main/CHANGELOG.md',
-    },
-    {
-      text: 'Resources',
+      text: 'Project',
       items: [
-        { text: 'Team', link: '/team' },
-        { text: 'Sponsors', link: '/sponsors' },
-        { text: 'Partners', link: '/partners' },
-        { text: 'Postcardware', link: '/postcardware' },
-        { text: 'Awesome Stacks', link: 'https://github.com/stacksjs/awesome-stacks' },
-        { text: 'Contributing', link: 'https://github.com/stacksjs/stacks/blob/main/.github/CONTRIBUTING.md' },
+        { text: 'Source', link: 'https://github.com/ReviewOS/reviewos.org' },
+        { text: 'Issues', link: 'https://github.com/ReviewOS/reviewos.org/issues' },
+        { text: 'Changelog', link: 'https://github.com/ReviewOS/reviewos.org/blob/main/CHANGELOG.md' },
       ],
     },
   ],
 
-  // Markdown configuration
   markdown: {
-    title: 'Stacks Documentation',
+    title: 'ReviewOS Documentation',
     meta: {
-      description: 'Rapid application, cloud & library development framework.',
-      author: 'Stacks.js',
+      description: 'An open source, self-hostable git forge built around code review.',
+      author: 'ReviewOS',
     },
     syntaxHighlightTheme: 'github-dark',
     toc: {
@@ -40,140 +46,45 @@ const config: BunPressOptions = {
     sidebar: {
       '/': [
         {
-          text: 'Prologue',
-          collapsed: true,
+          text: 'Introduction',
           items: [
-            { text: 'Release Notes', link: '/release-notes' },
-            { text: 'Upgrade Guide', link: '/upgrade-guide' },
-            { text: 'Contribution Guide', link: '/contribution-guide' },
-            { text: 'Sponsors', link: '/sponsors' },
+            { text: 'What ReviewOS is', link: '/' },
           ],
         },
         {
-          text: 'Getting Started',
-          collapsed: true,
+          text: 'Roadmap',
           items: [
-            { text: 'Introduction', link: '/guide/intro' },
-            { text: 'Quick Start', link: '/guide/get-started' },
-            { text: 'StackBlitz', link: '/guide/stackblitz' },
-          ],
-        },
-        {
-          text: 'Basics',
-          collapsed: true,
-          items: [
-            { text: 'Routing', link: '/basics/routing' },
-            { text: 'Middleware', link: '/basics/middleware' },
-            { text: 'Models', link: '/basics/models' },
-            { text: 'Views', link: '/basics/views' },
-            { text: 'Actions', link: '/basics/actions' },
-            { text: 'Commands', link: '/basics/commands' },
-            { text: 'Jobs', link: '/basics/jobs' },
-            { text: 'Components', link: '/basics/components' },
-            { text: 'Functions', link: '/basics/functions' },
-            { text: 'Validation', link: '/packages/validation' },
-            { text: 'Error Handling', link: '/basics/error-handling' },
-            { text: 'Logging', link: '/basics/logging' },
-          ],
-        },
-        {
-          text: 'Digging Deeper',
-          collapsed: true,
-          items: [
-            { text: 'Authentication', link: '/guide/auth' },
-            { text: 'Database', link: '/packages/database' },
-            { text: 'Cache', link: '/packages/cache' },
-            { text: 'Events', link: '/packages/events' },
-            { text: 'Queue', link: '/packages/queue' },
-            { text: 'Notifications', link: '/packages/notifications' },
-            { text: 'Payments', link: '/packages/payments' },
-            { text: 'Realtime', link: '/packages/realtime' },
-            { text: 'Search Engine', link: '/packages/search-engine' },
-            { text: 'Storage', link: '/packages/storage' },
-          ],
-        },
-        {
-          text: 'Cloud',
-          collapsed: true,
-          items: [
-            { text: 'Deploy', link: '/guide/cloud/deployment' },
-            { text: 'Extend Cloud', link: '/guide/cloud/extend' },
-          ],
-        },
-        {
-          text: 'CLI (Buddy)',
-          collapsed: true,
-          items: [
-            { text: 'Introduction', link: '/guide/buddy/intro' },
-            { text: 'Command Reference', link: '/guide/buddy/commands' },
-            { text: 'Add Stacks', link: '/guide/buddy/add' },
-            { text: 'Dev', link: '/guide/buddy/dev' },
-            { text: 'Build', link: '/guide/buddy/build' },
-            { text: 'Deploy', link: '/guide/buddy/deploy' },
-            { text: 'Make', link: '/guide/buddy/make' },
-            { text: 'Migrate', link: '/guide/buddy/migrate' },
-            { text: 'Test', link: '/guide/buddy/test' },
-          ],
-        },
-        {
-          text: 'Packages',
-          collapsed: true,
-          items: [
-            { text: 'STX', link: '/packages/stx' },
-            { text: 'Actions', link: '/packages/actions' },
-            { text: 'AI', link: '/packages/ai' },
-            { text: 'Auth', link: '/packages/auth' },
-            { text: 'Cache', link: '/packages/cache' },
-            { text: 'CLI', link: '/packages/cli' },
-            { text: 'Cloud', link: '/packages/cloud' },
-            { text: 'Database', link: '/packages/database' },
-            { text: 'ORM', link: '/packages/orm' },
-            { text: 'Query Builder', link: '/packages/query-builder' },
-            { text: 'Router', link: '/packages/router' },
-            { text: 'Testing', link: '/packages/testing' },
-            { text: 'Validation', link: '/packages/validation' },
-          ],
-        },
-        {
-          text: 'Testing',
-          collapsed: true,
-          items: [
-            { text: 'Getting Started', link: '/testing/getting-started' },
-            { text: 'Unit Tests', link: '/testing/unit-tests' },
-            { text: 'Feature Tests', link: '/testing/feature-tests' },
-            { text: 'Http Tests', link: '/testing/http-tests' },
-            { text: 'Browser Tests', link: '/testing/browser-tests' },
-          ],
-        },
-        {
-          text: 'Project',
-          collapsed: true,
-          items: [
-            { text: 'Roadmap', link: '/project/roadmap' },
-            { text: 'Contributing', link: '/contribution-guide' },
-            { text: 'License', link: '/project/license' },
+            { text: 'Overview', link: '/todo/' },
+            { text: '00 - Bootstrap', link: '/todo/00-bootstrap' },
+            { text: '01 - Foundation', link: '/todo/01-foundation' },
+            { text: '02 - Git hosting', link: '/todo/02-git-hosting' },
+            { text: '03 - Issues', link: '/todo/03-issues' },
+            { text: '04 - Reviews', link: '/todo/04-reviews' },
+            { text: '05 - Notifications and webhooks', link: '/todo/05-notifications-webhooks' },
+            { text: '06 - Search and explore', link: '/todo/06-search-explore' },
+            { text: '07 - Marketing and docs', link: '/todo/07-marketing-docs' },
+            { text: '08 - Migration', link: '/todo/08-migration' },
+            { text: '09 - Checks and CI', link: '/todo/09-checks-ci' },
+            { text: '10 - Federation', link: '/todo/10-federation' },
+            { text: '11 - Self-hosting and operations', link: '/todo/11-self-hosting-deploy' },
           ],
         },
       ],
     },
     themeConfig: {
-      logo: '/images/logos/logo-transparent.svg',
       footer: {
         message: 'Released under the MIT License.',
-        copyright: 'Copyright 2024-present Stacks.js, Inc.',
+        copyright: 'Copyright 2026-present ReviewOS contributors',
       },
       socialLinks: [
-        { icon: 'twitter', link: 'https://twitter.com/stacksjs' },
-        { icon: 'github', link: 'https://github.com/stacksjs/stacks' },
-        { icon: 'discord', link: 'https://stacksjs.com/discord' },
+        { icon: 'github', link: 'https://github.com/ReviewOS/reviewos.org' },
       ],
     },
   },
 
-  // SEO Configuration
   sitemap: {
     enabled: true,
-    baseUrl: 'https://stacksjs.com/docs',
+    baseUrl: 'https://reviewos.org/docs',
   },
 
   robots: {

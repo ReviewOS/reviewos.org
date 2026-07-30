@@ -1,0 +1,69 @@
+# 11 - Self-hosting and operations
+
+Running this in production, including running it badly and recovering. Self-hosting is the product
+promise, so the operational story is a feature and not an afterthought.
+
+## Deployment
+
+- [ ] Dockerfile that builds and runs the application, and a compose file bringing up Postgres,
+      Meilisearch, and the queue worker alongside it
+- [ ] Persist repositories and uploads on volumes, and document exactly which paths hold state
+- [ ] Health endpoint that checks the database, the queue, and repository storage, rather than only
+      returning 200
+- [ ] Graceful shutdown: finish in-flight requests, stop accepting new jobs, let running jobs
+      complete
+- [ ] Run the queue worker as its own process, with its concurrency documented
+- [ ] Deployment to a single host, which is what most instances will be
+- [ ] Sizing guidance from measurement, not guesses
+
+## Configuration
+
+- [ ] Every environment variable documented with its default and its effect
+- [ ] Validate configuration at boot and fail loudly on a bad value, rather than at first use
+- [ ] Secrets from the environment or a file, never committed
+- [ ] Instance settings that do not warrant a redeploy live in the database and are editable by an
+      admin
+
+## Backup and restore
+
+- [ ] Documented backup of Postgres and `storage/repos` together, since a restore needs both from
+      the same moment
+- [ ] Restore procedure, written after actually performing one on a copy. An untested restore
+      procedure is a hope, not a backup.
+- [ ] Repository consistency check after restore
+- [ ] Retention and offsite guidance
+
+## Operations
+
+- [ ] Structured logs with request ids that follow a request into its jobs
+- [ ] Metrics: request rate and latency, queue depth and job durations, git operation timings,
+      database pool usage
+- [ ] Error reporting hookable to an external service, off by default
+- [ ] Admin area: instance stats, user administration, repository administration, queue inspection,
+      failed job retry
+- [ ] Rate limiting on the API, on git operations, and on authentication attempts
+- [ ] Upgrade path: run migrations, what to do when one fails, and how to roll back
+
+## Security
+
+- [ ] Security policy and a disclosure address
+- [ ] Dependency scanning through buddy-bot
+- [ ] CSRF on state-changing routes, and correct exemptions for token-authenticated API calls
+- [ ] Session handling: rotation on privilege change, absolute and idle expiry, sessions listed and
+      revocable by the user
+- [ ] Audit log for administrative actions
+- [ ] A pass with the `stacks-security-audit` skill before the first public instance
+
+## Developer environment
+
+- [ ] Pantry auto-activation under the `den` shell. Pantry recognizes zsh, bash, fish, and nushell
+      and generates a hook for each; den has no `chpwd` or pre-prompt hook to attach one to, so
+      entering a project directory does not install dependencies or start services. Needs a
+      pre-prompt hook in den (`~/Code/Tools/den`, the hook subsystem in `src/hooks/` already has a
+      `directory_change` concept that is never fired) and then shell detection plus hook generation
+      in pantry (`packages/zig/src/shell/integration.zig`). Until then `./buddy setup` does the same
+      work explicitly.
+- [ ] A `main` tag in the bun-query-builder repository shadows the `main` branch, so `git push origin
+      main` is ambiguous there. Delete the tag.
+- [ ] Seed data that produces a believable instance: several users, organizations, repositories with
+      real history, open pull requests with reviews in progress

@@ -1,73 +1,50 @@
 ---
+title: ReviewOS
 layout: home
-title: Stacks Framework
-description: Build full-stack TypeScript applications, APIs, libraries, and cloud infrastructure with Stacks.
-titleTemplate: Modern TypeScript Fullstack Development.
 hero:
-  name: Stacks.js
-  text: Build. Ship. Faster.
-  tagline: "Rapid application, cloud & library development framework. For the best full-stack teams."
-  image: /images/logos/logo-white.png
+  name: ReviewOS
+  text: A git forge built around review
+  tagline: Open source, self-hostable, and organized around the part of the workflow everyone actually spends their time in.
   actions:
     - theme: brand
-      text: Coming Soon
-      link: /docs/guide/get-started
+      text: Roadmap
+      link: /todo/
     - theme: alt
-      text: View on GitHub
-      link: https://github.com/stacksjs/stacks
+      text: Source
+      link: https://github.com/ReviewOS/reviewos.org
 features:
-  - title: Best-in-Class DX
-    icon: 🦋
-    details: One framework that does it all. Building TypeScript apps & libraries has never been simpler.
-  - title: App Development
-    icon: 🖥️
-    details: Performant web and Craft desktop applications with one TypeScript codebase.
-  - title: Library Development
-    icon: 📚
-    details: "Automagically builds & distributes your component & function libraries, via npm."
-  - title: Cloud Development
-    icon: ☁️
-    details: Automatic zero-downtime deployments of production-ready serverless clouds. Self-hosted.
-  - title: Modern Administration
-    icon: 📊
-    details: "A sleek admin dashboard, out-of-the-box. For devs & your clients. Our product is your product."
-  - title: Scalable APIs
-    icon: 📡
-    details: "Building serverless APIs has never been simpler. Focus on your business logic, not your infrastructure."
-  - title: Secure Authentication
-    icon: 🔐
-    details: "Robust API & web authentication, ensuring the security of your user data. User-friendly, zero-config & ready-to-go."
-  - title: Built-in CI / CD
-    icon: 🤖
-    details: "Focus on coding, not publishing. Automates linting, version tagging, changelog generation, test execution, and more."
-  - title: Global CDN
-    icon: 🌐
-    details: "\"Securely deliver content with low latency and high transfer speeds,\" AWS. Your assets, zero-config."
-  - title: Queues & Jobs
-    icon: 📦
-    details: Leverage the power of queues. Defer time-consuming tasks using managed serverless queues.
-  - title: Notifications
-    icon: 📨
-    details: "Send notifications to your users via email, SMS, Slack, Discord, Push and more."
-  - title: Billing & Payments
-    icon: 💳
-    details: "Accept payments from your users using Stripe. One-off payments, subscriptions, and more."
-  - title: Search Engine
-    icon: 🔍
-    details: "Powerful & fast. \"Build an intuitive search experience in a snap,\" Meilisearch."
-  - title: Progressive UI Engine
-    icon: ⚙️
-    details: "An approachable, performant and versatile framework for building web UIs."
-  - title: Atomic CSS Engine
-    icon: 🎨
-    details: "\"Blazingly fast utility-first CSS framework,\" Headwind. Easily create & manage your styles."
-  - title: Streamlined Testing
-    icon: 🧪
-    details: A fast built-in testing framework. Enjoyable support for both unit & feature tests.
-  - title: Commerce
-    icon: 💴
-    details: A fast built-in testing framework. Enjoyable support for both unit & feature tests.
-  - title: Realtime
-    icon: 🏃🏻
-    details: "Build real-time features with WebSockets. Add live updates, chat, notifications & collaborative features with ease."
+  - title: Review is the primary object
+    details: Approvals, requested changes, and threads anchored to a file, line, and side of the diff. Not a tab bolted onto a pull request.
+  - title: Stacked pull requests
+    details: Dependent changes that merge in order, so a large piece of work can be reviewed in pieces that each make sense.
+  - title: Yours to host
+    details: Your repositories on your disk, your data in your Postgres. No seat counts and no plan tiers.
 ---
+
+## What this is
+
+ReviewOS is an open source git forge: repositories, issues, and pull requests, in the same territory
+as GitHub, Codeberg, and Tangled. What separates it is the emphasis. Most forges treat code review
+as a feature of pull requests. Here it is the thing the rest of the product is arranged around.
+
+It is built on [Stacks](https://stacksjs.com), runs on [Bun](https://bun.sh), and stores its data in
+PostgreSQL. Repositories are ordinary bare git repositories on disk, driven by the git binary, so
+nothing about your data is locked inside this application.
+
+## Where it is
+
+Early. The [roadmap](/todo/) is the honest picture: each phase is a checklist, and boxes are ticked
+only when the work is done and verified. If a box is empty, assume the feature does not exist.
+
+## Running it
+
+```bash
+git clone https://github.com/ReviewOS/reviewos.org.git
+cd reviewos.org
+./buddy setup
+./buddy dev
+```
+
+`./buddy setup` installs Bun, PostgreSQL, and git through pantry, starts the database, creates the
+schema named in your `.env`, and runs the migrations. You do not need any of those installed
+beforehand.
