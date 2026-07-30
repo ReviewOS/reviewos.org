@@ -1642,6 +1642,101 @@
         ]
       },
       {
+        "table": "org_members",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "organization_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "organizations",
+              "column": "id"
+            }
+          },
+          {
+            "name": "user_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
+          },
+          {
+            "name": "role",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "member",
+            "enumValues": [
+              "owner",
+              "admin",
+              "member"
+            ],
+            "enumTypeName": "org_members_role_type"
+          },
+          {
+            "name": "invited_by_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "joined_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "org_members_org_user_index",
+            "columns": [
+              "organization_id",
+              "user_id"
+            ],
+            "type": "index"
+          }
+        ]
+      },
+      {
         "table": "subscriber_emails",
         "columns": [
           {
@@ -1991,6 +2086,84 @@
               "uuid"
             ],
             "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "team_members",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "team_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "teams",
+              "column": "id"
+            }
+          },
+          {
+            "name": "user_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
+          },
+          {
+            "name": "role",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "member",
+            "enumValues": [
+              "maintainer",
+              "member"
+            ],
+            "enumTypeName": "team_members_role_type"
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "team_members_team_user_index",
+            "columns": [
+              "team_id",
+              "user_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -2445,6 +2618,97 @@
             "name": "labels_uuid_unique",
             "columns": [
               "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "gpg_keys",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "user_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
+          },
+          {
+            "name": "key_id",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "public_key",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "emails",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "expires_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "gpg_keys_key_id_index",
+            "columns": [
+              "key_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "gpg_keys_key_id_unique",
+            "columns": [
+              "key_id"
             ],
             "type": "unique"
           }
@@ -3358,6 +3622,112 @@
         ]
       },
       {
+        "table": "ssh_keys",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "user_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
+          },
+          {
+            "name": "title",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 100
+          },
+          {
+            "name": "key_type",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "enumValues": [
+              "ssh-ed25519",
+              "ssh-rsa",
+              "ecdsa-sha2-nistp256"
+            ],
+            "enumTypeName": "ssh_keys_key_type_type"
+          },
+          {
+            "name": "public_key",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "fingerprint",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 100
+          },
+          {
+            "name": "last_used_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "ssh_keys_fingerprint_index",
+            "columns": [
+              "fingerprint"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "ssh_keys_fingerprint_unique",
+            "columns": [
+              "fingerprint"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
         "table": "mail_preferences",
         "columns": [
           {
@@ -4023,10 +4393,31 @@
             "hasDefault": false
           },
           {
+            "name": "organization_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "organizations",
+              "column": "id"
+            }
+          },
+          {
             "name": "name",
             "type": "string",
             "isPrimaryKey": false,
-            "isUnique": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 100
+          },
+          {
+            "name": "slug",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
             "isNullable": false,
             "hasDefault": false,
             "maxLength": 100
@@ -4040,16 +4431,8 @@
             "hasDefault": false
           },
           {
-            "name": "member_count",
+            "name": "parent_team_id",
             "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "status",
-            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -4083,11 +4466,12 @@
         ],
         "indexes": [
           {
-            "name": "teams_name_unique",
+            "name": "teams_org_slug_index",
             "columns": [
-              "name"
+              "organization_id",
+              "slug"
             ],
-            "type": "unique"
+            "type": "index"
           },
           {
             "name": "teams_uuid_unique",
@@ -6295,6 +6679,117 @@
         "indexes": []
       },
       {
+        "table": "organizations",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "handle",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 39
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 100
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "avatar_url",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "website",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "billing_email",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "organizations_handle_index",
+            "columns": [
+              "handle"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "organizations_handle_unique",
+            "columns": [
+              "handle"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "organizations_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
         "table": "logs",
         "columns": [
           {
@@ -7893,11 +8388,20 @@
             "hasDefault": false
           },
           {
+            "name": "handle",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 39
+          },
+          {
             "name": "name",
             "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
-            "isNullable": false,
+            "isNullable": true,
             "hasDefault": false,
             "maxLength": 100
           },
@@ -7919,8 +8423,50 @@
             "maxLength": 255
           },
           {
-            "name": "avatar",
+            "name": "bio",
             "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "avatar_url",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "location",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 100
+          },
+          {
+            "name": "website",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "is_admin",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "email_verified_at",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -7954,12 +8500,18 @@
         ],
         "indexes": [
           {
-            "name": "users_email_name_index",
+            "name": "users_handle_index",
             "columns": [
-              "email",
-              "name"
+              "handle"
             ],
             "type": "index"
+          },
+          {
+            "name": "users_handle_unique",
+            "columns": [
+              "handle"
+            ],
+            "type": "unique"
           },
           {
             "name": "users_email_unique",
@@ -8337,7 +8889,7 @@
       }
     ]
   },
-  "hash": "3204d1416c14b96b11169087e4dc669afd8c3d68a36a387ffdec4a23fb83dd54",
+  "hash": "a4748c99738e7448fefe0341f8198eb19ab9a350c0f92eb0e14220509bc72e68",
   "dialect": "postgres",
-  "updatedAt": "2026-07-30T15:05:42.754Z"
+  "updatedAt": "2026-07-30T20:07:53.752Z"
 }

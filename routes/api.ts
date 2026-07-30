@@ -1,27 +1,26 @@
 import { response, route } from '@stacksjs/router'
 
 /**
- * This file is the entry point for your application's API routes.
- * The routes defined here are automatically registered. Last but
- * not least, you may also create any other `routes/*.ts` files.
+ * The JSON API.
  *
- * Framework routes (auth, dashboard, commerce, CMS, etc.) are loaded
- * automatically from storage/framework/defaults/routes/dashboard.ts.
- * You do NOT need to define them here — only add your own custom routes.
+ * Everything here is prefixed with `/api` by the route registry in
+ * `app/Routes.ts`. The git wire protocol is not: it has to live at
+ * `/{owner}/{repository}.git/...` for a plain `git clone` to work, so it is
+ * registered separately in `routes/git.ts` with no prefix.
  *
- * @see https://docs.stacksjs.com/routing
+ * Framework routes (auth, dashboard) load automatically from
+ * storage/framework/defaults/routes. Only application routes belong here.
  */
 
-// Your custom routes go here:
-route.get('/', () => response.text('hello world'))
+route.get('/health', () => response.json({ ok: true }))
 
-// `/coming-soon` is served as an STX view from
-// `storage/framework/defaults/resources/views/coming-soon.stx`. The
-// view auto-resolves through stx-serve, so no route registration is
-// needed here. To activate the holding page across the whole app:
-//
-//   ./buddy coming-soon [--secret=my-magic-token]
-//
-// Launch the site with `./buddy launch`. Maintenance mode (503 page,
-// distinct cookie + state file) is the separate `./buddy down` /
-// `./buddy up` pair.
+// Organizations. Membership changes carry rules that cannot be recovered from
+// if they are got wrong (an organization with no owner), so each one is its own
+// action rather than a general update endpoint.
+route.post('/orgs', 'Actions/Org/CreateOrganizationAction').middleware('auth')
+route.post('/orgs/members', 'Actions/Org/InviteMemberAction').middleware('auth')
+route.put('/orgs/members/role', 'Actions/Org/ChangeMemberRoleAction').middleware('auth')
+route.delete('/orgs/members', 'Actions/Org/RemoveMemberAction').middleware('auth')
+
+// Keys the caller pushes with.
+route.post('/user/keys', 'Actions/Keys/AddSshKeyAction').middleware('auth')
