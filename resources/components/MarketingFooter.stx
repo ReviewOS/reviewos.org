@@ -1,0 +1,51 @@
+<script server>
+const columns = [
+  {
+    heading: 'Project',
+    links: [
+      { label: 'Roadmap', href: '/docs/todo/' },
+      { label: 'Documentation', href: '/docs' },
+      { label: 'Source', href: 'https://github.com/ReviewOS/reviewos.org' },
+      { label: 'Issues', href: 'https://github.com/ReviewOS/reviewos.org/issues' },
+    ],
+  },
+  {
+    heading: 'Built with',
+    links: [
+      { label: 'Stacks', href: 'https://stacksjs.com' },
+      { label: 'Bun', href: 'https://bun.sh' },
+      { label: 'PostgreSQL', href: 'https://www.postgresql.org' },
+      { label: 'git', href: 'https://git-scm.com' },
+    ],
+  },
+]
+</script>
+
+<template>
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <a class="nav-brand" href="/" aria-label="ReviewOS home">
+          <span class="nav-mark" aria-hidden="true"></span>
+          <span class="nav-name">ReviewOS</span>
+        </a>
+        <p class="footer-note">
+          An open source git forge built around code review. MIT licensed, yours to run.
+        </p>
+      </div>
+
+      @foreach (columns as column)
+        <div class="footer-col">
+          <h2 class="footer-heading">{{ column.heading }}</h2>
+          <ul>
+            @foreach (column.links as link)
+              <li><a href="{{ link.href }}">{{ link.label }}</a></li>
+            @endforeach
+          </ul>
+        </div>
+      @endforeach
+    </div>
+
+    <p class="footer-legal">Released under the MIT License.</p>
+  </footer>
+</template>

@@ -1,0 +1,24 @@
+<script server>
+const links = [
+  { label: 'Roadmap', href: '/docs/todo/' },
+  { label: 'Docs', href: '/docs' },
+  { label: 'Source', href: 'https://github.com/ReviewOS/reviewos.org' },
+]
+</script>
+
+<template>
+  <header class="nav">
+    <a class="nav-brand" href="/" aria-label="ReviewOS home">
+      <span class="nav-mark" aria-hidden="true"></span>
+      <span class="nav-name">ReviewOS</span>
+    </a>
+
+    <nav class="nav-links" aria-label="Primary">
+      @foreach (links as link)
+        <a href="{{ link.href }}">{{ link.label }}</a>
+      @endforeach
+    </nav>
+
+    <a class="button button-solid nav-cta" href="/docs">Self-host it</a>
+  </header>
+</template>

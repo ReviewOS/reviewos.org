@@ -6,15 +6,20 @@ decide to run it.
 ## Landing page
 
 - [x] Design and build `resources/views/index.stx` using the `stacks-design-taste` skill
-- [x] Section components under `resources/components/Marketing/`
+- [x] Nav and footer as components in `resources/components/`
 - [x] Light and dark, following the skill's dark mode protocol
 - [x] No em-dashes in any user-visible copy, per the house pre-flight rule
 - [x] stx signals and composables only; no vanilla DOM access in templates
-- [x] Crosswind utilities for styling, Iconify classes for icons, no icon packages and no hand-rolled
-      SVG paths
+- [x] Iconify classes for icons, no icon packages and no hand-rolled SVG paths
+- [x] Styling is a scoped `<style>` block over CSS custom properties rather than Crosswind
+      utilities, because the page carries its own two-theme token set. Revisit if the marketing
+      page and the application need to share a system.
 - [x] Responsive down to a phone, with the hero legible without scrolling
 - [ ] Screenshots of the actual review interface, once phase 4 exists. Placeholders now, replaced
       then; shipping invented screenshots of software that does not exist yet is not acceptable.
+- [x] Contrast measured rather than eyeballed: every text pair passes WCAG AA in both themes
+- [ ] Remove the leftover template assets in `resources/assets/` (2.8 MB of images, a demo
+      stylesheet, and a demo script) once nothing in the build references them
 - [ ] Open Graph and Twitter card metadata, with a generated social image
 - [ ] Lighthouse pass: no layout shift, fonts preloaded, images sized
 
