@@ -1,0 +1,92 @@
+import { defineModel } from '@stacksjs/orm'
+import { schema } from '@stacksjs/validation'
+
+/**
+ * Rules a branch enforces at push and at merge.
+ *
+ * `pattern` is a glob (`main`, `release/*`), so one rule can cover a family of
+ * branches. Both the receive-pack path and the merge action read these, since a
+ * rule enforced only in the interface is not a rule.
+ */
+export default defineModel({
+  name: 'ProtectedBranch',
+  table: 'protected_branches',
+  primaryKey: 'id',
+  autoIncrement: true,
+
+  indexes: [
+    { name: 'protected_branches_repo_index', columns: ['repository_id'] },
+  ],
+
+  traits: {
+    useTimestamps: true,
+    useSeeder: { count: 6 },
+  },
+
+  belongsTo: ['Repository'],
+
+  attributes: {
+    repository_id: {
+      order: 1,
+      fillable: true,
+      validation: { rule: schema.number().required() },
+      factory: faker => faker.number.int({ min: 1, max: 8 }),
+    },
+
+    pattern: {
+      order: 2,
+      fillable: true,
+      validation: { rule: schema.string().required().max(255) },
+      factory: () => 'main',
+    },
+
+    required_approvals: {
+      order: 3,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number() },
+      factory: faker => faker.number.int({ min: 0, max: 2 }),
+    },
+
+    dismiss_stale_reviews: {
+      order: 4,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => true,
+    },
+
+    require_conversation_resolution: {
+      order: 5,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => true,
+    },
+
+    /** JSON array of check names that must report success. */
+    required_checks: {
+      order: 6,
+      fillable: true,
+      type: 'text',
+      validation: { rule: schema.string() },
+      factory: () => '[]',
+    },
+
+    allow_force_push: {
+      order: 7,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    allow_deletion: {
+      order: 8,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+  },
+} as const)
