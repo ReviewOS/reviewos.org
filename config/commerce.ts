@@ -10,7 +10,7 @@ import type { CommerceConfig } from '@stacksjs/types'
  * editing this file by hand.
  */
 export default {
-  enabled: true,
+  enabled: false,
 
   /** Default storefront currency (ISO 4217). */
   currency: 'USD',

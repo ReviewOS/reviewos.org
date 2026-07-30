@@ -10,5 +10,5 @@ import type { MarketingConfig } from '@stacksjs/types'
  * editing this file by hand.
  */
 export default {
-  enabled: true,
+  enabled: false,
 } satisfies MarketingConfig

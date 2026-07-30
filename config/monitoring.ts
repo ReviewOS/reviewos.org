@@ -9,5 +9,5 @@ import type { MonitoringConfig } from '@stacksjs/types'
  * `./buddy monitoring:uninstall` rather than editing this file by hand.
  */
 export default {
-  enabled: true,
+  enabled: false,
 } satisfies MonitoringConfig

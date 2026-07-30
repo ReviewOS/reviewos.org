@@ -10,13 +10,81 @@ skill under `storage/framework/defaults/ai/skills/` that documents it authoritat
 a map: it states the non-negotiable rules and points you to the right skill for the task.** Read the
 relevant `SKILL.md` before doing non-trivial work in that area rather than guessing an API.
 
+
+## About ReviewOS
+
+ReviewOS is an open source, self-hostable git forge: repositories, issues, and pull requests, in the
+territory of GitHub, Codeberg, and Tangled. What it is built around is the review. Most forges treat
+review as a tab on a pull request; here it is the primary object, and the code browser exists to
+serve it.
+
+Keep that in mind when weighing a change. A feature that makes reviewing a hundred-file diff, or a
+stack of dependent pull requests, materially better is worth more than breadth elsewhere.
+
+### Where the work is written down
+
+`docs/todo/` holds the roadmap, one file per phase, as checkbox lists that render as task lists on
+the docs site. **When you finish something, tick its box in the same commit as the work.** An
+unticked box that is actually done is worse than no roadmap: the next agent redoes it. If you find
+yourself doing something the roadmap does not mention, add the line and tick it.
+
+Read `docs/todo/index.md` before starting a phase - it says which phases are in flight and what is
+deliberately deferred.
+
+### Domain vocabulary
+
+Use these names in models, actions, routes, and copy, and do not invent synonyms:
+
+| Term | Means |
+|---|---|
+| repository | A git repository. Never "repo" in user-visible copy or model names. |
+| owner | The user or organization a repository belongs to (polymorphic). |
+| collaborator | A user granted direct access to one repository. |
+| pull request | A proposed change. Abbreviate to PR only in code, never in the interface. |
+| review | One reviewer's verdict on a pull request: approved, changes requested, or a comment. |
+| review thread | A conversation anchored to a file, line, and side of a diff. |
+| stack | Pull requests that depend on each other and merge in order. |
+
+### Git storage
+
+Bare repositories live under `storage/repos/{owner}/{repository}.git` and are driven by the system
+`git` binary through spawned plumbing commands. Do not reimplement git in TypeScript, and do not
+add a git library dependency: the binary is a declared pantry dependency and is the supported path.
+
+Anything that touches a repository on disk goes through `app/Actions/Git/`. Nothing else in the
+codebase should know the storage layout.
+
+### Local environment
+
+Postgres, managed by pantry. `deps.yaml` is generated from `config/deps.ts` and the `DB_CONNECTION`
+in `.env` by `./buddy setup`, which also starts the service and creates the database. Do not
+hand-edit `deps.yaml`; change `config/deps.ts` or `.env` and re-run setup.
+
+The database name, and the `postgres` role, come from `.env`. Pantry's cluster has exactly one role,
+so `DB_USERNAME=postgres` is not a placeholder.
+
+### Working on the framework from here
+
+The `@stacksjs/*` packages in `node_modules` are symlinks into a local Stacks checkout
+(`./buddy link:core --all`). A framework bug is fixed in that checkout, not patched here and not
+patched in `node_modules`:
+
+1. Edit the package under `~/Code/stacks/storage/framework/core/<package>/src`.
+2. Rebuild it: `bun build.ts` in that package directory. An app reads the build output, so an
+   unbuilt change does nothing.
+3. Verify from this app, then commit and push in the Stacks repository too.
+
+The same applies to the other in-house tools when a fix belongs to them rather than here: bunpress
+for the docs site, stx for templating, pantry for the environment, bun-query-builder for SQL
+generation. Fix the tool. A workaround here hides the bug from every other project that has it.
+
 ---
 
 ## Project conventions (mandatory)
 
 ### Linting
 - Use **pickier** for linting, never eslint directly.
-- Lint: `bunx --bun pickier .` . Auto-fix: `bunx --bun pickier . --fix` .
+- Lint: `./buddy lint` . Auto-fix: `./buddy lint:fix` .
 - For unused-variable warnings, prefer `// eslint-disable-next-line` over prefixing with `_`.
 
 ### Frontend
@@ -344,8 +412,8 @@ sentences. This is the single most common AI design tell and it is a pre-flight 
 
 ## Before finishing
 
-- Lint: `bunx --bun pickier .` (fix with `--fix`). Run relevant tests with `buddy test`.
-- Type check what you touched: `bun run typecheck:app` for `app/`, `config/`, `resources/` and
+- Lint: `./buddy lint` (fix with `./buddy lint:fix`). Run relevant tests with `./buddy test`.
+- Type check what you touched: `./buddy typecheck` for `app/`, `config/`, `resources/` and
   `routes/`; `bun run typecheck` for framework internals. Both run on TypeScript 7 (`tsc`, the
   native Go compiler) and finish in a couple of seconds.
 - For UI work, run the pre-flight check in `stacks-design-taste` (Section 14). If a box cannot be

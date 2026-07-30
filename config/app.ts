@@ -9,11 +9,11 @@ import { env } from '@stacksjs/env'
  * you have any questions, feel free to reach out via Discord or GitHub Discussions.
  */
 export default {
-  name: env.APP_NAME ?? 'Stacks',
-  description: 'Stacks is a full-stack framework for building modern web applications.',
+  name: env.APP_NAME ?? 'ReviewOS',
+  description: 'An open source, self-hostable git forge built around code review.',
   env: env.APP_ENV ?? 'local',
-  url: env.APP_URL ?? 'stacks.localhost',
-  redirectUrls: ['stacksjs.com'],
+  url: env.APP_URL ?? 'reviewos.localhost',
+  redirectUrls: ['reviewos.org'],
   debug: env.DEBUG ?? false,
   key: env.APP_KEY,
 

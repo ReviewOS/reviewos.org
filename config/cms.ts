@@ -9,5 +9,5 @@ import type { CmsConfig } from '@stacksjs/types'
  * `./buddy cms:uninstall` rather than editing this file by hand.
  */
 export default {
-  enabled: true,
+  enabled: false,
 } satisfies CmsConfig

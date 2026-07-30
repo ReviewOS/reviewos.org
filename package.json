@@ -1,22 +1,22 @@
 {
-  "name": "stacks",
+  "name": "reviewos",
   "type": "module",
-  "version": "0.70.52",
+  "version": "0.1.0",
   "private": true,
-  "description": "Your project description",
+  "description": "An open source, self-hostable git forge built around code review.",
   "author": "your-name <your-email>",
   "contributors": [
     "Chris Breuer <chris@stacksjs.org>"
   ],
   "license": "MIT",
   "funding": "https://github.com/sponsors/chrisbbreuer",
-  "homepage": "https://github.com/stacksjs/stacks#readme",
+  "homepage": "https://reviewos.org",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/stacksjs/stacks.git"
+    "url": "git+https://github.com/ReviewOS/reviewos.org.git"
   },
   "bugs": {
-    "url": "https://github.com/stacksjs/stacks/issues"
+    "url": "https://github.com/ReviewOS/reviewos.org/issues"
   },
   "scripts": {
     "build:reset": "rm -rf node_modules && pantry install && ./buddy generate:types && ./buddy lint:fix && cd storage/framework && bun run build && cd ../../",
@@ -53,8 +53,7 @@
     "release:major": "./buddy release --bump major",
     "changelog": "./buddy changelog",
     "generate": "./buddy generate",
-    "typecheck": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false",
-    "typecheck:app": "bun x --bun tsc --noEmit -p tsconfig.json --pretty false",
+    "typecheck": "./buddy typecheck",
     "typecheck:clean": "bunx --bun rimraf storage/framework/.cache/typescript",
     "types:check": "bun run typecheck",
     "types:fix": "./buddy types:fix",
@@ -86,7 +85,8 @@
     "protocol:craft": "./buddy protocol:craft",
     "protocol:craft:check": "./buddy protocol:craft:check",
     "bud": "./buddy",
-    "stx": "./buddy"
+    "stx": "./buddy",
+    "typecheck:framework": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false"
   },
   "dependencies": {
     "stacks": "^0.70.229"
