@@ -32,12 +32,20 @@ export interface MergeRules {
   requireThreadsResolved: boolean
   requireLinearHistory: boolean
   allowedStrategies: readonly MergeStrategy[]
+  /** Names of checks that must have reported success on the head commit. */
+  requiredChecks?: readonly string[]
 }
 
 export interface MergeReadiness {
   approvals: number
   blockingReviews: number
   unresolvedThreads: number
+  /** From `requirementsSatisfied` in app/Actions/Checks/status.ts. */
+  checks?: {
+    failing: readonly string[]
+    pending: readonly string[]
+    missing: readonly string[]
+  }
 }
 
 /**
@@ -80,6 +88,22 @@ export function mergeBlockers(
     blockers.push(
       `${readiness.unresolvedThreads} review ${readiness.unresolvedThreads === 1 ? 'thread' : 'threads'} must be resolved`,
     )
+  }
+
+  // A check nobody required never blocks; the caller decides which are
+  // required, and this only reports what that decision produced.
+  const checks = readiness.checks
+  if (checks) {
+    if (checks.failing.length > 0)
+      blockers.push(`Required ${checks.failing.length === 1 ? 'check' : 'checks'} failed: ${checks.failing.join(', ')}`)
+
+    if (checks.pending.length > 0)
+      blockers.push(`Waiting for ${checks.pending.join(', ')}`)
+
+    // Never reported is not the same as still running: one resolves itself and
+    // the other means the workflow is not wired up.
+    if (checks.missing.length > 0)
+      blockers.push(`Waiting for ${checks.missing.join(', ')} to report for the first time`)
   }
 
   if (!rules.allowedStrategies.includes(strategy))

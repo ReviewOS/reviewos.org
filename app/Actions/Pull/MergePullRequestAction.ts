@@ -5,6 +5,7 @@ import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
 import { approvalsSatisfied } from './anchoring'
 import { isMergeStrategy, mergeBlockers, mergeCommitMessage, retargetStack } from './merge'
+import { requirementsSatisfied } from '../Checks/status'
 
 /**
  * Merge a pull request.
@@ -50,11 +51,29 @@ export default new Action({
       .where('pattern', '=', pullRequest.base_branch)
       .executeTakeFirst()
 
+    // `required_checks` is stored as a JSON array of names. A malformed value
+    // must not be read as "no checks required" — that would turn a corrupt
+    // setting into a silently weaker branch rule — so it is treated as a rule
+    // nothing can satisfy until somebody fixes it.
+    let requiredChecks: string[] = []
+    let checksUnreadable = false
+    try {
+      const parsed = JSON.parse(String(protection?.required_checks ?? '[]'))
+      if (Array.isArray(parsed))
+        requiredChecks = parsed.map(String)
+      else
+        checksUnreadable = protection !== undefined
+    }
+    catch {
+      checksUnreadable = protection !== undefined
+    }
+
     const rules = {
       requiredApprovals: Number(protection?.required_approvals ?? 0),
       requireThreadsResolved: Boolean(protection?.require_conversation_resolution),
       requireLinearHistory: Boolean(protection?.require_linear_history),
       allowedStrategies: ['merge', 'squash', 'rebase'] as const,
+      requiredChecks,
     }
 
     const reviews = await db
@@ -92,6 +111,25 @@ export default new Action({
           .executeTakeFirst()
       : null
 
+    const checkRuns = requiredChecks.length === 0
+      ? []
+      : await db
+          .selectFrom('check_runs')
+          .select(['name', 'status', 'conclusion', 'started_at'])
+          .where('repository_id', '=', repository.id)
+          .where('head_sha', '=', pullRequest.head_sha)
+          .execute()
+
+    const checkResult = requirementsSatisfied(
+      checkRuns.map((entry: any) => ({
+        name: String(entry.name),
+        status: entry.status,
+        conclusion: entry.conclusion,
+        startedAt: Date.parse(String(entry.started_at ?? '')) || 0,
+      })),
+      requiredChecks,
+    )
+
     const blockers = mergeBlockers(
       {
         state: pullRequest.state as 'open' | 'closed' | 'merged',
@@ -104,9 +142,13 @@ export default new Action({
         approvals: approval.approvals,
         blockingReviews: approval.blocking,
         unresolvedThreads: Number(unresolved?.count ?? 0),
+        checks: checkResult,
       },
       strategy,
     )
+
+    if (checksUnreadable)
+      blockers.push('The required checks for this branch could not be read')
 
     if (blockers.length > 0)
       return response.json({ error: 'This pull request cannot be merged', blockers }, 409)

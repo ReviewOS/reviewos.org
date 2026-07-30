@@ -111,6 +111,49 @@ describe('mergeBlockers', () => {
     expect(mergeBlockers(stacked, permissive, clean, 'merge')).toEqual([])
   })
 
+  test('a failing required check blocks', () => {
+    const blockers = mergeBlockers(ready, permissive, {
+      ...clean,
+      checks: { failing: ['build'], pending: [], missing: [] },
+    }, 'merge')
+
+    expect(blockers.join()).toContain('build')
+  })
+
+  test('a required check still running blocks', () => {
+    const blockers = mergeBlockers(ready, permissive, {
+      ...clean,
+      checks: { failing: [], pending: ['test'], missing: [] },
+    }, 'merge')
+
+    expect(blockers.join()).toContain('Waiting for test')
+  })
+
+  test('a required check that never reported says so distinctly', () => {
+    // Pending resolves itself; missing means the workflow is not wired up, and
+    // the person waiting needs to know which they are looking at.
+    const blockers = mergeBlockers(ready, permissive, {
+      ...clean,
+      checks: { failing: [], pending: [], missing: ['deploy'] },
+    }, 'merge')
+
+    expect(blockers.join()).toContain('first time')
+  })
+
+  test('satisfied checks block nothing', () => {
+    const blockers = mergeBlockers(ready, permissive, {
+      ...clean,
+      checks: { failing: [], pending: [], missing: [] },
+    }, 'merge')
+
+    expect(blockers).toEqual([])
+  })
+
+  test('a pull request with no check information merges', () => {
+    // Checks are optional; a repository that reports none is not blocked.
+    expect(mergeBlockers(ready, permissive, clean, 'merge')).toEqual([])
+  })
+
   test('every reason is reported at once, not one per attempt', () => {
     const blockers = mergeBlockers(
       { ...ready, draft: true, mergeable: false },

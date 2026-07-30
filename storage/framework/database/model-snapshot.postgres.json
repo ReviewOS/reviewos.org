@@ -1558,6 +1558,165 @@
         ]
       },
       {
+        "table": "check_runs",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id"
+            }
+          },
+          {
+            "name": "head_sha",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "status",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "queued",
+            "enumValues": [
+              "queued",
+              "in_progress",
+              "completed"
+            ],
+            "enumTypeName": "check_runs_status_type"
+          },
+          {
+            "name": "conclusion",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "enumValues": [
+              "success",
+              "failure",
+              "neutral",
+              "cancelled",
+              "timed_out",
+              "action_required",
+              "skipped",
+              "stale"
+            ],
+            "enumTypeName": "check_runs_conclusion_type"
+          },
+          {
+            "name": "details_url",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "summary",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "started_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "completed_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "check_runs_head_index",
+            "columns": [
+              "repository_id",
+              "head_sha"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "check_runs_name_index",
+            "columns": [
+              "repository_id",
+              "name"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "check_runs_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
         "table": "comments",
         "columns": [
           {
@@ -11257,7 +11416,7 @@
       }
     ]
   },
-  "hash": "1538c1796515b46c3fc37546497233842574cff53528bd5c042f0b3faee827ce",
+  "hash": "567d9d4df641af4e3f0e2e0e723c30f908d7b24dcb85a7203270859310ef0b46",
   "dialect": "postgres",
-  "updatedAt": "2026-07-30T22:00:53.137Z"
+  "updatedAt": "2026-07-30T22:06:14.490Z"
 }

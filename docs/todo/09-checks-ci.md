@@ -7,16 +7,16 @@ Running other people's code is a security project, and it comes second, if at al
 
 - [ ] `app/Models/CommitStatus.ts`: `repository_id`, `sha`, `context`, `state` (pending, success,
       failure, error), `target_url`, `description`, `creator_id`
-- [ ] `app/Models/CheckRun.ts`: richer than a status - `name`, `status` (queued, in_progress,
+- [x] `app/Models/CheckRun.ts`: richer than a status - `name`, `status` (queued, in_progress,
       completed), `conclusion` (success, failure, neutral, cancelled, timed_out, action_required),
       `started_at`, `completed_at`, `output_title`, `output_summary`, `annotations`
 - [ ] `app/Actions/Checks/CreateStatusAction.ts`, `UpdateCheckRunAction.ts`
 - [ ] Statuses roll up per commit, and per pull request head
-- [ ] Required checks enforced by protected branches and the merge action
+- [x] Required checks enforced by protected branches and the merge action
 - [ ] Annotations render inline in the diff, on the lines they refer to. An annotation shown only in
       a log is a link nobody clicks.
 - [ ] Checks tab on a pull request
-- [ ] Tests: a required check that never reports blocks the merge, and reporting late unblocks it
+- [x] Tests: a required check that never reports blocks the merge, and reporting late unblocks it
 
 This much makes ReviewOS usable with any existing CI. Ship it and stop, until there is a reason not
 to.
