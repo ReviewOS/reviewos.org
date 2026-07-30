@@ -9,7 +9,7 @@ known to exactly one place.
 
 ## Storage
 
-- [ ] Bare repositories at `storage/repos/{owner}/{repository}.git`
+- [x] Bare repositories at `storage/repos/{owner}/{repository}.git`
 - [ ] One helper that resolves an owner and repository name to an absolute path, rejecting `..`,
       absolute paths, and anything that escapes the root. Every other caller uses it.
 - [ ] `git init --bare` on creation, with `core.hooksPath` pointed at a shared hook directory
@@ -19,17 +19,17 @@ known to exactly one place.
 
 ## Models
 
-- [ ] `app/Models/Repository.ts`: polymorphic `owner` (user or organization), `name`, `slug`,
+- [x] `app/Models/Repository.ts`: polymorphic `owner` (user or organization), `name`, `slug`,
       `description`, `visibility` (public, private, internal), `default_branch`, `is_fork`,
       `parent_id`, `is_archived`, `is_template`, `size_kb`, `stars_count`, `forks_count`,
       `open_issues_count`, `pushed_at`
 - [ ] Unique constraint on `(owner_type, owner_id, name)`
 - [ ] Counter columns are denormalized on purpose; every writer updates them in the same transaction
       as the row it counts
-- [ ] `app/Models/RepoCollaborator.ts`: `repository_id`, `user_id`, `permission`
-- [ ] `app/Models/Star.ts`, `app/Models/Watch.ts` with a `subscription` level (all, participating,
+- [x] `app/Models/RepoCollaborator.ts`: `repository_id`, `user_id`, `permission`
+- [x] `app/Models/Star.ts`, `app/Models/Watch.ts` with a `subscription` level (all, participating,
       ignore)
-- [ ] `app/Models/ProtectedBranch.ts`: pattern, required approvals, dismiss stale reviews, required
+- [x] `app/Models/ProtectedBranch.ts`: pattern, required approvals, dismiss stale reviews, required
       status checks, restrict who can push, allow force push, allow deletion
 - [ ] `app/Models/RepoTopic.ts`
 - [ ] `app/Models/Release.ts` and `app/Models/ReleaseAsset.ts`
@@ -38,12 +38,12 @@ known to exactly one place.
 
 - [ ] `routes/git.ts`, registered in `app/Routes.ts` with an empty prefix so URLs are
       `/{owner}/{repository}.git/...`
-- [ ] `GET /{owner}/{repository}.git/info/refs?service=git-upload-pack` (clone and fetch discovery)
+- [x] `GET /{owner}/{repository}.git/info/refs?service=git-upload-pack` (clone and fetch discovery)
 - [ ] `POST /{owner}/{repository}.git/git-upload-pack`
 - [ ] `POST /{owner}/{repository}.git/git-receive-pack`
 - [ ] Stream request and response bodies. Buffering a packfile is how this breaks on a real
       repository, and it will pass every test written against a small one.
-- [ ] HTTP basic auth: username plus personal access token. Password login over git is not accepted.
+- [x] HTTP basic auth: username plus personal access token. Password login over git is not accepted.
 - [ ] Anonymous read for public repositories; everything else authenticates
 - [ ] Correct content types and the `no-cache` headers git expects
 - [ ] Tests: clone, fetch, push, shallow clone, and a repository large enough that streaming matters
@@ -76,7 +76,7 @@ known to exactly one place.
 
 ## Repository management
 
-- [ ] `app/Actions/Repo/CreateRepositoryAction.ts` - row and bare repository together, cleaning up
+- [x] `app/Actions/Repo/CreateRepositoryAction.ts` - row and bare repository together, cleaning up
       the row if the disk operation fails
 - [ ] `app/Actions/Repo/UpdateSettingsAction.ts`, `DeleteRepositoryAction.ts`,
       `TransferRepositoryAction.ts`, `ArchiveRepositoryAction.ts`

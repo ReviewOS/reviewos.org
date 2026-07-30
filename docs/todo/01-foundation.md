@@ -8,11 +8,11 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
 
 ## Users
 
-- [ ] `app/Models/User.ts` overriding the framework default: `handle` (unique, the URL segment),
+- [x] `app/Models/User.ts` overriding the framework default: `handle` (unique, the URL segment),
       `name`, `email`, `bio`, `avatar_url`, `location`, `website`, `is_admin`
 - [ ] Traits: `useAuth` with passkeys, `useUuid`, `useTimestamps`, `useSearch` on handle and name,
       `useSeeder`
-- [ ] Handle validation: lowercase alphanumeric and hyphens, 1-39 characters, cannot collide with a
+- [x] Handle validation: lowercase alphanumeric and hyphens, 1-39 characters, cannot collide with a
       reserved route segment (`explore`, `settings`, `new`, `login`, `register`, `docs`, `api`)
 - [ ] `app/Actions/Auth/RegisterAction.ts`, `LoginAction.ts`, `LogoutAction.ts`, `MeAction.ts`
 - [ ] `app/Actions/Profile/UpdateProfileAction.ts`, `UpdateAvatarAction.ts`
@@ -23,24 +23,24 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
 
 ## Organizations
 
-- [ ] `app/Models/Organization.ts`: `handle`, `name`, `description`, `avatar_url`, `website`,
+- [x] `app/Models/Organization.ts`: `handle`, `name`, `description`, `avatar_url`, `website`,
       `billing_email`
-- [ ] `app/Models/OrgMember.ts`: `organization_id`, `user_id`, `role` (owner, admin, member),
+- [x] `app/Models/OrgMember.ts`: `organization_id`, `user_id`, `role` (owner, admin, member),
       `invited_by`, `joined_at`
-- [ ] Handles share one namespace with users; one uniqueness check covers both
-- [ ] `app/Actions/Org/CreateOrganizationAction.ts` - creates the organization and its owner
+- [x] Handles share one namespace with users; one uniqueness check covers both
+- [x] `app/Actions/Org/CreateOrganizationAction.ts` - creates the organization and its owner
       membership atomically, cleaning up the organization row if the membership insert fails
 - [ ] `app/Actions/Org/UpdateOrganizationAction.ts`, `DeleteOrganizationAction.ts`
 - [ ] `app/Actions/Org/InviteMemberAction.ts`, `AcceptInviteAction.ts`, `RemoveMemberAction.ts`,
       `ChangeMemberRoleAction.ts`
 - [ ] Transferring a repository between owners, including handle collision handling
 - [ ] `resources/views/settings/organizations.stx`, `[owner]/people.stx`
-- [ ] Tests: the last owner cannot be removed or demoted
+- [x] Tests: the last owner cannot be removed or demoted
 
 ## Teams
 
-- [ ] `app/Models/Team.ts`: `organization_id`, `name`, `slug`, `description`, `parent_team_id`
-- [ ] `app/Models/TeamMember.ts`: `team_id`, `user_id`, `role`
+- [x] `app/Models/Team.ts`: `organization_id`, `name`, `slug`, `description`, `parent_team_id`
+- [x] `app/Models/TeamMember.ts`: `team_id`, `user_id`, `role`
 - [ ] Teams grant repository access as a unit; permission resolution is user, then team, then
       organization role, with the most permissive winning
 - [ ] `app/Actions/Team/` - create, update, delete, add member, remove member
@@ -48,14 +48,14 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
 
 ## Permissions
 
-- [ ] `app/Permissions.ts`: repository permissions (read, triage, write, maintain, admin) and
+- [x] `app/Permissions.ts`: repository permissions (read, triage, write, maintain, admin) and
       organization permissions (members:view, members:manage, repositories:create, settings:manage,
       billing:manage)
 - [ ] `app/Middleware/OrgRole.ts` and `OrgCan.ts`, registered in `app/Middleware.ts` as `orgRole`
       and `orgCan:<permission>`
 - [ ] `app/Gates.ts` entries for the checks that are not simple role comparisons
-- [ ] One resolver every action calls, rather than permission logic inline per action
-- [ ] Tests covering the full matrix. This is the security boundary of the product, so exhaustive
+- [x] One resolver every action calls, rather than permission logic inline per action
+- [x] Tests covering the full matrix. This is the security boundary of the product, so exhaustive
       beats representative.
 
 ## Machine credentials
