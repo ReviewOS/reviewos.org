@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX IF NOT EXISTS "coupons_coupons_code_unique" ON "coupons" ("code");

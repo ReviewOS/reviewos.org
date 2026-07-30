@@ -1,0 +1,15 @@
+# Auto-generated from config/deps.ts and .env sniffing.
+# This file is regenerated on each `buddy setup` run.
+#
+# To learn more, please visit:
+# https://stacksjs.com/docs/dependency-management
+
+dependencies:
+  bun: ^1.3.14
+  git: ^2.47.0
+  postgresql.org: ^17.10
+
+services:
+  enabled: true
+  autoStart:
+    - postgres

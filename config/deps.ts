@@ -14,10 +14,13 @@ export const config: PantryConfig = {
    * These are binary tools and system packages required for development
    */
   dependencies: {
-    bun: '^1.3.0',
+    bun: '^1.3.14',
     git: '^2.47.0',
+    // The database engine is swapped for the one DB_CONNECTION names when
+    // `buddy setup` regenerates deps.yaml, so only one ever gets installed.
     sqlite: '^3.47.2',
-    craft: '^0.0.19',
+    // craft is not declared here: it ships inside @stacksjs/stx (its `./craft`
+    // export), so pantry installing it again is a second copy nothing uses.
     // Uncomment as needed:
     // 'redis.io': '^7.4.1',
     // 'mailpit.axllent.org': '^1.21.8',
@@ -44,9 +47,11 @@ export const config: PantryConfig = {
      * Automatically provisions and starts the database
      */
     database: {
-      connection: "sqlite",
-      name: "stacks",
-      username: "root",
+      connection: "postgres",
+      name: "reviewos",
+      // Pantry's cluster is initialised with trust auth and a single `postgres`
+      // role, and it skips database creation entirely on an empty username.
+      username: "postgres",
       password: "",
       authMethod: "trust",
     },

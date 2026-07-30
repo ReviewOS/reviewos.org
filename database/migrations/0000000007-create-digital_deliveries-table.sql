@@ -1,12 +1,14 @@
 CREATE TABLE IF NOT EXISTS "digital_deliveries" (
-  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-  "name" TEXT,
-  "description" TEXT,
-  "download_limit" REAL,
-  "expiry_days" REAL,
-  "requires_login" INTEGER default 0,
-  "automatic_delivery" INTEGER default 0,
-  "status" TEXT CHECK ("status" IN ('active', 'inactive')) default 'active',
-  "created_at" TEXT not null default CURRENT_TIMESTAMP,
-  "updated_at" TEXT
+  "id" BIGSERIAL PRIMARY KEY,
+  "name" varchar(255) not null,
+  "description" varchar(255) not null,
+  "download_limit" integer,
+  "expiry_days" integer not null,
+  "requires_login" boolean default false,
+  "automatic_delivery" boolean default false,
+  "status" "digital_deliveries_status_type" default 'active',
+  "created_at" timestamp not null default CURRENT_TIMESTAMP,
+  "updated_at" timestamp,
+  "uuid" varchar(255)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS "digital_deliveries_digital_deliveries_uuid_unique" ON "digital_deliveries" ("uuid");
