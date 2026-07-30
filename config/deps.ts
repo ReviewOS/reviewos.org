@@ -14,7 +14,11 @@ export const config: PantryConfig = {
    * These are binary tools and system packages required for development
    */
   dependencies: {
-    bun: '^1.3.14',
+    // 1.3.14 is what pantry installs and what stx requires, but ts-pantry's
+    // generated version union is a snapshot that currently stops at 1.3.11, so
+    // pinning the exact floor does not typecheck. The caret range still resolves
+    // to 1.3.14. Raise this once a ts-pantry release includes the newer versions.
+    bun: '^1.3.11',
     git: '^2.47.0',
     // The database engine is swapped for the one DB_CONNECTION names when
     // `buddy setup` regenerates deps.yaml, so only one ever gets installed.

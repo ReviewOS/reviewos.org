@@ -63,6 +63,10 @@ promise, so the operational story is a feature and not an afterthought.
       `directory_change` concept that is never fired) and then shell detection plus hook generation
       in pantry (`packages/zig/src/shell/integration.zig`). Until then `./buddy setup` does the same
       work explicitly.
+- [ ] Raise the bun floor in `config/deps.ts` back to `^1.3.14` once a ts-pantry release carries
+      the newer versions. Its generated version union is a snapshot that stopped at 1.3.11, so the
+      exact floor does not typecheck even though pantry installs 1.3.14. The fix is committed
+      upstream and needs a release.
 - [ ] A `main` tag in the bun-query-builder repository shadows the `main` branch, so `git push origin
       main` is ambiguous there. Delete the tag.
 - [ ] Seed data that produces a believable instance: several users, organizations, repositories with
