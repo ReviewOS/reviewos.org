@@ -21,7 +21,7 @@ a different problem and is scoped separately below.
 - [ ] `app/Actions/Search/SearchAction.ts` with scopes: repositories, issues, pull requests, users
 - [ ] Qualifiers people already know: `is:open`, `is:merged`, `author:`, `assignee:`, `label:`,
       `milestone:`, `repo:`, `org:`, `language:`, `created:`, `updated:`
-- [ ] A real parser for the query syntax, not a regex, so quoting and negation behave
+- [x] A real parser for the query syntax, not a regex, so quoting and negation behave
 - [ ] Result ranking that puts recently active things first
 - [ ] `resources/views/search.stx` with tabs per scope
 
