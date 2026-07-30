@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { canInOrganization } from '../../Permissions'
+import { DEFAULT_LABELS } from '../Issue/labels'
 import { currentUser, organizationRoleOf, resolveOwner } from '../Identity/lookup'
 import { initBare } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
@@ -88,6 +89,19 @@ export default new Action({
       await db.deleteFrom('repositories').where('id', '=', repositoryId).execute()
       throw error
     }
+
+    // The starting vocabulary for triage. Without it the first person to file
+    // an issue has to invent a taxonomy before they can label anything.
+    await db
+      .insertInto('repository_labels')
+      .values(DEFAULT_LABELS.map(label => ({
+        repository_id: repositoryId,
+        name: label.name,
+        color: label.color,
+        description: label.description,
+        is_default: true,
+      })))
+      .execute()
 
     return response.json({
       id: repositoryId,

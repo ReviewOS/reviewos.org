@@ -35,7 +35,7 @@ export default defineModel({
       validation: {
         rule: schema.number().required(),
       },
-      factory: faker => faker.number.int({ min: 1, max: 4 }),
+      factory: () => null,
     },
 
     name: {

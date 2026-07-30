@@ -29,7 +29,7 @@ export default defineModel({
       order: 1,
       fillable: true,
       validation: { rule: schema.number().required() },
-      factory: faker => faker.number.int({ min: 1, max: 10 }),
+      factory: () => null,
     },
 
     key_id: {

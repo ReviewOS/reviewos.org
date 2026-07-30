@@ -8,21 +8,21 @@ Matching GitHub is the floor, not the goal.
 
 ## Models
 
-- [ ] `app/Models/PullRequest.ts`: `repository_id`, `number` (shares the issue sequence),
+- [x] `app/Models/PullRequest.ts`: `repository_id`, `number` (shares the issue sequence),
       `title`, `body`, `author_id`, `state` (open, closed, merged), `head_repository_id`,
       `head_branch`, `head_sha`, `base_branch`, `base_sha`, `merge_commit_sha`, `merged_at`,
       `merged_by_id`, `draft`, `mergeable_state`, `stack_parent_id`, `additions`, `deletions`,
       `changed_files`
-- [ ] `app/Models/PullRequestReview.ts`: `pull_request_id`, `reviewer_id`, `state` (pending,
+- [x] `app/Models/PullRequestReview.ts`: `pull_request_id`, `reviewer_id`, `state` (pending,
       approved, changes_requested, commented, dismissed), `body`, `commit_sha`, `submitted_at`.
       The `commit_sha` is what makes a review dismissible when new commits land.
-- [ ] `app/Models/ReviewThread.ts`: `pull_request_id`, `path`, `line`, `start_line`, `side`
+- [x] `app/Models/ReviewThread.ts`: `pull_request_id`, `path`, `line`, `start_line`, `side`
       (left, right), `original_line`, `original_commit_sha`, `resolved`, `resolved_by_id`,
       `outdated`
-- [ ] `app/Models/ReviewComment.ts`: `review_thread_id`, `review_id`, `author_id`, `body`
-- [ ] `app/Models/PullRequestReviewer.ts`: requested reviewers, users and teams, with the request
+- [x] `app/Models/ReviewComment.ts`: `review_thread_id`, `review_id`, `author_id`, `body`
+- [x] `app/Models/PullRequestReviewer.ts`: requested reviewers, users and teams, with the request
       time and who requested
-- [ ] Seeders that produce a realistic pull request: several commits, a few threads, one outdated
+- [x] Seeders that produce a realistic pull request: several commits, a few threads, one outdated
 
 ## Diffs
 
@@ -30,15 +30,15 @@ The engine everything else here depends on. Get it right before building UI on t
 
 - [ ] Compute diffs with `git diff` against the merge base, not the base tip. A diff against the tip
       shows changes the author did not make, which is the single most common way review UIs mislead.
-- [ ] Parse unified diff output into structured hunks: file, old and new ranges, line origins
-- [ ] Rename and copy detection
-- [ ] Binary files, mode changes, symlinks, and submodule bumps each render as themselves rather
+- [x] Parse unified diff output into structured hunks: file, old and new ranges, line origins
+- [x] Rename and copy detection
+- [x] Binary files, mode changes, symlinks, and submodule bumps each render as themselves rather
       than as noise
 - [ ] Large-diff strategy: collapse by default past a threshold, load file diffs on demand, and
       never send the whole thing to the browser at once
 - [ ] Word-level highlighting inside changed lines
-- [ ] Whitespace-only changes hidden behind a toggle
-- [ ] Generated files (lockfiles, `.gitattributes` `linguist-generated`) collapsed by default
+- [x] Whitespace-only changes hidden behind a toggle
+- [x] Generated files (lockfiles, `.gitattributes` `linguist-generated`) collapsed by default
 - [ ] Tests against real-world shapes: a moved file, a 5,000 line diff, a file with no trailing
       newline, mixed line endings
 
@@ -46,26 +46,26 @@ The engine everything else here depends on. Get it right before building UI on t
 
 The part that is genuinely hard, and the part reviewers notice when it is wrong.
 
-- [ ] A thread anchors to a path, a line, a side, and the commit it was written against
-- [ ] When new commits arrive, re-anchor threads by tracking the line through the intervening
+- [x] A thread anchors to a path, a line, a side, and the commit it was written against
+- [x] When new commits arrive, re-anchor threads by tracking the line through the intervening
       diffs. When the line is gone, mark the thread outdated and keep it readable rather than
       dropping it.
-- [ ] A thread on a line that a later commit restores becomes current again
-- [ ] Threads survive a force-push, which is the common case for a rebased branch
+- [x] A thread on a line that a later commit restores becomes current again
+- [x] Threads survive a force-push, which is the common case for a rebased branch
 - [ ] Tests: rebase, amend, force-push, file rename, and the line moving within a file
 
 ## Reviews
 
-- [ ] `app/Actions/Pull/OpenPullRequestAction.ts` - from a compare view or after a push, including
+- [x] `app/Actions/Pull/OpenPullRequestAction.ts` - from a compare view or after a push, including
       across forks
 - [ ] `UpdatePullRequestAction.ts`, `ClosePullRequestAction.ts`, `ReopenPullRequestAction.ts`
 - [ ] `RequestReviewAction.ts` for users and teams
-- [ ] `StartReviewAction.ts`, `AddReviewCommentAction.ts`, `SubmitReviewAction.ts` - comments are
+- [x] `StartReviewAction.ts`, `AddReviewCommentAction.ts`, `SubmitReviewAction.ts` - comments are
       pending and private until the review is submitted, so a reviewer can work through a diff
       without sending a dozen notifications
-- [ ] `ResolveThreadAction.ts`, `UnresolveThreadAction.ts`
+- [x] `ResolveThreadAction.ts`, `UnresolveThreadAction.ts`
 - [ ] `DismissReviewAction.ts` with a required reason
-- [ ] Suggested changes: a suggestion block in a comment that the author can commit in one click
+- [x] Suggested changes: a suggestion block in a comment that the author can commit in one click
 - [ ] Review a single file at a time, with per-file viewed state that persists across visits
 - [ ] `CODEOWNERS` parsing, and automatic review requests from it
 

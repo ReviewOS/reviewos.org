@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS "protected_branches" (
   "required_checks" text,
   "allow_force_push" boolean default false,
   "allow_deletion" boolean default false,
+  "require_linear_history" boolean default false,
   "created_at" timestamp not null default CURRENT_TIMESTAMP,
   "updated_at" timestamp
 );

@@ -6,20 +6,20 @@ or a pull request.
 
 ## Models
 
-- [ ] `app/Models/Issue.ts`: `repository_id`, `number`, `title`, `body`, `author_id`, `state`
+- [x] `app/Models/Issue.ts`: `repository_id`, `number`, `title`, `body`, `author_id`, `state`
       (open, closed), `state_reason` (completed, not_planned, duplicate), `closed_at`, `closed_by_id`,
       `milestone_id`, `locked`, `comments_count`
-- [ ] `number` is per repository and gaps are not acceptable, so allocate it in the same transaction
+- [x] `number` is per repository and gaps are not acceptable, so allocate it in the same transaction
       as the insert, from a counter on the repository row. Issues and pull requests share the
       sequence, the way every forge does it, so `#12` is unambiguous.
-- [ ] `app/Models/IssueComment.ts`: polymorphic `commentable`, `author_id`, `body`, `edited_at`,
+- [x] `app/Models/IssueComment.ts`: polymorphic `commentable`, `author_id`, `body`, `edited_at`,
       `edited_by_id`
-- [ ] `app/Models/Label.ts`: `repository_id`, `name`, `color`, `description`, unique per repository
-- [ ] `app/Models/IssueLabel.ts` and `app/Models/IssueAssignee.ts` join models
-- [ ] `app/Models/Milestone.ts`: `repository_id`, `title`, `description`, `due_on`, `state`,
+- [x] `app/Models/Label.ts`: `repository_id`, `name`, `color`, `description`, unique per repository
+- [x] `app/Models/IssueLabel.ts` and `app/Models/IssueAssignee.ts` join models
+- [x] `app/Models/Milestone.ts`: `repository_id`, `title`, `description`, `due_on`, `state`,
       `open_issues_count`, `closed_issues_count`
-- [ ] Default label set created with each repository
-- [ ] All of it seeded with realistic factories
+- [x] Default label set created with each repository
+- [x] All of it seeded with realistic factories
 
 ## Actions
 
@@ -38,7 +38,7 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
 
 - [ ] Server-side rendering, and a strict sanitizer. User markdown is hostile input; this is the
       most likely place for a stored XSS in the entire product.
-- [ ] Autolink references: `#123` to an issue or pull request, `@handle` to a user, `owner/repo#123`
+- [x] Autolink references: `#123` to an issue or pull request, `@handle` to a user, `owner/repo#123`
       across repositories, and bare commit SHAs
 - [ ] Closing keywords (`fixes #12`, `closes #12`, `resolves #12`) parsed on push and on merge
 - [ ] Task lists that can be ticked directly from the rendered issue

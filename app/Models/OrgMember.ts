@@ -32,7 +32,7 @@ export default defineModel({
       validation: {
         rule: schema.number().required(),
       },
-      factory: faker => faker.number.int({ min: 1, max: 4 }),
+      factory: () => null,
     },
 
     user_id: {
@@ -41,7 +41,7 @@ export default defineModel({
       validation: {
         rule: schema.number().required(),
       },
-      factory: faker => faker.number.int({ min: 1, max: 10 }),
+      factory: () => null,
     },
 
     role: {
@@ -60,7 +60,7 @@ export default defineModel({
       validation: {
         rule: schema.number(),
       },
-      factory: faker => faker.number.int({ min: 1, max: 10 }),
+      factory: () => null,
     },
 
     joined_at: {

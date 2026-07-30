@@ -30,7 +30,7 @@ export default defineModel({
       order: 1,
       fillable: true,
       validation: { rule: schema.number().required() },
-      factory: faker => faker.number.int({ min: 1, max: 8 }),
+      factory: () => null,
     },
 
     pattern: {
@@ -83,6 +83,20 @@ export default defineModel({
 
     allow_deletion: {
       order: 8,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    /**
+     * Forbid merge commits on this branch.
+     *
+     * Enforced at merge time by refusing the merge strategy, and on push by
+     * the receive hook: a branch is only linear if both doors are shut.
+     */
+    require_linear_history: {
+      order: 9,
       fillable: true,
       default: false,
       validation: { rule: schema.boolean() },

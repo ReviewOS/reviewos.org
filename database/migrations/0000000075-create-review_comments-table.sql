@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS "review_comments" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "review_thread_id" integer not null REFERENCES "review_threads"("id"),
+  "review_id" integer REFERENCES "pull_request_reviews"("id"),
+  "author_id" integer not null REFERENCES "users"("id"),
+  "body" text not null,
+  "suggestion" text,
+  "edited_at" varchar(255),
+  "created_at" timestamp not null default CURRENT_TIMESTAMP,
+  "updated_at" timestamp,
+  "uuid" varchar(255)
+);
+CREATE INDEX IF NOT EXISTS "review_comments_review_comments_thread_index" ON "review_comments" ("review_thread_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "review_comments_review_comments_uuid_unique" ON "review_comments" ("uuid");

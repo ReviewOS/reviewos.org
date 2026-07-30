@@ -12,10 +12,12 @@ import { repositoryPath } from './storage'
 
 export interface GitRepositoryRow {
   id: number
+  name: string
   owner_type: 'user' | 'organization'
   owner_id: number
   visibility: RepositoryVisibility
   is_archived: boolean
+  default_branch: string
   disk_path: string
 }
 
@@ -36,7 +38,7 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
 
   const repository = await db
     .selectFrom('repositories')
-    .select(['id', 'owner_type', 'owner_id', 'visibility', 'is_archived', 'disk_path'])
+    .select(['id', 'name', 'owner_type', 'owner_id', 'visibility', 'is_archived', 'default_branch', 'disk_path'])
     .where('owner_type', '=', ownerType)
     .where('owner_id', '=', ownerId)
     .where('name', '=', name)
@@ -47,10 +49,12 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
 
   return {
     id: Number(repository.id),
+    name: String(repository.name),
     owner_type: repository.owner_type as 'user' | 'organization',
     owner_id: Number(repository.owner_id),
     visibility: repository.visibility as RepositoryVisibility,
     is_archived: Boolean(repository.is_archived),
+    default_branch: String(repository.default_branch),
     disk_path: String(repository.disk_path),
   }
 }
@@ -91,13 +95,16 @@ export async function userFromBasicAuth(header: string | null): Promise<number |
   return row ? Number(row.user_id) : null
 }
 
-/** The permissions a user holds on a repository, from every source. */
-export async function permissionOn(repository: GitRepositoryRow, userId: number | null): Promise<{
+/** Every grant a user holds on a repository, before they are combined. */
+export interface RepositoryGrants {
   collaboratorPermission: RepositoryPermission | null
   organizationRole: 'owner' | 'admin' | 'member' | null
   teamPermissions: RepositoryPermission[]
   isSiteAdmin: boolean
-}> {
+}
+
+/** The permissions a user holds on a repository, from every source. */
+export async function permissionOn(repository: GitRepositoryRow, userId: number | null): Promise<RepositoryGrants> {
   if (userId === null)
     return { collaboratorPermission: null, organizationRole: null, teamPermissions: [], isSiteAdmin: false }
 
