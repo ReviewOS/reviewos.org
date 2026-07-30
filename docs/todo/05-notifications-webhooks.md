@@ -20,10 +20,10 @@ them without also watching a chat channel, and that nobody has to mute the produ
 
 ## Notifications
 
-- [ ] `app/Models/NotificationSubscription.ts`: polymorphic subject, `user_id`, `reason`
+- [x] `app/Models/NotificationSubscription.ts`: polymorphic subject, `user_id`, `reason`
       (author, assigned, review_requested, mentioned, watching, participating, team_mention),
       `unsubscribed`
-- [ ] Subscription is implicit: opening, commenting on, or being assigned to something subscribes
+- [x] Subscription is implicit: opening, commenting on, or being assigned to something subscribes
       you, and the reason is recorded so the notification can say why you got it
 - [ ] `app/Notifications/ReviewRequested.ts`, `ReviewSubmitted.ts`, `PrMerged.ts`, `IssueOpened.ts`,
       `IssueCommented.ts`, `Mentioned.ts`, `NewRelease.ts`, `Welcome.ts`
@@ -31,30 +31,30 @@ them without also watching a chat channel, and that nobody has to mute the produ
 - [ ] In-app inbox: unread state, mark read, mark all read, filter by reason
 - [ ] Per-user delivery preferences by event type and channel, with a real digest option rather than
       only all-or-nothing
-- [ ] Batching: ten comments in five minutes is one email, not ten
+- [x] Batching: ten comments in five minutes is one email, not ten
 - [ ] `app/Jobs/SendNotificationJob.ts` on the `notifications` queue, with retries and backoff
 - [ ] Unsubscribe links that work without logging in, and are scoped to one thread
-- [ ] Do not notify someone about their own action
+- [x] Do not notify someone about their own action
 - [ ] `resources/views/notifications.stx`, `settings/notifications.stx`
 
 ## Webhooks
 
-- [ ] `app/Models/Webhook.ts`: owner (repository or organization), `url`, `secret`, `events`,
+- [x] `app/Models/Webhook.ts`: owner (repository or organization), `url`, `secret`, `events`,
       `content_type`, `active`, `insecure_ssl`
-- [ ] `app/Models/WebhookDelivery.ts`: `webhook_id`, `event`, `payload`, `request_headers`,
+- [x] `app/Models/WebhookDelivery.ts`: `webhook_id`, `event`, `payload`, `request_headers`,
       `response_status`, `response_body`, `duration_ms`, `delivered_at`, `attempt`
 - [ ] Payload shapes documented and stable. People build against these, so breaking one is a real
       cost.
-- [ ] HMAC SHA-256 signature header, computed over the exact bytes sent
+- [x] HMAC SHA-256 signature header, computed over the exact bytes sent
 - [ ] `app/Jobs/DeliverWebhookJob.ts` on the `webhooks` queue: timeout, retries with exponential
       backoff, and automatic deactivation after sustained failure
 - [ ] Delivery log in the interface, with redelivery
 - [ ] Ping event on creation so a user can verify the endpoint immediately
-- [ ] **SSRF protection.** A webhook URL is attacker-controlled and the request originates from the
+- [x] **SSRF protection.** A webhook URL is attacker-controlled and the request originates from the
       server: block loopback, link-local, and private ranges, resolve DNS before connecting and
       validate the resolved address, and re-validate on redirects. This is the highest-risk feature
       in this phase.
-- [ ] Tests: signature verification against a known vector, retry behavior, and the SSRF blocks
+- [x] Tests: signature verification against a known vector, retry behavior, and the SSRF blocks
 
 ## Realtime
 
