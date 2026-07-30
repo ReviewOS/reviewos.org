@@ -56,13 +56,21 @@ promise, so the operational story is a feature and not an afterthought.
 
 ## Developer environment
 
-- [ ] Pantry auto-activation under the `den` shell. Pantry recognizes zsh, bash, fish, and nushell
-      and generates a hook for each; den has no `chpwd` or pre-prompt hook to attach one to, so
-      entering a project directory does not install dependencies or start services. Needs a
-      pre-prompt hook in den (`~/Code/Tools/den`, the hook subsystem in `src/hooks/` already has a
-      `directory_change` concept that is never fired) and then shell detection plus hook generation
-      in pantry (`packages/zig/src/shell/integration.zig`). Until then `./buddy setup` does the same
-      work explicitly.
+- [x] Pantry auto-activation under the `den` shell. den now runs `chpwd`, `chpwd_functions`,
+      `precmd`, `precmd_functions` and `PROMPT_COMMAND`, exports `$DEN_VERSION` so tools can detect
+      it, and pantry generates a den-specific hook. Entering a project puts its dependencies on
+      PATH; leaving it takes them off.
+- [ ] Speed up den's per-command dispatch. A `[` test costs about 5ms and a function call about
+      6ms, against microseconds in bash, which is why the den hook has to avoid shell-side work and
+      let the binary walk the tree. A `cd` currently costs ~14ms inside a project and ~22ms outside,
+      almost all of it that floor rather than the hook. `:` and `true` cost ~0.8ms, so the cost is
+      specific to some commands rather than dispatch as a whole, and is worth profiling.
+- [ ] den mis-parses a long quoted assignment when the file is `source`d rather than `eval`ed: the
+      hook's `__PANTRY_DEP_FILES="a b c ..."` line runs its first word as a command. The generated
+      hook is loaded with `eval`, which is unaffected, so this is not urgent.
+- [ ] den crashes on a multi-line `if` or `case` inside a function body in a sourced file. The
+      one-line forms work, which is what the pantry hook is written to, but the crash should not
+      happen.
 - [ ] Raise the bun floor in `config/deps.ts` back to `^1.3.14` once a ts-pantry release carries
       the newer versions. Its generated version union is a snapshot that stopped at 1.3.11, so the
       exact floor does not typecheck even though pantry installs 1.3.14. The fix is committed
