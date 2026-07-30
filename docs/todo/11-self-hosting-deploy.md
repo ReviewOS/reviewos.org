@@ -65,9 +65,12 @@ promise, so the operational story is a feature and not an afterthought.
       let the binary walk the tree. A `cd` currently costs ~14ms inside a project and ~22ms outside,
       almost all of it that floor rather than the hook. `:` and `true` cost ~0.8ms, so the cost is
       specific to some commands rather than dispatch as a whole, and is worth profiling.
-- [ ] den mis-parses a long quoted assignment when the file is `source`d rather than `eval`ed: the
-      hook's `__PANTRY_DEP_FILES="a b c ..."` line runs its first word as a command. The generated
-      hook is loaded with `eval`, which is unaffected, so this is not urgent.
+- [ ] den's `eval` parses its argument as a command chain, which has no representation for a
+      function definition, so `eval "$(tool init)"` defines nothing and reports nothing. That is how
+      almost every shell integration is loaded. The pantry hook is sourced from a file instead,
+      which works, but `eval` should carry function definitions.
+- [ ] den mis-parses a long quoted assignment when the file is `source`d: the first word of the
+      value runs as a command. The current hook has no such line, so nothing is broken today.
 - [ ] den crashes on a multi-line `if` or `case` inside a function body in a sourced file. The
       one-line forms work, which is what the pantry hook is written to, but the crash should not
       happen.
