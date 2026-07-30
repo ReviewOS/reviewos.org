@@ -1,0 +1,1499 @@
+<script server>
+const appName = 'Stacks'
+const siteMode = 'coming-soon'
+const comingSoonBypassEnabled = true
+const comingSoonBypassToken = 'trailhead'
+
+const siteUrl = 'https://stacksjs.com'
+const siteDescription = 'Stacks is a full-stack TypeScript framework for web apps, CMS content, docs, APIs, queues, mail, tests, and cloud deployment.'
+
+// Structured data. Built as a string here so the @-prefixed schema.org keys
+// (@context, @type) never reach the stx directive scanner; emitted raw in the
+// head with {!! jsonLd !!}.
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${siteUrl}/#org`,
+      name: appName,
+      url: `${siteUrl}/`,
+      logo: `${siteUrl}/images/logos/logo.png`,
+      sameAs: ['https://github.com/stacksjs/stacks'],
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${siteUrl}/#website`,
+      name: appName,
+      url: `${siteUrl}/`,
+      publisher: { '@id': `${siteUrl}/#org` },
+    },
+    {
+      '@type': 'SoftwareApplication',
+      name: appName,
+      applicationCategory: 'DeveloperApplication',
+      operatingSystem: 'Cross-platform',
+      description: siteDescription,
+      url: `${siteUrl}/`,
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    },
+  ],
+})
+
+const navLinks = [
+  { label: 'Features', url: '#platform' },
+  { label: 'CMS', url: '#cms' },
+  { label: 'Cloud', url: '#deploy' },
+  { label: 'Docs', url: '/docs', native: true },
+  { label: 'Blog', url: '/blog', native: true },
+]
+
+// Platform bento. Eight cells, three visual treatments (image / tint /
+// gradient). Consolidated from the old twelve-item spec grid.
+const platformCells = [
+  {
+    title: 'Application core',
+    text: 'Routing, STX views, models, actions, middleware, and validation in one typed application.',
+    image: '/assets/images/marketing-park-trail.svg',
+    span: 'wide',
+  },
+  {
+    title: 'Queues and mail',
+    text: 'Jobs, batches, schedules, events, notifications, and worker-ready background workflows.',
+    span: 'tall',
+  },
+  {
+    title: 'CMS',
+    text: 'Posts, pages, taxonomy, media, a real dashboard, and generated content APIs.',
+    tone: 'tint',
+  },
+  {
+    title: 'Auth',
+    text: 'Sessions, tokens, passkeys, policies, guards, and rate limiting.',
+  },
+  {
+    title: 'Storage',
+    text: 'Local, S3, signed URLs, uploads, visibility, and file utilities.',
+  },
+  {
+    title: 'Testing',
+    text: 'Unit, feature, HTTP, browser, and database tests with factories and helpers.',
+  },
+  {
+    title: 'Realtime and search',
+    text: 'Channels, broadcasts, websocket drivers, and app-level search workflows.',
+  },
+  {
+    title: 'Cloud deploys',
+    text: 'AWS, DNS, CDN, TLS, and mail, described in TypeScript config and shipped by Buddy.',
+    tone: 'gradient',
+  },
+]
+
+const workflowSteps = [
+  { title: 'Scaffold', text: 'buddy make:model Post generates the model, migration, factory, and REST actions in one pass.' },
+  { title: 'Build', text: 'buddy dev serves the app, docs, blog, and dashboard locally with hot reload and typed routes.' },
+  { title: 'Ship', text: 'buddy deploy builds every surface and publishes the AWS infrastructure from the same config.' },
+]
+
+const cmsResources = [
+  { title: 'Posts', text: 'Markdown body, excerpt, author, tags, and a generated API.' },
+  { title: 'Pages', text: 'Structured content with stable slugs and dashboard editing.' },
+  { title: 'Taxonomy', text: 'Tags, categories, and editorial filters that stay searchable.' },
+  { title: 'Media', text: 'First-party storage hooks for images, attachments, and assets.' },
+  { title: 'Custom resources', text: 'Model-backed resources with generated endpoints and screens.' },
+  { title: 'Docs and blog', text: 'BunPress docs at /docs, Markdown blog with RSS at /blog.' },
+]
+
+const deployRoutes = [
+  { label: 'Marketing', url: 'stacksjs.com' },
+  { label: 'Docs', url: 'stacksjs.com/docs' },
+  { label: 'Blog', url: 'stacksjs.com/blog' },
+  { label: 'API', url: 'stacksjs.com/api' },
+  { label: 'Dashboard', url: 'stacksjs.com/dashboard' },
+]
+</script>
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="{{ siteDescription }}">
+    <title>Stacks - Full-stack TypeScript framework</title>
+
+    <link rel="canonical" href="https://stacksjs.com/">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#070c17" media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="/images/logos/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/images/logos/logo.png">
+
+    <!-- Open Graph. Defining og:title here makes stx skip its default SEO
+        injection, which would otherwise stamp placeholder "stx Project" tags. -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Stacks">
+    <meta property="og:url" content="https://stacksjs.com/">
+    <meta property="og:title" content="Stacks - Full-stack TypeScript framework">
+    <meta property="og:description" content="{{ siteDescription }}">
+    <meta property="og:image" content="https://stacksjs.com/images/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="600">
+    <meta property="og:image:alt" content="Stacks - develop modern apps, clouds, and framework-agnostic libraries, faster.">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@stacksjs">
+    <meta name="twitter:title" content="Stacks - Full-stack TypeScript framework">
+    <meta name="twitter:description" content="{{ siteDescription }}">
+    <meta name="twitter:image" content="https://stacksjs.com/images/og-image.png">
+
+    <!-- Brand type: Geist + Geist Mono. Preconnect so the hero paints fast. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap">
+
+    <script type="application/ld+json">{!! jsonLd !!}</script>
+    <script>
+      /*
+       * Theme, applied before first paint so the page never flashes the wrong
+       * one. Shares its storage key with the blog (see blogChrome() in
+       * core/actions/src/blog.ts), so a choice made here follows the reader to
+       * /blog and back.
+       *
+       * Precedence: ?theme= override, then a saved choice, then the operating
+       * system preference. Only a visitor who has never chosen gets the OS
+       * answer, which is what `prefers-color-scheme` is for.
+       */
+      ;(function () {
+        var modes = ['colored', 'light', 'dark']
+        var ok = function (t) { return modes.indexOf(t) !== -1 }
+
+        var queryTheme = ''
+        try { queryTheme = new URLSearchParams(location.search).get('theme') || '' }
+        catch {}
+
+        var savedTheme = ''
+        try { savedTheme = localStorage.getItem('stacks-theme') || localStorage.getItem('stacks-blog-theme') || '' }
+        catch {}
+
+        var prefersDark = false
+        try { prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches }
+        catch {}
+
+        var theme = ok(queryTheme) ? queryTheme : (ok(savedTheme) ? savedTheme : (prefersDark ? 'dark' : 'light'))
+        document.documentElement.setAttribute('data-theme', theme)
+
+        window.stxTheme = function (next) {
+          if (!ok(next)) return
+          try { localStorage.setItem('stacks-theme', next) }
+          catch {}
+          document.documentElement.setAttribute('data-theme', next)
+          var group = document.querySelector('.theme-toggle')
+          if (group) {
+            group.querySelectorAll('button').forEach(function (b) {
+              b.setAttribute('aria-pressed', String(b.getAttribute('data-t') === next))
+            })
+          }
+        }
+      })()
+    </script>
+    <style>
+      /*
+       * Stacks marketing design system, 2026 refresh.
+       *
+       * Direction: minimal modern developer-framework page with a nature
+       * motif. ONE accent (Stacks blue) across every theme and section;
+       * the nature reads come from the line-art (topography + park ridge)
+       * and the tinted surfaces, never from a second hue.
+       *
+       * Three themes, switched by `data-theme` on <html>, matching the blog
+       * (content/blog/.theme.css) so / and /blog stay one product:
+       *
+       *   colored - glacier: misty blue paper, the nature-forward default.
+       *   light   - clean paper-white with the same blue accent.
+       *   dark    - midnight lake: deep navy, brighter blue accent.
+       *
+       * Shape rule (one radius system): panels and cards 16px, code windows
+       * and chips 10px, buttons and the theme toggle full pill. Nothing else.
+       */
+
+      :root[data-theme='colored'] {
+        color-scheme: light;
+        --bg: #e9f1fb;
+        --surface: #ffffff;
+        --badge-bg: #d9e8fb;
+        --field-bg: #ffffff;
+        --text: #0d1f38;
+        --muted: #49607f;
+        --accent: #1d4ed8;
+        --accent-strong: #1e40af;
+        --button-bg: #1d4ed8;
+        --on-accent: #ffffff;
+        --on-field: #0d1f38;
+        --ink-rgb: 13, 31, 56;
+        --accent-rgb: 29, 78, 216;
+        --line: rgba(13, 31, 56, 0.12);
+        --line-strong: rgba(13, 31, 56, 0.22);
+        --shadow: 0 24px 60px rgba(30, 58, 138, 0.14);
+        --page-a: #e9f1fb;
+        --page-b: #ddeafa;
+        --page-c: #e9f1fb;
+        --panel-a: rgba(29, 78, 216, 0.07);
+        --panel-b: rgba(217, 232, 251, 0.55);
+        --nav-bg: rgba(233, 241, 251, 0.82);
+        --grad-a: #1e40af;
+        --grad-b: #2563eb;
+        --ridge-opacity: 0.28;
+        --topo-opacity: 0.05;
+      }
+
+      /*
+       * Light (white + Stacks blue) is the no-JS default: the bare :root
+       * carries these values so a first paint is already on-brand.
+       */
+      :root,
+      :root[data-theme='light'] {
+        color-scheme: light;
+        --bg: #ffffff;
+        --surface: #f5f8fe;
+        --badge-bg: #e8f0fe;
+        --field-bg: #ffffff;
+        --text: #0c1626;
+        --muted: #4f5f7a;
+        --accent: #2563eb;
+        --accent-strong: #1d4ed8;
+        --button-bg: #2563eb;
+        --on-accent: #ffffff;
+        --on-field: #0c1626;
+        --ink-rgb: 12, 22, 38;
+        --accent-rgb: 37, 99, 235;
+        --line: rgba(12, 22, 38, 0.10);
+        --line-strong: rgba(12, 22, 38, 0.20);
+        --shadow: 0 24px 60px rgba(30, 58, 138, 0.10);
+        --page-a: #ffffff;
+        --page-b: #f2f6fe;
+        --page-c: #ffffff;
+        --panel-a: rgba(37, 99, 235, 0.05);
+        --panel-b: rgba(219, 231, 253, 0.50);
+        --nav-bg: rgba(255, 255, 255, 0.80);
+        --grad-a: #1d4ed8;
+        --grad-b: #2563eb;
+        --ridge-opacity: 0.20;
+        --topo-opacity: 0.035;
+      }
+
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --bg: #070c17;
+        --surface: #0e1728;
+        --badge-bg: #13203a;
+        --field-bg: #0c1424;
+        --text: #e9effc;
+        --muted: #97a6c4;
+        --accent: #60a5fa;
+        --accent-strong: #93c5fd;
+        --button-bg: #3b82f6;
+        --on-accent: #071021;
+        --on-field: #e9effc;
+        --ink-rgb: 233, 239, 252;
+        --accent-rgb: 96, 165, 250;
+        --line: rgba(233, 239, 252, 0.10);
+        --line-strong: rgba(233, 239, 252, 0.22);
+        --shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+        --page-a: #070c17;
+        --page-b: #0a1226;
+        --page-c: #060b14;
+        --panel-a: rgba(19, 32, 58, 0.85);
+        --panel-b: rgba(8, 14, 28, 0.92);
+        --nav-bg: rgba(7, 12, 23, 0.78);
+        --grad-a: #1e40af;
+        --grad-b: #2563eb;
+        --ridge-opacity: 0.22;
+        --topo-opacity: 0.05;
+      }
+
+      /* Font roles: Geist carries display and body (weight builds the
+        hierarchy); Geist Mono carries the kicker, chips, code, terminal. */
+      :root {
+        --font-body: "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        --font-hero: "Geist", var(--font-body);
+        --font-head: "Geist", var(--font-body);
+      }
+
+      /* The code window and terminal stay dark in every theme, the way an
+        editor and a shell are. */
+      :root {
+        --term-bg: #0b1220;
+        --term-fg: #93c5fd;
+      }
+
+      /* Theme toggle. Mirrors .blog-theme-toggle in content/blog/.theme.css. */
+      .theme-toggle {
+        position: fixed;
+        right: 1.1rem;
+        bottom: 1.1rem;
+        z-index: 60;
+        display: inline-flex;
+        gap: 2px;
+        padding: 3px;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .theme-toggle button {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        color: inherit;
+        font-size: 0.85rem;
+        line-height: 1;
+        background: transparent;
+        cursor: pointer;
+        transition: background 0.18s ease, transform 0.18s ease;
+      }
+
+      .theme-toggle button:hover {
+        background: rgba(var(--ink-rgb), 0.1);
+      }
+
+      .theme-toggle button:active {
+        transform: scale(0.94);
+      }
+
+      /* The active mode reads as pressed, not just hovered. */
+      .theme-toggle button[aria-pressed='true'] {
+        background: rgba(var(--ink-rgb), 0.16);
+      }
+
+      .theme-toggle button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--bg);
+        overflow-x: hidden;
+        scroll-behavior: smooth;
+      }
+
+      body {
+        min-width: 320px;
+        min-height: 100dvh;
+        margin: 0;
+        overflow-x: hidden;
+        color: var(--text);
+        font-family: var(--font-body);
+        background:
+          radial-gradient(circle at 85% 4%, rgba(var(--accent-rgb), 0.14), transparent 30rem),
+          radial-gradient(circle at 8% 20%, rgba(var(--accent-rgb), 0.08), transparent 26rem),
+          linear-gradient(180deg, var(--page-a) 0%, var(--page-b) 52%, var(--page-c) 100%);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Topographic survey lines, fixed and quiet. */
+      body::before {
+        position: fixed;
+        inset: 0;
+        z-index: -2;
+        content: "";
+        background-image: url("/assets/images/topography.svg");
+        background-size: 760px auto;
+        opacity: var(--topo-opacity);
+      }
+
+      /* The ridge line the whole site stands on. */
+      body::after {
+        position: fixed;
+        inset: auto 0 0;
+        z-index: -1;
+        height: min(30vh, 22rem);
+        content: "";
+        background: url("/assets/images/park-ridge.svg") center bottom / cover no-repeat;
+        opacity: var(--ridge-opacity);
+        pointer-events: none;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      /* Entrance motion (MOTION 5): hero rises on load, sections rise into
+        view on scroll via CSS view() timelines. Transform + opacity only,
+        and everything collapses to static under reduced motion. */
+      @keyframes rise-in {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: none; }
+      }
+
+      .hero-animate > * {
+        animation: rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .hero-animate > *:nth-child(2) { animation-delay: 0.07s; }
+      .hero-animate > *:nth-child(3) { animation-delay: 0.14s; }
+      .hero-animate > *:nth-child(4) { animation-delay: 0.21s; }
+
+      .rise {
+        animation: rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 45%;
+      }
+
+      @supports not (animation-timeline: view()) {
+        .rise { animation: none; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .hero-animate > *,
+        .rise {
+          animation: none;
+        }
+        .theme-toggle button {
+          transition: none;
+        }
+        .theme-toggle button:active {
+          transform: none;
+        }
+      }
+
+      /* ── Coming-soon holding card ─────────────────────────────────── */
+
+      body[data-site-mode="coming-soon"] .site-content {
+        display: none;
+      }
+
+      body[data-site-mode="coming-soon"].site-mode-unlocked .site-content {
+        display: block;
+      }
+
+      body[data-site-mode="coming-soon"].site-mode-unlocked .mode-screen,
+      body:not([data-site-mode="coming-soon"]) .mode-screen {
+        display: none;
+      }
+
+      .mode-screen {
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: clamp(1rem, 4vw, 3rem);
+      }
+
+      .mode-card {
+        position: relative;
+        width: min(1140px, 100%);
+        min-height: min(720px, 86vh);
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+        border: 1px solid var(--line-strong);
+        border-radius: 16px;
+        padding: clamp(2.25rem, 6vw, 5.5rem);
+        background:
+          radial-gradient(120% 92% at 84% -12%, rgba(var(--accent-rgb), 0.16), transparent 46%),
+          linear-gradient(178deg, var(--panel-a), var(--panel-b) 78%),
+          var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .mode-card::before {
+        position: absolute;
+        inset: 0;
+        content: "";
+        background-image: url("/assets/images/topography.svg");
+        background-size: 720px auto;
+        opacity: 0.07;
+        pointer-events: none;
+      }
+
+      /* Layered ridge across the bottom of the card. */
+      .mode-card::after {
+        position: absolute;
+        inset: auto -1% -1px;
+        height: 40%;
+        content: "";
+        background: url("/assets/images/park-ridge.svg") center bottom / 102% 100% no-repeat;
+        opacity: 0.3;
+        pointer-events: none;
+      }
+
+      /* Soft alpine glow where the sun would sit. */
+      .mode-glow {
+        position: absolute;
+        top: clamp(2rem, 9%, 5.5rem);
+        right: clamp(2rem, 10%, 7rem);
+        width: clamp(58px, 8vw, 108px);
+        height: clamp(58px, 8vw, 108px);
+        border-radius: 50%;
+        background: radial-gradient(circle at 38% 34%, #cfe4ff, var(--accent) 62%, var(--accent-strong));
+        box-shadow: 0 0 64px rgba(var(--accent-rgb), 0.38);
+        opacity: 0.9;
+        z-index: 0;
+      }
+
+      .mode-content {
+        position: relative;
+        z-index: 1;
+        max-width: 620px;
+      }
+
+      .mode-content > * {
+        animation: rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .mode-content > *:nth-child(2) { animation-delay: 0.06s; }
+      .mode-content > *:nth-child(3) { animation-delay: 0.12s; }
+      .mode-content > *:nth-child(4) { animation-delay: 0.18s; }
+      .mode-content > *:nth-child(5) { animation-delay: 0.24s; }
+
+      .mode-title {
+        margin: 0 0 1.4rem;
+        color: var(--text);
+        font-family: var(--font-hero);
+        font-weight: 800;
+        letter-spacing: -0.035em;
+        font-size: clamp(3.6rem, 11vw, 6.4rem);
+        line-height: 1.02;
+      }
+
+      .mode-lead {
+        margin: 1rem 0 0;
+        color: var(--accent);
+        font-family: var(--font-head);
+        font-size: clamp(1.1rem, 2vw, 1.5rem);
+        font-weight: 700;
+        line-height: 1.24;
+        letter-spacing: -0.01em;
+      }
+
+      .mode-copy {
+        max-width: 30rem;
+        margin: 1.05rem 0 0;
+        color: rgba(var(--ink-rgb), 0.82);
+        font-size: 1.05rem;
+        line-height: 1.62;
+      }
+
+      .mode-subscribe {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.7rem;
+        margin-top: 1.9rem;
+        max-width: 30rem;
+      }
+
+      .mode-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 1rem 1.4rem;
+        margin-top: 1.6rem;
+      }
+      .mode-textlink {
+        color: var(--accent);
+        font-weight: 700;
+        font-size: 0.95rem;
+        border-bottom: 1px solid rgba(var(--accent-rgb), 0.4);
+        padding-bottom: 1px;
+      }
+      .mode-textlink:hover { color: var(--accent-strong); border-color: var(--accent-strong); }
+      .mode-social { display: inline-flex; gap: 0.55rem; }
+      .mode-social a {
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        border: 1px solid rgba(var(--ink-rgb), 0.22);
+        border-radius: 50%;
+        color: var(--text);
+      }
+      .mode-social a:hover { color: var(--accent); border-color: var(--accent); }
+      .mode-social svg { width: 19px; height: 19px; fill: currentColor; }
+
+      /* ── Chrome: nav, shell, footer ───────────────────────────────── */
+
+      .site-shell {
+        width: min(1180px, calc(100% - 48px));
+        margin: 0 auto;
+      }
+
+      .site-nav {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        border-bottom: 1px solid var(--line);
+        background: var(--nav-bg);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+      }
+
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 64px;
+        gap: 1rem;
+      }
+
+      .brand {
+        display: inline-flex;
+        gap: 0.65rem;
+        align-items: center;
+        min-width: 0;
+      }
+
+      .brand-mark {
+        display: grid;
+        flex: 0 0 auto;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        color: var(--on-accent);
+        font-weight: 800;
+        font-size: 1rem;
+        background: linear-gradient(150deg, var(--accent), var(--accent-strong));
+      }
+
+      .brand-name {
+        font-size: 1.2rem;
+        font-weight: 750;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 1.4rem;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.86rem;
+        font-weight: 550;
+      }
+
+      .nav-links a {
+        transition: color 0.15s ease;
+      }
+
+      .nav-links a:hover {
+        color: var(--accent);
+      }
+
+      .nav-cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        min-height: 36px;
+        padding: 0 0.95rem;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        color: var(--text);
+        font-size: 0.82rem;
+        font-weight: 600;
+        transition: border-color 0.15s ease, transform 0.15s ease;
+      }
+
+      .nav-cta:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        transform: translateY(-1px);
+      }
+
+      /* ── Hero ─────────────────────────────────────────────────────── */
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.02fr) minmax(380px, 0.98fr);
+        gap: clamp(2rem, 4.5vw, 4.5rem);
+        align-items: center;
+        padding: clamp(2.5rem, 4.5vw, 4.5rem) 0 clamp(2.25rem, 3.5vw, 3.5rem);
+      }
+
+      .kicker {
+        display: inline-flex;
+        gap: 0.55rem;
+        align-items: center;
+        margin-bottom: 1.1rem;
+        color: var(--accent);
+        font-family: var(--font-mono);
+        font-size: 0.74rem;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .kicker::before {
+        width: 34px;
+        height: 2px;
+        content: "";
+        background: var(--accent);
+      }
+
+      .hero-title {
+        max-width: 18ch;
+        margin: 0;
+        color: var(--text);
+        font-family: var(--font-hero);
+        font-size: clamp(2.6rem, 4.2vw, 3.9rem);
+        font-weight: 780;
+        letter-spacing: -0.035em;
+        line-height: 1.06;
+      }
+
+      .hero-title em {
+        color: var(--accent);
+        font-style: normal;
+      }
+
+      .hero-copy {
+        max-width: 34rem;
+        margin: 1.25rem 0 0;
+        color: var(--muted);
+        font-size: 1.08rem;
+        line-height: 1.62;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 1.9rem;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        min-height: 46px;
+        padding: 0 1.35rem;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        color: var(--text);
+        font-family: var(--font-body);
+        font-size: 0.9rem;
+        font-weight: 620;
+        white-space: nowrap;
+        background: transparent;
+        cursor: pointer;
+        transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+      }
+
+      .button.primary {
+        border-color: var(--button-bg);
+        color: var(--on-accent);
+        background: var(--button-bg);
+      }
+
+      .button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 14px 30px rgba(var(--accent-rgb), 0.22);
+      }
+
+      .button:not(.primary):hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        box-shadow: none;
+      }
+
+      .button:active {
+        transform: translateY(0) scale(0.98);
+      }
+
+      /* Real code, not a fake dashboard: an authentic defineModel() as you
+        would actually write it. The code + terminal panels stay dark in
+        every theme, the way an editor and a shell are. */
+      .product-preview {
+        position: relative;
+        z-index: 1;
+      }
+
+      .product-preview::before {
+        position: absolute;
+        inset: -12% -14% auto auto;
+        width: 22rem;
+        height: 22rem;
+        content: "";
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(var(--accent-rgb), 0.20), transparent 65%);
+        z-index: -1;
+      }
+
+      .code-window {
+        overflow: hidden;
+        border: 1px solid rgba(96, 165, 250, 0.22);
+        border-radius: 10px;
+        background: #0b1220;
+        box-shadow: 0 24px 60px rgba(3, 8, 22, 0.35);
+      }
+
+      .code-titlebar {
+        display: flex;
+        gap: 0.7rem;
+        align-items: center;
+        padding: 0.6rem 0.85rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .code-dots {
+        display: inline-flex;
+        gap: 0.42rem;
+      }
+
+      .code-dots i {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: #ff5f57;
+      }
+
+      .code-dots i:nth-child(2) { background: #febc2e; }
+      .code-dots i:nth-child(3) { background: #28c840; }
+
+      .code-file {
+        color: #8aa0b8;
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+      }
+
+      .code-body {
+        margin: 0;
+        padding: 1.05rem 1.15rem;
+        overflow-x: auto;
+        color: #ccd6e6;
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        line-height: 1.62;
+        white-space: pre;
+        tab-size: 2;
+      }
+
+      .tok-key { color: #6ea8fe; }
+      .tok-str { color: #7fdca4; }
+      .tok-fn { color: #e6b673; }
+      .tok-prop { color: #d7e0ec; }
+      .tok-bool { color: #c792ea; }
+      .tok-com { color: #5f7488; font-style: italic; }
+
+      .terminal-strip {
+        margin-top: 0.85rem;
+        padding: 0.8rem 0.9rem;
+        border: 1px solid rgba(96, 165, 250, 0.25);
+        border-radius: 10px;
+        color: var(--term-fg);
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        line-height: 1.55;
+        background: var(--term-bg);
+        white-space: pre-wrap;
+      }
+
+      .term-com { color: #5f7488; }
+
+      /* ── Sections ─────────────────────────────────────────────────── */
+
+      .section {
+        padding: clamp(2.5rem, 5vw, 4.25rem) 0;
+      }
+
+      .section-head {
+        max-width: 40rem;
+        margin-bottom: 1.75rem;
+      }
+
+      .section-title {
+        margin: 0;
+        color: var(--text);
+        font-family: var(--font-head);
+        font-size: clamp(1.7rem, 2.6vw, 2.4rem);
+        font-weight: 720;
+        letter-spacing: -0.028em;
+        line-height: 1.1;
+      }
+
+      .section-copy {
+        margin: 0.85rem 0 0;
+        color: var(--muted);
+        font-size: 1.04rem;
+        line-height: 1.65;
+      }
+
+      /* Platform bento: 12-col grid, mixed spans, three cell treatments
+        (image / tint / gradient) so the grid has rhythm instead of rows
+        of identical white cards. */
+      .bento {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 0.9rem;
+      }
+
+      .cell {
+        position: relative;
+        grid-column: span 4;
+        min-height: 168px;
+        overflow: hidden;
+        padding: 1.35rem;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--surface);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      }
+
+      .cell:hover {
+        transform: translateY(-2px);
+        border-color: rgba(var(--accent-rgb), 0.45);
+        box-shadow: var(--shadow);
+      }
+
+      .cell--wide {
+        grid-column: span 8;
+      }
+
+      .cell--tint {
+        background:
+          radial-gradient(120% 120% at 100% 0%, rgba(var(--accent-rgb), 0.12), transparent 55%),
+          var(--surface);
+      }
+
+      .cell--gradient {
+        border-color: transparent;
+        color: #f4f8ff;
+        background: linear-gradient(135deg, var(--grad-a), var(--grad-b));
+      }
+
+      .cell--gradient p {
+        color: rgba(244, 248, 255, 0.82);
+      }
+
+      .cell h3 {
+        position: relative;
+        margin: 0 0 0.5rem;
+        font-family: var(--font-head);
+        font-size: 1.06rem;
+        font-weight: 680;
+        letter-spacing: -0.012em;
+      }
+
+      .cell p {
+        position: relative;
+        max-width: 26rem;
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.94rem;
+        line-height: 1.58;
+      }
+
+      .cell-art {
+        position: absolute;
+        right: -1.5rem;
+        bottom: -2rem;
+        width: 15rem;
+        height: 15rem;
+        opacity: 0.16;
+        pointer-events: none;
+      }
+
+      .cell-art img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      /* Workflow: three verb-led steps, horizontal on desktop, with a
+        connecting hairline that the numbers sit on. */
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.9rem;
+      }
+
+      .step {
+        position: relative;
+        padding: 1.35rem;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--surface);
+      }
+
+      .step em {
+        display: inline-grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        margin-bottom: 0.95rem;
+        border-radius: 999px;
+        color: var(--accent);
+        font-style: normal;
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        font-weight: 600;
+        background: var(--badge-bg);
+      }
+
+      .step h3 {
+        margin: 0 0 0.45rem;
+        font-family: var(--font-head);
+        font-size: 1.05rem;
+        font-weight: 680;
+        letter-spacing: -0.012em;
+      }
+
+      .step p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.58;
+      }
+
+      .step p code,
+      .section-copy code {
+        padding: 0.08em 0.38em;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--accent);
+        font-family: var(--font-mono);
+        font-size: 0.85em;
+        background: var(--badge-bg);
+      }
+
+      /* CMS: split copy + compact resource grid. */
+      .cms-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 0.85fr) minmax(340px, 1.15fr);
+        gap: clamp(1.5rem, 3.5vw, 3rem);
+        align-items: center;
+        padding: clamp(1.5rem, 3.5vw, 2.75rem);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background:
+          radial-gradient(140% 120% at 0% 0%, rgba(var(--accent-rgb), 0.08), transparent 50%),
+          var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .resource-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.7rem;
+      }
+
+      .resource {
+        padding: 0.95rem 1rem;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(var(--ink-rgb), 0.03);
+      }
+
+      .resource strong {
+        display: block;
+        color: var(--accent);
+        font-size: 0.82rem;
+        font-weight: 680;
+      }
+
+      .resource span {
+        display: block;
+        margin-top: 0.3rem;
+        color: var(--muted);
+        font-size: 0.85rem;
+        line-height: 1.5;
+      }
+
+      /* Deploy: full-width band, route chips in mono, terminal proof. */
+      .deploy-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+        gap: clamp(1.5rem, 3.5vw, 3rem);
+        align-items: center;
+        padding: clamp(1.5rem, 3.5vw, 2.75rem);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background:
+          radial-gradient(140% 130% at 100% 0%, rgba(var(--accent-rgb), 0.10), transparent 52%),
+          var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .route-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1.4rem;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 0 0.85rem;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        color: var(--accent);
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        font-weight: 500;
+        background: var(--badge-bg);
+      }
+
+      .deploy-terminal {
+        padding: 1.1rem 1.2rem;
+        border: 1px solid rgba(96, 165, 250, 0.25);
+        border-radius: 10px;
+        color: #ccd6e6;
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        line-height: 1.75;
+        background: var(--term-bg);
+        white-space: pre-wrap;
+      }
+
+      .term-ok { color: #7fdca4; }
+      .term-dim { color: #5f7488; }
+
+      /* Signup: one quiet centered band. */
+      .signup-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 1.25rem;
+        align-items: center;
+        padding: clamp(1.5rem, 3.5vw, 2.5rem);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background:
+          radial-gradient(120% 140% at 8% 0%, rgba(var(--accent-rgb), 0.09), transparent 46%),
+          var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .signup-panel form {
+        display: flex;
+        gap: 0.6rem;
+        width: min(430px, 100%);
+      }
+
+      input[type="email"] {
+        width: 100%;
+        min-height: 46px;
+        padding: 0 1rem;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        color: var(--on-field);
+        font: inherit;
+        font-size: 0.92rem;
+        background: var(--field-bg);
+      }
+
+      input[type="email"]::placeholder {
+        color: var(--muted);
+      }
+
+      input[type="email"]:focus {
+        border-color: var(--accent);
+        outline: 3px solid rgba(var(--accent-rgb), 0.22);
+      }
+
+      .site-footer {
+        padding: 1.5rem 0 3rem;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .footer-inner {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 0.75rem 1.5rem;
+        border-top: 1px solid var(--line);
+        padding-top: 1.25rem;
+      }
+
+      .footer-link {
+        color: var(--muted);
+        font-weight: 550;
+      }
+
+      .footer-link:hover {
+        color: var(--accent);
+      }
+
+      /* ── Responsive ───────────────────────────────────────────────── */
+
+      @media (max-width: 920px) {
+        .site-shell {
+          width: min(100% - 32px, 720px);
+        }
+
+        .hero,
+        .cms-panel,
+        .deploy-panel,
+        .signup-panel {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .hero {
+          gap: 2rem;
+          padding: 2.25rem 0 2.5rem;
+        }
+
+        .hero-title {
+          max-width: 100%;
+          font-size: clamp(2.4rem, 9vw, 3.4rem);
+        }
+
+        .cell,
+        .cell--wide {
+          grid-column: span 6;
+        }
+
+        .steps {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .signup-panel form {
+          width: 100%;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .nav-inner {
+          min-height: 58px;
+        }
+
+        .nav-links {
+          gap: 0.9rem;
+          font-size: 0.78rem;
+        }
+
+        .nav-cta {
+          display: none;
+        }
+
+        .cell,
+        .cell--wide {
+          grid-column: span 12;
+          min-height: 0;
+        }
+
+        .resource-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .hero-actions {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .signup-panel form {
+          flex-direction: column;
+        }
+      }
+
+    </style>
+  </head>
+  <body data-site-mode="{{ siteMode }}" data-coming-soon-bypass-enabled="{{ comingSoonBypassEnabled }}" data-coming-soon-bypass="{{ comingSoonBypassToken }}">
+    <section class="mode-screen" aria-labelledby="coming-soon-heading">
+      <div class="mode-card">
+        <span class="mode-glow" aria-hidden="true"></span>
+        <div class="mode-content">
+          <h1 id="coming-soon-heading" class="mode-title">{{ appName }}</h1>
+          <p class="mode-lead">The trailhead is almost ready.</p>
+          <p class="mode-copy">
+            We are clearing the last stretch: framework, docs, CMS, and the deploy path. Leave your email and we will let you know the moment the trail opens.
+          </p>
+          <form class="mode-subscribe" action="/api/email/subscribe" method="POST">
+            <input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email address" required>
+            <button class="button primary" type="submit">Notify me</button>
+          </form>
+          <div class="mode-meta">
+            <a class="mode-textlink" href="/blog/introducing-stacks" data-no-router>Read “Introducing Stacks”</a>
+            <span class="mode-social">
+              <a href="https://bsky.app/profile/stacksjs.com" target="_blank" rel="noopener" aria-label="Stacks on Bluesky">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.038.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 0 1-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.789.624-6.478 0-.69-.139-1.861-.902-2.206-.658-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8Z"/></svg>
+              </a>
+              <a href="https://github.com/stacksjs" target="_blank" rel="noopener" aria-label="Stacks on GitHub">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+              </a>
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="site-content">
+      <nav class="site-nav">
+        <div class="nav-inner site-shell">
+          <a class="brand" href="/" aria-label="Stacks home">
+            <span class="brand-mark">S</span>
+            <span class="brand-name">{{ appName }}</span>
+          </a>
+          <div class="nav-links" aria-label="Primary navigation">
+            @foreach (navLinks as link)
+              <a href="{{ link.url }}" {{ link.native ? 'data-no-router' : '' }}>{{ link.label }}</a>
+            @endforeach
+          </div>
+          <a class="nav-cta" href="https://github.com/stacksjs/stacks">GitHub</a>
+        </div>
+      </nav>
+
+      <main>
+        <section class="hero site-shell">
+          <div class="hero-animate">
+            <span class="kicker">Full-stack TypeScript framework</span>
+            <h1 class="hero-title">The whole stack, <em>one framework.</em></h1>
+            <p class="hero-copy">
+              Routing, views, models, auth, CMS, queues, mail, and cloud deploys. First-party, fully typed, and designed to work together.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="/docs" data-no-router>Read the docs</a>
+              <a class="button" href="#platform">Explore features</a>
+            </div>
+          </div>
+
+          <aside class="product-preview" aria-label="Define a model in Stacks">
+            <div class="code-window">
+              <div class="code-titlebar">
+                <span class="code-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="code-file">app/Models/Post.ts</span>
+              </div>
+              <pre class="code-body"><code><span class="tok-key">import</span> { defineModel } <span class="tok-key">from</span> <span class="tok-str">'&#64;stacksjs/orm'</span>
+
+<span class="tok-key">export default</span> <span class="tok-fn">defineModel</span>({
+  <span class="tok-prop">name</span>: <span class="tok-str">'Post'</span>,
+  <span class="tok-prop">traits</span>: {
+    <span class="tok-prop">useUuid</span>: <span class="tok-bool">true</span>,
+    <span class="tok-prop">useTimestamps</span>: <span class="tok-bool">true</span>,
+    <span class="tok-prop">useApi</span>: { <span class="tok-prop">uri</span>: <span class="tok-str">'posts'</span> },     <span class="tok-com">// REST routes + actions</span>
+    <span class="tok-prop">useSearch</span>: { <span class="tok-prop">searchable</span>: [<span class="tok-str">'title'</span>] },
+  },
+  <span class="tok-prop">attributes</span>: {
+    <span class="tok-prop">title</span>: { <span class="tok-prop">fillable</span>: <span class="tok-bool">true</span>, <span class="tok-prop">required</span>: <span class="tok-bool">true</span> },
+    <span class="tok-prop">status</span>: { <span class="tok-prop">default</span>: <span class="tok-str">'draft'</span> },
+  },
+})</code></pre>
+            </div>
+            <div class="terminal-strip">$ buddy migrate      <span class="term-com"># models to migrations, applied</span>
+$ buddy deploy       <span class="term-com"># web, docs, blog, API, cloud</span></div>
+          </aside>
+        </section>
+
+        <section id="platform" class="section site-shell" aria-labelledby="platform-heading">
+          <div class="rise section-head">
+            <h2 id="platform-heading" class="section-title">One install, every layer.</h2>
+            <p class="section-copy">Each system is first-party and shares the same types, config, and tooling. No glue code, no plugin roulette.</p>
+          </div>
+          <div class="bento">
+            @foreach (platformCells as cell)
+              <article class="cell rise {{ cell.span === 'wide' ? 'cell--wide' : '' }} {{ cell.tone === 'tint' ? 'cell--tint' : '' }} {{ cell.tone === 'gradient' ? 'cell--gradient' : '' }}">
+                @if (cell.image)
+                  <span class="cell-art" aria-hidden="true"><img src="{{ cell.image }}" alt="" width="240" height="240" loading="lazy" decoding="async"></span>
+                @endif
+                <h3>{{ cell.title }}</h3>
+                <p>{{ cell.text }}</p>
+              </article>
+            @endforeach
+          </div>
+        </section>
+
+        <section class="section site-shell" aria-labelledby="workflow-heading">
+          <div class="rise section-head">
+            <h2 id="workflow-heading" class="section-title">From first commit to production.</h2>
+            <p class="section-copy">Buddy is the command center. It scaffolds, serves, tests, builds, and deploys the whole project.</p>
+          </div>
+          <div class="steps">
+            @foreach (workflowSteps as step)
+              <div class="rise step">
+                <em aria-hidden="true">{{ step.label }}</em>
+                <h3>{{ step.title }}</h3>
+                <p>{{ step.text }}</p>
+              </div>
+            @endforeach
+          </div>
+        </section>
+
+        <section id="cms" class="section site-shell" aria-labelledby="cms-heading">
+          <div class="cms-panel rise">
+            <div class="section-head" style="margin-bottom: 0">
+              <h2 id="cms-heading" class="section-title">A CMS your editors will actually use.</h2>
+              <p class="section-copy">Markdown for developers, a real dashboard for editors. Content ships with generated APIs, so the site, docs, and blog stay in the same repo.</p>
+            </div>
+            <div class="resource-grid">
+              @foreach (cmsResources as resource)
+                <div class="resource"><strong>{{ resource.title }}</strong><span>{{ resource.text }}</span></div>
+              @endforeach
+            </div>
+          </div>
+        </section>
+
+        <section id="deploy" class="section site-shell" aria-labelledby="deploy-heading">
+          <div class="deploy-panel rise">
+            <div class="section-head" style="margin-bottom: 0">
+              <h2 id="deploy-heading" class="section-title">One command to production.</h2>
+              <p class="section-copy"><code>buddy deploy</code> builds the site, docs, blog, and API, then publishes DNS, CDN, storage, and mail from the same config.</p>
+              <div class="route-chips" aria-label="Deployed surfaces">
+                @foreach (deployRoutes as route)
+                  <span class="chip">{{ route.url }}</span>
+                @endforeach
+              </div>
+            </div>
+            <div class="deploy-terminal">$ buddy deploy
+<span class="term-ok">✓</span> web      <span class="term-dim">built and uploaded</span>
+<span class="term-ok">✓</span> docs     <span class="term-dim">mounted at /docs</span>
+<span class="term-ok">✓</span> blog     <span class="term-dim">feed and sitemap live</span>
+<span class="term-ok">✓</span> cloud    <span class="term-dim">DNS, CDN, TLS, mail</span></div>
+          </div>
+        </section>
+
+        <section class="section site-shell" aria-labelledby="signup-heading">
+          <div class="rise signup-panel">
+            <div class="section-head" style="margin-bottom: 0">
+              <h2 id="signup-heading" class="section-title">Release notes, occasionally.</h2>
+              <p class="section-copy">Framework updates and deployment notes by email. No noise.</p>
+            </div>
+            <form action="/api/email/subscribe" method="POST">
+              <input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email address" required>
+              <button class="button primary" type="submit">Subscribe</button>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer site-shell">
+        <div class="footer-inner">
+          <span>© 2026 Stacks</span>
+          <a class="footer-link" href="https://github.com/stacksjs/stacks">Source on GitHub</a>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Same control, position, and glyphs as the blog's, so switching theme
+        feels like one site rather than two that happen to share a palette. -->
+    <div class="theme-toggle" role="group" aria-label="Theme">
+      <button type="button" data-t="colored" title="Glacier theme" aria-label="Glacier theme" onclick="stxTheme('colored')">🌲</button>
+      <button type="button" data-t="light" title="Light theme" aria-label="Light theme" onclick="stxTheme('light')">☀</button>
+      <button type="button" data-t="dark" title="Dark theme" aria-label="Dark theme" onclick="stxTheme('dark')">🌙</button>
+    </div>
+    <script>
+      // Mark the active button once the toggle exists (the theme itself was
+      // applied pre-paint by the head script).
+      ;(function () {
+        var current = document.documentElement.getAttribute('data-theme')
+        document.querySelectorAll('.theme-toggle button').forEach(function (b) {
+          b.setAttribute('aria-pressed', String(b.getAttribute('data-t') === current))
+        })
+      })()
+    </script>
+    <script src="/assets/scripts/site-mode.js" defer></script>
+  </body>
+</html>

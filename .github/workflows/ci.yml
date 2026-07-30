@@ -1,0 +1,425 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
+        with:
+          version: '0.10.50'
+          install: 'false'
+
+      - name: Use cached node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            node-modules-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # After the install: the bunfig preload resolves @stacksjs/env, so
+      # anything invoking `bun` before node_modules exists dies with
+      # `preload not found`. Only bites a project resolving the framework from
+      # npm rather than a vendored storage/framework/core, but the ordering is
+      # wrong either way.
+      - name: Check lockfile version
+        run: bun .github/scripts/check-lockfile-version.ts
+
+      - name: Check dependency state
+        env:
+          DEPENDENCY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DEPENDENCY_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bun .github/scripts/check-dependency-commits.ts
+
+      - name: Lint
+        run: bun buddy lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
+        with:
+          version: '0.10.50'
+          install: 'false'
+
+      - name: Use cached node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            node-modules-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:latest
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test_db
+          MYSQL_USER: user
+          MYSQL_PASSWORD: password
+        ports:
+          - 3306:3306
+
+      dynamodb:
+        image: amazon/dynamodb-local
+        ports:
+          - 8000:8000
+
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
+        with:
+          version: '0.10.50'
+          install: 'false'
+
+      - name: Use cached node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            node-modules-
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Test Suite
+        env:
+          AWS_DYNAMODB_ENDPOINT: http://localhost:8000
+        run: bun run test
+
+      # `bun run test` shells out to `buddy test`, which only globs
+      # <project>/tests/**, so nothing under storage/framework/core/**/tests
+      # has ever run in CI. The database bootstrap gates every `buddy migrate`
+      # on every server-backed project, so its suite runs explicitly here.
+      # Scoped to one file on purpose: wiring up the core suites wholesale
+      # needs the pre-existing failures in them triaged first.
+      - name: Database bootstrap tests
+        run: |
+          bun test storage/framework/core/database/tests/ensure-database.test.ts
+          bun test storage/framework/core/buddy/tests/database-preflight.test.ts
+          bun test storage/framework/core/database/tests/committed-migrations-dialect.test.ts
+          bun test storage/framework/core/database/tests/model-sources.test.ts
+
+  compile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
+        with:
+          version: '0.10.50'
+          install: 'false'
+
+      - name: Use cached node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            node-modules-
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      # The release job resolves through `pantry/`, not `node_modules`, and the
+      # two lockfiles pin different versions — the first attempt at this check
+      # passed here while the release still failed on a package `pantry.lock`
+      # held back. So this installs the same tree the release does.
+      - name: Install the pantry tree
+        run: pantry install
+
+      # The binaries are built only by the release job, on a tag, after npm
+      # publish. So a dependency that grows a top-level await — which
+      # `bun build --compile` refuses to bundle through a `require()` — took
+      # three releases to notice: the packages published, the compile failed,
+      # and nobody looked. One target here is enough to catch that, and it is
+      # the cheap half of `compile:all`.
+      - name: Compile the buddy binary
+        run: |
+          cd storage/framework/core/buddy
+          bun run compile:linux-x64
+
+  protocol-conformance:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
+        with:
+          version: '0.10.50'
+          install: 'false'
+
+      - name: Use cached node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            node-modules-
+
+      - name: Install Dependencies
+        id: install
+        run: bun install --frozen-lockfile
+
+      # One step per check, rather than one `run:` block running all ten.
+      #
+      # Two things were wrong with the block. Under `bash -e` the first failure
+      # ended it, so a red `docs:artifacts:check` (ninth) meant
+      # `docs:links:check` (tenth) never executed at all — it has never run on
+      # main. And a failure surfaced only as "Verify pinned protocol suite",
+      # so finding out WHICH check failed meant grepping the raw log.
+      #
+      # `!cancelled()` is what actually fixes the masking: without it Actions
+      # skips every later step once one fails, which is the same bug in a new
+      # costume. The install guard keeps the ten from all failing noisily when
+      # the real problem is that dependencies did not install.
+
+      - name: protocol:check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run protocol:check
+
+      - name: protocol:manifest:check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run protocol:manifest:check
+
+      - name: protocol:release:check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run protocol:release:check
+
+      - name: protocol:drivers:check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run protocol:drivers:check
+
+      - name: protocol:desktop:check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run protocol:desktop:check
+
+      - name: protocol:pantry:check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run protocol:pantry:check
+
+      - name: protocol:craft:check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run protocol:craft:check
+
+      - name: docs:buddy:check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run docs:buddy:check
+
+      - name: docs:artifacts:check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run docs:artifacts:check
+
+      - name: docs:links:check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run docs:links:check
+
+      - name: Run protocol adapter
+        env:
+          PROTOCOL_REPORT_DIR: .github/protocol/reports
+        run: |
+          bun test ./storage/framework/core/buddy/src/commands/protocol/run-conformance.test.ts
+          bun test ./storage/framework/core/buddy/src/commands/protocol/craft-evidence.test.ts ./storage/framework/core/buddy/src/commands/protocol/desktop-lifecycle-report.test.ts
+          bun test ./.github/scripts/deploy/resolve-target.test.ts
+          bun run protocol:drivers:test
+          bun run protocol:conformance
+          cat .github/protocol/reports/driver-matrix.md >> "$GITHUB_STEP_SUMMARY"
+          cat .github/protocol/reports/stacks-conformance.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain attributable conformance report
+        uses: actions/upload-artifact@v7
+        with:
+          name: stacks-protocol-conformance-${{ github.sha }}
+          path: .github/protocol/reports/
+          if-no-files-found: error
+
+  deployment-target:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.target.outputs.environment }}
+      flag: ${{ steps.target.outputs.flag }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
+        with:
+          version: '0.10.50'
+          install: 'false'
+
+      - name: Resolve provisioned deployment target
+        id: target
+        run: bun .github/scripts/deploy/resolve-target.ts --ref "$GITHUB_REF" --github-output "$GITHUB_OUTPUT"
+
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: [lint, typecheck, test, compile, protocol-conformance, deployment-target]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: ${{ needs.deployment-target.outputs.environment }}
+    permissions:
+      contents: read
+      deployments: write
+      id-token: write
+    env:
+      DEPLOY_ENVIRONMENT: ${{ needs.deployment-target.outputs.environment }}
+      DEPLOY_FLAG: ${{ needs.deployment-target.outputs.flag }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
+        with:
+          version: '0.10.50'
+          install: 'false'
+
+      - name: Use cached node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            node-modules-
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Prepare Deploy SSH Key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "No deploy SSH key configured; continuing without one."
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+          chmod 644 ~/.ssh/id_ed25519.pub
+
+      - name: Deploy ${{ env.DEPLOY_ENVIRONMENT }}
+        run: ./buddy deploy "$DEPLOY_FLAG" --yes
+        env:
+          APP_ENV: ${{ env.DEPLOY_ENVIRONMENT }}
+          DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COPYFILE_DISABLE: '1'
+
+  publish-commit:
+    if: github.event_name == 'pull_request'
+    needs: [lint, typecheck, test, compile, protocol-conformance]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Pantry
+        uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
+        with:
+          version: '0.10.50'
+          install: 'false'
+
+      - name: Use cached node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            node-modules-
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Publish Commit
+        run: ./storage/framework/scripts/publish-commit

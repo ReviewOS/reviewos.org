@@ -1,0 +1,8 @@
+@extends('layouts/default')
+
+@section('content')
+@title('Dashboard - Subscribers')
+<PageLayout>
+  <DataRecords mode="subscribers" />
+</PageLayout>
+@endsection

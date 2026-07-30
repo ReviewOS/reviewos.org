@@ -1,0 +1,413 @@
+# actions/labeler@v6 format (structured match rules).
+# Each label maps to changed-files > any-glob-to-any-file.
+
+api:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/api/**'
+
+deps:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+
+core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/**'
+
+ide:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/defaults/ide/**'
+
+jetbrains:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/defaults/ide/jetbrains/**'
+
+vscode:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/defaults/ide/vscode/**'
+
+libs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/libs/**'
+
+components:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/libs/components/**'
+          - 'resources/components/**'
+
+entries:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/libs/entries/**'
+
+examples:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/libs/examples/**'
+
+functions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/libs/functions/**'
+          - 'resources/functions/**'
+
+scripts:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/scripts/**'
+
+stack:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/stacks/**'
+
+dashboard:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/stacks/dashboard/**'
+
+vcs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/vcs/**'
+
+github:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/vcs/github/**'
+
+views:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/views/**'
+          - 'resources/views/**'
+
+web:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/views/web/**'
+
+actions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/actions/**'
+
+ai:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/ai/**'
+
+alias:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/alias/**'
+
+analytics:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/analytics/**'
+
+arrays:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/utils/arrays/**'
+
+auth:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/auth/**'
+
+buddy:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/buddy/**'
+
+build:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/build/**'
+
+cache:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/cache/**'
+
+chat:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/notifications/chat/**'
+
+cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/cli/**'
+          - 'app/Commands/**'
+
+cloud:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/cloud/**'
+
+collections:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/utils/collections/**'
+
+config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/config/**'
+          - 'config/**'
+
+database:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/database/**'
+
+datetime:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/utils/datetime/**'
+
+desktop:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/desktop/**'
+          - 'storage/framework/core/views/desktop/**'
+
+development:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/development/**'
+
+dns:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/dns/**'
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/docs/**'
+          - 'storage/framework/docs/**'
+          - 'docs/**'
+          - 'config/docs.ts'
+
+email:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/notifications/email/**'
+
+error-handling:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/error-handling/**'
+
+events:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/events/**'
+          - 'app/Events/**'
+
+faker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/faker/**'
+
+git:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/utils/git/**'
+
+health:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/health/**'
+
+lint:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/lint/**'
+
+logging:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/logging/**'
+
+modules:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/modules/**'
+
+notifications:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/notifications/**'
+          - 'app/Notifications/**'
+
+objects:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/utils/objects/**'
+
+orm:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/orm/**'
+
+path:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/path/**'
+
+payments:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/payments/**'
+
+push:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/notifications/push/**'
+
+query-builder:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/query-builder/**'
+
+queue:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/queue/**'
+
+real-time:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/real-time/**'
+
+repl:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/repl/**'
+
+router:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/router/**'
+
+scheduler:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/scheduler/**'
+
+search-engine:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/search-engine/**'
+
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/security/**'
+
+signals:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/signals/**'
+
+slug:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/slug/**'
+
+sms:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/notifications/sms/**'
+
+storage:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/**'
+
+strings:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/utils/strings/**'
+
+testing:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/testing/**'
+
+tinker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/tinker/**'
+
+types:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/types/**'
+
+ui:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/ui/**'
+
+utils:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/utils/**'
+
+validation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'storage/framework/core/validation/**'
+
+app:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'app/**'
+
+jobs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'app/Jobs/**'
+
+models:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'app/Models/**'
+
+resources:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'resources/**'
+
+lang:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'resources/lang/**'
+
+stores:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'resources/stores/**'
+
+routes:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'routes/**'
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tests/**'

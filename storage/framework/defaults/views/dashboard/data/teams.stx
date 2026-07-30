@@ -1,0 +1,8 @@
+@extends('layouts/default')
+
+@section('content')
+@title('Dashboard - Teams')
+<PageLayout>
+  <DataRecords mode="teams" />
+</PageLayout>
+@endsection

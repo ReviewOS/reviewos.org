@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+if command -v pantry >/dev/null 2>&1; then
+  exit 0
+fi
+
+curl -fsSL https://pantry.dev | bash
+
+if ! command -v pantry >/dev/null 2>&1; then
+  export PATH="${HOME}/.local/bin:${PATH}"
+fi
+
+pantry --version >/dev/null

@@ -1,0 +1,319 @@
+<script server>
+// Dashboard chrome. The navigation pane is `@stacksjs/components`' <Sidebar>
+// in its `macos` theme — the same component Craft apps use, so the dashboard
+// and a native Craft build render the identical source list.
+//
+// This used to be a hand-rolled <aside> plus ~180 lines of plain CSS, because
+// @stacksjs/components 0.2.9x shipped only its hashed dist/ output and the
+// component fatal-errored with an ENOENT (stacksjs/stacks#1989). That package
+// now publishes its .stx sources, so the real component resolves and the
+// duplicate markup is gone.
+//
+// Project-root-anchored (`~/`), not relative: the stx client bundler resolves
+// a relative import against the PAGE that extends this layout, not against
+// this file, so `../../..` pointed somewhere different for every page depth.
+import { buildWebSidebarSections } from '~/storage/framework/defaults/resources/functions/dashboard/sidebar'
+
+export const sidebarSections = buildWebSidebarSections()
+
+// Role gating (stacksjs/stacks#1843). Models can declare
+// `dashboard.roles: ['admin', 'dev']`; rows for those models are hidden from
+// viewers who hold none of them. Emitted as an id-keyed map rather than a
+// `data-required-roles` attribute on each row, which keeps the generic
+// Sidebar component free of Stacks-specific attributes.
+export const sidebarRoleMap = JSON.stringify(
+  Object.fromEntries(
+    sidebarSections.flatMap(section =>
+      section.items
+        .filter(item => item.roles && item.roles.length > 0)
+        .map(item => [item.id, item.roles]),
+    ),
+  ),
+)
+</script>
+
+<!-- Dashboard icon stylesheet. Most dashboard icons are applied via dynamic
+    `:class="…"` bindings whose class names live in <script> state, which the stx
+    Crosswind extractor can't see — so their CSS is never generated inline and they
+    render as empty boxes. The dev server generates the full icon set once and serves
+    it here (browser-cached), instead of inlining ~260KB into every page. Route:
+    `/__deps/dashboard-icons.css` in storage/framework/core/actions/src/dev/dashboard.ts. -->
+<link rel="stylesheet" href="/__deps/dashboard-icons.css">
+
+<style>
+/*
+ * Make every chart canvas fill its wrapper. @stacksjs/charts sizes its
+ * bitmap from `getBoundingClientRect()`, so without CSS dimensions the
+ * canvas stays at the intrinsic 300x150 default and the chart renders
+ * cropped (bar charts lose right-side bars; doughnuts overflow because
+ * the parent grid cell is sized but the canvas isn't).
+ */
+canvas[id$="_chart"] {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/*
+ * The window background is owned by the main content pane, not the body element.
+ * In the native Craft window the WKWebView is transparent and an
+ * NSVisualEffectView (real macOS vibrancy) sits behind the sidebar strip; a
+ * solid body background would paint over it. So the body stays clear and the
+ * content color lives on the scrolling pane, which lets the frosted material
+ * read through the translucent sidebar. (Do not write angle-bracket tag names in
+ * a layout style-block comment — stx parses them as elements and breaks out.)
+ */
+body {
+  background: transparent;
+}
+/*
+ * The pane offset follows the sidebar's own width variable, which <Sidebar>
+ * writes onto this element via `shell-selector`. The literal fallback keeps
+ * the layout correct on the first paint, before the controller mounts, and
+ * the collapsed state animates because the variable changes rather than a
+ * class toggling a hard-coded margin.
+ */
+[data-stx-content] {
+  min-height: 100vh;
+  margin-left: var(--stx-sidebar-width, 250px);
+  background: #f4f4f5;
+  transition: margin-left 0.3s ease-out;
+}
+.dashboard-modal-layer {
+  left: var(--stx-sidebar-width, 250px);
+  transition: left 0.3s ease-out;
+}
+@media (max-width: 1023px) {
+  .dashboard-modal-layer {
+    left: 0;
+  }
+}
+html[data-craft-native-sidebar='true'] .dashboard-modal-layer {
+  left: 0;
+}
+.dark [data-stx-content] {
+  background: #0a0a0a;
+}
+</style>
+
+<script client>
+// Global toast queue. Composables across the dashboard call
+// `pushToast(...)` (defined in defaults/functions/toasts.ts) when
+// network requests fail or succeed; that signal is rendered in the
+// fixed-position container below the <main> slot. Mounted in the
+// layout so every dashboard page picks it up without opting in.
+// `~/`-anchored for the same reason as the sidebar import above.
+import { useToasts, dismissToast } from '~/storage/framework/defaults/functions/toasts'
+import { authStore } from '~/storage/framework/defaults/views/dashboard/stores/auth'
+import { kanbanStore } from '~/storage/framework/defaults/views/dashboard/stores/kanban'
+import { rbacStore } from '~/storage/framework/defaults/views/dashboard/stores/rbac'
+const { toasts } = useToasts()
+registerStoresClient({ authStore, kanbanStore, rbacStore })
+
+// Helpers below return COMPLETE class strings (static + dynamic) and are
+// applied via `:class="fn(...)"` because stx's `{{ ... }}` placeholder is
+// not reactively bound inside a `class` attribute — only inside text content.
+const toastIconClass = (type) => `flex-shrink-0 h-5 w-5 mt-0.5 ${({
+  success: 'i-hugeicons-checkmark-circle-02 text-green-500 dark:text-green-400',
+  error: 'i-hugeicons-alert-02 text-red-500 dark:text-red-400',
+  warning: 'i-hugeicons-alert-circle text-yellow-500 dark:text-yellow-400',
+  info: 'i-hugeicons-information-circle text-blue-500 dark:text-blue-400',
+}[type] || 'i-hugeicons-information-circle text-gray-500 dark:text-neutral-400')}`
+
+const toastWrapperClass = (type) => `pointer-events-auto overflow-hidden bg-white dark:bg-neutral-800 ring-1 ${({
+  success: 'ring-green-500/20',
+  error: 'ring-red-500/30',
+  warning: 'ring-yellow-500/20',
+  info: 'ring-blue-500/20',
+}[type] || 'ring-black/5 dark:ring-white/10')} rounded-lg shadow-lg`
+
+// Role-gated sidebar filter (stacksjs/stacks#1843).
+//
+// Permissive default: when the viewer is unauthenticated (the localhost
+// dev dashboard) every gated row stays visible. In production deployments
+// where `/api/dashboard/*` sits behind auth, the endpoint returns real role
+// data and the filter hides what the viewer can't reach.
+//
+// stx bridges referenced <script server> exports into this client scope.
+// Keep this as a normal identifier so imported client code remains valid
+// TypeScript throughout the bundling pipeline.
+const sidebarRoles = sidebarRoleMap
+const auth = authStore
+auth.load()
+
+function applyRoleFilter() {
+  const roleList = auth.roles()
+  const unauth = auth.unauthenticated()
+  for (const [itemId, required] of Object.entries(sidebarRoles)) {
+    const row = document.querySelector(`[data-sidebar-row][data-item-id="${itemId}"]`)
+    if (!row) continue
+    // Unauthenticated viewers see everything — keeps the dev dashboard
+    // usable. Once authenticated, role membership is authoritative. CSS
+    // `display: none` keeps the DOM intact for SPA nav, so a later role
+    // change can re-show the row without a re-render.
+    const allowed = unauth || required.some(r => roleList.includes(r))
+    row.style.display = allowed ? '' : 'none'
+  }
+}
+
+effect(() => {
+  // Re-runs whenever `auth.roles()` / `auth.unauthenticated()` change,
+  // including the first run after the auth fetch resolves.
+  applyRoleFilter()
+})
+</script>
+
+<Sidebar
+  :sections="sidebarSections"
+  theme="macos"
+  width="250"
+  placement="fixed"
+  persist-key="stacks-dashboard-sidebar"
+  shell-selector="[data-stx-content]"
+>
+  <template #header>
+    <!-- Chrome strip. The traffic lights are native (the Craft window is
+        titlebarHidden), so this reserves their space and acts as the window
+        drag region; in a plain browser it is the same empty strip macOS
+        sidebars carry above their first row. -->
+    <SidebarHeader :show-window-controls="false" />
+  </template>
+</Sidebar>
+
+<script>
+// Sidebar wiring the component intentionally leaves to the host app: SPA
+// navigation, keeping the highlight in sync with the real route, and Craft's
+// native selection events.
+//
+// Runs as a plain <script> IIFE (like the import-map script above), NOT via
+// onMount: stx gives a LAYOUT no reactive scope of its own, so its onMount /
+// effect callbacks never fire ("global mountCallbacks: 0"). A DOMContentLoaded
+// IIFE plus the stx:navigate event cover hard loads and every SPA route change
+// without depending on a scope mount.
+;(function () {
+  if (typeof document === 'undefined') return
+
+  function rows(pane) {
+    return pane.querySelectorAll('a[data-sidebar-item][href]')
+  }
+
+  // Highlight the sidebar row for the CURRENT route. Longest-prefix match, so a
+  // nested/detail page (e.g. /commerce/products/42) still lights up its section
+  // row (/commerce/products); the root row (/) only ever matches the home page.
+  function syncActive(url) {
+    var pane = document.querySelector('[data-stx-sidebar]')
+    if (!pane) return
+    var path
+    try { path = new URL(url || location.href, location.origin).pathname }
+    catch (e) { path = location.pathname }
+    var norm = function (p) { return (p || '/').replace(/\/+$/, '') || '/' }
+    var cur = norm(path)
+    var best = null
+    var bestLen = -1
+    var links = rows(pane)
+    for (var i = 0; i < links.length; i++) {
+      var href = links[i].getAttribute('href') || ''
+      if (href.indexOf('http') === 0) continue
+      var h = norm(href)
+      // `${cur}/`.startsWith(`${h}/`) catches an exact hit and any child path,
+      // while the trailing slash stops /health matching /health-check.
+      if ((cur + '/').indexOf(h + '/') === 0 && h.length > bestLen) {
+        best = links[i]
+        bestLen = h.length
+      }
+    }
+    var actives = pane.querySelectorAll('[data-sidebar-item][data-active="true"]')
+    for (var j = 0; j < actives.length; j++) {
+      actives[j].removeAttribute('data-active')
+      actives[j].removeAttribute('aria-current')
+    }
+    if (best) {
+      best.setAttribute('data-active', 'true')
+      best.setAttribute('aria-current', 'page')
+    }
+  }
+
+  function init() {
+    var pane = document.querySelector('[data-stx-sidebar]')
+    if (!pane) return
+
+    syncActive()
+
+    // Bind route + click listeners once. This script can re-run on SPA fragment
+    // swaps, so guard against stacking duplicate handlers on the persistent pane.
+    if (pane.__sidebarWired) return
+    pane.__sidebarWired = true
+
+    // Follow EVERY route change, not just sidebar clicks. navigate() dispatches
+    // stx:navigate (content links, programmatic navigate, and popstate
+    // back/forward all route through it), so the highlight tracks the real
+    // route instead of only updating when a sidebar row is clicked.
+    window.addEventListener('stx:navigate', function (event) {
+      syncActive(event && event.detail && event.detail.url)
+    })
+
+    // The Sidebar component applies its initial server-declared selection
+    // during hydration. Re-sync once that native lifecycle completes so a
+    // direct URL load wins over any stale/default item state.
+    window.addEventListener('stx:hydrated', function () {
+      syncActive()
+    }, { once: true })
+
+    // SPA-navigate sidebar rows; fall back to full loads when the router isn't
+    // available or the target is external. The component already moves
+    // `data-active` on click, and the stx:navigate listener re-syncs after.
+    pane.addEventListener('click', function (event) {
+      var link = event.target.closest('a[data-sidebar-item]')
+      if (!link) return
+      // Disclosure chevrons live inside the row and only expand a subtree.
+      if (event.target.closest('[data-sidebar-disclosure]')) return
+      var href = link.getAttribute('href')
+      if (!href || href.indexOf('http') === 0 || typeof navigate !== 'function') return
+      event.preventDefault()
+      navigate(href)
+    })
+
+    // Craft native sidebar selection. When a Craft build installs a real
+    // NSOutlineView, it reports the selected row's id; resolve that back to a
+    // route from the rendered markup rather than a hand-maintained id-to-URL
+    // table, so the two can never drift apart.
+    window.craft = window.craft || {}
+    window.craft._sidebarSelectHandler = function (event) {
+      var id = event && event.itemId
+      if (!id) return
+      var row = pane.querySelector('[data-sidebar-row][data-item-id="' + id + '"] a[data-sidebar-item][href]')
+      var href = row && row.getAttribute('href')
+      if (href) navigate(href)
+    }
+  }
+
+  if (document.querySelector('[data-stx-sidebar]')) init()
+  else document.addEventListener('DOMContentLoaded', init)
+})();
+</script>
+
+<main data-stx-content>
+  @slot('content')
+</main>
+
+<!-- Global toast container. Top-right stack, newest at the bottom.
+    Pointer-events-none on the wrapper + auto on individual toasts so
+    surrounding UI stays clickable while a toast is up. -->
+<div class="flex fixed right-4 top-4 z-[60] flex-col gap-2 max-w-sm w-full pointer-events-none">
+  <template :for="toast in toasts">
+    <div role="alert" aria-live="assertive" :class="toastWrapperClass(toast.type)">
+      <div class="flex gap-3 items-start p-4">
+        <div :class="toastIconClass(toast.type)"></div>
+        <div class="flex-1 min-w-0">
+          <p class="font-medium text-gray-900 text-sm dark:text-neutral-100">{{ toast.title }}</p>
+          <p :if="toast.detail" class="mt-1 break-words text-gray-500 text-xs dark:text-neutral-400">{{ toast.detail }}</p>
+        </div>
+        <button type="button" @click="dismissToast(toast.id)" class="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-neutral-200" aria-label="Dismiss">
+          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </template>
+</div>

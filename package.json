@@ -1,0 +1,110 @@
+{
+  "name": "stacks",
+  "type": "module",
+  "version": "0.70.52",
+  "private": true,
+  "description": "Your project description",
+  "author": "your-name <your-email>",
+  "contributors": [
+    "Chris Breuer <chris@stacksjs.org>"
+  ],
+  "license": "MIT",
+  "funding": "https://github.com/sponsors/chrisbbreuer",
+  "homepage": "https://github.com/stacksjs/stacks#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/stacks.git"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/stacks/issues"
+  },
+  "scripts": {
+    "build:reset": "rm -rf node_modules && pantry install && ./buddy generate:types && ./buddy lint:fix && cd storage/framework && bun run build && cd ../../",
+    "buddy": "./buddy",
+    "stacks": "./buddy",
+    "setup": "./bootstrap",
+    "fresh": "./buddy fresh",
+    "clean": "./buddy clean",
+    "upgrade": "./buddy upgrade",
+    "dev": "./buddy dev",
+    "development": "./buddy dev",
+    "build": "./buddy build",
+    "prod": "./buddy build",
+    "deploy": "./buddy deploy",
+    "lint": "./buddy lint",
+    "lint:fix": "./buddy lint:fix",
+    "format": "./buddy format",
+    "format:check": "./buddy format:check",
+    "serve": "./buddy serve",
+    "make": "./buddy make",
+    "make:component": "./buddy make:component",
+    "make:function": "./buddy make:function",
+    "make:database": "./buddy make:migration",
+    "make:migration": "./buddy make:migration",
+    "make:notification": "./buddy make:notification",
+    "make:factory": "./buddy make:factory",
+    "make:lang": "./buddy make:lang",
+    "make:stack": "./buddy make:stack",
+    "key:generate": "./buddy key:generate",
+    "commit": "./buddy commit",
+    "release": "./buddy release",
+    "release:patch": "./buddy release --bump patch",
+    "release:minor": "./buddy release --bump minor",
+    "release:major": "./buddy release --bump major",
+    "changelog": "./buddy changelog",
+    "generate": "./buddy generate",
+    "typecheck": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false",
+    "typecheck:app": "bun x --bun tsc --noEmit -p tsconfig.json --pretty false",
+    "typecheck:clean": "bunx --bun rimraf storage/framework/.cache/typescript",
+    "types:check": "bun run typecheck",
+    "types:fix": "./buddy types:fix",
+    "test": "./buddy test",
+    "test:ui": "./buddy test:ui",
+    "test:coverage": "./buddy test:coverage",
+    "test:types": "./buddy test:types",
+    "docs:buddy": "./buddy docs:buddy",
+    "docs:buddy:check": "./buddy docs:buddy:check",
+    "docs:artifacts": "./buddy docs:artifacts",
+    "docs:artifacts:check": "./buddy docs:artifacts:check",
+    "docs:links": "./buddy docs:links",
+    "docs:links:check": "./buddy docs:links:check",
+    "deps:lockfile:check": "bun .github/scripts/check-lockfile-version.ts",
+    "protocol:sync": "./buddy protocol:sync",
+    "protocol:check": "./buddy protocol:check",
+    "protocol:conformance": "./buddy protocol:conformance",
+    "protocol:manifest": "./buddy protocol:manifest",
+    "protocol:manifest:check": "./buddy protocol:manifest:check",
+    "protocol:release": "./buddy protocol:release",
+    "protocol:release:check": "./buddy protocol:release:check",
+    "protocol:drivers": "./buddy protocol:drivers",
+    "protocol:drivers:check": "./buddy protocol:drivers:check",
+    "protocol:drivers:test": "./buddy protocol:drivers:test",
+    "protocol:desktop": "./buddy protocol:desktop",
+    "protocol:desktop:check": "./buddy protocol:desktop:check",
+    "protocol:pantry": "./buddy protocol:pantry",
+    "protocol:pantry:check": "./buddy protocol:pantry:check",
+    "protocol:craft": "./buddy protocol:craft",
+    "protocol:craft:check": "./buddy protocol:craft:check",
+    "bud": "./buddy",
+    "stx": "./buddy"
+  },
+  "dependencies": {
+    "stacks": "^0.70.229"
+  },
+  "workspaces": [
+    "storage/framework",
+    "storage/framework/libs/*",
+    "storage/framework/views/*"
+  ],
+  "git-hooks": {
+    "pre-commit": {
+      "staged-lint": {
+        "*.{js,ts,json,yaml,yml,md}": "bun x --bun pickier lint --fix"
+      }
+    },
+    "commit-msg": "bun x gitlint --edit \"$1\""
+  },
+  "devDependencies": {
+    "better-dx": "^0.2.17"
+  }
+}

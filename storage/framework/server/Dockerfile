@@ -1,0 +1,45 @@
+ARG BUN_VERSION=1.3.14
+
+FROM oven/bun:${BUN_VERSION}-alpine AS builder
+WORKDIR /usr/src
+
+# Copy source files
+COPY ./app ./app
+COPY ./config ./config
+COPY ./docs ./docs
+COPY ./dist ./dist
+COPY ./tsconfig.docker.json ./tsconfig.json
+
+# [optional] Run tests and build
+# ENV NODE_ENV=production
+# RUN bun test
+# RUN bun run build
+
+FROM oven/bun:${BUN_VERSION}-alpine AS release
+WORKDIR /usr/src
+
+# Copy built files from builder stage
+COPY --chown=bun:bun --from=builder /usr/src/app ./app
+COPY --chown=bun:bun --from=builder /usr/src/config ./config
+COPY --chown=bun:bun --from=builder /usr/src/docs ./docs
+COPY --chown=bun:bun --from=builder /usr/src/dist ./dist
+COPY --chown=bun:bun --from=builder /usr/src/tsconfig.json ./tsconfig.json
+COPY --chown=bun:bun ./storage ./storage
+
+# Add storage volume for logs and other files
+VOLUME ["/usr/src/storage"]
+
+USER bun
+
+# Fail closed (#1955): this image ships no .env (Bun's cwd auto-load finds
+# nothing in /usr/src) and the dev-only route gate in
+# defaults/routes/dashboard.ts treats an unset APP_ENV/NODE_ENV as local —
+# without these the production container would register /install and
+# /test-error. Mirrors storage/framework/Dockerfile; `docker run -e` still
+# overrides for staging images.
+ENV APP_ENV=production
+ENV NODE_ENV=production
+
+# Expose port and set entrypoint
+EXPOSE 3000/tcp
+ENTRYPOINT ["bun", "run", "dist/index.js"]
