@@ -96,6 +96,44 @@ The differentiator. Nothing else in this space handles it well.
       declaration
 - [ ] Tests: a three-deep stack, merging out of order, and a parent closed without merging
 
+## Reviewing at scale
+
+Everything above makes one review possible. This section is about the reviewer who has eleven of
+them waiting and forty minutes, which is the actual condition of the job and the thing no forge
+treats as a first-class problem. If ReviewOS is going to claim the review is the primary object,
+this is where the claim is either true or marketing.
+
+- [ ] **Since I last looked.** A per-reviewer incremental diff: what changed between the commit you
+      last reviewed and the head, not a commit range you have to assemble yourself. The re-anchoring
+      work above is what makes this survive a force-push, which is the case that matters, because a
+      rebased branch is where GitHub's version gives up and shows you the whole diff again.
+- [ ] **Separate the mechanical from the meaningful.** Classify each hunk: a pure rename, a
+      formatting-only change, a mass find-and-replace, a moved block, real logic. Collapse the first
+      four by default and say how many were collapsed. A 4,000 line diff is usually 200 lines of
+      decision inside 3,800 lines of consequence, and reading it linearly is the reason large
+      changes get approved unread.
+- [ ] Commit-by-commit review for branches whose history was written to be read, rather than forcing
+      every change through one squashed view
+- [ ] **The review queue is the home screen.** What is waiting on you, ordered by how long it has
+      been waiting and how blocked the author is, plus what you are waiting on. A repository list as
+      a landing page is a file browser's idea of a home screen.
+- [ ] Suggested reviewers from who actually changed these lines, weighted by recency, not only from
+      `CODEOWNERS`. Include current review load, so the suggestion does not always name the same
+      person.
+- [ ] Reviewer load and staleness visible to maintainers: which requests have gone unanswered, and
+      by whom, as information rather than as a leaderboard
+- [ ] **Coverage in the diff.** If CI uploads a coverage report, mark changed lines that no test
+      executes. This changes the question a reviewer asks from "does this look right" to "what
+      happens when this is wrong", which is the more useful question.
+- [ ] Blame on context lines: why this line is here, linking the pull request that introduced it,
+      without leaving the diff
+- [ ] Review drafts survive leaving the page, closing the browser, and coming back on another
+      machine. A lost half-written review is the reason reviews get sent as one line.
+- [ ] Keyboard-first: next file, next thread, next unresolved, approve, request changes, submit,
+      all without the mouse, and a command palette for everything else
+- [ ] Tests: a force-push mid-review keeps the incremental diff correct, and classification does not
+      hide a logic change inside a rename
+
 ## Views
 
 - [ ] `resources/views/[owner]/[repository]/pulls/index.stx`
