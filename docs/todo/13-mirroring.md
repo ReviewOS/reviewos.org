@@ -118,9 +118,13 @@ there?
 ours, it is public, it is large enough to be a real test of the diff and review screens, and its
 documentation is markdown that the docs pipeline has to render anyway.
 
-- [ ] Owner `stacks` exists as an organization
+- [x] Owner `stacks` exists as an organization
 - [ ] Mirror configured, pull direction, public, no credential
-- [ ] Git data synced and browsable
+- [x] Git data cloned into `storage/repos/stacks/stacks.git` and readable through git plumbing
+      (2488 refs, HEAD resolves, trees list)
+- [ ] Browsable in the UI. Blocked on the repository browse view, which
+      [02 - Git hosting](./02-git-hosting.md) has not built yet - `/stacks/stacks` 404s because the
+      route does not exist, not because the mirror is wrong
 - [ ] Its markdown renders through the docs pipeline (see [07](./07-marketing-docs.md))
 - [ ] Pull requests visible in the review screen, which is the actual test of whether any of this
       was worth building
