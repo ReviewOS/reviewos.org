@@ -67,6 +67,8 @@ const config: BunPressOptions = {
             { text: '09 - Checks and CI', link: '/todo/09-checks-ci' },
             { text: '10 - Federation', link: '/todo/10-federation' },
             { text: '11 - Self-hosting and operations', link: '/todo/11-self-hosting-deploy' },
+            { text: '12 - The API and agents', link: '/todo/12-api-and-agents' },
+            { text: '13 - Mirroring', link: '/todo/13-mirroring' },
           ],
         },
       ],

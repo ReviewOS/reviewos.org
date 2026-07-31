@@ -29,13 +29,11 @@ decides whether an evaluation ends in a migration or a shrug.
 
 ## Mirroring
 
-- [ ] `app/Models/RepositoryMirror.ts`: `repository_id`, `direction` (pull, push), `remote_url`,
-      credentials reference, `interval`, `last_synced_at`, `last_error`
-- [ ] `app/Jobs/MirrorSyncJob.ts`, scheduled, with failures surfaced on the repository rather than
-      only in logs
-- [ ] Pull mirror: keep a copy of a repository hosted elsewhere
-- [ ] Push mirror: keep a copy elsewhere in sync with this one, which is the low-risk way for
-      someone to try this forge without committing to it
+Moved to its own phase: [13 - Mirroring](./13-mirroring.md).
+
+Mirroring outgrew this file. Import assumes you have decided to leave GitHub; mirroring assumes you
+have decided nothing, which makes it the way most people will first see this forge rather than a
+step in a migration.
 
 ## Exporting
 

@@ -27,6 +27,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [10 - Federation](./10-federation.md) | Research: ActivityPub / ForgeFed versus AT Protocol | Research |
 | [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Started (1/44) |
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Not started |
+| [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | Not started |
 
 Phases 1 through 5 all have code in them, which is why none of them says "not started" any more: the
 work went depth-first through a vertical slice (identity, a repository on disk, an issue, a pull
