@@ -23,6 +23,7 @@ it needs phases 1 and 2 underneath it first.
 | [09 - Checks and CI](./09-checks-ci.md) | Commit status API, then runners | Not started |
 | [10 - Federation](./10-federation.md) | Research: ActivityPub / ForgeFed versus AT Protocol | Research |
 | [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Not started |
+| [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Not started |
 
 ## How work is shaped
 
