@@ -25,6 +25,11 @@ route.delete('/orgs/members', 'Actions/Org/RemoveMemberAction').middleware('auth
 // Keys the caller pushes with.
 route.post('/user/keys', 'Actions/Keys/AddSshKeyAction').middleware('auth')
 
+// When notifications may interrupt, and what has been muted. Both are here
+// rather than under a repository because they are decisions about a person.
+route.put('/user/notifications/schedule', 'Actions/Notification/UpdateScheduleAction').middleware('auth')
+route.post('/user/notifications/mutes', 'Actions/Notification/MuteAction').middleware('auth')
+
 // Issues. Both issues and pull requests live in one numbering sequence, so
 // `#12` means one thing in a repository, and a comment endpoint serves both.
 route.post('/repos/issues', 'Actions/Issue/CreateIssueAction').middleware('auth')

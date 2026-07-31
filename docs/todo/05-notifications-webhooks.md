@@ -47,8 +47,15 @@ entirely, and then the reviewer everybody is waiting on is unreachable by design
 Held is the important word below. A notification outside someone's hours is delayed, never dropped:
 it arrives in the in-app inbox immediately, and the push and email leave when the window opens.
 
-- [ ] Every user has a timezone, set at registration from the browser and editable. Every rule here
-      is evaluated in it, so "after 18:00" means their 18:00 in whatever week of the year it is.
+- [x] Every rule is evaluated in the recipient's timezone, so "after 18:00" means their 18:00 in
+      whatever week of the year it is (`clock.ts`, tested across a daylight saving change and a
+      zone where the local weekday differs from UTC's). Setting it from the browser at registration
+      needs registration.
+- [x] "Mute until tomorrow" is computed from the recipient's local midnight rather than from now,
+      so choosing it at 23:50 does not expire in ten minutes somewhere else in the world
+- [x] `PUT /api/user/notifications/schedule` and `POST /api/user/notifications/mutes`. The schedule
+      response says in words what would happen to a review request right now, because a week grid
+      that does not explain itself is how somebody silences the thing they were waiting for.
 - [x] `app/Models/NotificationSchedule.ts`: `user_id`, `days` (which weekdays are active), `starts_at`,
       `ends_at`, `timezone`. Weekends are just days left out, not a separate flag, because a rotating
       shift and a Sunday-to-Thursday week are the same shape of problem. A window whose end is
@@ -67,8 +74,9 @@ it arrives in the in-app inbox immediately, and the push and email leave when th
 - [x] `app/Models/NotificationMute.ts`: polymorphic subject, `user_id`, `expires_at`. One model
       covers muting a repository, an organization, a pull request thread, or an issue, and a null
       expiry means indefinitely.
-- [ ] Mute a repository from anywhere it appears, without opening settings. Muting is not
-      unwatching: subscriptions stay intact, so unmuting restores exactly what was there.
+- [x] Muting leaves the subscription intact, so unmuting restores exactly what was there, and
+      unmuting deletes the row rather than expiring it. Reaching it from anywhere the subject
+      appears, rather than only from settings, needs those views.
 - [x] A muted repository still writes to the in-app inbox, marked muted. This is what makes muting
       safe enough that people actually use it instead of leaving. Filtering the inbox by it needs
       the inbox.
