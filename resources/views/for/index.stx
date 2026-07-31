@@ -1,0 +1,38 @@
+<script server>
+import { USE_CASES } from '../../functions/marketing'
+
+const pageTitle = 'Use cases - ReviewOS'
+const pageDescription = 'Who ReviewOS is built for, and the specific problem it solves for each of them.'
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Use cases</p>
+      <h1 class="page-title">Built for the teams where review is the bottleneck</h1>
+      <p class="page-lede">Every one of these is a team that reached the same wall from a different direction: the reviewing, not the writing, is what limits how fast the work lands.</p>
+    </header>
+
+    <div class="card-grid">
+      @foreach (USE_CASES as item)
+        <a class="panel card" href="/for/{{ item.slug }}">
+          <span class="card-title">{{ item.name }}</span>
+          <span class="card-text">{{ item.summary }}</span>
+        </a>
+      @endforeach
+    </div>
+
+    <section class="panel" style="margin-top: 44px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">See whether it fits your team</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Open source, self-hosted, and quick enough to try on a real repository this afternoon.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+    </section>
+  </div>
+@endsection

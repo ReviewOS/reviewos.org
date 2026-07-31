@@ -1,0 +1,80 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Webhooks you can trust - ReviewOS'
+const pageDescription = 'Signed over the exact bytes sent, retried with backoff, and blocked from reaching your own network.'
+const related = FEATURES.filter(feature => feature.slug !== 'webhooks').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Automation</p>
+      <h1 class="page-title">Outbound requests, treated as the risk they are</h1>
+      <p class="page-lede">A webhook URL is supplied by whoever can configure one, and the request leaves from inside your network. That is the highest-risk feature in any forge.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>The address is checked, not the hostname</h2>
+        <p>A hostname is whatever DNS says it is at the moment of the request, and plenty of public names resolve to 127.0.0.1 on purpose. So the check that matters runs on the resolved address, and it runs again on every redirect.</p>
+        <ul>
+          <li>Loopback, private ranges, and carrier-grade NAT are refused</li>
+          <li>Link-local is refused, which covers the cloud metadata service that hands out instance credentials</li>
+          <li>IPv6 is covered, including the IPv4-mapped forms used to slip past naive checks</li>
+          <li>A redirect to a blocked address fails, even when the first hop was innocent</li>
+        </ul>
+
+        <h2>Signatures over the exact bytes</h2>
+        <p>The signature is computed over the body as sent. A receiver that re-serialises the JSON before checking would compute a different digest for the same object and conclude, correctly from its side, that the delivery is forged.</p>
+
+        <h2>Retries that do not make an outage worse</h2>
+        <p>Backoff is exponential with jitter, so a receiver that goes down does not get every pending delivery back at the same instant. A 4xx is not repeated, because the receiver understood and refused; the two that mean "later" are the exceptions.</p>
+
+        <h2>Endpoints that stop answering are switched off</h2>
+        <p>A webhook that has not succeeded in a week is an endpoint nobody owns any more, and continuing to call it is a slow outbound attack on somebody else's server.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Resolved addresses checked, not names</li>
+              <li class="muted">Re-validated on every redirect</li>
+              <li class="muted">HMAC SHA-256 over the exact body</li>
+              <li class="muted">Backoff with jitter, then deactivation</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Integrate without opening a hole</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">The address rules are tested against the bypasses people actually use.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">All features</a>
+    </section>
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>

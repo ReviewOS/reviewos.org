@@ -1,0 +1,465 @@
+<script server>
+/**
+ * The review screen. The flagship of the product.
+ *
+ * Everything decided here comes from the tested modules in `app/Actions/Pull`:
+ * the diff parser, the thread re-anchoring, the approval count, and the merge
+ * blockers. The view's whole job is to read those and lay them out — no rules
+ * live in this file, because rules in a template cannot be tested.
+ *
+ * Server-rendered on purpose. A hundred-file diff assembled in the browser is
+ * where forges get slow, and it is slowest exactly when the review matters.
+ */
+import {
+  approvalsSatisfied,
+  diffTotals,
+  isGenerated,
+  mergeBlockers,
+  parseDiff,
+  pullRequestDiff,
+  reanchor,
+  requirementsSatisfied,
+  startsCollapsed,
+} from '../../../../functions/review'
+
+const owner = String(params.owner)
+const repositoryName = String(params.repository)
+const number = Number(params.number)
+
+const repoRow: any = await db
+  .selectFrom('repositories')
+  .selectAll()
+  .where('name', '=', repositoryName)
+  .executeTakeFirst()
+
+const pullRequest = repoRow
+  ? await db
+      .selectFrom('pull_requests')
+      .selectAll()
+      .where('repository_id', '=', Number(repoRow.id))
+      .where('number', '=', number)
+      .executeTakeFirst()
+  : undefined
+
+const author = pullRequest
+  ? await db.selectFrom('users').select(['handle']).where('id', '=', Number(pullRequest.author_id)).executeTakeFirst()
+  : undefined
+
+const reviews = pullRequest
+  ? await db
+      .selectFrom('pull_request_reviews')
+      .select(['id', 'reviewer_id', 'state', 'commit_sha', 'body', 'submitted_at'])
+      .where('pull_request_id', '=', Number(pullRequest.id))
+      .orderBy('id', 'asc')
+      .execute()
+  : []
+
+const threadRows = pullRequest
+  ? await db
+      .selectFrom('review_threads')
+      .selectAll()
+      .where('pull_request_id', '=', Number(pullRequest.id))
+      .orderBy('id', 'asc')
+      .execute()
+  : []
+
+const commentRows = threadRows.length === 0
+  ? []
+  : await db
+      .selectFrom('review_comments')
+      .innerJoin('users', 'users.id', 'review_comments.author_id')
+      .select([
+        'review_comments.id as id',
+        'review_comments.review_thread_id as review_thread_id',
+        'review_comments.body as body',
+        'review_comments.created_at as created_at',
+        'users.handle as handle',
+      ])
+      .where('review_comments.review_thread_id', 'in', threadRows.map((row: any) => Number(row.id)))
+      .orderBy('review_comments.id', 'asc')
+      .execute()
+
+/**
+ * The diff, from the merge base rather than the base tip.
+ *
+ * Against the tip, a reviewer is shown every change somebody else landed on the
+ * base while this branch was open, and asked to approve them too.
+ */
+const raw = pullRequest
+  ? await pullRequestDiff(owner, repositoryName, String(pullRequest.base_sha), String(pullRequest.head_sha))
+  : ''
+const files = parseDiff(raw)
+const totals = diffTotals(files)
+
+// Threads were written against an earlier commit. Follow each one through the
+// diff so it sits on the line it is about now, or is marked outdated.
+const threads = threadRows.map((row: any) => {
+  const outcome = reanchor(
+    { path: String(row.path), line: Number(row.line), side: row.side === 'left' ? 'left' : 'right' },
+    files,
+  )
+
+  return {
+    id: Number(row.id),
+    path: outcome.anchor.path,
+    line: outcome.status === 'outdated' ? Number(row.original_line) : outcome.anchor.line,
+    side: outcome.anchor.side,
+    resolved: Boolean(row.resolved),
+    outdated: outcome.status === 'outdated',
+    comments: commentRows
+      .filter((comment: any) => Number(comment.review_thread_id) === Number(row.id))
+      .map((comment: any) => ({
+        id: Number(comment.id),
+        authorHandle: String(comment.handle),
+        body: String(comment.body),
+        createdAt: String(comment.created_at ?? ''),
+      })),
+  }
+})
+
+const protection = repoRow && pullRequest
+  ? await db
+      .selectFrom('protected_branches')
+      .selectAll()
+      .where('repository_id', '=', Number(repoRow.id))
+      .where('pattern', '=', pullRequest.base_branch)
+      .executeTakeFirst()
+  : undefined
+
+let requiredChecks: string[] = []
+try {
+  const parsed = JSON.parse(String(protection?.required_checks ?? '[]'))
+  if (Array.isArray(parsed))
+    requiredChecks = parsed.map(String)
+}
+catch {
+  requiredChecks = []
+}
+
+const checkRows = pullRequest && requiredChecks.length > 0
+  ? await db
+      .selectFrom('check_runs')
+      .select(['name', 'status', 'conclusion', 'started_at'])
+      .where('repository_id', '=', Number(repoRow!.id))
+      .where('head_sha', '=', pullRequest.head_sha)
+      .execute()
+  : []
+
+const checkResult = requirementsSatisfied(
+  checkRows.map((row: any) => ({
+    name: String(row.name),
+    status: row.status,
+    conclusion: row.conclusion,
+    startedAt: Date.parse(String(row.started_at ?? '')) || 0,
+  })),
+  requiredChecks,
+)
+
+const approval = approvalsSatisfied({
+  reviews: reviews.map((review: any) => ({
+    reviewerId: Number(review.reviewer_id),
+    state: String(review.state),
+    commitSha: review.commit_sha as string | null,
+  })),
+  headSha: pullRequest ? (pullRequest.head_sha as string | null) : null,
+  requiredApprovals: Number(protection?.required_approvals ?? 0),
+  dismissStaleReviews: Boolean(protection?.dismiss_stale_reviews),
+})
+
+const unresolvedThreads = threads.filter(thread => !thread.resolved).length
+
+const blockers = pullRequest
+  ? mergeBlockers(
+      {
+        state: pullRequest.state as 'open' | 'closed' | 'merged',
+        draft: Boolean(pullRequest.draft),
+        mergeable: pullRequest.mergeable_state === 'clean'
+          ? true
+          : (pullRequest.mergeable_state === 'dirty' ? false : null),
+        stackParent: null,
+      },
+      {
+        requiredApprovals: Number(protection?.required_approvals ?? 0),
+        requireThreadsResolved: Boolean(protection?.require_conversation_resolution),
+        requireLinearHistory: Boolean(protection?.require_linear_history),
+        allowedStrategies: ['merge', 'squash', 'rebase'],
+        requiredChecks,
+      },
+      {
+        approvals: approval.approvals,
+        blockingReviews: approval.blocking,
+        unresolvedThreads,
+        checks: checkResult,
+      },
+      'merge',
+    )
+  : []
+
+const title = pullRequest
+  ? `${pullRequest.title} by ${author?.handle ?? 'someone'} · ${owner}/${repositoryName} #${number}`
+  : 'Pull request not found'
+
+const stateLabel = pullRequest
+  ? (pullRequest.state === 'merged' ? 'Merged' : (pullRequest.state === 'closed' ? 'Closed' : (pullRequest.draft ? 'Draft' : 'Open')))
+  : ''
+
+const statePill = pullRequest
+  ? (pullRequest.state === 'merged' ? 'merged' : (pullRequest.state === 'closed' ? 'closed' : (pullRequest.draft ? 'draft' : 'open')))
+  : 'draft'
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!pullRequest)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such pull request</h1>
+        <p class="muted" style="margin-top: 6px;">
+          {{ owner }}/{{ repositoryName }} has no pull request numbered {{ number }}.
+        </p>
+      </div>
+    @else
+      <header class="pr-head">
+        <div class="pr-title-row">
+          <h1 class="pr-title">{{ pullRequest.title }}</h1>
+          <span class="mono muted pr-number">#{{ number }}</span>
+        </div>
+
+        <div class="pr-meta">
+          <span class="pill pill-{{ statePill }}">{{ stateLabel }}</span>
+          <span class="muted">
+            {{ author?.handle ?? 'someone' }} wants to merge
+            <span class="mono">{{ pullRequest.head_branch }}</span>
+            into
+            <span class="mono">{{ pullRequest.base_branch }}</span>
+          </span>
+        </div>
+
+        <div class="pr-counts muted mono">
+          {{ totals.files }} {{ totals.files === 1 ? 'file' : 'files' }}
+          <span class="count-add">+{{ totals.additions }}</span>
+          <span class="count-del">-{{ totals.deletions }}</span>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="Pull request sections">
+        <a class="tab" href="#conversation">Conversation</a>
+        <a class="tab" aria-current="page" href="#files">Files changed</a>
+        <a class="tab" href="#checks">Checks</a>
+      </nav>
+
+      <div class="pr-body">
+        <div class="pr-main" id="files">
+          @if (pullRequest.body)
+            <section class="panel pr-description">{{ pullRequest.body }}</section>
+          @endif
+
+          @if (files.length === 0)
+            <p class="muted" style="padding: 24px 0;">
+              This branch has no changes against
+              <span class="mono">{{ pullRequest.base_branch }}</span>.
+            </p>
+          @endif
+
+          @foreach (files as file)
+            <DiffView
+              file="{{ file }}"
+              threads="{{ threads }}"
+              collapsed="{{ startsCollapsed(file, isGenerated(file.path)) }}"
+            />
+          @endforeach
+        </div>
+
+        <aside class="pr-side">
+          {{-- The merge box. Every reason it cannot merge is listed at once:
+               being sent round the loop one blocker at a time is the thing
+               contributors hate most about a review interface. --}}
+          <section class="panel merge-box">
+            <h2 class="side-heading">Merge</h2>
+
+            @if (blockers.length === 0)
+              <p class="merge-state ok">Everything checks out.</p>
+              <form method="post" action="/api/repos/pulls/merge">
+                <input type="hidden" name="owner" value="{{ owner }}">
+                <input type="hidden" name="repo" value="{{ repositoryName }}">
+                <input type="hidden" name="number" value="{{ number }}">
+                <label class="visually-hidden" for="strategy">Merge strategy</label>
+                <select id="strategy" name="strategy" class="select">
+                  <option value="merge">Create a merge commit</option>
+                  <option value="squash">Squash and merge</option>
+                  <option value="rebase">Rebase and merge</option>
+                </select>
+                <button type="submit" class="btn btn-primary merge-button">Merge pull request</button>
+              </form>
+            @else
+              <p class="merge-state bad">This cannot be merged yet.</p>
+              <ul class="blockers">
+                @foreach (blockers as blocker)
+                  <li class="blocker">
+                    <span class="i-hugeicons-alert-02" aria-hidden="true"></span>
+                    {{ blocker }}
+                  </li>
+                @endforeach
+              </ul>
+              <button type="button" class="btn merge-button" aria-disabled="true" disabled>
+                Merge pull request
+              </button>
+            @endif
+          </section>
+
+          <section class="panel side-panel">
+            <h2 class="side-heading">Reviews</h2>
+            @if (reviews.length === 0)
+              <p class="muted side-empty">Nobody has reviewed this yet.</p>
+            @else
+              <ul class="review-list">
+                @foreach (reviews as review)
+                  <li class="review-item">
+                    <span class="pill {{ review.state === 'approved' ? 'pill-open' : (review.state === 'changes_requested' ? 'pill-closed' : 'pill-draft') }}">
+                      {{ review.state === 'approved' ? 'Approved' : (review.state === 'changes_requested' ? 'Changes requested' : 'Commented') }}
+                    </span>
+                    @if (review.commit_sha !== pullRequest.head_sha)
+                      <span class="muted review-stale">on an earlier commit</span>
+                    @endif
+                  </li>
+                @endforeach
+              </ul>
+            @endif
+            <p class="muted side-note">
+              {{ approval.approvals }} of {{ protection?.required_approvals ?? 0 }} required approvals.
+            </p>
+          </section>
+
+          <section class="panel side-panel" id="checks">
+            <h2 class="side-heading">Checks</h2>
+            @if (requiredChecks.length === 0)
+              <p class="muted side-empty">No checks are required on this branch.</p>
+            @else
+              <ul class="check-list">
+                @foreach (checkResult.failing as name)
+                  <li class="check bad"><span class="i-hugeicons-cancel-01" aria-hidden="true"></span>{{ name }}</li>
+                @endforeach
+                @foreach (checkResult.pending as name)
+                  <li class="check warn"><span class="i-hugeicons-time-quarter" aria-hidden="true"></span>{{ name }}</li>
+                @endforeach
+                @foreach (checkResult.missing as name)
+                  <li class="check warn"><span class="i-hugeicons-help-circle" aria-hidden="true"></span>{{ name }} has never reported</li>
+                @endforeach
+                @if (checkResult.satisfied)
+                  <li class="check ok"><span class="i-hugeicons-checkmark-circle-02" aria-hidden="true"></span>All required checks passed</li>
+                @endif
+              </ul>
+            @endif
+          </section>
+
+          <section class="panel side-panel">
+            <h2 class="side-heading">Conversations</h2>
+            <p class="muted side-note">
+              {{ unresolvedThreads }} unresolved of {{ threads.length }}.
+            </p>
+          </section>
+        </aside>
+      </div>
+    @endif
+  </div>
+@endsection
+
+<style>
+  .pr-head { padding-bottom: 14px; }
+
+  .pr-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .pr-title { font-size: 25px; }
+  .pr-number { font-size: 20px; font-weight: 400; }
+
+  .pr-meta { display: flex; align-items: center; gap: 10px; margin-top: 9px; flex-wrap: wrap; font-size: 14px; }
+  .pr-counts { margin-top: 7px; font-size: 13px; display: flex; gap: 8px; }
+
+  .pr-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 296px;
+    gap: 22px;
+    margin-top: 20px;
+    align-items: start;
+  }
+
+  @media (max-width: 1040px) {
+    .pr-body { grid-template-columns: minmax(0, 1fr); }
+    .pr-side { order: -1; }
+  }
+
+  .pr-main { min-width: 0; }
+
+  .pr-description {
+    padding: 15px 17px;
+    margin-bottom: 16px;
+    font-size: 14.5px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .pr-side { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 72px; }
+
+  .side-heading {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .merge-box, .side-panel { padding: 15px 17px; }
+  .side-empty, .side-note { margin-top: 8px; font-size: 13.5px; }
+
+  .merge-state { margin-top: 9px; font-size: 14.5px; font-weight: 500; }
+  .merge-state.ok { color: var(--ok); }
+  .merge-state.bad { color: var(--bad); }
+
+  .blockers { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+
+  .blocker {
+    display: flex;
+    gap: 8px;
+    align-items: start;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+
+  .blocker span { color: var(--bad); flex: none; margin-top: 3px; }
+
+  .select {
+    width: 100%;
+    height: 34px;
+    margin-top: 11px;
+    padding: 0 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+  }
+
+  .merge-button { width: 100%; justify-content: center; margin-top: 9px; }
+
+  .review-list, .check-list { margin-top: 9px; display: flex; flex-direction: column; gap: 7px; }
+  .review-item { display: flex; align-items: center; gap: 8px; }
+  .review-stale { font-size: 12.5px; }
+
+  .check { display: flex; gap: 8px; align-items: center; font-size: 13.5px; }
+  .check.ok span { color: var(--ok); }
+  .check.bad span { color: var(--bad); }
+  .check.warn span { color: var(--warn); }
+
+  .count-add { color: var(--ok); }
+  .count-del { color: var(--bad); }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+</style>

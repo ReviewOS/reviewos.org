@@ -1,0 +1,80 @@
+<script server>
+import { COMPARISONS } from '../../functions/marketing'
+
+const pageTitle = 'ReviewOS and Forgejo - ReviewOS'
+const pageDescription = 'Two self-hosted, open source forges with different centres of gravity.'
+const related = COMPARISONS.filter(item => item.slug !== 'forgejo').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Comparison</p>
+      <h1 class="page-title">ReviewOS and Forgejo</h1>
+      <p class="page-lede">Forgejo, and Gitea before it, proved that a small self-hosted forge is a good idea. This is the closest comparison on this site, and the most useful one.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>What Forgejo has that this does not, yet</h2>
+        <p>Forgejo is mature, widely deployed, and broad. Being honest about the gap is more useful than pretending it is not there.</p>
+        <ul>
+          <li>Years of production use across thousands of instances, including Codeberg</li>
+          <li>A package registry, a wiki, and built-in Actions-compatible CI</li>
+          <li>SSH transport, mirroring, and a long list of migration importers</li>
+          <li>ActivityPub federation work that is genuinely ahead of anything here</li>
+        </ul>
+
+        <h2>Where this one is deliberately different</h2>
+        <p>Both are small, self-hosted, and open source. The difference is what the complexity is spent on. Forgejo spends it on breadth; this spends it on the review.</p>
+        <ul>
+          <li>Review threads anchored to a commit, surviving rebases and force pushes</li>
+          <li>Stacked pull requests as a first-class object with automatic retargeting</li>
+          <li>Merge blockers computed together, including checks and unresolved threads</li>
+          <li>Diffs against the merge base, rendered on the server</li>
+        </ul>
+
+        <h2>Different technology, which matters mostly to you</h2>
+        <p>Forgejo is Go and ships as a single binary, which is an excellent operational story. ReviewOS is TypeScript on Bun with Postgres, which matters if your team wants to read and change the code it runs.</p>
+
+        <h2>An honest recommendation</h2>
+        <p>If you want a proven, broad, self-hosted forge today, use Forgejo. If review is the specific thing failing you, and especially if agents are writing most of your diffs, this is worth an afternoon.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">The short version</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Forgejo is broader and more proven</li>
+              <li class="muted">ReviewOS is deeper on review</li>
+              <li class="muted">Go binary against Bun and Postgres</li>
+              <li class="muted">Both open source and self-hosted</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Also read</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/compare/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Run it beside your Forgejo instance</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Mirror one busy repository into it and review a week of work in both.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">See the features</a>
+    </section>
+  </div>
+@endsection

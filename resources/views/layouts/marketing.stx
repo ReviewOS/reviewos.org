@@ -1,0 +1,447 @@
+<script server>
+/**
+ * The shell every marketing page shares.
+ *
+ * The navigation is built from the catalog in resources/functions/marketing.ts,
+ * so a feature page and its menu entry cannot drift apart.
+ *
+ * The mega menus are `<details>` elements. No JavaScript, they work before
+ * hydration and on a page that never hydrates, and a keyboard reaches them
+ * because the browser already knows how a disclosure behaves.
+ */
+import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../../functions/marketing'
+</script>
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@yield('title')</title>
+    <meta name="description" content="@yield('description')">
+
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0c1113" media="(prefers-color-scheme: dark)">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+
+    <style>
+      :root {
+        --bg: #fbfbfa;
+        --surface: #ffffff;
+        --surface-tint: #f2f4f4;
+        --line: #e2e4e3;
+        --line-strong: #cdd1d0;
+        --text: #12191b;
+        --muted: #5d6b6e;
+        --accent: #0f6d72;
+        --accent-quiet: #e2f0f0;
+        --accent-text: #0b565a;
+        --on-accent: #ffffff;
+        --pill-text: #4c585b;
+        --ok: #14663c;
+        --ok-bg: #e4f3ea;
+        --r-panel: 14px;
+        --r-control: 10px;
+        --shadow: 0 1px 2px rgb(18 25 27 / 0.05);
+        --shadow-pop: 0 12px 32px rgb(18 25 27 / 0.10);
+        --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0c1113;
+          --surface: #121a1c;
+          --surface-tint: #162023;
+          --line: #222e31;
+          --line-strong: #334247;
+          --text: #eef2f2;
+          --muted: #9aa9ac;
+          --accent: #4ec5c9;
+          --accent-quiet: #14292b;
+          --accent-text: #7fd8db;
+          --on-accent: #08201f;
+          --pill-text: #a7b5b8;
+          --ok: #55c48a;
+          --ok-bg: #15291f;
+          --shadow: none;
+          --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.45);
+        }
+      }
+
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Geist, ui-sans-serif, system-ui, sans-serif;
+        font-size: 16px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a { color: inherit; }
+      h1, h2, h3 { margin: 0; letter-spacing: -0.025em; line-height: 1.12; font-weight: 600; }
+      p { margin: 0; }
+      ul { margin: 0; padding: 0; list-style: none; }
+
+      .shell { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+      .muted { color: var(--muted); }
+      .mono { font-family: var(--mono); }
+
+      /* Navigation */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        height: 72px;
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 0 24px;
+        background: color-mix(in srgb, var(--bg) 88%, transparent);
+        backdrop-filter: blur(8px);
+      }
+
+      .nav-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      .nav-mark {
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        background: var(--accent);
+        position: relative;
+      }
+
+      .nav-mark::after {
+        content: '';
+        position: absolute;
+        inset: 5px 4px auto 4px;
+        height: 2px;
+        border-radius: 1px;
+        background: var(--on-accent);
+        box-shadow: 0 4px 0 var(--on-accent);
+      }
+
+      .nav-links { display: flex; align-items: center; gap: 4px; }
+
+      .nav-link {
+        padding: 8px 10px;
+        border-radius: var(--r-control);
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 14.5px;
+        font-weight: 500;
+      }
+
+      .nav-link:hover { color: var(--text); background: var(--surface-tint); }
+      .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+      /* Mega menu, built on <details> so it needs no script. */
+      .mega { position: relative; }
+
+      .mega > summary {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 8px 10px;
+        border-radius: var(--r-control);
+        color: var(--muted);
+        font-size: 14.5px;
+        font-weight: 500;
+        cursor: pointer;
+        list-style: none;
+      }
+
+      .mega > summary::-webkit-details-marker { display: none; }
+      .mega > summary:hover { color: var(--text); background: var(--surface-tint); }
+      .mega[open] > summary { color: var(--text); background: var(--surface-tint); }
+
+      .mega-chevron {
+        width: 14px;
+        height: 14px;
+        border-right: 1.6px solid currentColor;
+        border-bottom: 1.6px solid currentColor;
+        transform: rotate(45deg) translate(-2px, -2px);
+        opacity: 0.6;
+      }
+
+      .mega-panel {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        z-index: 50;
+        padding: 18px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel);
+        box-shadow: var(--shadow-pop);
+      }
+
+      .mega-features { width: min(860px, calc(100vw - 48px)); }
+      .mega-cases { width: min(480px, calc(100vw - 48px)); }
+
+      .mega-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+      .mega-cases .mega-grid { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+
+      @media (max-width: 900px) {
+        .mega-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+
+      .mega-group-title {
+        font-size: 11.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+
+      .mega-item {
+        display: block;
+        padding: 8px 9px;
+        border-radius: var(--r-control);
+        text-decoration: none;
+      }
+
+      .mega-item:hover { background: var(--surface-tint); }
+      .mega-item-name { display: block; font-size: 14px; font-weight: 500; }
+      .mega-item-text { display: block; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+
+      .mega-foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid var(--line);
+        font-size: 13.5px;
+      }
+
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 38px;
+        padding: 0 16px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--r-control);
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        font-size: 14.5px;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .btn:hover { background: var(--surface-tint); }
+
+      .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+      .btn-primary:hover { filter: brightness(1.07); background: var(--accent); }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel);
+        box-shadow: var(--shadow);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 26px;
+        padding: 0 11px;
+        border-radius: 999px;
+        background: var(--accent-quiet);
+        color: var(--accent-text);
+        font-size: 12.5px;
+        font-weight: 500;
+      }
+
+      /* Page furniture shared by every marketing page below the landing one. */
+      .page-head { padding: 56px 0 34px; }
+      .page-eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-text); }
+      .page-title { font-size: clamp(30px, 4.6vw, 46px); margin-top: 12px; max-width: 20ch; }
+      .page-lede { margin-top: 16px; max-width: 64ch; font-size: 18px; color: var(--muted); }
+
+      .prose { max-width: 68ch; display: flex; flex-direction: column; gap: 18px; font-size: 16.5px; }
+      .prose h2 { font-size: 23px; margin-top: 22px; }
+      .prose h3 { font-size: 18px; margin-top: 12px; }
+      .prose code { font-family: var(--mono); font-size: 0.9em; background: var(--surface-tint); padding: 1px 5px; border-radius: 5px; }
+      .prose ul { display: flex; flex-direction: column; gap: 9px; }
+      .prose li { padding-left: 20px; position: relative; color: var(--muted); }
+      .prose li::before { content: ''; position: absolute; left: 4px; top: 11px; width: 6px; height: 6px; border-radius: 2px; background: var(--accent); }
+
+      .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+      }
+
+      .card { padding: 20px; text-decoration: none; display: block; }
+      .card:hover { border-color: var(--line-strong); }
+      .card-title { font-size: 17px; font-weight: 600; }
+      .card-text { margin-top: 7px; font-size: 14.5px; color: var(--muted); }
+
+      .footer { margin-top: 80px; padding: 40px 0 56px; border-top: 1px solid var(--line); }
+      .footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 26px; }
+      .footer-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600; margin-bottom: 9px; }
+      .footer-link { display: block; padding: 3px 0; font-size: 14px; color: var(--muted); text-decoration: none; }
+      .footer-link:hover { color: var(--text); }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        * { animation: none !important; transition: none !important; }
+      }
+    </style>
+    @yield('head')
+  </head>
+
+  <body>
+    <header>
+      <nav class="nav" aria-label="Main">
+        <a class="nav-brand" href="/">
+          <span class="nav-mark" aria-hidden="true"></span>
+          ReviewOS
+        </a>
+
+        <div class="nav-links">
+          <details class="mega">
+            <summary>Features <span class="mega-chevron" aria-hidden="true"></span></summary>
+            <div class="mega-panel mega-features">
+              <div class="mega-grid">
+                @foreach (FEATURE_GROUPS as group)
+                  <div>
+                    <p class="mega-group-title">{{ group }}</p>
+                    @foreach (featuresIn(group) as feature)
+                      <a class="mega-item" href="/features/{{ feature.slug }}">
+                        <span class="mega-item-name">{{ feature.name }}</span>
+                        <span class="mega-item-text">{{ feature.summary }}</span>
+                      </a>
+                    @endforeach
+                  </div>
+                @endforeach
+              </div>
+              <div class="mega-foot">
+                <span class="muted">Every feature, in one place.</span>
+                <a href="/features" style="color: var(--accent-text); font-weight: 500;">All features</a>
+              </div>
+            </div>
+          </details>
+
+          <details class="mega">
+            <summary>Use cases <span class="mega-chevron" aria-hidden="true"></span></summary>
+            <div class="mega-panel mega-cases">
+              <div class="mega-grid">
+                @foreach (USE_CASES as useCase)
+                  <a class="mega-item" href="/for/{{ useCase.slug }}">
+                    <span class="mega-item-name">{{ useCase.name }}</span>
+                    <span class="mega-item-text">{{ useCase.summary }}</span>
+                  </a>
+                @endforeach
+              </div>
+              <div class="mega-foot">
+                <span class="muted">Who this is built for.</span>
+                <a href="/for" style="color: var(--accent-text); font-weight: 500;">All use cases</a>
+              </div>
+            </div>
+          </details>
+
+          <details class="mega">
+            <summary>Compare <span class="mega-chevron" aria-hidden="true"></span></summary>
+            <div class="mega-panel mega-cases">
+              <div class="mega-grid">
+                @foreach (COMPARISONS as comparison)
+                  <a class="mega-item" href="/compare/{{ comparison.slug }}">
+                    <span class="mega-item-name">{{ comparison.name }}</span>
+                    <span class="mega-item-text">{{ comparison.summary }}</span>
+                  </a>
+                @endforeach
+              </div>
+              <div class="mega-foot">
+                <span class="muted">Written to be fair, not flattering.</span>
+                <a href="/compare" style="color: var(--accent-text); font-weight: 500;">All comparisons</a>
+              </div>
+            </div>
+          </details>
+
+          <a class="nav-link" href="/docs">Docs</a>
+          <a class="nav-link" href="/docs/todo/">Roadmap</a>
+        </div>
+
+        <div class="nav-right">
+          <a class="btn" href="https://github.com/ReviewOS/reviewos.org">GitHub</a>
+          <a class="btn btn-primary" href="/docs/install">Self-host it</a>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      @yield('content')
+    </main>
+
+    <footer class="footer">
+      <div class="shell">
+        <div class="footer-grid">
+          <div>
+            <p class="footer-title">Review</p>
+            @foreach (featuresIn('Review') as feature)
+              <a class="footer-link" href="/features/{{ feature.slug }}">{{ feature.name }}</a>
+            @endforeach
+          </div>
+          <div>
+            <p class="footer-title">Repositories</p>
+            @foreach (featuresIn('Repositories') as feature)
+              <a class="footer-link" href="/features/{{ feature.slug }}">{{ feature.name }}</a>
+            @endforeach
+          </div>
+          <div>
+            <p class="footer-title">Automation</p>
+            @foreach (featuresIn('Automation') as feature)
+              <a class="footer-link" href="/features/{{ feature.slug }}">{{ feature.name }}</a>
+            @endforeach
+          </div>
+          <div>
+            <p class="footer-title">Use cases</p>
+            @foreach (USE_CASES as useCase)
+              <a class="footer-link" href="/for/{{ useCase.slug }}">{{ useCase.name }}</a>
+            @endforeach
+          </div>
+          <div>
+            <p class="footer-title">Compare</p>
+            @foreach (COMPARISONS as comparison)
+              <a class="footer-link" href="/compare/{{ comparison.slug }}">{{ comparison.name }}</a>
+            @endforeach
+          </div>
+          <div>
+            <p class="footer-title">Project</p>
+            <a class="footer-link" href="/docs">Documentation</a>
+            <a class="footer-link" href="/docs/todo/">Roadmap</a>
+            <a class="footer-link" href="https://github.com/ReviewOS/reviewos.org">Source</a>
+            <a class="footer-link" href="/docs/install">Self-hosting</a>
+          </div>
+        </div>
+        <p class="muted" style="margin-top: 32px; font-size: 13.5px;">
+          ReviewOS is open source under the MIT licence. Your code, your infrastructure.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

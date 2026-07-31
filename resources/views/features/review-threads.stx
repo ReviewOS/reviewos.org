@@ -1,0 +1,80 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Durable review threads - ReviewOS'
+const pageDescription = 'Review comments that follow the line through a rebase instead of vanishing with the commit they were written against.'
+const related = FEATURES.filter(feature => feature.slug !== 'review-threads').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Review</p>
+      <h1 class="page-title">Comments that hold their place when the branch moves</h1>
+      <p class="page-lede">A thread is written against one commit. The branch then gains commits, is rebased, or is force pushed. In most forges that is where the conversation goes quiet.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>What a thread is anchored to</h2>
+        <p>Four things, not one: a path, a line, a side of the diff, and the commit the comment was written against. The last two are what most implementations skip, and skipping them is why a comment on a removed line reappears under the line that replaced it.</p>
+        <p>The original anchor is never overwritten. That is what lets an outdated thread still show the code it was actually about.</p>
+
+        <h2>What happens when the branch moves</h2>
+        <p>The line is followed through the diff between the commit the thread was written against and the current head. Three outcomes, and each one is deliberate.</p>
+        <ul>
+          <li>The line is unchanged, so the thread stays where it is</li>
+          <li>The line moved, so the thread moves with it, including across a rename</li>
+          <li>The line is gone, so the thread is marked outdated and stays readable</li>
+        </ul>
+
+        <h2>A thread is never deleted</h2>
+        <p>Losing review history to a rebase is the failure this whole part of the product exists to prevent. A conversation about code that has since changed is still the record of why the code changed, and six months later it is often the only record.</p>
+
+        <h2>Suggested changes</h2>
+        <p>A suggestion block in a comment can be committed in one click. The parser is deliberately strict: the fence has to open and close on its own lines, and a half-written block is ignored rather than guessed at, because the output of this parser is written into somebody's branch.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Anchored to path, line, side, and commit</li>
+              <li class="muted">Follows the line through a rebase or a rename</li>
+              <li class="muted">Marked outdated rather than deleted</li>
+              <li class="muted">Suggestions commit in one click</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Stop losing review history to a rebase</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">The anchoring rules are pure functions with tests, not best-effort heuristics.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">All features</a>
+    </section>
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>

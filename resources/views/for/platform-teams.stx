@@ -1,0 +1,73 @@
+<script server>
+import { USE_CASES } from '../../functions/marketing'
+
+const pageTitle = 'For platform and infrastructure teams - ReviewOS'
+const pageDescription = 'A forge you operate yourself, with an operational surface small enough to reason about.'
+const related = USE_CASES.filter(item => item.slug !== 'platform-teams').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Use case</p>
+      <h1 class="page-title">A forge with an operational surface you can hold in your head</h1>
+      <p class="page-lede">You are the team that gets paged. The question is not what a product can do, it is what it does at three in the morning.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>What it actually needs</h2>
+        <p>Bun, Postgres, and the git binary. That is the dependency list to start. Queues, caches, and search are drivers you enable when there is a reason, not prerequisites in an install guide.</p>
+
+        <h2>Failure modes you can predict</h2>
+        <ul>
+          <li>Repositories are ordinary bare git directories, readable without this application running</li>
+          <li>Every merge ends in a guarded ref update, so a concurrent push is never silently discarded</li>
+          <li>Outbound webhooks cannot reach loopback, private ranges, or the metadata service</li>
+          <li>Backups are a directory copy and a database dump</li>
+        </ul>
+
+        <h2>Migrations are generated from the models</h2>
+        <p>The schema is described once, in the model, and the SQL is derived from it. Reviewing a schema change means reviewing a generated migration rather than reconciling two descriptions that drifted apart.</p>
+
+        <h2>No vendor lock in the storage layer</h2>
+        <p>Nothing about your history is inside a proprietary format. The exit plan is the same as the backup plan, which is the only exit plan anybody ever executes.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Why it fits</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Bun, Postgres, git</li>
+              <li class="muted">Bare repositories on disk</li>
+              <li class="muted">Guarded ref updates</li>
+              <li class="muted">Copy and dump backups</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Also read</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/for/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Operate it without a runbook the length of a novel</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">One process and one database, with the optional parts genuinely optional.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">See the features</a>
+    </section>
+  </div>
+@endsection

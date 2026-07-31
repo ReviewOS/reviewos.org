@@ -1,0 +1,75 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Stacked pull requests - ReviewOS'
+const pageDescription = 'Dependent changes that merge in order, each diffing against its parent, retargeting themselves when the bottom lands.'
+const related = FEATURES.filter(feature => feature.slug !== 'stacked-pull-requests').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Review</p>
+      <h1 class="page-title">Dependent changes, each reviewable on its own</h1>
+      <p class="page-lede">Large work arrives as a sequence: the refactor, the change it enables, the tests. One pull request makes it unreviewable. Three unrelated ones make it incoherent.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>Each one shows only its own work</h2>
+        <p>A stacked pull request diffs against its parent rather than the base branch. A reviewer opening the third change in a stack sees the third change, not the two below it repeated.</p>
+
+        <h2>Merging the bottom retargets the rest</h2>
+        <p>This is the part that decides whether stacks are usable. When the bottom of a stack merges, its branch is gone or about to be, and a child still pointing at it shows a diff against a branch nobody is updating.</p>
+        <p>Each child moves down to whatever its parent was based on, which is the branch its changes were always going to. A child that somebody retargeted by hand is left alone, and only loses the stale link to the merged parent.</p>
+
+        <h2>Order is enforced, not suggested</h2>
+        <p>A stacked pull request will not merge before its parent. Merging out of order would take the parent's commits along with it and leave the parent showing a diff of nothing, which is a mess that has to be untangled by hand.</p>
+
+        <h2>Detected from the branch, not from a convention</h2>
+        <p>Opening a pull request against another open pull request's branch is what makes it stacked. There is no naming scheme to learn and no metadata file to maintain.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Each change diffs against its parent</li>
+              <li class="muted">Children retarget when the parent merges</li>
+              <li class="muted">Out-of-order merges are refused</li>
+              <li class="muted">Detected from branch topology</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Ship large work in reviewable pieces</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Stacks are a first-class object here, not a client-side workaround.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">All features</a>
+    </section>
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>

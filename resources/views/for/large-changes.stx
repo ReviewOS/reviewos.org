@@ -1,0 +1,73 @@
+<script server>
+import { USE_CASES } from '../../functions/marketing'
+
+const pageTitle = 'For large refactors and migrations - ReviewOS'
+const pageDescription = 'Hundred-file diffs and dependent stacks, reviewed a piece at a time instead of rubber stamped.'
+const related = USE_CASES.filter(item => item.slug !== 'large-changes').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Use case</p>
+      <h1 class="page-title">The change nobody wants to review</h1>
+      <p class="page-lede">A framework upgrade touching two hundred files gets one approval and no comments. Everyone knows that approval means nothing.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>Split it, without losing the thread</h2>
+        <p>A stack turns one unreviewable change into a sequence of reviewable ones that still merge in order. Each pull request diffs against its parent, so reviewing the fourth means reading the fourth, not the first three again.</p>
+
+        <h2>The mechanical parts get out of the way</h2>
+        <ul>
+          <li>Generated files and lockfiles start collapsed, with their counts still visible</li>
+          <li>Whitespace-only changes hide behind a toggle, so a reformat does not bury the logic</li>
+          <li>Renames and copies are detected by git rather than guessed from the path</li>
+          <li>A file over five hundred changed lines starts collapsed rather than dominating the page</li>
+        </ul>
+
+        <h2>It stays fast when it gets big</h2>
+        <p>Diffs are rendered on the server. The browser receives HTML rather than a diff library and a payload to assemble, which is why a hundred files stays a long page instead of a hung tab.</p>
+
+        <h2>Merging the stack</h2>
+        <p>Merge the bottom and everything above it retargets automatically. A child that was pointed elsewhere by hand keeps its base and simply loses the stale link.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Why it fits</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Stacks make large work reviewable</li>
+              <li class="muted">Noise collapsed by default</li>
+              <li class="muted">Server-rendered diffs</li>
+              <li class="muted">Automatic retargeting on merge</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Also read</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/for/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Review the refactor properly</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">The tools that make a large diff readable are the default here, not a setting.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">See the features</a>
+    </section>
+  </div>
+@endsection

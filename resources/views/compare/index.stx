@@ -1,0 +1,38 @@
+<script server>
+import { COMPARISONS } from '../../functions/marketing'
+
+const pageTitle = 'Comparisons - ReviewOS'
+const pageDescription = 'How ReviewOS compares to GitHub, GitLab, and Forgejo, written to be fair rather than flattering.'
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Comparisons</p>
+      <h1 class="page-title">Where this fits, and where it does not</h1>
+      <p class="page-lede">Each of these says plainly what the alternative does better. A comparison page that only flatters its own product tells you nothing you can use.</p>
+    </header>
+
+    <div class="card-grid">
+      @foreach (COMPARISONS as item)
+        <a class="panel card" href="/compare/{{ item.slug }}">
+          <span class="card-title">{{ item.name }}</span>
+          <span class="card-text">{{ item.summary }}</span>
+        </a>
+      @endforeach
+    </div>
+
+    <section class="panel" style="margin-top: 44px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Still deciding?</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Mirror one busy repository and review a week of real work in it. That answers more than any table.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+    </section>
+  </div>
+@endsection

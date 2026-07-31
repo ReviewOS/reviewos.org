@@ -1,0 +1,124 @@
+{{--
+  One conversation, anchored to a line.
+
+  An outdated thread is shown, not hidden. The conversation that produced a
+  change is the record of why the code looks like it does, and losing it to a
+  rebase is the failure the whole anchoring module exists to prevent — so the
+  interface must not quietly finish the job.
+--}}
+<article class="thread {{ thread.resolved ? 'is-resolved' : '' }}">
+  <header class="thread-head">
+    @if (thread.outdated)
+      <span class="pill pill-draft" title="The line this was written about has changed">Outdated</span>
+    @endif
+
+    @if (thread.resolved)
+      <span class="pill pill-merged">Resolved</span>
+    @endif
+
+    <span class="muted thread-anchor mono">
+      {{ thread.path }}:{{ thread.line ?? '?' }}
+    </span>
+  </header>
+
+  <ol class="thread-comments">
+    @foreach (thread.comments as comment)
+      <li class="comment">
+        <div class="comment-head">
+          <span class="comment-author">{{ comment.authorHandle }}</span>
+          <span class="muted comment-time">{{ comment.createdAt }}</span>
+        </div>
+        <div class="comment-body">{{ comment.body }}</div>
+      </li>
+    @endforeach
+  </ol>
+
+  <form class="thread-reply" method="post" action="/api/repos/pulls/comments">
+    <input type="hidden" name="thread_id" value="{{ thread.id }}">
+    <label class="visually-hidden" for="reply-{{ thread.id }}">Reply to this thread</label>
+    <textarea
+      id="reply-{{ thread.id }}"
+      name="body"
+      rows="2"
+      placeholder="Reply"
+      class="reply-input"
+    ></textarea>
+    <div class="thread-actions">
+      <button type="submit" class="btn btn-primary">Reply</button>
+      <button
+        type="submit"
+        class="btn"
+        formaction="/api/repos/pulls/threads"
+        formmethod="post"
+        name="resolved"
+        value="{{ thread.resolved ? 'false' : 'true' }}"
+      >
+        {{ thread.resolved ? 'Unresolve' : 'Resolve' }}
+      </button>
+    </div>
+  </form>
+</article>
+
+<style>
+  .thread {
+    border: 1px solid var(--line);
+    border-radius: var(--r-panel);
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .thread.is-resolved { opacity: 0.72; }
+
+  .thread-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface-tint);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .thread-anchor { margin-left: auto; font-size: 12px; }
+
+  .thread-comments { padding: 0; }
+
+  .comment { padding: 11px 13px; border-bottom: 1px solid var(--line); }
+  .comment:last-child { border-bottom: 0; }
+
+  .comment-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 3px;
+  }
+
+  .comment-author { font-weight: 600; font-size: 14px; }
+  .comment-time { font-size: 12.5px; }
+
+  .comment-body {
+    font-size: 14px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .thread-reply { padding: 11px 13px; border-top: 1px solid var(--line); }
+
+  .reply-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    resize: vertical;
+  }
+
+  .reply-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .thread-actions { display: flex; gap: 8px; margin-top: 8px; }
+</style>

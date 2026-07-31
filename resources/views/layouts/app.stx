@@ -1,0 +1,257 @@
+{{-- The shell every page inside the product uses.
+
+     Separate from the marketing page on purpose: that page argues, this one
+     gets out of the way. Same tokens, denser scale, and the accent is reserved
+     for one thing per screen so review state (green, red, amber) reads as
+     state rather than decoration. --}}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title ?? 'ReviewOS' }}</title>
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0c1113" media="(prefers-color-scheme: dark)">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+
+    <style>
+      :root {
+        --bg: #fbfbfa;
+        --surface: #ffffff;
+        --surface-tint: #f2f4f4;
+        --line: #e2e4e3;
+        --line-strong: #cdd1d0;
+        --text: #12191b;
+        --muted: #5d6b6e;
+        --accent: #0f6d72;
+        --accent-quiet: #e2f0f0;
+        --accent-text: #0b565a;
+        --on-accent: #ffffff;
+        --pill-text: #4c585b;
+
+        /* Review states. These three are never used for anything else. */
+        --ok: #14663c;
+        --ok-bg: #e4f3ea;
+        --bad: #9b2c2c;
+        --bad-bg: #fbe9e9;
+        --warn: #8a5a09;
+        --warn-bg: #fdf1dc;
+
+        /* Diff surfaces, tinted enough to read at a glance and light enough
+           that syntax colours still carry. */
+        --add-bg: #e6f5ec;
+        --add-line: #bfe4cd;
+        --del-bg: #fdeaea;
+        --del-line: #f2c9c9;
+        --gutter: #f6f8f8;
+
+        --r-panel: 14px;
+        --r-control: 10px;
+        --shadow: 0 1px 2px rgb(18 25 27 / 0.05);
+        --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0c1113;
+          --surface: #121a1c;
+          --surface-tint: #162023;
+          --line: #222e31;
+          --line-strong: #334247;
+          --text: #eef2f2;
+          --muted: #9aa9ac;
+          --accent: #4ec5c9;
+          --accent-quiet: #14292b;
+          --accent-text: #7fd8db;
+          --on-accent: #08201f;
+          --pill-text: #a7b5b8;
+
+          --ok: #55c48a;
+          --ok-bg: #15291f;
+          --bad: #f08585;
+          --bad-bg: #2a1717;
+          --warn: #e0b25f;
+          --warn-bg: #2a2113;
+
+          --add-bg: #12261b;
+          --add-line: #1f4530;
+          --del-bg: #2a1618;
+          --del-line: #4d2529;
+          --gutter: #101719;
+
+          --shadow: none;
+        }
+      }
+
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Geist, ui-sans-serif, system-ui, sans-serif;
+        font-size: 15px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a { color: inherit; }
+      h1, h2, h3 { margin: 0; letter-spacing: -0.02em; line-height: 1.2; font-weight: 600; }
+      p { margin: 0; }
+      ul { margin: 0; padding: 0; list-style: none; }
+
+      .shell { width: 100%; max-width: 1320px; margin: 0 auto; padding: 0 20px; }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        height: 56px;
+        border-bottom: 1px solid var(--line);
+        background: color-mix(in srgb, var(--bg) 92%, transparent);
+        backdrop-filter: blur(8px);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        text-decoration: none;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      .brand-mark {
+        width: 17px;
+        height: 17px;
+        border-radius: 5px;
+        background: var(--accent);
+        position: relative;
+      }
+
+      .brand-mark::after {
+        content: '';
+        position: absolute;
+        inset: 5px 4px auto 4px;
+        height: 2px;
+        border-radius: 1px;
+        background: var(--on-accent);
+        box-shadow: 0 4px 0 var(--on-accent);
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel);
+        box-shadow: var(--shadow);
+      }
+
+      .muted { color: var(--muted); }
+      .mono { font-family: var(--mono); font-size: 0.875em; }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        height: 34px;
+        padding: 0 13px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--r-control);
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .btn:hover { background: var(--surface-tint); }
+
+      .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--on-accent);
+      }
+
+      .btn-primary:hover { filter: brightness(1.06); background: var(--accent); }
+
+      .btn:disabled, .btn[aria-disabled='true'] {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      /* Status pills are the only fully round thing in the system. */
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 24px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: 12.5px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+
+      .pill-open { background: var(--ok-bg); color: var(--ok); }
+      .pill-merged { background: var(--accent-quiet); color: var(--accent-text); }
+      .pill-closed { background: var(--bad-bg); color: var(--bad); }
+      .pill-draft { background: var(--surface-tint); color: var(--pill-text); }
+      .pill-pending { background: var(--warn-bg); color: var(--warn); }
+
+      .tabs {
+        display: flex;
+        gap: 4px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .tab {
+        padding: 10px 12px;
+        border-bottom: 2px solid transparent;
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .tab[aria-current='page'] {
+        color: var(--text);
+        border-bottom-color: var(--accent);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { animation: none !important; transition: none !important; }
+      }
+    </style>
+    {!! head ?? '' !!}
+  </head>
+
+  <body>
+    <header class="topbar">
+      <div class="shell" style="display: flex; align-items: center; gap: 20px;">
+        <a class="brand" href="/">
+          <span class="brand-mark" aria-hidden="true"></span>
+          ReviewOS
+        </a>
+        <nav style="display: flex; gap: 14px; font-size: 14px;" aria-label="Main">
+          <a class="muted" style="text-decoration: none;" href="/explore">Explore</a>
+          <a class="muted" style="text-decoration: none;" href="/dashboard">Dashboard</a>
+          <a class="muted" style="text-decoration: none;" href="/docs">Docs</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      @yield('content')
+    </main>
+  </body>
+</html>

@@ -1,0 +1,190 @@
+{{--
+  One file's diff.
+
+  Rendered on the server as a table, which is the decision the whole review
+  screen rests on: a hundred-file diff sent as JSON and assembled in the browser
+  is where every forge gets slow, and it is slowest exactly when the review
+  matters most. HTML arrives ready to read.
+
+  The gutters carry both line numbers, because a review comment anchors to a
+  line, a side, and a commit — a reader who cannot see the old number cannot
+  tell which side an outdated thread was written against.
+
+  Props: file (a DiffFile from app/Actions/Pull/diff.ts), threads (already
+  re-anchored), and collapsed.
+--}}
+<section class="diff-file panel" id="file-{{ file.path }}">
+  <header class="diff-head">
+    <button
+      type="button"
+      class="diff-toggle"
+      aria-expanded="{{ collapsed ? 'false' : 'true' }}"
+      aria-controls="body-{{ file.path }}"
+    >
+      <span class="i-hugeicons-arrow-down-01" aria-hidden="true"></span>
+    </button>
+
+    <span class="mono diff-path">
+      @if (file.previousPath && file.previousPath !== file.path)
+        <span class="muted">{{ file.previousPath }}</span>
+        <span class="muted" aria-hidden="true">→</span>
+      @endif
+      {{ file.path }}
+    </span>
+
+    <span class="diff-status pill pill-{{ file.status }}">{{ file.status }}</span>
+
+    <span class="diff-counts mono" aria-label="{{ file.additions }} added, {{ file.deletions }} removed">
+      <span class="count-add">+{{ file.additions }}</span>
+      <span class="count-del">-{{ file.deletions }}</span>
+    </span>
+  </header>
+
+  <div id="body-{{ file.path }}" class="diff-body" hidden="{{ collapsed }}">
+    @if (file.binary)
+      <p class="diff-note muted">Binary file. Nothing to show line by line.</p>
+    @elseif (file.hunks.length === 0)
+      <p class="diff-note muted">
+        @if (file.oldMode && file.newMode)
+          Mode changed from {{ file.oldMode }} to {{ file.newMode }}. The contents are unchanged.
+        @else
+          No changes to show.
+        @endif
+      </p>
+    @else
+      <table class="diff-table">
+        <caption class="visually-hidden">Changes to {{ file.path }}</caption>
+        <tbody>
+          @foreach (file.hunks as hunk)
+            <tr class="hunk-head">
+              <td class="gutter" colspan="2"></td>
+              <td class="hunk-label mono">
+                @@ -{{ hunk.oldStart }},{{ hunk.oldLines }} +{{ hunk.newStart }},{{ hunk.newLines }} @@
+                @if (hunk.heading)
+                  <span class="muted">{{ hunk.heading }}</span>
+                @endif
+              </td>
+            </tr>
+
+            @foreach (hunk.lines as line)
+              <tr class="line line-{{ line.origin }}">
+                <td class="gutter num">{{ line.oldLine ?? '' }}</td>
+                <td class="gutter num">{{ line.newLine ?? '' }}</td>
+                <td class="code mono">
+                  <span class="marker" aria-hidden="true">{{ line.origin === 'added' ? '+' : (line.origin === 'removed' ? '-' : ' ') }}</span>{{ line.content }}
+                </td>
+              </tr>
+
+              {{-- Threads sit under the line they were written about, in the
+                   flow, so scrolling never separates a comment from its code. --}}
+              @foreach (threadsAt(threads, file.path, line) as thread)
+                <tr class="thread-row">
+                  <td class="gutter" colspan="2"></td>
+                  <td class="thread-cell">
+                    <ReviewThread thread="{{ thread }}" />
+                  </td>
+                </tr>
+              @endforeach
+            @endforeach
+          @endforeach
+        </tbody>
+      </table>
+    @endif
+  </div>
+</section>
+
+<style>
+  .diff-file { overflow: hidden; margin-bottom: 16px; }
+
+  .diff-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    background: var(--surface-tint);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .diff-toggle {
+    display: inline-flex;
+    width: 22px;
+    height: 22px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .diff-toggle:hover { background: var(--line); }
+  .diff-toggle[aria-expanded='false'] span { transform: rotate(-90deg); }
+
+  .diff-path { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+
+  .diff-status { text-transform: capitalize; }
+  .pill-added { background: var(--ok-bg); color: var(--ok); }
+  .pill-deleted { background: var(--bad-bg); color: var(--bad); }
+  .pill-modified { background: var(--surface); color: var(--pill-text); }
+  .pill-renamed, .pill-copied { background: var(--accent-quiet); color: var(--accent-text); }
+
+  .diff-counts { display: inline-flex; gap: 8px; font-weight: 500; }
+  .count-add { color: var(--ok); }
+  .count-del { color: var(--bad); }
+
+  .diff-note { padding: 14px 16px; font-size: 14px; }
+
+  /* The table scrolls inside itself. A long line must never push the page
+     sideways, because then every other file scrolls with it. */
+  .diff-body { overflow-x: auto; }
+
+  .diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .gutter {
+    width: 1%;
+    min-width: 46px;
+    padding: 0 10px;
+    background: var(--gutter);
+    border-right: 1px solid var(--line);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    text-align: right;
+    user-select: none;
+    vertical-align: top;
+  }
+
+  .code {
+    padding: 0 12px;
+    white-space: pre;
+    vertical-align: top;
+  }
+
+  .marker { display: inline-block; width: 1ch; color: var(--muted); }
+
+  .line-added { background: var(--add-bg); }
+  .line-added .gutter { border-right-color: var(--add-line); }
+  .line-removed { background: var(--del-bg); }
+  .line-removed .gutter { border-right-color: var(--del-line); }
+
+  .hunk-head td { background: var(--surface-tint); border-top: 1px solid var(--line); }
+  .hunk-label { padding: 4px 12px; color: var(--muted); font-size: 12px; }
+
+  .thread-cell { padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--line); }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+</style>

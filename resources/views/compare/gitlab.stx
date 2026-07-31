@@ -1,0 +1,80 @@
+<script server>
+import { COMPARISONS } from '../../functions/marketing'
+
+const pageTitle = 'ReviewOS and GitLab - ReviewOS'
+const pageDescription = 'A whole DevOps platform, against a forge that does one thing and expects you to bring the rest.'
+const related = COMPARISONS.filter(item => item.slug !== 'gitlab').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Comparison</p>
+      <h1 class="page-title">ReviewOS and GitLab</h1>
+      <p class="page-lede">GitLab is a DevOps platform. ReviewOS is a forge. That is the entire comparison, and which one is right depends on what you want to operate.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>GitLab is deliberately broad</h2>
+        <p>Source, CI, registry, security scanning, deployments, and issue planning in one product. If you want that consolidated, GitLab is a coherent answer and this is not competing for that job.</p>
+        <ul>
+          <li>Built-in CI with runners you can host</li>
+          <li>Container and package registries</li>
+          <li>Security scanning and compliance features in the paid tiers</li>
+          <li>A mature self-hosted story with real operational documentation</li>
+        </ul>
+
+        <h2>The cost of that breadth</h2>
+        <p>A self-hosted GitLab is a system to operate: several services, a memory footprint that surprises people, and an upgrade path that needs planning. That is a fair trade for what it does, but it is a real cost.</p>
+
+        <h2>What ReviewOS does instead</h2>
+        <p>One process and one Postgres, with a status API your existing CI reports into rather than runners to operate. The complexity budget goes into review mechanics.</p>
+        <ul>
+          <li>Threads that survive rebases and force pushes</li>
+          <li>Stacked pull requests with automatic retargeting</li>
+          <li>Merge rules that report every blocker at once</li>
+          <li>Diffs rendered on the server, against the merge base</li>
+        </ul>
+
+        <h2>Choosing between them</h2>
+        <p>If you want one product to own the whole pipeline, GitLab. If you already have CI you are happy with and want the review half to be excellent while staying small to operate, this.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">The short version</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">GitLab consolidates the pipeline</li>
+              <li class="muted">ReviewOS does review and hosting</li>
+              <li class="muted">Bring your own CI, report via the API</li>
+              <li class="muted">Far smaller to operate</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Also read</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/compare/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Keep your pipeline, change the review</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Checks from any CI, enforced at merge, without runners to operate.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">See the features</a>
+    </section>
+  </div>
+@endsection

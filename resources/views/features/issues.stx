@@ -1,0 +1,80 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Issues that link up - ReviewOS'
+const pageDescription = 'One number sequence shared with pull requests, closing keywords, and references that resolve where they should.'
+const related = FEATURES.filter(feature => feature.slug !== 'issues').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Repositories</p>
+      <h1 class="page-title">Issues that connect to the work</h1>
+      <p class="page-lede">An issue tracker earns its place by how well it links to everything else, not by how many fields it has.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>One number sequence</h2>
+        <p>Issues and pull requests share a counter, so a number means one thing in a repository. `#12` resolves whether it is an issue or a pull request, and it resolves in commit messages, in other issues, and in review comments.</p>
+        <p>The number is allocated atomically, so two things created at the same moment cannot be handed the same one.</p>
+
+        <h2>References parsed the way people write them</h2>
+        <p>`#12`, `owner/repo#12`, `@handle`, and bare commit SHAs are all recognised, and each one is deliberately conservative about what it will not touch.</p>
+        <ul>
+          <li>Nothing inside a code fence or inline code is linked</li>
+          <li>A URL fragment is not mistaken for an issue reference</li>
+          <li>An email address is not mistaken for a mention</li>
+        </ul>
+
+        <h2>Closing keywords that cannot misfire</h2>
+        <p>`fixes #12` in a commit message closes issue 12. That runs on push and on merge, which means a false positive closes somebody's work. So the keyword has to be its own word, the reference has to follow it directly, and documentation showing how to write a closing keyword does not close anything.</p>
+
+        <h2>Labels, milestones, and a lock that holds</h2>
+        <p>Every repository starts with a usable label vocabulary rather than an empty list, and label colours pick readable text automatically. Locking a conversation holds against everyone who is not maintaining the repository.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Issues and pull requests share one sequence</li>
+              <li class="muted">References ignore code blocks and URLs</li>
+              <li class="muted">Closing keywords cannot fire from a code sample</li>
+              <li class="muted">A default label set with every repository</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">A tracker that stays out of the way</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">The parsing rules are tested against the ways text lies.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">All features</a>
+    </section>
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>

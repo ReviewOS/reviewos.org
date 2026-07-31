@@ -1,9 +1,15 @@
 <script server>
-const links = [
-  { label: 'Roadmap', href: '/docs/todo/' },
-  { label: 'Docs', href: '/docs' },
-  { label: 'Source', href: 'https://github.com/ReviewOS/reviewos.org' },
-]
+/**
+ * The landing page navigation.
+ *
+ * Carries the same Features, Use cases, and Compare menus as the rest of the
+ * marketing site, built from the one catalog in resources/functions/marketing
+ * so a page and its menu entry cannot drift apart.
+ *
+ * The menus are `<details>` elements: no JavaScript, they work before any
+ * hydration, and the keyboard already knows how a disclosure behaves.
+ */
+import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../functions/marketing'
 </script>
 
 <template>
@@ -14,11 +20,155 @@ const links = [
     </a>
 
     <nav class="nav-links" aria-label="Primary">
-      @foreach (links as link)
-        <a href="{{ link.href }}">{{ link.label }}</a>
-      @endforeach
+      <details class="mega">
+        <summary>Features <span class="mega-chevron" aria-hidden="true"></span></summary>
+        <div class="mega-panel mega-features">
+          <div class="mega-grid">
+            @foreach (FEATURE_GROUPS as group)
+              <div>
+                <p class="mega-group-title">{{ group }}</p>
+                @foreach (featuresIn(group) as feature)
+                  <a class="mega-item" href="/features/{{ feature.slug }}">
+                    <span class="mega-item-name">{{ feature.name }}</span>
+                    <span class="mega-item-text">{{ feature.summary }}</span>
+                  </a>
+                @endforeach
+              </div>
+            @endforeach
+          </div>
+          <div class="mega-foot">
+            <span class="mega-foot-note">Every feature, in one place.</span>
+            <a class="mega-foot-link" href="/features">All features</a>
+          </div>
+        </div>
+      </details>
+
+      <details class="mega">
+        <summary>Use cases <span class="mega-chevron" aria-hidden="true"></span></summary>
+        <div class="mega-panel mega-cases">
+          <div class="mega-grid mega-grid-single">
+            @foreach (USE_CASES as useCase)
+              <a class="mega-item" href="/for/{{ useCase.slug }}">
+                <span class="mega-item-name">{{ useCase.name }}</span>
+                <span class="mega-item-text">{{ useCase.summary }}</span>
+              </a>
+            @endforeach
+          </div>
+          <div class="mega-foot">
+            <span class="mega-foot-note">Who this is built for.</span>
+            <a class="mega-foot-link" href="/for">All use cases</a>
+          </div>
+        </div>
+      </details>
+
+      <details class="mega">
+        <summary>Compare <span class="mega-chevron" aria-hidden="true"></span></summary>
+        <div class="mega-panel mega-cases">
+          <div class="mega-grid mega-grid-single">
+            @foreach (COMPARISONS as comparison)
+              <a class="mega-item" href="/compare/{{ comparison.slug }}">
+                <span class="mega-item-name">{{ comparison.name }}</span>
+                <span class="mega-item-text">{{ comparison.summary }}</span>
+              </a>
+            @endforeach
+          </div>
+          <div class="mega-foot">
+            <span class="mega-foot-note">Written to be fair, not flattering.</span>
+            <a class="mega-foot-link" href="/compare">All comparisons</a>
+          </div>
+        </div>
+      </details>
+
+      <a href="/docs/todo/">Roadmap</a>
+      <a href="/docs">Docs</a>
+      <a href="https://github.com/ReviewOS/reviewos.org">Source</a>
     </nav>
 
     <a class="button button-solid nav-cta" href="/docs">Self-host it</a>
   </header>
 </template>
+
+<style>
+  /* The landing page owns the nav shell; these are only the menus. */
+  .mega { position: relative; }
+
+  .mega > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .mega > summary::-webkit-details-marker { display: none; }
+
+  .mega-chevron {
+    width: 13px;
+    height: 13px;
+    border-right: 1.6px solid currentColor;
+    border-bottom: 1.6px solid currentColor;
+    transform: rotate(45deg) translate(-2px, -2px);
+    opacity: 0.55;
+  }
+
+  .mega-panel {
+    position: absolute;
+    top: calc(100% + 14px);
+    left: -12px;
+    z-index: 60;
+    padding: 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-panel);
+    box-shadow: 0 12px 32px rgb(18 25 27 / 0.10);
+    text-align: left;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .mega-panel { box-shadow: 0 12px 32px rgb(0 0 0 / 0.45); }
+  }
+
+  .mega-features { width: min(860px, calc(100vw - 48px)); }
+  .mega-cases { width: min(480px, calc(100vw - 48px)); }
+
+  .mega-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+  .mega-grid-single { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+
+  @media (max-width: 900px) {
+    .mega-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .mega-grid-single { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  .mega-group-title {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .mega-item {
+    display: block;
+    padding: 8px 9px;
+    border-radius: var(--r-control);
+    text-decoration: none;
+  }
+
+  .mega-item:hover { background: var(--surface-tint); }
+  .mega-item-name { display: block; font-size: 14px; font-weight: 500; color: var(--text); }
+  .mega-item-text { display: block; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+
+  .mega-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: 13.5px;
+  }
+
+  .mega-foot-note { color: var(--muted); }
+  .mega-foot-link { color: var(--accent-text); font-weight: 500; text-decoration: none; }
+</style>

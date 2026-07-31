@@ -1,0 +1,75 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Notifications worth reading - ReviewOS'
+const pageDescription = 'Every message says why it reached you, nobody is told about their own action, and a burst arrives as one.'
+const related = FEATURES.filter(feature => feature.slug !== 'notifications').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Automation</p>
+      <h1 class="page-title">Notifications you do not have to mute</h1>
+      <p class="page-lede">The bar is that a reviewer can rely on them without also watching a chat channel, and that nobody has to turn them off to get work done.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>Every notification carries its reason</h2>
+        <p>Being asked to review something is a request addressed to you. Watching a repository is a standing interest. Telling a requested reviewer they are receiving a message "because you are watching" is how people learn to ignore notifications.</p>
+        <p>When several reasons apply, the strongest wins, and the reason is shown so it can be switched off on its own rather than all at once.</p>
+
+        <h2>Nobody hears about their own action</h2>
+        <p>This single rule decides more than any other whether notifications feel like noise.</p>
+
+        <h2>A burst is one message</h2>
+        <p>Ten comments on one pull request in five minutes is one email. The window is per person and per subject, so activity on an unrelated issue is still its own message, and a conversation that runs all afternoon does not arrive as one enormous digest at the end of the day.</p>
+
+        <h2>Subscription is implicit, and unsubscribing is absolute</h2>
+        <p>Opening, commenting on, or being assigned to something subscribes you. Unsubscribing from a thread outranks every reason, so a later mention does not quietly bring you back.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">The reason is shown, and mutable on its own</li>
+              <li class="muted">Never notified about your own action</li>
+              <li class="muted">Bursts batched per person and per subject</li>
+              <li class="muted">Unsubscribing beats every reason</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Notifications people keep switched on</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Routing rules are pure functions, tested against the combinations that produce noise.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">All features</a>
+    </section>
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>

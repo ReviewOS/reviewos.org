@@ -15,6 +15,31 @@ decide to run it.
       utilities, because the page carries its own two-theme token set. Revisit if the marketing
       page and the application need to share a system.
 - [x] Responsive down to a phone, with the hero legible without scrolling
+## Marketing site structure
+
+Modelled on the uptimestatus marketing site: one catalog feeding the navigation, a page per
+feature, a page per use case, and comparisons that say plainly what the alternative does better.
+
+- [x] `resources/functions/marketing.ts` as the single catalog of features, use cases, and
+      comparisons, so a page and its menu entry cannot drift apart
+- [x] `resources/views/layouts/marketing.stx` shared by every marketing page below the landing one
+- [x] Features mega menu, grouped into Review, Repositories, Automation, and Operations, built from
+      the catalog and present on the landing page too
+- [x] A page per feature under `/features/<slug>`, twelve of them, each with its own argument
+      rather than a restatement of the summary
+- [x] Agentic usage as a first-class feature: `/features/agentic-review`, and a use case at
+      `/for/ai-assisted-teams`, because review is the control that matters when agents write
+      most of the diffs
+- [x] Use cases mega menu and a page per audience under `/for/<slug>`
+- [x] Comparison pages under `/compare/<slug>` for GitHub, GitLab, and Forgejo, each stating what
+      the alternative genuinely does better
+- [x] Index pages at `/features`, `/for`, and `/compare`
+- [x] Footer linking every feature, use case, and comparison
+- [ ] Pricing page, if a hosted offering ever exists
+- [ ] Per-feature screenshots, once the review interface renders real data
+
+## Landing page
+
 - [ ] Screenshots of the actual review interface, once phase 4 exists. Placeholders now, replaced
       then; shipping invented screenshots of software that does not exist yet is not acceptable.
 - [x] Contrast measured rather than eyeballed: every text pair passes WCAG AA in both themes

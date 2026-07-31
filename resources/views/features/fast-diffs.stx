@@ -1,0 +1,80 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Diffs that stay fast - ReviewOS'
+const pageDescription = 'Server-rendered diffs computed against the merge base, readable at a hundred files.'
+const related = FEATURES.filter(feature => feature.slug !== 'fast-diffs').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Review</p>
+      <h1 class="page-title">A hundred files should still be a readable page</h1>
+      <p class="page-lede">Diff rendering is where forges get slow, and it is slowest exactly when the review matters most.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>Rendered on the server</h2>
+        <p>The browser receives HTML, not a diff library and a JSON payload to assemble. There is no spinner between opening a pull request and reading it, and a large diff degrades into a long page rather than a hung tab.</p>
+
+        <h2>Against the merge base, not the base tip</h2>
+        <p>This one sounds pedantic and is not. A diff against the tip of the base branch includes every change somebody else landed while your branch was open, and asks the reviewer to approve those too.</p>
+        <p>The merge base is where the two histories parted. The diff from there is exactly the author's work, which is the only thing anybody is being asked to approve.</p>
+
+        <h2>What is collapsed, and what is said about it</h2>
+        <p>Lockfiles, build output, and vendored directories start collapsed, as does any single file over five hundred changed lines. Nothing is hidden silently: a collapsed file still shows its path and its counts, and opens in one click.</p>
+        <ul>
+          <li>Renames and copies detected by git, not guessed from the path</li>
+          <li>Binary files, mode changes, and submodule bumps each render as themselves</li>
+          <li>Whitespace-only changes hidden behind a toggle</li>
+        </ul>
+
+        <h2>Long lines scroll inside the file</h2>
+        <p>A diff with one very long line must not push the whole page sideways, because then every other file on the page scrolls with it.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">HTML arrives ready to read</li>
+              <li class="muted">Diffed from the merge base</li>
+              <li class="muted">Generated files collapsed, never hidden</li>
+              <li class="muted">Long lines scroll within their own file</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Review a large change without fighting the interface</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">The diff parser is tested against the shapes that break parsers: renames, missing trailing newlines, and binary files.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">All features</a>
+    </section>
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>

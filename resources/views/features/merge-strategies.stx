@@ -1,0 +1,85 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Merge strategies and rules - ReviewOS'
+const pageDescription = 'Merge, squash, or rebase, gated by approvals, review threads, and checks, with every blocker reported at once.'
+const related = FEATURES.filter(feature => feature.slug !== 'merge-strategies').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Review</p>
+      <h1 class="page-title">Merging is the one irreversible thing, so it says no clearly</h1>
+      <p class="page-lede">Every reason a pull request cannot merge is collected and shown together. Being sent round the loop one blocker at a time is the thing contributors hate most.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>Three strategies, done properly</h2>
+        <p>A merge commit keeps both histories. A squash produces one commit whose parent is the base, carrying the pull request title and the individual commit subjects as notes. A rebase replays each commit, so the branch keeps its shape.</p>
+        <ul>
+          <li>All three run as git plumbing against the bare repository</li>
+          <li>No working tree is checked out to merge anything</li>
+          <li>A rebase replays commits rather than collapsing them</li>
+        </ul>
+
+        <h2>The rules a branch can require</h2>
+        <p>Protected branches carry the gates, and each is checked before git is touched.</p>
+        <ul>
+          <li>A number of approvals, optionally dismissed when the branch moves</li>
+          <li>All review threads resolved</li>
+          <li>Named checks reporting success on the current head</li>
+          <li>A linear history, which refuses a merge commit and allows squash or rebase</li>
+        </ul>
+
+        <h2>A push that arrives mid-merge is not overwritten</h2>
+        <p>Every strategy ends in a ref update guarded by the branch's expected old value. If somebody pushed between the checks and the merge, the update fails and nothing is lost, rather than the merge quietly discarding their commit.</p>
+
+        <h2>Changes requested outranks arithmetic</h2>
+        <p>One reviewer asking for changes blocks the merge regardless of how many approvals sit next to it. Only the latest review from each reviewer counts, so an approval after a change request is a change of mind rather than a second vote.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Merge, squash, and rebase, all without a checkout</li>
+              <li class="muted">Every blocker reported in one pass</li>
+              <li class="muted">Guarded ref updates, so a concurrent push survives</li>
+              <li class="muted">One change request outweighs any number of approvals</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Make the merge button mean something</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">The rules are pure functions with tests, so a rule that says no can be reasoned about.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">All features</a>
+    </section>
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>

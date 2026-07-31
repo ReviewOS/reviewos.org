@@ -1,0 +1,92 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Agentic review - ReviewOS'
+const pageDescription = 'Coding agents as first-class authors and reviewers, with the review trail that makes their output safe to merge.'
+const related = FEATURES.filter(feature => feature.slug !== 'agentic-review').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Agentic review</p>
+      <h1 class="page-title">Built for the week most of your diffs stopped being written by hand</h1>
+      <p class="page-lede">An agent can open twenty pull requests before lunch. The bottleneck moves to review, and review is the part of a forge nobody rebuilt. This one was built for it.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>Agents are authors, and they are reviewers</h2>
+        <p>An agent needs the same things a person does: a personal access token scoped to what it may touch, an identity on the pull request so the history says who wrote what, and a review state it can submit. It gets them. There is no separate second-class path where machine output arrives as a patch file and somebody pastes it in.</p>
+        <p>The difference is volume. A person opens two pull requests a day and remembers both. An agent opens thirty and remembers none, so the forge has to carry the context that used to live in somebody's head.</p>
+
+        <h2>Why the review trail matters more, not less</h2>
+        <p>The argument for reviewing machine-written code is not that the machine is worse. It is that nobody holds the intent. When a person writes a change, the reasoning is recoverable by asking them. When an agent writes it, the only record is the review.</p>
+        <p>So the review is kept as the primary object. A thread is anchored to a path, a line, a side, and the commit it was written against. Rebase the branch, force push it, rewrite the history entirely, and the thread follows the line or marks itself outdated and stays readable. It is never deleted.</p>
+        <ul>
+          <li>Every approval records the exact commit it approved</li>
+          <li>A force push does not silently inherit the previous head's approvals</li>
+          <li>An outdated thread stays visible with the code it was written about</li>
+        </ul>
+
+        <h2>Reviewing a stack an agent produced</h2>
+        <p>Agents produce dependent work: a refactor, then the change the refactor enables, then the tests. Sent as one pull request it is unreviewable. Sent as three unrelated ones it is incoherent.</p>
+        <p>A stack keeps them dependent and reviewable. Each pull request diffs against its parent, so it shows only its own work, and merging the bottom of the stack retargets everything above it automatically rather than leaving children pointed at a branch that has landed.</p>
+
+        <h2>The controls that make agent output mergeable</h2>
+        <p>Volume only works if the gates are real. Every reason a pull request cannot merge is computed and shown at once, so an agent retrying against a moving target does not need thirty round trips to discover three problems.</p>
+        <ul>
+          <li>Required approvals, counted against the current head</li>
+          <li>Unresolved review threads, when the branch rule asks for it</li>
+          <li>Required checks from your existing CI, including the ones that have never reported</li>
+          <li>A stacked pull request whose parent has not merged yet</li>
+        </ul>
+
+        <h2>What this does not do</h2>
+        <p>ReviewOS does not run the agents and does not host a model. It is the forge they push to and the place their work is reviewed. Bring whichever agent you already use.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Agents authenticate as themselves, with scoped tokens</li>
+              <li class="muted">Threads survive rebases and force pushes</li>
+              <li class="muted">Approvals are bound to a specific commit</li>
+              <li class="muted">Stacks keep dependent work reviewable</li>
+              <li class="muted">Every merge blocker is reported at once</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Give your agents somewhere to be reviewed</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Self-hosted, so the code your agents touch never leaves your infrastructure.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">All features</a>
+    </section>
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>

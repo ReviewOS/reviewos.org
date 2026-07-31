@@ -1,0 +1,79 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Self-hosting without a cluster - ReviewOS'
+const pageDescription = 'One Postgres and one process. Scale the parts that need it, later.'
+const related = FEATURES.filter(feature => feature.slug !== 'self-hosting').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Operations</p>
+      <h1 class="page-title">One Postgres, one process</h1>
+      <p class="page-lede">A forge you can run on a machine you already have, without operating a queue cluster before the first repository exists.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>What it needs to run</h2>
+        <p>Bun, Postgres, and the git binary. The local environment is provisioned by pantry, which installs the toolchain, starts the database, and creates it from your environment file.</p>
+        <ul>
+          <li>No message broker required to start</li>
+          <li>No object store required to start</li>
+          <li>No separate worker fleet to operate</li>
+        </ul>
+
+        <h2>Your code stays on your infrastructure</h2>
+        <p>That is the whole point of self-hosting, and it matters more when agents are involved: the code they read and write never leaves the machines you control.</p>
+
+        <h2>Backups are ordinary</h2>
+        <p>Repositories are bare git directories on disk and everything else is in Postgres. A file copy and a database dump is a complete backup, restorable without this application being involved.</p>
+
+        <h2>Scale later, in the usual places</h2>
+        <p>Queues, caches, and search are drivers rather than requirements. Turn them on when there is a reason to, not because the install guide said so.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Bun, Postgres, and git</li>
+              <li class="muted">Environment provisioned automatically</li>
+              <li class="muted">Backups are a copy and a dump</li>
+              <li class="muted">Queue and search are optional drivers</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Run it this afternoon</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">MIT licensed, open source, and yours to operate.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">All features</a>
+    </section>
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>

@@ -1,0 +1,73 @@
+<script server>
+import { USE_CASES } from '../../functions/marketing'
+
+const pageTitle = 'For regulated and audited work - ReviewOS'
+const pageDescription = 'Who approved what, against which commit, kept as a record rather than inferred after the fact.'
+const related = USE_CASES.filter(item => item.slug !== 'regulated').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Use case</p>
+      <h1 class="page-title">An approval that says what it approved</h1>
+      <p class="page-lede">In an audit, "this pull request was approved" is not an answer. The question is which code was approved, by whom, and whether it is the code that shipped.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>Approvals are bound to a commit</h2>
+        <p>Every review records the exact commit it was submitted against. When the branch moves, the forge knows the approval is stale, and a branch rule can dismiss it automatically rather than leaving a human to notice.</p>
+
+        <h2>The conversation is part of the record</h2>
+        <p>Review threads are never deleted. A thread whose line has since changed is marked outdated and stays readable with the code it was written about, because the discussion that produced a change is the evidence of why the change was made.</p>
+
+        <h2>Gates that are enforced, not documented</h2>
+        <ul>
+          <li>Required approvals, with stale ones dismissed when the branch rule says so</li>
+          <li>All review conversations resolved before merge, when required</li>
+          <li>Named checks passing on the exact head being merged</li>
+          <li>A linear history, when a merge commit would obscure the sequence</li>
+        </ul>
+
+        <h2>Self-hosted, so the boundary is yours</h2>
+        <p>Source code, review history, and identity all sit inside your own network boundary, which is usually simpler to argue about than a third party's compliance posture.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Why it fits</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Approvals record their commit</li>
+              <li class="muted">Threads are never deleted</li>
+              <li class="muted">Stale approvals dismissed by rule</li>
+              <li class="muted">Everything inside your boundary</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Also read</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/for/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Make the audit trail a by-product of the workflow</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Nothing here has to be reconstructed later, because it was recorded at the time.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">See the features</a>
+    </section>
+  </div>
+@endsection

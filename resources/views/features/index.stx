@@ -1,0 +1,51 @@
+<script server>
+import { FEATURE_GROUPS, featuresIn } from '../../functions/marketing'
+
+const pageTitle = 'Features - ReviewOS'
+const pageDescription = 'Everything ReviewOS does, grouped by what it is for: review, repositories, automation, and operations.'
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Features</p>
+      <h1 class="page-title">A forge that spends its complexity on review</h1>
+      <p class="page-lede">
+        Most forges treat review as a tab on a pull request. Here it is the primary object, and
+        everything else exists to serve it. That choice shows up in each of these.
+      </p>
+    </header>
+
+    @foreach (FEATURE_GROUPS as group)
+      <section style="margin-bottom: 44px;">
+        <h2 style="font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 16px;">
+          {{ group }}
+        </h2>
+        <div class="card-grid">
+          @foreach (featuresIn(group) as feature)
+            <a class="panel card" href="/features/{{ feature.slug }}">
+              <span class="{{ feature.icon }}" aria-hidden="true" style="font-size: 20px; color: var(--accent); display: block; margin-bottom: 12px;"></span>
+              <span class="card-title">{{ feature.name }}</span>
+              <span class="card-text">{{ feature.summary }}</span>
+            </a>
+          @endforeach
+        </div>
+      </section>
+    @endforeach
+
+    <section class="panel" style="padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Run it yourself this afternoon</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 52ch;">
+          One Postgres and one process. No queue cluster to operate before the first repository exists.
+        </p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Read the install guide</a>
+    </section>
+  </div>
+@endsection

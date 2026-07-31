@@ -1,0 +1,80 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Checks from your own CI - ReviewOS'
+const pageDescription = 'A status API your existing pipeline reports into, with required checks enforced at merge.'
+const related = FEATURES.filter(feature => feature.slug !== 'checks').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Automation</p>
+      <h1 class="page-title">Bring the CI you already have</h1>
+      <p class="page-lede">ReviewOS does not run your tests. It accepts reports from whatever does, and enforces them where it counts.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>A check is reported against a commit</h2>
+        <p>Not against a pull request. The same report then serves every pull request whose head is that commit, and it stays meaningful when a branch moves.</p>
+
+        <h2>The awkward cases decide whether this is useful</h2>
+        <p>Any implementation handles green and red. What separates a useful checks system from an annoying one is everything in between.</p>
+        <ul>
+          <li>A retried check is judged on its latest run, so one failed attempt does not keep a commit red forever</li>
+          <li>Neutral and skipped count as passing, because a path-filtered job that had nothing to say has not found a problem</li>
+          <li>Cancelled and stale are neither pass nor fail, because something will report again</li>
+          <li>A check nobody marked required never blocks a merge, however red it is</li>
+        </ul>
+
+        <h2>Never reported is not the same as still running</h2>
+        <p>A required check that has never reported means the workflow is not wired up and never will report. A pending one resolves itself. The person waiting is told which of the two they are looking at, because the actions are completely different.</p>
+
+        <h2>Stale runs do not carry over</h2>
+        <p>When a branch is force pushed, checks that ran against the old head describe code nobody is merging. Leaving them green is how an unverified commit slips past a required check.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Reports attach to commits, not pull requests</li>
+              <li class="muted">Retries replace earlier failures</li>
+              <li class="muted">Skipped and neutral do not block</li>
+              <li class="muted">Never-reported is distinguished from pending</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Keep your pipeline, gain the gate</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">A status API is deliberately the first step. Running untrusted code is a security project of its own.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">All features</a>
+    </section>
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>

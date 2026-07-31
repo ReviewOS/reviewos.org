@@ -1,0 +1,83 @@
+<script server>
+import { USE_CASES } from '../../functions/marketing'
+
+const pageTitle = 'For teams shipping agent-written code - ReviewOS'
+const pageDescription = 'When most diffs are machine-authored, review stops being a formality and becomes the only remaining control.'
+const related = USE_CASES.filter(item => item.slug !== 'ai-assisted-teams').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Use case</p>
+      <h1 class="page-title">When most of the code is machine-written, review is the control</h1>
+      <p class="page-lede">Your agents are productive. The question is no longer whether the code gets written, it is whether anybody can tell what landed and why.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>What changes when volume goes up</h2>
+        <p>A team reviewing eight pull requests a week reads all of them. The same team facing eighty skims, and skimming is indistinguishable from approving. The interface has to do more of the work: show only the change being reviewed, keep the conversation attached to the code, and refuse the merge when a gate is genuinely unmet.</p>
+
+        <h2>The specific things that break first</h2>
+        <p>These are the failures teams hit within a month of turning agents loose.</p>
+        <ul>
+          <li>Agents force push constantly, and in most forges that quietly discards review threads</li>
+          <li>Approvals stay attached to a pull request rather than a commit, so a rewrite inherits them</li>
+          <li>Dependent work arrives as one enormous diff, because there was no way to stack it</li>
+          <li>A retry loop discovers merge blockers one at a time, burning an hour per pull request</li>
+        </ul>
+
+        <h2>How this forge answers each of them</h2>
+        <ul>
+          <li>Threads anchor to a commit and survive a rebase, or mark themselves outdated and stay readable</li>
+          <li>Approvals record the commit they approved, and a branch rule can dismiss them when it moves</li>
+          <li>Stacked pull requests each diff against their parent and retarget when the parent lands</li>
+          <li>Every merge blocker is computed in one pass and returned together</li>
+        </ul>
+
+        <h2>Agents are ordinary users here</h2>
+        <p>Scoped personal access tokens, an identity on the pull request, and a review state they can submit. The history says who wrote what, which is the thing you will want six months from now when nobody remembers the change.</p>
+
+        <h2>And it runs on your own machines</h2>
+        <p>The code your agents read and write never leaves your infrastructure. For a lot of teams that is the difference between using agents on the main codebase and not.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Why it fits</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Threads survive constant force pushes</li>
+              <li class="muted">Approvals bound to a commit</li>
+              <li class="muted">Stacks keep large work reviewable</li>
+              <li class="muted">All blockers reported at once</li>
+              <li class="muted">Self-hosted, so code stays put</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Also read</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/for/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Put a real review gate in front of your agents</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">Everything here is open source, self-hosted, and built around the review rather than around the repository.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">See the features</a>
+    </section>
+  </div>
+@endsection

@@ -1,0 +1,80 @@
+<script server>
+import { FEATURES } from '../../functions/marketing'
+
+const pageTitle = 'Plain git hosting - ReviewOS'
+const pageDescription = 'Ordinary bare repositories on your disk, served over the git smart HTTP protocol by the git binary itself.'
+const related = FEATURES.filter(feature => feature.slug !== 'git-hosting').slice(0, 3)
+</script>
+
+@layout('marketing')
+
+@section('title', pageTitle)
+@section('description', pageDescription)
+
+@section('content')
+  <div class="shell">
+    <header class="page-head">
+      <p class="page-eyebrow">Repositories</p>
+      <h1 class="page-title">Ordinary bare repositories, on your disk</h1>
+      <p class="page-lede">Nothing about your history is locked inside this application. Stop the server and your repositories are still repositories.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 44px; align-items: start;">
+      <div class="prose">
+        <h2>The git binary does the git work</h2>
+        <p>Repositories live at a predictable path and are driven by spawned git plumbing commands. There is no reimplementation of git in TypeScript and no library standing between your objects and the tool that understands them.</p>
+        <p>That means a repository can be cloned, inspected, backed up, or migrated with the same commands you already use, and a bug in this application cannot corrupt an object store it never writes to directly.</p>
+
+        <h2>Smart HTTP, streamed</h2>
+        <p>Clone, fetch, and push work over the standard protocol. Packfiles are streamed rather than buffered, which is the difference between working on a real repository and working on a demo.</p>
+        <ul>
+          <li>Reference discovery and both pack services</li>
+          <li>HTTP basic authentication with a personal access token</li>
+          <li>Passwords are not accepted over git, since they end up in shell history and config files</li>
+        </ul>
+
+        <h2>Path safety is not an afterthought</h2>
+        <p>Owner and repository names are validated before they reach the filesystem, and every resolved path is checked to be inside the storage root. A repository name is user input that becomes a path, which is the shape of most directory traversal bugs.</p>
+
+        <h2>Backups are a file copy</h2>
+        <p>Because the storage layout is ordinary, so is the backup story. Copy the directory, dump the database, done.</p>
+      </div>
+
+      <aside style="position: sticky; top: 92px; display: flex; flex-direction: column; gap: 14px;">
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">In short</p>
+          <ul style="margin-top: 11px; display: flex; flex-direction: column; gap: 9px; font-size: 14px;">
+              <li class="muted">Bare repositories under a predictable path</li>
+              <li class="muted">Served by the system git binary</li>
+              <li class="muted">Packfiles streamed, not buffered</li>
+              <li class="muted">Token authentication, never passwords</li>
+          </ul>
+        </section>
+
+        <section class="panel" style="padding: 18px;">
+          <p style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600;">Related</p>
+          <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+            @foreach (related as item)
+              <a href="/features/{{ item.slug }}" style="text-decoration: none; font-size: 14px; font-weight: 500;">{{ item.name }}</a>
+            @endforeach
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: 56px; padding: 30px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 260px;">
+        <h2 style="font-size: 21px;">Keep your history portable</h2>
+        <p class="muted" style="margin-top: 8px; max-width: 54ch;">An open format on your own disk, with no export step to plan for.</p>
+      </div>
+      <a class="btn btn-primary" href="/docs/install">Self-host ReviewOS</a>
+      <a class="btn" href="/features">All features</a>
+    </section>
+  </div>
+@endsection
+
+<style>
+  @media (max-width: 940px) {
+    .shell > div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>
