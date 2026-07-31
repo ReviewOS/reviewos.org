@@ -64,6 +64,11 @@ Each one is committed and pushed in the repository named.
       blocking. `transitionDraft` in `app/Actions/Pull/state.ts` is the case that found it, and
       `resolveExpiry` in `app/TokenScopes.ts` is the case that proved it recurs: this needs fixing
       upstream rather than remembering.
+- [ ] **pickier** - `no-unused-vars` also misses a module-level `const` that is referenced before it
+      is declared, which is ordinary and valid: the eight content constants in `SeedDemo.ts` were
+      each reported as unused while being used. Moving them into `demo-content.ts` and importing is
+      the workaround, and again it is better structure anyway. Two false positives in one rule is a
+      reason to look at the rule rather than keep rearranging code around it.
 - [x] **bun-query-builder** - Enum type names are table-qualified, but only newly added columns were
       stamped with the qualified name, so altering an existing enum column referenced a type nothing
       creates. Migrating to Postgres died on the last file with `type "channel_type" does not exist`.
