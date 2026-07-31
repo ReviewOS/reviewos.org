@@ -6,6 +6,7 @@
       "name": "stacks",
       "dependencies": {
         "stacks": "^0.70.229",
+        "ts-syntax-highlighter": "^0.2.5",
       },
       "devDependencies": {
         "better-dx": "^0.2.17",

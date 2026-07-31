@@ -89,7 +89,8 @@
     "typecheck:framework": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false"
   },
   "dependencies": {
-    "stacks": "^0.70.229"
+    "stacks": "^0.70.229",
+    "ts-syntax-highlighter": "^0.2.6"
   },
   "workspaces": [
     "storage/framework",

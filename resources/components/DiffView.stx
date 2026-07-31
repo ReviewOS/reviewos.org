@@ -71,7 +71,7 @@
                 <td class="gutter num">{{ line.oldLine ?? '' }}</td>
                 <td class="gutter num">{{ line.newLine ?? '' }}</td>
                 <td class="code mono">
-                  <span class="marker" aria-hidden="true">{{ line.origin === 'added' ? '+' : (line.origin === 'removed' ? '-' : ' ') }}</span>{{ line.content }}
+                  <span class="marker" aria-hidden="true">{{ line.origin === 'added' ? '+' : (line.origin === 'removed' ? '-' : ' ') }}</span>@foreach (tokensFor(highlighted, line) as token)<span class="t-{{ token.type }}">{{ token.content }}</span>@endforeach
                 </td>
               </tr>
 
@@ -178,6 +178,30 @@
   .hunk-label { padding: 4px 12px; color: var(--muted); font-size: 12px; }
 
   .thread-cell { padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--line); }
+
+  /* Syntax colours. Deliberately low-saturation: they sit on top of the green
+     and red diff backgrounds, and a vivid palette turns a reviewed line into a
+     fruit salad. Hue carries the meaning, not intensity. */
+  .t-keyword { color: #8250df; }
+  .t-string { color: #0a6640; }
+  .t-comment { color: var(--muted); font-style: italic; }
+  .t-numeric { color: #0550ae; }
+  .t-function { color: #6639ba; }
+  .t-type { color: #953800; }
+  .t-tag { color: #0a6640; }
+  .t-attribute { color: #6639ba; }
+  .t-operator, .t-punctuation { color: var(--muted); }
+  .t-variable, .t-text { color: inherit; }
+
+  @media (prefers-color-scheme: dark) {
+    .t-keyword { color: #d2a8ff; }
+    .t-string { color: #7ee787; }
+    .t-numeric { color: #79c0ff; }
+    .t-function { color: #d2a8ff; }
+    .t-type { color: #ffa657; }
+    .t-tag { color: #7ee787; }
+    .t-attribute { color: #d2a8ff; }
+  }
 
   .visually-hidden {
     position: absolute;

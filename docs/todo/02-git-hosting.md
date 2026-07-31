@@ -71,7 +71,7 @@ known to exactly one place.
 - [ ] `app/Actions/Browse/BlameAction.ts`
 - [ ] `app/Actions/Browse/CompareAction.ts` - two refs, the basis for opening a pull request
 - [ ] `app/Actions/Git/RawFileAction.ts` and `ArchiveAction.ts` (zip and tar.gz via `git archive`)
-- [ ] Syntax highlighting server-side. The client does not download a highlighter.
+- [x] Syntax highlighting server-side. The client does not download a highlighter.
 - [ ] Render README, and markdown files generally, at the tree view
 
 ## Repository management

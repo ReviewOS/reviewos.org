@@ -10,7 +10,18 @@
  * Server-rendered on purpose. A hundred-file diff assembled in the browser is
  * where forges get slow, and it is slowest exactly when the review matters.
  */
-import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, reanchor, requirementsSatisfied, startsCollapsed } from '../../../../functions/review'
+import {
+  approvalsSatisfied,
+  diffTotals,
+  isGenerated,
+  mergeBlockers,
+  parseDiff,
+  pullRequestDiff,
+  highlightLines,
+  reanchor,
+  requirementsSatisfied,
+  startsCollapsed,
+} from '../../../../functions/review'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
@@ -80,6 +91,47 @@ const raw = pullRequest
   : ''
 const files = parseDiff(raw)
 const totals = diffTotals(files)
+
+/*
+ * Syntax highlighting, per file, keyed by side and line number.
+ *
+ * Done here rather than in the component so each file is tokenized once for
+ * the whole page, and so a hundred-file diff does not re-enter the highlighter
+ * per rendered row. A file the highlighter declines simply renders plain.
+ */
+const highlightedByPath: Record<string, Record<string, Array<{ type: string, content: string }>>> = {}
+
+for (const file of files) {
+  if (file.binary)
+    continue
+
+  const left: string[] = []
+  const right: string[] = []
+  const leftKeys: string[] = []
+  const rightKeys: string[] = []
+
+  for (const hunk of file.hunks) {
+    for (const line of hunk.lines) {
+      if (line.origin !== 'added') {
+        left.push(line.content)
+        leftKeys.push(`-${line.oldLine}`)
+      }
+      if (line.origin !== 'removed') {
+        right.push(line.content)
+        rightKeys.push(`+${line.newLine}`)
+      }
+    }
+  }
+
+  const map: Record<string, Array<{ type: string, content: string }>> = {}
+  const leftTokens = await highlightLines(left, file.previousPath ?? file.path)
+  const rightTokens = await highlightLines(right, file.path)
+
+  leftKeys.forEach((key, index) => { map[key] = leftTokens[index] ?? [] })
+  rightKeys.forEach((key, index) => { map[key] = rightTokens[index] ?? [] })
+
+  highlightedByPath[file.path] = map
+}
 
 // Threads were written against an earlier commit. Follow each one through the
 // diff so it sits on the line it is about now, or is marked outdated.
@@ -256,6 +308,7 @@ const statePill = pullRequest
             <DiffView
               file="{{ file }}"
               threads="{{ threads }}"
+              highlighted="{{ highlightedByPath[file.path] }}"
               collapsed="{{ startsCollapsed(file, isGenerated(file.path)) }}"
             />
           @endforeach

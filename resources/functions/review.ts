@@ -104,6 +104,27 @@ export function relativeTime(iso: string, now: number): string {
   return `${value} ${name}${value === 1 ? '' : 's'} ago`
 }
 
+/**
+ * The tokens for one diff line.
+ *
+ * Keyed by origin and line number rather than by array position, because a
+ * hunk's lines are not contiguous in the file and a thread row sits between
+ * them. Falls back to the raw content, so a file the highlighter declined
+ * still renders.
+ */
+export function tokensFor(
+  highlighted: Record<string, Array<{ type: string, content: string }>> | undefined,
+  line: { origin: string, oldLine: number | null, newLine: number | null, content: string },
+): Array<{ type: string, content: string }> {
+  if (!highlighted)
+    return [{ type: 'text', content: line.content }]
+
+  // A removed line only exists on the left, an added line only on the right.
+  const key = line.origin === 'removed' ? `-${line.oldLine}` : `+${line.newLine}`
+
+  return highlighted[key] ?? [{ type: 'text', content: line.content }]
+}
+
 /*
  * The review logic the templates need.
  *
@@ -122,6 +143,7 @@ import { commitsOnBranch as commitsOnBranchImpl, pullRequestDiff as pullRequestD
 import { isMergeStrategy as isMergeStrategyImpl, mergeBlockers as mergeBlockersImpl } from '../../app/Actions/Pull/merge'
 import { combinedState as combinedStateImpl, requirementSummary as requirementSummaryImpl, requirementsSatisfied as requirementsSatisfiedImpl } from '../../app/Actions/Checks/status'
 import { labelTextColor as labelTextColorImpl } from '../../app/Actions/Issue/labels'
+import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
 
 export const parseDiff = parseDiffImpl
 export const diffTotals = diffTotalsImpl
@@ -139,3 +161,5 @@ export const requirementsSatisfied = requirementsSatisfiedImpl
 export const requirementSummary = requirementSummaryImpl
 export const combinedState = combinedStateImpl
 export const labelTextColor = labelTextColorImpl
+export const highlightLines = highlightLinesImpl
+export const languageFor = languageForImpl
