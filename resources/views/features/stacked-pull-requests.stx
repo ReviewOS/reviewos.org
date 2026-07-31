@@ -28,6 +28,10 @@ const related = FEATURES.filter(feature => feature.slug !== 'stacked-pull-reques
         <p>This is the part that decides whether stacks are usable. When the bottom of a stack merges, its branch is gone or about to be, and a child still pointing at it shows a diff against a branch nobody is updating.</p>
         <p>Each child moves down to whatever its parent was based on, which is the branch its changes were always going to. A child that somebody retargeted by hand is left alone, and only loses the stale link to the merged parent.</p>
 
+        <h2>Merging a layer lands what is under it</h2>
+        <p>The instinct is to refuse a merge until everything below has landed. That is the wrong end of the stick: merging the third layer takes the second's commits along whether or not the interface admits it. So merging a layer lands that layer and every unmerged one below it, and says so before it does.</p>
+        <p>This is where GitHub landed too, in their stacked pull requests preview. Agreeing with the tools people already use is worth more here than being different.</p>
+
         <h2>Order is enforced, not suggested</h2>
         <p>A stacked pull request will not merge before its parent. Merging out of order would take the parent's commits along with it and leave the parent showing a diff of nothing, which is a mess that has to be untangled by hand.</p>
 

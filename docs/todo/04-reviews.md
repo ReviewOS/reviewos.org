@@ -107,6 +107,32 @@ The differentiator. Nothing else in this space handles it well.
 - [ ] Keyboard navigation through files and threads, and submitting a review without the mouse
 - [ ] The diff renders on the server; the browser gets HTML, not a diff library and a JSON payload
 
+## Stacked pull requests
+
+The workflow Meta built Phabricator around and Google calls chaining, described in
+[The Pragmatic Engineer](https://newsletter.pragmaticengineer.com/p/stacked-diffs), and shipped by
+GitHub in [public preview](https://github.blog/changelog/2026-07-30-stacked-pull-requests-are-now-in-public-preview/)
+in July 2026. Both agree on the mechanics, so this follows them rather than inventing a third model.
+
+- [x] A stack is detected from branch topology: opening against another open pull request's branch
+      is what makes it stacked. No naming scheme, no metadata file.
+- [x] Each member diffs against its parent, so it shows only its own layer
+- [x] Merging a member lands it and every unmerged layer below it, rather than refusing. Refusing
+      is the wrong end of the stick: the merge takes those commits along regardless, so the honest
+      thing is to land them and say so. (`landableThrough`)
+- [x] Landing a whole stack in one action, bottom first, stopping at the first member that is not
+      ready and reporting how far it got (`MergeStackAction`, `POST /api/repos/pulls/merge-stack`)
+- [x] Children retarget automatically when a parent lands (`retargetStack`)
+- [x] Orphan detection: a parent closed without merging, a parent that no longer exists, or a child
+      that no longer sits on its parent's branch (`orphanReason`)
+- [x] Which member below is holding this one up, named rather than described (`blockedBy`)
+- [x] A stack map component showing position, state per layer, and where you are (`StackNav.stx`)
+- [ ] Wire `StackNav` into the review view. The component and every rule behind it are built and
+      tested; the view integration fails the same way the rest of this file's stx issues did, so it
+      is held back rather than shipped broken.
+- [ ] Automatic rebase of higher layers when a lower one lands, beyond retargeting
+- [ ] Merge queue support for stacks
+
 ## Known issues
 
 - [x] The pull request view rendered its not-found branch against seeded data. Two causes, both

@@ -1,0 +1,148 @@
+{{--
+  The stack a pull request belongs to.
+
+  This panel is what makes a stack navigable rather than merely possible. A
+  reviewer needs three things at a glance: where this change sits in the queue,
+  which one below is holding it up, and whether the chain has come apart. All
+  three are answered here, and each entry is a link, because moving between
+  dependent changes is the motion this workflow is made of.
+
+  Props: stack (bottom first), currentId, summary, orphan (a sentence or null),
+  blocker (the member holding this up, or null), and owner / repository for
+  the links.
+--}}
+@if (stack.length > 1)
+  <section class="panel stack-panel">
+    <h2 class="side-heading">Stack</h2>
+    <p class="muted stack-summary">{{ summary }}</p>
+
+    @if (orphan)
+      <p class="stack-orphan">
+        <span class="i-hugeicons-unlink-01" aria-hidden="true"></span>
+        {{ orphan }}
+      </p>
+    @endif
+
+    {{-- Bottom of the stack first, which is the order they land in. --}}
+    <ol class="stack-list">
+      @foreach (stack as entry)
+        <li class="stack-item {{ entry.id === currentId ? 'is-current' : '' }}">
+          <span class="stack-rail" aria-hidden="true">
+            <span class="stack-dot stack-dot-{{ entry.state }}"></span>
+          </span>
+
+          <a class="stack-link" href="/{{ owner }}/{{ repository }}/pull/{{ entry.number }}">
+            <span class="stack-number mono">#{{ entry.number }}</span>
+            <span class="stack-title">{{ entry.title }}</span>
+            <span class="stack-state muted">
+              {{ entry.state === 'merged' ? 'Merged' : (entry.state === 'closed' ? 'Closed' : (entry.draft ? 'Draft' : 'Open')) }}
+              @if (entry.id === currentId)
+                <span class="stack-here">you are here</span>
+              @endif
+            </span>
+          </a>
+        </li>
+      @endforeach
+    </ol>
+
+    @if (blocker)
+      <p class="muted stack-blocked">
+        Waiting on <a href="/{{ owner }}/{{ repository }}/pull/{{ blocker.number }}">#{{ blocker.number }}</a>,
+        which has to land first.
+      </p>
+    @endif
+  </section>
+@endif
+
+<style>
+  .stack-panel { padding: 15px 17px; }
+  .stack-summary { margin-top: 8px; font-size: 13.5px; }
+
+  .stack-orphan {
+    display: flex;
+    gap: 8px;
+    align-items: start;
+    margin-top: 11px;
+    padding: 9px 11px;
+    border-radius: var(--r-control);
+    background: var(--warn-bg);
+    color: var(--warn);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .stack-orphan span { flex: none; margin-top: 2px; }
+
+  .stack-list { margin-top: 12px; }
+
+  .stack-item { display: flex; gap: 10px; }
+
+  /* A rail down the left so the chain reads as a chain, not a list. */
+  .stack-rail {
+    position: relative;
+    width: 9px;
+    flex: none;
+  }
+
+  .stack-rail::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--line-strong);
+  }
+
+  .stack-item:first-child .stack-rail::before { top: 11px; }
+  .stack-item:last-child .stack-rail::before { bottom: calc(100% - 11px); }
+
+  .stack-dot {
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--line-strong);
+  }
+
+  .stack-dot-merged { background: var(--accent); border-color: var(--accent); }
+  .stack-dot-open { border-color: var(--ok); }
+  .stack-dot-closed { border-color: var(--bad); }
+
+  .stack-link {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    padding: 3px 0 9px;
+    text-decoration: none;
+  }
+
+  .stack-number { font-size: 12px; color: var(--muted); }
+
+  .stack-title {
+    display: block;
+    font-size: 13.5px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .stack-state { display: block; font-size: 12px; }
+
+  .is-current .stack-title { color: var(--accent-text); }
+
+  .stack-here {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--accent-quiet);
+    color: var(--accent-text);
+    font-size: 11px;
+  }
+
+  .stack-blocked { margin-top: 4px; font-size: 13px; }
+</style>

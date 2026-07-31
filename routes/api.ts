@@ -38,3 +38,7 @@ route.post('/repos/pulls/reviews', 'Actions/Pull/SubmitReviewAction').middleware
 route.post('/repos/pulls/comments', 'Actions/Pull/CommentOnCodeAction').middleware('auth')
 route.put('/repos/pulls/threads', 'Actions/Pull/ResolveThreadAction').middleware('auth')
 route.post('/repos/pulls/merge', 'Actions/Pull/MergePullRequestAction').middleware('auth')
+
+// Landing a whole stack, bottom first. Separate from the single merge because
+// it can partially succeed, and the caller needs to know how far it got.
+route.post('/repos/pulls/merge-stack', 'Actions/Pull/MergeStackAction').middleware('auth')
