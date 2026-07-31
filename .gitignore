@@ -60,9 +60,16 @@ discovered-packages.json
 #   storage/framework/stx      stx build cache + generated route manifest
 #   storage/framework/runtime  migration lock, temp bundles, CLI scratch
 #   storage/cloud              cloud driver state + dashboard credentials
+#   storage/repos              the bare git repositories this instance hosts
 storage/framework/stx/
 storage/framework/runtime/
 storage/cloud/
+
+# The repositories themselves. These are user data on a running instance and
+# machine-local scratch in development (`buddy seed:demo` writes one), and a
+# bare repository committed inside this one confuses every tool that walks the
+# tree, git included.
+storage/repos/
 
 # Pre-relocation names of the three directories above. stx and ts-cloud each
 # take their state directory from config now (`stateDir` in config/ui.ts and
