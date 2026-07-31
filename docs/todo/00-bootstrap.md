@@ -61,7 +61,9 @@ Each one is committed and pushed in the repository named.
       (`): { ok: true, ... } | { ok: false, ... } {`) makes `no-unused-vars` report every parameter
       as unused, because the parser does not find the body. Naming the union and referring to it is
       the workaround, and it is better code anyway, so this is worked around here rather than
-      blocking. `transitionDraft` in `app/Actions/Pull/state.ts` is the case that found it.
+      blocking. `transitionDraft` in `app/Actions/Pull/state.ts` is the case that found it, and
+      `resolveExpiry` in `app/TokenScopes.ts` is the case that proved it recurs: this needs fixing
+      upstream rather than remembering.
 - [x] **bun-query-builder** - Enum type names are table-qualified, but only newly added columns were
       stamped with the qualified name, so altering an existing enum column referenced a type nothing
       creates. Migrating to Postgres died on the last file with `type "channel_type" does not exist`.

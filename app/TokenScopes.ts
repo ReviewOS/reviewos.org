@@ -242,11 +242,15 @@ export const MAXIMUM_TOKEN_LIFETIME_MS = 365 * 24 * 60 * 60 * 1000
  * this with warning somebody before it happens: an expiry people are ambushed
  * by is an expiry they will find a way to avoid setting.
  */
+export type ExpiryOutcome =
+  | { ok: true, expiresAtMs: number }
+  | { ok: false, error: string }
+
 export function resolveExpiry(
   requestedMs: number | null,
   nowMs: number,
   maximumMs: number = MAXIMUM_TOKEN_LIFETIME_MS,
-): { ok: true, expiresAtMs: number } | { ok: false, error: string } {
+): ExpiryOutcome {
   const expiresAtMs = requestedMs ?? nowMs + DEFAULT_TOKEN_LIFETIME_MS
 
   if (expiresAtMs <= nowMs)
