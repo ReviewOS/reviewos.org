@@ -57,6 +57,11 @@ Each one is committed and pushed in the repository named.
 - [x] **pantry** - Service units are per-project but the PostgreSQL data directory was global, so
       two projects on different majors destroyed each other's cluster in a loop, each backing up and
       re-initializing what the other had just built.
+- [ ] **pickier** - A function whose return type is written as an inline union
+      (`): { ok: true, ... } | { ok: false, ... } {`) makes `no-unused-vars` report every parameter
+      as unused, because the parser does not find the body. Naming the union and referring to it is
+      the workaround, and it is better code anyway, so this is worked around here rather than
+      blocking. `transitionDraft` in `app/Actions/Pull/state.ts` is the case that found it.
 - [x] **bun-query-builder** - Enum type names are table-qualified, but only newly added columns were
       stamped with the qualified name, so altering an existing enum column referenced a type nothing
       creates. Migrating to Postgres died on the last file with `type "channel_type" does not exist`.

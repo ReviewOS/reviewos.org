@@ -72,6 +72,10 @@ export function transitionPullRequest(
 
 export type DraftTransition = 'draft' | 'ready'
 
+export type DraftOutcome =
+  | { ok: true, draft: boolean, changed: boolean }
+  | { ok: false, error: string, status: number }
+
 /**
  * Move a pull request between draft and ready.
  *
@@ -82,7 +86,7 @@ export type DraftTransition = 'draft' | 'ready'
 export function transitionDraft(
   pullRequest: PullRequestStateInput,
   transition: DraftTransition,
-): { ok: true, draft: boolean, changed: boolean } | { ok: false, error: string, status: number } {
+): DraftOutcome {
   if (pullRequest.state !== 'open') {
     return {
       ok: false,

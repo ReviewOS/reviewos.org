@@ -34,6 +34,7 @@ route.put('/repos/issues/state', 'Actions/Issue/UpdateIssueStateAction').middlew
 // Pull requests and review. Merging is its own endpoint rather than a state
 // update: it moves a branch, and that is not something to reach by accident.
 route.post('/repos/pulls', 'Actions/Pull/OpenPullRequestAction').middleware('auth')
+route.put('/repos/pulls', 'Actions/Pull/UpdatePullRequestAction').middleware('auth')
 route.put('/repos/pulls/state', 'Actions/Pull/UpdatePullRequestStateAction').middleware('auth')
 route.post('/repos/pulls/reviews', 'Actions/Pull/SubmitReviewAction').middleware('auth')
 route.post('/repos/pulls/comments', 'Actions/Pull/CommentOnCodeAction').middleware('auth')
