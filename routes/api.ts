@@ -37,6 +37,8 @@ route.post('/repos/pulls', 'Actions/Pull/OpenPullRequestAction').middleware('aut
 route.put('/repos/pulls', 'Actions/Pull/UpdatePullRequestAction').middleware('auth')
 route.put('/repos/pulls/state', 'Actions/Pull/UpdatePullRequestStateAction').middleware('auth')
 route.post('/repos/pulls/reviews', 'Actions/Pull/SubmitReviewAction').middleware('auth')
+route.post('/repos/pulls/review-requests', 'Actions/Pull/RequestReviewAction').middleware('auth')
+route.put('/repos/pulls/reviews/dismiss', 'Actions/Pull/DismissReviewAction').middleware('auth')
 route.post('/repos/pulls/comments', 'Actions/Pull/CommentOnCodeAction').middleware('auth')
 route.put('/repos/pulls/threads', 'Actions/Pull/ResolveThreadAction').middleware('auth')
 route.post('/repos/pulls/merge', 'Actions/Pull/MergePullRequestAction').middleware('auth')

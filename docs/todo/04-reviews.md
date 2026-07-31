@@ -65,12 +65,16 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
 - [x] `UpdatePullRequestAction.ts` for the title, body, and retargeting the base branch. Retargeting
       recomputes `base_sha` and re-derives `stack_parent_id`, because the base decides the merge
       base, which decides the diff every review thread is anchored against.
-- [ ] `RequestReviewAction.ts` for users and teams
+- [x] `RequestReviewAction.ts` for users and teams. Re-requesting after someone has replied is the
+      useful case rather than an error, which is why the request row survives a submitted review:
+      it clears `responded_at` instead of losing the record of the first ask.
 - [x] `StartReviewAction.ts`, `AddReviewCommentAction.ts`, `SubmitReviewAction.ts` - comments are
       pending and private until the review is submitted, so a reviewer can work through a diff
       without sending a dozen notifications
 - [x] `ResolveThreadAction.ts`, `UnresolveThreadAction.ts`
-- [ ] `DismissReviewAction.ts` with a required reason
+- [x] `DismissReviewAction.ts` with a required reason. The review is kept with its state changed
+      rather than deleted, so the thread still reads in order, and the request it answered is
+      reopened because a dismissal is a way of asking for another look.
 - [x] Suggested changes: a suggestion block in a comment that the author can commit in one click
 - [ ] Review a single file at a time, with per-file viewed state that persists across visits
 - [ ] `CODEOWNERS` parsing, and automatic review requests from it
