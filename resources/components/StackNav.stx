@@ -1,3 +1,19 @@
+<script server>
+/*
+ * Arrays and objects do not survive an stx attribute as themselves: the value
+ * is stringified on the way in, and `[object Object]` is not something a
+ * template can loop over. So the list arrives as JSON and is parsed here,
+ * once, rather than every use site inventing its own encoding.
+ */
+const stack = typeof stackJson === 'string' ? JSON.parse(stackJson || '[]') : (stackJson ?? [])
+const blocker = typeof blockerJson === 'string' ? JSON.parse(blockerJson || 'null') : (blockerJson ?? null)
+
+// An attribute arrives as a string, so the id has to be coerced before it is
+// compared with the numbers parsed out of the JSON above. Left as-is, every
+// comparison is false and the panel quietly stops marking where you are.
+const current = Number(currentId)
+</script>
+
 {{--
   The stack a pull request belongs to.
 
@@ -26,7 +42,7 @@
     {{-- Bottom of the stack first, which is the order they land in. --}}
     <ol class="stack-list">
       @foreach (stack as entry)
-        <li class="stack-item {{ entry.id === currentId ? 'is-current' : '' }}">
+        <li class="stack-item {{ entry.id === current ? 'is-current' : '' }}">
           <span class="stack-rail" aria-hidden="true">
             <span class="stack-dot stack-dot-{{ entry.state }}"></span>
           </span>
@@ -36,7 +52,7 @@
             <span class="stack-title">{{ entry.title }}</span>
             <span class="stack-state muted">
               {{ entry.state === 'merged' ? 'Merged' : (entry.state === 'closed' ? 'Closed' : (entry.draft ? 'Draft' : 'Open')) }}
-              @if (entry.id === currentId)
+              @if (entry.id === current)
                 <span class="stack-here">you are here</span>
               @endif
             </span>

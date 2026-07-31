@@ -127,9 +127,10 @@ in July 2026. Both agree on the mechanics, so this follows them rather than inve
       that no longer sits on its parent's branch (`orphanReason`)
 - [x] Which member below is holding this one up, named rather than described (`blockedBy`)
 - [x] A stack map component showing position, state per layer, and where you are (`StackNav.stx`)
-- [ ] Wire `StackNav` into the review view. The component and every rule behind it are built and
-      tested; the view integration fails the same way the rest of this file's stx issues did, so it
-      is held back rather than shipped broken.
+- [x] Wire `StackNav` into the review view. Two things had to be right: an array does not survive
+      an stx attribute as itself (it stringifies, so the list is passed as JSON and parsed in the
+      component), and an attribute arrives as a string, so the current id is coerced before it is
+      compared with numbers.
 - [ ] Automatic rebase of higher layers when a lower one lands, beyond retargeting
 - [ ] Merge queue support for stacks
 

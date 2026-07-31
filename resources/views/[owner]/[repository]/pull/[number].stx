@@ -10,7 +10,7 @@
  * Server-rendered on purpose. A hundred-file diff assembled in the browser is
  * where forges get slow, and it is slowest exactly when the review matters.
  */
-import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, highlightLines, reanchor, requirementsSatisfied, startsCollapsed } from '../../../../functions/review'
+import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, highlightLines, reanchor, requirementsSatisfied, startsCollapsed, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary } from '../../../../functions/review'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
@@ -226,6 +226,50 @@ const blockers = pullRequest
     )
   : []
 
+/*
+ * The stack this pull request belongs to.
+ *
+ * Loaded for the whole repository in one query rather than by walking parent
+ * links a level at a time: a stack is small, and a round trip per level is the
+ * shape that makes a deep stack slow to open.
+ */
+const stackRows = pullRequest
+  ? await db
+      .selectFrom('pull_requests')
+      .select(['id', 'number', 'title', 'state', 'head_branch', 'base_branch', 'stack_parent_id', 'draft'])
+      .where('repository_id', '=', Number(repoRow.id))
+      .execute()
+  : []
+
+const stackMembers = stackRows.map(row => ({
+  id: Number(row.id),
+  number: Number(row.number),
+  title: String(row.title),
+  state: String(row.state),
+  headBranch: String(row.head_branch),
+  baseBranch: String(row.base_branch),
+  stackParentId: row.stack_parent_id ? Number(row.stack_parent_id) : null,
+  draft: Boolean(row.draft),
+}))
+
+const currentMember = pullRequest ? stackMembers.find(entry => entry.id === Number(pullRequest.id)) : undefined
+const stack = currentMember ? buildStack(stackMembers, currentMember.id) : []
+const stackText = stackSummary(stack)
+const stackOrphan = currentMember ? orphanMessage(orphanReason(currentMember, stackMembers)) : null
+
+/*
+ * Only this pull request's own blockers are known here, so the rest of the
+ * stack is judged on what can be checked cheaply. A member whose readiness is
+ * unknown counts as not ready, which errs toward saying "waiting on" rather
+ * than promising a merge that would then be refused.
+ */
+const stackReadiness = stack.map(entry => ({
+  id: entry.id,
+  blockers: currentMember && entry.id === currentMember.id ? blockers : (entry.state === 'open' && !entry.draft ? [] : ['not ready']),
+}))
+
+const stackBlocker = currentMember ? blockedBy(stack, currentMember.id, stackReadiness) : null
+
 const title = pullRequest
   ? `${pullRequest.title} by ${author?.handle ?? 'someone'} · ${owner}/${repositoryName} #${number}`
   : 'Pull request not found'
@@ -304,6 +348,16 @@ const statePill = pullRequest
         </div>
 
         <aside class="pr-side">
+          <StackNav
+            stackJson="{{ JSON.stringify(stack) }}"
+            currentId="{{ currentMember ? currentMember.id : 0 }}"
+            summary="{{ stackText }}"
+            orphan="{{ stackOrphan }}"
+            blockerJson="{{ JSON.stringify(stackBlocker) }}"
+            owner="{{ owner }}"
+            repository="{{ repositoryName }}"
+          />
+
 
 
 
