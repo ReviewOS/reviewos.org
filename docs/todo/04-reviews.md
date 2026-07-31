@@ -109,11 +109,10 @@ The differentiator. Nothing else in this space handles it well.
 
 ## Known issues
 
-- [ ] The pull request view renders its not-found branch against seeded data. The route, the
-      layout, the imports, and the query shapes are each proven to work in isolation on the same
-      route, so the fault is somewhere in the full server script. A multi-line `import` in a
-      `<script server>` block was one confirmed cause of a silently degraded script, and stx
-      reports nothing when it happens: worth fixing in stx so the next person loses minutes
-      rather than hours.
+- [x] The pull request view rendered its not-found branch against seeded data. Two causes, both
+      now fixed: a multi-line `import` in a `<script server>` block silently broke the whole
+      script (fixed upstream in stx v0.2.126), and `innerJoin` was called with three arguments
+      where the query builder takes four, `(table, left, operator, right)`. The thrown error was
+      swallowed and the page rendered with every variable undefined; `STX_DEBUG=1` surfaces it.
 - [ ] Seeded pull requests have no bare repository behind them, so the diff is legitimately
       empty. Seeding should create a real repository with a couple of commits.

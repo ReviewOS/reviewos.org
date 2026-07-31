@@ -26,7 +26,7 @@ export default new Action({
     const threadId = Number(request.get('thread_id'))
     const thread = await db
       .selectFrom('review_threads')
-      .innerJoin('pull_requests', 'pull_requests.id', 'review_threads.pull_request_id')
+      .innerJoin('pull_requests', 'pull_requests.id', '=', 'review_threads.pull_request_id')
       .select([
         'review_threads.id as id',
         'review_threads.resolved as resolved',

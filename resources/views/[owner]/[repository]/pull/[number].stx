@@ -10,18 +10,7 @@
  * Server-rendered on purpose. A hundred-file diff assembled in the browser is
  * where forges get slow, and it is slowest exactly when the review matters.
  */
-import {
-  approvalsSatisfied,
-  diffTotals,
-  isGenerated,
-  mergeBlockers,
-  parseDiff,
-  pullRequestDiff,
-  highlightLines,
-  reanchor,
-  requirementsSatisfied,
-  startsCollapsed,
-} from '../../../../functions/review'
+import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, highlightLines, reanchor, requirementsSatisfied, startsCollapsed } from '../../../../functions/review'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
@@ -68,7 +57,7 @@ const commentRows = threadRows.length === 0
   ? []
   : await db
       .selectFrom('review_comments')
-      .innerJoin('users', 'users.id', 'review_comments.author_id')
+      .innerJoin('users', 'users.id', '=', 'review_comments.author_id')
       .select([
         'review_comments.id as id',
         'review_comments.review_thread_id as review_thread_id',
