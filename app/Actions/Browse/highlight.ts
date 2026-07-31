@@ -121,7 +121,8 @@ export function languageFor(path: string): string | null {
 let highlighterPromise: ReturnType<typeof createHighlighter> | null = null
 
 function highlighter(): ReturnType<typeof createHighlighter> {
-  highlighterPromise ??= createHighlighter({})
+  if (!highlighterPromise)
+    highlighterPromise = createHighlighter({})
 
   return highlighterPromise
 }
