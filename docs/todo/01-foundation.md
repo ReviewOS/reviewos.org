@@ -58,18 +58,75 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
 - [x] Tests covering the full matrix. This is the security boundary of the product, so exhaustive
       beats representative.
 
-## Machine credentials
+## Access tokens
 
-- [ ] Personal access tokens using the framework model: scopes (repo:read, repo:write, repo:admin,
-      user:read, admin), expiry, last-used tracking, revocation
-- [ ] Token shown once at creation, stored hashed
+There is one kind of token here, and it is fine-grained.
+
+GitHub has two, and the split is worth naming because it is the reason this section is written the
+way it is. Some permissions there can only be granted by a classic token, and `packages:read` is the
+one people hit: read a package from a script or an agent and the fine-grained token cannot express
+it, so you fall back to a classic token that carries every scope on the account, across every
+repository, with no per-resource selection. The narrow path is the one that does not work, so the
+wide one gets used. That is a security hole produced by a gap in a permission list.
+
+So the rule for this codebase, and it is a rule rather than a preference:
+
+- [ ] **The permission surface is complete.** Every capability the product exposes is grantable on a
+      fine-grained token, at the narrowest level that expresses it. A capability that ships without
+      a matching token permission is not finished, and there is no second token type to escape into.
+      `packages:read` is the worked example: if a registry ever lands (it is on the deferred list in
+      the index), its permissions are fine-grained from the first commit or it does not land.
+- [ ] A test that walks `REPOSITORY_ABILITIES` and `ORGANIZATION_ABILITIES` and fails on any ability
+      no token permission can grant. The rule above only holds if something checks it.
+
+### Model
+
+- [ ] `app/Models/AccessToken.ts`: `user_id`, `name`, `token_hash`, `expires_at`, `last_used_at`,
+      `last_used_ip`, `revoked_at`, `revoked_by_id`, and the resource selection: every repository
+      the user can reach, every repository in one organization, or a chosen list
+- [ ] `app/Models/AccessTokenPermission.ts`: one row per granted permission, `permission` and
+      `level`. Permissions are rows rather than a bitfield or a comma-joined string, so adding one
+      is an insert and not a migration over every token ever issued.
+- [ ] Permissions reuse the vocabulary in `app/Permissions.ts` instead of inventing a second one. A
+      token grant is an upper bound on what the user could already do, never a widening: the
+      effective permission is the intersection of the token's grant and the user's own access,
+      recomputed per request, so removing someone from a repository revokes their token there too.
+- [ ] Token shown once at creation, stored as a hash. The prefix stays in cleartext (`ros_` plus a
+      short public id) so a leaked token is identifiable in a log and revocable without guessing.
+- [ ] Expiry required. No unlimited option in the interface, a maximum an instance can configure,
+      and a default of 90 days.
+
+### Living with tokens
+
+The half of this nobody builds, and the half that decides whether an instance is safe two years in.
+
+- [ ] `settings/tokens.stx` lists tokens with what each one can actually do, in the same words as
+      the permission checks, not as a scope string the reader has to decode
+- [ ] Last used, from where, and against which repositories, so an unused token is visible as unused
+- [ ] Expiry warnings by email before a token dies, because a token that expires silently in CI at
+      2am teaches people to set no expiry at all
+- [ ] Organization owners can list every token with access to their repositories, and revoke one.
+      Optionally, tokens against an organization require owner approval before they work.
+- [ ] Every token action lands in the audit log: created, used the first time, permission changed,
+      revoked
+- [ ] Machine accounts: an account that exists to hold tokens, owned by an organization, with no
+      password and no session login. Better than a human account shared by a team, which is what
+      happens when the product does not offer this.
+- [ ] `app/Actions/Tokens/` - list, create, revoke, and a per-request resolver that validates the
+      token, checks expiry and revocation, intersects with live access, and records the use
+- [ ] Tests: a revoked token stops working on the next request, expiry is enforced, a permission not
+      granted is refused, and losing repository access revokes the token's reach into it
+
+## Keys
+
 - [ ] `app/Models/SshKey.ts`: `user_id`, `title`, `key_type`, `public_key`, `fingerprint`,
       `last_used_at`. Fingerprint unique across all users.
 - [ ] Reject keys that are too weak, and duplicate keys already registered to another account
+- [ ] Deploy keys: a key scoped to one repository, read-only by default, for the case where a token
+      is the wrong shape
 - [ ] `app/Models/GpgKey.ts` for commit signature verification (verification itself is phase 2)
-- [ ] `app/Actions/Keys/` and `app/Actions/Tokens/` - list, create, revoke
-- [ ] `resources/views/settings/keys.stx`, `settings/tokens.stx`
-- [ ] Tests: a revoked token stops working immediately, expiry is enforced, scopes are honored
+- [ ] `app/Actions/Keys/` - list, create, revoke
+- [ ] `resources/views/settings/keys.stx`
 
 ## Activity
 

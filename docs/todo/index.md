@@ -47,7 +47,10 @@ Concretely, for anything with data behind it:
 
 Naming these keeps them from being re-proposed every few weeks:
 
-- **A package registry.** Out of scope until the forge itself is good.
+- **A package registry.** Out of scope until the forge itself is good. When it is reconsidered, its
+  permissions (`packages:read`, `packages:write`) are fine-grained token permissions from the first
+  commit. See the rule in [phase 1](./01-foundation.md#access-tokens): there is no second token type
+  to fall back to, which is exactly the trap this project is avoiding.
 - **A wiki.** Repository markdown files cover most of the need.
 - **Projects and boards.** Issues with labels and milestones first.
 - **In-browser editing.** A pull request from the browser is a phase 4 concern at the earliest.
