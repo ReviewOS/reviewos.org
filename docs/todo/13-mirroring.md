@@ -122,10 +122,11 @@ documentation is markdown that the docs pipeline has to render anyway.
 - [ ] Mirror configured, pull direction, public, no credential
 - [x] Git data cloned into `storage/repos/stacks/stacks.git` and readable through git plumbing
       (2488 refs, HEAD resolves, trees list)
-- [ ] Browsable in the UI. Blocked on the repository browse view, which
-      [02 - Git hosting](./02-git-hosting.md) has not built yet - `/stacks/stacks` 404s because the
-      route does not exist, not because the mirror is wrong
-- [ ] Its markdown renders through the docs pipeline (see [07](./07-marketing-docs.md))
+- [ ] Browsable in the UI. Blocked on the repository browse view from phase 02, which does not
+      exist yet: `/stacks/stacks` 404s because the route is missing, not because the mirror is
+      wrong
+- [ ] Its markdown renders through the docs pipeline described in
+      [07 - Marketing and docs](./07-marketing-docs.md)
 - [ ] Pull requests visible in the review screen, which is the actual test of whether any of this
       was worth building
 
