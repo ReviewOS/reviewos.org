@@ -61,6 +61,25 @@ known to exactly one place.
       the user
 - [ ] Tests: force push to a protected branch is rejected, and a push that closes an issue does
 
+## Push protection
+
+Scanning for a leaked credential after the push has landed is a cleanup procedure, not a defense:
+the secret is in the reflog, in every clone, and possibly in a mirror before anyone reads the alert.
+Rejecting the push is the only version of this feature that prevents anything, and receive time is
+the one moment where rejecting is still possible.
+
+- [ ] Scan the incoming pack for credential shapes before accepting it: provider tokens with a known
+      prefix first, since those are unambiguous, then private keys, then high-entropy strings in
+      assignment position
+- [ ] Reject with a message git prints legibly, naming the file, the line, and what it looks like.
+      A rejection the pusher cannot act on gets bypassed once and disabled forever.
+- [ ] A bypass that requires a reason and is recorded in the audit log, because a false positive on
+      a test fixture at 6pm will otherwise turn the whole feature off
+- [ ] Patterns are configurable per instance, and a self-hosted instance can add its own
+- [ ] Scan history on demand for a repository that predates this, reporting rather than rejecting
+- [ ] Tests: a known token shape is rejected, a documented example placeholder is not, and the
+      bypass is logged
+
 ## Browsing
 
 - [ ] `app/Actions/Browse/TreeAction.ts` - directory listing at a ref and path

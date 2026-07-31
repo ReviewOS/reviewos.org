@@ -51,8 +51,36 @@ promise, so the operational story is a feature and not an afterthought.
 - [ ] CSRF on state-changing routes, and correct exemptions for token-authenticated API calls
 - [ ] Session handling: rotation on privilege change, absolute and idle expiry, sessions listed and
       revocable by the user
-- [ ] Audit log for administrative actions
 - [ ] A pass with the `stacks-security-audit` skill before the first public instance
+
+### The audit log
+
+One log, not a per-feature afterthought, because the question it answers is asked after something has
+already gone wrong and there is no second chance to have recorded it.
+
+- [ ] `app/Models/AuditEvent.ts`: `actor_id`, `access_token_id`, `action`, polymorphic subject,
+      `organization_id`, `repository_id`, `ip`, `user_agent`, `metadata`, `created_at`
+- [ ] Written by listeners on domain events, the same way the activity feed is, rather than by a
+      call added to each action and forgotten in the next one
+- [ ] Covers the things worth reconstructing: permission and role changes, token and key lifecycle,
+      protected branch and rule changes, push protection bypasses, visibility changes, transfers and
+      deletions, and administrative action
+- [ ] Distinct from the activity feed. The feed is a product surface and hides what you cannot see;
+      the audit log is a record and hides nothing from an owner.
+- [ ] Append-only in the interface and in the API, exportable as JSON lines, and streamable to an
+      external collector for instances that need retention beyond the database
+- [ ] Searchable by actor, subject, repository and time range, and readable by organization owners
+      for their own scope rather than only by an instance administrator
+
+### Account security
+
+- [ ] Two-factor authentication with TOTP and passkeys, recovery codes shown once, and an
+      organization setting that requires it of members
+- [ ] Single sign-on for self-hosted instances: OIDC first, since it covers most identity providers
+      with far less surface than SAML, with group-to-team mapping and just-in-time provisioning
+- [ ] Deprovisioning that actually revokes: removing someone upstream ends their sessions and their
+      tokens' reach, rather than leaving a credential that outlives the account
+- [ ] Sign-in notifications for a new device or location, and a visible list of active sessions
 
 ## Developer environment
 
