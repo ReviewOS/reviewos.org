@@ -115,13 +115,31 @@ everything they cover. No `var`, no `document.*`, no `window.*`, no `addEventLis
 `JSON.parse` of something that should have arrived as a value. See `~/Code/Tools/stx/docs/features/`
 for the current surface, `state.md` in particular.
 
+**Passing anything that is not a string to a component.** Use `:prop="value"`, not
+`prop="{{ value }}"`. The interpolation form is string interpolation into an attribute, so an object
+arrives as `[object Object]` and an array as a comma-joined string; the binding form passes the
+value itself. Scalars survive either form, which is exactly why the mistake gets through review.
+`resources/components/StackNav.stx` predates knowing this and works around it by passing JSON and
+parsing it back, which is not the pattern to copy.
+
+**A component imports nothing on its own.** A `.stx` component with no `<script>` block has no
+access to anything from `resources/functions`, and calling one there yields `undefined` rather than
+an error. `@foreach` over it reports "is not iterable" into an HTML comment, which nobody reads. Do
+the work in the view, where the imports are, and pass the result down. Views import explicitly and
+on one line: a multi-line `import` used to break the whole script silently, and a re-export
+(`export … from`) still does.
+
 **When the framework is genuinely in the way, fix the framework.** Both are local checkouts:
 stx at `~/Code/Tools/stx` and Stacks at `~/Code/stacks` (see *Working on the framework from here*
 below for the rebuild step). A workaround that lives in this repository hides the bug from every
 other project that has it, so it needs a fix upstream and a line in the roadmap saying what it was.
-The open example is `resources/components/StackNav.stx`, which passes its stack as a JSON string
-because an array does not survive an stx attribute as an array. That is a gap in stx being paid for
-here, and it should not be copied into a second component.
+Check first that it is really a gap: the two rules above were both filed as stx limitations here and
+were both this codebase using the wrong tool.
+
+**Common to all of these: stx fails silently.** A thrown error in `<script server>` renders the page
+with every variable undefined rather than reporting anything, so the symptom is a not-found branch
+or a blank region, never a stack trace. `STX_DEBUG=1` surfaces the real error, and the dev server
+caches compiled components in memory, so restart it rather than trusting an edit to take.
 
 ### Linting
 - Use **pickier** for linting, never eslint directly.

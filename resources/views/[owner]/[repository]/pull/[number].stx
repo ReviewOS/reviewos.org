@@ -10,7 +10,7 @@
  * Server-rendered on purpose. A hundred-file diff assembled in the browser is
  * where forges get slow, and it is slowest exactly when the review matters.
  */
-import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, highlightLines, reanchor, requirementsSatisfied, startsCollapsed, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary } from '../../../../functions/review'
+import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, highlightLines, reanchor, requirementsSatisfied, startsCollapsed, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, threadsAt } from '../../../../functions/review'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
@@ -120,6 +120,23 @@ for (const file of files) {
   rightKeys.forEach((key, index) => { map[key] = rightTokens[index] ?? [] })
 
   highlightedByPath[file.path] = map
+
+  // The tokens are attached to the line rather than looked up from the
+  // component. A function auto-imported from `resources/functions` is in scope
+  // in a view but comes back undefined inside a component, and the failure is
+  // silent: the `@foreach` reports the value is not iterable and every line of
+  // every diff renders blank. Attaching them here also means the lookup happens
+  // once per line instead of once per render.
+  for (const hunk of file.hunks) {
+    for (const line of hunk.lines) {
+      const key = line.origin === 'removed' ? `-${line.oldLine}` : `+${line.newLine}`
+      const tokens = map[key]
+
+      // An empty array is a blank line and is left alone. A missing entry means
+      // the highlighter declined, and the raw content is better than nothing.
+      ;(line as any).tokens = tokens ?? [{ type: 'text', content: line.content }]
+    }
+  }
 }
 
 // Threads were written against an earlier commit. Follow each one through the
@@ -147,6 +164,21 @@ const threads = threadRows.map((row: any) => {
       })),
   }
 })
+
+// Attached to the line for the same reason the tokens are: `threadsAt` is in
+// scope here and undefined inside the component, and the `@foreach` there fails
+// silently. Doing it here also walks the thread list once per file rather than
+// once per rendered line.
+for (const file of files) {
+  for (const hunk of file.hunks) {
+    // Braces matter here: written without them, the `;` that guards the line
+    // below becomes the loop body, the assignment runs once with `line` out of
+    // scope, and the ReferenceError renders the whole page as not found.
+    for (const line of hunk.lines) {
+      (line as any).threads = threadsAt(threads, file.path, line)
+    }
+  }
+}
 
 const protection = repoRow && pullRequest
   ? await db
@@ -337,12 +369,19 @@ const statePill = pullRequest
             </p>
           @endif
 
+          {{--
+            Bound with `:prop`, not `prop="{{ }}"`. The interpolation form is
+            string interpolation into an attribute, so an object arrives as
+            "[object Object]" and every field reads as empty; the binding form
+            passes the value itself. Scalars survive either way, which is what
+            makes the mistake survive review.
+          --}}
           @foreach (files as file)
             <DiffView
-              file="{{ file }}"
-              threads="{{ threads }}"
-              highlighted="{{ highlightedByPath[file.path] }}"
-              collapsed="{{ startsCollapsed(file, isGenerated(file.path)) }}"
+              :file="file"
+              :threads="threads"
+              :highlighted="highlightedByPath[file.path]"
+              :collapsed="startsCollapsed(file, isGenerated(file.path))"
             />
           @endforeach
         </div>

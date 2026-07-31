@@ -28,4 +28,5 @@ export type CommandRegistry = Record<string, string | CommandConfig>
  */
 export default {
   'inspire': 'Inspire',
+  'seed:demo': 'SeedDemo',
 } satisfies CommandRegistry

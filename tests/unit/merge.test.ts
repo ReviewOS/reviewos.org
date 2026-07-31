@@ -55,7 +55,16 @@ describe('mergeBlockers', () => {
   })
 
   test('an unknown mergeability blocks, rather than being assumed clean', () => {
-    expect(mergeBlockers({ ...ready, mergeable: null }, permissive, clean, 'merge').join()).toContain('conflicts')
+    expect(mergeBlockers({ ...ready, mergeable: null }, permissive, clean, 'merge')).toHaveLength(1)
+  })
+
+  test('an unknown mergeability says so rather than claiming a conflict', () => {
+    // Telling somebody their branch conflicts when nothing has been checked
+    // sends them off to rebase a branch that was fine.
+    const blockers = mergeBlockers({ ...ready, mergeable: null }, permissive, clean, 'merge').join()
+
+    expect(blockers).toContain('not been checked')
+    expect(blockers).not.toContain('conflicts')
   })
 
   test('missing approvals block, and say how many are missing', () => {

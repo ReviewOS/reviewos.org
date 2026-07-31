@@ -40,7 +40,14 @@
     </span>
   </header>
 
-  <div id="body-{{ file.path }}" class="diff-body" hidden="{{ collapsed }}">
+  {{--
+    Collapsed through a class rather than the `hidden` attribute. `hidden` is a
+    boolean attribute, so the browser hides the element whenever it is present
+    whatever the value, and `hidden="{{ collapsed }}"` rendered `hidden="false"`
+    and hid every diff on the page. A directive inside the attribute list is not
+    processed by stx, so the conditional is in the value where it does work.
+  --}}
+  <div id="body-{{ file.path }}" class="diff-body{{ collapsed ? ' is-collapsed' : '' }}">
     @if (file.binary)
       <p class="diff-note muted">Binary file. Nothing to show line by line.</p>
     @elseif (file.hunks.length === 0)
@@ -70,14 +77,18 @@
               <tr class="line line-{{ line.origin }}">
                 <td class="gutter num">{{ line.oldLine ?? '' }}</td>
                 <td class="gutter num">{{ line.newLine ?? '' }}</td>
-                <td class="code mono">
-                  <span class="marker" aria-hidden="true">{{ line.origin === 'added' ? '+' : (line.origin === 'removed' ? '-' : ' ') }}</span>@foreach (tokensFor(highlighted, line) as token)<span class="t-{{ token.type }}">{{ token.content }}</span>@endforeach
-                </td>
+                {{--
+                  All on one line, deliberately. The cell is `white-space: pre`
+                  so that code keeps its own indentation, which means the
+                  template's indentation would be printed too and every line
+                  would start a dozen columns in.
+                --}}
+                <td class="code mono"><span class="marker" aria-hidden="true">{{ line.origin === 'added' ? '+' : (line.origin === 'removed' ? '-' : ' ') }}</span>@foreach (line.tokens as token)<span class="t-{{ token.type }}">{{ token.content }}</span>@endforeach</td>
               </tr>
 
               {{-- Threads sit under the line they were written about, in the
                    flow, so scrolling never separates a comment from its code. --}}
-              @foreach (threadsAt(threads, file.path, line) as thread)
+              @foreach (line.threads as thread)
                 <tr class="thread-row">
                   <td class="gutter" colspan="2"></td>
                   <td class="thread-cell">
@@ -139,6 +150,7 @@
   /* The table scrolls inside itself. A long line must never push the page
      sideways, because then every other file scrolls with it. */
   .diff-body { overflow-x: auto; }
+  .diff-body.is-collapsed { display: none; }
 
   .diff-table {
     width: 100%;

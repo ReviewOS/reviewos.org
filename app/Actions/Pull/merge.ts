@@ -71,10 +71,15 @@ export function mergeBlockers(
   if (pullRequest.draft)
     blockers.push('Mark this pull request ready for review before merging it')
 
-  // Null means git has not been asked yet. Treated as a blocker: merging on an
-  // unknown answer is how a forge produces a conflicted merge commit.
-  if (pullRequest.mergeable !== true)
+  // Null means git has not been asked yet. Still a blocker, because merging on
+  // an unknown answer is how a forge produces a conflicted merge commit, but it
+  // says so rather than claiming a conflict it has not seen. Telling somebody
+  // their branch conflicts when nothing has been checked sends them off to
+  // rebase a branch that was fine.
+  if (pullRequest.mergeable === false)
     blockers.push('This branch has conflicts that must be resolved')
+  else if (pullRequest.mergeable === null)
+    blockers.push('Whether this merges cleanly has not been checked yet')
 
   if (readiness.blockingReviews > 0)
     blockers.push('Changes requested by a reviewer must be resolved')

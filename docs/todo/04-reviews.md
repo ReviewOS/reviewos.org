@@ -189,5 +189,23 @@ in July 2026. Both agree on the mechanics, so this follows them rather than inve
       script (fixed upstream in stx v0.2.126), and `innerJoin` was called with three arguments
       where the query builder takes four, `(table, left, operator, right)`. The thrown error was
       swallowed and the page rendered with every variable undefined; `STX_DEBUG=1` surfaces it.
-- [ ] Seeded pull requests have no bare repository behind them, so the diff is legitimately
-      empty. Seeding should create a real repository with a couple of commits.
+- [x] Seeded pull requests had no bare repository behind them, so the diff was legitimately empty.
+      `./buddy seed:demo` now writes a real repository (two commits on `main`, three on a branch)
+      and takes the shas from git rather than inventing them. It is idempotent, so running it twice
+      reports what exists instead of duplicating.
+- [x] With a real diff behind it, the review screen turned out to render nothing, for four separate
+      reasons. Each is worth recording because each fails silently:
+  - [x] `file="{{ file }}"` is string interpolation, so the object arrived as `[object Object]` and
+        every field read as empty. `:file="file"` passes the value. Scalars survive either form,
+        which is what let the mistake through review.
+  - [x] `hidden="{{ collapsed }}"` rendered `hidden="false"`, and `hidden` is a boolean attribute:
+        present at all means hidden. Every diff on the page was invisible. It is a class now.
+  - [x] `tokensFor` and `threadsAt` were called inside `DiffView`, which has no `<script>` block and
+        so imports nothing. They were undefined, and `@foreach` over undefined reported "is not
+        iterable" into an HTML comment rather than anywhere anybody would look. The tokens and
+        threads are attached to each line in the view, where the imports are, which also does the
+        work once per line rather than once per render.
+  - [x] The code cell is `white-space: pre`, so the template's own indentation was printed and every
+        line started a dozen columns in
+- [ ] A `files.stx` route. The diff currently lives behind a tab on the conversation page, so there
+      is no way to link somebody to the review screen itself.
