@@ -106,3 +106,14 @@ The differentiator. Nothing else in this space handles it well.
       `ReviewThread`, `PullRequestHeader`, `MergeBox`, `StackIndicator`, `FileTreeSidebar`
 - [ ] Keyboard navigation through files and threads, and submitting a review without the mouse
 - [ ] The diff renders on the server; the browser gets HTML, not a diff library and a JSON payload
+
+## Known issues
+
+- [ ] The pull request view renders its not-found branch against seeded data. The route, the
+      layout, the imports, and the query shapes are each proven to work in isolation on the same
+      route, so the fault is somewhere in the full server script. A multi-line `import` in a
+      `<script server>` block was one confirmed cause of a silently degraded script, and stx
+      reports nothing when it happens: worth fixing in stx so the next person loses minutes
+      rather than hours.
+- [ ] Seeded pull requests have no bare repository behind them, so the diff is legitimately
+      empty. Seeding should create a real repository with a couple of commits.
