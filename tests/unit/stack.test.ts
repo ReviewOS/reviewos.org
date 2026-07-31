@@ -6,7 +6,7 @@
 // cases lead here.
 
 import { describe, expect, test } from 'bun:test'
-import type { StackMember } from '../../app/Actions/Pull/stack'
+import type { StackMember } from '../../resources/functions/stack'
 import {
   blockedBy,
   buildStack,
@@ -16,7 +16,7 @@ import {
   orphanReason,
   positionIn,
   stackSummary,
-} from '../../app/Actions/Pull/stack'
+} from '../../resources/functions/stack'
 
 function member(id: number, parent: number | null, extra: Partial<StackMember> = {}): StackMember {
   return {

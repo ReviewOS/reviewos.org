@@ -226,13 +226,6 @@ const blockers = pullRequest
     )
   : []
 
-/*
- * The stack this pull request belongs to.
- *
- * Loaded for the whole repository rather than by walking parent links one
- * query at a time: a stack is small, and a chain of round trips per level is
- * the shape that makes a deep stack slow to open.
- */
 const title = pullRequest
   ? `${pullRequest.title} by ${author?.handle ?? 'someone'} · ${owner}/${repositoryName} #${number}`
   : 'Pull request not found'
@@ -311,6 +304,7 @@ const statePill = pullRequest
         </div>
 
         <aside class="pr-side">
+
 
           {{-- The merge box. Every reason it cannot merge is listed at once:
                being sent round the loop one blocker at a time is the thing
