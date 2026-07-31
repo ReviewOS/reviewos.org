@@ -81,8 +81,19 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
 
 ## Merging
 
-- [ ] Mergeability computed in the background rather than on page load, cached, invalidated on push
-      to either branch
+- [x] Mergeability computed with `git merge-tree --write-tree`, which merges in memory and cannot
+      move a ref. There is a test holding it to that, because the alternative implementations
+      (a temporary worktree, a real merge on a scratch branch) all can.
+- [x] Cached against the two commits it was computed from, which is what makes "invalidated on
+      push" fall out for free: the moment either side moves, the stored answer no longer matches.
+      No hook has to remember to clear anything. An unknown answer is deliberately not cached, so a
+      transient git failure retries instead of sticking.
+- [x] Conflicts reported with the conflicting files named, not just a boolean. git already says
+      which they are, so withholding them sends somebody to their terminal to rediscover what we
+      know.
+- [ ] Computed in the background rather than on page load. It is computed in the view for now; the
+      cache makes that one merge per pair of commits rather than one per visit, but it still means
+      the first visitor after a push waits for it. This needs the queue (phase 5 prerequisites).
 - [ ] Merge strategies: merge commit, squash, rebase. Each configurable per repository, with a
       default.
 - [ ] `MergePullRequestAction.ts` enforcing protected branch rules: required approvals, required

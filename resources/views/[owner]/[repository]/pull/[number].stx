@@ -10,7 +10,7 @@
  * Server-rendered on purpose. A hundred-file diff assembled in the browser is
  * where forges get slow, and it is slowest exactly when the review matters.
  */
-import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, highlightLines, reanchor, requirementsSatisfied, startsCollapsed, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, threadsAt } from '../../../../functions/review'
+import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, highlightLines, reanchor, requirementsSatisfied, startsCollapsed, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, threadsAt, refreshMergeability } from '../../../../functions/review'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
@@ -231,14 +231,35 @@ const approval = approvalsSatisfied({
 
 const unresolvedThreads = threads.filter(thread => !thread.resolved).length
 
+/*
+ * Mergeability, cached against the two commits it was computed from.
+ *
+ * The roadmap wants this computed in the background; it is computed here for
+ * now, and the cache is what makes that acceptable: the answer is recomputed
+ * only when one of the branches has moved, so a hundred people opening this
+ * page cost one merge between them rather than a hundred. Nothing here can move
+ * a ref, because `git merge-tree` merges in memory.
+ */
+const mergeability = pullRequest
+  ? await refreshMergeability(owner, repositoryName, {
+      id: Number(pullRequest.id),
+      base_sha: String(pullRequest.base_sha),
+      head_sha: String(pullRequest.head_sha),
+      mergeable_state: pullRequest.mergeable_state as string | null,
+      mergeable_base_sha: pullRequest.mergeable_base_sha as string | null,
+      mergeable_head_sha: pullRequest.mergeable_head_sha as string | null,
+      mergeable_conflicts: pullRequest.mergeable_conflicts as string | null,
+    })
+  : { state: 'unknown' as const, treeSha: null, conflictingPaths: [], recomputed: false }
+
 const blockers = pullRequest
   ? mergeBlockers(
       {
         state: pullRequest.state as 'open' | 'closed' | 'merged',
         draft: Boolean(pullRequest.draft),
-        mergeable: pullRequest.mergeable_state === 'clean'
+        mergeable: mergeability.state === 'clean'
           ? true
-          : (pullRequest.mergeable_state === 'dirty' ? false : null),
+          : (mergeability.state === 'unknown' ? null : false),
         stackParent: null,
       },
       {
@@ -430,6 +451,19 @@ const statePill = pullRequest
                   </li>
                 @endforeach
               </ul>
+
+              {{-- The conflicting files, named. git already told us which they
+                   are, so saying only "this branch has conflicts" would send
+                   somebody to their terminal to rediscover what we know. --}}
+              @if (mergeability.conflictingPaths.length > 0)
+                <p class="conflict-heading">Conflicts in</p>
+                <ul class="conflict-list mono">
+                  @foreach (mergeability.conflictingPaths as path)
+                    <li>{{ path }}</li>
+                  @endforeach
+                </ul>
+              @endif
+
               <button type="button" class="btn merge-button" aria-disabled="true" disabled>
                 Merge pull request
               </button>
@@ -544,6 +578,8 @@ const statePill = pullRequest
   .merge-state.bad { color: var(--bad); }
 
   .blockers { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+  .conflict-heading { margin-top: 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .conflict-list { margin-top: 5px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; word-break: break-all; }
 
   .blocker {
     display: flex;

@@ -7218,6 +7218,32 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "mergeable_base_sha",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "mergeable_head_sha",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "mergeable_conflicts",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -11943,7 +11969,7 @@
       }
     ]
   },
-  "hash": "501c81769672356c73078b434cf5093fa8309912fabf2575838fa13da4ff5544",
+  "hash": "4eee97d3d324fbdd33205c981345504375dc83e9de045cd08bfd259e85086ce7",
   "dialect": "postgres",
-  "updatedAt": "2026-07-31T18:49:13.099Z"
+  "updatedAt": "2026-07-31T19:37:01.051Z"
 }

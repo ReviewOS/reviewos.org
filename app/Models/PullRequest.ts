@@ -210,5 +210,47 @@ export default defineModel({
       validation: { rule: schema.number() },
       factory: () => null,
     },
+
+    /**
+     * The two commits `mergeable_state` was computed from.
+     *
+     * Mergeability is a fact about a pair of commits, so caching it against
+     * them is what makes "invalidated on push" fall out for free: the moment
+     * either side moves, the stored answer no longer matches and is recomputed.
+     * No hook has to remember to clear anything.
+     */
+    mergeable_base_sha: {
+      order: 23,
+      fillable: true,
+      validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
+
+    mergeable_head_sha: {
+      order: 24,
+      fillable: true,
+      validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
+
+    /**
+     * The conflicting paths, newline separated.
+     *
+     * A text column rather than rows, which is the opposite of the rule
+     * elsewhere in this codebase, and deliberately: this is a cache of a
+     * computation, replaced wholesale whenever either sha moves, and never
+     * joined against or queried by path. Newlines separate them because a path
+     * may contain a comma and may not contain a newline.
+     *
+     * The length is what makes this `text` rather than `varchar(255)`. A merge
+     * that conflicts in thirty files would silently fail to insert otherwise,
+     * which is exactly how the framework's own query log broke on Postgres.
+     */
+    mergeable_conflicts: {
+      order: 25,
+      fillable: true,
+      validation: { rule: schema.string().max(65535) },
+      factory: () => null,
+    },
   },
 } as const)
