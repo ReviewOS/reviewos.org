@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS "notification_mutes" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "user_id" integer not null REFERENCES "users"("id"),
+  "subject_type" "notification_mutes_subject_type_type",
+  "subject_id" integer not null,
+  "expires_at" varchar(255),
+  "created_at" timestamp not null default CURRENT_TIMESTAMP,
+  "updated_at" timestamp
+);
+CREATE INDEX IF NOT EXISTS "notification_mutes_user_index" ON "notification_mutes" ("user_id");
+CREATE INDEX IF NOT EXISTS "notification_mutes_subject_index" ON "notification_mutes" ("subject_type", "subject_id");

@@ -49,25 +49,34 @@ it arrives in the in-app inbox immediately, and the push and email leave when th
 
 - [ ] Every user has a timezone, set at registration from the browser and editable. Every rule here
       is evaluated in it, so "after 18:00" means their 18:00 in whatever week of the year it is.
-- [ ] `app/Models/NotificationSchedule.ts`: `user_id`, `days` (which weekdays are active), `starts_at`,
+- [x] `app/Models/NotificationSchedule.ts`: `user_id`, `days` (which weekdays are active), `starts_at`,
       `ends_at`, `timezone`. Weekends are just days left out, not a separate flag, because a rotating
-      shift and a Sunday-to-Thursday week are the same shape of problem.
-- [ ] Outside the window, push and email are held and delivered when it opens, rolled into one
-      digest rather than the backlog arriving one at a time. In-app is never held.
-- [ ] A break-through list, per event type, for the things that genuinely cannot wait. Empty by
-      default, and the interface says plainly what it is letting past.
-- [ ] "Do not disturb until" as a one-click override: an hour, until tomorrow morning, until Monday.
-      Independent of the schedule, and it ends by itself.
-- [ ] `app/Models/NotificationMute.ts`: polymorphic subject, `user_id`, `expires_at`. One model
+      shift and a Sunday-to-Thursday week are the same shape of problem. A window whose end is
+      before its start wraps past midnight and belongs to the day it starts on, so a night shift is
+      one row rather than two.
+- [x] Outside the window, push and email are held rather than dropped, with the time the window next
+      opens computed alongside the decision (`deliveryDecision`, `minutesUntilOpen`). In-app is
+      never held.
+- [ ] Held notifications are rolled into one digest when the window opens, rather than the backlog
+      arriving one at a time. The decision and the delivery time exist; the digest does not.
+- [x] A break-through list, per event type, for the things that genuinely cannot wait. Empty by
+      default. It overrides the schedule but not an explicit mute, because muting is a decision
+      about the subject and there is no hour at which somebody wants what they muted.
+- [x] "Do not disturb until" as a one-click override, independent of the schedule and ending by
+      itself
+- [x] `app/Models/NotificationMute.ts`: polymorphic subject, `user_id`, `expires_at`. One model
       covers muting a repository, an organization, a pull request thread, or an issue, and a null
       expiry means indefinitely.
 - [ ] Mute a repository from anywhere it appears, without opening settings. Muting is not
       unwatching: subscriptions stay intact, so unmuting restores exactly what was there.
-- [ ] A muted repository still writes to the in-app inbox, marked muted and filterable. This is what
-      makes muting safe enough that people actually use it instead of leaving.
-- [ ] Muted and held state is decided once, in one resolver, next to the recipient resolution in
-      `app/Actions/Notification/recipients.ts`. Every channel asks the same question and gets the
-      same answer.
+- [x] A muted repository still writes to the in-app inbox, marked muted. This is what makes muting
+      safe enough that people actually use it instead of leaving. Filtering the inbox by it needs
+      the inbox.
+- [x] Muted and held state is decided once, in one resolver
+      (`app/Actions/Notification/delivery.ts`), alongside the recipient resolution in
+      `recipients.ts`. Every channel asks the same question and gets the same answer.
+- [x] Tests for the awkward clock cases: a window that wraps past midnight, the morning after a
+      schedule's last day, a Friday evening waiting until Monday, and a schedule with one day in it
 - [ ] `settings/notifications.stx` shows the schedule as a week grid, the active mutes with their
       expiry, and a plain sentence of what would happen to a review request right now
 - [ ] Tests: an event at 03:00 is held and arrives once at the window's open, a muted repository
