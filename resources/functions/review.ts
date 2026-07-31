@@ -144,6 +144,7 @@ import { isMergeStrategy as isMergeStrategyImpl, mergeBlockers as mergeBlockersI
 import { combinedState as combinedStateImpl, requirementSummary as requirementSummaryImpl, requirementsSatisfied as requirementsSatisfiedImpl } from '../../app/Actions/Checks/status'
 import { labelTextColor as labelTextColorImpl } from '../../app/Actions/Issue/labels'
 import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
+import { blockedBy as blockedByImpl, buildStack as buildStackImpl, orphanMessage as orphanMessageImpl, orphanReason as orphanReasonImpl, stackSummary as stackSummaryImpl } from './stack'
 
 export const parseDiff = parseDiffImpl
 export const diffTotals = diffTotalsImpl
@@ -163,3 +164,8 @@ export const combinedState = combinedStateImpl
 export const labelTextColor = labelTextColorImpl
 export const highlightLines = highlightLinesImpl
 export const languageFor = languageForImpl
+export const buildStack = buildStackImpl
+export const orphanReason = orphanReasonImpl
+export const orphanMessage = orphanMessageImpl
+export const blockedBy = blockedByImpl
+export const stackSummary = stackSummaryImpl
