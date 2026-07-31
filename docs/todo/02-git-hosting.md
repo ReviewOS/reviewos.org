@@ -43,7 +43,14 @@ known to exactly one place.
 - [ ] `POST /{owner}/{repository}.git/git-receive-pack`
 - [ ] Stream request and response bodies. Buffering a packfile is how this breaks on a real
       repository, and it will pass every test written against a small one.
-- [x] HTTP basic auth: username plus personal access token. Password login over git is not accepted.
+- [x] HTTP basic auth: username plus access token. Password login over git is not accepted.
+      This authenticated against a `personal_access_tokens` table that no migration ever created, so
+      every authenticated git request failed on a missing relation. It now goes through the access
+      tokens from [phase 1](./01-foundation.md#access-tokens), and the token's own grants decide
+      the answer: a read-only token belonging to a maintainer cannot push, and a token scoped to two
+      repositories cannot touch a third. The username is not checked, because the token already
+      names its owner and treating it as meaningful would fail a correct token for a cosmetic
+      reason.
 - [ ] Anonymous read for public repositories; everything else authenticates
 - [ ] Correct content types and the `no-cache` headers git expects
 - [ ] Tests: clone, fetch, push, shallow clone, and a repository large enough that streaming matters

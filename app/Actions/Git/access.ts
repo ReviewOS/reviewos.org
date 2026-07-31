@@ -1,4 +1,7 @@
+import type { AuthenticatedToken } from '../Tokens/authenticate'
 import { canOnRepository, type RepositoryPermission, type RepositoryVisibility } from '../../Permissions'
+import { tokenAllows, tokenReaches } from '../../TokenScopes'
+import { authenticateToken } from '../Tokens/authenticate'
 import { repositoryPath } from './storage'
 
 /**
@@ -60,13 +63,17 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
 }
 
 /**
- * Authenticate an HTTP basic header against a personal access token.
+ * Authenticate an HTTP basic header against an access token.
  *
  * Password login is deliberately not accepted over git: a password typed into a
  * git remote ends up in shell history, in `.git/config`, and in whatever
  * credential helper is installed. A token can be scoped and revoked.
+ *
+ * Returns the token rather than only the user, because a token's own grants
+ * decide whether it may fetch or push, and answering with a user id alone would
+ * hand a read-only token push access as soon as its owner had it.
  */
-export async function userFromBasicAuth(header: string | null): Promise<number | null> {
+export async function tokenFromBasicAuth(header: string | null): Promise<AuthenticatedToken | null> {
   if (!header?.startsWith('Basic '))
     return null
 
@@ -82,17 +89,24 @@ export async function userFromBasicAuth(header: string | null): Promise<number |
   if (separator === -1)
     return null
 
+  // git sends the token as the password, with any username. The username is
+  // conventionally the handle or a placeholder and is not checked: the token
+  // already names its owner, and treating the username as meaningful would let
+  // a correct token fail for a cosmetic reason.
   const token = decoded.slice(separator + 1)
   if (!token)
     return null
 
-  const row = await db
-    .selectFrom('personal_access_tokens')
-    .select(['user_id'])
-    .where('token', '=', token)
-    .executeTakeFirst()
+  const result = await authenticateToken(token)
 
-  return row ? Number(row.user_id) : null
+  return result.ok ? result.token : null
+}
+
+/** The user behind a basic auth header, when only the identity is needed. */
+export async function userFromBasicAuth(header: string | null): Promise<number | null> {
+  const token = await tokenFromBasicAuth(header)
+
+  return token ? token.userId : null
 }
 
 /** Every grant a user holds on a repository, before they are combined. */
@@ -136,16 +150,37 @@ export async function permissionOn(repository: GitRepositoryRow, userId: number 
   }
 }
 
-/** Whether this request may run this git service. */
+/**
+ * Whether this request may run this git service.
+ *
+ * When a token authenticated the request, the answer is the intersection of what
+ * its owner may do and what the token was granted. A token is an upper bound and
+ * never a widening, so a read-only token belonging to a maintainer still cannot
+ * push, and a token scoped to two repositories cannot touch a third.
+ */
 export async function mayUseService(
   repository: GitRepositoryRow,
   userId: number | null,
   service: 'upload-pack' | 'receive-pack',
+  token?: AuthenticatedToken | null,
 ): Promise<boolean> {
   // An archived repository is readable and frozen. Refusing the push here means
   // the client is told, rather than the hook rejecting every ref one by one.
   if (service === 'receive-pack' && repository.is_archived)
     return false
+
+  const ability = service === 'upload-pack' ? 'repository:read' : 'repository:push'
+
+  if (token) {
+    if (token.userId !== userId)
+      return false
+
+    if (!tokenReaches(token.reach, repository))
+      return false
+
+    if (!tokenAllows(token.grants, ability))
+      return false
+  }
 
   const grants = await permissionOn(repository, userId)
 
@@ -154,7 +189,7 @@ export async function mayUseService(
     visibility: repository.visibility,
     ownerUserId: repository.owner_type === 'user' ? repository.owner_id : null,
     ...grants,
-  }, service === 'upload-pack' ? 'repository:read' : 'repository:push')
+  }, ability)
 }
 
 /** Absolute path to a repository on disk, or null if it does not resolve. */

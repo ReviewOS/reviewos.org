@@ -25,6 +25,13 @@ route.delete('/orgs/members', 'Actions/Org/RemoveMemberAction').middleware('auth
 // Keys the caller pushes with.
 route.post('/user/keys', 'Actions/Keys/AddSshKeyAction').middleware('auth')
 
+// Access tokens. Fine-grained is the only kind: every capability the product
+// has maps to a scope in `app/TokenScopes.ts`, enforced by a test, so there is
+// never a reason to reach for something broader.
+route.get('/user/tokens', 'Actions/Tokens/ListTokensAction').middleware('auth')
+route.post('/user/tokens', 'Actions/Tokens/CreateTokenAction').middleware('auth')
+route.delete('/user/tokens', 'Actions/Tokens/RevokeTokenAction').middleware('auth')
+
 // When notifications may interrupt, and what has been muted. Both are here
 // rather than under a repository because they are decisions about a person.
 route.put('/user/notifications/schedule', 'Actions/Notification/UpdateScheduleAction').middleware('auth')

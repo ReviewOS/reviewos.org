@@ -1,5 +1,6 @@
 import { route } from '@stacksjs/router'
-import { diskPathFor, findRepositoryByPath, mayUseService, userFromBasicAuth } from '../app/Actions/Git/access'
+import { diskPathFor, findRepositoryByPath, mayUseService, tokenFromBasicAuth } from '../app/Actions/Git/access'
+import { recordTokenUse } from '../app/Actions/Tokens/authenticate'
 import { spawnGit } from '../app/Actions/Git/git'
 import { gitService, parseGitUrl } from '../app/Actions/Git/storage'
 
@@ -30,8 +31,15 @@ async function authorize(request: any, service: 'upload-pack' | 'receive-pack') 
   if (!repository)
     return { ok: false as const, status: 404 }
 
-  const userId = await userFromBasicAuth(request.headers?.get?.('authorization') ?? null)
-  const allowed = await mayUseService(repository, userId, service)
+  const token = await tokenFromBasicAuth(request.headers?.get?.('authorization') ?? null)
+  const userId = token?.userId ?? null
+  const allowed = await mayUseService(repository, userId, service, token)
+
+  if (allowed && token) {
+    // Not awaited: an unused token being visible as unused is worth a write,
+    // but not worth delaying a clone for, and never worth failing one over.
+    void recordTokenUse(token.tokenId, request.headers?.get?.('x-forwarded-for') ?? null)
+  }
 
   if (!allowed) {
     // A private repository answers 404 to somebody who cannot read it, rather
