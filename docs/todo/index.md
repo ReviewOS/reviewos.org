@@ -9,21 +9,29 @@ it needs phases 1 and 2 underneath it first.
 
 ## Phases
 
+The counts are boxes ticked over boxes written. They move when the work lands and when the list
+grows, so a phase getting *longer* while it is worked on is normal and honest.
+
 | Phase | What it covers | State |
 |---|---|---|
-| [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done |
-| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Not started |
-| [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | Not started |
-| [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Not started |
-| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Not started |
-| [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | Not started |
-| [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Not started |
-| [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress |
+| [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done (27/31) |
+| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (12/54) |
+| [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (9/61) |
+| [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | In progress (9/33) |
+| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (33/76) |
+| [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | In progress (21/51) |
+| [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (1/20) |
+| [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress (20/44) |
 | [08 - Migration](./08-migration.md) | Importing from GitHub and other forges | Not started |
-| [09 - Checks and CI](./09-checks-ci.md) | Commit status API, then runners | Not started |
+| [09 - Checks and CI](./09-checks-ci.md) | Commit status API, then runners | Started (3/18) |
 | [10 - Federation](./10-federation.md) | Research: ActivityPub / ForgeFed versus AT Protocol | Research |
-| [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Not started |
+| [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Started (1/44) |
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Not started |
+
+Phases 1 through 5 all have code in them, which is why none of them says "not started" any more: the
+work went depth-first through a vertical slice (identity, a repository on disk, an issue, a pull
+request, a notification) rather than finishing one phase before opening the next. That was the right
+order for proving the review screen, and it is the reason the counts are all partial.
 
 ## How work is shaped
 
