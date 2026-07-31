@@ -82,6 +82,47 @@ generation. Fix the tool. A workaround here hides the bug from every other proje
 
 ## Project conventions (mandatory)
 
+### Use the framework, not around it
+
+Stacks and stx have an opinion about almost everything you are about to build. Where they do, that
+opinion wins. Read the relevant `SKILL.md` and, when the skill is thin, read the framework source
+before inventing a shape. Most of what looks like a missing feature is a feature with a different
+name.
+
+**Data and models.** Everything goes through `defineModel()`. Attributes carry `validation.rule` and
+a realistic `factory`; relationships are declared as `hasMany` / `belongsTo` / `belongsToMany` rather
+than as an id column you remember to join by hand; behavior comes from traits (`useUuid`,
+`useTimestamps`, `useSearch`, `useApi`, `useSoftDeletes`, `useSeeder`, `observe`) rather than from
+code repeated per model. Migrations are generated from the models with `./buddy generate:migrations`
+and reviewed, never hand-written. A JSON blob standing in for a relation, or a comma-joined string
+standing in for rows, is a design bug and gets fixed rather than parsed.
+
+**Queries.** The model query API and `bun-query-builder`, with eager loading for anything that would
+otherwise be a loop of queries. Raw SQL is a last resort with a comment saying why.
+
+**APIs.** One action per endpoint in `app/Actions/<Domain>/`, registered in `routes/`. Validation
+through `schema` from `@stacksjs/validation`, responses through the router's `response` helpers,
+failures through the framework's error handling rather than an ad-hoc shape per endpoint. `useApi`
+on a model generates the REST surface, so check whether the endpoint you are about to write already
+exists. The OpenAPI document comes from `./buddy generate:openapi`, not from a file kept in sync by
+hand.
+
+**Frontend state.** stx reactivity is the state layer, and it is complete enough that reaching past
+it is always a mistake: `@state`, `@computed`, `@watch`, `@model`, `@click` and the `x-` bindings for
+local state; a store with `@connect` for anything shared across components; the auto-imported
+composables (`useFetch`, `useDark`, `useStorage`, `useIntersectionObserver`, `useScroll`, ...) for
+everything they cover. No `var`, no `document.*`, no `window.*`, no `addEventListener`, and no
+`JSON.parse` of something that should have arrived as a value. See `~/Code/Tools/stx/docs/features/`
+for the current surface, `state.md` in particular.
+
+**When the framework is genuinely in the way, fix the framework.** Both are local checkouts:
+stx at `~/Code/Tools/stx` and Stacks at `~/Code/stacks` (see *Working on the framework from here*
+below for the rebuild step). A workaround that lives in this repository hides the bug from every
+other project that has it, so it needs a fix upstream and a line in the roadmap saying what it was.
+The open example is `resources/components/StackNav.stx`, which passes its stack as a JSON string
+because an array does not survive an stx attribute as an array. That is a gap in stx being paid for
+here, and it should not be copied into a second component.
+
 ### Linting
 - Use **pickier** for linting, never eslint directly.
 - Lint: `./buddy lint` . Auto-fix: `./buddy lint:fix` .
