@@ -191,5 +191,24 @@ export default defineModel({
       validation: { rule: schema.number() },
       factory: faker => faker.number.int({ min: 1, max: 40 }),
     },
+
+    /**
+     * Set when the pull request is closed without merging, and cleared when it
+     * is reopened. Kept separate from `merged_at` because "withdrawn" and
+     * "landed" are different outcomes and a single timestamp cannot say which.
+     */
+    closed_at: {
+      order: 21,
+      fillable: true,
+      validation: { rule: schema.string() },
+      factory: () => null,
+    },
+
+    closed_by_id: {
+      order: 22,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
   },
 } as const)

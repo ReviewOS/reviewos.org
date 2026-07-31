@@ -58,7 +58,12 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
 
 - [x] `app/Actions/Pull/OpenPullRequestAction.ts` - from a compare view or after a push, including
       across forks
-- [ ] `UpdatePullRequestAction.ts`, `ClosePullRequestAction.ts`, `ReopenPullRequestAction.ts`
+- [x] Closing, reopening, and moving between draft and ready for review, as one
+      `UpdatePullRequestStateAction` over a pure rules module (`state.ts`). Merged is terminal, a
+      repeated transition changes nothing so a retry cannot rewrite who closed it, and a reopen
+      whose head branch was deleted is refused rather than left with no diff.
+- [ ] `UpdatePullRequestAction.ts` for the title, body, and retargeting the base branch. The rules
+      are written and tested (`editPullRequest`); the action and route are not.
 - [ ] `RequestReviewAction.ts` for users and teams
 - [x] `StartReviewAction.ts`, `AddReviewCommentAction.ts`, `SubmitReviewAction.ts` - comments are
       pending and private until the review is submitted, so a reviewer can work through a diff

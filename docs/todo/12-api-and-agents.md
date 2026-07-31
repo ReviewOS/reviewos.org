@@ -54,8 +54,9 @@ vocabulary, and it is discoverable without reading the source.
 Not a special case bolted on. A machine account is an account, subject to the same permission
 resolution, and the differences are the ones that genuinely matter.
 
-- [ ] Machine accounts (defined in [phase 1](./01-foundation.md#living-with-tokens)) can be authors,
-      reviewers and assignees like anyone else
+- [ ] Machine accounts, defined in
+      [phase 1](./01-foundation.md#living-with-tokens), can be authors, reviewers and assignees like
+      anyone else
 - [ ] Attribution is visible: a pull request opened by a machine account, or a review submitted by
       one, says so plainly in the interface. Not to shame it, but because a reader's standard for
       "somebody looked at this" depends on who looked.

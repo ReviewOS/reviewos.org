@@ -7202,6 +7202,22 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "closed_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "closed_by_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -11416,7 +11432,7 @@
       }
     ]
   },
-  "hash": "567d9d4df641af4e3f0e2e0e723c30f908d7b24dcb85a7203270859310ef0b46",
+  "hash": "4b35960d39e7d06039ae0ffc60fbbfda1472840e05214b60960a8675bf2ec6e4",
   "dialect": "postgres",
-  "updatedAt": "2026-07-30T22:06:14.490Z"
+  "updatedAt": "2026-07-31T18:23:36.592Z"
 }

@@ -22,8 +22,8 @@ export const tsCloud: TsCloudConfig = {
    * Project configuration
    */
   project: {
-    name: 'stacks',
-    slug: 'stacks',
+    name: 'reviewos',
+    slug: 'reviewos',
     region: 'us-east-1', // Default AWS region
   },
 
@@ -712,6 +712,22 @@ export const tsCloud: TsCloudConfig = {
    * static `/` site for stacksjs.com or it will compete with the app route.
    */
   sites: {
+    reviewos: {
+      // ReviewOS itself, added to the shared production box alongside the
+      // sites already on it. Its own port, so it cannot collide with theirs.
+      root: '.',
+      path: '/',
+      domain: env.APP_DOMAIN || 'reviewos.org',
+      start: 'bun node_modules/@stacksjs/buddy/dist/serve-entry.js',
+      port: 3010,
+      // The published package ships `dist` and not `src`, so the entry is used
+      // as built rather than rebuilt here. The template's build step assumes a
+      // vendored `storage/framework/core`, which a core-less app - the default
+      // `buddy new` layout - does not have.
+      preStart: [
+        'bun install',
+      ],
+    },
     main: {
       // Ship the repo (source only; node_modules/.git excluded by the packager)
       // and install on the server via preStart, matching the Forge-style deploy.
