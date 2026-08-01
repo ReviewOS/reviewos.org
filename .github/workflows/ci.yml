@@ -189,8 +189,16 @@ jobs:
       # on every server-backed project, so its suite runs explicitly here.
       # Scoped to one file on purpose: wiring up the core suites wholesale
       # needs the pre-existing failures in them triaged first.
+      # Only meaningful on the vendored layout. `buddy new` produces a
+      # core-less app by default, which resolves the framework from npm and has
+      # no storage/framework/core to test - the suites live in the framework's
+      # own repository and run there.
       - name: Database bootstrap tests
         run: |
+          if [ ! -d storage/framework/core ]; then
+            echo "::notice::Database bootstrap tests: this app resolves the framework from npm and has no vendored storage/framework/core; skipping."
+            exit 0
+          fi
           bun test storage/framework/core/database/tests/ensure-database.test.ts
           bun test storage/framework/core/buddy/tests/database-preflight.test.ts
           bun test storage/framework/core/database/tests/committed-migrations-dialect.test.ts
@@ -246,8 +254,13 @@ jobs:
       # three releases to notice: the packages published, the compile failed,
       # and nobody looked. One target here is enough to catch that, and it is
       # the cheap half of `compile:all`.
+      # See above: nothing to compile when the framework comes from npm.
       - name: Compile the buddy binary
         run: |
+          if [ ! -d storage/framework/core ]; then
+            echo "::notice::Compile the buddy binary: this app resolves the framework from npm and has no vendored storage/framework/core; skipping."
+            exit 0
+          fi
           cd storage/framework/core/buddy
           bun run compile:linux-x64
 
@@ -377,6 +390,10 @@ jobs:
         env:
           PROTOCOL_REPORT_DIR: .github/protocol/reports
         run: |
+          if [ ! -d storage/framework/core ]; then
+            echo "::notice::Protocol adapter tests: this app resolves the framework from npm and has no vendored storage/framework/core; skipping."
+            exit 0
+          fi
           bun test ./storage/framework/core/buddy/src/commands/protocol/run-conformance.test.ts
           bun test ./storage/framework/core/buddy/src/commands/protocol/craft-evidence.test.ts ./storage/framework/core/buddy/src/commands/protocol/desktop-lifecycle-report.test.ts
           bun test ./.github/scripts/deploy/resolve-target.test.ts
