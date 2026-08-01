@@ -742,6 +742,12 @@ export const tsCloud: TsCloudConfig = {
         // nothing in it rather than a broken one.
         'bun node_modules/@stacksjs/buddy/dist/cli.js migrate',
       ],
+      // The scheduler is what makes a mirror a mirror rather than a snapshot.
+      // `app/Scheduler.ts` runs MirrorSweep, which fetches every mirror whose
+      // interval has elapsed and enqueues the metadata import. Without this
+      // unit the sweep never fires and the repository silently freezes at
+      // whatever it held on the day it was deployed.
+      scheduler: true,
       // Bare repositories live on the box and are authoritative there: the
       // mirror fetches into them, and pushes land in them. Packaging a local
       // copy turned a 2 MB release into a 195 MB one and would have replaced
