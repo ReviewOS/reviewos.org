@@ -474,12 +474,16 @@ jobs:
           cat .github/protocol/reports/driver-matrix.md >> "$GITHUB_STEP_SUMMARY"
           cat .github/protocol/reports/stacks-conformance.md >> "$GITHUB_STEP_SUMMARY"
 
+      # `warn`, not `error`: the reports only exist when the protocol adapter
+      # ran, and it skips on an app whose buddy does not carry those commands.
+      # Failing the upload there turns "there was nothing to attest" into a red
+      # build, which says nothing true about the commit.
       - name: Retain attributable conformance report
         uses: actions/upload-artifact@v7
         with:
           name: stacks-protocol-conformance-${{ github.sha }}
           path: .github/protocol/reports/
-          if-no-files-found: error
+          if-no-files-found: warn
 
   deployment-target:
     if: >-
