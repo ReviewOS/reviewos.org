@@ -24,15 +24,15 @@ state disagree is a bug, not a feature, and the interface has to say which one i
 
 ## The shape of it
 
-- [ ] `app/Models/RepositoryMirror.ts`: `repository_id`, `direction` (`pull`, `push`), `provider`
+- [x] `app/Models/RepositoryMirror.ts`: `repository_id`, `direction` (`pull`, `push`), `provider`
       (`github`, `gitlab`, `git`), `remote_url`, `remote_owner`, `remote_name`, credential
       reference, `interval`, `last_synced_at`, `last_sha`, `last_error`, `enabled`
-- [ ] The local name is **not** derived from the remote. `stacksjs/stacks` on GitHub is
+- [x] The local name is **not** derived from the remote. `stacksjs/stacks` on GitHub is
       `stacks/stacks` here, so the mapping is stored per mirror and chosen when the mirror is
       created
-- [ ] `useSeeder` with a factory, like every other model, so `buddy seed` produces a plausible
+- [x] `useSeeder` with a factory, like every other model, so `buddy seed` produces a plausible
       mirror without hand-wiring
-- [ ] Migration generated from the model, reviewed, never hand-written
+- [x] Migration generated from the model, reviewed, never hand-written
 
 ## Syncing
 
@@ -40,13 +40,13 @@ Two paths, because either alone is wrong. A webhook is fast but can be missed; a
 but slow. Together they give a mirror that is usually current within seconds and always current
 within an interval.
 
-- [ ] `app/Jobs/MirrorSyncJob.ts`: `git fetch --prune` into the bare repository, then reconcile refs
-- [ ] Webhook receiver for GitHub `push`, `pull_request`, `issues` and `issue_comment`, verified by
+- [x] `app/Jobs/MirrorSyncJob.ts`: `git fetch --prune` into the bare repository, then reconcile refs
+- [x] Webhook receiver for GitHub `push`, `pull_request`, `issues` and `issue_comment`, verified by
       signature, that enqueues a sync for exactly the affected repository
-- [ ] Scheduled sweep in `app/Scheduler.ts` as the backstop, at the mirror's `interval`
-- [ ] Sync is idempotent and safe to run concurrently with itself - a webhook and the sweep will
+- [x] Scheduled sweep in `app/Scheduler.ts` as the backstop, at the mirror's `interval`
+- [x] Sync is idempotent and safe to run concurrently with itself - a webhook and the sweep will
       overlap, and the common case is that the second one finds nothing to do
-- [ ] Failures are recorded on the mirror and surfaced in the repository UI. A mirror that silently
+- [x] Failures are recorded on the mirror and surfaced in the repository UI. A mirror that silently
       stopped updating is worse than one that visibly failed, because the reader trusts what they
       are looking at
 
@@ -54,9 +54,9 @@ within an interval.
 
 Git data is the easy half and is worth landing on its own:
 
-- [ ] Branches, tags and commits, via `git fetch --prune` so deletions upstream become deletions
+- [x] Branches, tags and commits, via `git fetch --prune` so deletions upstream become deletions
       here
-- [ ] `--prune` matters: without it a branch deleted on GitHub lingers here forever and the branch
+- [x] `--prune` matters: without it a branch deleted on GitHub lingers here forever and the branch
       list slowly stops meaning anything
 - [ ] Default branch follows the remote's
 - [ ] Repository description, topics and visibility, refreshed on sync
@@ -90,7 +90,7 @@ there?
 
 - [ ] A mirrored repository refuses pushes to its mirrored refs by default. Accepting one creates a
       fork that neither side knows about
-- [ ] When the remote force-pushes, the mirror follows it, and the fact that history was rewritten
+- [x] When the remote force-pushes, the mirror follows it, and the fact that history was rewritten
       is shown rather than absorbed silently
 - [ ] Detect and surface a mirror that has stopped tracking - remote deleted, credential revoked,
       repository made private - instead of showing stale data as if it were live
@@ -106,7 +106,7 @@ there?
 
 ## Credentials
 
-- [ ] A public repository mirrors with no credential at all, and that path is tested, because it is
+- [x] A public repository mirrors with no credential at all, and that path is tested, because it is
       the one someone will try first
 - [ ] Private repositories use a stored token or GitHub App installation, encrypted at rest,
       referenced by the mirror rather than copied into it
@@ -119,7 +119,7 @@ ours, it is public, it is large enough to be a real test of the diff and review 
 documentation is markdown that the docs pipeline has to render anyway.
 
 - [x] Owner `stacks` exists as an organization
-- [ ] Mirror configured, pull direction, public, no credential
+- [x] Mirror configured, pull direction, public, no credential
 - [x] Git data cloned into `storage/repos/stacks/stacks.git` and readable through git plumbing
       (2488 refs, HEAD resolves, trees list)
 - [x] Browsable in the UI at `/stacks/stacks`: the tree renders its 33 root entries, the README
@@ -133,9 +133,15 @@ documentation is markdown that the docs pipeline has to render anyway.
 - [ ] Pull requests visible in the review screen, which is the actual test of whether any of this
       was worth building
 
+## Verified against the live repository
+
+A real fetch of `stacksjs/stacks` moved 2488 refs to 2489 - one new, three updated - and the head of
+`main` from `d72fa0e` to `2c82521`, in about a second. Running it again reported no changes, which is
+the idempotence the checklist asks for rather than an assertion about it.
+
 ## Tests
 
-- [ ] Sync is idempotent: running it twice changes nothing the second time
+- [x] Sync is idempotent: running it twice changes nothing the second time, verified against the live repository
 - [ ] A deleted upstream branch disappears here
 - [ ] A force-push upstream is followed and reported
 - [ ] Numbers are preserved, so a mirrored `#123` is `#123`

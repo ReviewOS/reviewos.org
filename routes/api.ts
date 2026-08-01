@@ -59,3 +59,8 @@ route.post('/repos/pulls/merge', 'Actions/Pull/MergePullRequestAction').middlewa
 // Landing a whole stack, bottom first. Separate from the single merge because
 // it can partially succeed, and the caller needs to know how far it got.
 route.post('/repos/pulls/merge-stack', 'Actions/Pull/MergeStackAction').middleware('auth')
+
+// Mirrors. The webhook is deliberately unauthenticated at the route level: an
+// upstream forge has no session here, and the request is verified instead by
+// its signature against the mirror's own secret inside the action.
+route.post('/mirrors/webhook', 'Actions/Mirror/MirrorWebhookAction')

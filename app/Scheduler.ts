@@ -16,6 +16,13 @@ export default function () {
     .hourly()
     .setTimeZone('America/Los_Angeles')
 
+  // The backstop behind the mirror webhooks. Five minutes is often enough that
+  // a missed hook is not noticed, and rare enough that it is not a poll - the
+  // per-mirror interval decides what is actually due.
+  schedule
+    .job('MirrorSweep')
+    .everyFiveMinutes()
+
   // Run a custom action every five minutes
   // schedule.action('CleanupTempFiles').everyFiveMinutes()
 
