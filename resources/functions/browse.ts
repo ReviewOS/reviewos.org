@@ -157,13 +157,44 @@ export function shortSha(sha: string): string {
  * under an alias and re-exported as a const. Same reason `resources/functions`
  * exists at all: the template gets one import and no logic.
  */
-import { branchNames as branchNamesImpl, lastCommit as lastCommitImpl, listTree as listTreeImpl, MAX_BLOB_BYTES as MAX_BLOB_BYTES_IMPL, readBlob as readBlobImpl } from '../../app/Actions/Browse/load'
+import { branchNames as branchNamesImpl, commitHistory as commitHistoryImpl, lastCommit as lastCommitImpl, listTree as listTreeImpl, MAX_BLOB_BYTES as MAX_BLOB_BYTES_IMPL, readBlob as readBlobImpl, tagNames as tagNamesImpl } from '../../app/Actions/Browse/load'
 import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
 
 export const listTree = listTreeImpl
 export const readBlob = readBlobImpl
 export const lastCommit = lastCommitImpl
 export const branchNames = branchNamesImpl
+export const tagNames = tagNamesImpl
+export const commitHistory = commitHistoryImpl
 export const highlightLines = highlightLinesImpl
 export const languageFor = languageForImpl
 export const MAX_BLOB_BYTES = MAX_BLOB_BYTES_IMPL
+
+/**
+ * A commit date as something a reader can place at a glance.
+ *
+ * Relative for anything recent, absolute once "8 months ago" stops being more
+ * useful than the date itself.
+ */
+export function relativeTime(iso: string, now: Date = new Date()): string {
+  const then = new Date(iso)
+  if (Number.isNaN(then.getTime())) return ''
+
+  const seconds = Math.floor((now.getTime() - then.getTime()) / 1000)
+  if (seconds < 60) return 'just now'
+
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+
+  const days = Math.floor(hours / 24)
+  if (days < 31) return `${days} day${days === 1 ? '' : 's'} ago`
+
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months} month${months === 1 ? '' : 's'} ago`
+
+  // Past a year, the year is the useful fact.
+  return then.toISOString().slice(0, 10)
+}

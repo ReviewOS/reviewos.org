@@ -144,11 +144,31 @@ the one moment where rejecting is still possible.
 - [ ] Tag picker alongside branches
 - [ ] Commit history view
 
-### Known blocker
+- [x] Commit history at `/owner/repo/commits/ref`
+- [x] `tagNames` and `commitHistory` loaders, NUL-delimited for the same reason the tree listing is
+- [ ] Tag picker in the ref menu, once deep paths route
 
-Deep paths (`/owner/repo/tree/ref/some/path`) do not route correctly. stx-router bound route
-parameters to the wrong capture groups whenever a pattern mixed a catch-all with ordinary segments;
-that is fixed and pushed upstream, but every compiled copy in this app's dependency tree still
-carries the old behaviour and regenerates the same wrong order after patching and cache clearing.
-It resolves on the next stx release. The browse code itself is not implicated: the root route
-renders correctly from the same component.
+### Known blocker: catch-all route parameters
+
+Deep paths (`/owner/repo/tree/ref/some/path`) still do not work, and the cause is now precisely
+known.
+
+The first half is fixed: stx-router bound parameters to the wrong capture groups when a pattern
+mixed a catch-all with ordinary segments. That is corrected upstream, released as stx 0.2.149, and
+this app now resolves a single stx across the tree via `overrides` - it previously carried eight
+copies, which is why patching one never took effect. Generated routes now read
+`params: ["owner","repository","ref","path"]` instead of `["path","owner","repository","ref"]`, and
+single-segment deep paths route correctly.
+
+The second half remains. At request time stx does not apply the catch-all rewrite that
+`filePathToPattern` does, so:
+
+- the parameter arrives under the key it was written with, dots included - `params['...path']`
+  rather than `params.path`
+- the segment compiles to `([^/]+)`, which cannot span a separator, so
+  `/tree/main/storage/framework` returns 404 while `/tree/main/app` matches
+
+Both symptoms are one cause: a second route-matching path that never converts `[...x]` to `:x*`. It
+is not in `stx-router`'s `filePathToPattern`, which handles this correctly and is what generates
+`routes.ts`. Finding and fixing that second implementation is the remaining work; the browse code is
+not implicated, since the root route renders correctly from the same component.

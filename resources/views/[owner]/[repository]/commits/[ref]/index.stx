@@ -1,0 +1,80 @@
+<script server>
+/**
+ * Commit history for a ref.
+ *
+ * Same division as the browse screen: reading is `app/Actions/Browse/load`,
+ * shaping is `resources/functions/browse`, and this lays it out.
+ */
+import { commitHistory, relativeTime, shortSha } from '../../../../functions/browse'
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+const ref = String(params.ref ?? 'HEAD')
+
+const orgRow = await db.selectFrom('organizations').selectAll().where('handle', '=', ownerHandle).executeTakeFirst()
+const userRow = orgRow ? null : await db.selectFrom('users').selectAll().where('handle', '=', ownerHandle).executeTakeFirst()
+
+const ownerType = orgRow ? 'organization' : (userRow ? 'user' : null)
+const ownerId = orgRow ? Number(orgRow.id) : (userRow ? Number(userRow.id) : null)
+
+const repoRow = ownerId
+  ? await db
+      .selectFrom('repositories')
+      .selectAll()
+      .where('owner_type', '=', ownerType)
+      .where('owner_id', '=', ownerId)
+      .where('name', '=', repositoryName)
+      .executeTakeFirst()
+  : null
+
+const commits = repoRow ? await commitHistory(String(repoRow.disk_path ?? ''), ref, '', 50) : []
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repoRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+      </div>
+    @else
+      <header class="repo-head">
+        <h1 class="repo-title">
+          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="/{{ ownerHandle }}/{{ repositoryName }}">{{ repositoryName }}</a>
+        </h1>
+        <p class="muted" style="margin-top: 6px;">Commits on <span class="mono">{{ ref }}</span></p>
+      </header>
+
+      @if (commits.length === 0)
+        <div class="panel" style="padding: 28px; text-align: center; margin-top: 16px;">
+          <p class="muted">No commits on this ref.</p>
+        </div>
+      @else
+        <div class="panel commits">
+          <ul>
+            @foreach (commits as commit)
+              <li class="commit-row">
+                <div class="commit-main">
+                  <span class="commit-subject">{{ commit.subject }}</span>
+                  <span class="muted commit-meta">{{ commit.authorName }} committed {{ relativeTime(commit.when) }}</span>
+                </div>
+                <span class="mono muted commit-sha">{{ shortSha(commit.sha) }}</span>
+              </li>
+            @endforeach
+          </ul>
+        </div>
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+  .commits { margin-top: 14px; overflow: hidden; }
+  .commit-row { display: flex; align-items: center; gap: 14px; padding: 11px 15px; border-bottom: 1px solid var(--line); }
+  .commit-row:last-child { border-bottom: 0; }
+  .commit-main { flex: 1; min-width: 0; }
+  .commit-subject { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .commit-meta { display: block; margin-top: 2px; font-size: 12.5px; }
+  .commit-sha { flex: none; font-size: 12.5px; }
+</style>

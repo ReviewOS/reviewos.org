@@ -115,3 +115,50 @@ export async function branchNames(repositoryPath: string): Promise<string[]> {
   if (!result.ok) return []
   return result.stdout.split('\n').map(l => l.trim()).filter(Boolean)
 }
+
+/** Tag names, newest first, for the ref picker. */
+export async function tagNames(repositoryPath: string): Promise<string[]> {
+  // Sorted by the date the tag points at rather than alphabetically: v10 after
+  // v9 alphabetically is v1, v10, v2, which is useless on a release list.
+  const result = await runGit(repositoryPath, [
+    'for-each-ref',
+    '--format=%(refname:short)',
+    '--sort=-creatordate',
+    'refs/tags',
+  ])
+  if (!result.ok) return []
+  return result.stdout.split('\n').map(l => l.trim()).filter(Boolean)
+}
+
+/**
+ * Commits touching a path, newest first.
+ *
+ * NUL-separated fields and a record separator, for the same reason the tree
+ * listing is NUL-delimited: a commit subject may contain anything, including
+ * the characters a naive format would split on.
+ */
+export async function commitHistory(
+  repositoryPath: string,
+  ref: string,
+  path = '',
+  limit = 50,
+): Promise<CommitSummary[]> {
+  if (!isSafeRevision(ref)) return []
+
+  // %x00 between fields, %x1e (record separator) between commits.
+  const args = ['log', `-${Math.max(1, Math.min(limit, 200))}`, '--format=%H%x00%s%x00%an%x00%aI%x1e', ref]
+  if (path) args.push('--', path)
+
+  const result = await runGit(repositoryPath, args)
+  if (!result.ok) return []
+
+  return result.stdout
+    .split('\x1e')
+    .map(record => record.replace(/^\n/, ''))
+    .filter(Boolean)
+    .map((record) => {
+      const [sha, subject, authorName, when] = record.split('\0')
+      return { sha: sha ?? '', subject: subject ?? '', authorName: authorName ?? '', when: when ?? '' }
+    })
+    .filter(c => c.sha.length > 0)
+}
