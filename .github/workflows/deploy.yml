@@ -1,0 +1,134 @@
+name: Deploy
+
+# Pushing to main deploys. `buddy deploy` is the same command used by hand, so
+# there is one deploy path rather than a local one and a subtly different CI
+# one - which is how a deploy starts working only on someone's laptop.
+on:
+  push:
+    branches:
+      - main
+    # Documentation and roadmap edits do not change what runs on the server.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.github/**'
+
+  workflow_dispatch:
+    inputs:
+      site:
+        description: 'Deploy only this site (blank deploys every site)'
+        required: false
+        type: string
+
+# One deploy at a time, and never cancel one in flight: a half-applied release
+# is worse than a queued one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # ts-cloud records a GitHub deployment so the commit shows where it went.
+  deployments: write
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://reviewos.org
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # The release is named after the commit, so a shallow clone that
+          # cannot resolve it produces a release nobody can trace back.
+          fetch-depth: 0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: ./buddy typecheck
+
+      - name: Test
+        run: bun test tests/unit/
+
+      - name: Authorise the deploy key
+        # ts-cloud reaches the server over SSH as root. The key lives in the
+        # agent for the life of the job rather than on disk, and the host key
+        # is pinned so a redirected DNS answer cannot silently receive a
+        # release.
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_SSH_KEY:-}" ]; then
+            echo "DEPLOY_SSH_KEY is not set; add it under repository secrets." >&2
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          eval "$(ssh-agent -s)" >/dev/null
+          printf '%s\n' "$DEPLOY_SSH_KEY" | ssh-add - >/dev/null
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+          if [ -n "${DEPLOY_HOST_KEY:-}" ]; then
+            printf '%s\n' "$DEPLOY_HOST_KEY" >> ~/.ssh/known_hosts
+          else
+            # No pinned key: fall back to scanning, and say so, because this
+            # trusts whatever answers on first connection.
+            echo "::warning::DEPLOY_HOST_KEY is not set; trusting the host key on first connect."
+            ssh-keyscan -H "${DEPLOY_HOST:-178.105.248.188}" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy
+        # No storage/cloud state is checked in - it is machine-local and
+        # gitignored - so ts-cloud resolves the server by name through the
+        # Hetzner API. That is deliberate: a checked-in server id goes stale the
+        # moment a workload moves between machines, and a stale id deploys to
+        # the wrong server without complaining.
+        env:
+          # Named HCLOUD_TOKEN because that is what the Hetzner driver falls
+          # back to; see config/cloud.ts.
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          HETZNER_API_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          PORKBUN_API_KEY: ${{ secrets.PORKBUN_API_KEY }}
+          PORKBUN_SECRET_KEY: ${{ secrets.PORKBUN_SECRET_KEY }}
+          APP_KEY: ${{ secrets.APP_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          site='${{ inputs.site }}'
+          if [ -n "$site" ]; then
+            ./buddy deploy --site "$site" --prod --yes
+          else
+            ./buddy deploy --prod --yes
+          fi
+
+      - name: Verify the site answers
+        # A deploy that reports success while the site is down is the failure
+        # worth catching here, so the job does not go green until it responds.
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://reviewos.org/ || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "reviewos.org responded 200"
+              exit 0
+            fi
+            echo "attempt $attempt: $code"
+            sleep 15
+          done
+          echo "reviewos.org did not return 200 after the deploy" >&2
+          exit 1
