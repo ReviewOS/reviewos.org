@@ -22,9 +22,9 @@ const kind = String(sort ?? 'pulls') === 'issues' ? 'issues' : 'pulls'
 // The filter and page arrive as props rather than being read here: a component
 // receives only what it is passed, and the query string belongs to the request
 // the view is answering.
-const filter = listFilter(state)
-const page = pageNumber(pageParam)
-const states = statesFor(filter)
+const filter = listFilter(filterState)
+const page = pageNumber(pageNumberParam)
+const states = statesFor(filter, kind)
 
 // The owner is a user or an organization and both have handles, so resolving it
 // first is what stops `/someone/stacks` finding a repository owned by somebody

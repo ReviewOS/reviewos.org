@@ -56,7 +56,7 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
 
 ## Views
 
-- [ ] `resources/views/[owner]/[repository]/issues/index.stx` - list with filters
+- [x] `resources/views/[owner]/[repository]/issues/index.stx` - list with filters
 - [ ] `.../issues/[number].stx` - one issue with its timeline
 - [ ] `.../issues/new.stx`
 - [ ] `.../labels.stx`, `.../milestones.stx`

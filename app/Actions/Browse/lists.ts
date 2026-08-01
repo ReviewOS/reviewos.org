@@ -22,16 +22,25 @@ export function listFilter(raw: string | null | undefined): ListFilter {
   return 'open'
 }
 
+/** Which list a filter is being applied to. Issues and pull requests differ. */
+export type ListKind = 'issues' | 'pulls'
+
 /**
  * The states a filter covers.
  *
- * `closed` includes merged, because a merged pull request is closed and a
- * reader looking through what is finished expects to find it there. `merged`
- * is not a separate tab: it is a property of how it closed, shown per row.
+ * For pull requests, `closed` includes merged: a merged pull request is closed,
+ * and a reader looking through what is finished expects to find it there.
+ * `merged` is not a separate tab, it is how it closed, shown per row.
+ *
+ * An issue has no merged state, and the kind has to be passed rather than
+ * assumed because both columns are native Postgres enums. Asking for a value
+ * the enum does not define is not an empty result, it is an error - the query
+ * fails outright, and the page renders an empty list that looks like a
+ * repository with nothing closed in it.
  */
-export function statesFor(filter: ListFilter): string[] | null {
+export function statesFor(filter: ListFilter, kind: ListKind = 'pulls'): string[] | null {
   if (filter === 'open') return ['open']
-  if (filter === 'closed') return ['closed', 'merged']
+  if (filter === 'closed') return kind === 'issues' ? ['closed'] : ['closed', 'merged']
   return null
 }
 

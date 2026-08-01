@@ -37,16 +37,28 @@ describe('statesFor', () => {
    * A merged pull request is closed, and a reader looking through what is
    * finished expects to find it. Merged is not a tab; it is how it closed.
    */
-  it('counts merged as closed', () => {
-    expect(statesFor('closed')).toEqual(['closed', 'merged'])
+  it('counts merged as closed for pull requests', () => {
+    expect(statesFor('closed', 'pulls')).toEqual(['closed', 'merged'])
   })
 
-  it('is open only for open', () => {
-    expect(statesFor('open')).toEqual(['open'])
+  /**
+   * An issue has no merged state, and both columns are native Postgres enums.
+   * Asking for a value the enum does not define is not an empty result, it is
+   * an error: the query fails and the page renders an empty list that reads as
+   * a repository with nothing closed in it.
+   */
+  it('never asks an issue for a state its enum does not have', () => {
+    expect(statesFor('closed', 'issues')).toEqual(['closed'])
+  })
+
+  it('is open only for open, either way', () => {
+    expect(statesFor('open', 'pulls')).toEqual(['open'])
+    expect(statesFor('open', 'issues')).toEqual(['open'])
   })
 
   it('is unfiltered for all', () => {
-    expect(statesFor('all')).toBeNull()
+    expect(statesFor('all', 'pulls')).toBeNull()
+    expect(statesFor('all', 'issues')).toBeNull()
   })
 })
 

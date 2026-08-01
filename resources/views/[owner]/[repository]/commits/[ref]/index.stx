@@ -5,7 +5,7 @@
  * Same division as the browse screen: reading is `app/Actions/Browse/load`,
  * shaping is `resources/functions/browse`, and this lays it out.
  */
-import { commitHistory, relativeTime, shortSha } from '../../../../functions/browse'
+import { commitHistory, relativeTime, shortSha } from '../../../../../functions/browse'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)

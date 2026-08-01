@@ -7,5 +7,5 @@
 @layout('app')
 
 @section('content')
-  <RepoList owner="{{ params.owner }}" repository="{{ params.repository }}" sort="issues" state="{{ query.state ?? '' }}" pageParam="{{ query.page ?? '' }}" />
+  <RepoList owner="{{ params.owner }}" repository="{{ params.repository }}" sort="issues" filterState="{{ query.state ?? '' }}" pageNumberParam="{{ query.page ?? '' }}" />
 @endsection

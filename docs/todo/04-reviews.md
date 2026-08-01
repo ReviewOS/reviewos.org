@@ -157,7 +157,7 @@ this is where the claim is either true or marketing.
 
 ## Views
 
-- [ ] `resources/views/[owner]/[repository]/pulls/index.stx`
+- [x] `resources/views/[owner]/[repository]/pulls/index.stx`
 - [ ] `.../pull/[number].stx` - conversation, commits, checks, and files, as tabs over one page
 - [ ] `.../pull/[number]/files.stx` - the review screen, and the most important screen in the product
 - [ ] `.../compare/[...refs].stx`
