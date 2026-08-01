@@ -347,13 +347,31 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run docs:buddy:check
 
+      # Present in the framework checkout but not yet in the published buddy
+      # this app installs from npm. Skipped with a notice rather than failed,
+      # so the job does not go red over a version skew - and starts running by
+      # itself once a release carries the command.
       - name: docs:artifacts:check
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run docs:artifacts:check
+        run: |
+          if ./buddy --help 2>/dev/null | grep -q 'docs:artifacts:check'; then
+            bun run docs:artifacts:check
+          else
+            echo "::notice::docs:artifacts:check is not in the installed buddy yet; skipping."
+          fi
 
+      # Present in the framework checkout but not yet in the published buddy
+      # this app installs from npm. Skipped with a notice rather than failed,
+      # so the job does not go red over a version skew - and starts running by
+      # itself once a release carries the command.
       - name: docs:links:check
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run docs:links:check
+        run: |
+          if ./buddy --help 2>/dev/null | grep -q 'docs:links:check'; then
+            bun run docs:links:check
+          else
+            echo "::notice::docs:links:check is not in the installed buddy yet; skipping."
+          fi
 
       - name: Run protocol adapter
         env:
