@@ -103,7 +103,8 @@ there?
 - [ ] "Synced 3 minutes ago" beats "mirror enabled", because the reader's real question is whether
       what they are looking at is current
 - [ ] Manual "sync now" for when someone does not want to wait for the interval
-- [ ] Mirror setup asks for the remote and the local name separately, since they differ by default
+- [x] Mirror setup asks for the remote and the local name separately, since they differ by default
+      (`buddy mirror:add --remote stacksjs/stacks --owner stacks --name stacks`)
 
 ## Credentials
 
