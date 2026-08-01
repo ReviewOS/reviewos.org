@@ -1,0 +1,11 @@
+{{--
+  A repository at its default branch and root.
+
+  Both this and the deep-path route render the same component, so the two
+  cannot drift apart.
+--}}
+@layout('app')
+
+@section('content')
+  <RepoBrowser owner="{{ params.owner }}" repository="{{ params.repository }}" refName="" path="" />
+@endsection

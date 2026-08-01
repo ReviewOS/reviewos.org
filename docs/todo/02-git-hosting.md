@@ -126,3 +126,17 @@ the one moment where rejecting is still possible.
       end to end.
 - [ ] Git LFS
 - [ ] Commit signature verification against registered GPG keys
+
+## Browsing
+
+- [x] `resources/components/RepoBrowser.stx`: tree, file and README in one component, so the root
+      route and the deep-path route cannot drift apart
+- [x] `resources/functions/browse.ts`: ls-tree parsing, sorting, breadcrumbs, README detection,
+      sizes - all pure and tested away from git
+- [x] `app/Actions/Browse/load.ts`: `listTree`, `readBlob`, `lastCommit`, `branchNames`
+- [x] Binary and oversized files are declined rather than streamed into the page
+- [x] 30 unit tests, including a filename containing a newline, which is legal and is why the
+      listing is NUL-delimited rather than line-delimited
+- [ ] Syntax highlighting in the file view
+- [ ] Branch and tag picker
+- [ ] Commit history view

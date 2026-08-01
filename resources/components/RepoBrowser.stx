@@ -1,0 +1,238 @@
+<script server>
+/**
+ * The repository browse screen: tree, file, README.
+ *
+ * Everything decided here comes from tested modules - `resources/functions/browse`
+ * for shaping and `app/Actions/Browse/load` for reading git. The view reads
+ * those and lays them out; no rules live in this file, because rules in a
+ * template cannot be tested.
+ *
+ * Server-rendered, like the review screen, so a repository with thousands of
+ * files costs the browser nothing.
+ */
+import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, lastCommit, listTree, readBlob, shortSha, sortEntries, branchNames } from '../functions/browse'
+
+// Props arrive as attribute strings, so everything is normalised here rather
+// than at each use site.
+const ownerHandle = String(owner)
+const repositoryName = String(repository)
+const requestedPath = String(path ?? '').replace(/^\/+|\/+$/g, '')
+
+// The owner is a user or an organization, and both live in their own table, so
+// the handle is looked up in each. Resolving the owner first is what stops
+// `/someone/stacks` finding a repository that belongs to somebody else.
+const orgRow = await db
+  .selectFrom('organizations')
+  .selectAll()
+  .where('handle', '=', ownerHandle)
+  .executeTakeFirst()
+
+const userRow = orgRow
+  ? null
+  : await db
+      .selectFrom('users')
+      .selectAll()
+      .where('handle', '=', ownerHandle)
+      .executeTakeFirst()
+
+const ownerType = orgRow ? 'organization' : (userRow ? 'user' : null)
+const ownerId = orgRow ? Number(orgRow.id) : (userRow ? Number(userRow.id) : null)
+
+const repoRow = ownerId
+  ? await db
+      .selectFrom('repositories')
+      .selectAll()
+      .where('owner_type', '=', ownerType)
+      .where('owner_id', '=', ownerId)
+      .where('name', '=', repositoryName)
+      .executeTakeFirst()
+  : null
+
+const diskPath = repoRow ? String(repoRow.disk_path ?? '') : ''
+const ref = String(refName || (repoRow ? (repoRow.default_branch ?? 'HEAD') : 'HEAD'))
+
+// Try the path as a directory. When git says it is not one, it is a file, and
+// that is the ordinary way to tell them apart without a second round trip.
+const listing = repoRow ? await listTree(diskPath, ref, requestedPath) : { ok: false, entries: [], error: null }
+const isDirectory = listing.ok
+
+const blob = (repoRow && requestedPath && !isDirectory)
+  ? await readBlob(diskPath, ref, requestedPath)
+  : null
+
+const entries = isDirectory ? sortEntries(listing.entries) : []
+const crumbs = breadcrumbs(repositoryName, requestedPath)
+
+// The README renders under the tree, the way every forge does it, but only in a
+// directory - inside a file the file is the subject.
+const readmeEntry = isDirectory ? findReadme(entries) : null
+const readme = readmeEntry
+  ? await readBlob(diskPath, ref, childPath(requestedPath, readmeEntry.name))
+  : null
+
+const head = repoRow ? await lastCommit(diskPath, ref, requestedPath) : null
+const branches = repoRow ? await branchNames(diskPath) : []
+
+const notFound = !repoRow
+const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedPath
+</script>
+
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (notFound)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+        <p class="muted" style="margin-top: 6px;">
+          Nothing is hosted at {{ ownerHandle }}/{{ repositoryName }}.
+        </p>
+      </div>
+    @else
+      <header class="repo-head">
+        <div class="repo-title-row">
+          <h1 class="repo-title">
+            <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="/{{ ownerHandle }}/{{ repositoryName }}">{{ repositoryName }}</a>
+          </h1>
+          <span class="pill pill-{{ repoRow.visibility }}">{{ repoRow.visibility }}</span>
+        </div>
+
+        @if (repoRow.description)
+          <p class="muted repo-description">{{ repoRow.description }}</p>
+        @endif
+
+        <div class="repo-meta muted">
+          <span class="mono">{{ ref }}</span>
+          @if (branches.length > 1)
+            <span>&middot; {{ branches.length }} branches</span>
+          @endif
+          <span>&middot; {{ formatSize(Number(repoRow.size_kb ?? 0) * 1024) }}</span>
+        </div>
+      </header>
+
+      @if (emptyRepository)
+        <div class="panel" style="padding: 32px; text-align: center; margin-top: 18px;">
+          <h2 style="font-size: 17px;">This repository is empty</h2>
+          <p class="muted" style="margin-top: 6px;">Push a commit and it will appear here.</p>
+        </div>
+      @else
+        {{-- Where you are, and the way back. --}}
+        <nav class="crumbs" aria-label="Breadcrumb">
+          @foreach (crumbs as crumb)
+            @if (crumb.current)
+              <span class="crumb crumb-current">{{ crumb.name }}</span>
+            @else
+              <a class="crumb" href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ ref }}/{{ crumb.path }}">{{ crumb.name }}</a>
+            @endif
+            @if (!crumb.current)
+              <span class="crumb-sep" aria-hidden="true">/</span>
+            @endif
+          @endforeach
+        </nav>
+
+        @if (head)
+          <div class="panel last-commit">
+            <span class="mono muted">{{ shortSha(head.sha) }}</span>
+            <span class="last-commit-subject">{{ head.subject }}</span>
+            <span class="muted last-commit-author">{{ head.authorName }}</span>
+          </div>
+        @endif
+
+        @if (isDirectory)
+          <div class="panel tree">
+            @if (entries.length === 0)
+              <p class="muted" style="padding: 18px;">This directory is empty.</p>
+            @else
+              <ul class="tree-list">
+                @foreach (entries as entry)
+                  <li class="tree-row">
+                    <span class="tree-icon {{ entry.type === 'tree' ? 'i-hugeicons-folder-01' : (entry.type === 'commit' ? 'i-hugeicons-git-merge' : 'i-hugeicons-file-01') }}" aria-hidden="true"></span>
+                    @if (entry.type === 'commit')
+                      {{-- A submodule points elsewhere; there is nothing here to open. --}}
+                      <span class="tree-name">{{ entry.name }}</span>
+                      <span class="muted mono tree-size">{{ shortSha(entry.sha) }}</span>
+                    @else
+                      <a class="tree-name" href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ ref }}/{{ childPath(requestedPath, entry.name) }}">{{ entry.name }}</a>
+                      <span class="muted tree-size">{{ formatSize(entry.size) }}</span>
+                    @endif
+                  </li>
+                @endforeach
+              </ul>
+            @endif
+          </div>
+
+          @if (readme && readme.text)
+            <section class="panel readme">
+              <header class="readme-head">
+                <span class="i-hugeicons-book-open-01" aria-hidden="true"></span>
+                <span>{{ readmeEntry.name }}</span>
+              </header>
+              <div class="readme-body">
+                @markdown
+                  {!! readme.text !!}
+                @endmarkdown
+              </div>
+            </section>
+          @endif
+        @else
+          <div class="panel file">
+            <header class="file-head">
+              <span class="mono">{{ requestedPath }}</span>
+              <span class="muted">{{ formatSize(blob?.size ?? null) }}</span>
+            </header>
+
+            @if (!blob || !blob.ok)
+              <p class="muted" style="padding: 18px;">This file does not exist at {{ ref }}.</p>
+            @elseif (blob.binary)
+              <p class="muted" style="padding: 18px;">Binary file, not shown.</p>
+            @elseif (blob.tooLarge)
+              <p class="muted" style="padding: 18px;">
+                This file is {{ formatSize(blob.size) }}, too large to display.
+              </p>
+            @elseif (isMarkdown(requestedPath))
+              <div class="readme-body" style="padding: 20px 22px;">
+                @markdown
+                  {!! blob.text !!}
+                @endmarkdown
+              </div>
+            @else
+              <pre class="file-source"><code>{{ blob.text }}</code></pre>
+            @endif
+          </div>
+        @endif
+      @endif
+    @endif
+  </div>
+
+<style>
+  .repo-head { padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .repo-title-row { display: flex; align-items: center; gap: 10px; }
+  .repo-title { font-size: 20px; font-weight: 600; }
+  .repo-title a { text-decoration: none; }
+  .repo-title a:hover { text-decoration: underline; }
+  .repo-description { margin-top: 6px; font-size: 14px; }
+  .repo-meta { margin-top: 8px; font-size: 13px; display: flex; gap: 6px; }
+
+  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 16px 0 10px; font-size: 14px; }
+  .crumb { text-decoration: none; }
+  .crumb:hover { text-decoration: underline; }
+  .crumb-current { font-weight: 600; }
+  .crumb-sep { color: var(--muted); }
+
+  .last-commit { display: flex; align-items: center; gap: 10px; padding: 10px 14px; font-size: 13px; }
+  .last-commit-subject { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .tree { margin-top: 10px; overflow: hidden; }
+  .tree-list { display: flex; flex-direction: column; }
+  .tree-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .tree-row:last-child { border-bottom: 0; }
+  .tree-icon { flex: none; color: var(--muted); }
+  .tree-name { flex: 1; min-width: 0; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tree-name:hover { text-decoration: underline; }
+  .tree-size { flex: none; font-size: 12.5px; }
+
+  .readme { margin-top: 18px; }
+  .readme-head { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; font-weight: 500; }
+  .readme-body { padding: 24px 26px; line-height: 1.65; }
+
+  .file { margin-top: 10px; overflow: hidden; }
+  .file-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .file-source { padding: 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; }
+</style>

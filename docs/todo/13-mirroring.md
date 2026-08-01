@@ -122,9 +122,12 @@ documentation is markdown that the docs pipeline has to render anyway.
 - [ ] Mirror configured, pull direction, public, no credential
 - [x] Git data cloned into `storage/repos/stacks/stacks.git` and readable through git plumbing
       (2488 refs, HEAD resolves, trees list)
-- [ ] Browsable in the UI. Blocked on the repository browse view from phase 02, which does not
-      exist yet: `/stacks/stacks` 404s because the route is missing, not because the mirror is
-      wrong
+- [x] Browsable in the UI at `/stacks/stacks`: the tree renders its 33 root entries, the README
+      below it, and the last commit
+- [ ] Navigating into a directory. The route and view exist, but stx-router bound route parameters
+      to the wrong capture groups when a pattern mixed a catch-all with ordinary segments, so
+      `/stacks/stacks/tree/main/app` renders the repository root. Fixed upstream in stx; this picks
+      it up on the next stx release
 - [ ] Its markdown renders through the docs pipeline described in
       [07 - Marketing and docs](./07-marketing-docs.md)
 - [ ] Pull requests visible in the review screen, which is the actual test of whether any of this

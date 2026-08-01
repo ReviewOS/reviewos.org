@@ -1,0 +1,11 @@
+{{--
+  A directory or file at an explicit ref.
+
+  `[...path]` is a catch-all, because a repository path has any number of
+  segments and a single dynamic segment would only ever match the first.
+--}}
+@layout('app')
+
+@section('content')
+  <RepoBrowser owner="{{ params.owner }}" repository="{{ params.repository }}" refName="{{ params.ref }}" path="{{ params.path }}" />
+@endsection

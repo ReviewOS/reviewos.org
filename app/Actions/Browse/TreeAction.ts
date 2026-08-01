@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { parseTreeEntries } from '../../../resources/functions/browse'
 import { findRepositoryByPath, mayUseService, userFromBasicAuth } from '../Git/access'
 import { isSafeRevision, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
@@ -46,21 +47,9 @@ export default new Action({
     if (!result.ok)
       return response.json({ error: 'No such path at that ref' }, 404)
 
-    const entries = result.stdout
-      .split('\0')
-      .filter(Boolean)
-      .map((line) => {
-        // `<mode> <type> <sha> <size>\t<name>`
-        const tab = line.indexOf('\t')
-        const meta = line.slice(0, tab).split(/\s+/)
-        return {
-          mode: meta[0],
-          type: meta[1],
-          sha: meta[2],
-          size: meta[3] === '-' ? null : Number(meta[3]),
-          name: line.slice(tab + 1),
-        }
-      })
+    // Parsing lives in resources/functions/browse so the view and this action
+    // agree on it and it can be tested without spawning git.
+    const entries = parseTreeEntries(result.stdout)
 
     return response.json({ ref, path, entries })
   },
