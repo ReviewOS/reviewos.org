@@ -526,6 +526,56 @@ jobs:
       DEPLOY_FLAG: ${{ needs.deployment-target.outputs.flag }}
 
     steps:
+      # Every required secret, checked once, before anything is installed.
+      #
+      # Split across the steps that used each one, a run reported the first
+      # missing secret and stopped - so filling them in took one run per
+      # secret, each a couple of minutes, each ending in a different error.
+      # One list up front names all of them at once.
+      #
+      # Lengths only, never values: safe to print, and enough to tell absent
+      # from wrong. GitHub does not report a missing secret - it substitutes an
+      # empty string and lets the job run on.
+      - name: Check deploy secrets
+        env:
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          APP_KEY: ${{ secrets.APP_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          PORKBUN_API_KEY: ${{ secrets.PORKBUN_API_KEY }}
+          PORKBUN_SECRET_KEY: ${{ secrets.PORKBUN_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          missing=''
+          for name in HCLOUD_TOKEN APP_KEY DB_PASSWORD DEPLOY_SSH_KEY; do
+            eval "value=\${$name:-}"
+            if [ -n "$value" ]; then
+              echo "$name: present (${#value} chars)"
+            else
+              echo "$name: EMPTY"
+              missing="$missing $name"
+            fi
+          done
+
+          for name in PORKBUN_API_KEY PORKBUN_SECRET_KEY; do
+            eval "value=\${$name:-}"
+            [ -n "$value" ] || echo "::notice::$name is not set; DNS reconciliation will be skipped."
+          done
+
+          [ -z "$missing" ] || {
+            echo "::error::Empty repository secrets:$missing"
+            echo "Set each with --body, not a redirect from a process substitution -"
+            echo "that form reports success and stores nothing:"
+            for name in $missing; do
+              if [ "$name" = DEPLOY_SSH_KEY ]; then
+                echo "  gh secret set DEPLOY_SSH_KEY --repo ${{ github.repository }} < ~/.ssh/reviewos-deploy"
+              else
+                echo "  gh secret set $name --repo ${{ github.repository }} --body \"\$(grep '^$name=' .env | cut -d= -f2-)\""
+              fi
+            done
+            exit 1
+          }
+
       - name: Checkout Code
         uses: actions/checkout@v6
 
@@ -563,17 +613,6 @@ jobs:
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
-          # Not optional. The deploy reaches the box over SSH, and without a
-          # key it gets as far as the first connection and stops there - which
-          # reads as an unreachable server rather than an unset secret.
-          if [ -z "$DEPLOY_SSH_KEY" ]; then
-            echo "::error::DEPLOY_SSH_KEY is empty. The deploy connects to the server over SSH and cannot without it."
-            echo "Use a dedicated key, not a personal one - an Actions secret hands CI everything that key opens:"
-            echo "  ssh-keygen -t ed25519 -f ~/.ssh/reviewos-deploy -N '' -C 'reviewos github actions'"
-            echo "  ssh-copy-id -i ~/.ssh/reviewos-deploy.pub root@<server>"
-            echo "  gh secret set DEPLOY_SSH_KEY --repo ${{ github.repository }} < ~/.ssh/reviewos-deploy"
-            exit 1
-          fi
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
@@ -597,46 +636,6 @@ jobs:
           COPYFILE_DISABLE: '1'
         run: |
           set -euo pipefail
-
-          # Stop here if a secret the deploy cannot work without is empty.
-          #
-          # GitHub does not report a missing secret. It substitutes an empty
-          # string and the job runs on, so the first sign used to be a confusing
-          # failure minutes later from a tool that was never given anything -
-          # "No Hetzner API token found" while the token appeared to be right
-          # there in the step's env.
-          #
-          # Worth failing rather than warning: APP_KEY empty makes `buddy
-          # deploy` mint a fresh application key, which silently invalidates
-          # every session and every encrypted value already in production.
-          #
-          # Lengths only, never values - safe to print, and enough to tell
-          # absent from wrong.
-          missing=''
-          for name in HCLOUD_TOKEN APP_KEY DB_PASSWORD; do
-            eval "value=\${$name:-}"
-            if [ -n "$value" ]; then
-              echo "$name: present (${#value} chars)"
-            else
-              echo "$name: EMPTY"
-              missing="$missing $name"
-            fi
-          done
-
-          for name in PORKBUN_API_KEY PORKBUN_SECRET_KEY; do
-            eval "value=\${$name:-}"
-            [ -n "$value" ] || echo "::notice::$name is not set; DNS reconciliation will be skipped."
-          done
-
-          if [ -n "$missing" ]; then
-            echo "::error::Empty repository secrets:$missing"
-            echo "Set each one with --body rather than a redirect - a shell process substitution"
-            echo "reports success and stores nothing:"
-            for name in $missing; do
-              echo "  gh secret set $name --repo ${{ github.repository }} --body \"\$(grep '^$name=' .env | cut -d= -f2-)\""
-            done
-            exit 1
-          fi
 
           # Write the .env the app expects.
           #
