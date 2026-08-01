@@ -591,6 +591,22 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Which secrets arrived, by length only.
+          #
+          # A missing secret is not an error GitHub reports - it substitutes an
+          # empty string and the job runs on regardless, so the first sign is a
+          # confusing failure minutes later from a tool that was never given
+          # anything to work with. Lengths are safe to print and enough to tell
+          # "absent" from "wrong".
+          for name in HCLOUD_TOKEN APP_KEY DB_PASSWORD PORKBUN_API_KEY PORKBUN_SECRET_KEY; do
+            eval "value=\${$name:-}"
+            if [ -n "$value" ]; then
+              echo "$name: present (${#value} chars)"
+            else
+              echo "$name: EMPTY"
+            fi
+          done
+
           # Write the .env the app expects.
           #
           # `buddy deploy` reads process.env, but the Stacks env layer loads
