@@ -303,6 +303,50 @@ describe('GitHub client paging and limits', () => {
     expect(result.error).toContain('not found')
   })
 
+  /**
+   * Reaching the page cap is reported, never passed off as a finished import.
+   *
+   * The first version stopped at 20 pages silently. A repository with 2,151
+   * issues and pull requests imported the oldest 2,000 and looked complete, so
+   * the missing 151 read as a repository that never had them. A truncated
+   * mirror that admits it is recoverable; one that claims to be whole is not.
+   */
+  it('reports reaching the page cap rather than claiming completeness', async () => {
+    const { GitHubClient } = await import('../../app/Actions/Mirror/github-client')
+    let call = 0
+    const client = new GitHubClient({
+      // Always another page: the cap is the only thing that can stop this.
+      fetchImpl: (async () => {
+        call++
+        return new Response(JSON.stringify([{ number: call }]), {
+          status: 200,
+          headers: { link: '<x>; rel="next"' },
+        })
+      }) as any,
+    })
+
+    const result = await client.collect<{ number: number }>('/repos/a/b/issues', { maxPages: 3 })
+
+    expect(result.ok).toBe(false)
+    expect(result.truncated).toBe(true)
+    expect(result.error).toContain('3 pages')
+    // Everything fetched before the cap is still returned.
+    expect(result.items).toHaveLength(3)
+    expect(call).toBe(3)
+  })
+
+  it('is not truncated when the collection simply ends', async () => {
+    const { GitHubClient } = await import('../../app/Actions/Mirror/github-client')
+    const client = new GitHubClient({
+      fetchImpl: (async () => new Response(JSON.stringify([{ number: 1 }]), { status: 200 })) as any,
+    })
+
+    const result = await client.collect('/repos/a/b/issues', { maxPages: 3 })
+
+    expect(result.ok).toBe(true)
+    expect(result.truncated).toBe(false)
+  })
+
   it('keeps what it already collected when a later page fails', async () => {
     // A partial import that says so beats losing the pages that worked.
     const { GitHubClient } = await import('../../app/Actions/Mirror/github-client')

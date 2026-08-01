@@ -17,6 +17,8 @@ export interface PageResult<T> {
   ok: boolean
   items: T[]
   error: string | null
+  /** True when the page cap stopped the fetch, not the end of the collection. */
+  truncated?: boolean
 }
 
 /**
@@ -79,13 +81,20 @@ export class GitHubClient {
   /**
    * Fetch every page of a collection.
    *
-   * Capped rather than unbounded: a repository with fifty thousand issues would
-   * otherwise hold a job open for hours on its first sync, and a partial import
-   * that finishes beats a complete one that never does.
+   * Capped rather than unbounded, because a repository with a hundred thousand
+   * issues would otherwise hold a job open for hours on its first sync. But the
+   * cap is high enough to cover any real repository in one pass, and reaching
+   * it is reported rather than passed off as a complete import.
+   *
+   * The first version stopped at 20 pages and said nothing. A mirror of a
+   * repository with 2,151 issues and pull requests imported the oldest 2,000
+   * and looked finished - the missing 151 read as a repository that simply
+   * never had them. A truncated mirror that admits it is recoverable; one that
+   * claims to be complete is not.
    */
   async collect<T>(path: string, options: { maxPages?: number, perPage?: number } = {}): Promise<PageResult<T>> {
     const perPage = options.perPage ?? 100
-    const maxPages = options.maxPages ?? 20
+    const maxPages = options.maxPages ?? 200
     const items: T[] = []
 
     for (let page = 1; page <= maxPages; page++) {
@@ -115,10 +124,19 @@ export class GitHubClient {
 
       items.push(...(body as T[]))
 
-      if (!hasNextPage(response.headers)) break
+      if (!hasNextPage(response.headers))
+        return { ok: true, items, error: null, truncated: false }
     }
 
-    return { ok: true, items, error: null }
+    // Fell out of the loop with a next page still waiting: the cap stopped us,
+    // not the data. Reported as a failure so the caller records it and retries
+    // rather than writing the partial set down as the whole truth.
+    return {
+      ok: false,
+      items,
+      error: `stopped after ${maxPages} pages with more to fetch`,
+      truncated: true,
+    }
   }
 
   issues(owner: string, name: string) {
