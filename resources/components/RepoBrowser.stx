@@ -10,7 +10,7 @@
  * Server-rendered, like the review screen, so a repository with thousands of
  * files costs the browser nothing.
  */
-import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, lastCommit, listTree, readBlob, shortSha, sortEntries, branchNames, highlightLines, languageFor } from '../functions/browse'
+import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, lastCommit, listTree, readBlob, shortSha, sortEntries, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
 
 // Props arrive as attribute strings, so everything is normalised here rather
 // than at each use site.
@@ -80,6 +80,9 @@ const language = sourceLines.length > 0 ? languageFor(requestedPath) : null
 
 const head = repoRow ? await lastCommit(diskPath, ref, requestedPath) : null
 const branches = repoRow ? await branchNames(diskPath) : []
+// Tags are capped: a repository with a release per week has hundreds, and a
+// picker that lists them all is a scroll, not a chooser.
+const tags = repoRow ? (await tagNames(diskPath)).slice(0, 30) : []
 
 const notFound = !repoRow
 const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedPath
@@ -114,15 +117,26 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
             <details class="branch-picker">
               <summary class="mono">{{ ref }}</summary>
               <ul class="branch-list">
+                <li class="branch-group">Branches</li>
                 @foreach (branches as branch)
                   <li>
                     <a class="branch-item {{ branch === ref ? 'is-current' : '' }}"
                        href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ branch }}/{{ requestedPath }}">{{ branch }}</a>
                   </li>
                 @endforeach
+                @if (tags.length > 0)
+                  <li class="branch-group">Tags</li>
+                  @foreach (tags as tag)
+                    <li>
+                      <a class="branch-item {{ tag === ref ? 'is-current' : '' }}"
+                         href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ tag }}/{{ requestedPath }}">{{ tag }}</a>
+                    </li>
+                  @endforeach
+                @endif
               </ul>
             </details>
             <span>&middot; {{ branches.length }} branches</span>
+            <span>&middot; <a href="/{{ ownerHandle }}/{{ repositoryName }}/commits/{{ ref }}">commits</a></span>
           @else
             <span class="mono">{{ ref }}</span>
           @endif
@@ -310,5 +324,13 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
     text-decoration: none;
   }
   .branch-item:hover { background: var(--accent-quiet); }
+  .branch-group {
+    padding: 7px 9px 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
   .branch-item.is-current { font-weight: 600; color: var(--accent-text); }
 </style>

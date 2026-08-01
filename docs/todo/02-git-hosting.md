@@ -140,35 +140,35 @@ the one moment where rejecting is still possible.
 - [x] Branch picker, a plain `<details>` so it works before any JavaScript runs
 - [x] Syntax highlighting in the file view, server-side, sharing one token palette with the diff
       via the layout so the two cannot disagree about what a keyword looks like
-- [ ] Verify the file view in a browser. Blocked with the deep-path routing below
-- [ ] Tag picker alongside branches
-- [ ] Commit history view
+- [x] File view verified in a browser: `config/app.ts` renders 33 numbered lines with keyword,
+      string and comment tokens
+- [x] Tag picker alongside branches, newest first and capped at 30
+- [x] Commit history view
 
 - [x] Commit history at `/owner/repo/commits/ref`
 - [x] `tagNames` and `commitHistory` loaders, NUL-delimited for the same reason the tree listing is
-- [ ] Tag picker in the ref menu, once deep paths route
+- [x] Tag picker in the ref menu, and browsing at a tag verified
 
-### Known blocker: catch-all route parameters
+### Catch-all routing, resolved
 
-Deep paths (`/owner/repo/tree/ref/some/path`) still do not work, and the cause is now precisely
-known.
+Deep paths now work: `/stacks/stacks/tree/main/storage/framework` renders that directory, and
+`/stacks/stacks/tree/v0.70.230/app` browses at a tag.
 
-The first half is fixed: stx-router bound parameters to the wrong capture groups when a pattern
-mixed a catch-all with ordinary segments. That is corrected upstream, released as stx 0.2.149, and
-this app now resolves a single stx across the tree via `overrides` - it previously carried eight
-copies, which is why patching one never took effect. Generated routes now read
-`params: ["owner","repository","ref","path"]` instead of `["path","owner","repository","ref"]`, and
-single-segment deep paths route correctly.
+It took four fixes, because stx compiled routes in four separate places and each got catch-alls
+wrong differently:
 
-The second half remains. At request time stx does not apply the catch-all rewrite that
-`filePathToPattern` does, so:
+1. `stx-router` collected parameter names in the order its three replace-sweeps ran, while capture
+   groups end up in pattern order, so any pattern mixing a catch-all with ordinary segments bound
+   every value to the wrong name
+2. the dev server built names straight from the brackets, keeping the dots (`params['...path']`
+   rather than `params.path`) and compiling the segment to `([^/]+)`, which cannot span a separator
+3. the production server captured `:name` greedily, taking `path*` including the asterisk
+4. SSR matched `\w+`, and an asterisk is not a word character, so a catch-all route did not exist
+   there at all
 
-- the parameter arrives under the key it was written with, dots included - `params['...path']`
-  rather than `params.path`
-- the segment compiles to `([^/]+)`, which cannot span a separator, so
-  `/tree/main/storage/framework` returns 404 while `/tree/main/app` matches
+Three now share `stx-router`'s compiler, which was already correct; the fourth keeps its own because
+it emits several alternates per file, but no longer disagrees about what a catch-all means. Released
+as stx 0.2.151.
 
-Both symptoms are one cause: a second route-matching path that never converts `[...x]` to `:x*`. It
-is not in `stx-router`'s `filePathToPattern`, which handles this correctly and is what generates
-`routes.ts`. Finding and fixing that second implementation is the remaining work; the browse code is
-not implicated, since the root route renders correctly from the same component.
+The app also carried eight copies of stx-router at three versions, which is why patching one never
+took effect. `overrides` pins a single version.
