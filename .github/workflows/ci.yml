@@ -586,6 +586,8 @@ jobs:
           PORKBUN_API_KEY: ${{ secrets.PORKBUN_API_KEY }}
           PORKBUN_SECRET_KEY: ${{ secrets.PORKBUN_SECRET_KEY }}
           DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
+          # A control: this one is known to be set and non-empty.
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPYFILE_DISABLE: '1'
         run: |
@@ -598,7 +600,7 @@ jobs:
           # confusing failure minutes later from a tool that was never given
           # anything to work with. Lengths are safe to print and enough to tell
           # "absent" from "wrong".
-          for name in HCLOUD_TOKEN APP_KEY DB_PASSWORD PORKBUN_API_KEY PORKBUN_SECRET_KEY; do
+          for name in HCLOUD_TOKEN APP_KEY DB_PASSWORD PORKBUN_API_KEY PORKBUN_SECRET_KEY DEPLOY_HOST; do
             eval "value=\${$name:-}"
             if [ -n "$value" ]; then
               echo "$name: present (${#value} chars)"
