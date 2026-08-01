@@ -726,7 +726,31 @@ export const tsCloud: TsCloudConfig = {
       // `buddy new` layout - does not have.
       preStart: [
         'bun install',
+        // Migrate on every deploy. Without it a fresh box serves the app
+        // against a database that does not exist, and every page that reads
+        // one renders its empty state - which looks like a working site with
+        // nothing in it rather than a broken one.
+        'bun node_modules/@stacksjs/buddy/dist/cli.js migrate',
       ],
+      // Postgres runs on the box itself, reached over loopback. Declared here
+      // rather than left to the deployer's defaults because a release .env
+      // without these is not a misconfigured database, it is no database at
+      // all: the app starts, answers 200, and quietly finds nothing.
+      //
+      // `postgres` is the role pantry's cluster creates, and it is trust-auth
+      // on loopback, so the empty password is the real setting and not a
+      // placeholder waiting to be filled in.
+      env: {
+        DB_CONNECTION: 'postgres',
+        DB_HOST: '127.0.0.1',
+        DB_PORT: '5432',
+        DB_DATABASE: 'reviewos',
+        DB_USERNAME: 'postgres',
+        DB_PASSWORD: '',
+        // Referenced, never inlined: the value lives in the gitignored .env
+        // and is read at deploy time.
+        APP_KEY: env.APP_KEY || '',
+      },
     },
     main: {
       // Ship the repo (source only; node_modules/.git excluded by the packager)
