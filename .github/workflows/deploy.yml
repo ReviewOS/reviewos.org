@@ -3,16 +3,17 @@ name: Deploy
 # Pushing to main deploys. `buddy deploy` is the same command used by hand, so
 # there is one deploy path rather than a local one and a subtly different CI
 # one - which is how a deploy starts working only on someone's laptop.
+# Manual only.
+#
+# Pushing to main deploys through CI's own `deploy` job, which runs after lint,
+# typecheck, test, compile and conformance have passed. This workflow triggering
+# on push as well meant every commit started two deploys of the same commit,
+# racing each other onto one box - and this one, not being gated on anything,
+# would happily ship a commit whose tests had just failed.
+#
+# Kept for the times you want to deploy without waiting for CI, or to send one
+# site somewhere on its own.
 on:
-  push:
-    branches:
-      - main
-    # Documentation and roadmap edits do not change what runs on the server.
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - '.github/**'
-
   workflow_dispatch:
     inputs:
       site:

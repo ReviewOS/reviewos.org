@@ -575,12 +575,49 @@ jobs:
           chmod 644 ~/.ssh/id_ed25519.pub
 
       - name: Deploy ${{ env.DEPLOY_ENVIRONMENT }}
-        run: ./buddy deploy "$DEPLOY_FLAG" --yes
         env:
           APP_ENV: ${{ env.DEPLOY_ENVIRONMENT }}
+          # Named HCLOUD_TOKEN because that is what the Hetzner driver falls
+          # back to; see config/cloud.ts.
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          HETZNER_API_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          APP_KEY: ${{ secrets.APP_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          PORKBUN_API_KEY: ${{ secrets.PORKBUN_API_KEY }}
+          PORKBUN_SECRET_KEY: ${{ secrets.PORKBUN_SECRET_KEY }}
           DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPYFILE_DISABLE: '1'
+        run: |
+          set -euo pipefail
+
+          # Write the .env the app expects.
+          #
+          # `buddy deploy` reads process.env, but the Stacks env layer loads
+          # `.env` first and what it finds there wins - so on a runner with no
+          # `.env` the exported secrets were overwritten with nothing and the
+          # deploy stopped with "No Hetzner API token found" while the token was
+          # sitting right there in the environment.
+          #
+          # DB_PASSWORD matters as much as the token: config/cloud.ts passes it
+          # into the release env, and deploying without it points production at
+          # its database with an empty password and fails at migrate.
+          umask 077
+          {
+            printf 'APP_ENV=%s\n' "${APP_ENV:-production}"
+            printf 'HCLOUD_TOKEN=%s\n' "${HCLOUD_TOKEN:-}"
+            printf 'APP_KEY=%s\n' "${APP_KEY:-}"
+            printf 'DB_PASSWORD=%s\n' "${DB_PASSWORD:-}"
+            printf 'PORKBUN_API_KEY=%s\n' "${PORKBUN_API_KEY:-}"
+            printf 'PORKBUN_SECRET_KEY=%s\n' "${PORKBUN_SECRET_KEY:-}"
+          } > .env
+
+          for required in HCLOUD_TOKEN DB_PASSWORD; do
+            eval "value=\${$required:-}"
+            [ -n "$value" ] || echo "::warning::$required is not set; the deploy will not get far."
+          done
+
+          ./buddy deploy "$DEPLOY_FLAG" --yes
 
   publish-commit:
     if: github.event_name == 'pull_request'
