@@ -742,16 +742,20 @@ export const tsCloud: TsCloudConfig = {
       // without these is not a misconfigured database, it is no database at
       // all: the app starts, answers 200, and quietly finds nothing.
       //
-      // `postgres` is the role pantry's cluster creates, and it is trust-auth
-      // on loopback, so the empty password is the real setting and not a
-      // placeholder waiting to be filled in.
+      // Its own role, not the cluster superuser, matching every other app on
+      // the box. The server's `pg_hba.conf` is `trust` only on the unix socket
+      // and `md5` over 127.0.0.1, so a TCP connection needs a real password -
+      // an empty one fails with an authentication error rather than falling
+      // back to trust.
       env: {
         DB_CONNECTION: 'postgres',
         DB_HOST: '127.0.0.1',
         DB_PORT: '5432',
         DB_DATABASE: 'reviewos',
-        DB_USERNAME: 'postgres',
-        DB_PASSWORD: '',
+        DB_USERNAME: 'reviewos',
+        // Referenced, never inlined. The value lives in the gitignored .env
+        // and is read at deploy time, so it is not in the repository.
+        DB_PASSWORD: env.DB_PASSWORD || '',
         // Referenced, never inlined: the value lives in the gitignored .env
         // and is read at deploy time.
         APP_KEY: env.APP_KEY || '',
