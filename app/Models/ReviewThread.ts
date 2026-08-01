@@ -22,6 +22,7 @@ export default defineModel({
   indexes: [
     { name: 'review_threads_pr_index', columns: ['pull_request_id'] },
     { name: 'review_threads_path_index', columns: ['pull_request_id', 'path'] },
+    { name: 'review_threads_external_index', columns: ['external_id'] },
   ],
 
   traits: {
@@ -107,6 +108,21 @@ export default defineModel({
       default: false,
       validation: { rule: schema.boolean() },
       factory: () => false,
+    },
+
+    /**
+     * The upstream id of the comment that started this thread.
+     *
+     * GitHub models a thread as a root comment plus replies pointing at it, so
+     * the root's id is the only stable name a thread has. Storing it is what
+     * lets a re-sync add a new reply to the existing conversation instead of
+     * starting a second one beside it.
+     */
+    external_id: {
+      order: 11,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
     },
   },
 } as const)

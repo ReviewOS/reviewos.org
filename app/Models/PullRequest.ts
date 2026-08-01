@@ -71,10 +71,19 @@ export default defineModel({
       factory: faker => faker.lorem.paragraph(),
     },
 
+    /**
+     * The local author, or null.
+     *
+     * Nullable because two ordinary things make it absent: an account that was
+     * deleted, and a mirrored row whose upstream author is not linked to a
+     * local user. In both cases `external_author` carries the name so the
+     * author stays visible without being claimed by whoever the id would have
+     * pointed at.
+     */
     author_id: {
       order: 5,
       fillable: true,
-      validation: { rule: schema.number().required() },
+      validation: { rule: schema.number() },
       factory: () => null,
     },
 
@@ -250,6 +259,14 @@ export default defineModel({
       order: 25,
       fillable: true,
       validation: { rule: schema.string().max(65535) },
+      factory: () => null,
+    },
+
+    /** Upstream author when the mirror could not link them. See `Issue`. */
+    external_author: {
+      order: 26,
+      fillable: true,
+      validation: { rule: schema.string().max(120) },
       factory: () => null,
     },
   },

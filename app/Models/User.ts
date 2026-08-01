@@ -139,6 +139,24 @@ export default defineModel({
       },
       factory: () => new Date().toISOString(),
     },
+
+    /**
+     * The GitHub account this user has linked, if any.
+     *
+     * Set only by the user, never inferred. It is what lets a mirrored issue or
+     * review comment be attributed to them: an import that matched on handle
+     * instead would hand one person's words to another who happens to share a
+     * name on a different host, which is ordinary and not recoverable from.
+     */
+    github_username: {
+      order: 11,
+      fillable: true,
+      unique: true,
+      validation: {
+        rule: schema.string().max(39),
+      },
+      factory: () => null,
+    },
   },
 
   set: {

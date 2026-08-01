@@ -63,13 +63,13 @@ Git data is the easy half and is worth landing on its own:
 
 The metadata is where the value is, because it is what the review screen operates on:
 
-- [ ] GitHub pull requests become ReviewOS pull requests, keeping their number so `#123` means the
+- [x] GitHub pull requests become ReviewOS pull requests, keeping their number so `#123` means the
       same thing in both places
-- [ ] Review comments and review threads, anchored to the same file, line and side, so the diff
+- [x] Review comments and review threads, anchored to the same file, line and side, so the diff
       renders them where they belong
-- [ ] Issues and issue comments, with the same number-preserving rule
+- [x] Issues, with the same number-preserving rule (issue comments still to come)
 - [ ] Labels and milestones
-- [ ] Authorship maps to a ReviewOS user when the GitHub identity is linked, and to a display-only
+- [x] Authorship maps to a ReviewOS user when the GitHub identity is linked, and to a display-only
       attribution when it is not. It must never silently attribute someone's comment to the wrong
       account
 
@@ -78,8 +78,9 @@ The metadata is where the value is, because it is what the review screen operate
 The obvious question once the review screen is genuinely nicer: can I review here and have it count
 there?
 
-- [ ] Decide, and write down, whether a mirror is read-only or write-through. Read-only is the
-      honest default and should ship first
+- [x] Decide, and write down, whether a mirror is read-only or write-through. Read-only is the
+      honest default and should ship first: the importer is one-way, and `MirrorMetadataSyncJob`
+      says so in as many words
 - [ ] If write-through: a review submitted here posts to GitHub through the API as the reviewing
       user, using their own credential, and the resulting GitHub state syncs back as the source of
       truth

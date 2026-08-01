@@ -143,5 +143,52 @@ export default defineModel({
       validation: { rule: schema.number().min(0) },
       factory: () => 0,
     },
+
+    /**
+     * Whether to import issues, pull requests and review threads as well as
+     * commits.
+     *
+     * Separate from `enabled` because it costs differently: commits come from
+     * one `git fetch`, while metadata is many API calls against a rate limit
+     * that is shared across every mirror using the same token. A mirror of a
+     * huge repository may reasonably want the code and not the backlog.
+     */
+    sync_metadata: {
+      order: 14,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    last_metadata_sync_at: {
+      order: 15,
+      fillable: true,
+      validation: { rule: schema.string() },
+      factory: () => null,
+    },
+
+    /**
+     * Why the last metadata sync fell short, kept apart from `last_error`.
+     *
+     * A rate limit that stopped the issue import says nothing about whether the
+     * commits are current, and folding both into one field would make the
+     * repository page claim the mirror is broken when only half of it is.
+     */
+    metadata_error: {
+      order: 16,
+      fillable: true,
+      validation: { rule: schema.string().max(1000) },
+      factory: () => null,
+    },
+
+    /** Consecutive metadata failures, so the retry interval can widen. */
+    metadata_failure_count: {
+      order: 17,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number().min(0) },
+      factory: () => 0,
+    },
   },
 })

@@ -1,4 +1,5 @@
 import { Job } from '@stacksjs/queue'
+import { metadataBackoffSeconds, metadataDue } from '../Actions/Mirror/metadata'
 import { isDue } from '../Actions/Mirror/sync'
 
 /**
@@ -28,8 +29,25 @@ export default new Job({
 
     const now = new Date()
     let queued = 0
+    let queuedMetadata = 0
 
     for (const mirror of mirrors) {
+      // Metadata runs on its own, slower cadence. A repository receiving a
+      // commit a minute should not spend its whole API rate limit re-reading a
+      // backlog that did not change, and the two failing independently is why
+      // they are separate jobs rather than two halves of one.
+      if (mirror.sync_metadata) {
+        const interval = metadataBackoffSeconds(
+          Number(mirror.metadata_failure_count ?? 0),
+          Number(mirror.interval_seconds ?? 900) * 4,
+        )
+
+        if (metadataDue(mirror.last_metadata_sync_at ? String(mirror.last_metadata_sync_at) : null, interval, now)) {
+          await MirrorMetadataSyncJob.dispatch({ mirrorId: Number(mirror.id) })
+          queuedMetadata += 1
+        }
+      }
+
       // Due-ness lives in sync.ts, where it is tested, rather than as a SQL
       // predicate that would have to encode the backoff curve too.
       if (!isDue({
@@ -43,6 +61,6 @@ export default new Job({
       queued += 1
     }
 
-    return { considered: mirrors.length, queued }
+    return { considered: mirrors.length, queued, queuedMetadata }
   },
 })

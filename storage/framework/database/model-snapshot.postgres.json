@@ -561,7 +561,8 @@
               "push",
               "social",
               "multi-channel"
-            ]
+            ],
+            "enumTypeName": "campaigns_type_type"
           },
           {
             "name": "status",
@@ -582,7 +583,8 @@
               "active",
               "completed",
               "archived"
-            ]
+            ],
+            "enumTypeName": "campaigns_status_type"
           },
           {
             "name": "subject",
@@ -837,7 +839,8 @@
               "failed",
               "bounced",
               "complained"
-            ]
+            ],
+            "enumTypeName": "campaign_sends_status_type"
           },
           {
             "name": "provider_message_id",
@@ -1158,7 +1161,8 @@
               "abandoned",
               "converted",
               "expired"
-            ]
+            ],
+            "enumTypeName": "carts_status_type"
           },
           {
             "name": "total_items",
@@ -1606,7 +1610,8 @@
               "queued",
               "in_progress",
               "completed"
-            ]
+            ],
+            "enumTypeName": "check_runs_status_type"
           },
           {
             "name": "conclusion",
@@ -1624,7 +1629,8 @@
               "action_required",
               "skipped",
               "stale"
-            ]
+            ],
+            "enumTypeName": "check_runs_conclusion_type"
           },
           {
             "name": "details_url",
@@ -1776,7 +1782,8 @@
               "approved",
               "spam",
               "trash"
-            ]
+            ],
+            "enumTypeName": "comments_status_type"
           },
           {
             "name": "ip_address",
@@ -1903,7 +1910,8 @@
               "Active",
               "Scheduled",
               "Expired"
-            ]
+            ],
+            "enumTypeName": "coupons_status_type"
           },
           {
             "name": "is_active",
@@ -1924,7 +1932,8 @@
             "enumValues": [
               "fixed_amount",
               "percentage"
-            ]
+            ],
+            "enumTypeName": "coupons_discount_type_type"
           },
           {
             "name": "discount_value",
@@ -2110,7 +2119,8 @@
             "enumValues": [
               "Active",
               "Inactive"
-            ]
+            ],
+            "enumTypeName": "customers_status_type"
           },
           {
             "name": "avatar",
@@ -2479,7 +2489,8 @@
             "enumValues": [
               "active",
               "inactive"
-            ]
+            ],
+            "enumTypeName": "digital_deliveries_status_type"
           },
           {
             "name": "created_at",
@@ -2576,7 +2587,8 @@
               "active",
               "on_delivery",
               "on_break"
-            ]
+            ],
+            "enumTypeName": "drivers_status_type"
           },
           {
             "name": "user_id",
@@ -2711,7 +2723,8 @@
               "active",
               "inactive",
               "archived"
-            ]
+            ],
+            "enumTypeName": "email_lists_status_type"
           },
           {
             "name": "is_public",
@@ -2822,7 +2835,8 @@
               "unsubscribed",
               "pending",
               "bounced"
-            ]
+            ],
+            "enumTypeName": "email_list_subscribers_status_type"
           },
           {
             "name": "source",
@@ -3367,7 +3381,7 @@
             "isNullable": false,
             "hasDefault": false,
             "references": {
-              "table": "authors",
+              "table": "users",
               "column": "id"
             }
           },
@@ -3382,7 +3396,8 @@
             "enumValues": [
               "open",
               "closed"
-            ]
+            ],
+            "enumTypeName": "issues_state_type"
           },
           {
             "name": "state_reason",
@@ -3395,7 +3410,8 @@
               "completed",
               "not_planned",
               "duplicate"
-            ]
+            ],
+            "enumTypeName": "issues_state_reason_type"
           },
           {
             "name": "closed_at",
@@ -3419,11 +3435,7 @@
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false,
-            "references": {
-              "table": "milestones",
-              "column": "id"
-            }
+            "hasDefault": false
           },
           {
             "name": "locked",
@@ -3476,6 +3488,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "external_author",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
           }
         ],
         "indexes": [
@@ -3590,7 +3611,8 @@
             "enumValues": [
               "issue",
               "pull_request"
-            ]
+            ],
+            "enumTypeName": "issue_comments_commentable_type_type"
           },
           {
             "name": "commentable_id",
@@ -3608,7 +3630,7 @@
             "isNullable": false,
             "hasDefault": false,
             "references": {
-              "table": "authors",
+              "table": "users",
               "column": "id"
             }
           },
@@ -3711,7 +3733,7 @@
             "isNullable": false,
             "hasDefault": false,
             "references": {
-              "table": "labels",
+              "table": "repository_labels",
               "column": "id"
             }
           },
@@ -3923,7 +3945,8 @@
               "Standard License",
               "Premium License",
               "Enterprise License"
-            ]
+            ],
+            "enumTypeName": "license_keys_template_type"
           },
           {
             "name": "expiry_date",
@@ -3945,7 +3968,8 @@
               "active",
               "inactive",
               "unassigned"
-            ]
+            ],
+            "enumTypeName": "license_keys_status_type"
           },
           {
             "name": "customer_id",
@@ -4057,7 +4081,8 @@
               "error",
               "info",
               "success"
-            ]
+            ],
+            "enumTypeName": "logs_type_type"
           },
           {
             "name": "source",
@@ -4070,7 +4095,8 @@
               "file",
               "cli",
               "system"
-            ]
+            ],
+            "enumTypeName": "logs_source_type"
           },
           {
             "name": "message",
@@ -4410,7 +4436,8 @@
               "comfortable",
               "default",
               "compact"
-            ]
+            ],
+            "enumTypeName": "mail_preferences_display_density_type"
           },
           {
             "name": "theme",
@@ -4424,7 +4451,8 @@
               "light",
               "dark",
               "system"
-            ]
+            ],
+            "enumTypeName": "mail_preferences_theme_type"
           },
           {
             "name": "language",
@@ -4440,7 +4468,8 @@
               "de",
               "es",
               "ja"
-            ]
+            ],
+            "enumTypeName": "mail_preferences_language_type"
           },
           {
             "name": "default_reply_behavior",
@@ -4453,7 +4482,8 @@
             "enumValues": [
               "reply",
               "replyAll"
-            ]
+            ],
+            "enumTypeName": "mail_preferences_default_reply_behavior_type"
           },
           {
             "name": "send_and_archive",
@@ -4476,7 +4506,8 @@
               "newer",
               "older",
               "back"
-            ]
+            ],
+            "enumTypeName": "mail_preferences_auto_advance_type"
           },
           {
             "name": "desktop_notifications",
@@ -4499,7 +4530,8 @@
               "default",
               "subtle",
               "none"
-            ]
+            ],
+            "enumTypeName": "mail_preferences_notification_sound_type"
           },
           {
             "name": "notification_preview",
@@ -4772,7 +4804,8 @@
             "enumValues": [
               "open",
               "closed"
-            ]
+            ],
+            "enumTypeName": "milestones_state_type"
           },
           {
             "name": "created_at",
@@ -4923,7 +4956,8 @@
               "database",
               "push",
               "broadcast"
-            ]
+            ],
+            "enumTypeName": "notification_deliveries_channel_type"
           },
           {
             "name": "recipient",
@@ -4963,7 +4997,8 @@
               "sent",
               "delivered",
               "failed"
-            ]
+            ],
+            "enumTypeName": "notification_deliveries_status_type"
           },
           {
             "name": "error",
@@ -5043,7 +5078,8 @@
               "issue",
               "pull_request",
               "repository"
-            ]
+            ],
+            "enumTypeName": "notification_subscriptions_subject_type_type"
           },
           {
             "name": "subject_id",
@@ -5068,7 +5104,8 @@
               "author",
               "participating",
               "watching"
-            ]
+            ],
+            "enumTypeName": "notification_subscriptions_reason_type"
           },
           {
             "name": "unsubscribed",
@@ -5582,7 +5619,8 @@
               "owner",
               "admin",
               "member"
-            ]
+            ],
+            "enumTypeName": "org_members_role_type"
           },
           {
             "name": "invited_by_id",
@@ -5766,7 +5804,8 @@
               "googlePay",
               "bankTransfer",
               "giftCard"
-            ]
+            ],
+            "enumTypeName": "payments_method_type"
           },
           {
             "name": "status",
@@ -5784,7 +5823,8 @@
               "refunded",
               "partiallyRefunded",
               "succeeded"
-            ]
+            ],
+            "enumTypeName": "payments_status_type"
           },
           {
             "name": "currency",
@@ -6286,7 +6326,8 @@
               "published",
               "draft",
               "archived"
-            ]
+            ],
+            "enumTypeName": "posts_status_type"
           },
           {
             "name": "is_featured",
@@ -6402,7 +6443,8 @@
               "online",
               "offline",
               "warning"
-            ]
+            ],
+            "enumTypeName": "print_devices_status_type"
           },
           {
             "name": "last_ping",
@@ -6758,7 +6800,8 @@
               "active",
               "inactive",
               "draft"
-            ]
+            ],
+            "enumTypeName": "product_variants_status_type"
           },
           {
             "name": "product_id",
@@ -6986,7 +7029,7 @@
             "isNullable": false,
             "hasDefault": false,
             "references": {
-              "table": "authors",
+              "table": "users",
               "column": "id"
             }
           },
@@ -7002,7 +7045,8 @@
               "open",
               "closed",
               "merged"
-            ]
+            ],
+            "enumTypeName": "pull_requests_state_type"
           },
           {
             "name": "head_repository_id",
@@ -7097,7 +7141,8 @@
               "dirty",
               "blocked",
               "behind"
-            ]
+            ],
+            "enumTypeName": "pull_requests_mergeable_state_type"
           },
           {
             "name": "stack_parent_id",
@@ -7200,6 +7245,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "external_author",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
           }
         ],
         "indexes": [
@@ -7264,7 +7318,11 @@
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
-            "hasDefault": false
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
           },
           {
             "name": "state",
@@ -7280,7 +7338,8 @@
               "changes_requested",
               "commented",
               "dismissed"
-            ]
+            ],
+            "enumTypeName": "pull_request_reviews_state_type"
           },
           {
             "name": "body",
@@ -7385,7 +7444,8 @@
             "enumValues": [
               "user",
               "team"
-            ]
+            ],
+            "enumTypeName": "pull_request_reviewers_reviewer_type_type"
           },
           {
             "name": "reviewer_id",
@@ -7506,7 +7566,8 @@
               "completed",
               "failed",
               "slow"
-            ]
+            ],
+            "enumTypeName": "query_logs_status_type"
           },
           {
             "name": "error",
@@ -7737,7 +7798,8 @@
               "success",
               "failed",
               "warning"
-            ]
+            ],
+            "enumTypeName": "receipts_status_type"
           },
           {
             "name": "size",
@@ -7966,7 +8028,8 @@
               "write",
               "maintain",
               "admin"
-            ]
+            ],
+            "enumTypeName": "repo_collaborators_permission_type"
           },
           {
             "name": "created_at",
@@ -8018,7 +8081,8 @@
             "enumValues": [
               "user",
               "organization"
-            ]
+            ],
+            "enumTypeName": "repositories_owner_type_type"
           },
           {
             "name": "owner_id",
@@ -8057,7 +8121,8 @@
               "public",
               "private",
               "internal"
-            ]
+            ],
+            "enumTypeName": "repositories_visibility_type"
           },
           {
             "name": "default_branch",
@@ -8347,7 +8412,8 @@
               "DELETE",
               "OPTIONS",
               "HEAD"
-            ]
+            ],
+            "enumTypeName": "requests_method_type"
           },
           {
             "name": "path",
@@ -8618,7 +8684,7 @@
             "isNullable": true,
             "hasDefault": false,
             "references": {
-              "table": "reviews",
+              "table": "pull_request_reviews",
               "column": "id"
             }
           },
@@ -8630,7 +8696,7 @@
             "isNullable": false,
             "hasDefault": false,
             "references": {
-              "table": "authors",
+              "table": "users",
               "column": "id"
             }
           },
@@ -8682,6 +8748,23 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "external_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "external_author",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
           }
         ],
         "indexes": [
@@ -8698,6 +8781,13 @@
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "review_comments_external_index",
+            "columns": [
+              "external_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -8759,7 +8849,8 @@
             "enumValues": [
               "left",
               "right"
-            ]
+            ],
+            "enumTypeName": "review_threads_side_type"
           },
           {
             "name": "original_line",
@@ -8820,6 +8911,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "external_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8835,6 +8934,13 @@
             "columns": [
               "pull_request_id",
               "path"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "review_threads_external_index",
+            "columns": [
+              "external_id"
             ],
             "type": "index"
           }
@@ -8895,7 +9001,8 @@
               "active",
               "inactive",
               "draft"
-            ]
+            ],
+            "enumTypeName": "shipping_methods_status_type"
           },
           {
             "name": "created_at",
@@ -9083,7 +9190,8 @@
               "active",
               "inactive",
               "draft"
-            ]
+            ],
+            "enumTypeName": "shipping_zones_status_type"
           },
           {
             "name": "shipping_method_id",
@@ -9166,7 +9274,8 @@
               "linkedin",
               "tiktok",
               "youtube"
-            ]
+            ],
+            "enumTypeName": "social_posts_platform_type"
           },
           {
             "name": "status",
@@ -9181,7 +9290,8 @@
               "scheduled",
               "published",
               "failed"
-            ]
+            ],
+            "enumTypeName": "social_posts_status_type"
           },
           {
             "name": "scheduled_at",
@@ -9343,7 +9453,8 @@
               "ssh-ed25519",
               "ssh-rsa",
               "ecdsa-sha2-nistp256"
-            ]
+            ],
+            "enumTypeName": "ssh_keys_key_type_type"
           },
           {
             "name": "public_key",
@@ -9502,7 +9613,8 @@
               "unsubscribed",
               "pending",
               "bounced"
-            ]
+            ],
+            "enumTypeName": "subscribers_status_type"
           },
           {
             "name": "source",
@@ -9953,7 +10065,8 @@
               "Africa",
               "Oceania",
               "Antarctica"
-            ]
+            ],
+            "enumTypeName": "tax_rates_region_type"
           },
           {
             "name": "status",
@@ -9966,7 +10079,8 @@
             "enumValues": [
               "active",
               "inactive"
-            ]
+            ],
+            "enumTypeName": "tax_rates_status_type"
           },
           {
             "name": "is_default",
@@ -10160,7 +10274,8 @@
             "enumValues": [
               "maintainer",
               "member"
-            ]
+            ],
+            "enumTypeName": "team_members_role_type"
           },
           {
             "name": "created_at",
@@ -10426,6 +10541,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "github_username",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 39
           }
         ],
         "indexes": [
@@ -10454,6 +10578,13 @@
             "name": "users_uuid_unique",
             "columns": [
               "uuid"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "users_github_username_unique",
+            "columns": [
+              "github_username"
             ],
             "type": "unique"
           }
@@ -10516,7 +10647,8 @@
               "sms",
               "email",
               "both"
-            ]
+            ],
+            "enumTypeName": "waitlist_products_notification_preference_type"
           },
           {
             "name": "source",
@@ -10548,7 +10680,8 @@
               "purchased",
               "notified",
               "cancelled"
-            ]
+            ],
+            "enumTypeName": "waitlist_products_status_type"
           },
           {
             "name": "notified_at",
@@ -10700,7 +10833,8 @@
               "bar",
               "booth",
               "no_preference"
-            ]
+            ],
+            "enumTypeName": "waitlist_restaurants_table_preference_type"
           },
           {
             "name": "status",
@@ -10715,7 +10849,8 @@
               "seated",
               "cancelled",
               "no_show"
-            ]
+            ],
+            "enumTypeName": "waitlist_restaurants_status_type"
           },
           {
             "name": "quoted_wait_time",
@@ -10860,7 +10995,8 @@
               "all",
               "participating",
               "ignore"
-            ]
+            ],
+            "enumTypeName": "watches_subscription_type"
           },
           {
             "name": "created_at",
@@ -10951,7 +11087,8 @@
             "enumValues": [
               "application/json",
               "application/x-www-form-urlencoded"
-            ]
+            ],
+            "enumTypeName": "webhooks_content_type_type"
           },
           {
             "name": "active",
@@ -11184,7 +11321,8 @@
               "disconnection",
               "error",
               "success"
-            ]
+            ],
+            "enumTypeName": "websockets_type_type"
           },
           {
             "name": "socket",
@@ -11414,7 +11552,8 @@
               "organization",
               "issue",
               "pull_request"
-            ]
+            ],
+            "enumTypeName": "notification_mutes_subject_type_type"
           },
           {
             "name": "subject_id",
@@ -11636,7 +11775,8 @@
               "all",
               "organization",
               "selected"
-            ]
+            ],
+            "enumTypeName": "access_tokens_selection_type"
           },
           {
             "name": "organization_id",
@@ -11644,11 +11784,7 @@
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false,
-            "references": {
-              "table": "organizations",
-              "column": "id"
-            }
+            "hasDefault": false
           },
           {
             "name": "expires_at",
@@ -11772,7 +11908,8 @@
               "members",
               "organization_administration",
               "billing"
-            ]
+            ],
+            "enumTypeName": "access_token_permissions_scope_type"
           },
           {
             "name": "level",
@@ -11786,7 +11923,8 @@
               "read",
               "write",
               "admin"
-            ]
+            ],
+            "enumTypeName": "access_token_permissions_level_type"
           },
           {
             "name": "created_at",
@@ -11920,7 +12058,8 @@
             "enumValues": [
               "pull",
               "push"
-            ]
+            ],
+            "enumTypeName": "repository_mirrors_direction_type"
           },
           {
             "name": "provider",
@@ -11934,7 +12073,8 @@
               "github",
               "gitlab",
               "git"
-            ]
+            ],
+            "enumTypeName": "repository_mirrors_provider_type"
           },
           {
             "name": "remote_url",
@@ -12047,6 +12187,40 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "sync_metadata",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "last_metadata_sync_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "metadata_error",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "metadata_failure_count",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
           }
         ],
         "indexes": [
@@ -12076,7 +12250,7 @@
       }
     ]
   },
-  "hash": "b829a222c320b3940e94a70398731469322bdfe8f79fa562bc9e8085f58b63a7",
+  "hash": "56ce4685b7bfc40de40c4cc2b96a850ec18b22b6da4201504b25adf2106c30b1",
   "dialect": "postgres",
-  "updatedAt": "2026-08-01T03:11:03.386Z"
+  "updatedAt": "2026-08-01T03:42:57.176Z"
 }

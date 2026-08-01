@@ -158,6 +158,7 @@ declare global {
   const MirrorSweepJob: typeof import('../../../app/Jobs/MirrorSweepJob')['default']
   const MirrorSyncJob: typeof import('../../../app/Jobs/MirrorSyncJob')['default']
   const Inspire: typeof import('../../../app/Jobs/Inspire')['default']
+  const MirrorMetadataSyncJob: typeof import('../../../app/Jobs/MirrorMetadataSyncJob')['default']
   const QueryController: typeof import('../defaults/app/Controllers/QueryController')['default']
   const ComingSoonController: typeof import('../defaults/app/Controllers/ComingSoonController')['default']
 }
