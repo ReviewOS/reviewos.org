@@ -1,0 +1,48 @@
+<script server>
+/**
+ * The Code / Pull requests / Issues nav on a repository.
+ *
+ * Its own component so the three screens cannot disagree about what a
+ * repository has. A tab bar that appears on the list pages but not on the code
+ * page is how a reader concludes the lists do not exist.
+ */
+const ownerHandle = String(owner)
+const repositoryName = String(repository)
+// 'code', 'pulls' or 'issues'.
+const current = String(active ?? 'code')
+const base = `/${ownerHandle}/${repositoryName}`
+</script>
+
+  <nav class="repo-tabs" aria-label="Repository">
+    <a class="repo-tab {{ current === 'code' ? 'is-current' : '' }}" href="{{ base }}">Code</a>
+    <a class="repo-tab {{ current === 'pulls' ? 'is-current' : '' }}" href="{{ base }}/pulls">Pull requests</a>
+    <a class="repo-tab {{ current === 'issues' ? 'is-current' : '' }}" href="{{ base }}/issues">Issues</a>
+  </nav>
+
+<style>
+  .repo-tabs {
+    display: flex;
+    gap: 2px;
+    margin-top: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .repo-tab {
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--muted);
+    text-decoration: none;
+    /* The underline is on the tab rather than a separate marker so it lands on
+       the same pixel row as the container border. */
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+
+  .repo-tab:hover { color: var(--text); }
+
+  .repo-tab.is-current {
+    color: var(--text);
+    font-weight: 500;
+    border-bottom-color: var(--accent);
+  }
+</style>

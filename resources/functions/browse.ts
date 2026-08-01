@@ -159,6 +159,11 @@ export function shortSha(sha: string): string {
  */
 import { branchNames as branchNamesImpl, commitHistory as commitHistoryImpl, lastCommit as lastCommitImpl, listTree as listTreeImpl, MAX_BLOB_BYTES as MAX_BLOB_BYTES_IMPL, readBlob as readBlobImpl, tagNames as tagNamesImpl } from '../../app/Actions/Browse/load'
 import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
+// The list helpers. Every import in this file has to sit in this one block:
+// an `import` further down, after the `export const` re-bindings, is not
+// hoisted by stx's server-script transform, and every name from it arrives
+// undefined inside a component.
+import { authorIsLocal as authorIsLocalImpl, authorLabel as authorLabelImpl, countLabel as countLabelImpl, filterHref as filterHrefImpl, lastPage as lastPageImpl, listFilter as listFilterImpl, PAGE_SIZE as PAGE_SIZE_IMPL, pageHref as pageHrefImpl, pageNumber as pageNumberImpl, pageOffset as pageOffsetImpl, statePill as statePillImpl, stateLabel as stateLabelImpl, statesFor as statesForImpl } from '../../app/Actions/Browse/lists'
 
 export const listTree = listTreeImpl
 export const readBlob = readBlobImpl
@@ -169,6 +174,19 @@ export const commitHistory = commitHistoryImpl
 export const highlightLines = highlightLinesImpl
 export const languageFor = languageForImpl
 export const MAX_BLOB_BYTES = MAX_BLOB_BYTES_IMPL
+export const listFilter = listFilterImpl
+export const statesFor = statesForImpl
+export const pageNumber = pageNumberImpl
+export const pageOffset = pageOffsetImpl
+export const lastPage = lastPageImpl
+export const stateLabel = stateLabelImpl
+export const statePill = statePillImpl
+export const authorLabel = authorLabelImpl
+export const authorIsLocal = authorIsLocalImpl
+export const countLabel = countLabelImpl
+export const filterHref = filterHrefImpl
+export const pageHref = pageHrefImpl
+export const PAGE_SIZE = PAGE_SIZE_IMPL
 
 /**
  * A commit date as something a reader can place at a glance.

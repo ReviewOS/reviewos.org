@@ -1,0 +1,11 @@
+{{--
+  The pull list.
+
+  The filter and page come off the query string here, where the request is, and
+  are handed to the component as props. One component serves both lists.
+--}}
+@layout('app')
+
+@section('content')
+  <RepoList owner="{{ params.owner }}" repository="{{ params.repository }}" sort="pulls" state="{{ query.state ?? '' }}" pageParam="{{ query.page ?? '' }}" />
+@endsection

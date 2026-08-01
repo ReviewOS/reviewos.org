@@ -144,6 +144,8 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
         </div>
       </header>
 
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+
       @if (emptyRepository)
         <div class="panel" style="padding: 32px; text-align: center; margin-top: 18px;">
           <h2 style="font-size: 17px;">This repository is empty</h2>

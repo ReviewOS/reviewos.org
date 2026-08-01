@@ -1,0 +1,276 @@
+<script server>
+/**
+ * The pull request and issue lists for a repository.
+ *
+ * One component for both, because the two differ only in which table they read
+ * and what a row links to. Two nearly-identical templates would drift, and the
+ * place they would drift first is the state pill, which is the one thing on the
+ * row a reader actually scans for.
+ *
+ * Every rule comes from `app/Actions/Browse/lists`, via `resources/functions/browse`:
+ * what a filter means, how a page is bounded, how a state reads. Rules in a
+ * template cannot be tested.
+ */
+import { authorIsLocal, authorLabel, countLabel, filterHref, lastPage, listFilter, pageHref, pageNumber, pageOffset, PAGE_SIZE, relativeTime, stateLabel, statePill, statesFor } from '../functions/browse'
+
+const ownerHandle = String(owner)
+const repositoryName = String(repository)
+// 'pulls' or 'issues'. The component reads one table or the other; everything
+// else on the page is the same.
+const kind = String(sort ?? 'pulls') === 'issues' ? 'issues' : 'pulls'
+
+// The filter and page arrive as props rather than being read here: a component
+// receives only what it is passed, and the query string belongs to the request
+// the view is answering.
+const filter = listFilter(state)
+const page = pageNumber(pageParam)
+const states = statesFor(filter)
+
+// The owner is a user or an organization and both have handles, so resolving it
+// first is what stops `/someone/stacks` finding a repository owned by somebody
+// else.
+const orgRow = await db
+  .selectFrom('organizations')
+  .selectAll()
+  .where('handle', '=', ownerHandle)
+  .executeTakeFirst()
+
+const userRow = orgRow
+  ? null
+  : await db.selectFrom('users').selectAll().where('handle', '=', ownerHandle).executeTakeFirst()
+
+const ownerType = orgRow ? 'organization' : (userRow ? 'user' : null)
+const ownerId = orgRow ? Number(orgRow.id) : (userRow ? Number(userRow.id) : null)
+
+const repoRow = ownerId
+  ? await db
+      .selectFrom('repositories')
+      .selectAll()
+      .where('owner_type', '=', ownerType)
+      .where('owner_id', '=', ownerId)
+      .where('name', '=', repositoryName)
+      .executeTakeFirst()
+  : null
+
+const table = kind === 'issues' ? 'issues' : 'pull_requests'
+const repositoryId = repoRow ? Number(repoRow.id) : 0
+
+function scoped() {
+  let q = db.selectFrom(table).where('repository_id', '=', repositoryId)
+  // Issues and pull requests share a number sequence and the issues table
+  // carries both, so the flag is what keeps a pull request off the issue list.
+  if (kind === 'issues') q = q.where('is_pull_request', '=', false)
+  return q
+}
+
+// The counts on the tabs are the whole set, not the current page, because the
+// question they answer is "how much is there", not "how much am I looking at".
+const openCount = repoRow
+  ? Number((await scoped().select(db.fn.count('id').as('n')).where('state', '=', 'open').executeTakeFirst())?.n ?? 0)
+  : 0
+
+const totalCount = repoRow
+  ? Number((await scoped().select(db.fn.count('id').as('n')).executeTakeFirst())?.n ?? 0)
+  : 0
+
+const closedCount = totalCount - openCount
+
+const filteredCount = filter === 'open' ? openCount : (filter === 'closed' ? closedCount : totalCount)
+
+let rowQuery = repoRow ? scoped() : null
+if (rowQuery && states) rowQuery = rowQuery.where('state', 'in', states)
+
+const rows = rowQuery
+  ? await rowQuery
+      // A LEFT join: a mirrored row has no local author, and an inner join
+      // would drop it from the list without saying so.
+      .leftJoin('users', 'users.id', '=', `${table}.author_id`)
+      .select([
+        `${table}.id as id`,
+        `${table}.number as number`,
+        `${table}.title as title`,
+        `${table}.state as state`,
+        `${table}.created_at as created_at`,
+        `${table}.external_author as external_author`,
+        'users.handle as handle',
+      ])
+      .orderBy(`${table}.number`, 'desc')
+      .limit(PAGE_SIZE)
+      .offset(pageOffset(page))
+      .execute()
+  : []
+
+// `draft` only exists on pull requests, and selecting it for issues would be a
+// column that is not there.
+const draftById = new Map()
+if (kind === 'pulls' && rows.length > 0) {
+  const draftRows = await db
+    .selectFrom('pull_requests')
+    .select(['id', 'draft'])
+    .where('id', 'in', rows.map((row) => Number(row.id)))
+    .execute()
+  for (const row of draftRows) draftById.set(Number(row.id), Boolean(row.draft))
+}
+
+const base = `/${ownerHandle}/${repositoryName}/${kind}`
+const finalPage = lastPage(filteredCount)
+const noun = kind === 'issues' ? ['issue', 'issues'] : ['pull request', 'pull requests']
+const notFound = !repoRow
+</script>
+
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (notFound)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+        <p class="muted" style="margin-top: 6px;">
+          Nothing is hosted at {{ ownerHandle }}/{{ repositoryName }}.
+        </p>
+      </div>
+    @else
+      <header class="repo-head">
+        <div class="repo-title-row">
+          <h1 class="repo-title">
+            <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="/{{ ownerHandle }}/{{ repositoryName }}">{{ repositoryName }}</a>
+          </h1>
+          <span class="pill pill-{{ repoRow.visibility }}">{{ repoRow.visibility }}</span>
+        </div>
+      </header>
+
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="{{ kind }}" />
+
+      {{-- Filters. Plain links rather than a scripted control, so they work
+           before any JavaScript runs and each one is a real url someone can
+           share. --}}
+      <nav class="list-filters" aria-label="Filter">
+        <a class="list-filter {{ filter === 'open' ? 'is-current' : '' }}" href="{{ filterHref(base, 'open') }}">
+          {{ countLabel(openCount, 'open ' + noun[0], 'open ' + noun[1]) }}
+        </a>
+        <a class="list-filter {{ filter === 'closed' ? 'is-current' : '' }}" href="{{ filterHref(base, 'closed') }}">
+          {{ countLabel(closedCount, 'closed ' + noun[0], 'closed ' + noun[1]) }}
+        </a>
+        <a class="list-filter {{ filter === 'all' ? 'is-current' : '' }}" href="{{ filterHref(base, 'all') }}">
+          All
+        </a>
+      </nav>
+
+      @if (rows.length === 0)
+        <div class="panel" style="padding: 40px; text-align: center;">
+          <p class="muted">Nothing here yet.</p>
+        </div>
+      @else
+        <ul class="panel list-rows">
+          @foreach (rows as row)
+            <li class="list-row">
+              <span class="pill pill-{{ statePill(String(row.state), draftById.get(Number(row.id)) === true) }}">
+                {{ stateLabel(String(row.state), draftById.get(Number(row.id)) === true) }}
+              </span>
+
+              <div class="list-row-main">
+                <a class="list-row-title" href="/{{ ownerHandle }}/{{ repositoryName }}/{{ kind === 'issues' ? 'issue' : 'pull' }}/{{ row.number }}">
+                  {{ row.title }}
+                </a>
+                <p class="muted list-row-meta">
+                  #{{ row.number }} opened {{ relativeTime(String(row.created_at ?? '')) }} by
+                  @if (authorIsLocal(row.handle))
+                    <a href="/{{ row.handle }}">{{ authorLabel(row.handle, row.external_author) }}</a>
+                  @else
+                    {{-- No local account to link to. The name is still shown,
+                         because the author being unlinked is a fact about this
+                         forge, not about them. --}}
+                    <span>{{ authorLabel(row.handle, row.external_author) }}</span>
+                  @endif
+                </p>
+              </div>
+            </li>
+          @endforeach
+        </ul>
+
+        @if (finalPage > 1)
+          <nav class="list-pager" aria-label="Pagination">
+            @if (page > 1)
+              <a class="list-page" href="{{ pageHref(base, filter, page - 1) }}">Newer</a>
+            @else
+              <span class="list-page is-disabled">Newer</span>
+            @endif
+
+            <span class="muted">Page {{ page }} of {{ finalPage }}</span>
+
+            @if (page < finalPage)
+              <a class="list-page" href="{{ pageHref(base, filter, page + 1) }}">Older</a>
+            @else
+              <span class="list-page is-disabled">Older</span>
+            @endif
+          </nav>
+        @endif
+      @endif
+    @endif
+  </div>
+
+<style>
+  .list-filters {
+    display: flex;
+    gap: 4px;
+    margin: 18px 0 12px;
+  }
+
+  .list-filter {
+    padding: 6px 12px;
+    border-radius: 7px;
+    font-size: 13px;
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .list-filter:hover { background: var(--surface-tint); }
+  .list-filter.is-current { background: var(--surface-tint); color: var(--text); font-weight: 500; }
+
+  .list-rows { list-style: none; margin: 0; padding: 0; }
+
+  .list-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .list-row:last-child { border-bottom: 0; }
+
+  .list-row-main { min-width: 0; }
+
+  .list-row-title {
+    display: block;
+    font-weight: 500;
+    color: var(--text);
+    text-decoration: none;
+    /* A title is one line: a wrapped 200-character title pushes every row
+       below it off the screen, and the number plus the first few words is
+       what people scan by. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .list-row-title:hover { color: var(--accent-text); }
+  .list-row-meta { margin-top: 3px; font-size: 12px; }
+
+  .list-pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-top: 18px;
+    font-size: 13px;
+  }
+
+  .list-page {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    text-decoration: none;
+    color: var(--text);
+  }
+
+  .list-page:hover { background: var(--surface-tint); }
+  .list-page.is-disabled { color: var(--muted); opacity: 0.5; }
+</style>

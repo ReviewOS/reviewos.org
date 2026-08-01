@@ -31,9 +31,18 @@ const pullRequest = repoRow
       .executeTakeFirst()
   : undefined
 
-const author = pullRequest
+/**
+ * The author's name to show.
+ *
+ * A local user when there is one, and the upstream login when there is not.
+ * Mirrored pull requests are the common case for the second: their author is
+ * whoever opened it on the other host, who usually has no account here.
+ */
+const localAuthor = pullRequest && pullRequest.author_id
   ? await db.selectFrom('users').select(['handle']).where('id', '=', Number(pullRequest.author_id)).executeTakeFirst()
   : undefined
+
+const authorName = localAuthor?.handle ?? (pullRequest?.external_author ? String(pullRequest.external_author) : null)
 
 const reviews = pullRequest
   ? await db
@@ -57,12 +66,17 @@ const commentRows = threadRows.length === 0
   ? []
   : await db
       .selectFrom('review_comments')
-      .innerJoin('users', 'users.id', '=', 'review_comments.author_id')
+      // A LEFT join, not an inner one: a comment whose author has no local
+      // account - mirrored from elsewhere, or written by an account since
+      // deleted - is still something someone wrote, and an inner join drops it
+      // from the review entirely without saying so.
+      .leftJoin('users', 'users.id', '=', 'review_comments.author_id')
       .select([
         'review_comments.id as id',
         'review_comments.review_thread_id as review_thread_id',
         'review_comments.body as body',
         'review_comments.created_at as created_at',
+        'review_comments.external_author as external_author',
         'users.handle as handle',
       ])
       .where('review_comments.review_thread_id', 'in', threadRows.map((row: any) => Number(row.id)))
@@ -158,7 +172,7 @@ const threads = threadRows.map((row: any) => {
       .filter((comment: any) => Number(comment.review_thread_id) === Number(row.id))
       .map((comment: any) => ({
         id: Number(comment.id),
-        authorHandle: String(comment.handle),
+        authorHandle: String(comment.handle ?? comment.external_author ?? 'someone'),
         body: String(comment.body),
         createdAt: String(comment.created_at ?? ''),
       })),
@@ -324,7 +338,7 @@ const stackReadiness = stack.map(entry => ({
 const stackBlocker = currentMember ? blockedBy(stack, currentMember.id, stackReadiness) : null
 
 const title = pullRequest
-  ? `${pullRequest.title} by ${author?.handle ?? 'someone'} · ${owner}/${repositoryName} #${number}`
+  ? `${pullRequest.title} by ${authorName ?? 'someone'} · ${owner}/${repositoryName} #${number}`
   : 'Pull request not found'
 
 const stateLabel = pullRequest
@@ -357,7 +371,7 @@ const statePill = pullRequest
         <div class="pr-meta">
           <span class="pill pill-{{ statePill }}">{{ stateLabel }}</span>
           <span class="muted">
-            {{ author?.handle ?? 'someone' }} wants to merge
+            {{ authorName ?? 'someone' }} wants to merge
             <span class="mono">{{ pullRequest.head_branch }}</span>
             into
             <span class="mono">{{ pullRequest.base_branch }}</span>
