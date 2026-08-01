@@ -732,6 +732,11 @@ export const tsCloud: TsCloudConfig = {
         // nothing in it rather than a broken one.
         'bun node_modules/@stacksjs/buddy/dist/cli.js migrate',
       ],
+      // Bare repositories live on the box and are authoritative there: the
+      // mirror fetches into them, and pushes land in them. Packaging a local
+      // copy turned a 2 MB release into a 195 MB one and would have replaced
+      // live repository storage with whatever this machine happened to have.
+      exclude: ['storage/repos'],
       // Postgres runs on the box itself, reached over loopback. Declared here
       // rather than left to the deployer's defaults because a release .env
       // without these is not a misconfigured database, it is no database at
