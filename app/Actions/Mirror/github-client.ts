@@ -54,7 +54,31 @@ export function resetDelayMs(headers: Headers, now: Date = new Date()): number {
  * collection that is an exact multiple of the page size.
  */
 export function hasNextPage(headers: Headers): boolean {
-  return /rel="next"/.test(headers.get('link') ?? '')
+  return nextPageUrl(headers) !== null
+}
+
+/**
+ * The URL of the next page, exactly as GitHub gave it.
+ *
+ * Following this link is the only pagination that works past a few thousand
+ * rows. Building `?page=N` by hand does not: on a large collection GitHub
+ * answers 422 with "pagination with the page parameter is not supported for
+ * large datasets, please use cursor based pagination". The `next` link already
+ * carries that cursor, so honouring it costs nothing and is what the Link
+ * header is for.
+ *
+ * A mirror is exactly the case that hits this, since it reads every issue a
+ * repository ever had rather than the first page of them.
+ */
+export function nextPageUrl(headers: Headers): string | null {
+  const link = headers.get('link') ?? ''
+
+  for (const part of link.split(',')) {
+    const match = /^\s*<([^>]+)>\s*;\s*rel="next"/.exec(part)
+    if (match?.[1]) return match[1]
+  }
+
+  return null
 }
 
 export class GitHubClient {
@@ -97,10 +121,10 @@ export class GitHubClient {
     const maxPages = options.maxPages ?? 200
     const items: T[] = []
 
-    for (let page = 1; page <= maxPages; page++) {
-      const separator = path.includes('?') ? '&' : '?'
-      const url = `${API}${path}${separator}per_page=${perPage}&page=${page}`
+    const separator = path.includes('?') ? '&' : '?'
+    let url: string | null = `${API}${path}${separator}per_page=${perPage}`
 
+    for (let page = 1; page <= maxPages && url !== null; page++) {
       let response: Response
       try {
         response = await this.fetchImpl(url, { headers: this.headers() })
@@ -124,7 +148,10 @@ export class GitHubClient {
 
       items.push(...(body as T[]))
 
-      if (!hasNextPage(response.headers))
+      // The next URL comes from GitHub rather than being constructed here, so
+      // the cursor it carries survives into the following request.
+      url = nextPageUrl(response.headers)
+      if (url === null)
         return { ok: true, items, error: null, truncated: false }
     }
 

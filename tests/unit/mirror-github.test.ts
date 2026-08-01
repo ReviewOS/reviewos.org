@@ -250,6 +250,54 @@ describe('GitHub client paging and limits', () => {
     expect(hasNextPage(new Headers())).toBe(false)
   })
 
+  /**
+   * The next page is followed, not reconstructed.
+   *
+   * Building `?page=N` by hand works until a collection gets large, at which
+   * point GitHub answers 422: "pagination with the page parameter is not
+   * supported for large datasets, please use cursor based pagination". The
+   * `next` link already carries that cursor. A mirror reads every issue a
+   * repository ever had, so it is exactly the case that hits the ceiling.
+   */
+  it('extracts the next url from the Link header', async () => {
+    const { nextPageUrl } = await import('../../app/Actions/Mirror/github-client')
+    const link = '<https://api.github.com/x?after=cursor1>; rel="next", <https://api.github.com/x?page=9>; rel="last"'
+
+    expect(nextPageUrl(new Headers({ link }))).toBe('https://api.github.com/x?after=cursor1')
+  })
+
+  it('is null when only other relations are present', async () => {
+    const { nextPageUrl } = await import('../../app/Actions/Mirror/github-client')
+    const link = '<https://api.github.com/x?page=1>; rel="prev", <https://api.github.com/x?page=1>; rel="first"'
+
+    expect(nextPageUrl(new Headers({ link }))).toBeNull()
+    expect(nextPageUrl(new Headers())).toBeNull()
+  })
+
+  it('requests the url GitHub gave rather than a page number it invented', async () => {
+    const { GitHubClient } = await import('../../app/Actions/Mirror/github-client')
+    const seen: string[] = []
+    let call = 0
+
+    const client = new GitHubClient({
+      fetchImpl: (async (input: any) => {
+        seen.push(String(input))
+        call++
+        const headers: Record<string, string> = call === 1
+          ? { link: '<https://api.github.com/repos/a/b/issues?after=CURSOR>; rel="next"' }
+          : {}
+        return new Response(JSON.stringify([{ number: call }]), { status: 200, headers })
+      }) as any,
+    })
+
+    const result = await client.collect('/repos/a/b/issues')
+
+    expect(result.ok).toBe(true)
+    expect(seen[1]).toBe('https://api.github.com/repos/a/b/issues?after=CURSOR')
+    // Never a hand-built page parameter.
+    expect(seen.some(u => u.includes('page=2'))).toBe(false)
+  })
+
   it('tells a rate limit apart from a permission failure', async () => {
     // Both are 403, and they want opposite responses: retry one, never the
     // other.
