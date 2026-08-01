@@ -231,6 +231,34 @@
       @media (prefers-reduced-motion: reduce) {
         * { animation: none !important; transition: none !important; }
       }
+
+      /* Syntax colours, shared by the diff and the file view.
+         Deliberately low-saturation: in a diff they sit on top of green and red
+         backgrounds, and a vivid palette turns a reviewed line into a fruit
+         salad. Hue carries the meaning, not intensity.
+
+         They live in the layout rather than in either component so the two
+         cannot drift into disagreeing about what a keyword looks like. */
+      .t-keyword { color: #8250df; }
+      .t-string { color: #0a6640; }
+      .t-comment { color: var(--muted); font-style: italic; }
+      .t-numeric { color: #0550ae; }
+      .t-function { color: #6639ba; }
+      .t-type { color: #953800; }
+      .t-tag { color: #0a6640; }
+      .t-attribute { color: #6639ba; }
+      .t-operator, .t-punctuation { color: var(--muted); }
+      .t-variable, .t-text { color: inherit; }
+
+      @media (prefers-color-scheme: dark) {
+        .t-keyword { color: #d2a8ff; }
+        .t-string { color: #7ee787; }
+        .t-numeric { color: #79c0ff; }
+        .t-function { color: #d2a8ff; }
+        .t-type { color: #ffa657; }
+        .t-tag { color: #7ee787; }
+        .t-attribute { color: #d2a8ff; }
+      }
     </style>
     {!! head ?? '' !!}
   </head>

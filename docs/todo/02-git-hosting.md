@@ -137,6 +137,18 @@ the one moment where rejecting is still possible.
 - [x] Binary and oversized files are declined rather than streamed into the page
 - [x] 30 unit tests, including a filename containing a newline, which is legal and is why the
       listing is NUL-delimited rather than line-delimited
-- [ ] Syntax highlighting in the file view
-- [ ] Branch and tag picker
+- [x] Branch picker, a plain `<details>` so it works before any JavaScript runs
+- [x] Syntax highlighting in the file view, server-side, sharing one token palette with the diff
+      via the layout so the two cannot disagree about what a keyword looks like
+- [ ] Verify the file view in a browser. Blocked with the deep-path routing below
+- [ ] Tag picker alongside branches
 - [ ] Commit history view
+
+### Known blocker
+
+Deep paths (`/owner/repo/tree/ref/some/path`) do not route correctly. stx-router bound route
+parameters to the wrong capture groups whenever a pattern mixed a catch-all with ordinary segments;
+that is fixed and pushed upstream, but every compiled copy in this app's dependency tree still
+carries the old behaviour and regenerates the same wrong order after patching and cache clearing.
+It resolves on the next stx release. The browse code itself is not implicated: the root route
+renders correctly from the same component.

@@ -10,7 +10,7 @@
  * Server-rendered, like the review screen, so a repository with thousands of
  * files costs the browser nothing.
  */
-import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, lastCommit, listTree, readBlob, shortSha, sortEntries, branchNames } from '../functions/browse'
+import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, lastCommit, listTree, readBlob, shortSha, sortEntries, branchNames, highlightLines, languageFor } from '../functions/browse'
 
 // Props arrive as attribute strings, so everything is normalised here rather
 // than at each use site.
@@ -70,6 +70,14 @@ const readme = readmeEntry
   ? await readBlob(diskPath, ref, childPath(requestedPath, readmeEntry.name))
   : null
 
+// Highlighting happens here, not in the browser: a large file tokenised
+// client-side is jank exactly when someone is trying to read code.
+const sourceLines = (blob && blob.ok && blob.text !== null && !blob.binary && !blob.tooLarge && !isMarkdown(requestedPath))
+  ? blob.text.replace(/\n$/, '').split('\n')
+  : []
+const highlighted = sourceLines.length > 0 ? await highlightLines(sourceLines, requestedPath) : []
+const language = sourceLines.length > 0 ? languageFor(requestedPath) : null
+
 const head = repoRow ? await lastCommit(diskPath, ref, requestedPath) : null
 const branches = repoRow ? await branchNames(diskPath) : []
 
@@ -99,9 +107,24 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
         @endif
 
         <div class="repo-meta muted">
-          <span class="mono">{{ ref }}</span>
+          {{-- A plain <details> rather than a scripted menu: it works before
+               any JavaScript runs, which is the point of rendering on the
+               server. --}}
           @if (branches.length > 1)
+            <details class="branch-picker">
+              <summary class="mono">{{ ref }}</summary>
+              <ul class="branch-list">
+                @foreach (branches as branch)
+                  <li>
+                    <a class="branch-item {{ branch === ref ? 'is-current' : '' }}"
+                       href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ branch }}/{{ requestedPath }}">{{ branch }}</a>
+                  </li>
+                @endforeach
+              </ul>
+            </details>
             <span>&middot; {{ branches.length }} branches</span>
+          @else
+            <span class="mono">{{ ref }}</span>
           @endif
           <span>&middot; {{ formatSize(Number(repoRow.size_kb ?? 0) * 1024) }}</span>
         </div>
@@ -175,7 +198,12 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
           <div class="panel file">
             <header class="file-head">
               <span class="mono">{{ requestedPath }}</span>
-              <span class="muted">{{ formatSize(blob?.size ?? null) }}</span>
+              <span class="muted">
+                @if (language)
+                  {{ language }} &middot;
+                @endif
+                {{ formatSize(blob?.size ?? null) }}
+              </span>
             </header>
 
             @if (!blob || !blob.ok)
@@ -193,7 +221,16 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
                 @endmarkdown
               </div>
             @else
-              <pre class="file-source"><code>{{ blob.text }}</code></pre>
+              <table class="source">
+                <tbody>
+                  @foreach (highlighted as tokens, index)
+                    <tr class="source-row">
+                      <td class="source-num mono">{{ index + 1 }}</td>
+                      <td class="source-code mono">@foreach (tokens as token)<span class="t-{{ token.type }}">{{ token.content }}</span>@endforeach</td>
+                    </tr>
+                  @endforeach
+                </tbody>
+              </table>
             @endif
           </div>
         @endif
@@ -234,5 +271,44 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
 
   .file { margin-top: 10px; overflow: hidden; }
   .file-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 13px; }
-  .file-source { padding: 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; }
+  .source { width: 100%; border-collapse: collapse; font-size: 12.5px; line-height: 1.55; }
+  .source-num {
+    width: 1%;
+    padding: 0 12px 0 16px;
+    text-align: right;
+    color: var(--muted);
+    vertical-align: top;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .source-code { padding: 0 16px 0 0; white-space: pre; }
+  .source-row:first-child .source-num, .source-row:first-child .source-code { padding-top: 14px; }
+  .source-row:last-child .source-num, .source-row:last-child .source-code { padding-bottom: 14px; }
+
+  .branch-picker { position: relative; display: inline-block; }
+  .branch-picker summary { cursor: pointer; list-style: none; }
+  .branch-picker summary::-webkit-details-marker { display: none; }
+  .branch-list {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 220px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 5px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    background: var(--surface);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  }
+  .branch-item {
+    display: block;
+    padding: 6px 9px;
+    border-radius: var(--r-control);
+    font-size: 13px;
+    text-decoration: none;
+  }
+  .branch-item:hover { background: var(--accent-quiet); }
+  .branch-item.is-current { font-weight: 600; color: var(--accent-text); }
 </style>
