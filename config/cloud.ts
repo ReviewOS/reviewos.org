@@ -726,6 +726,16 @@ export const tsCloud: TsCloudConfig = {
       // `buddy new` layout - does not have.
       preStart: [
         'bun install',
+        // Repository storage lives beside the releases, not inside one.
+        //
+        // A release directory is replaced on every deploy; bare repositories
+        // are not disposable. Keeping them in `shared` and linking them in is
+        // what stops a deploy from taking the repositories with it - which is
+        // exactly what happened the first time they were excluded from the
+        // tarball without somewhere else to live.
+        'mkdir -p ../shared/storage/repos',
+        'rm -rf storage/repos',
+        'ln -sfn ../../shared/storage/repos storage/repos',
         // Migrate on every deploy. Without it a fresh box serves the app
         // against a database that does not exist, and every page that reads
         // one renders its empty state - which looks like a working site with
