@@ -563,9 +563,16 @@ jobs:
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
+          # Not optional. The deploy reaches the box over SSH, and without a
+          # key it gets as far as the first connection and stops there - which
+          # reads as an unreachable server rather than an unset secret.
           if [ -z "$DEPLOY_SSH_KEY" ]; then
-            echo "No deploy SSH key configured; continuing without one."
-            exit 0
+            echo "::error::DEPLOY_SSH_KEY is empty. The deploy connects to the server over SSH and cannot without it."
+            echo "Use a dedicated key, not a personal one - an Actions secret hands CI everything that key opens:"
+            echo "  ssh-keygen -t ed25519 -f ~/.ssh/reviewos-deploy -N '' -C 'reviewos github actions'"
+            echo "  ssh-copy-id -i ~/.ssh/reviewos-deploy.pub root@<server>"
+            echo "  gh secret set DEPLOY_SSH_KEY --repo ${{ github.repository }} < ~/.ssh/reviewos-deploy"
+            exit 1
           fi
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
