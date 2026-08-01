@@ -106,9 +106,37 @@ jobs:
           PORKBUN_API_KEY: ${{ secrets.PORKBUN_API_KEY }}
           PORKBUN_SECRET_KEY: ${{ secrets.PORKBUN_SECRET_KEY }}
           APP_KEY: ${{ secrets.APP_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+
+          # Write the .env the app expects.
+          #
+          # `buddy deploy` reads process.env, but the Stacks env layer loads
+          # `.env` first and what it finds there wins - so on a runner with no
+          # `.env` the exported secrets were being overwritten with nothing, and
+          # the deploy stopped with "No Hetzner API token found" while the token
+          # was sitting right there in the environment.
+          #
+          # DB_PASSWORD matters as much as the token: config/cloud.ts passes it
+          # through to the release env, and deploying without it would point
+          # production at its database with an empty password and fail at
+          # migrate.
+          umask 077
+          {
+            printf 'APP_ENV=production\n'
+            printf 'HCLOUD_TOKEN=%s\n' "${HCLOUD_TOKEN:-}"
+            printf 'APP_KEY=%s\n' "${APP_KEY:-}"
+            printf 'DB_PASSWORD=%s\n' "${DB_PASSWORD:-}"
+            printf 'PORKBUN_API_KEY=%s\n' "${PORKBUN_API_KEY:-}"
+            printf 'PORKBUN_SECRET_KEY=%s\n' "${PORKBUN_SECRET_KEY:-}"
+          } > .env
+
+          if [ -z "${DB_PASSWORD:-}" ]; then
+            echo "::warning::DB_PASSWORD is not set; the release will not be able to reach its database."
+          fi
+
           site='${{ inputs.site }}'
           if [ -n "$site" ]; then
             ./buddy deploy --site "$site" --prod --yes
