@@ -53,6 +53,39 @@ Concretely, for anything with data behind it:
    `resources/components/`.
 6. Add tests under `tests/`.
 
+## The migration generator is not currently trustworthy
+
+`./buddy generate:migrations` against this schema writes 33 files that should not exist and skips 69
+statements it admits are wrong, so a model change cannot currently be turned into a migration by
+running it and reading the diff. Delete what it writes; nothing here has been applied, and the live
+schema is correct.
+
+What it gets wrong, on every run:
+
+- A foreign key against the wrong table. `issues.author_id` is declared
+  `belongsTo: [{ model: 'User', foreignKey: 'author_id' }]` and comes out pointing at `authors`, a
+  CMS table this project does not use. Applying it would reject every issue insert.
+- Foreign keys on polymorphic columns (`taggable_models.taggable_id -> posts`), which by definition
+  cannot have one.
+- Indexes dropped and recreated, unchanged, because the two sides of the diff name them differently.
+- 69 `ALTER`s naming enum types nothing creates, which the framework filters out with a warning
+  saying it is a generator bug.
+
+Where it is not: bun-query-builder 0.2.2, called directly with the same models directory, the same
+dialect and the same options, produces the correct `REFERENCES "users"`. Reproduced against the app
+models alone, against a hand-staged merge of app and framework models, and against the framework's
+own staging directory - correct every time. So the defect is in the `@stacksjs/database` layer
+between `buddy` and the query builder, and is not yet isolated further than that.
+
+Already done and not the fix: bun-query-builder was released at 0.2.2 with five migration fixes that
+had never reached an application, and the framework was moved off the `^0.1.63` pin that could never
+resolve to them (stacks 0.70.238). That was a real blockage - it is just not this one.
+
+- [ ] Isolate the remaining difference between `buddy generate:migrations` and a direct
+      `generateMigration` call, and fix it upstream
+- [ ] Regenerate this project's migration corpus once it is trustworthy, and commit the model
+      snapshot alongside it
+
 ## Deliberately not doing yet
 
 Naming these keeps them from being re-proposed every few weeks:
