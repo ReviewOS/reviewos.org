@@ -39,9 +39,19 @@ route.post('/user/notifications/mutes', 'Actions/Notification/MuteAction').middl
 
 // Issues. Both issues and pull requests live in one numbering sequence, so
 // `#12` means one thing in a repository, and a comment endpoint serves both.
+// Listing is the one that is readable without an account, because a public
+// repository's issues are public.
+route.get('/repos/issues', 'Actions/Issue/ListIssuesAction')
 route.post('/repos/issues', 'Actions/Issue/CreateIssueAction').middleware('auth')
+route.put('/repos/issues', 'Actions/Issue/UpdateIssueAction').middleware('auth')
 route.post('/repos/issues/comments', 'Actions/Issue/CommentOnIssueAction').middleware('auth')
+route.put('/repos/issues/comments', 'Actions/Issue/UpdateCommentAction').middleware('auth')
+route.delete('/repos/issues/comments', 'Actions/Issue/DeleteCommentAction').middleware('auth')
 route.put('/repos/issues/state', 'Actions/Issue/UpdateIssueStateAction').middleware('auth')
+route.put('/repos/issues/labels', 'Actions/Issue/LabelIssueAction').middleware('auth')
+route.put('/repos/issues/assignees', 'Actions/Issue/AssignIssueAction').middleware('auth')
+route.put('/repos/issues/milestone', 'Actions/Issue/MilestoneIssueAction').middleware('auth')
+route.put('/repos/issues/lock', 'Actions/Issue/LockIssueAction').middleware('auth')
 
 // Pull requests and review. Merging is its own endpoint rather than a state
 // update: it moves a branch, and that is not something to reach by accident.

@@ -23,14 +23,23 @@ or a pull request.
 
 ## Actions
 
-- [ ] `app/Actions/Issue/ListIssuesAction.ts` - filter by state, label, assignee, author, milestone;
+- [x] `app/Actions/Issue/ListIssuesAction.ts` - filter by state, label, assignee, author, milestone;
       sort by created, updated, comments; keyset pagination rather than offset
-- [ ] `CreateIssueAction.ts`, `UpdateIssueAction.ts`, `CloseIssueAction.ts`, `ReopenIssueAction.ts`
-- [ ] `CommentAction.ts`, `UpdateCommentAction.ts`, `DeleteCommentAction.ts`
-- [ ] `AssignAction.ts`, `LabelAction.ts`, `MilestoneAction.ts`, `LockAction.ts`
+- [ ] Page the `updated` and `comments` sorts. Both can tie, so their cursor needs `(value, id)`
+      compared as a tuple, which is an `OR`. The query builder ignores its expression-callback form
+      of `where` outright and drops the bound values from a raw fragment on Postgres, so rather than
+      hand out a cursor that repeats rows, those two sorts answer one page and return no cursor.
+      The fail-open half is fixed upstream (`where` now throws instead of ignoring); the raw
+      fragment still needs doing.
+- [x] `CreateIssueAction.ts`, `UpdateIssueAction.ts`, close and reopen (one `UpdateIssueStateAction`,
+      because they are the same transition with a different argument and the rules live together)
+- [x] `CommentOnIssueAction.ts`, `UpdateCommentAction.ts`, `DeleteCommentAction.ts`
+- [x] `AssignIssueAction.ts`, `LabelIssueAction.ts`, `MilestoneIssueAction.ts`, `LockIssueAction.ts`
 - [ ] Bulk operations from the list view: close, label, assign, milestone
-- [ ] Permission checks: triage can label, assign, and close; write can edit others' issues; anyone
-      with read can comment on a public repository
+- [x] Permission checks: triage can label, assign, milestone, lock and close; write can edit others'
+      issues; anyone with read can comment on a public repository. Every one of them is a named
+      ability in `app/Permissions.ts` with a token scope beside it in `app/TokenScopes.ts`, which a
+      test enforces, so a capability cannot ship without a way to grant it.
 
 ## Markdown
 

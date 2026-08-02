@@ -35,7 +35,11 @@ export const REPOSITORY_ABILITIES = {
   'pull:review': 'read',
   'issue:label': 'triage',
   'issue:assign': 'triage',
+  'issue:milestone': 'triage',
   'issue:close': 'triage',
+  // Locking ends a conversation for everyone else, so it sits with the other
+  // triage powers rather than with editing.
+  'issue:lock': 'triage',
   'pull:close': 'triage',
   'pull:request-review': 'triage',
   'repository:push': 'write',
