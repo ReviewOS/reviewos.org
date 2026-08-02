@@ -91,7 +91,7 @@
   "dependencies": {
     "@stacksjs/stx": "^0.2.151",
     "pickier": "^0.1.45",
-    "stacks": "^0.70.241",
+    "stacks": "^0.70.243",
     "ts-syntax-highlighter": "^0.2.6"
   },
   "workspaces": [

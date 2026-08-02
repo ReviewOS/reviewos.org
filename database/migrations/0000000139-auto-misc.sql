@@ -1,5 +1,9 @@
-DO $$ BEGIN CREATE TYPE "notification_deliveries_channel_type" AS ENUM ('email', 'sms', 'chat', 'database', 'push', 'broadcast'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE TYPE "notification_deliveries_status_type" AS ENUM ('pending', 'sent', 'delivered', 'failed'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE TYPE "notification_deliveries_channel_type" AS ENUM ('email', 'sms', 'chat', 'database', 'push', 'broadcast');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN CREATE TYPE "notification_deliveries_status_type" AS ENUM ('pending', 'sent', 'delivered', 'failed');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
 DROP INDEX IF EXISTS "activities_activities_uuid_unique";
 DROP INDEX IF EXISTS "analytics_events_analytics_events_uuid_unique";
 DROP INDEX IF EXISTS "authors_authors_email_name_index";
