@@ -38,7 +38,14 @@ or a pull request.
       because they are the same transition with a different argument and the rules live together)
 - [x] `CommentOnIssueAction.ts`, `UpdateCommentAction.ts`, `DeleteCommentAction.ts`
 - [x] `AssignIssueAction.ts`, `LabelIssueAction.ts`, `MilestoneIssueAction.ts`, `LockIssueAction.ts`
-- [ ] Bulk operations from the list view: close, label, assign, milestone
+- [x] Bulk operations from the list view: close, reopen, add and remove a label, set a milestone.
+      One form wraps the rows, so the checkboxes and the toolbar are the same submission with no
+      client script holding them together. Each operation asks for the ability its single-issue
+      version asks for, mapped in one place rather than per branch: a permission check written per
+      branch is one that eventually gets missed on a branch. A selection with an unparseable entry
+      is refused whole rather than narrowed, because acting on fewer issues than somebody chose is
+      worse than telling them to try again. Assigning in bulk is still open - it needs a person
+      picker, which the list has nowhere to put yet.
 - [x] Permission checks: triage can label, assign, milestone, lock and close; write can edit others'
       issues; anyone with read can comment on a public repository. Every one of them is a named
       ability in `app/Permissions.ts` with a token scope beside it in `app/TokenScopes.ts`, which a

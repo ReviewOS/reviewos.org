@@ -56,6 +56,9 @@ route.put('/repos/issues/lock', 'Actions/Issue/LockIssueAction').middleware('aut
 // on a shared issue is a coordination device, and gating it behind write access
 // turns it into a status report from the maintainers.
 route.put('/repos/issues/tasks', 'Actions/Issue/ToggleTaskAction').middleware('auth')
+// Triage in bulk. Each operation asks for the ability its single-issue version
+// asks for, so nothing is reachable here that is not reachable one at a time.
+route.post('/repos/issues/bulk', 'Actions/Issue/BulkUpdateIssuesAction').middleware('auth')
 
 // The label and milestone *sets*, as opposed to applying them to an issue.
 // One endpoint each, with the operation in the body: create, update and delete

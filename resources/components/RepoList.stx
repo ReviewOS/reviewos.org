@@ -114,6 +114,20 @@ if (kind === 'pulls' && rows.length > 0) {
 
 const base = `/${ownerHandle}/${repositoryName}/${kind}`
 const finalPage = lastPage(filteredCount)
+
+// Offered as suggestions on the bulk toolbar. A free text field would work,
+// because the action resolves by name, but nobody remembers exactly how a
+// label was spelled.
+const labelRows: any[] = kind === 'issues' && repositoryId
+  ? await db
+      .selectFrom('repository_labels')
+      .select(['name'])
+      .where('repository_id', '=', repositoryId)
+      .orderBy('name', 'asc')
+      .execute()
+  : []
+
+const labelNames = labelRows.map(row => String(row.name))
 const noun = kind === 'issues' ? ['issue', 'issues'] : ['pull request', 'pull requests']
 const notFound = !repoRow
 </script>
@@ -169,9 +183,45 @@ const notFound = !repoRow
           <p class="muted">Nothing here yet.</p>
         </div>
       @else
+        {{-- Triage is a bulk activity: somebody works down a list applying the
+             same label to eight things, and doing that one page load at a time
+             is why it does not get done. One form wraps the rows, so the
+             checkboxes and the toolbar are the same submission with no client
+             script holding them together. --}}
+        <form method="post" action="/api/repos/issues/bulk">
+        <input type="hidden" name="owner" value="{{ ownerHandle }}">
+        <input type="hidden" name="repo" value="{{ repositoryName }}">
+
+        @if (kind === 'issues')
+          <div class="panel bulk-bar">
+            <span class="muted bulk-hint">With the selected issues:</span>
+            <button class="bulk-btn" type="submit" name="operation" value="close">Close</button>
+            <button class="bulk-btn" type="submit" name="operation" value="reopen">Reopen</button>
+            <label class="visually-hidden" for="bulk-label">Label</label>
+            <input class="bulk-input" id="bulk-label" name="label" placeholder="Label name" list="bulk-labels">
+            <datalist id="bulk-labels">
+              @foreach (labelNames as name)
+                <option value="{{ name }}"></option>
+              @endforeach
+            </datalist>
+            <button class="bulk-btn" type="submit" name="operation" value="label">Add</button>
+            <button class="bulk-btn" type="submit" name="operation" value="unlabel">Remove</button>
+          </div>
+        @endif
+
         <ul class="panel list-rows">
           @foreach (rows as row)
             <li class="list-row">
+              @if (kind === 'issues')
+                <input
+                  class="list-check"
+                  type="checkbox"
+                  name="numbers"
+                  value="{{ row.number }}"
+                  aria-label="Select issue {{ row.number }}"
+                >
+              @endif
+
               <span class="pill pill-{{ statePill(String(row.state), draftById.get(Number(row.id)) === true) }}">
                 {{ stateLabel(String(row.state), draftById.get(Number(row.id)) === true) }}
               </span>
@@ -195,6 +245,7 @@ const notFound = !repoRow
             </li>
           @endforeach
         </ul>
+        </form>
 
         @if (finalPage > 1)
           <nav class="list-pager" aria-label="Pagination">
@@ -219,6 +270,31 @@ const notFound = !repoRow
 
 <style>
   .list-filters-end { margin-left: auto; display: flex; gap: 14px; align-items: center; }
+
+  .bulk-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin-bottom: 10px; flex-wrap: wrap; }
+  .bulk-hint { font-size: 12.5px; }
+  .bulk-input {
+    padding: 5px 9px;
+    font: inherit;
+    font-size: 12.5px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    min-width: 130px;
+  }
+  .bulk-btn {
+    padding: 5px 10px;
+    font: inherit;
+    font-size: 12.5px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    cursor: pointer;
+  }
+  .bulk-btn:hover { border-color: var(--fg); }
+  .list-check { margin-right: 2px; flex: 0 0 auto; }
   .list-filter-primary {
     padding: 5px 11px;
     color: var(--bg);
