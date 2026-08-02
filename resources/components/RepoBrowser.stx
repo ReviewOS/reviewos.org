@@ -11,6 +11,7 @@
  * files costs the browser nothing.
  */
 import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, lastCommit, listTree, readBlob, shortSha, sortEntries, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
+import { renderMarkdown } from '../functions/markdown'
 
 // Props arrive as attribute strings, so everything is normalised here rather
 // than at each use site.
@@ -83,6 +84,17 @@ const branches = repoRow ? await branchNames(diskPath) : []
 // Tags are capped: a repository with a release per week has hundreds, and a
 // picker that lists them all is a scroll, not a chooser.
 const tags = repoRow ? (await tagNames(diskPath)).slice(0, 30) : []
+
+// Rendered here rather than in the template. The `@markdown` directive runs
+// before interpolation, so wrapping `{!! readme.text !!}` in it markdown-renders
+// the literal token and then drops the file's text into the page untouched -
+// which for a mirrored repository means whatever HTML its README contains.
+const readmeHtml = readme?.ok && readme.text !== null && !readme.binary
+  ? renderMarkdown(readme.text, { owner: ownerHandle, repository: repositoryName })
+  : ''
+const blobMarkdownHtml = (blob?.ok && blob.text !== null && !blob.binary && !blob.tooLarge && isMarkdown(requestedPath))
+  ? renderMarkdown(blob.text, { owner: ownerHandle, repository: repositoryName })
+  : ''
 
 const notFound = !repoRow
 const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedPath
@@ -197,16 +209,14 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
             @endif
           </div>
 
-          @if (readme && readme.text)
+          @if (readmeHtml)
             <section class="panel readme">
               <header class="readme-head">
                 <span class="i-hugeicons-book-open-01" aria-hidden="true"></span>
                 <span>{{ readmeEntry.name }}</span>
               </header>
-              <div class="readme-body">
-                @markdown
-                  {!! readme.text !!}
-                @endmarkdown
+              <div class="readme-body markdown">
+                {!! readmeHtml !!}
               </div>
             </section>
           @endif
@@ -231,10 +241,8 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
                 This file is {{ formatSize(blob.size) }}, too large to display.
               </p>
             @elseif (isMarkdown(requestedPath))
-              <div class="readme-body" style="padding: 20px 22px;">
-                @markdown
-                  {!! blob.text !!}
-                @endmarkdown
+              <div class="readme-body markdown" style="padding: 20px 22px;">
+                {!! blobMarkdownHtml !!}
               </div>
             @else
               <table class="source">
