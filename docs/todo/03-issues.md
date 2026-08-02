@@ -60,7 +60,14 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
       regex pass over the output, which is why it is its own item rather than a flag.
 - [x] Autolink references: `#123` to an issue or pull request, `@handle` to a user, `owner/repo#123`
       across repositories, and bare commit SHAs
-- [ ] Closing keywords (`fixes #12`, `closes #12`, `resolves #12`) parsed on push and on merge
+- [x] Closing keywords (`fixes #12`, `closes #12`, `resolves #12`) acted on when a pull request
+      merges. Only issues in the same repository: whoever merges has permission here, and following
+      a reference into another repository would let a merge quietly close an issue there. Only
+      issues, and never the pull request's own number, because the numbering is shared and
+      `fixes #7` inside pull request 7 would otherwise close it as though it were a report.
+- [ ] The same, on push. Needs post-receive processing first: the receive-pack route streams git
+      straight through and nothing walks the new commits, so there is nowhere yet to read a commit
+      message from. That is the `ProcessPushJob` in [phase 2](./02-git-hosting.md).
 - [ ] Task lists that can be ticked directly from the rendered issue
 - [x] Syntax-highlighted code fences, sharing the highlighter with the blob view. Literally the
       same one, so a snippet quoted in an issue and the file it came from are coloured alike: two

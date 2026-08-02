@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { closingTargets, withoutSelf } from '../Issue/closing'
 import { runGit } from '../Git/git'
 import { performMerge } from './apply'
 import { repositoryPath } from '../Git/storage'
@@ -222,12 +223,24 @@ export default new Action({
         .execute()
     }
 
+    // Issues the description says this closes. Done after the merge landed,
+    // never before: closing an issue for a merge that then failed leaves
+    // somebody's report shut with nothing to show for it.
+    const closed = await closeReferenced(
+      String(pullRequest.body ?? ''),
+      { owner: String(request.get('owner')), repository: String(repository.name) },
+      Number(repository.id),
+      number,
+      Number(user.id),
+    )
+
     return response.json({
       number,
       state: 'merged',
       strategy,
       merge_commit_sha: merged.sha,
       retargeted: moves.map(move => move.id),
+      closed,
     })
   },
 })
@@ -237,4 +250,63 @@ async function subjectsOnBranch(path: string, baseSha: string, headSha: string):
   const result = await runGit(path, ['log', '--reverse', '--format=%s', `${baseSha}..${headSha}`])
 
   return result.ok ? result.stdout.split('\n').filter(Boolean) : []
+}
+
+/**
+ * Close the issues a merged pull request said it would.
+ *
+ * Only issues that are open, and only issues: the numbering is shared with
+ * pull requests, so `fixes #12` where 12 is a pull request would otherwise
+ * close it as though it were a report.
+ *
+ * Failures here are not merge failures. The branch has already landed, and
+ * answering the merge with an error because a follow-up write failed tells the
+ * caller the wrong thing about the thing they asked for.
+ */
+async function closeReferenced(
+  body: string,
+  scope: { owner: string, repository: string },
+  repositoryId: number,
+  selfNumber: number,
+  actorId: number,
+): Promise<number[]> {
+  const targets = withoutSelf(closingTargets(body, scope), selfNumber)
+  if (targets.length === 0)
+    return []
+
+  try {
+    const open: any[] = await db
+      .selectFrom('issues')
+      .select(['id', 'number'])
+      .where('repository_id', '=', repositoryId)
+      .where('number', 'in', targets.map(target => target.number))
+      .where('is_pull_request', '=', false)
+      .where('state', '=', 'open')
+      .execute()
+
+    if (open.length === 0)
+      return []
+
+    await db
+      .updateTable('issues')
+      .set({
+        state: 'closed',
+        state_reason: 'completed',
+        closed_at: new Date().toISOString(),
+        closed_by_id: actorId,
+      })
+      .where('id', 'in', open.map(row => Number(row.id)))
+      .execute()
+
+    await db
+      .updateTable('repositories')
+      .set((eb: any) => ({ open_issues_count: eb('open_issues_count', '-', open.length) }))
+      .where('id', '=', repositoryId)
+      .execute()
+
+    return open.map(row => Number(row.number))
+  }
+  catch {
+    return []
+  }
 }
