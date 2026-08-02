@@ -151,6 +151,14 @@ const notFound = !repoRow
         <a class="list-filter {{ filter === 'all' ? 'is-current' : '' }}" href="{{ filterHref(base, 'all') }}">
           All
         </a>
+
+        {{-- Labels and milestones belong to the repository rather than to this
+             list, and this is the only place anybody looks for them. Pull
+             requests carry the same labels, so the links show on both. --}}
+        <span class="list-filters-end">
+          <a class="list-filter" href="/{{ ownerHandle }}/{{ repositoryName }}/labels">Labels</a>
+          <a class="list-filter" href="/{{ ownerHandle }}/{{ repositoryName }}/milestones">Milestones</a>
+        </span>
       </nav>
 
       @if (rows.length === 0)
@@ -207,6 +215,8 @@ const notFound = !repoRow
   </div>
 
 <style>
+  .list-filters-end { margin-left: auto; display: flex; gap: 14px; }
+
   .list-filters {
     display: flex;
     gap: 4px;

@@ -53,6 +53,13 @@ route.put('/repos/issues/assignees', 'Actions/Issue/AssignIssueAction').middlewa
 route.put('/repos/issues/milestone', 'Actions/Issue/MilestoneIssueAction').middleware('auth')
 route.put('/repos/issues/lock', 'Actions/Issue/LockIssueAction').middleware('auth')
 
+// The label and milestone *sets*, as opposed to applying them to an issue.
+// One endpoint each, with the operation in the body: create, update and delete
+// share the rule that decides whether a name is already taken, and splitting
+// them into three routes is how that rule ends up implemented twice.
+route.post('/repos/labels', 'Actions/Issue/ManageLabelAction').middleware('auth')
+route.post('/repos/milestones', 'Actions/Issue/ManageMilestoneAction').middleware('auth')
+
 // Pull requests and review. Merging is its own endpoint rather than a state
 // update: it moves a branch, and that is not something to reach by accident.
 route.post('/repos/pulls', 'Actions/Pull/OpenPullRequestAction').middleware('auth')

@@ -1,0 +1,201 @@
+<script server>
+/**
+ * A repository's labels.
+ *
+ * The list is what people come for, and it doubles as the editor: every row is
+ * a form. A separate edit page for something as small as a name and a colour is
+ * a page load spent on nothing.
+ *
+ * Counts are read here rather than in the template because they are one grouped
+ * query, not one query per row. A label list is short, which is exactly why the
+ * per-row version survives review and then shows up on a repository with two
+ * hundred labels.
+ */
+import { labelTextColor, resolveRepository } from '../../../functions/issues'
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+
+// `repository` is the route parameter in this view, so the resolved row needs
+// its own name: assigning to `repository` silently loses the row and every
+// query below it reads as empty.
+const repositoryRow: any = await resolveRepository(ownerHandle, repositoryName)
+
+let labelSet: any[] = []
+if (repositoryRow) {
+  labelSet = await db
+    .selectFrom('repository_labels')
+    .select(['id', 'name', 'color', 'description'])
+    .where('repository_id', '=', Number(repositoryRow.id))
+    .orderBy('name', 'asc')
+    .execute()
+}
+
+// One query for every count, rather than one query per label.
+const usage: any[] = labelSet.length
+  ? await db
+      .selectFrom('issue_labels')
+      .select(['label_id'])
+      .where('label_id', 'in', labelSet.map(row => Number(row.id)))
+      .execute()
+  : []
+
+const counts = new Map<number, number>()
+for (const row of usage)
+  counts.set(Number(row.label_id), (counts.get(Number(row.label_id)) ?? 0) + 1)
+
+const labelRows = labelSet.map(row => ({
+  id: Number(row.id),
+  name: String(row.name),
+  color: String(row.color),
+  description: row.description ? String(row.description) : '',
+  textColor: labelTextColor(String(row.color)),
+  count: counts.get(Number(row.id)) ?? 0,
+}))
+
+const base = `/${ownerHandle}/${repositoryName}`
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repositoryRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+        <p class="muted" style="margin-top: 6px;">Nothing is published at {{ ownerHandle }}/{{ repositoryName }}.</p>
+      </div>
+    @else
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="issues" />
+
+      <header class="set-head">
+        <div>
+          <h1 class="set-title">Labels</h1>
+          <p class="muted set-sub">
+            {{ labelRows.length }} {{ labelRows.length === 1 ? 'label' : 'labels' }} on this repository
+          </p>
+        </div>
+        <a class="set-link" href="{{ base }}/milestones">Milestones</a>
+      </header>
+
+      <form class="panel set-new" method="post" action="/api/repos/labels">
+        <input type="hidden" name="owner" value="{{ ownerHandle }}">
+        <input type="hidden" name="repo" value="{{ repositoryName }}">
+        <input type="hidden" name="operation" value="create">
+        <div class="set-fields">
+          <input class="field" name="name" placeholder="Label name" required maxlength="50">
+          {{-- Stored without the `#`, so the colour input's value is trimmed on
+               the way in by the same normalizer the default set uses. --}}
+          <input class="field field-color" name="color" type="color" value="#d73a4a" aria-label="Label colour">
+          <input class="field field-grow" name="description" placeholder="Description (optional)" maxlength="200">
+          <button class="btn btn-primary" type="submit">Create label</button>
+        </div>
+      </form>
+
+      @if (labelRows.length === 0)
+        <div class="panel" style="padding: 28px; text-align: center;">
+          <p class="muted">This repository has no labels yet.</p>
+        </div>
+      @else
+        <ul class="panel set-list">
+          @foreach (labelRows as label)
+            <li class="set-row">
+              <form class="set-form" method="post" action="/api/repos/labels">
+                <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                <input type="hidden" name="repo" value="{{ repositoryName }}">
+                <input type="hidden" name="id" value="{{ label.id }}">
+                <input type="hidden" name="operation" value="update">
+
+                <span class="label-pill" style="background: #{{ label.color }}; color: {{ label.textColor }};">
+                  {{ label.name }}
+                </span>
+
+                <input class="field" name="name" value="{{ label.name }}" maxlength="50" aria-label="Name">
+                <input class="field field-color" name="color" type="color" value="#{{ label.color }}" aria-label="Colour">
+                <input class="field field-grow" name="description" value="{{ label.description }}" maxlength="200" placeholder="Description" aria-label="Description">
+
+                <a class="set-count muted" href="{{ base }}/issues?label={{ label.name }}">
+                  {{ label.count }} {{ label.count === 1 ? 'issue' : 'issues' }}
+                </a>
+
+                <button class="btn" type="submit">Save</button>
+              </form>
+
+              <form class="set-delete" method="post" action="/api/repos/labels">
+                <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                <input type="hidden" name="repo" value="{{ repositoryName }}">
+                <input type="hidden" name="id" value="{{ label.id }}">
+                <input type="hidden" name="operation" value="delete">
+                <button class="btn btn-danger" type="submit">Delete</button>
+              </form>
+            </li>
+          @endforeach
+        </ul>
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+  .set-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 20px 0 14px; }
+  .set-title { font-size: 20px; letter-spacing: -0.01em; }
+  .set-sub { margin-top: 4px; font-size: 13px; }
+  .set-link { font-size: 13px; color: var(--muted); text-decoration: none; }
+  .set-link:hover { color: var(--fg); }
+
+  .set-new { padding: 14px 16px; margin-bottom: 14px; }
+  .set-fields, .set-form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .field {
+    padding: 7px 10px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    min-width: 0;
+  }
+  .field-grow { flex: 1 1 200px; }
+  .field-color { width: 44px; padding: 3px; }
+
+  .set-list { list-style: none; }
+  .set-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .set-row:last-child { border-bottom: 0; }
+  .set-form { flex: 1 1 auto; }
+  .set-count { font-size: 12.5px; white-space: nowrap; text-decoration: none; }
+  .set-count:hover { color: var(--fg); }
+
+  .label-pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .btn {
+    padding: 7px 12px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--fg); }
+  .btn-primary { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+  .btn-danger:hover { color: var(--danger, #d73a4a); border-color: var(--danger, #d73a4a); }
+
+  @media (max-width: 720px) {
+    .set-row { flex-wrap: wrap; }
+  }
+</style>

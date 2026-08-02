@@ -71,6 +71,8 @@ export const REPOSITORY_ABILITY_SCOPES = {
   'issue:close': { scope: 'issues', level: 'write' },
   'issue:lock': { scope: 'issues', level: 'write' },
   'issue:edit-any': { scope: 'issues', level: 'write' },
+  'label:manage': { scope: 'issues', level: 'write' },
+  'milestone:manage': { scope: 'issues', level: 'write' },
 
   'pull:open': { scope: 'pull_requests', level: 'write' },
   'pull:review': { scope: 'pull_requests', level: 'write' },

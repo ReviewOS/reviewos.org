@@ -55,6 +55,30 @@ export async function resolveOwner(raw: string): Promise<OwnerRef | null> {
   return null
 }
 
+/**
+ * Resolve `owner/name` to the repository row, or null.
+ *
+ * The owner is resolved first and the repository is looked up *within* that
+ * owner, which is the part that matters: a query on the name alone finds a
+ * repository belonging to somebody else, and every page built on it then shows
+ * one person's work under another person's handle.
+ */
+export async function resolveRepository(owner: string, name: string): Promise<any | null> {
+  const found = await resolveOwner(owner)
+  if (!found)
+    return null
+
+  const row = await db
+    .selectFrom('repositories')
+    .selectAll()
+    .where('owner_type', '=', found.kind)
+    .where('owner_id', '=', found.id)
+    .where('name', '=', name)
+    .executeTakeFirst()
+
+  return row ?? null
+}
+
 /** The signed-in user, or null. */
 export async function currentUser(request: any): Promise<{ id: number, handle: string, is_admin: boolean } | null> {
   const user = await request.user?.()

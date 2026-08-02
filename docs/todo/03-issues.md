@@ -81,7 +81,11 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
       `/pull/12`: the plural path is the list. The timeline is a separate item below, and until it
       exists the page shows the body and comments rather than pretending to be a history.
 - [ ] `.../issues/new.stx`
-- [ ] `.../labels.stx`, `.../milestones.stx`
+- [x] `.../labels.stx`, `.../milestones.stx` - the label and milestone sets, each list doubling as
+      its own editor. A separate edit page for a name and a colour is a page load spent on nothing.
+      `ManageLabelAction` and `ManageMilestoneAction` carry create, update and delete together
+      because the rule that matters is shared: a repository may not end up with two names that
+      collide, and collide is more than equal.
 - [ ] Components: `IssueThread`, `IssueListItem`, `LabelPill`, `MarkdownEditor` (write and preview
       tabs), `TimelineEntry`. Rendered markdown is a `.markdown` block styled once in the layout
       rather than a component: a component cannot import the renderer, so the HTML is built in the

@@ -1,0 +1,259 @@
+<script server>
+/**
+ * A repository's milestones.
+ *
+ * Open ones first, then closed, each newest-due first. A milestone with no due
+ * date sorts after the dated ones rather than before: "someday" is not urgent,
+ * and a null sorting to the top is the sort of thing that reads as a bug.
+ *
+ * Progress comes from counting issues here rather than trusting the counters on
+ * the row. The counters exist so a list does not need this query, and they are
+ * maintained on every transition - but this page is where a drift would show,
+ * so it counts.
+ */
+import { resolveRepository } from '../../../functions/issues'
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+const showClosed = String(query.state ?? 'open') === 'closed'
+
+// `repository` is the route parameter in this view, so the resolved row needs
+// its own name: assigning to `repository` silently loses the row and every
+// query below it reads as empty.
+const repositoryRow: any = await resolveRepository(ownerHandle, repositoryName)
+
+const milestoneRows: any[] = repositoryRow
+  ? await db
+      .selectFrom('milestones')
+      .select(['id', 'title', 'description', 'due_on', 'state'])
+      .where('repository_id', '=', Number(repositoryRow.id))
+      .where('state', '=', showClosed ? 'closed' : 'open')
+      .execute()
+  : []
+
+// One query for every milestone's issues, rather than two per row.
+const issueRows: any[] = milestoneRows.length
+  ? await db
+      .selectFrom('issues')
+      .select(['milestone_id', 'state'])
+      .where('milestone_id', 'in', milestoneRows.map(row => Number(row.id)))
+      .execute()
+  : []
+
+const tally = new Map<number, { open: number, closed: number }>()
+for (const row of issueRows) {
+  const key = Number(row.milestone_id)
+  const entry = tally.get(key) ?? { open: 0, closed: 0 }
+  if (String(row.state) === 'closed')
+    entry.closed += 1
+  else
+    entry.open += 1
+  tally.set(key, entry)
+}
+
+const milestoneList = milestoneRows
+  .map((row) => {
+    const counts = tally.get(Number(row.id)) ?? { open: 0, closed: 0 }
+    const total = counts.open + counts.closed
+
+    return {
+      id: Number(row.id),
+      title: String(row.title),
+      description: row.description ? String(row.description) : '',
+      // The date input wants `YYYY-MM-DD`, and that is how it is stored, but a
+      // driver may hand back a Date. Slicing the ISO form covers both.
+      dueOn: row.due_on ? String(row.due_on).slice(0, 10) : '',
+      open: counts.open,
+      closed: counts.closed,
+      total,
+      // A milestone with no issues reads as 0 per cent rather than as complete.
+      percent: total === 0 ? 0 : Math.round((counts.closed / total) * 100),
+    }
+  })
+  .sort((a, b) => {
+    if (!a.dueOn !== !b.dueOn)
+      return a.dueOn ? -1 : 1
+
+    return a.dueOn.localeCompare(b.dueOn) || a.title.localeCompare(b.title)
+  })
+
+const base = `/${ownerHandle}/${repositoryName}`
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repositoryRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+        <p class="muted" style="margin-top: 6px;">Nothing is published at {{ ownerHandle }}/{{ repositoryName }}.</p>
+      </div>
+    @else
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="issues" />
+
+      <header class="set-head">
+        <div>
+          <h1 class="set-title">Milestones</h1>
+          <p class="muted set-sub">
+            <a class="filter-link {{ showClosed ? '' : 'is-current' }}" href="{{ base }}/milestones">Open</a>
+            <a class="filter-link {{ showClosed ? 'is-current' : '' }}" href="{{ base }}/milestones?state=closed">Closed</a>
+          </p>
+        </div>
+        <a class="set-link" href="{{ base }}/labels">Labels</a>
+      </header>
+
+      <form class="panel set-new" method="post" action="/api/repos/milestones">
+        <input type="hidden" name="owner" value="{{ ownerHandle }}">
+        <input type="hidden" name="repo" value="{{ repositoryName }}">
+        <input type="hidden" name="operation" value="create">
+        <div class="set-fields">
+          <input class="field field-grow" name="title" placeholder="Milestone title" required maxlength="120">
+          <input class="field" name="due_on" type="date" aria-label="Due date">
+          <button class="btn btn-primary" type="submit">Create milestone</button>
+        </div>
+        <input class="field field-full" name="description" placeholder="Description (optional)" maxlength="200">
+      </form>
+
+      @if (milestoneList.length === 0)
+        <div class="panel" style="padding: 28px; text-align: center;">
+          <p class="muted">
+            @if (showClosed)
+              No milestones have been closed.
+            @else
+              This repository has no open milestones.
+            @endif
+          </p>
+        </div>
+      @else
+        <ul class="panel set-list">
+          @foreach (milestoneList as milestone)
+            <li class="milestone-row">
+              <div class="milestone-head">
+                <h2 class="milestone-title">{{ milestone.title }}</h2>
+                <span class="muted milestone-due">
+                  @if (milestone.dueOn)
+                    Due {{ milestone.dueOn }}
+                  @else
+                    No due date
+                  @endif
+                </span>
+              </div>
+
+              @if (milestone.description)
+                <p class="muted milestone-desc">{{ milestone.description }}</p>
+              @endif
+
+              <div class="milestone-progress" role="img" aria-label="{{ milestone.percent }} per cent complete">
+                <div class="milestone-bar" style="width: {{ milestone.percent }}%;"></div>
+              </div>
+
+              <p class="muted milestone-counts">
+                {{ milestone.percent }}% complete
+                &middot;
+                <a href="{{ base }}/issues?milestone={{ milestone.id }}&state=open">{{ milestone.open }} open</a>
+                &middot;
+                <a href="{{ base }}/issues?milestone={{ milestone.id }}&state=closed">{{ milestone.closed }} closed</a>
+              </p>
+
+              <div class="milestone-actions">
+                <form class="set-form" method="post" action="/api/repos/milestones">
+                  <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                  <input type="hidden" name="repo" value="{{ repositoryName }}">
+                  <input type="hidden" name="id" value="{{ milestone.id }}">
+                  <input type="hidden" name="operation" value="update">
+                  <input class="field field-grow" name="title" value="{{ milestone.title }}" maxlength="120" aria-label="Title">
+                  <input class="field" name="due_on" type="date" value="{{ milestone.dueOn }}" aria-label="Due date">
+                  <input class="field field-grow" name="description" value="{{ milestone.description }}" maxlength="200" placeholder="Description" aria-label="Description">
+                  <button class="btn" type="submit">Save</button>
+                </form>
+
+                <form method="post" action="/api/repos/milestones">
+                  <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                  <input type="hidden" name="repo" value="{{ repositoryName }}">
+                  <input type="hidden" name="id" value="{{ milestone.id }}">
+                  <input type="hidden" name="operation" value="{{ showClosed ? 'reopen' : 'close' }}">
+                  <button class="btn" type="submit">{{ showClosed ? 'Reopen' : 'Close' }}</button>
+                </form>
+
+                <form method="post" action="/api/repos/milestones">
+                  <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                  <input type="hidden" name="repo" value="{{ repositoryName }}">
+                  <input type="hidden" name="id" value="{{ milestone.id }}">
+                  <input type="hidden" name="operation" value="delete">
+                  {{-- Deleting empties the milestone; the issues stay. --}}
+                  <button class="btn btn-danger" type="submit">Delete</button>
+                </form>
+              </div>
+            </li>
+          @endforeach
+        </ul>
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+  .set-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 20px 0 14px; }
+  .set-title { font-size: 20px; letter-spacing: -0.01em; }
+  .set-sub { margin-top: 6px; font-size: 13px; display: flex; gap: 12px; }
+  .set-link { font-size: 13px; color: var(--muted); text-decoration: none; }
+  .set-link:hover { color: var(--fg); }
+
+  .filter-link { color: var(--muted); text-decoration: none; }
+  .filter-link.is-current { color: var(--fg); font-weight: 500; }
+
+  .set-new { padding: 14px 16px; margin-bottom: 14px; display: grid; gap: 10px; }
+  .set-fields, .set-form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .field {
+    padding: 7px 10px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    min-width: 0;
+  }
+  .field-grow { flex: 1 1 200px; }
+  .field-full { width: 100%; }
+
+  .set-list { list-style: none; }
+  .milestone-row { padding: 16px; border-bottom: 1px solid var(--line); }
+  .milestone-row:last-child { border-bottom: 0; }
+  .milestone-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .milestone-title { font-size: 15px; font-weight: 600; }
+  .milestone-due { font-size: 12.5px; white-space: nowrap; }
+  .milestone-desc { margin-top: 4px; font-size: 13px; }
+
+  .milestone-progress {
+    height: 6px;
+    margin: 10px 0 6px;
+    border-radius: 999px;
+    background: var(--line);
+    overflow: hidden;
+  }
+  .milestone-bar { height: 100%; background: var(--ok, #2da44e); }
+
+  .milestone-counts { font-size: 12.5px; }
+  .milestone-counts a { color: inherit; text-decoration: none; }
+  .milestone-counts a:hover { color: var(--fg); }
+
+  .milestone-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .milestone-actions .set-form { flex: 1 1 auto; }
+
+  .btn {
+    padding: 7px 12px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--fg); }
+  .btn-primary { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+  .btn-danger:hover { color: var(--danger, #d73a4a); border-color: var(--danger, #d73a4a); }
+</style>

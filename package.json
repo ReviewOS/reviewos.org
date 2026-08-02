@@ -90,7 +90,7 @@
   },
   "dependencies": {
     "@stacksjs/stx": "^0.2.151",
-    "stacks": "^0.70.229",
+    "stacks": "^0.70.238",
     "ts-syntax-highlighter": "^0.2.6"
   },
   "workspaces": [

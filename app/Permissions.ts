@@ -43,6 +43,11 @@ export const REPOSITORY_ABILITIES = {
   'pull:close': 'triage',
   'pull:request-review': 'triage',
   'repository:push': 'write',
+  // Managing the label and milestone *sets* is a heavier power than applying
+  // them: deleting a label strips it from every issue that carried it, and
+  // deleting a milestone empties it. Applying one stays at triage above.
+  'label:manage': 'write',
+  'milestone:manage': 'write',
   'issue:edit-any': 'write',
   'pull:edit-any': 'write',
   'pull:dismiss-review': 'write',
