@@ -53,38 +53,39 @@ Concretely, for anything with data behind it:
    `resources/components/`.
 6. Add tests under `tests/`.
 
-## The migration generator is not currently trustworthy
+## The migration workflow
 
-`./buddy generate:migrations` against this schema writes 33 files that should not exist and skips 69
-statements it admits are wrong, so a model change cannot currently be turned into a migration by
-running it and reading the diff. Delete what it writes; nothing here has been applied, and the live
-schema is correct.
+`./buddy generate:migrations` then `./buddy migrate` is the loop, and both halves
+now behave. Getting there took four fixes, all upstream, because every one of
+them would have hit any other project the same way:
 
-What it gets wrong, on every run:
+- **A foreign key against the wrong table.** `issues.author_id` is declared
+  `belongsTo: [{ model: 'User', foreignKey: 'author_id' }]` and came out pointing at `authors`, a
+  CMS table this project does not use. Applying it would have rejected every issue insert. Fixed in
+  bun-query-builder; the framework had been pinned to `^0.1.63`, a range that could never resolve to
+  the 0.2 line where it was fixed.
+- **Foreign keys on polymorphic columns.** `taggable_models.taggable_id` was constrained against
+  whatever `taggable_type` happened to default to, so tagging a post worked and tagging anything
+  else was rejected. The main loop already knew better; the inline pivot builder did not
+  (bun-query-builder 0.2.3).
+- **Enum ALTERs silently dropped.** 69 statements a run were discarded with a warning calling
+  itself a generator bug. The column kept whatever it had, so the model change quietly did not
+  happen and the next diff proposed the same thing again, forever. The values are in the plan, so
+  the type is now created ahead of the ALTER that wants it (stacks 0.70.242).
+- **`CREATE TYPE` is not re-runnable.** It has no `IF NOT EXISTS`, so a corpus containing one could
+  only be applied to a database that had never seen it. Any gap between ledger and schema - an
+  interrupted run, a restored dump, a database built before the ledger existed - stopped `migrate`
+  dead, naming a type that was already exactly right, with `migrate:fresh` the only way out. Now
+  wrapped in a guard that catches the duplicate. The statement splitter had to learn dollar quoting
+  for that guard to survive it, and while it was open it also learned that a `;` or a `--` inside a
+  string is data rather than punctuation.
 
-- A foreign key against the wrong table. `issues.author_id` is declared
-  `belongsTo: [{ model: 'User', foreignKey: 'author_id' }]` and comes out pointing at `authors`, a
-  CMS table this project does not use. Applying it would reject every issue insert.
-- Foreign keys on polymorphic columns (`taggable_models.taggable_id -> posts`), which by definition
-  cannot have one.
-- Indexes dropped and recreated, unchanged, because the two sides of the diff name them differently.
-- 69 `ALTER`s naming enum types nothing creates, which the framework filters out with a warning
-  saying it is a generator bug.
+Two properties worth keeping true, because both were broken and neither is obvious:
 
-Where it is not: bun-query-builder 0.2.2, called directly with the same models directory, the same
-dialect and the same options, produces the correct `REFERENCES "users"`. Reproduced against the app
-models alone, against a hand-staged merge of app and framework models, and against the framework's
-own staging directory - correct every time. So the defect is in the `@stacksjs/database` layer
-between `buddy` and the query builder, and is not yet isolated further than that.
-
-Already done and not the fix: bun-query-builder was released at 0.2.2 with five migration fixes that
-had never reached an application, and the framework was moved off the `^0.1.63` pin that could never
-resolve to them (stacks 0.70.238). That was a real blockage - it is just not this one.
-
-- [ ] Isolate the remaining difference between `buddy generate:migrations` and a direct
-      `generateMigration` call, and fix it upstream
-- [ ] Regenerate this project's migration corpus once it is trustworthy, and commit the model
-      snapshot alongside it
+- Running `generate:migrations` twice writes files once. The second run diffs against the snapshot
+  the first one wrote, and finds nothing.
+- Running `migrate` twice applies once. Nothing in a generated corpus fails because it has already
+  been done.
 
 ## Deliberately not doing yet
 
