@@ -1,0 +1,332 @@
+<script server>
+/**
+ * One issue: its body, its labels, and the conversation under it.
+ *
+ * Server-rendered, like the review screen. An issue with two hundred comments
+ * is a page, not an application, and it should arrive as one.
+ *
+ * The rules come from tested modules - `app/Actions/Issue/state` for what a
+ * state reads as, `app/Actions/Markdown/render` for turning bodies into HTML -
+ * because rules written in a template cannot be tested.
+ */
+import { authorIsLocal, authorLabel, relativeTime } from '../../../../functions/browse'
+import { issueStateLabel, issueStatePill, labelTextColor } from '../../../../functions/issues'
+import { renderMarkdown } from '../../../../functions/markdown'
+
+const owner = String(params.owner)
+const repositoryName = String(params.repository)
+const number = Number(params.number)
+
+// Resolving the owner first is what stops `/someone/stacks` finding a
+// repository that belongs to somebody else.
+const orgRow: any = await db
+  .selectFrom('organizations')
+  .selectAll()
+  .where('handle', '=', owner)
+  .executeTakeFirst()
+
+const userRow: any = orgRow
+  ? null
+  : await db.selectFrom('users').selectAll().where('handle', '=', owner).executeTakeFirst()
+
+const ownerId = orgRow ? Number(orgRow.id) : (userRow ? Number(userRow.id) : null)
+const ownerType = orgRow ? 'organization' : (userRow ? 'user' : null)
+
+const repoRow: any = ownerId
+  ? await db
+      .selectFrom('repositories')
+      .selectAll()
+      .where('owner_type', '=', ownerType)
+      .where('owner_id', '=', ownerId)
+      .where('name', '=', repositoryName)
+      .executeTakeFirst()
+  : null
+
+// Issues and pull requests share the number sequence and the same table carries
+// both, so the flag is what keeps `/issue/12` from opening a pull request.
+const issue: any = repoRow && Number.isFinite(number)
+  ? await db
+      .selectFrom('issues')
+      .selectAll()
+      .where('repository_id', '=', Number(repoRow.id))
+      .where('number', '=', number)
+      .where('is_pull_request', '=', false)
+      .executeTakeFirst()
+  : undefined
+
+/**
+ * The author's name to show.
+ *
+ * A local user when there is one, and the upstream login when there is not.
+ * Mirrored issues are the common case for the second: whoever opened it on the
+ * other host usually has no account here.
+ */
+const authorRow: any = issue && issue.author_id
+  ? await db.selectFrom('users').select(['handle']).where('id', '=', Number(issue.author_id)).executeTakeFirst()
+  : undefined
+
+const authorHandle = authorRow?.handle ? String(authorRow.handle) : null
+const externalAuthor = issue?.external_author ? String(issue.external_author) : null
+
+const labels: any[] = issue
+  ? await db
+      .selectFrom('issue_labels')
+      .innerJoin('repository_labels', 'repository_labels.id', '=', 'issue_labels.label_id')
+      .select(['repository_labels.name as name', 'repository_labels.color as color'])
+      .where('issue_labels.issue_id', '=', Number(issue.id))
+      .execute()
+  : []
+
+const assignees: any[] = issue
+  ? await db
+      .selectFrom('issue_assignees')
+      .innerJoin('users', 'users.id', '=', 'issue_assignees.user_id')
+      .select(['users.handle as handle'])
+      .where('issue_assignees.issue_id', '=', Number(issue.id))
+      .execute()
+  : []
+
+const milestone: any = issue?.milestone_id
+  ? await db.selectFrom('milestones').selectAll().where('id', '=', Number(issue.milestone_id)).executeTakeFirst()
+  : undefined
+
+const commentRows: any[] = issue
+  ? await db
+      .selectFrom('issue_comments')
+      // A LEFT join: a mirrored comment has no local author, and an inner join
+      // would drop it from the conversation without saying so.
+      .leftJoin('users', 'users.id', '=', 'issue_comments.author_id')
+      .select([
+        'issue_comments.id as id',
+        'issue_comments.body as body',
+        'issue_comments.created_at as created_at',
+        'issue_comments.edited_at as edited_at',
+        'users.handle as handle',
+      ])
+      .where('issue_comments.commentable_type', '=', 'issue')
+      .where('issue_comments.commentable_id', '=', Number(issue.id))
+      .orderBy('issue_comments.created_at', 'asc')
+      .execute()
+  : []
+
+// Rendered here rather than in the template: every body on this page resolves
+// `#12` against the same repository, and a component could not import the
+// renderer anyway.
+const markdownContext = { owner, repository: repositoryName }
+
+const bodyHtml = issue?.body ? renderMarkdown(String(issue.body), markdownContext) : ''
+const comments = commentRows.map((row: any) => ({
+  id: Number(row.id),
+  handle: row.handle ? String(row.handle) : null,
+  createdAt: String(row.created_at ?? ''),
+  edited: Boolean(row.edited_at),
+  bodyHtml: renderMarkdown(String(row.body ?? ''), markdownContext),
+}))
+
+const stateLabel = issue ? issueStateLabel(String(issue.state), issue.state_reason) : ''
+const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason) : 'draft'
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!issue)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such issue</h1>
+        <p class="muted" style="margin-top: 6px;">
+          {{ owner }}/{{ repositoryName }} has no issue numbered {{ params.number }}.
+        </p>
+      </div>
+    @else
+      <header class="issue-head">
+        <div class="issue-title-row">
+          <h1 class="issue-title">{{ issue.title }}</h1>
+          <span class="mono muted issue-number">#{{ issue.number }}</span>
+        </div>
+
+        <div class="issue-meta">
+          <span class="pill pill-{{ statePill }}">{{ stateLabel }}</span>
+          <span class="muted">
+            @if (authorIsLocal(authorHandle))
+              <a href="/{{ authorHandle }}">{{ authorLabel(authorHandle, externalAuthor) }}</a>
+            @else
+              {{-- No local account to link to. The name is still shown, because
+                   the author being unlinked is a fact about this forge, not
+                   about them. --}}
+              <span>{{ authorLabel(authorHandle, externalAuthor) }}</span>
+            @endif
+            opened this {{ relativeTime(String(issue.created_at ?? '')) }}
+            &middot;
+            {{ comments.length }} {{ comments.length === 1 ? 'comment' : 'comments' }}
+          </span>
+        </div>
+      </header>
+
+      <div class="issue-body">
+        <div class="issue-main">
+          <article class="panel issue-post">
+            <header class="post-head">
+              <span class="post-author">{{ authorLabel(authorHandle, externalAuthor) }}</span>
+              <span class="muted post-time">{{ relativeTime(String(issue.created_at ?? '')) }}</span>
+            </header>
+            @if (bodyHtml)
+              <div class="post-body markdown">{!! bodyHtml !!}</div>
+            @else
+              <div class="post-body"><p class="muted">No description was given.</p></div>
+            @endif
+          </article>
+
+          @foreach (comments as comment)
+            <article class="panel issue-post">
+              <header class="post-head">
+                {{-- A comment carries no upstream author name, unlike the issue
+                     itself, so a mirrored one falls back to the generic label. --}}
+                <span class="post-author">{{ authorLabel(comment.handle, null) }}</span>
+                <span class="muted post-time">
+                  {{ relativeTime(comment.createdAt) }}@if (comment.edited) &middot; edited@endif
+                </span>
+              </header>
+              <div class="post-body markdown">{!! comment.bodyHtml !!}</div>
+            </article>
+          @endforeach
+
+          @if (issue.locked)
+            <p class="muted issue-locked">
+              This conversation is locked. Only people maintaining the repository can comment.
+            </p>
+          @else
+            <form class="panel issue-reply" method="post" action="/api/repos/issues/comments">
+              <input type="hidden" name="issue_id" value="{{ issue.id }}">
+              <label class="visually-hidden" for="issue-comment">Comment on this issue</label>
+              <textarea id="issue-comment" name="body" rows="4" placeholder="Leave a comment" class="reply-input"></textarea>
+              <button type="submit" class="reply-submit">Comment</button>
+            </form>
+          @endif
+        </div>
+
+        <aside class="issue-side">
+          <section class="panel side-block">
+            <h2 class="side-title">Labels</h2>
+            @if (labels.length === 0)
+              <p class="muted side-empty">None yet.</p>
+            @else
+              <div class="label-row">
+                @foreach (labels as label)
+                  <span class="label-pill" style="background: #{{ label.color }}; color: {{ labelTextColor(String(label.color)) }};">
+                    {{ label.name }}
+                  </span>
+                @endforeach
+              </div>
+            @endif
+          </section>
+
+          <section class="panel side-block">
+            <h2 class="side-title">Assignees</h2>
+            @if (assignees.length === 0)
+              <p class="muted side-empty">Nobody is assigned.</p>
+            @else
+              <ul class="side-list">
+                @foreach (assignees as assignee)
+                  <li><a href="/{{ assignee.handle }}">{{ assignee.handle }}</a></li>
+                @endforeach
+              </ul>
+            @endif
+          </section>
+
+          <section class="panel side-block">
+            <h2 class="side-title">Milestone</h2>
+            @if (!milestone)
+              <p class="muted side-empty">None.</p>
+            @else
+              <p class="side-milestone">{{ milestone.title }}</p>
+              @if (milestone.due_on)
+                <p class="muted side-note">Due {{ String(milestone.due_on).slice(0, 10) }}</p>
+              @endif
+            @endif
+          </section>
+        </aside>
+      </div>
+    @endif
+  </div>
+@endsection
+
+<style>
+  .issue-head { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .issue-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .issue-title { font-size: 25px; font-weight: 600; line-height: 1.25; }
+  .issue-number { font-size: 20px; }
+  .issue-meta { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; font-size: 13.5px; }
+
+  .issue-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 20px;
+    margin-top: 20px;
+    align-items: start;
+  }
+
+  .issue-post { margin-bottom: 14px; overflow: hidden; }
+  .post-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-tint);
+    font-size: 13px;
+  }
+  .post-author { font-weight: 500; }
+  .post-body { padding: 16px 18px; font-size: 14px; }
+
+  .issue-locked { padding: 14px 2px; font-size: 13.5px; }
+
+  .issue-reply { padding: 14px 16px; }
+  .reply-input {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    resize: vertical;
+  }
+  .reply-submit {
+    margin-top: 10px;
+    padding: 7px 14px;
+    border: 0;
+    border-radius: var(--r-control);
+    background: var(--accent);
+    color: var(--on-accent);
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .side-block { padding: 14px 16px; margin-bottom: 12px; }
+  .side-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .side-empty, .side-note { margin-top: 7px; font-size: 13px; }
+  .side-list { margin-top: 8px; font-size: 13.5px; }
+  .side-list li { margin: 3px 0; }
+  .side-milestone { margin-top: 8px; font-size: 13.5px; }
+
+  .label-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+  .label-pill { padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 900px) {
+    .issue-body { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

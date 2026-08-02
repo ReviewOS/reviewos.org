@@ -5,7 +5,7 @@
 // they are reached, including when the issue is already closed.
 
 import { describe, expect, test } from 'bun:test'
-import { CLOSE_REASONS, mayComment, normalizeCloseReason, transitionIssue } from '../../app/Actions/Issue/state'
+import { CLOSE_REASONS, issueStateLabel, issueStatePill, mayComment, normalizeCloseReason, transitionIssue } from '../../app/Actions/Issue/state'
 
 const open = { state: 'open' as const, locked: false }
 const closed = { state: 'closed' as const, locked: false }
@@ -97,5 +97,41 @@ describe('mayComment', () => {
 
   test('a maintainer may still add a closing note', () => {
     expect(mayComment({ locked: true, isMaintainer: true })).toBe(true)
+  })
+})
+
+describe('issueStateLabel', () => {
+  test('an open issue reads as open, whatever reason is stored', () => {
+    expect(issueStateLabel('open', null)).toBe('Open')
+    expect(issueStateLabel('open', 'completed')).toBe('Open')
+  })
+
+  test('says why an issue was closed', () => {
+    // "Closed as not planned" and "Closed" are different outcomes for whoever
+    // opened it, and the reason is usually what they came back to check.
+    expect(issueStateLabel('closed', 'completed')).toBe('Closed')
+    expect(issueStateLabel('closed', 'not_planned')).toBe('Closed as not planned')
+    expect(issueStateLabel('closed', 'duplicate')).toBe('Closed as duplicate')
+  })
+
+  test('falls back to plain closed for a missing or unknown reason', () => {
+    expect(issueStateLabel('closed', null)).toBe('Closed')
+    expect(issueStateLabel('closed', 'wontfix')).toBe('Closed')
+  })
+})
+
+describe('issueStatePill', () => {
+  test('open is open', () => {
+    expect(issueStatePill('open', null)).toBe('open')
+  })
+
+  test('a completed close gets the closed colour', () => {
+    expect(issueStatePill('closed', 'completed')).toBe('closed')
+    expect(issueStatePill('closed', null)).toBe('closed')
+  })
+
+  test('a close that was not a completion is not coloured like one', () => {
+    expect(issueStatePill('closed', 'not_planned')).toBe('draft')
+    expect(issueStatePill('closed', 'duplicate')).toBe('draft')
   })
 })

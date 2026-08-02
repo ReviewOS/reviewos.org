@@ -68,6 +68,39 @@ export function normalizeCloseReason(reason: string | null | undefined): CloseRe
 }
 
 /**
+ * How a state reads to somebody looking at the issue.
+ *
+ * The reason is part of the answer, not a detail behind it. "Closed as not
+ * planned" and "Closed" are different outcomes for whoever opened the issue,
+ * and a list that renders both as "Closed" is hiding the one fact they came
+ * back to check.
+ */
+export function issueStateLabel(state: string, reason: string | null | undefined): string {
+  if (state !== 'closed')
+    return 'Open'
+
+  switch (normalizeCloseReason(reason)) {
+    case 'not_planned': return 'Closed as not planned'
+    case 'duplicate': return 'Closed as duplicate'
+    default: return 'Closed'
+  }
+}
+
+/**
+ * The pill variant for a state.
+ *
+ * A close that was not a completion is not a success, so it does not get the
+ * colour that means one. The layout has a `draft` pill that is exactly the
+ * neutral grey this needs.
+ */
+export function issueStatePill(state: string, reason: string | null | undefined): string {
+  if (state !== 'closed')
+    return 'open'
+
+  return normalizeCloseReason(reason) === 'completed' || !reason ? 'closed' : 'draft'
+}
+
+/**
  * Whether a comment may be added.
  *
  * Locking an issue is how a maintainer ends a thread that has stopped being

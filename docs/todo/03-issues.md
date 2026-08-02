@@ -65,7 +65,9 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
 ## Views
 
 - [x] `resources/views/[owner]/[repository]/issues/index.stx` - list with filters
-- [ ] `.../issues/[number].stx` - one issue with its timeline
+- [x] `.../issue/[number].stx` - one issue, its body and its conversation. Singular, matching
+      `/pull/12`: the plural path is the list. The timeline is a separate item below, and until it
+      exists the page shows the body and comments rather than pretending to be a history.
 - [ ] `.../issues/new.stx`
 - [ ] `.../labels.stx`, `.../milestones.stx`
 - [ ] Components: `IssueThread`, `IssueListItem`, `LabelPill`, `MarkdownEditor` (write and preview

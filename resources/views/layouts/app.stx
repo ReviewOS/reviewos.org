@@ -259,7 +259,11 @@
         margin: 0 0 14px;
       }
 
-      .markdown ul, .markdown ol { padding-left: 24px; }
+      /* The reset strips list markers site-wide, which is right for navigation
+         and wrong here: in prose a bullet is the only thing telling a reader
+         these lines are a list. */
+      .markdown ul { padding-left: 24px; list-style: disc; }
+      .markdown ol { padding-left: 24px; list-style: decimal; }
       .markdown li { margin: 4px 0; }
       .markdown li > ul, .markdown li > ol { margin: 4px 0; }
 

@@ -198,7 +198,10 @@ export function linkifyText(text: string, context: MarkdownContext): string {
       spans.push({
         index: found.index,
         length: found.length,
-        html: link(`${target}/issues/${number}`, escapeText(text.slice(found.index, found.index + found.length))),
+        // Singular, matching the detail routes: `/issues` is the list and
+        // `/issue/12` is the one issue, the same way `/pulls` and `/pull/12`
+        // work.
+        html: link(`${target}/issue/${number}`, escapeText(text.slice(found.index, found.index + found.length))),
       })
     }
 
