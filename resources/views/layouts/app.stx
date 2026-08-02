@@ -270,6 +270,35 @@
       .markdown li.task-item { list-style: none; margin-left: -20px; }
       .markdown li.task-item input { margin-right: 7px; vertical-align: middle; }
 
+      /* A tickable item is a one-button form, because the page runs no
+         client-side JavaScript and a checkbox cannot submit on its own. The
+         button is drawn as the checkbox rather than sitting next to one, so
+         there is exactly one thing to click. */
+      .markdown .task-form { display: inline; }
+      .markdown .task-box {
+        width: 13px;
+        height: 13px;
+        margin-right: 7px;
+        padding: 0;
+        vertical-align: middle;
+        border: 1px solid var(--line-strong);
+        border-radius: 3px;
+        background: var(--surface);
+        cursor: pointer;
+      }
+      .markdown .task-box:hover { border-color: var(--fg); }
+      .markdown .task-box.is-checked {
+        border-color: var(--fg);
+        background: var(--fg);
+        /* The tick, drawn rather than shipped as an icon: it has to sit inside
+           13 pixels and match the border radius above. */
+        background-image: linear-gradient(45deg, transparent 44%, var(--bg) 44%, var(--bg) 56%, transparent 56%),
+                          linear-gradient(-45deg, transparent 44%, var(--bg) 44%, var(--bg) 56%, transparent 56%);
+        background-size: 8px 2px, 5px 2px;
+        background-position: 4px 7px, 2px 6px;
+        background-repeat: no-repeat;
+      }
+
       .markdown blockquote {
         padding: 2px 0 2px 14px;
         border-left: 3px solid var(--line-strong);

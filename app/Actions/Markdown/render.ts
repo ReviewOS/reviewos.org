@@ -37,6 +37,18 @@ export interface MarkdownContext {
    */
   codeBlocks?: CodeBlock[]
   /**
+   * Where ticking a task list item should post, and what it should carry.
+   *
+   * Absent by default, and then the checkboxes are disabled: one that moves and
+   * then cannot save is worse than one that never moved.
+   *
+   * Present, each item becomes its own single-button form. The page has no
+   * client-side JavaScript and stx directives cannot reach inside rendered
+   * HTML, so a checkbox that submits on change is not available - the button
+   * *is* the checkbox, and clicking it is the submit.
+   */
+  taskForm?: TaskForm
+  /**
    * Prefix for generated heading ids.
    *
    * Headings come from user text, so their ids do too, and an id is a global
@@ -279,6 +291,36 @@ function alignAttribute(align?: string): string {
 const RUN_MARKER = /\u0001(\d+)\u0002/g
 
 /** One fenced block, on its way to the highlighter. */
+/** Where a ticked box posts to, and the fields it has to carry. */
+export interface TaskForm {
+  action: string
+  /** Hidden fields identifying what is being edited: the repository, the issue, maybe a comment. */
+  fields: Record<string, string | number>
+}
+
+/**
+ * One task item, as a form with a single button.
+ *
+ * `expected` carries the state the reader is looking at, so two people on the
+ * same issue cannot silently undo each other: the action rejects a tick whose
+ * expectation no longer matches rather than overwriting it.
+ */
+function taskButton(form: TaskForm, index: number, checked: boolean): string {
+  const hidden = Object.entries(form.fields)
+    .map(([name, value]) => `<input type="hidden" name="${escapeAttribute(name)}" value="${escapeAttribute(String(value))}">`)
+    .join('')
+
+  return `<form class="task-form" method="post" action="${escapeAttribute(form.action)}">`
+    + hidden
+    + `<input type="hidden" name="index" value="${index}">`
+    + `<input type="hidden" name="checked" value="${checked ? 'false' : 'true'}">`
+    + `<input type="hidden" name="expected" value="${checked ? 'true' : 'false'}">`
+    + `<button type="submit" class="task-box${checked ? ' is-checked' : ''}"`
+    + ` aria-pressed="${checked ? 'true' : 'false'}"`
+    + ` aria-label="${checked ? 'Untick' : 'Tick'} task ${index + 1}"></button>`
+    + '</form>'
+}
+
 export interface CodeBlock {
   language: string | null
   code: string
@@ -331,6 +373,10 @@ export function renderMarkdown(source: string, context: MarkdownContext = {}): s
   /** Text as written, unescaped, for a caller that will escape it itself. */
   const raw = (children: string): string => resolve(children, run => run)
 
+  // Counted across the whole render so a checkbox's index matches the position
+  // `taskItems` gives the same item in the source.
+  let taskIndex = 0
+
   const html = Bun.markdown.render(input, {
     text: park,
 
@@ -378,10 +424,16 @@ export function renderMarkdown(source: string, context: MarkdownContext = {}): s
         return `<li>${children}</li>`
 
       const checked = meta.checked ? ' checked' : ''
+      // Counted in the order the parser emits them, which is source order, so
+      // the index means the same item here and in `taskItems`. Ticking one
+      // sends this number back; anything that made the two disagree would tick
+      // the wrong box.
+      const index = taskIndex++
 
-      // Disabled, because ticking it has to write back to the markdown source,
-      // which is an action rather than a rendering concern.
-      return `<li class="task-item"><input type="checkbox" disabled${checked}>${children}</li>`
+      if (!context.taskForm)
+        return `<li class="task-item"><input type="checkbox" disabled${checked}>${children}</li>`
+
+      return `<li class="task-item">${taskButton(context.taskForm, index, meta.checked)}${children}</li>`
     },
 
     table: children => `<table>${children}</table>`,

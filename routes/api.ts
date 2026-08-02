@@ -52,6 +52,10 @@ route.put('/repos/issues/labels', 'Actions/Issue/LabelIssueAction').middleware('
 route.put('/repos/issues/assignees', 'Actions/Issue/AssignIssueAction').middleware('auth')
 route.put('/repos/issues/milestone', 'Actions/Issue/MilestoneIssueAction').middleware('auth')
 route.put('/repos/issues/lock', 'Actions/Issue/LockIssueAction').middleware('auth')
+// Ticking a checklist item. Anybody who can comment can tick a box: a checklist
+// on a shared issue is a coordination device, and gating it behind write access
+// turns it into a status report from the maintainers.
+route.put('/repos/issues/tasks', 'Actions/Issue/ToggleTaskAction').middleware('auth')
 
 // The label and milestone *sets*, as opposed to applying them to an issue.
 // One endpoint each, with the operation in the body: create, update and delete

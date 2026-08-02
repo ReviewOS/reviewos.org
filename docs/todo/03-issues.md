@@ -68,7 +68,14 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
 - [ ] The same, on push. Needs post-receive processing first: the receive-pack route streams git
       straight through and nothing walks the new commits, so there is nowhere yet to read a commit
       message from. That is the `ProcessPushJob` in [phase 2](./02-git-hosting.md).
-- [ ] Task lists that can be ticked directly from the rendered issue
+- [x] Task lists that can be ticked directly from the rendered issue, on the body and on comments.
+      The edit lands in the markdown source character for character - the rendered checkbox is a
+      view of the document, not the document - so nothing else in somebody's writing moves. Each
+      item is its own one-button form, because the page runs no client-side JavaScript and stx
+      directives cannot reach inside already-rendered HTML. Anybody who can comment can tick a box:
+      a checklist on a shared issue is a coordination device, and gating it behind write access
+      turns it into a status report from the maintainers. Each tick carries the state its reader
+      was looking at, so two people on one issue cannot silently undo each other.
 - [x] Syntax-highlighted code fences, sharing the highlighter with the blob view. Literally the
       same one, so a snippet quoted in an issue and the file it came from are coloured alike: two
       highlighters disagreeing about what a keyword looks like is the sort of thing nobody reports

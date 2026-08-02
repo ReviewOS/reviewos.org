@@ -114,13 +114,29 @@ const commentRows: any[] = issue
 // renderer anyway.
 const markdownContext = { owner, repository: repositoryName }
 
-const bodyHtml = issue?.body ? await renderMarkdownHighlighted(String(issue.body), markdownContext) : ''
+// Ticking a box posts a form, because the page has no client-side JavaScript
+// and stx directives cannot reach inside already-rendered HTML. A locked
+// conversation gets no forms at all: the action refuses them anyway, and
+// offering a control that will be turned down is worse than not offering it.
+const taskFields = { owner, repo: repositoryName, number: issue?.number ?? 0 }
+const taskAction = '/api/repos/issues/tasks'
+const bodyTaskForm = issue && !issue.locked
+  ? { action: taskAction, fields: taskFields }
+  : undefined
+
+const bodyHtml = issue?.body
+  ? await renderMarkdownHighlighted(String(issue.body), { ...markdownContext, taskForm: bodyTaskForm })
+  : ''
+
 const comments = await Promise.all(commentRows.map(async (row: any) => ({
   id: Number(row.id),
   handle: row.handle ? String(row.handle) : null,
   createdAt: String(row.created_at ?? ''),
   edited: Boolean(row.edited_at),
-  bodyHtml: await renderMarkdownHighlighted(String(row.body ?? ''), markdownContext),
+  bodyHtml: await renderMarkdownHighlighted(String(row.body ?? ''), {
+    ...markdownContext,
+    taskForm: bodyTaskForm ? { action: taskAction, fields: { ...taskFields, comment_id: Number(row.id) } } : undefined,
+  }),
 })))
 
 const stateLabel = issue ? issueStateLabel(String(issue.state), issue.state_reason) : ''
