@@ -16,8 +16,11 @@ or a pull request.
       `edited_by_id`
 - [x] `app/Models/Label.ts`: `repository_id`, `name`, `color`, `description`, unique per repository
 - [x] `app/Models/IssueLabel.ts` and `app/Models/IssueAssignee.ts` join models
-- [x] `app/Models/Milestone.ts`: `repository_id`, `title`, `description`, `due_on`, `state`,
-      `open_issues_count`, `closed_issues_count`
+- [x] `app/Models/Milestone.ts`: `repository_id`, `title`, `description`, `due_on`, `state`. The
+      progress counters were dropped: the model never declared them and no migration ever added
+      them, so the code maintaining them had been writing to columns that do not exist. The
+      milestone list counts its issues in one grouped query for the whole page instead, and a
+      counter is only worth denormalizing when the query it saves is expensive.
 - [x] Default label set created with each repository
 - [x] All of it seeded with realistic factories
 
@@ -80,14 +83,19 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
 - [x] `.../issue/[number].stx` - one issue, its body and its conversation. Singular, matching
       `/pull/12`: the plural path is the list. The timeline is a separate item below, and until it
       exists the page shows the body and comments rather than pretending to be a history.
-- [ ] `.../issues/new.stx`
+- [x] `.../issues/new.stx` - title, body, labels and a milestone, with write and preview tabs.
+      Preview is a round trip through the real renderer rather than a client-side approximation of
+      it: what is previewed is exactly what gets published, which an approximation cannot promise.
+      Assignees are deliberately absent - people assign after triage, and every field on this form
+      is a field between somebody and reporting the bug.
 - [x] `.../labels.stx`, `.../milestones.stx` - the label and milestone sets, each list doubling as
       its own editor. A separate edit page for a name and a colour is a page load spent on nothing.
       `ManageLabelAction` and `ManageMilestoneAction` carry create, update and delete together
       because the rule that matters is shared: a repository may not end up with two names that
       collide, and collide is more than equal.
-- [ ] Components: `IssueThread`, `IssueListItem`, `LabelPill`, `MarkdownEditor` (write and preview
-      tabs), `TimelineEntry`. Rendered markdown is a `.markdown` block styled once in the layout
+- [ ] Components: `IssueThread`, `IssueListItem`, `LabelPill`, `TimelineEntry`. The markdown
+      editor's write and preview tabs exist on the new-issue form and want lifting out once a
+      second screen needs them. Rendered markdown is a `.markdown` block styled once in the layout
       rather than a component: a component cannot import the renderer, so the HTML is built in the
       view either way, and one stylesheet stops a README looking like two different things.
 - [ ] Keyboard shortcuts on the list. People who live in issues navigate by keyboard.

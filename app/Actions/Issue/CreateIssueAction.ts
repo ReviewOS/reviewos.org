@@ -70,12 +70,56 @@ export default new Action({
       .where('id', '=', repository.id)
       .execute()
 
+    // Labels chosen while writing. Applying a label is normally a triage
+    // power, and it still is: this only lets somebody label the issue they are
+    // opening, with labels that already exist on this repository. Names that
+    // do not match are ignored rather than rejected, because losing a whole
+    // report over a stale label in a bookmarked form is the wrong trade.
+    const applied = await applyLabels(Number(created?.id), repository.id, request.get('labels'))
+
     return response.json({
       id: Number(created?.id),
       number,
       title,
       state: 'open',
-      url: `/${request.get('owner')}/${repository.name}/issues/${number}`,
+      labels: applied,
+      url: `/${request.get('owner')}/${repository.name}/issue/${number}`,
     }, 201)
   },
 })
+
+/**
+ * Attach the requested labels, resolved by name within this repository.
+ *
+ * By name rather than by id because that is what a form can honestly send: an
+ * id from another repository's label set would otherwise attach it here, and
+ * checking the ids costs the same query as resolving the names.
+ */
+async function applyLabels(issueId: number, repositoryId: number, requested: unknown): Promise<string[]> {
+  if (!issueId)
+    return []
+
+  const names = (Array.isArray(requested) ? requested : [requested])
+    .filter(value => value !== undefined && value !== null && String(value).trim() !== '')
+    .map(value => String(value).trim().toLowerCase())
+
+  if (names.length === 0)
+    return []
+
+  const labels: any[] = await db
+    .selectFrom('repository_labels')
+    .select(['id', 'name'])
+    .where('repository_id', '=', repositoryId)
+    .execute()
+
+  const matched = labels.filter(row => names.includes(String(row.name).toLowerCase()))
+  if (matched.length === 0)
+    return []
+
+  await db
+    .insertInto('issue_labels')
+    .values(matched.map(row => ({ issue_id: issueId, label_id: Number(row.id) })))
+    .execute()
+
+  return matched.map(row => String(row.name))
+}

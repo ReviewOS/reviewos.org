@@ -8,9 +8,13 @@ import { authorizeRepository } from '../Repo/authorize'
  * there is no separate remove endpoint, because a milestone is a single value
  * rather than a set.
  *
- * The counters on the milestone move with the issue. They exist so a milestone
- * list can show progress without counting rows per milestone per page, and a
- * counter nobody maintains is worse than no counter.
+ * There are no progress counters on a milestone to maintain. There were meant
+ * to be, and the code here moved them for a while against columns the table
+ * has never had - the model does not declare them and no migration ever added
+ * them, so every write here failed. The milestone list counts its issues
+ * instead, which is one grouped query for the whole page: a counter is only
+ * worth denormalizing when the query it saves is expensive, and this one is
+ * not.
  */
 export default new Action({
   name: 'MilestoneIssue',
@@ -63,27 +67,6 @@ export default new Action({
       .set({ milestone_id: nextId })
       .where('id', '=', Number(issue.id))
       .execute()
-
-    // Which counter moves depends on the issue's own state, not on the
-    // milestone's: a closed issue added to a milestone is closed work.
-    const column = issue.state === 'closed' ? 'closed_issues_count' : 'open_issues_count'
-
-    if (previousId !== null) {
-      await db
-        .updateTable('milestones')
-        .set((eb: any) => ({ [column]: eb(column, '-', 1) }))
-        .where('id', '=', previousId)
-        .where(column, '>', 0)
-        .execute()
-    }
-
-    if (nextId !== null) {
-      await db
-        .updateTable('milestones')
-        .set((eb: any) => ({ [column]: eb(column, '+', 1) }))
-        .where('id', '=', nextId)
-        .execute()
-    }
 
     return response.json({ number, milestone: milestone?.title ?? null })
   },

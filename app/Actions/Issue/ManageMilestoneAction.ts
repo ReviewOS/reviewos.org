@@ -71,8 +71,6 @@ export default new Action({
         repository_id: repository.id,
         ...fields.value,
         state: 'open',
-        open_issues_count: 0,
-        closed_issues_count: 0,
       })
       .returning(['id'])
       .executeTakeFirst()

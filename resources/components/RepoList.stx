@@ -158,6 +158,9 @@ const notFound = !repoRow
         <span class="list-filters-end">
           <a class="list-filter" href="/{{ ownerHandle }}/{{ repositoryName }}/labels">Labels</a>
           <a class="list-filter" href="/{{ ownerHandle }}/{{ repositoryName }}/milestones">Milestones</a>
+          @if (kind === 'issues')
+            <a class="list-filter list-filter-primary" href="/{{ ownerHandle }}/{{ repositoryName }}/issues/new">New issue</a>
+          @endif
         </span>
       </nav>
 
@@ -215,7 +218,13 @@ const notFound = !repoRow
   </div>
 
 <style>
-  .list-filters-end { margin-left: auto; display: flex; gap: 14px; }
+  .list-filters-end { margin-left: auto; display: flex; gap: 14px; align-items: center; }
+  .list-filter-primary {
+    padding: 5px 11px;
+    color: var(--bg);
+    background: var(--fg);
+    border-radius: var(--r-control);
+  }
 
   .list-filters {
     display: flex;

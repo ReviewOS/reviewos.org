@@ -1,0 +1,258 @@
+<script server>
+/**
+ * Opening an issue.
+ *
+ * A title, a body, and the two things worth picking up front: labels and a
+ * milestone. Assignees are deliberately absent - people assign after triage,
+ * not while writing, and every field on this form is a field between somebody
+ * and reporting the bug.
+ *
+ * The write and preview tabs are the markdown editor the roadmap asks for, and
+ * preview is a real render rather than a client-side approximation: the same
+ * pipeline that will display the issue, so what is previewed is what is
+ * published. That means a round trip, which is why preview is a submit rather
+ * than a keystroke handler.
+ */
+import { renderMarkdownHighlighted } from '../../../../functions/markdown'
+import { labelTextColor, resolveRepository } from '../../../../functions/issues'
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+
+// `repository` is the route parameter inside `[owner]/[repository]/`, so the
+// resolved row needs its own name: assigning to `repository` loses the row and
+// every query below it silently reads as empty.
+const repositoryRow: any = await resolveRepository(ownerHandle, repositoryName)
+
+const availableLabels: any[] = repositoryRow
+  ? await db
+      .selectFrom('repository_labels')
+      .select(['id', 'name', 'color'])
+      .where('repository_id', '=', Number(repositoryRow.id))
+      .orderBy('name', 'asc')
+      .execute()
+  : []
+
+const availableMilestones: any[] = repositoryRow
+  ? await db
+      .selectFrom('milestones')
+      .select(['id', 'title'])
+      .where('repository_id', '=', Number(repositoryRow.id))
+      .where('state', '=', 'open')
+      .orderBy('title', 'asc')
+      .execute()
+  : []
+
+const labelChoices = availableLabels.map(row => ({
+  id: Number(row.id),
+  name: String(row.name),
+  color: String(row.color),
+  textColor: labelTextColor(String(row.color)),
+}))
+
+const milestoneChoices = availableMilestones.map(row => ({
+  id: Number(row.id),
+  title: String(row.title),
+}))
+
+// A draft comes back through the query string when preview was pressed, so
+// nothing typed is lost by looking at it.
+const draftTitle = String(query.title ?? '')
+const draftBody = String(query.body ?? '')
+const previewing = String(query.preview ?? '') === '1' && draftBody.trim() !== ''
+
+const previewHtml = previewing
+  ? await renderMarkdownHighlighted(draftBody, { owner: ownerHandle, repository: repositoryName })
+  : ''
+
+const base = `/${ownerHandle}/${repositoryName}`
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repositoryRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+        <p class="muted" style="margin-top: 6px;">Nothing is published at {{ ownerHandle }}/{{ repositoryName }}.</p>
+      </div>
+    @else
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="issues" />
+
+      <header class="new-head">
+        <h1 class="new-title">Open an issue</h1>
+        <a class="new-back" href="{{ base }}/issues">Back to issues</a>
+      </header>
+
+      <form class="new-form" method="post" action="/api/repos/issues">
+        <input type="hidden" name="owner" value="{{ ownerHandle }}">
+        <input type="hidden" name="repo" value="{{ repositoryName }}">
+
+        <div class="new-main">
+          <div class="panel new-panel">
+            <label class="visually-hidden" for="issue-title">Title</label>
+            <input
+              id="issue-title"
+              class="new-input new-title-input"
+              name="title"
+              value="{{ draftTitle }}"
+              placeholder="Title"
+              maxlength="255"
+              required
+              autofocus
+            >
+
+            <nav class="tab-row" aria-label="Editor">
+              {{-- Preview is a GET back to this page carrying the draft, so the
+                   preview is the real renderer rather than an approximation of
+                   it that can disagree with what gets published. --}}
+              <span class="tab {{ previewing ? '' : 'is-current' }}">Write</span>
+              <button
+                class="tab tab-button {{ previewing ? 'is-current' : '' }}"
+                type="submit"
+                formmethod="get"
+                formaction="{{ base }}/issues/new"
+                name="preview"
+                value="1"
+              >Preview</button>
+            </nav>
+
+            @if (previewing)
+              <div class="new-preview markdown">{!! previewHtml !!}</div>
+              {{-- Carried so pressing Submit after previewing still posts the
+                   body, which the textarea below is no longer showing. --}}
+              <input type="hidden" name="body" value="{{ draftBody }}">
+            @else
+              <label class="visually-hidden" for="issue-body">Description</label>
+              <textarea
+                id="issue-body"
+                class="new-input new-body"
+                name="body"
+                rows="14"
+                placeholder="Describe the problem, and how to see it happen."
+              >{{ draftBody }}</textarea>
+            @endif
+          </div>
+
+          <div class="new-actions">
+            <button class="btn btn-primary" type="submit">Open issue</button>
+          </div>
+        </div>
+
+        <aside class="new-side">
+          <section class="panel side-block">
+            <h2 class="side-title">Labels</h2>
+            @if (labelChoices.length === 0)
+              <p class="muted side-empty">
+                This repository has no labels.
+                <a href="{{ base }}/labels">Add some</a>.
+              </p>
+            @else
+              <ul class="choice-list">
+                @foreach (labelChoices as label)
+                  <li class="choice">
+                    <label class="choice-label">
+                      <input type="checkbox" name="labels" value="{{ label.name }}">
+                      <span class="label-pill" style="background: #{{ label.color }}; color: {{ label.textColor }};">
+                        {{ label.name }}
+                      </span>
+                    </label>
+                  </li>
+                @endforeach
+              </ul>
+            @endif
+          </section>
+
+          <section class="panel side-block">
+            <h2 class="side-title">Milestone</h2>
+            @if (milestoneChoices.length === 0)
+              <p class="muted side-empty">
+                No open milestones.
+                <a href="{{ base }}/milestones">Create one</a>.
+              </p>
+            @else
+              <label class="visually-hidden" for="issue-milestone">Milestone</label>
+              <select id="issue-milestone" class="new-input" name="milestone_id">
+                <option value="">No milestone</option>
+                @foreach (milestoneChoices as milestone)
+                  <option value="{{ milestone.id }}">{{ milestone.title }}</option>
+                @endforeach
+              </select>
+            @endif
+          </section>
+        </aside>
+      </form>
+    @endif
+  </div>
+@endsection
+
+<style>
+  .new-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 20px 0 14px; }
+  .new-title { font-size: 20px; letter-spacing: -0.01em; }
+  .new-back { font-size: 13px; color: var(--muted); text-decoration: none; }
+  .new-back:hover { color: var(--fg); }
+
+  .new-form { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; align-items: start; }
+  .new-panel { padding: 16px; display: grid; gap: 12px; }
+
+  .new-input {
+    width: 100%;
+    padding: 9px 11px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+  }
+  .new-title-input { font-size: 15px; }
+  .new-body { resize: vertical; line-height: 1.6; font-size: 13.5px; }
+
+  .tab-row { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
+  .tab {
+    padding: 7px 13px;
+    font-size: 13px;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab-button { font: inherit; font-size: 13px; background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+  .tab.is-current { color: var(--fg); border-bottom-color: var(--fg); }
+
+  .new-preview { min-height: 200px; padding: 4px 2px; }
+
+  .new-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+
+  .new-side { display: grid; gap: 12px; }
+  .side-block { padding: 14px 16px; }
+  .side-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .side-empty { margin-top: 6px; font-size: 13px; }
+
+  .choice-list { list-style: none; margin-top: 9px; display: grid; gap: 7px; }
+  .choice-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+  .label-pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .btn {
+    padding: 8px 15px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    cursor: pointer;
+  }
+  .btn-primary { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+
+  @media (max-width: 860px) {
+    .new-form { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
