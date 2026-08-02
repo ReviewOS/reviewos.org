@@ -10,45 +10,42 @@ import { env } from '@stacksjs/env'
  */
 export default {
   from: {
-    name: env.MAIL_FROM_NAME || 'Stacks',
-    address: env.MAIL_FROM_ADDRESS || `hello@${env.MAIL_DOMAIN || 'stacksjs.com'}`,
+    name: env.MAIL_FROM_NAME || 'ReviewOS',
+    address: env.MAIL_FROM_ADDRESS || `hello@${env.MAIL_DOMAIN || 'reviewos.org'}`,
   },
 
-  domain: env.MAIL_DOMAIN || 'stacksjs.com',
+  domain: env.MAIL_DOMAIN || 'reviewos.org',
 
   /**
-   * Mailbox users for IMAP/SMTP access.
-   * Passwords are automatically looked up from MAIL_PASSWORD_<USERNAME> env vars.
-   * After first deploy, passwords are synced to AWS Secrets Manager.
+   * No mailboxes and no forwards.
    *
-   * Supported formats:
-   * - Simple usernames: ['chris', 'blake'] -> chris@{domain}, blake@{domain}
-   * - Full emails: ['chris@stacksjs.com']
-   * - Objects: [{ email: 'chris', password: '...' }]
+   * These listed the stacksjs.com mailboxes and role-address forwards, which
+   * are real and live on the shared box - and are the `stacks` project's to
+   * define. A deploy from here that reconciled mail would have been editing
+   * another project's inboxes.
    */
-  mailboxes: [
-    'chris',
-    'blake',
-    'glenn',
-  ],
+  mailboxes: [],
+  forwards: {},
 
-  /**
-   * Role inboxes retain their own copy and forward one to Chris.
-   * The mail deploy also writes the matching bare local-part keys because
-   * these addresses currently use legacy role mailboxes on the shared server.
-   */
-  forwards: {
-    'socials@stacksjs.com': ['chris@stacksjs.com'],
-    'hi@stacksjs.com': ['chris@stacksjs.com'],
-  },
-
-  url: env.APP_URL || 'https://stacksjs.com',
+  url: env.APP_URL || 'https://reviewos.org',
   charset: 'UTF-8',
 
   server: {
-    enabled: true,
+    /**
+     * ReviewOS does not run a mail server.
+     *
+     * mail.stacksjs.com lives on the shared box and belongs to the `stacks`
+     * project. With this on, a deploy from here reconciled that server's DNS -
+     * every run printed MX and DMARC records for stacksjs.com, and with DNS
+     * credentials present it would have written them.
+     *
+     * The settings below are inert while this is false; they are the template's
+     * defaults, kept so turning it on for reviewos.org's own mail is a one-line
+     * change rather than a rebuild.
+     */
+    enabled: false,
     scan: true, // scans for spam and viruses
-    subdomain: 'mail', // mail.stacksjs.com
+    subdomain: 'mail',
 
     /**
      * Server mode:

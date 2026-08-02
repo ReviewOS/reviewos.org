@@ -420,7 +420,7 @@ export const tsCloud: TsCloudConfig = {
     ssl: {
       enabled: true,
       provider: 'acm', // 'acm' | 'letsencrypt'
-      domains: env.SSL_DOMAINS?.split(',') || ['stacksjs.com', 'www.stacksjs.com'],
+      domains: env.SSL_DOMAINS?.split(',') || ['reviewos.org', 'www.reviewos.org'],
       redirectHttp: true,
       // Let's Encrypt configuration (used when provider: 'letsencrypt' or loadBalancer.enabled: false)
       letsEncrypt: {
@@ -434,8 +434,16 @@ export const tsCloud: TsCloudConfig = {
      * DNS Configuration
      */
     dns: {
-      domain: env.APP_DOMAIN || 'stacksjs.com',
-      hostedZoneId: env.AWS_HOSTED_ZONE_ID || 'Z01455702Q7952O6RCY37', // Route53 hosted zone ID
+      domain: env.APP_DOMAIN || 'reviewos.org',
+      // No default zone id. The one inherited here belonged to the stacks
+      // project's Route53 account, so every deploy tried to reconcile
+      // reviewos.org's records against somebody else's zone and warned
+      // `InvalidClientTokenId` - noise that would have become a real mistake
+      // the moment the credentials happened to work.
+      //
+      // reviewos.org is registered with Porkbun, not Route53. Left unset, DNS
+      // reconciliation is skipped rather than aimed at the wrong provider.
+      hostedZoneId: env.AWS_HOSTED_ZONE_ID,
     },
 
     /**
@@ -787,122 +795,6 @@ export const tsCloud: TsCloudConfig = {
         // and is read at deploy time.
         APP_KEY: env.APP_KEY || '',
       },
-    },
-    main: {
-      // Ship the repo (source only; node_modules/.git excluded by the packager)
-      // and install on the server via preStart, matching the Forge-style deploy.
-      // server-app: has `start` + `port` (systemd service on :3000).
-      root: '.',
-      path: '/',
-      domain: env.APP_DOMAIN || 'stacksjs.com',
-      // The deploy builds a dedicated, minified production entry. This keeps
-      // Buddy's general-purpose command dispatcher out of the long-running
-      // web process while preserving source-based workspace resolution only
-      // during the build step.
-      start: 'bun storage/framework/runtime/production/serve.js',
-      port: 3000,
-      // preStart runs (in order) after the repo is shipped + the resolved
-      // production env is in place, before the systemd service starts.
-      //   1. install deps
-      //   2. migrate the database (stacksjs/stacks#1950) — without this a fresh
-      //      box served the API against a schema-less / stale-dev SQLite file.
-      //
-      // Migrate runs ONLY on `main`, the single DB owner: the `api` site shares
-      // the same box + SQLite file, so migrating from both would race two
-      // writers on one file (the file lock would make one fail; see the
-      // "SQLite migrate gotchas" — `busy_timeout`/single-writer). Migration
-      // remains a short-lived CLI task. No `--force`: additive migrations
-      // apply on every deploy (a no-op when none pend). A *destructive*
-      // change is refused in this
-      // non-interactive context — migrate logs the refusal and skips it
-      // (leaving prod data intact) rather than dropping columns/tables
-      // unattended; apply those deliberately with `--force`.
-      preStart: [
-        'bun install',
-        'mkdir -p storage/framework/runtime/production',
-        'bun build --production --splitting --conditions=development --target=bun --external=localtunnels --external=localtunnels/cloud --external=@stacksjs/bun-queue --external=meilisearch storage/framework/core/buddy/src/serve-entry.ts --outdir storage/framework/runtime/production --entry-naming serve.js --chunk-naming chunks/[name]-[hash].js',
-        'bun --conditions development storage/framework/core/buddy/src/cli.ts migrate',
-      ],
-      env: { APP_ENV: 'production', NODE_ENV: 'production' },
-    },
-
-    // API (bun-router) behind `buddy serve`'s same-origin /api proxy.
-    // server-app: has `start` + `port` → systemd service on :3008.
-    // Intentionally NO `domain`/`path`: ts-cloud's rpx gateway skips
-    // domain-less sites, so the service stays loopback-only and is
-    // reached exclusively via the :3000 proxy (stacksjs/stacks#1950).
-    // Loopback isolation is enforced at the firewall too: the Hetzner
-    // deploy strips this port from the provision config
-    // (scrubLoopbackSitePortsForFirewall in buddy's deploy command), so
-    // ts-cloud never opens :3008 to 0.0.0.0/0 — without that, the
-    // HOST=127.0.0.1 bind below would be the only thing keeping the full
-    // API off the public internet.
-    api: {
-      root: '.',
-      start: 'bun storage/framework/runtime/production/api.js',
-      port: 3008,
-      preStart: [
-        'bun install',
-        'mkdir -p storage/framework/runtime/production',
-        // Cors middleware is loaded from the app override tree at runtime and
-        // imports the router by package name. Keep that package external so
-        // the API and middleware share one router instance instead of retaining
-        // a second copy inside a split chunk. Without splitting, Bun emits one
-        // small entry and avoids duplicate output paths from prebuilt packages.
-        'bun build --production --conditions=development --target=bun --external=localtunnels --external=localtunnels/cloud --external=@stacksjs/router --external=@stacksjs/bun-queue --external=meilisearch storage/framework/core/actions/src/serve/api.ts --outdir storage/framework/runtime/production --entry-naming api.js',
-      ],
-      env: { HOST: '127.0.0.1', APP_ENV: 'production', NODE_ENV: 'production' },
-    },
-
-    // ---- server-static sites (migrated off AWS S3 + CloudFront) ----
-    // NO `start`/`port` ⇒ resolveSiteKind() === 'server-static'. The built
-    // `root` dir is shipped to /var/www/<key> and served by the reverse proxy's
-    // `file_server`. `build` runs locally before packaging to produce `root`.
-
-    // Documentation (BunPress). ~82 MB.
-    // BunPress writes the rendered site into the `.bunpress` subdir of --outdir,
-    // so the SERVED root is `dist/docs/.bunpress`.
-    docs: {
-      deploy: 'server',
-      root: 'dist/docs/.bunpress',
-      path: '/docs',
-      domain: env.APP_DOMAIN || 'stacksjs.com',
-      build: 'bunx @stacksjs/bunpress build --dir ./docs --outdir ./dist/docs',
-      // Extensionless docs URLs resolve to <path>/index.html (BunPress default).
-      pathRewriteStyle: 'directory',
-    },
-
-    // Blog (BunPress static build of content/blog/, same engine as /docs).
-    // `buildBlog` renders the markdown posts with the custom Stacks theme into
-    // clean-URL pages (`<slug>/index.html`) plus the listing, feed.xml, and
-    // sitemap.xml — the static twin of the dev-server's onRequest renderer.
-    blog: {
-      deploy: 'server',
-      root: 'dist/blog',
-      path: '/blog',
-      domain: env.APP_DOMAIN || 'stacksjs.com',
-      build: 'bun -e "const {buildBlog}=await import(\'./storage/framework/core/actions/src/blog\'); await buildBlog({outDir:\'./dist/blog\', baseUrl: (process.env.APP_URL?(/^https?:/.test(process.env.APP_URL)?process.env.APP_URL:\'https://\'+process.env.APP_URL):\'https://stacksjs.com\')})"',
-      // Extensionless blog URLs resolve to <path>/index.html.
-      pathRewriteStyle: 'directory',
-    },
-
-    // Redirect-only sites (gateway answers with a 301; nothing is shipped).
-    // The alternate adblock domain → canonical, and www → apex for stacksjs.com.
-    wwwStacksjs: { domain: 'www.stacksjs.com', redirect: 'https://stacksjs.com' },
-
-    // Vanity invite link. Every README/doc links the community as
-    // stacksjs.com/discord so the invite code lives in exactly one place (here)
-    // and can be rotated without touching thousands of markdown files.
-    //
-    // This is a path-scoped redirect route on the apex domain: the gateway
-    // resolves longest-prefix-first, so `/discord` wins over the `main` app's
-    // `/` route without competing with it. `preservePath: false` is required —
-    // the default appends the request path, which would send visitors to
-    // discord.gg/<invite>
-    discord: {
-      domain: env.APP_DOMAIN || 'stacksjs.com',
-      path: '/discord',
-      redirect: { to: 'https://discord.gg/gD8KTSzhBd', preservePath: false },
     },
   },
 }
