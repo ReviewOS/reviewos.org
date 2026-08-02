@@ -38,6 +38,19 @@ export interface ClosingReference extends IssueReference {
 }
 
 /**
+ * A reference together with where it sits in the text.
+ *
+ * The renderer needs the position to replace the reference with a link and
+ * leave the rest of the run alone; everything else only cares what the
+ * reference means, which is why the plain functions below drop it.
+ */
+export interface Located<T> {
+  value: T
+  index: number
+  length: number
+}
+
+/**
  * Spans that are not prose: fenced blocks, indented blocks, and inline code.
  *
  * Everything below ignores these. `#1` inside a code sample is a comment or a
@@ -121,9 +134,9 @@ function inCode(spans: Array<[number, number]>, index: number): boolean {
  * A `#` immediately after a word character is skipped: `abc#12` is part of a
  * URL fragment or an anchor far more often than it is a reference.
  */
-export function issueReferences(text: string): IssueReference[] {
+export function scanIssueReferences(text: string): Array<Located<IssueReference>> {
   const spans = codeSpans(text)
-  const found: IssueReference[] = []
+  const found: Array<Located<IssueReference>> = []
   const pattern = /(?:([A-Za-z0-9][\w.-]*)\/([A-Za-z0-9][\w.-]*))?#(\d+)\b/g
 
   for (const match of text.matchAll(pattern)) {
@@ -143,19 +156,27 @@ export function issueReferences(text: string): IssueReference[] {
       continue
 
     found.push({
-      owner: match[1] ?? null,
-      repository: match[2] ?? null,
-      number,
+      value: {
+        owner: match[1] ?? null,
+        repository: match[2] ?? null,
+        number,
+      },
+      index,
+      length: match[0].length,
     })
   }
 
   return found
 }
 
-/** Mentions: `@handle`. */
-export function userReferences(text: string): UserReference[] {
+export function issueReferences(text: string): IssueReference[] {
+  return scanIssueReferences(text).map(found => found.value)
+}
+
+/** Mentions: `@handle`, with their positions. */
+export function scanUserReferences(text: string): Array<Located<UserReference>> {
   const spans = codeSpans(text)
-  const found: UserReference[] = []
+  const found: Array<Located<UserReference>> = []
   const pattern = /@([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)\b/g
 
   for (const match of text.matchAll(pattern)) {
@@ -169,16 +190,25 @@ export function userReferences(text: string): UserReference[] {
     if (/[\w.-]/.test(before))
       continue
 
-    found.push({ handle: match[1]!.toLowerCase() })
+    found.push({
+      value: { handle: match[1]!.toLowerCase() },
+      index,
+      length: match[0].length,
+    })
   }
 
   return found
 }
 
-/** Bare commit SHAs, at least 7 hex characters. */
-export function commitReferences(text: string): string[] {
+/** Mentions: `@handle`. */
+export function userReferences(text: string): UserReference[] {
+  return scanUserReferences(text).map(found => found.value)
+}
+
+/** Bare commit SHAs, at least 7 hex characters, with their positions. */
+export function scanCommitReferences(text: string): Array<Located<string>> {
   const spans = codeSpans(text)
-  const found: string[] = []
+  const found: Array<Located<string>> = []
   const pattern = /\b([0-9a-f]{7,40})\b/g
 
   for (const match of text.matchAll(pattern)) {
@@ -189,10 +219,15 @@ export function commitReferences(text: string): string[] {
     if (/^\d+$/.test(match[1]!))
       continue
 
-    found.push(match[1]!)
+    found.push({ value: match[1]!, index: match.index!, length: match[0].length })
   }
 
   return found
+}
+
+/** Bare commit SHAs, at least 7 hex characters. */
+export function commitReferences(text: string): string[] {
+  return scanCommitReferences(text).map(found => found.value)
 }
 
 /**
