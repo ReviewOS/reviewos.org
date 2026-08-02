@@ -13,7 +13,11 @@ or a pull request.
       as the insert, from a counter on the repository row. Issues and pull requests share the
       sequence, the way every forge does it, so `#12` is unambiguous.
 - [x] `app/Models/IssueComment.ts`: polymorphic `commentable`, `author_id`, `body`, `edited_at`,
-      `edited_by_id`
+      `edited_by_id`, `external_author`. The author is optional and pairs with the upstream name,
+      the rule `Issue`, `PullRequest` and `ReviewComment` already followed: a mirrored comment is
+      written by somebody who usually has no account here, and requiring a local author made
+      importing a conversation impossible. `PullRequestReview.reviewer_id` had the same defect and
+      got the same treatment. A test reads the model files so a new model cannot get it wrong.
 - [x] `app/Models/Label.ts`: `repository_id`, `name`, `color`, `description`, unique per repository
 - [x] `app/Models/IssueLabel.ts` and `app/Models/IssueAssignee.ts` join models
 - [x] `app/Models/Milestone.ts`: `repository_id`, `title`, `description`, `due_on`, `state`. The

@@ -38,10 +38,17 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * The local reviewer, when there is one.
+     *
+     * Optional for the same reason an author is: a mirrored review was left by
+     * somebody who usually has no account here, and a required column made
+     * importing one impossible.
+     */
     reviewer_id: {
       order: 2,
       fillable: true,
-      validation: { rule: schema.number().required() },
+      validation: { rule: schema.number() },
       factory: () => null,
     },
 
@@ -81,6 +88,21 @@ export default defineModel({
       fillable: true,
       type: 'text',
       validation: { rule: schema.string() },
+      factory: () => null,
+    },
+    /**
+     * The upstream author, when there is no local account for them.
+     *
+     * Moves with `reviewer_id`: exactly one of the two is ever set. A mirrored
+     * conversation is written by people who mostly have no account here, and
+     * attaching their words to a local user because the handles happen to match
+     * puts words in somebody's mouth. The name is still shown, so the author is
+     * visible without being claimed.
+     */
+    external_author: {
+      order: 9,
+      fillable: true,
+      validation: { rule: schema.string().max(120) },
       factory: () => null,
     },
   },

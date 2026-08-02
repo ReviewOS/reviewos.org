@@ -101,6 +101,7 @@ const commentRows: any[] = issue
         'issue_comments.body as body',
         'issue_comments.created_at as created_at',
         'issue_comments.edited_at as edited_at',
+        'issue_comments.external_author as external_author',
         'users.handle as handle',
       ])
       .where('issue_comments.commentable_type', '=', 'issue')
@@ -131,6 +132,7 @@ const bodyHtml = issue?.body
 const comments = await Promise.all(commentRows.map(async (row: any) => ({
   id: Number(row.id),
   handle: row.handle ? String(row.handle) : null,
+  externalAuthor: row.external_author ? String(row.external_author) : null,
   createdAt: String(row.created_at ?? ''),
   edited: Boolean(row.edited_at),
   bodyHtml: await renderMarkdownHighlighted(String(row.body ?? ''), {
@@ -196,9 +198,9 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
           @foreach (comments as comment)
             <article class="panel issue-post">
               <header class="post-head">
-                {{-- A comment carries no upstream author name, unlike the issue
-                     itself, so a mirrored one falls back to the generic label. --}}
-                <span class="post-author">{{ authorLabel(comment.handle, null) }}</span>
+                {{-- A mirrored comment names its upstream author, the same way
+                     the issue does, so it is no longer shown as "someone". --}}
+                <span class="post-author">{{ authorLabel(comment.handle, comment.externalAuthor) }}</span>
                 <span class="muted post-time">
                   {{ relativeTime(comment.createdAt) }}@if (comment.edited) &middot; edited@endif
                 </span>

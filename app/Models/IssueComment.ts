@@ -42,10 +42,19 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * The local author, when there is one.
+     *
+     * Optional, because a mirrored comment is written by somebody who usually
+     * has no account here - the same rule `Issue`, `PullRequest` and
+     * `ReviewComment` already follow. It was required, which made importing an
+     * issue's conversation impossible and left the column dangling for every
+     * seeded row whose user went away.
+     */
     author_id: {
       order: 3,
       fillable: true,
-      validation: { rule: schema.number().required() },
+      validation: { rule: schema.number() },
       factory: () => null,
     },
 
@@ -68,6 +77,21 @@ export default defineModel({
       order: 6,
       fillable: true,
       validation: { rule: schema.number() },
+      factory: () => null,
+    },
+    /**
+     * The upstream author, when there is no local account for them.
+     *
+     * Moves with `author_id`: exactly one of the two is ever set. A mirrored
+     * conversation is written by people who mostly have no account here, and
+     * attaching their words to a local user because the handles happen to match
+     * puts words in somebody's mouth. The name is still shown, so the author is
+     * visible without being claimed.
+     */
+    external_author: {
+      order: 7,
+      fillable: true,
+      validation: { rule: schema.string().max(120) },
       factory: () => null,
     },
   },

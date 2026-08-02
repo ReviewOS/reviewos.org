@@ -3938,7 +3938,7 @@
             "type": "integer",
             "isPrimaryKey": false,
             "isUnique": false,
-            "isNullable": false,
+            "isNullable": true,
             "hasDefault": false,
             "references": {
               "table": "users",
@@ -3993,6 +3993,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "external_author",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
           }
         ],
         "indexes": [
@@ -7824,7 +7833,7 @@
             "type": "integer",
             "isPrimaryKey": false,
             "isUnique": false,
-            "isNullable": false,
+            "isNullable": true,
             "hasDefault": false,
             "references": {
               "table": "users",
@@ -7897,6 +7906,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "external_author",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
           }
         ],
         "indexes": [
@@ -12242,7 +12260,7 @@
       }
     ]
   },
-  "hash": "e5242227f991d1f5a580fb5369768b4946faf4a4652d14e7a1aa193d4fd94cf0",
+  "hash": "11203566d3a4411e969e247f30a12393ab892cea89a74ebb94fd120b42c33887",
   "dialect": "postgres",
-  "updatedAt": "2026-08-02T21:48:56.488Z"
+  "updatedAt": "2026-08-02T22:22:23.372Z"
 }
