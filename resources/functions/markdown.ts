@@ -9,6 +9,7 @@
  * cannot parse.
  */
 
-import { renderMarkdown as renderMarkdownImpl } from '../../app/Actions/Markdown/render'
+import { renderMarkdown as renderMarkdownImpl, renderMarkdownHighlighted as renderMarkdownHighlightedImpl } from '../../app/Actions/Markdown/render'
 
 export const renderMarkdown = renderMarkdownImpl
+export const renderMarkdownHighlighted = renderMarkdownHighlightedImpl

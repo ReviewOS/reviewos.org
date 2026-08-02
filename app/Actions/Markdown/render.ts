@@ -21,12 +21,21 @@
  * its own piece of work rather than a flag flipped here.
  */
 
+import { highlightLines } from '../Browse/highlight'
 import { scanCommitReferences, scanIssueReferences, scanUserReferences } from './references'
 
 export interface MarkdownContext {
   /** Repository the text belongs to. Without it, `#12` stays plain text. */
   owner?: string | null
   repository?: string | null
+  /**
+   * Collector for fenced code blocks, set by `renderMarkdownHighlighted`.
+   *
+   * Highlighting is asynchronous and the parser's callbacks are not, so the
+   * blocks are parked here on the way past and their markers filled in once the
+   * highlighter has answered.
+   */
+  codeBlocks?: CodeBlock[]
   /**
    * Prefix for generated heading ids.
    *
@@ -269,6 +278,25 @@ function alignAttribute(align?: string): string {
  */
 const RUN_MARKER = /\u0001(\d+)\u0002/g
 
+/** One fenced block, on its way to the highlighter. */
+export interface CodeBlock {
+  language: string | null
+  code: string
+}
+
+/**
+ * The stand-in a fenced block leaves behind while it waits to be highlighted.
+ *
+ * Same trick as the text runs, and safe for the same reason: the marker
+ * characters are stripped from the input, so nothing a user writes can forge
+ * one, and the surrounding HTML is ours.
+ */
+const BLOCK_MARKER = /\u0003(\d+)\u0004/g
+
+function blockMarker(index: number): string {
+  return `\u0003${index}\u0004`
+}
+
 /**
  * Render markdown to HTML that is safe to place in a page.
  *
@@ -284,7 +312,12 @@ export function renderMarkdown(source: string, context: MarkdownContext = {}): s
 
   // NUL is dropped because browsers treat it inconsistently inside markup, and
   // the marker characters because otherwise a body could forge a marker.
-  const input = source.replaceAll('\0', '').replaceAll('\u0001', '').replaceAll('\u0002', '')
+  const input = source
+    .replaceAll('\0', '')
+    .replaceAll('\u0001', '')
+    .replaceAll('\u0002', '')
+    .replaceAll('\u0003', '')
+    .replaceAll('\u0004', '')
 
   const runs: string[] = []
   const park = (value: string): string => `\u0001${runs.push(value) - 1}\u0002`
@@ -321,10 +354,15 @@ export function renderMarkdown(source: string, context: MarkdownContext = {}): s
     codespan: children => `<code>${plain(children)}</code>`,
     code: (children, meta) => {
       const language = meta?.language && /^[\w+#.-]{1,30}$/.test(meta.language)
-        ? ` class="language-${escapeAttribute(meta.language.toLowerCase())}"`
-        : ''
+        ? meta.language.toLowerCase()
+        : null
 
-      return `<pre><code${language}>${plain(children)}</code></pre>`
+      const attribute = language ? ` class="language-${escapeAttribute(language)}"` : ''
+      const body = context.codeBlocks
+        ? blockMarker(context.codeBlocks.push({ language, code: raw(children) }) - 1)
+        : plain(children)
+
+      return `<pre><code${attribute}>${body}</code></pre>`
     },
 
     list: (children, meta) => {
@@ -376,4 +414,50 @@ export function renderMarkdown(source: string, context: MarkdownContext = {}): s
 
   // Everything still carrying a marker is prose, and gets its references.
   return prose(html)
+}
+
+/**
+ * Render markdown, with the code fences highlighted.
+ *
+ * The same highlighter the file browser and the diff use, so a snippet quoted
+ * in an issue and the file it came from are coloured the same way. Sharing it
+ * is the point: two highlighters disagreeing about what a keyword looks like is
+ * the sort of thing nobody reports and everybody notices.
+ *
+ * Asynchronous because highlighting is, and the parser's callbacks are not: the
+ * blocks are collected on the way past and their markers filled in afterwards.
+ * `renderMarkdown` stays synchronous for the callers that do not need this.
+ */
+export async function renderMarkdownHighlighted(source: string, context: MarkdownContext = {}): Promise<string> {
+  const codeBlocks: CodeBlock[] = []
+  const html = renderMarkdown(source, { ...context, codeBlocks })
+
+  if (codeBlocks.length === 0)
+    return html
+
+  const rendered = await Promise.all(codeBlocks.map(block => highlightBlock(block)))
+
+  return html.replace(BLOCK_MARKER, (_, index: string) => rendered[Number(index)] ?? '')
+}
+
+/**
+ * One block, as highlighted HTML.
+ *
+ * Falls back to the escaped source for a language the highlighter does not
+ * know, which is most of what people paste. Nothing here throws: showing code
+ * uncoloured is always better than showing an error where the code was.
+ */
+async function highlightBlock(block: CodeBlock): Promise<string> {
+  const code = block.code.replace(/\n$/, '')
+
+  if (!block.language)
+    return escapeText(code)
+
+  // `highlightLines` takes a path, because that is what the file browser has.
+  // A fence has a language instead, and the extension table is keyed by both.
+  const lines = await highlightLines(code.split('\n'), `fence.${block.language}`)
+
+  return lines
+    .map(tokens => tokens.map(token => `<span class="t-${token.type}">${escapeText(token.content)}</span>`).join(''))
+    .join('\n')
 }

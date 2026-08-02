@@ -59,7 +59,10 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
       across repositories, and bare commit SHAs
 - [ ] Closing keywords (`fixes #12`, `closes #12`, `resolves #12`) parsed on push and on merge
 - [ ] Task lists that can be ticked directly from the rendered issue
-- [ ] Syntax-highlighted code fences, sharing the highlighter with the blob view
+- [x] Syntax-highlighted code fences, sharing the highlighter with the blob view. Literally the
+      same one, so a snippet quoted in an issue and the file it came from are coloured alike: two
+      highlighters disagreeing about what a keyword looks like is the sort of thing nobody reports
+      and everybody notices.
 - [ ] Emoji shortcodes, and `:+1:` style reactions
 - [ ] Mermaid diagrams
 - [ ] Image and attachment upload, stored through the filesystem driver

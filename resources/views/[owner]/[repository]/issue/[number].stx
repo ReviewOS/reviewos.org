@@ -11,7 +11,7 @@
  */
 import { authorIsLocal, authorLabel, relativeTime } from '../../../../functions/browse'
 import { issueStateLabel, issueStatePill, labelTextColor } from '../../../../functions/issues'
-import { renderMarkdown } from '../../../../functions/markdown'
+import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
@@ -114,14 +114,14 @@ const commentRows: any[] = issue
 // renderer anyway.
 const markdownContext = { owner, repository: repositoryName }
 
-const bodyHtml = issue?.body ? renderMarkdown(String(issue.body), markdownContext) : ''
-const comments = commentRows.map((row: any) => ({
+const bodyHtml = issue?.body ? await renderMarkdownHighlighted(String(issue.body), markdownContext) : ''
+const comments = await Promise.all(commentRows.map(async (row: any) => ({
   id: Number(row.id),
   handle: row.handle ? String(row.handle) : null,
   createdAt: String(row.created_at ?? ''),
   edited: Boolean(row.edited_at),
-  bodyHtml: renderMarkdown(String(row.body ?? ''), markdownContext),
-}))
+  bodyHtml: await renderMarkdownHighlighted(String(row.body ?? ''), markdownContext),
+})))
 
 const stateLabel = issue ? issueStateLabel(String(issue.state), issue.state_reason) : ''
 const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason) : 'draft'

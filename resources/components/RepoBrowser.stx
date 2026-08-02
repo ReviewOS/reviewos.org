@@ -11,7 +11,7 @@
  * files costs the browser nothing.
  */
 import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, lastCommit, listTree, readBlob, shortSha, sortEntries, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
-import { renderMarkdown } from '../functions/markdown'
+import { renderMarkdownHighlighted } from '../functions/markdown'
 
 // Props arrive as attribute strings, so everything is normalised here rather
 // than at each use site.
@@ -90,10 +90,10 @@ const tags = repoRow ? (await tagNames(diskPath)).slice(0, 30) : []
 // the literal token and then drops the file's text into the page untouched -
 // which for a mirrored repository means whatever HTML its README contains.
 const readmeHtml = readme?.ok && readme.text !== null && !readme.binary
-  ? renderMarkdown(readme.text, { owner: ownerHandle, repository: repositoryName })
+  ? await renderMarkdownHighlighted(readme.text, { owner: ownerHandle, repository: repositoryName })
   : ''
 const blobMarkdownHtml = (blob?.ok && blob.text !== null && !blob.binary && !blob.tooLarge && isMarkdown(requestedPath))
-  ? renderMarkdown(blob.text, { owner: ownerHandle, repository: repositoryName })
+  ? await renderMarkdownHighlighted(blob.text, { owner: ownerHandle, repository: repositoryName })
   : ''
 
 const notFound = !repoRow

@@ -11,7 +11,7 @@
  * where forges get slow, and it is slowest exactly when the review matters.
  */
 import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, highlightLines, reanchor, requirementsSatisfied, startsCollapsed, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, threadsAt, refreshMergeability } from '../../../../functions/review'
-import { renderMarkdown } from '../../../../functions/markdown'
+import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
@@ -160,7 +160,7 @@ for (const file of files) {
 
 // Threads were written against an earlier commit. Follow each one through the
 // diff so it sits on the line it is about now, or is marked outdated.
-const threads = threadRows.map((row: any) => {
+const threads = await Promise.all(threadRows.map(async (row: any) => {
   const outcome = reanchor(
     { path: String(row.path), line: Number(row.line), side: row.side === 'left' ? 'left' : 'right' },
     files,
@@ -173,18 +173,18 @@ const threads = threadRows.map((row: any) => {
     side: outcome.anchor.side,
     resolved: Boolean(row.resolved),
     outdated: outcome.status === 'outdated',
-    comments: commentRows
+    comments: await Promise.all(commentRows
       .filter((comment: any) => Number(comment.review_thread_id) === Number(row.id))
-      .map((comment: any) => ({
+      .map(async (comment: any) => ({
         id: Number(comment.id),
         authorHandle: String(comment.handle ?? comment.external_author ?? 'someone'),
         // Rendered here because a component has no imports of its own, so a
         // markdown call inside ReviewThread would silently be undefined.
-        bodyHtml: renderMarkdown(String(comment.body ?? ''), markdownContext),
+        bodyHtml: await renderMarkdownHighlighted(String(comment.body ?? ''), markdownContext),
         createdAt: String(comment.created_at ?? ''),
-      })),
+      }))),
   }
-})
+}))
 
 // Attached to the line for the same reason the tokens are: `threadsAt` is in
 // scope here and undefined inside the component, and the `@foreach` there fails
@@ -202,7 +202,7 @@ for (const file of files) {
 }
 
 const descriptionHtml = pullRequest?.body
-  ? renderMarkdown(String(pullRequest.body), markdownContext)
+  ? await renderMarkdownHighlighted(String(pullRequest.body), markdownContext)
   : ''
 
 const protection = repoRow && pullRequest
