@@ -663,7 +663,16 @@ jobs:
             [ -n "$value" ] || echo "::warning::$required is not set; the deploy will not get far."
           done
 
-          ./buddy deploy "$DEPLOY_FLAG" --yes
+          # Only this project's site.
+          #
+          # config/cloud.ts still carries the template's stacks sites -
+          # stacksjs.com, its docs, blog and redirects - which belong to that
+          # project and not to this repository. An unscoped deploy tried to
+          # build all of them and died in the blog's build step, reaching for a
+          # vendored `storage/framework/core` a core-less app does not have.
+          #
+          # This also matches what a deploy from a laptop has always run.
+          ./buddy deploy --site reviewos "$DEPLOY_FLAG" --yes
 
   publish-commit:
     if: github.event_name == 'pull_request'
