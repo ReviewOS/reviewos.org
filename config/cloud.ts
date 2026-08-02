@@ -43,6 +43,17 @@ export const tsCloud: TsCloudConfig = {
   // Deploy compute to Hetzner Cloud (apiToken falls back to HCLOUD_TOKEN env).
   cloud: {
     provider: 'hetzner',
+    // ReviewOS does not own a box. It rides on the shared production server
+    // the `stacks` project provisions - `stacks-production-app` - alongside
+    // the other sites already there.
+    //
+    // Declared rather than left to be discovered, because discovery was
+    // machine-local: `storage/cloud/state` is gitignored, so a laptop that had
+    // deployed once remembered the server id while CI, starting empty, derived
+    // a name from this project's own slug, found nothing, and asked Hetzner for
+    // a NEW server - which failed on placement, and would have been worse if it
+    // had succeeded.
+    attachTo: 'stacks',
   },
 
   /**
