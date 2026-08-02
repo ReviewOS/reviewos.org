@@ -28,7 +28,9 @@
           <span class="comment-author">{{ comment.authorHandle }}</span>
           <span class="muted comment-time">{{ comment.createdAt }}</span>
         </div>
-        <div class="comment-body">{{ comment.body }}</div>
+        {{-- Rendered by the view: markdown is a server concern, and a
+             component cannot import the renderer. --}}
+        <div class="comment-body markdown">{!! comment.bodyHtml !!}</div>
       </li>
     @endforeach
   </ol>

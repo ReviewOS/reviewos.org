@@ -11,10 +11,15 @@
  * where forges get slow, and it is slowest exactly when the review matters.
  */
 import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, highlightLines, reanchor, requirementsSatisfied, startsCollapsed, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, threadsAt, refreshMergeability } from '../../../../functions/review'
+import { renderMarkdown } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
 const number = Number(params.number)
+
+// Every body on this page is rendered against the same repository, so `#12`
+// means the same thing in a description as it does in a review comment.
+const markdownContext = { owner, repository: repositoryName }
 
 const repoRow: any = await db
   .selectFrom('repositories')
@@ -173,7 +178,9 @@ const threads = threadRows.map((row: any) => {
       .map((comment: any) => ({
         id: Number(comment.id),
         authorHandle: String(comment.handle ?? comment.external_author ?? 'someone'),
-        body: String(comment.body),
+        // Rendered here because a component has no imports of its own, so a
+        // markdown call inside ReviewThread would silently be undefined.
+        bodyHtml: renderMarkdown(String(comment.body ?? ''), markdownContext),
         createdAt: String(comment.created_at ?? ''),
       })),
   }
@@ -193,6 +200,10 @@ for (const file of files) {
     }
   }
 }
+
+const descriptionHtml = pullRequest?.body
+  ? renderMarkdown(String(pullRequest.body), markdownContext)
+  : ''
 
 const protection = repoRow && pullRequest
   ? await db
@@ -393,8 +404,8 @@ const statePill = pullRequest
 
       <div class="pr-body">
         <div class="pr-main" id="files">
-          @if (pullRequest.body)
-            <section class="panel pr-description">{{ pullRequest.body }}</section>
+          @if (descriptionHtml)
+            <section class="panel pr-description markdown">{!! descriptionHtml !!}</section>
           @endif
 
           @if (files.length === 0)

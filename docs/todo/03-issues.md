@@ -36,8 +36,16 @@ or a pull request.
 
 One pipeline, used by issues, pull requests, reviews, releases, and repository files.
 
-- [ ] Server-side rendering, and a strict sanitizer. User markdown is hostile input; this is the
+- [x] Server-side rendering, and a strict sanitizer. User markdown is hostile input; this is the
       most likely place for a stored XSS in the entire product.
+      `app/Actions/Markdown/render.ts` does not sanitize a string: it builds the HTML from the parse
+      tree out of a closed set of tags, escaping text as it places it. Raw HTML is disabled at the
+      parser, so a `<script>` in a README arrives as text. Finding this closed a live hole - the
+      README was being emitted unrendered and unescaped, and stx then undid the escaping of any
+      component that had escaped anything (fixed upstream in stx, with tests both places).
+- [ ] A safe subset of raw HTML: `<details>`, `<summary>`, `<br>`, `<kbd>`, `<div align>`. Common in
+      READMEs and currently shown as text. Needs a real HTML tokenizer with an allowlist, not a
+      regex pass over the output, which is why it is its own item rather than a flag.
 - [x] Autolink references: `#123` to an issue or pull request, `@handle` to a user, `owner/repo#123`
       across repositories, and bare commit SHAs
 - [ ] Closing keywords (`fixes #12`, `closes #12`, `resolves #12`) parsed on push and on merge
@@ -46,7 +54,7 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
 - [ ] Emoji shortcodes, and `:+1:` style reactions
 - [ ] Mermaid diagrams
 - [ ] Image and attachment upload, stored through the filesystem driver
-- [ ] Tests aimed at escaping: raw HTML, `javascript:` URLs, nested markdown, and enormous inputs
+- [x] Tests aimed at escaping: raw HTML, `javascript:` URLs, nested markdown, and enormous inputs
 
 ## Timeline
 
@@ -61,7 +69,9 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
 - [ ] `.../issues/new.stx`
 - [ ] `.../labels.stx`, `.../milestones.stx`
 - [ ] Components: `IssueThread`, `IssueListItem`, `LabelPill`, `MarkdownEditor` (write and preview
-      tabs), `MarkdownContent`, `TimelineEntry`
+      tabs), `TimelineEntry`. Rendered markdown is a `.markdown` block styled once in the layout
+      rather than a component: a component cannot import the renderer, so the HTML is built in the
+      view either way, and one stylesheet stops a README looking like two different things.
 - [ ] Keyboard shortcuts on the list. People who live in issues navigate by keyboard.
 
 ## Templates
