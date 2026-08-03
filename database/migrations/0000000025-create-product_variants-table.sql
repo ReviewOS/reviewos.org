@@ -10,4 +10,4 @@ CREATE TABLE IF NOT EXISTS "product_variants" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "product_variants_product_variants_uuid_unique" ON "product_variants" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "product_variants_uuid_unique" ON "product_variants" ("uuid");

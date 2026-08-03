@@ -11,4 +11,4 @@ CREATE TABLE IF NOT EXISTS "categories" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "categories_categories_uuid_unique" ON "categories" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "categories_uuid_unique" ON "categories" ("uuid");

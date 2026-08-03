@@ -11,4 +11,4 @@ CREATE TABLE IF NOT EXISTS "print_devices" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "print_devices_print_devices_uuid_unique" ON "print_devices" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "print_devices_uuid_unique" ON "print_devices" ("uuid");

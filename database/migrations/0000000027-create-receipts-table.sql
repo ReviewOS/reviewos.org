@@ -13,4 +13,4 @@ CREATE TABLE IF NOT EXISTS "receipts" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "receipts_receipts_uuid_unique" ON "receipts" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "receipts_uuid_unique" ON "receipts" ("uuid");

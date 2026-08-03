@@ -1,0 +1,19 @@
+CREATE TABLE IF NOT EXISTS "access_tokens" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "user_id" integer not null REFERENCES "users"("id"),
+  "name" varchar(100) not null,
+  "prefix" varchar(32) not null,
+  "token_hash" varchar(64) not null,
+  "selection" "access_tokens_selection_type" default 'selected',
+  "organization_id" integer,
+  "expires_at" varchar(255) not null,
+  "last_used_at" varchar(255),
+  "last_used_ip" varchar(45),
+  "revoked_at" varchar(255),
+  "revoked_by_id" integer,
+  "created_at" timestamp not null default CURRENT_TIMESTAMP,
+  "updated_at" timestamp
+);
+CREATE INDEX IF NOT EXISTS "access_tokens_prefix_index" ON "access_tokens" ("prefix");
+CREATE INDEX IF NOT EXISTS "access_tokens_user_index" ON "access_tokens" ("user_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "access_tokens_prefix_unique" ON "access_tokens" ("prefix");

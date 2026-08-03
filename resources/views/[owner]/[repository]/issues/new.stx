@@ -14,7 +14,9 @@
  * than a keystroke handler.
  */
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
-import { labelTextColor, resolveRepository } from '../../../../functions/issues'
+import { labelTextColor, loadTemplates, resolveRepository } from '../../../../functions/issues'
+import { listTree, readBlob } from '../../../../functions/browse'
+import { repositoryPath } from '../../../../functions/repo'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
@@ -55,10 +57,29 @@ const milestoneChoices = availableMilestones.map(row => ({
   title: String(row.title),
 }))
 
+// Templates live in the repository, so they are versioned with the code and
+// edited by a pull request like anything else.
+const diskPath = repositoryRow ? repositoryPath(ownerHandle, repositoryName) : null
+const templates = diskPath?.ok
+  ? await loadTemplates(diskPath.path, String(repositoryRow.default_branch ?? 'main'), { listTree, readBlob })
+  : []
+
+// Which one was picked, if any. One template and no explicit choice means it
+// is *the* template, so the form opens with it filled in rather than asking a
+// question with one answer.
+const requested = String(query.template ?? '')
+const chosen = requested
+  ? templates.find(template => template.slug === requested) ?? null
+  : (templates.length === 1 ? templates[0]! : null)
+
+// The chooser only stands between somebody and reporting a bug when there is a
+// real choice to make.
+const choosing = templates.length > 1 && !requested && String(query.body ?? '') === ''
+
 // A draft comes back through the query string when preview was pressed, so
 // nothing typed is lost by looking at it.
-const draftTitle = String(query.title ?? '')
-const draftBody = String(query.body ?? '')
+const draftTitle = query.title !== undefined ? String(query.title) : (chosen?.title ?? '')
+const draftBody = query.body !== undefined ? String(query.body) : (chosen?.body ?? '')
 const previewing = String(query.preview ?? '') === '1' && draftBody.trim() !== ''
 
 const previewHtml = previewing
@@ -85,6 +106,30 @@ const base = `/${ownerHandle}/${repositoryName}`
         <a class="new-back" href="{{ base }}/issues">Back to issues</a>
       </header>
 
+    @elseif (choosing)
+      {{-- A chooser only earns its page load when there is a real choice. One
+           template is *the* template, so the form opens with it filled in. --}}
+      <ul class="panel chooser">
+        @foreach (templates as template)
+          <li class="chooser-row">
+            <div>
+              <p class="chooser-name">{{ template.name }}</p>
+              @if (template.about)
+                <p class="muted chooser-about">{{ template.about }}</p>
+              @endif
+            </div>
+            <a class="btn btn-primary" href="{{ base }}/issues/new?template={{ template.slug }}">Get started</a>
+          </li>
+        @endforeach
+        <li class="chooser-row">
+          <div>
+            <p class="chooser-name">Blank issue</p>
+            <p class="muted chooser-about">Start from nothing.</p>
+          </div>
+          <a class="btn" href="{{ base }}/issues/new?template=">Open a blank issue</a>
+        </li>
+      </ul>
+    @else
       <form class="new-form" method="post" action="/api/repos/issues">
         <input type="hidden" name="owner" value="{{ ownerHandle }}">
         <input type="hidden" name="repo" value="{{ repositoryName }}">
@@ -153,7 +198,7 @@ const base = `/${ownerHandle}/${repositoryName}`
                 @foreach (labelChoices as label)
                   <li class="choice">
                     <label class="choice-label">
-                      <input type="checkbox" name="labels" value="{{ label.name }}">
+                      <input type="checkbox" name="labels" value="{{ label.name }}" {{ chosen && chosen.labels.includes(label.name) ? 'checked' : '' }}>
                       <span class="label-pill" style="background: #{{ label.color }}; color: {{ label.textColor }};">
                         {{ label.name }}
                       </span>
@@ -188,6 +233,19 @@ const base = `/${ownerHandle}/${repositoryName}`
 @endsection
 
 <style>
+  .chooser { list-style: none; }
+  .chooser-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .chooser-row:last-child { border-bottom: 0; }
+  .chooser-name { font-size: 14px; font-weight: 600; }
+  .chooser-about { margin-top: 2px; font-size: 13px; }
+
   .new-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 20px 0 14px; }
   .new-title { font-size: 20px; letter-spacing: -0.01em; }
   .new-back { font-size: 13px; color: var(--muted); text-decoration: none; }

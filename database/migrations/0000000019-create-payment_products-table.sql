@@ -9,4 +9,4 @@ CREATE TABLE IF NOT EXISTS "payment_products" (
   "provider_id" varchar(255),
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "payment_products_payment_products_uuid_unique" ON "payment_products" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "payment_products_uuid_unique" ON "payment_products" ("uuid");

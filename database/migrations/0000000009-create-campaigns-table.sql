@@ -26,4 +26,4 @@ CREATE TABLE IF NOT EXISTS "campaigns" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "campaigns_campaigns_uuid_unique" ON "campaigns" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "campaigns_uuid_unique" ON "campaigns" ("uuid");

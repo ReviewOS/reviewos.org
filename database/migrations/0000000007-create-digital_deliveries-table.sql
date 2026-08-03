@@ -11,4 +11,4 @@ CREATE TABLE IF NOT EXISTS "digital_deliveries" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "digital_deliveries_digital_deliveries_uuid_unique" ON "digital_deliveries" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "digital_deliveries_uuid_unique" ON "digital_deliveries" ("uuid");

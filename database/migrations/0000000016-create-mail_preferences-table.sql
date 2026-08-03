@@ -25,4 +25,4 @@ CREATE TABLE IF NOT EXISTS "mail_preferences" (
   "created_at" timestamp not null default CURRENT_TIMESTAMP,
   "updated_at" timestamp
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "mail_preferences_mail_preferences_mailbox_unique" ON "mail_preferences" ("mailbox");
+CREATE UNIQUE INDEX IF NOT EXISTS "mail_preferences_mailbox_unique" ON "mail_preferences" ("mailbox");

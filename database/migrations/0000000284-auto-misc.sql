@@ -1,1 +1,0 @@
-DROP INDEX IF EXISTS "categorizable_models_category_id_categorizable_id_categorizable";

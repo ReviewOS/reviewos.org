@@ -7,4 +7,4 @@ CREATE TABLE IF NOT EXISTS "labels" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "labels_labels_uuid_unique" ON "labels" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "labels_uuid_unique" ON "labels" ("uuid");

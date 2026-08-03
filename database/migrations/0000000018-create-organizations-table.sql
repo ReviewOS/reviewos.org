@@ -10,6 +10,6 @@ CREATE TABLE IF NOT EXISTS "organizations" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE INDEX IF NOT EXISTS "organizations_organizations_handle_index" ON "organizations" ("handle");
-CREATE UNIQUE INDEX IF NOT EXISTS "organizations_organizations_handle_unique" ON "organizations" ("handle");
-CREATE UNIQUE INDEX IF NOT EXISTS "organizations_organizations_uuid_unique" ON "organizations" ("uuid");
+CREATE INDEX IF NOT EXISTS "organizations_handle_index" ON "organizations" ("handle");
+CREATE UNIQUE INDEX IF NOT EXISTS "organizations_handle_unique" ON "organizations" ("handle");
+CREATE UNIQUE INDEX IF NOT EXISTS "organizations_uuid_unique" ON "organizations" ("uuid");

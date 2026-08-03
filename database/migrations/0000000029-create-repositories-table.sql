@@ -21,6 +21,6 @@ CREATE TABLE IF NOT EXISTS "repositories" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE INDEX IF NOT EXISTS "repositories_repositories_owner_name_index" ON "repositories" ("owner_type", "owner_id", "name");
-CREATE INDEX IF NOT EXISTS "repositories_repositories_pushed_at_index" ON "repositories" ("pushed_at");
-CREATE UNIQUE INDEX IF NOT EXISTS "repositories_repositories_uuid_unique" ON "repositories" ("uuid");
+CREATE INDEX IF NOT EXISTS "repositories_owner_name_index" ON "repositories" ("owner_type", "owner_id", "name");
+CREATE INDEX IF NOT EXISTS "repositories_pushed_at_index" ON "repositories" ("pushed_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "repositories_uuid_unique" ON "repositories" ("uuid");

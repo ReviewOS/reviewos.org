@@ -9,4 +9,4 @@ CREATE TABLE IF NOT EXISTS "board_columns" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "board_columns_board_columns_uuid_unique" ON "board_columns" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "board_columns_uuid_unique" ON "board_columns" ("uuid");

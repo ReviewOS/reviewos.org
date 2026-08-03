@@ -25,6 +25,6 @@ CREATE TABLE IF NOT EXISTS "query_logs" (
   "created_at" timestamp not null default CURRENT_TIMESTAMP,
   "updated_at" timestamp
 );
-CREATE INDEX IF NOT EXISTS "query_logs_query_logs_executed_at_index" ON "query_logs" ("executed_at");
-CREATE INDEX IF NOT EXISTS "query_logs_query_logs_status_index" ON "query_logs" ("status");
-CREATE INDEX IF NOT EXISTS "query_logs_query_logs_duration_index" ON "query_logs" ("duration");
+CREATE INDEX IF NOT EXISTS "query_logs_executed_at_index" ON "query_logs" ("executed_at");
+CREATE INDEX IF NOT EXISTS "query_logs_status_index" ON "query_logs" ("status");
+CREATE INDEX IF NOT EXISTS "query_logs_duration_index" ON "query_logs" ("duration");

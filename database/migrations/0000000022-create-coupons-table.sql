@@ -18,5 +18,5 @@ CREATE TABLE IF NOT EXISTS "coupons" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "coupons_coupons_code_unique" ON "coupons" ("code");
-CREATE UNIQUE INDEX IF NOT EXISTS "coupons_coupons_uuid_unique" ON "coupons" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "coupons_code_unique" ON "coupons" ("code");
+CREATE UNIQUE INDEX IF NOT EXISTS "coupons_uuid_unique" ON "coupons" ("uuid");

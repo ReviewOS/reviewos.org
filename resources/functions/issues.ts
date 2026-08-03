@@ -8,6 +8,7 @@
 import { issueStateLabel as issueStateLabelImpl, issueStatePill as issueStatePillImpl } from '../../app/Actions/Issue/state'
 import { resolveRepository as resolveRepositoryImpl } from '../../app/Actions/Identity/lookup'
 import { entryIcon as entryIconImpl, entrySentence as entrySentenceImpl } from '../../app/Actions/Issue/timeline'
+import { loadTemplates as loadTemplatesImpl } from '../../app/Actions/Issue/templates'
 import { labelTextColor as labelTextColorImpl } from '../../app/Actions/Issue/labels'
 
 export const issueStateLabel = issueStateLabelImpl
@@ -16,3 +17,4 @@ export const labelTextColor = labelTextColorImpl
 export const resolveRepository = resolveRepositoryImpl
 export const entrySentence = entrySentenceImpl
 export const entryIcon = entryIconImpl
+export const loadTemplates = loadTemplatesImpl

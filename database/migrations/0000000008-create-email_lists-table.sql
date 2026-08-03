@@ -14,5 +14,5 @@ CREATE TABLE IF NOT EXISTS "email_lists" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "email_lists_email_lists_slug_unique" ON "email_lists" ("slug");
-CREATE UNIQUE INDEX IF NOT EXISTS "email_lists_email_lists_uuid_unique" ON "email_lists" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "email_lists_slug_unique" ON "email_lists" ("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "email_lists_uuid_unique" ON "email_lists" ("uuid");

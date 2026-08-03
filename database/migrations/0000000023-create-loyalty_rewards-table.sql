@@ -14,4 +14,4 @@ CREATE TABLE IF NOT EXISTS "loyalty_rewards" (
   "updated_at" timestamp,
   "uuid" varchar(255)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "loyalty_rewards_loyalty_rewards_uuid_unique" ON "loyalty_rewards" ("uuid");
+CREATE UNIQUE INDEX IF NOT EXISTS "loyalty_rewards_uuid_unique" ON "loyalty_rewards" ("uuid");
