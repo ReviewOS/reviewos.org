@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
+import { record } from './timeline'
 
 /**
  * Lock or unlock a conversation.
@@ -23,7 +24,7 @@ export default new Action({
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)
 
-    const { repository } = auth.context
+    const { repository, user } = auth.context
 
     const raw = request.get('locked')
     if (raw === undefined || raw === null)
@@ -48,6 +49,12 @@ export default new Action({
       return response.json({ error: 'No such issue' }, 404)
 
     await db.updateTable('issues').set({ locked }).where('id', '=', Number(issue.id)).execute()
+
+    await record(
+      { type: 'issue', id: Number(issue.id) },
+      locked ? 'locked' : 'unlocked',
+      user ? Number(user.id) : null,
+    )
 
     return response.json({ number, locked })
   },

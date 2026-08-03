@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
+import { recordMany } from './timeline'
 
 /**
  * Set the labels on an issue.
@@ -18,7 +19,7 @@ export default new Action({
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)
 
-    const { repository } = auth.context
+    const { repository, user } = auth.context
 
     const number = Number(request.get('number'))
     const issue = await db
@@ -49,6 +50,15 @@ export default new Action({
     if (unknown.length > 0)
       return response.json({ error: `No such label: ${unknown.join(', ')}` }, 422)
 
+    // What was there before, so the timeline can say what actually changed
+    // rather than restating the whole set on every save.
+    const before: any[] = await db
+      .selectFrom('issue_labels')
+      .innerJoin('repository_labels', 'repository_labels.id', '=', 'issue_labels.label_id')
+      .select(['repository_labels.name as name'])
+      .where('issue_labels.issue_id', '=', Number(issue.id))
+      .execute()
+
     await db.deleteFrom('issue_labels').where('issue_id', '=', Number(issue.id)).execute()
 
     if (labels.length > 0) {
@@ -57,6 +67,16 @@ export default new Action({
         .values(labels.map((label: any) => ({ issue_id: Number(issue.id), label_id: Number(label.id) })))
         .execute()
     }
+
+    const had = new Set<string>(before.map(row => String(row.name)))
+    const now = new Set<string>(labels.map((label: any) => String(label.name)))
+    const subject = { type: 'issue' as const, id: Number(issue.id) }
+    const actorId = user ? Number(user.id) : null
+
+    await recordMany([
+      ...[...now].filter(name => !had.has(name)).map(name => ({ subject, kind: 'labeled' as const, actorId, detail: { text: String(name) } })),
+      ...[...had].filter(name => !now.has(name)).map(name => ({ subject, kind: 'unlabeled' as const, actorId, detail: { text: String(name) } })),
+    ])
 
     return response.json({ number, labels: labels.map((label: any) => label.name) })
   },

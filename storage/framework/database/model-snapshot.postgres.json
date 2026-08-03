@@ -3970,6 +3970,15 @@
             "hasDefault": false
           },
           {
+            "name": "external_author",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
+          },
+          {
             "name": "created_at",
             "type": "datetime",
             "isPrimaryKey": false,
@@ -3993,15 +4002,6 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
-          },
-          {
-            "name": "external_author",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 120
           }
         ],
         "indexes": [
@@ -7891,6 +7891,15 @@
             "hasDefault": false
           },
           {
+            "name": "external_author",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
+          },
+          {
             "name": "created_at",
             "type": "datetime",
             "isPrimaryKey": false,
@@ -7906,15 +7915,6 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
-          },
-          {
-            "name": "external_author",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 120
           }
         ],
         "indexes": [
@@ -11056,6 +11056,155 @@
         ]
       },
       {
+        "table": "timeline_entries",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "subject_type",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "issue",
+            "enumValues": [
+              "issue",
+              "pull_request"
+            ],
+            "enumTypeName": "timeline_entries_subject_type_type"
+          },
+          {
+            "name": "subject_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "kind",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "enumValues": [
+              "closed",
+              "reopened",
+              "renamed",
+              "labeled",
+              "unlabeled",
+              "assigned",
+              "unassigned",
+              "milestoned",
+              "demilestoned",
+              "locked",
+              "unlocked",
+              "referenced",
+              "merged"
+            ],
+            "enumTypeName": "timeline_entries_kind_type"
+          },
+          {
+            "name": "actor_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
+          },
+          {
+            "name": "external_actor",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
+          },
+          {
+            "name": "subject_text",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "previous_text",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "reference_number",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "timeline_entries_subject_index",
+            "columns": [
+              "subject_type",
+              "subject_id",
+              "created_at"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "timeline_entries_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
         "table": "transactions",
         "columns": [
           {
@@ -12260,7 +12409,7 @@
       }
     ]
   },
-  "hash": "11203566d3a4411e969e247f30a12393ab892cea89a74ebb94fd120b42c33887",
+  "hash": "3dda67afda48cc05a2a65ae35b2c66b372ded0ae17bc333ad1ee20d465ef9d4a",
   "dialect": "postgres",
-  "updatedAt": "2026-08-02T22:22:23.372Z"
+  "updatedAt": "2026-08-03T00:02:17.905Z"
 }

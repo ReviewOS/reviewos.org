@@ -98,9 +98,17 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
 
 ## Timeline
 
-- [ ] A timeline model recording state changes, label changes, assignments, milestone changes,
-      references, and renames, so an issue reads as a history rather than a body plus comments
-- [ ] Cross references: linking from a commit message or another issue records an entry on both
+- [x] `app/Models/TimelineEntry.ts` recording state changes, label changes, assignments, milestone
+      changes and renames, merged with the comments into one sequence ordered by time. A comment and
+      the label somebody added while writing it belong next to each other; two lists side by side
+      make a reader reconstruct the order themselves. Entries stay out of the comments table: a
+      comment is authored content that can be edited, an entry is a fact that happened and never
+      changes, and merging them would mean one of the two lying about itself. Recording never fails
+      the thing it describes - a lost entry costs a line of history, a thrown error would tell the
+      caller their close did not happen when it did.
+- [ ] Cross references: linking from a commit message or another issue records an entry on both. The
+      `referenced` kind and its `reference_number` column exist and render; nothing writes them yet,
+      which needs the same post-receive processing the closing keywords do.
 
 ## Views
 

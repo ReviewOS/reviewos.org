@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
+import { record } from './timeline'
 import { transitionIssue } from './state'
 
 /**
@@ -73,6 +74,12 @@ export default new Action({
         .where('id', '=', repository.id)
         .execute()
     }
+
+    await record(
+      { type: 'issue', id: Number(issue.id) },
+      result.state === 'closed' ? 'closed' : 'reopened',
+      user ? Number(user.id) : null,
+    )
 
     return response.json({ number, state: result.state, state_reason: result.reason })
   },

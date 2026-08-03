@@ -10,7 +10,7 @@
  * because rules written in a template cannot be tested.
  */
 import { authorIsLocal, authorLabel, relativeTime } from '../../../../functions/browse'
-import { issueStateLabel, issueStatePill, labelTextColor } from '../../../../functions/issues'
+import { entryIcon, entrySentence, issueStateLabel, issueStatePill, labelTextColor } from '../../../../functions/issues'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
@@ -110,6 +110,29 @@ const commentRows: any[] = issue
       .execute()
   : []
 
+// The history: state changes, labels, assignments, milestones. Read alongside
+// the comments and merged with them below, so the page reads as one sequence
+// rather than a conversation with a changelog bolted underneath it.
+const entryRows: any[] = issue
+  ? await db
+      .selectFrom('timeline_entries')
+      .leftJoin('users', 'users.id', '=', 'timeline_entries.actor_id')
+      .select([
+        'timeline_entries.id as id',
+        'timeline_entries.kind as kind',
+        'timeline_entries.subject_text as subject_text',
+        'timeline_entries.previous_text as previous_text',
+        'timeline_entries.reference_number as reference_number',
+        'timeline_entries.external_actor as external_actor',
+        'timeline_entries.created_at as created_at',
+        'users.handle as handle',
+      ])
+      .where('timeline_entries.subject_type', '=', 'issue')
+      .where('timeline_entries.subject_id', '=', Number(issue.id))
+      .orderBy('timeline_entries.created_at', 'asc')
+      .execute()
+  : []
+
 // Rendered here rather than in the template: every body on this page resolves
 // `#12` against the same repository, and a component could not import the
 // renderer anyway.
@@ -140,6 +163,27 @@ const comments = await Promise.all(commentRows.map(async (row: any) => ({
     taskForm: bodyTaskForm ? { action: taskAction, fields: { ...taskFields, comment_id: Number(row.id) } } : undefined,
   }),
 })))
+
+const events = entryRows.map((row: any) => ({
+  id: Number(row.id),
+  handle: row.handle ? String(row.handle) : null,
+  externalActor: row.external_actor ? String(row.external_actor) : null,
+  createdAt: String(row.created_at ?? ''),
+  icon: entryIcon(String(row.kind) as any),
+  sentence: entrySentence(String(row.kind) as any, {
+    text: row.subject_text ? String(row.subject_text) : null,
+    previous: row.previous_text ? String(row.previous_text) : null,
+    reference: row.reference_number ? Number(row.reference_number) : null,
+  }),
+}))
+
+// One sequence, ordered by when things happened. A comment and the label
+// somebody added while writing it belong next to each other; two lists side by
+// side make a reader reconstruct the order themselves.
+const conversation = [
+  ...comments.map(comment => ({ kind: 'comment' as const, at: comment.createdAt, comment, event: null as any })),
+  ...events.map(event => ({ kind: 'event' as const, at: event.createdAt, comment: null as any, event })),
+].sort((a, b) => a.at.localeCompare(b.at))
 
 const stateLabel = issue ? issueStateLabel(String(issue.state), issue.state_reason) : ''
 const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason) : 'draft'
@@ -195,18 +239,33 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
             @endif
           </article>
 
-          @foreach (comments as comment)
-            <article class="panel issue-post">
-              <header class="post-head">
-                {{-- A mirrored comment names its upstream author, the same way
-                     the issue does, so it is no longer shown as "someone". --}}
-                <span class="post-author">{{ authorLabel(comment.handle, comment.externalAuthor) }}</span>
-                <span class="muted post-time">
-                  {{ relativeTime(comment.createdAt) }}@if (comment.edited) &middot; edited@endif
+          @foreach (conversation as item)
+            @if (item.kind === 'event')
+              {{-- An event is a fact, not authored content: one line, no panel,
+                   so the conversation still reads as the conversation. --}}
+              <div class="timeline-event">
+                <span class="{{ item.event.icon }} timeline-icon" aria-hidden="true"></span>
+                <span class="muted">
+                  <strong class="timeline-actor">{{ authorLabel(item.event.handle, item.event.externalActor) }}</strong>
+                  {{ item.event.sentence }}
+                  {{ relativeTime(item.event.createdAt) }}
                 </span>
-              </header>
-              <div class="post-body markdown">{!! comment.bodyHtml !!}</div>
-            </article>
+              </div>
+            @else
+              <article class="panel issue-post">
+                <header class="post-head">
+                  {{-- A mirrored comment names its upstream author, the same way
+                       the issue does, so it is no longer shown as "someone". --}}
+                  <span class="post-author">{{ authorLabel(item.comment.handle, item.comment.externalAuthor) }}</span>
+                  <span class="muted post-time">
+                    {{ relativeTime(item.comment.createdAt) }}@if (item.comment.edited) &middot; edited@endif
+                  </span>
+                </header>
+                <div class="post-body markdown">{!! item.comment.bodyHtml !!}</div>
+              </article>
+            @endif
+          @endforeach
+            @endif
           @endforeach
 
           @if (issue.locked)

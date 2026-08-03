@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
+import { record } from './timeline'
 
 /**
  * Put an issue in a milestone, or take it out of one.
@@ -26,7 +27,7 @@ export default new Action({
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)
 
-    const { repository } = auth.context
+    const { repository, user } = auth.context
 
     const number = Number(request.get('number'))
     const issue = await db
@@ -57,6 +58,13 @@ export default new Action({
       return response.json({ error: `No such milestone: ${title}` }, 422)
 
     const previousId = issue.milestone_id === null ? null : Number(issue.milestone_id)
+
+    // Read before the update, because "removed this from 1.0" needs the name of
+    // the milestone being left and the row is about to stop pointing at it.
+    const previous: any = previousId === null
+      ? null
+      : await db.selectFrom('milestones').select(['title']).where('id', '=', previousId).executeTakeFirst()
+    const previousTitle = previous?.title ? String(previous.title) : null
     const nextId = milestone ? Number(milestone.id) : null
 
     if (previousId === nextId)
@@ -67,6 +75,15 @@ export default new Action({
       .set({ milestone_id: nextId })
       .where('id', '=', Number(issue.id))
       .execute()
+
+    await record(
+      { type: 'issue', id: Number(issue.id) },
+      milestone ? 'milestoned' : 'demilestoned',
+      user ? Number(user.id) : null,
+      // On removal the title is the one being left, which is what a reader
+      // needs: "removed this from 1.0" says more than "removed this".
+      { text: milestone ? String(milestone.title) : previousTitle },
+    )
 
     return response.json({ number, milestone: milestone?.title ?? null })
   },

@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { canOnRepository } from '../../Permissions'
 import { permissionOn } from '../Git/access'
 import { authorizeRepository } from '../Repo/authorize'
+import { recordMany } from './timeline'
 
 /**
  * Set who is working on an issue.
@@ -23,7 +24,7 @@ export default new Action({
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)
 
-    const { repository } = auth.context
+    const { repository, user } = auth.context
 
     const number = Number(request.get('number'))
     const issue = await db
@@ -68,6 +69,15 @@ export default new Action({
         return response.json({ error: `${row.handle} cannot see this repository` }, 422)
     }
 
+    // Read before the delete, so the timeline records the difference rather
+    // than restating the whole set every time somebody saves.
+    const before: any[] = await db
+      .selectFrom('issue_assignees')
+      .innerJoin('users', 'users.id', '=', 'issue_assignees.user_id')
+      .select(['users.handle as handle'])
+      .where('issue_assignees.issue_id', '=', Number(issue.id))
+      .execute()
+
     await db.deleteFrom('issue_assignees').where('issue_id', '=', Number(issue.id)).execute()
 
     if (users.length > 0) {
@@ -76,6 +86,16 @@ export default new Action({
         .values(users.map((row: any) => ({ issue_id: Number(issue.id), user_id: Number(row.id) })))
         .execute()
     }
+
+    const had = new Set<string>(before.map(row => String(row.handle)))
+    const now = new Set<string>(users.map((row: any) => String(row.handle)))
+    const subject = { type: 'issue' as const, id: Number(issue.id) }
+    const actorId = user ? Number(user.id) : null
+
+    await recordMany([
+      ...[...now].filter(handle => !had.has(handle)).map(handle => ({ subject, kind: 'assigned' as const, actorId, detail: { text: handle } })),
+      ...[...had].filter(handle => !now.has(handle)).map(handle => ({ subject, kind: 'unassigned' as const, actorId, detail: { text: handle } })),
+    ])
 
     return response.json({ number, assignees: users.map((row: any) => row.handle) })
   },
