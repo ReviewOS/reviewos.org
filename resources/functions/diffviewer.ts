@@ -30,6 +30,29 @@ import { captureAnchor, DEFAULT_OVERSCAN, planFrame } from '../../app/Actions/Pu
  */
 const POOL_LIMIT = 64
 
+/**
+ * A manifest record as the viewer wants it.
+ *
+ * The wire format calls the position `i`, because it is repeated once per file
+ * and a forty thousand file manifest is not the place to spend five characters
+ * a line on a name. Renamed once, here at the boundary, rather than leaving
+ * every reader of a `DiffFileEntry` to remember which one it is.
+ */
+function toFileEntry(record: Record<string, unknown>): DiffFileEntry {
+  return {
+    index: Number(record.i),
+    path: String(record.path),
+    from: record.from == null ? null : String(record.from),
+    status: String(record.status),
+    binary: Boolean(record.binary),
+    additions: Number(record.additions),
+    deletions: Number(record.deletions),
+    hunks: Number(record.hunks),
+    rows: record.rows as DiffFileEntry['rows'],
+    collapsed: Boolean(record.collapsed),
+  }
+}
+
 /** Files per batch handed to the viewer. */
 const MANIFEST_BATCH_SIZE = 50
 
@@ -76,6 +99,15 @@ export interface DiffViewer {
   addFiles: (files: readonly DiffFileEntry[]) => void
   setLayout: (layout: 'unified' | 'split') => void
   setCollapsed: (index: number, collapsed: boolean) => void
+  /**
+   * Render a mounted file again.
+   *
+   * Called when its markup arrives after it was mounted, which is the ordinary
+   * case while streaming: the file record comes first and is laid out
+   * immediately, and the rows follow. Without this the placeholder that stood
+   * in for them stays there forever.
+   */
+  refresh: (index: number) => void
   collapseAll: (collapsed: boolean) => void
   scrollToFile: (index: number) => void
   /** The files, in diff order. */
@@ -302,6 +334,18 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       schedule()
     },
 
+    refresh(index) {
+      const host = hosts.get(index)
+      const entry = entries[index]
+      if (!host || !entry)
+        return
+
+      renderFile(entry, host)
+      // Its height almost certainly changed, so the next frame measures it and
+      // anchors the correction.
+      schedule()
+    },
+
     setCollapsed(index, collapsed) {
       const entry = entries[index]
       if (!entry || entry.collapsed === collapsed)
@@ -480,7 +524,7 @@ export async function streamDiffManifest(
 
   for await (const record of readNdjson<Record<string, unknown>>(response, signal)) {
     if (record.t === 'file') {
-      batch.push(record as unknown as DiffFileEntry)
+      batch.push(toFileEntry(record))
 
       if (batch.length >= MANIFEST_BATCH_SIZE || performance.now() - lastFlush >= MANIFEST_BATCH_MS)
         flush()
@@ -513,3 +557,118 @@ export async function streamDiffManifest(
 }
 
 export { DEFAULT_HEIGHT_METRICS }
+
+/**
+ * Start a viewer against the element the page rendered for it.
+ *
+ * The one call a page makes. Everything it needs is read from data attributes
+ * on that element rather than passed in, because an stx client script is not
+ * the place for DOM code and the template should not be reaching for elements
+ * either. The template renders a host and says what to load; this finds it.
+ *
+ * Returns null when the page has no host, so a shared client script can run on
+ * pages that do not show a diff without a guard at every call site.
+ */
+export function mountDiffFiles(): DiffViewer | null {
+  const root = document.querySelector<HTMLElement>('[data-diff-stream]')
+  const manifestUrl = root?.dataset.manifestUrl
+  if (!root || !manifestUrl)
+    return null
+
+  // Searched for in the document rather than inside the host: the status line
+  // belongs in the page header beside the branch names, which is outside the
+  // scroll region the viewer owns.
+  const status = document.querySelector<HTMLElement>('[data-diff-status]')
+  const scroller = root.querySelector<HTMLElement>('[data-diff-scroller]')
+  const content = root.querySelector<HTMLElement>('[data-diff-content]')
+  if (!scroller || !content)
+    return null
+
+  const layout = root.dataset.layout === 'split' ? 'split' : 'unified'
+  // Markup for files whose rows arrived inline, by index. A file the reader has
+  // not reached yet costs one string; a file they scrolled past costs the same
+  // string and no elements.
+  const markup = new Map<number, string>()
+  let truncatedFrom: number | null = null
+
+  const say = (message: string, tone: 'working' | 'done' | 'warn' | 'error' = 'working') => {
+    if (!status)
+      return
+    status.textContent = message
+    status.dataset.tone = tone
+  }
+
+  const viewer = createDiffViewer({
+    scroller,
+    content,
+    layout,
+    renderFile(file, host) {
+      const html = markup.get(file.index)
+      if (html != null) {
+        host.innerHTML = html
+        return
+      }
+
+      // Rows for this file have not arrived. A placeholder the right height
+      // rather than an empty box, so the scrollbar does not lurch when they do.
+      host.innerHTML = `<section class="diff-file panel is-pending">`
+        + `<header class="diff-head"><span class="diff-path mono">${escapeText(file.path)}</span>`
+        + `<span class="diff-counts mono"><span class="count-add">+${file.additions}</span>`
+        + `<span class="count-del">-${file.deletions}</span></span></header></section>`
+    },
+  })
+
+  // Collapsing is delegated rather than bound per file: the headers come and go
+  // as the reader scrolls, and a listener per mounted file would have to be
+  // added and removed with them.
+  content.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement | null
+    const toggle = target?.closest<HTMLElement>('.diff-toggle')
+    const host = toggle?.closest<HTMLElement>('.diff-file-host')
+    const index = host?.dataset.fileIndex
+    if (!toggle || index == null)
+      return
+
+    event.preventDefault()
+    const file = viewer.files()[Number(index)]
+    if (file)
+      viewer.setCollapsed(Number(index), !file.collapsed)
+  })
+
+  say('Loading the diff…')
+
+  void streamDiffManifest(manifestUrl, {
+    onFiles(files) {
+      viewer.addFiles(files)
+      say(`${viewer.files().length} files…`)
+    },
+    onRows(index, html) {
+      markup.set(index, html)
+      // The file was laid out the moment its record arrived, so by now it may
+      // already be on screen showing a placeholder.
+      viewer.refresh(index)
+    },
+    onRowsTruncated(from) {
+      truncatedFrom = from
+    },
+    onNotice(message) {
+      say(message, 'warn')
+    },
+    onEnd(summary) {
+      const counts = `${summary.files} files, +${summary.additions} -${summary.deletions}`
+      say(truncatedFrom == null ? counts : `${counts} (rendered to file ${truncatedFrom})`, 'done')
+    },
+    onError(message) {
+      say(message, 'error')
+    },
+  }).catch((error: unknown) => {
+    say(error instanceof Error ? error.message : 'The diff could not be loaded.', 'error')
+  })
+
+  return viewer
+}
+
+/** Escape text for the placeholder, which is the only markup built here. */
+function escapeText(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
