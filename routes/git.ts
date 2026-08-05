@@ -2,6 +2,10 @@ import { route } from '@stacksjs/router'
 import { diskPathFor, findRepositoryByPath, mayUseService, tokenFromBasicAuth } from '../app/Actions/Git/access'
 import { recordTokenUse } from '../app/Actions/Tokens/authenticate'
 import { spawnGit } from '../app/Actions/Git/git'
+import { GATE_ENDPOINT, HOOK_ENDPOINT, hookSecret, repositoryByGitDir } from '../app/Actions/Git/hooks'
+import { decidePush, rulesFor } from '../app/Actions/Git/protection'
+import { parseRefUpdates } from '../app/Actions/Git/push'
+import { isAncestor } from '../app/Actions/Mirror/fetch'
 import { gitService, parseGitUrl } from '../app/Actions/Git/storage'
 
 /**
@@ -55,6 +59,24 @@ async function authorize(request: any, service: 'upload-pack' | 'receive-pack') 
     return { ok: false as const, status: 404 }
 
   return { ok: true as const, path }
+}
+
+/**
+ * Compare two secrets without leaking how far they matched.
+ *
+ * The window is small here - this is loopback, and the secret is long - but a
+ * comparison that returns early is a comparison that can be measured, and
+ * doing it right costs one loop.
+ */
+function sameSecret(offered: string, expected: string): boolean {
+  const a = new TextEncoder().encode(offered)
+  const b = new TextEncoder().encode(expected)
+
+  let difference = a.length ^ b.length
+  for (let i = 0; i < b.length; i += 1)
+    difference |= (a[i] ?? 0) ^ b[i]!
+
+  return difference === 0
 }
 
 function unauthorized(status: number): Response {
@@ -124,6 +146,120 @@ route.post('/{owner}/{repository}/git-receive-pack', async (request: any) => {
     return unauthorized(auth.status)
 
   return streamService(request, auth.path, 'receive-pack')
+}).skipCsrf()
+
+/**
+ * Where the pre-receive hook asks whether a push may land.
+ *
+ * The only endpoint in the product that can refuse work that has not happened
+ * yet, which is the whole point: once `receive-pack` has written the ref, the
+ * dropped commits are unreachable and everybody who fetches has the rewritten
+ * history. Refusing afterwards is a notification.
+ *
+ * Whether a push is a *force* push is asked of git rather than of the client.
+ * `--force` is a flag the client chooses to send; dropping history is what
+ * actually happened, and the honest test is whether the commit the branch used
+ * to point at is still reachable from the one it now points at.
+ */
+route.post(GATE_ENDPOINT, async (request: any) => {
+  const secret = hookSecret()
+  if (!secret)
+    return new Response('Not found', { status: 404 })
+
+  const offered = String(request.headers?.get?.('x-git-hook-secret') ?? '')
+  if (!sameSecret(offered, secret))
+    return new Response('Not found', { status: 404 })
+
+  const allow = (extra: Record<string, unknown> = {}) => new Response(
+    JSON.stringify({ ok: true, ...extra }),
+    { headers: { 'Content-Type': 'application/json' } },
+  )
+
+  const payload = await request.json().catch(() => null)
+  const gitDir = String(payload?.gitDir ?? '')
+  const updates = parseRefUpdates(String(payload?.updates ?? ''))
+
+  if (!gitDir || updates.length === 0)
+    return allow()
+
+  const repository: any = await repositoryByGitDir(gitDir)
+  if (!repository)
+    return allow()
+
+  const rules: any[] = await db
+    .selectFrom('protected_branches')
+    .select(['pattern', 'allow_force_push', 'allow_deletion'])
+    .where('repository_id', '=', Number(repository.id))
+    .execute()
+
+  if (rules.length === 0)
+    return allow()
+
+  const judged = []
+  for (const update of updates) {
+    // Only asked when a rule could refuse it, because it costs a git process
+    // per ref and most pushes are covered by no rule at all.
+    const forced = update.change === 'updated' && rulesFor(rules, update.name).length > 0
+      ? !(await isAncestor(gitDir, update.before, update.after))
+      : false
+
+    judged.push({ update, isForced: forced })
+  }
+
+  const decision = decidePush(rules, judged)
+
+  return new Response(JSON.stringify(decision), {
+    headers: { 'Content-Type': 'application/json' },
+  })
+}).skipCsrf()
+
+/**
+ * Where the post-receive hook reports a push.
+ *
+ * Local to the instance: the hook runs on the same machine as the application
+ * and posts to loopback, so this is not an endpoint anybody outside is meant
+ * to reach. The shared secret is what makes it answerable at all, and with no
+ * secret configured the endpoint does not exist rather than accepting
+ * everything - a default secret is a published secret.
+ *
+ * The secret gets a request *heard*, and nothing further is taken on trust.
+ * Every ref line is re-parsed and shape-checked, the repository is resolved
+ * from its path on disk rather than from a name in the body, and all the actual
+ * work happens in a job that reads what the repository now contains. A caller
+ * who guesses the secret can ask the application to look at a repository; they
+ * cannot tell it what it will find.
+ *
+ * It answers immediately. A hook that waits is a `git push` that waits, and
+ * walking the commits of a large push takes longer than anybody should stand at
+ * a prompt for.
+ */
+route.post(HOOK_ENDPOINT, async (request: any) => {
+  const secret = hookSecret()
+  if (!secret)
+    return new Response('Not found', { status: 404 })
+
+  const offered = String(request.headers?.get?.('x-git-hook-secret') ?? '')
+
+  // 404 rather than 401, the same answer a private repository gives: a 401
+  // confirms the endpoint is here and worth guessing at.
+  if (!sameSecret(offered, secret))
+    return new Response('Not found', { status: 404 })
+
+  const payload = await request.json().catch(() => null)
+  const gitDir = String(payload?.gitDir ?? '')
+  const updates = parseRefUpdates(String(payload?.updates ?? ''))
+
+  if (!gitDir || updates.length === 0)
+    return new Response(JSON.stringify({ ok: true, updates: 0 }), {
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+  const { default: ProcessPushJob } = await import('../app/Jobs/ProcessPushJob')
+  await ProcessPushJob.dispatch({ gitDir, updates })
+
+  return new Response(JSON.stringify({ ok: true, updates: updates.length }), {
+    headers: { 'Content-Type': 'application/json' },
+  })
 }).skipCsrf()
 
 /**

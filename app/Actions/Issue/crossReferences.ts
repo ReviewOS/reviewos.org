@@ -40,6 +40,88 @@ export interface CrossReferenceSource {
 }
 
 /**
+ * Record what a pushed commit refers to.
+ *
+ * Only the incoming half. The outgoing entry that an issue gets - "mentioned
+ * #12" - has nowhere to live for a commit: a commit is not a subject with a
+ * timeline, and inventing one would mean a second history nobody opens.
+ *
+ * The actor is nobody, deliberately. A commit carries an author and a
+ * committer, both free-text email addresses that anybody can set to anything,
+ * so attributing the entry to a local account on the strength of one would put
+ * words in somebody's mouth. With no actor the line reads as the repository
+ * having recorded it, which is what happened.
+ *
+ * The short sha travels in `subject_text` rather than in `reference_number`,
+ * which only ever holds a number in this repository. `entrySentence` reads
+ * whichever is present, so a commit reference and an issue reference render as
+ * the same kind of line without the column having to hold two kinds of thing.
+ */
+export async function recordCommitReferences(
+  repositoryId: number,
+  sha: string,
+  message: string,
+): Promise<number[]> {
+  // No self-reference to exclude: a commit has no number of its own.
+  const numbers = referencedNumbers(message, Number.NaN)
+  if (numbers.length === 0)
+    return []
+
+  const short = sha.slice(0, 7)
+
+  try {
+    const targets: any[] = await db
+      .selectFrom('issues')
+      .select(['id', 'number', 'is_pull_request'])
+      .where('repository_id', '=', repositoryId)
+      .where('number', 'in', numbers)
+      .execute()
+
+    if (targets.length === 0)
+      return []
+
+    // Already recorded, so a retried job does not say it twice. Matched on the
+    // sha rather than on the pair, because the same commit reaching the same
+    // issue is the only duplicate this can produce.
+    const existing: any[] = await db
+      .selectFrom('timeline_entries')
+      .select(['subject_id'])
+      .where('kind', '=', 'referenced')
+      .where('subject_id', 'in', targets.map(row => Number(row.id)))
+      .where('subject_text', '=', short)
+      .execute()
+
+    const already = new Set(existing.map(row => Number(row.subject_id)))
+    const entries: Parameters<typeof recordMany>[0] = []
+    const recorded: number[] = []
+
+    for (const target of targets) {
+      if (already.has(Number(target.id)))
+        continue
+
+      entries.push({
+        subject: {
+          type: target.is_pull_request ? 'pull_request' : 'issue',
+          id: Number(target.id),
+        },
+        kind: 'referenced',
+        actorId: null,
+        detail: { text: short },
+      })
+
+      recorded.push(Number(target.number))
+    }
+
+    await recordMany(entries)
+
+    return recorded
+  }
+  catch {
+    return []
+  }
+}
+
+/**
  * The numbers a piece of text refers to, in this repository.
  *
  * Pure, so the rules can be tested against the ways text lies. Deduplicated,

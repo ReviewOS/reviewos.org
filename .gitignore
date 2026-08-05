@@ -86,6 +86,12 @@ storage/repos/
 # which repository it belongs to and therefore who may read it.
 storage/attachments/
 
+# The shared git hooks. Generated from `app/Actions/Git/hooks.ts` on every
+# repository creation, because they carry the URL and the endpoint paths this
+# instance answers on - a committed copy would be a copy that is wrong on every
+# deployment except the one it was written from.
+storage/git-hooks/
+
 # Pre-relocation names of the three directories above. stx and ts-cloud each
 # take their state directory from config now (`stateDir` in config/ui.ts and
 # config/cloud.ts), so nothing is left in the project root - but a checkout that

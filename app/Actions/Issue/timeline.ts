@@ -145,7 +145,14 @@ export function entrySentence(kind: TimelineKind, detail: TimelineDetail = {}): 
     // The two ends of a cross reference read from where the reader is standing:
     // on the thing referred to, something else is about it; on the thing that
     // did the referring, it is about something else.
-    case 'referenced': return `referenced this in #${detail.reference ?? ''}`
+    //
+    // The thing doing the referring is an issue most of the time and a commit
+    // when the reference came off a push. A commit has no number, so it travels
+    // as text - `reference_number` only ever holds a number in this repository,
+    // and a column that sometimes holds a sha is a column that gets read wrong.
+    case 'referenced': return detail.reference
+      ? `referenced this in #${detail.reference}`
+      : `referenced this in ${text || 'a commit'}`
     case 'mentioned': return `mentioned #${detail.reference ?? ''}`
     default: return 'changed something'
   }

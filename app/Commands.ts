@@ -30,4 +30,5 @@ export default {
   'inspire': 'Inspire',
   'seed:demo': 'SeedDemo',
   'mirror:add': 'MirrorAdd',
+  'git:hooks': 'GitHooks',
 } satisfies CommandRegistry

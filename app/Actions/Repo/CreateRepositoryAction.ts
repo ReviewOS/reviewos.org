@@ -4,7 +4,9 @@ import { dirname } from 'node:path'
 import { canInOrganization } from '../../Permissions'
 import { DEFAULT_LABELS } from '../Issue/labels'
 import { currentUser, organizationRoleOf, resolveOwner } from '../Identity/lookup'
+import { log } from '@stacksjs/logging'
 import { initBare } from '../Git/git'
+import { installHooks, useSharedHooks } from '../Git/hooks'
 import { repositoryPath } from '../Git/storage'
 
 /**
@@ -84,6 +86,15 @@ export default new Action({
       const init = await initBare(resolved.path!, defaultBranch)
       if (!init.ok)
         throw new Error(init.stderr || 'git init failed')
+
+      // Point it at the shared hooks, so a push into it reaches the
+      // application. Not fatal if it fails: the repository works, clones and
+      // accepts pushes without it, and what is lost is the timeline entry
+      // rather than the commits. A repository that exists with no history
+      // recording beats no repository at all, and `buddy git:hooks` repairs it.
+      await installHooks()
+      if (!(await useSharedHooks(resolved.path!)))
+        log.warn(`[repo] could not point ${resolved.relative} at the shared hooks; pushes will not be recorded until this is repaired`)
     }
     catch (error) {
       await db.deleteFrom('repositories').where('id', '=', repositoryId).execute()
