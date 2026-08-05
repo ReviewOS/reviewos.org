@@ -103,8 +103,8 @@ So:
       list immediately.
 - [x] **The browser never sees the raw patch.** It holds the manifest and the rows currently mounted.
       Memory is a function of the viewport, not of the diff.
-- [ ] **Rows arrive as rendered, highlighted HTML**, in one of two modes chosen by a size threshold:
-  - [ ] *inline*, for anything under the threshold (which is very nearly every pull request): the
+- [x] **Rows arrive as rendered, highlighted HTML**, in one of two modes chosen by a size threshold:
+  - [x] *inline*, for anything under the threshold (which is very nearly every pull request): the
         rows stream down with the manifest and the browser mounts from an in-memory map with no
         further requests
   - [ ] *on demand*, above it: the virtualizer requests row batches ahead of the scroll position,
@@ -117,6 +117,45 @@ placeholders for one round trip where DiffsHub would show content. In exchange t
 Linux compare at all, and nothing about the page gets slower as the diff gets bigger.
 
 ---
+
+## What it measures, so far
+
+Against the real `stacksjs/stacks` bare repository in `storage/repos/`, on this laptop. Not the
+benchmark harness below - that is still to build, and these come from a script rather than from
+Chrome traces - but they are numbers rather than feelings, and they are the baseline the harness
+inherits.
+
+`v0.70.230...v0.70.231`, 100 files, 1,662 changed lines:
+
+| | manifest only | with rows inline |
+|---|---|---|
+| first record on the wire | 72ms | 26ms |
+| complete | 77ms | 65ms |
+| sent to the browser | 21KB | 1.3MB |
+| per file | 207 bytes | 12.8KB |
+
+`v0.70.0...v0.70.231`, 5,722 files, 810,481 changed lines:
+
+| | today's path (buffer, then parse) | the manifest |
+|---|---|---|
+| first useful output | 606ms | 85ms |
+| complete | 606ms | 610ms |
+| server heap | 134MB | 81MB |
+| the browser receives | 34MB of patch, as 810k table rows | 9MB, of which 8MB is the first 89 files' rows |
+
+The row budget stopped at file 89 and said so, and the remaining 5,633 file records kept flowing at
+full speed, which is the behaviour the two-mode design exists for: the scrollbar is correct for all
+5,722 files half a second in, whatever is or is not rendered yet.
+
+The 207 bytes a file is the number the whole architecture rests on and it came out where the plan
+guessed it would. A 40,000 file compare is therefore about 8MB of manifest, which a phone can hold.
+
+Two things these numbers do not yet show, both deliberately:
+
+- [ ] The same measurements from the browser rather than from a script: paint, scroll, and memory
+      after a full scroll, which is what the harness below is for
+- [ ] A corpus larger than this repository can provide. `stacks` at 5,722 files is a tenth of the
+      Linux compare DiffsHub uses as its demo.
 
 ## Transport: move the patch before it is complete
 
