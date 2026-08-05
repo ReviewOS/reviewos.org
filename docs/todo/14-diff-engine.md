@@ -472,15 +472,50 @@ Everything a reader can turn on. DiffsHub exposes all of these; several we alrea
 - [x] Word-level highlighting inside changed lines. Reported as character ranges rather than as
       substrings, because the line is already carved into syntax tokens by the time it renders and
       neither carving may be dropped. Character-level is still open.
-- [ ] Diff indicators as a choice: classic `+`/`-` glyphs, a colour bar, or none
-- [ ] Line numbers toggleable, and both sides' numbers always present in split
-- [ ] Change backgrounds toggleable, for readers who find the wash of colour harder to read
-- [ ] Word wrap toggleable, per reader, remembered. Long lines scroll within their own file when wrap
+- [x] Diff indicators as a choice: classic `+`/`-` glyphs, a colour bar, or none
+- [x] Line numbers toggleable, and both sides' numbers always present in split
+- [x] Change backgrounds toggleable, for readers who find the wash of colour harder to read
+- [x] Word wrap toggleable, per reader, remembered. Long lines scroll within their own file when wrap
       is off, which we already do.
-- [ ] Collapse and expand a single file, and collapse or expand all files, without losing scroll
+- [x] Collapse and expand a single file, and collapse or expand all files, without losing scroll
       position
-- [ ] Hunk separators that say what was skipped and how much
-- [ ] Deleted files collapsed by default
+- [x] Hunk separators that say what was skipped and how much
+- [x] Deleted files collapsed by default
+
+Every one of those is an attribute on the scroll container and a selector in the stylesheet. That is
+the point rather than an implementation detail: a row is created and destroyed as the reader scrolls,
+so a setting applied per row would have to be re-applied on every mount, and switching one on a
+forty thousand file compare would be a refetch. Applied to the container it is true of every row that
+ever appears under it, and switching costs a style recalculation. Only wrapping needs more, because
+it changes how tall every line is, so the viewer measures again.
+
+### What a folded file used to cost
+
+Found while building the panel above, and worth recording because the symptom pointed somewhere else.
+
+A file that arrives collapsed had its rows rendered, highlighted, streamed, and parsed into the page,
+and was then hidden with `display: none`. So a lock file cost its full sixteen thousand pixels of
+markup, a place in the inline row budget that a file somebody wanted to read could have had, and the
+highlighter time to produce it - to show a header.
+
+Worse, the streamed rows were rendered *open* while the manifest record said collapsed. The list laid
+out forty pixels for the header and mounted the whole file into it, which overlapped every file below
+and made the scrollbar wrong. That looked like a virtualizer bug and was not.
+
+A collapsed file is now a header and an empty body, rendered by one function that both the server and
+the browser call. The rows are fetched if the reader opens it, which is exactly when they are worth
+having. Two things fell out of it:
+
+- **A measured height now wins whether a file is folded or not.** The old rule - a collapsed file is
+  its estimated header, whatever it measured - existed only because what it measured was the *open*
+  height. That is no longer true, so the rule went, and the fold state clears the measurement instead.
+- **The header estimate was wrong by half.** It was 40 pixels against a real 61. Nothing on a pull
+  request, and eight hundred thousand pixels of lying scrollbar on a forty thousand file compare,
+  where almost every file is estimated and never measured.
+
+- [ ] The conversation page cannot open a collapsed file at all: it renders no client script, so the
+      fold control on it does nothing. It has been that way since the control existed. The real fix
+      is that screen using the streamed viewer rather than rendering the whole diff.
 - [x] Every one of these settings persists per reader and survives a reload
 
 ## Hunk expansion and partial diffs
