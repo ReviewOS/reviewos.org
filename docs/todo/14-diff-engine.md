@@ -144,10 +144,20 @@ the large compare and held 134MB, and would then have sent the browser 34MB of p
 The 207 bytes a file is the number the architecture rests on, and it came out where the plan guessed.
 A 40,000 file compare is therefore about 8MB of manifest, which a phone can hold.
 
-One honest cost worth recording: inline rows now carry expansion controls and per-line link anchors,
-so each file's markup is larger and the byte budget is reached sooner. On the large compare the
-inline mode covers 77 files where it covered 89 before the features landed. Everything past that is
-fetched on demand, which is what the mode is for.
+Those numbers are from the first measurement and are kept for the shape rather than the absolute:
+re-measured on a busier machine the same runs report 36ms and 681ms. What is worth comparing is the
+same harness against the same commit on the same day, which is what `compare.ts` is for.
+
+Two things have moved the numbers since, both for the better and both worth naming:
+
+- Inline rows carry expansion controls and per-line link anchors, so each file's markup is larger and
+  the byte budget is reached sooner.
+- A file that arrives folded up is sent no rows at all. On the large compare that moved the inline
+  mode from **77 files to 293** within the same eight megabyte budget, because the budget is no longer
+  being spent on lock files and generated snapshots that nobody opened. It also took 22% off the
+  bytes on the wire for the hundred file diff.
+
+Everything past the inline point is fetched on demand, which is what the mode is for.
 
 ### The browser half
 
@@ -226,7 +236,7 @@ file while the last one is still on the wire.
 - [x] A stream parser that splits on `\ndiff --git ` and hands out one complete file at a time,
       buffering only the current file. The boundary scan keeps an overlap of `len - 1` characters so a
       marker split across two chunks is still found.
-- [ ] `From <sha>` commit-metadata boundaries inside a mailbox-format patch are respected, so a
+- [x] `From <sha>` commit-metadata boundaries inside a mailbox-format patch are respected, so a
       multi-commit patch splits per file rather than swallowing the next commit's header
 - [x] A fallback for input that never produced a `diff --git` boundary: parse the whole buffer once at
       the end rather than showing nothing
@@ -261,12 +271,24 @@ measuring:
       string per retained line (encode/decode through a reused `Uint8Array` scratch buffer, with a
       JSON round trip for the lone-surrogate case that `TextEncoder` would corrupt), and release the
       scratch buffer after a parsing run so one pathological line does not pin its peak allocation.
-- [ ] Line-ending detection per file, and a `\ No newline at end of file` marker rendered as itself
+- [x] Line-ending detection per file (`lf`, `crlf`, `mixed`, or nothing known), and a
+      `\ No newline at end of file` marker rendered as itself rather than dropped
 - [ ] Partial diff metadata: a file can exist in the list, with correct estimated height, before its
       contents have been loaded. A loader fills them in on demand.
-- [ ] Tests against the shapes that break parsers: a rename with no content change, a mode-only
+- [x] Tests against the shapes that break parsers: a rename with no content change, a mode-only
       change, mixed CRLF and LF in one file, a file with no trailing newline, a filename containing a
       quote or a newline, a 5,000 line single-file diff
+
+Two of those found real bugs on the first run, which is the argument for writing them:
+
+- **A quoted path kept its `b/` prefix.** git quotes any path with a space in it, and the prefix is
+  *inside* the quotes, so it was being stripped before the unquote rather than after. Every path with
+  a space in it therefore came out as `b/my file.ts`, matched nothing on the way back, and was
+  silently un-expandable and un-commentable.
+- **Anything after the last hunk was read as content.** The parser consumed lines to the next header,
+  and `git format-patch` ends every commit with a `--` signature - which is a removed line as far as
+  a marker check goes. Hunks are now bounded by the line counts their own header declares, which is
+  what the counts are for.
 
 ## Virtualization: the list is the product
 

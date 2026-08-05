@@ -12,7 +12,7 @@
  * convenience wrapper for a caller that already holds a complete diff.
  */
 
-import { detachString, splitPatchFiles } from './patch'
+import { detachString, MAILBOX_HEADER, splitPatchFiles } from './patch'
 
 export type LineOrigin = 'context' | 'added' | 'removed'
 
@@ -23,6 +23,15 @@ export interface DiffLine {
   oldLine: number | null
   /** Line number on the right (the version proposed), or null when removed. */
   newLine: number | null
+  /**
+   * This line is the last in its file and the file does not end in a newline.
+   *
+   * git says so with a `\\ No newline at end of file` marker on the following
+   * line. It matters: adding or removing the final newline is a real change,
+   * it is invisible, and a reviewer looking at a one line diff where both
+   * sides read identically deserves to be told which one it is.
+   */
+  noNewline?: boolean
 }
 
 export interface DiffHunk {
@@ -49,6 +58,15 @@ export interface DiffFile {
   /** A mode change with no content change is still worth showing. */
   oldMode: string | null
   newMode: string | null
+  /**
+   * What ends the lines of this file, as far as the patch shows.
+   *
+   * git strips the newline that separates lines but keeps a carriage return,
+   * so a line ending in `\r` came from a CRLF file. Null when the file has no
+   * lines in the patch at all - a rename with no content change, a binary
+   * file - which is different from knowing it is LF.
+   */
+  lineEndings: 'lf' | 'crlf' | 'mixed' | null
 }
 
 export interface ParseDiffFileOptions {
@@ -97,19 +115,30 @@ export function parseDiffFile(fileText: string, options: ParseDiffFileOptions = 
     hunks: [],
     oldMode: null,
     newMode: null,
+    lineEndings: null,
   }
+
+  // Counted rather than decided on the first line: a file with both endings in
+  // it is a real thing, it is usually an accident, and it is worth saying so
+  // rather than reporting whichever one happened to come first.
+  let crlfLines = 0
+  let lfLines = 0
 
   let hunk: DiffHunk | null = null
   let oldLine = 0
   let newLine = 0
+  let oldLeft = 0
+  let newLeft = 0
 
   for (let index = 1; index < lines.length; index++) {
     const line = lines[index]!
 
     // A second header inside one file's text means the splitter cut on a line
     // that only looked like a boundary. Stop rather than folding two files
-    // into one.
-    if (line.startsWith('diff --git '))
+    // into one. A mailbox commit header ends the file for the same reason:
+    // everything after it belongs to the next commit, and the mail headers
+    // under it begin with a space, which reads as a context line.
+    if (line.startsWith('diff --git ') || MAILBOX_HEADER.test(line))
       break
 
     if (line.startsWith('new file mode ')) {
@@ -177,6 +206,14 @@ export function parseDiffFile(fileText: string, options: ParseDiffFileOptions = 
       file.hunks.push(hunk)
       oldLine = hunk.oldStart
       newLine = hunk.newStart
+      // The header says how many lines each side has, and once both are spent
+      // the hunk is over. Reading to the next header instead means anything
+      // trailing the last hunk is taken for content: `git format-patch` ends
+      // every commit with a `--` signature, which is a removed line as far as
+      // a marker check is concerned, and the file gained a deletion nobody
+      // made.
+      oldLeft = hunk.oldLines
+      newLeft = hunk.newLines
       continue
     }
 
@@ -184,29 +221,56 @@ export function parseDiffFile(fileText: string, options: ParseDiffFileOptions = 
       continue
 
     // git marks a missing final newline with this, and it belongs to the
-    // preceding line rather than being a line of its own.
-    if (line.startsWith('\\ No newline at end of file'))
+    // preceding line rather than being a line of its own. Marked on that line,
+    // because a reader has to be able to see it: adding a trailing newline is
+    // otherwise a diff in which both sides look exactly the same.
+    if (line.startsWith('\\ No newline at end of file')) {
+      const previous = hunk.lines[hunk.lines.length - 1]
+      if (previous)
+        previous.noNewline = true
       continue
+    }
 
     const marker = line[0]
     const content = keep(line.slice(1))
 
-    if (marker === '+') {
+    if (marker === '+' || marker === '-' || marker === ' ') {
+      if (content.endsWith('\r'))
+        crlfLines += 1
+      else
+        lfLines += 1
+    }
+
+    if (marker === '+' && newLeft > 0) {
       hunk.lines.push({ origin: 'added', content, oldLine: null, newLine })
       file.additions += 1
       newLine += 1
+      newLeft -= 1
     }
-    else if (marker === '-') {
+    else if (marker === '-' && oldLeft > 0) {
       hunk.lines.push({ origin: 'removed', content, oldLine, newLine: null })
       file.deletions += 1
       oldLine += 1
+      oldLeft -= 1
     }
-    else if (marker === ' ' || line === '') {
+    else if ((marker === ' ' || line === '') && oldLeft > 0 && newLeft > 0) {
       hunk.lines.push({ origin: 'context', content, oldLine, newLine })
       oldLine += 1
       newLine += 1
+      oldLeft -= 1
+      newLeft -= 1
     }
+
+    // Both sides spent: the hunk is complete, and whatever follows is not part
+    // of it until another header says otherwise.
+    if (oldLeft <= 0 && newLeft <= 0)
+      hunk = null
   }
+
+  if (crlfLines > 0)
+    file.lineEndings = lfLines > 0 ? 'mixed' : 'crlf'
+  else if (lfLines > 0)
+    file.lineEndings = 'lf'
 
   return file
 }
@@ -248,8 +312,12 @@ function pathFromDiffHeader(line: string): string {
 
   if (rest.startsWith('"')) {
     const closing = rest.indexOf('" "')
+    // The `b/` prefix has to come off after unquoting, not before: it is
+    // inside the quotes. Leaving it on produced paths like `b/my file.ts`,
+    // which then matched no file on the way back and made every quoted path
+    // un-expandable and un-commentable.
     if (closing !== -1)
-      return unquote(rest.slice(closing + 2))
+      return stripSidePrefix(unquote(rest.slice(closing + 2)))
   }
 
   const bIndex = rest.lastIndexOf(' b/')
@@ -257,6 +325,16 @@ function pathFromDiffHeader(line: string): string {
     return rest.slice(bIndex + 3)
 
   return rest
+}
+
+/**
+ * Drop the `a/` or `b/` git puts in front of both sides of a path.
+ *
+ * Inside the quotes when the path is quoted, which is why this is a separate
+ * step rather than part of finding the path.
+ */
+function stripSidePrefix(value: string): string {
+  return value.startsWith('a/') || value.startsWith('b/') ? value.slice(2) : value
 }
 
 function unquote(value: string): string {

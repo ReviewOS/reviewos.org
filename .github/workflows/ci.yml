@@ -144,6 +144,24 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      # This application runs on Postgres, and the end-to-end suite needs a
+      # real one: it boots the router, creates a repository, and drives a real
+      # git client through clone and push. Without it that suite skips itself
+      # and the only thing anybody would find out is that it skipped.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: reviewos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -178,9 +196,33 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile
 
+      # The schema the end-to-end suite reads and writes. `buddy migrate` applies
+      # the committed corpus, which is the same thing a real deploy does - so a
+      # migration that cannot apply from empty fails here rather than on
+      # somebody's server.
+      - name: Migrate
+        env:
+          DB_CONNECTION: postgres
+          DB_HOST: 127.0.0.1
+          DB_PORT: '5432'
+          DB_DATABASE: reviewos
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+        run: ./buddy migrate
+
       - name: Test Suite
         env:
           AWS_DYNAMODB_ENDPOINT: http://localhost:8000
+          DB_CONNECTION: postgres
+          DB_HOST: 127.0.0.1
+          DB_PORT: '5432'
+          DB_DATABASE: reviewos
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          # The hook posts back to the application, and the endpoint does not
+          # exist without a secret. Any value will do; it never leaves the
+          # runner.
+          GIT_HOOK_SECRET: ci-hook-secret-not-a-real-one
         run: bun run test
 
       # `bun run test` shells out to `buddy test`, which only globs

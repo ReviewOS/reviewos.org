@@ -70,7 +70,7 @@
     "@stacksjs/stx": "^0.2.151",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.45",
-    "stacks": "^0.70.245",
+    "stacks": "^0.70.264",
     "ts-syntax-highlighter": "^0.2.8"
   },
   "workspaces": [

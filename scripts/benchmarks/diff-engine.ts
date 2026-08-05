@@ -42,7 +42,13 @@ async function measure(repository: string, base: string, head: string, withRows:
   let peakHeap = 0
 
   const records = manifestToNdjson(
-    streamManifest(diff, withRows ? { rows: { layout: 'unified' } } : {}),
+    // `skipCollapsed` matches what the manifest endpoint asks for. Without it
+    // this measures a path the product does not use, and reports the cost of
+    // highlighting lock files nobody opened.
+    // `skipCollapsed` matches what the manifest endpoint asks for. Without it
+    // this measures a path the product does not use, and reports the cost of
+    // highlighting lock files nobody opened.
+    streamManifest(diff, withRows ? { rows: { layout: 'unified', skipCollapsed: true } } : {}),
   )
 
   for await (const line of records) {

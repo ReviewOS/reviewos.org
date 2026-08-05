@@ -248,6 +248,21 @@ function gutter(path: string, side: 'left' | 'right', line: number | null): stri
     + ` aria-label="Line ${line}">${line}</a></td>`
 }
 
+/**
+ * The note that a line ends the file without a newline.
+ *
+ * Rendered rather than dropped, because adding or removing a trailing newline
+ * is a real change and an invisible one: without this the diff shows two lines
+ * that read identically and says one replaced the other.
+ */
+function noNewlineNote(line: DiffLine): string {
+  if (line.noNewline !== true)
+    return ''
+
+  return `<span class="no-newline" title="No newline at end of file"`
+    + ` aria-label="No newline at end of file">\u29F5</span>`
+}
+
 /** The `+`, `-` or space that opens a code cell. */
 function marker(origin: DiffLine['origin']): string {
   if (origin === 'added')
@@ -324,7 +339,7 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
         `<tr class="line line-${line.origin}">`
         + gutter(file.path, 'left', line.oldLine)
         + gutter(file.path, 'right', line.newLine)
-        + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}</td>`
+        + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}</td>`
         + `</tr>`,
       )
 
@@ -345,7 +360,7 @@ function splitCell(line: DiffLine | null, side: 'old' | 'new', options: RenderRo
   const number = side === 'old' ? line.oldLine : line.newLine
 
   return gutter(options.path ?? '', side === 'old' ? 'left' : 'right', number)
-    + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}</td>`
+    + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}</td>`
 }
 
 /**

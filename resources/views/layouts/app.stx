@@ -475,6 +475,11 @@
 
       .marker { display: inline-block; width: 1ch; color: var(--muted); }
 
+      /* A line that ends the file without a newline. Dim, because it is a
+         property of the line rather than part of it, and present, because
+         adding a trailing newline is otherwise a change nobody can see. */
+      .no-newline { margin-left: 6px; color: var(--muted); opacity: 0.7; }
+
       .line-added { background: var(--add-bg); }
       .line-added .gutter { border-right-color: var(--add-line); }
       .line-removed { background: var(--del-bg); }

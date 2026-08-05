@@ -89,6 +89,9 @@ export default new Action({
       deletions: 0,
       oldMode: null,
       newMode: null,
+      // Context lines come from the blob rather than from the patch, so what
+      // ends them is whatever the blob reader gave back. Nothing here can say.
+      lineEndings: null,
       hunks: [{
         oldStart: lines[0]?.oldLine ?? 1,
         oldLines: lines.length,

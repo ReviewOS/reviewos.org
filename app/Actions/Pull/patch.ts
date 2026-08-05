@@ -24,14 +24,40 @@ const FILE_BOUNDARY = 'diff --git '
 const FILE_BOUNDARY_AT_LINE_START = `\n${FILE_BOUNDARY}`
 
 /**
+ * The line that begins each commit in a mailbox-format patch.
+ *
+ * `git format-patch` writes one mail message per commit and `git am` reads them
+ * back. Between two commits sits a signature, a blank line, a `From` line, mail
+ * headers, a subject and a diffstat - and the diffstat's lines begin with a
+ * space, which is exactly what a context line looks like.
+ *
+ * Without this, the last file of one commit ran on to the first file of the
+ * next, and every intervening line that happened to start with a space became a
+ * context line appended to it. The file rendered with a tail of somebody's
+ * commit message in it, numbered as though it were code.
+ */
+const MAILBOX_BOUNDARY = 'From '
+const MAILBOX_BOUNDARY_AT_LINE_START = `\n${MAILBOX_BOUNDARY}`
+
+/** `From `, a full commit sha, and the space before the date. */
+export const MAILBOX_HEADER = /^From [0-9a-f]{40} /
+
+/** How much text `MAILBOX_HEADER` needs to match against. */
+const MAILBOX_HEADER_LENGTH = MAILBOX_BOUNDARY.length + 40 + 1
+
+/**
  * How much of the tail must stay unscanned between chunks.
  *
  * A boundary marker can be split across two reads, so after a fruitless scan we
  * rewind by one less than the marker's length. Rewinding by the full length
  * would re-examine a character we already know is not the start of a match, and
  * rewinding by less can miss a marker that straddles the join.
+ *
+ * The longer of the two markers decides it. The mailbox one is only recognised
+ * once its whole sha has arrived, so rewinding by the length of the file header
+ * alone would let a commit boundary sitting across a chunk join go unseen.
  */
-const BOUNDARY_SCAN_OVERLAP = FILE_BOUNDARY_AT_LINE_START.length - 1
+const BOUNDARY_SCAN_OVERLAP = Math.max(FILE_BOUNDARY_AT_LINE_START.length, MAILBOX_HEADER_LENGTH + 1) - 1
 
 const NON_WHITESPACE = /\S/
 
@@ -50,6 +76,51 @@ export function findFileBoundary(text: string, from: number): number | null {
 
   const index = text.indexOf(FILE_BOUNDARY_AT_LINE_START, start)
   return index === -1 ? null : index + 1
+}
+
+/**
+ * The index of the next mailbox commit header at or after `from`, or null.
+ *
+ * The sha is required, which is what keeps this from firing on a `From:` mail
+ * header or on a line of prose. A line of diff *content* cannot match at all,
+ * because content always carries its origin marker, so column zero of a content
+ * line is a space, a plus or a minus.
+ */
+export function findMailboxBoundary(text: string, from: number, limit = text.length): number | null {
+  if (from <= 0 && MAILBOX_HEADER.test(text))
+    return 0
+
+  let cursor = Math.max(from, 0)
+
+  for (;;) {
+    const at = text.indexOf(MAILBOX_BOUNDARY_AT_LINE_START, cursor)
+    if (at === -1 || at >= limit)
+      return null
+
+    const line = at + 1
+    if (MAILBOX_HEADER.test(text.slice(line, line + MAILBOX_HEADER_LENGTH)))
+      return line
+
+    // A `From ` that is not a commit header - somebody's prose, or a mail
+    // header. Keep looking rather than giving up on the whole scan.
+    cursor = line
+  }
+}
+
+/**
+ * The earlier of the two boundaries, or null when neither is ahead.
+ *
+ * The mailbox scan is bounded by where the file scan landed, and that bound is
+ * the whole reason this is a function rather than two calls. Unbounded, a patch
+ * with no mailbox headers in it - which is every patch this application
+ * produces - scanned the entire remaining buffer once per file looking for a
+ * marker that was never there. Splitting a five thousand file patch went
+ * quadratic and doubled, measurably, on a hundred file one.
+ */
+function findBoundary(text: string, from: number): number | null {
+  const file = findFileBoundary(text, from)
+
+  return findMailboxBoundary(text, from, file ?? text.length) ?? file
 }
 
 export interface PatchSplitter {
@@ -93,6 +164,9 @@ export function createPatchSplitter(): PatchSplitter {
 
   const take = (): string | undefined => {
     if (openFileStart == null) {
+      // The *file* header specifically. A commit header does not open a file,
+      // and treating it as one would only make the parser reject the mail
+      // headers under it.
       openFileStart = findFileBoundary(buffer, scanFrom)
       if (openFileStart == null) {
         // Everything before the first header is the patch preamble (a commit
@@ -105,7 +179,8 @@ export function createPatchSplitter(): PatchSplitter {
       scanFrom = openFileStart + 1
     }
 
-    const next = findFileBoundary(buffer, scanFrom)
+    // Either boundary ends the open file: the next file, or the next commit.
+    const next = findBoundary(buffer, scanFrom)
     if (next == null) {
       scanFrom = rewind(openFileStart + 1)
       return undefined
@@ -113,8 +188,10 @@ export function createPatchSplitter(): PatchSplitter {
 
     const fileText = buffer.slice(openFileStart, next)
     buffer = buffer.slice(next)
-    openFileStart = 0
-    scanFrom = 1
+    // A commit header is not a file, so the next file has to be looked for
+    // again from here rather than assumed to start at zero.
+    openFileStart = buffer.startsWith(FILE_BOUNDARY) ? 0 : null
+    scanFrom = openFileStart === 0 ? 1 : 0
 
     return NON_WHITESPACE.test(fileText) ? fileText : take()
   }
@@ -139,7 +216,10 @@ export function createPatchSplitter(): PatchSplitter {
         files.push(fileText)
       }
 
-      const rest = openFileStart == null ? buffer : buffer.slice(openFileStart)
+      // Read before the state is cleared: whether a file was open is the thing
+      // that decides what the remainder is.
+      const wasOpen = openFileStart != null
+      const rest = wasOpen ? buffer.slice(openFileStart!) : buffer
       buffer = ''
       openFileStart = null
       scanFrom = 0
@@ -149,6 +229,13 @@ export function createPatchSplitter(): PatchSplitter {
 
       if (!sawBoundary)
         return { files, remainder: rest }
+
+      // A boundary was seen but nothing is open, so what is left began at a
+      // commit header rather than at a file: the signature and mail headers
+      // that close a mailbox patch. Handing it over as a file would only make
+      // the parser reject it.
+      if (!wasOpen)
+        return { files }
 
       files.push(rest)
       return { files }
