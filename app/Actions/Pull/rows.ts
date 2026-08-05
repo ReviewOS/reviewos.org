@@ -15,7 +15,9 @@
  */
 
 import type { DiffFile, DiffHunk, DiffLine } from './diff'
+import type { CharRange } from './inline'
 import { highlightLines } from '../Browse/highlight'
+import { inlineChangedRanges, worthComparing } from './inline'
 
 export interface DiffToken {
   type: string
@@ -74,6 +76,15 @@ export interface RenderRowsOptions {
   layout?: 'unified' | 'split'
   tokens?: DiffTokenMap
   /**
+   * Mark what changed within a line, not just which lines changed.
+   *
+   * On by default. A line where one argument moved is almost all unchanged, and
+   * colouring the whole of it makes the reader do the comparison themselves.
+   */
+  inlineChanges?: boolean
+  /** Computed by `renderDiffRows`; not something a caller supplies. */
+  marks?: Map<DiffLine, CharRange[]>
+  /**
    * Render the file closed.
    *
    * Through a class rather than the `hidden` attribute. `hidden` is a boolean
@@ -110,10 +121,108 @@ function tokensFor(line: DiffLine, tokens: DiffTokenMap | undefined): DiffToken[
   return tokens[tokenKey(line)] ?? [{ type: 'text', content: line.content }]
 }
 
-function renderTokens(line: DiffLine, tokens: DiffTokenMap | undefined): string {
-  return tokensFor(line, tokens)
-    .map(token => `<span class="t-${escapeHtml(token.type)}">${escapeHtml(token.content)}</span>`)
-    .join('')
+function renderTokens(line: DiffLine, tokens: DiffTokenMap | undefined, changed?: readonly CharRange[]): string {
+  const parts = tokensFor(line, tokens)
+
+  if (!changed || changed.length === 0) {
+    return parts
+      .map(token => `<span class="t-${escapeHtml(token.type)}">${escapeHtml(token.content)}</span>`)
+      .join('')
+  }
+
+  // A syntax token and a changed range are two different carvings of the same
+  // line, and neither can be dropped: the token carries the colour, the range
+  // carries the emphasis. So each token is cut at the range boundaries that
+  // fall inside it, and the pieces are marked individually.
+  let offset = 0
+  let html = ''
+
+  for (const token of parts) {
+    const start = offset
+    const end = offset + token.content.length
+    offset = end
+
+    for (const piece of cut(token.content, start, changed)) {
+      const inner = escapeHtml(piece.text)
+      html += piece.changed
+        ? `<span class="t-${escapeHtml(token.type)} w">${inner}</span>`
+        : `<span class="t-${escapeHtml(token.type)}">${inner}</span>`
+    }
+  }
+
+  return html
+}
+
+/**
+ * Cut one token into changed and unchanged pieces.
+ *
+ * `start` is where the token sits in the line, since the ranges are measured
+ * against the line rather than against the token.
+ */
+function cut(
+  text: string,
+  start: number,
+  changed: readonly CharRange[],
+): Array<{ text: string, changed: boolean }> {
+  const pieces: Array<{ text: string, changed: boolean }> = []
+  const end = start + text.length
+  let cursor = start
+
+  for (const range of changed) {
+    if (range.end <= cursor)
+      continue
+    if (range.start >= end)
+      break
+
+    const from = Math.max(range.start, cursor)
+    const to = Math.min(range.end, end)
+
+    if (from > cursor)
+      pieces.push({ text: text.slice(cursor - start, from - start), changed: false })
+
+    pieces.push({ text: text.slice(from - start, to - start), changed: true })
+    cursor = to
+  }
+
+  if (cursor < end)
+    pieces.push({ text: text.slice(cursor - start), changed: false })
+
+  return pieces
+}
+
+/**
+ * Pair each removed line with the added line that replaced it.
+ *
+ * Positionally: the first removal against the first addition, and so on. git
+ * does not say which line replaced which, and position is what a reader assumes
+ * when they look at the two blocks side by side.
+ *
+ * A pair that turns out to share almost nothing is dropped rather than marked,
+ * because a deletion and an unrelated addition that happen to be adjacent are
+ * not an edit to one line.
+ */
+export function pairInlineChanges(
+  removed: readonly DiffLine[],
+  added: readonly DiffLine[],
+): Map<DiffLine, CharRange[]> {
+  const marks = new Map<DiffLine, CharRange[]>()
+  const pairs = Math.min(removed.length, added.length)
+
+  for (let index = 0; index < pairs; index++) {
+    const before = removed[index]!
+    const after = added[index]!
+    const diff = inlineChangedRanges(before.content, after.content)
+
+    if (!worthComparing(before.content, after.content, diff))
+      continue
+
+    if (diff.before.length > 0)
+      marks.set(before, diff.before)
+    if (diff.after.length > 0)
+      marks.set(after, diff.after)
+  }
+
+  return marks
 }
 
 /** The `+`, `-` or space that opens a code cell. */
@@ -152,7 +261,7 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
         `<tr class="line line-${line.origin}">`
         + `<td class="gutter num">${line.oldLine ?? ''}</td>`
         + `<td class="gutter num">${line.newLine ?? ''}</td>`
-        + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens)}</td>`
+        + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}</td>`
         + `</tr>`,
       )
 
@@ -173,7 +282,7 @@ function splitCell(line: DiffLine | null, side: 'old' | 'new', options: RenderRo
   const number = side === 'old' ? line.oldLine : line.newLine
 
   return `<td class="gutter num">${number ?? ''}</td>`
-    + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens)}</td>`
+    + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}</td>`
 }
 
 /**
@@ -247,7 +356,48 @@ export function renderDiffRows(file: DiffFile, options: RenderRowsOptions = {}):
   if (file.binary || file.hunks.length === 0)
     return ''
 
-  return options.layout === 'split' ? renderSplit(file, options) : renderUnified(file, options)
+  const resolved: RenderRowsOptions = options.inlineChanges === false
+    ? options
+    : { ...options, marks: inlineMarksFor(file) }
+
+  return resolved.layout === 'split' ? renderSplit(file, resolved) : renderUnified(file, resolved)
+}
+
+/**
+ * Every intra-line mark in a file, worked out once.
+ *
+ * Per change block: a maximal run of removals followed by a run of additions is
+ * one edit to a reader, and the lines inside it pair up in order.
+ */
+function inlineMarksFor(file: DiffFile): Map<DiffLine, CharRange[]> {
+  const marks = new Map<DiffLine, CharRange[]>()
+
+  for (const hunk of file.hunks) {
+    let removed: DiffLine[] = []
+    let added: DiffLine[] = []
+
+    const flush = () => {
+      if (removed.length > 0 && added.length > 0) {
+        for (const [line, ranges] of pairInlineChanges(removed, added))
+          marks.set(line, ranges)
+      }
+      removed = []
+      added = []
+    }
+
+    for (const line of hunk.lines) {
+      if (line.origin === 'context')
+        flush()
+      else if (line.origin === 'removed')
+        removed.push(line)
+      else
+        added.push(line)
+    }
+
+    flush()
+  }
+
+  return marks
 }
 
 /**

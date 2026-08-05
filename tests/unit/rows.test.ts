@@ -143,10 +143,15 @@ describe('renderDiffRows', () => {
 +  if (a) {
  }
 `
-    const html = renderDiffRows(fileOf(raw))
+    // Asserted on the text rather than on one span: intra-line marking splits a
+    // line wherever the change starts and stops, so the indentation here is its
+    // own span. What must hold is that the characters are all still there and
+    // still in order.
+    const codeCells = [...renderDiffRows(fileOf(raw)).matchAll(/<td class="code mono">(.*?)<\/td>/g)]
+      .map(match => match[1]!.replace(/<[^>]+>/g, ''))
 
-    expect(html).toContain('\tif (a) {')
-    expect(html).toContain('  if (a) {')
+    expect(codeCells[0]).toBe('-\tif (a) {')
+    expect(codeCells[1]).toBe('+  if (a) {')
   })
 
   test('a binary file renders no rows at all', () => {
@@ -284,5 +289,84 @@ rename to new.ts
 Binary files a/i.png and b/i.png differ
 `
     expect(await highlightDiffFile(fileOf(raw))).toEqual({})
+  })
+})
+
+describe('intra-line marking', () => {
+  const oneWord = `diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1 +1 @@
+-const total = subtotal + tax
++const total = subtotal + vat
+`
+
+  /** The text of each code cell, with the markup taken back off. */
+  function codeText(html: string): string[] {
+    return [...html.matchAll(/<td class="code mono[^"]*">(.*?)<\/td>/g)]
+      .map(match => match[1]!.replace(/<[^>]+>/g, ''))
+  }
+
+  test('marks the word that changed and nothing else', () => {
+    const html = renderDiffRows(fileOf(oneWord))
+    const marks = [...html.matchAll(/<span class="[^"]*\bw\b[^"]*">([^<]*)<\/span>/g)].map(m => m[1])
+
+    expect(marks).toEqual(['tax', 'vat'])
+  })
+
+  test('the line still reads exactly as it does in the file', () => {
+    // The invariant marking could break: cutting a token in two must not lose,
+    // duplicate or reorder a character.
+    expect(codeText(renderDiffRows(fileOf(oneWord)))).toEqual([
+      '-const total = subtotal + tax',
+      '+const total = subtotal + vat',
+    ])
+  })
+
+  test('marking survives syntax tokens carving the line differently', () => {
+    const tokens = {
+      '-1': [{ type: 'keyword', content: 'const total = subtotal + t' }, { type: 'text', content: 'ax' }],
+    }
+    const html = renderDiffRows(fileOf(oneWord), { tokens })
+
+    // The mark starts inside the first token and ends inside the second, so
+    // both have to be cut. Neither carving may win outright.
+    expect(codeText(html)[0]).toBe('-const total = subtotal + tax')
+    expect(html).toContain('t-keyword w')
+  })
+
+  test('can be turned off', () => {
+    expect(renderDiffRows(fileOf(oneWord), { inlineChanges: false })).not.toContain(' w"')
+  })
+
+  test('two unrelated adjacent lines are not marked', () => {
+    const unrelated = `diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1 +1 @@
+-import { readFile } from 'node:fs'
++export const RETRY_LIMIT = 5
+`
+    expect(renderDiffRows(fileOf(unrelated))).not.toContain(' w"')
+  })
+
+  test('a pure addition marks nothing, since nothing was replaced', () => {
+    const added = `diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1 +1,2 @@
+ keep
++brand new
+`
+    expect(renderDiffRows(fileOf(added))).not.toContain(' w"')
+  })
+
+  test('split renders the same marks as unified', () => {
+    const unified = renderDiffRows(fileOf(oneWord), { layout: 'unified' })
+    const split = renderDiffRows(fileOf(oneWord), { layout: 'split' })
+    const marksOf = (html: string) =>
+      [...html.matchAll(/<span class="[^"]*\bw\b[^"]*">([^<]*)<\/span>/g)].map(m => m[1])
+
+    expect(marksOf(split)).toEqual(marksOf(unified))
   })
 })

@@ -472,6 +472,18 @@
       .line-removed { background: var(--del-bg); }
       .line-removed .gutter { border-right-color: var(--del-line); }
 
+      /* What changed within a line.
+
+         A wash behind the characters that differ, rather than a colour on
+         them: the syntax colour is already carrying meaning, and a second
+         foreground colour on top would fight it. Strong enough to find at a
+         glance on top of the line's own add or remove tint, and weak enough
+         that a line where most of it is marked still reads as code. */
+      .line-removed .w { background: var(--del-line); border-radius: 2px; }
+      .line-added .w { background: var(--add-line); border-radius: 2px; }
+      .has-removed .w { background: var(--del-line); border-radius: 2px; }
+      .has-added .w { background: var(--add-line); border-radius: 2px; }
+
       .hunk-head td { background: var(--surface-tint); border-top: 1px solid var(--line); }
       .hunk-label { padding: 4px 12px; color: var(--muted); font-size: 12px; }
 
