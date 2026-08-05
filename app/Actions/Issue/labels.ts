@@ -68,6 +68,27 @@ export function normalizeColor(raw: string): string | null {
 }
 
 /**
+ * The colour to actually paint with: six hex digits, always.
+ *
+ * A label's colour goes into a `style` attribute, which is the one place in
+ * this product where a stored string becomes CSS. `normalizeColor` guards the
+ * write path, but a value can arrive from somewhere else - a mirrored
+ * repository, a restored dump, a seeder whose faker returned `rgb(13, 45, 67)`
+ * where six hex digits were expected, which is exactly what happened. That
+ * value interpolated straight into `background: #…` ends the declaration at the
+ * comma and continues the attribute with whatever follows.
+ *
+ * So nothing reaches a style attribute without coming through here, and what
+ * cannot be read falls back to grey. A label the wrong shade is a cosmetic
+ * problem; a label that can write CSS is not.
+ */
+export const FALLBACK_LABEL_COLOR = 'd4c5f9'
+
+export function labelColor(raw: unknown): string {
+  return normalizeColor(String(raw ?? '')) ?? FALLBACK_LABEL_COLOR
+}
+
+/**
  * Whether label text should be black or white on this background.
  *
  * Decided on perceived lightness (CIE L*) rather than raw luminance. The two

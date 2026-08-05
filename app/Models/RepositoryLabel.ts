@@ -63,7 +63,13 @@ export default defineModel({
       fillable: true,
       default: 'd4c5f9',
       validation: { rule: schema.string().required().min(6).max(6) },
-      factory: faker => faker.color.rgb({ prefix: '', casing: 'lower' }).slice(0, 6),
+      // Six hex digits, built rather than asked for: `faker.color.rgb` here
+      // answers `rgb(13, 45, 67)` whatever `prefix` says, and slicing that to
+      // six characters produced `rgb(13` in every seeded row. The column is
+      // exactly six wide, so the value was accepted, and it reached a `style`
+      // attribute as `background: #rgb(13` - a broken declaration on every
+      // label in a seeded database.
+      factory: faker => faker.number.int({ min: 0, max: 0xFFFFFF }).toString(16).padStart(6, '0'),
     },
 
     description: {

@@ -11,7 +11,7 @@
  * per-row version survives review and then shows up on a repository with two
  * hundred labels.
  */
-import { labelTextColor, resolveRepository } from '../../../functions/issues'
+import { labelColor, labelTextColor, resolveRepository } from '../../../functions/issues'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
@@ -47,9 +47,9 @@ for (const row of usage)
 const labelRows = labelSet.map(row => ({
   id: Number(row.id),
   name: String(row.name),
-  color: String(row.color),
+  color: labelColor(row.color),
   description: row.description ? String(row.description) : '',
-  textColor: labelTextColor(String(row.color)),
+  textColor: labelTextColor(labelColor(row.color)),
   count: counts.get(Number(row.id)) ?? 0,
 }))
 
