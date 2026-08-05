@@ -97,6 +97,11 @@ route.post('/repos/pulls/merge', 'Actions/Pull/MergePullRequestAction').middlewa
 // anyone who cannot read a private one.
 route.get('/repos/pulls/diff/manifest', 'Actions/Pull/DiffManifestAction')
 
+// Rows for a named handful of files, for a diff too large to have been
+// rendered inline. By path rather than by position, so `git diff` can be given
+// a pathspec and the cost is the files asked for rather than the ones skipped.
+route.get('/repos/pulls/diff/rows', 'Actions/Pull/DiffRowsAction')
+
 // Landing a whole stack, bottom first. Separate from the single merge because
 // it can partially succeed, and the caller needs to know how far it got.
 route.post('/repos/pulls/merge-stack', 'Actions/Pull/MergeStackAction').middleware('auth')

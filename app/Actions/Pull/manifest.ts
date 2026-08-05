@@ -148,7 +148,23 @@ export interface ManifestSource {
  * than a measured one, and the benchmark harness in the roadmap is what will
  * settle it.
  */
-export const INLINE_ROWS_BUDGET_BYTES = 8 * 1024 * 1024
+export const DEFAULT_INLINE_ROWS_BUDGET_BYTES = 8 * 1024 * 1024
+
+/**
+ * The budget in force, which an operator can move.
+ *
+ * Configurable for two reasons. A large instance may want a bigger one on a
+ * fast link, or a smaller one for phones. And the benchmark harness needs to
+ * pin the mode: measuring the on-demand path is impossible if every test diff
+ * happens to fit inline.
+ *
+ * Read on each call rather than captured at import, so a test can move it
+ * without reloading the module.
+ */
+export function inlineRowsBudgetBytes(): number {
+  const configured = Number(process.env.DIFF_INLINE_ROWS_BUDGET)
+  return Number.isFinite(configured) && configured >= 0 ? configured : DEFAULT_INLINE_ROWS_BUDGET_BYTES
+}
 
 export interface ManifestOptions {
   /**
@@ -177,7 +193,7 @@ export async function* streamManifest(
 ): AsyncGenerator<ManifestRecord> {
   const splitter = createPatchSplitter()
   const rowOptions = options.rows
-  const budget = rowOptions?.budgetBytes ?? INLINE_ROWS_BUDGET_BYTES
+  const budget = rowOptions?.budgetBytes ?? inlineRowsBudgetBytes()
 
   let index = 0
   let additions = 0

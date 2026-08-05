@@ -285,3 +285,52 @@ describe('notices', () => {
     expect(records.some(record => record.t === 'notice')).toBe(false)
   })
 })
+
+describe('the inline budget', () => {
+  test('an operator can move it, so the harness can pin which mode runs', async () => {
+    const previous = process.env.DIFF_INLINE_ROWS_BUDGET
+
+    try {
+      process.env.DIFF_INLINE_ROWS_BUDGET = '1'
+      const pinned = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified' } })
+      expect(pinned.some(record => record.t === 'rows-truncated')).toBe(true)
+
+      process.env.DIFF_INLINE_ROWS_BUDGET = String(10 * 1024 * 1024)
+      const generous = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified' } })
+      expect(generous.some(record => record.t === 'rows-truncated')).toBe(false)
+    }
+    finally {
+      if (previous === undefined)
+        delete process.env.DIFF_INLINE_ROWS_BUDGET
+      else
+        process.env.DIFF_INLINE_ROWS_BUDGET = previous
+    }
+  })
+
+  test('nonsense in the environment falls back to the default rather than to zero', async () => {
+    const previous = process.env.DIFF_INLINE_ROWS_BUDGET
+
+    try {
+      process.env.DIFF_INLINE_ROWS_BUDGET = 'not a number'
+      const records = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified' } })
+
+      // A budget read as 0 would truncate every diff, which is the opposite of
+      // what an unparseable value should mean.
+      expect(records.some(record => record.t === 'rows-truncated')).toBe(false)
+    }
+    finally {
+      if (previous === undefined)
+        delete process.env.DIFF_INLINE_ROWS_BUDGET
+      else
+        process.env.DIFF_INLINE_ROWS_BUDGET = previous
+    }
+  })
+
+  test('an explicit budget in the options wins over the environment', async () => {
+    const records = await collect(fakeSource(TWO_FILES), {
+      rows: { layout: 'unified', budgetBytes: Number.POSITIVE_INFINITY },
+    })
+
+    expect(records.some(record => record.t === 'rows-truncated')).toBe(false)
+  })
+})
