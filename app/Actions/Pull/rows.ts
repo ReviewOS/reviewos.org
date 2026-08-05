@@ -233,11 +233,17 @@ function marker(origin: DiffLine['origin']): string {
   return origin === 'removed' ? '-' : ' '
 }
 
-function hunkHeadRow(hunk: DiffHunk, columns: number): string {
+function hunkHeadRow(hunk: DiffHunk, layout: 'unified' | 'split'): string {
   const range = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`
   const heading = hunk.heading ? ` <span class="muted">${escapeHtml(hunk.heading)}</span>` : ''
+  const label = `<td class="hunk-label mono" colspan="${layout === 'split' ? 4 : 1}">${escapeHtml(range)}${heading}</td>`
 
-  return `<tr class="hunk-head"><td class="gutter" colspan="${columns}"></td><td class="hunk-label mono">${escapeHtml(range)}${heading}</td></tr>`
+  // In split the header spans the whole width. Sat in the last column, as it
+  // did, it reads as a heading for the right-hand side rather than for the hunk
+  // both sides belong to.
+  return layout === 'split'
+    ? `<tr class="hunk-head">${label}</tr>`
+    : `<tr class="hunk-head"><td class="gutter" colspan="2"></td>${label}</tr>`
 }
 
 /**
@@ -251,7 +257,7 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
   const parts: string[] = []
 
   for (const hunk of file.hunks) {
-    parts.push(hunkHeadRow(hunk, 2))
+    parts.push(hunkHeadRow(hunk, 'unified'))
 
     for (const line of hunk.lines) {
       // The code cell's content is emitted with no surrounding whitespace: it
@@ -296,7 +302,7 @@ function renderSplit(file: DiffFile, options: RenderRowsOptions): string {
   const parts: string[] = []
 
   for (const hunk of file.hunks) {
-    parts.push(hunkHeadRow(hunk, 3))
+    parts.push(hunkHeadRow(hunk, 'split'))
 
     let removed: DiffLine[] = []
     let added: DiffLine[] = []

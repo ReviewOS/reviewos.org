@@ -53,6 +53,35 @@ function toFileEntry(record: Record<string, unknown>): DiffFileEntry {
   }
 }
 
+/** Where the reader's layout choice is remembered. */
+const LAYOUT_KEY = 'reviewos:diff-layout'
+
+/**
+ * The layout the reader last chose.
+ *
+ * Storage can throw: Safari in private browsing, and any browser with
+ * third-party storage blocked in a frame. A reader who cannot be remembered
+ * still gets a working page, so this never throws.
+ */
+function readStoredLayout(): 'unified' | 'split' | null {
+  try {
+    const value = window.localStorage.getItem(LAYOUT_KEY)
+    return value === 'split' || value === 'unified' ? value : null
+  }
+  catch {
+    return null
+  }
+}
+
+function writeStoredLayout(layout: 'unified' | 'split'): void {
+  try {
+    window.localStorage.setItem(LAYOUT_KEY, layout)
+  }
+  catch {
+    // Not being remembered is not a reason to stop.
+  }
+}
+
 /** How long a row request waits to collect more files before it goes. */
 const ROW_FETCH_DELAY_MS = 32
 
@@ -590,12 +619,24 @@ export function mountDiffFiles(): DiffViewer | null {
   if (!scroller || !content)
     return null
 
-  const layout = root.dataset.layout === 'split' ? 'split' : 'unified'
   const rowsUrl = root.dataset.rowsUrl
+
+  // The reader's own choice wins over the page's default, which is what the
+  // server rendered the first batch of rows in.
+  const stored = readStoredLayout()
+  const initialLayout = stored ?? (root.dataset.layout === 'split' ? 'split' : 'unified')
+  let layout: 'unified' | 'split' = initialLayout
+  // The layout the page rendered its inline rows in, which is what those arrive
+  // already shaped as.
+  const servedLayout: 'unified' | 'split' = root.dataset.layout === 'split' ? 'split' : 'unified'
   // Markup for files whose rows have arrived, by index. A file the reader has
   // not reached yet costs one string; a file they scrolled past costs the same
   // string and no elements.
-  const markup = new Map<number, string>()
+  // Tagged with the layout each was rendered in. Rows arrive as markup, not as
+  // data, so a file cached in one layout is of no use in the other and has to
+  // be asked for again - per file, because the reader may switch back before
+  // the whole list has been refetched.
+  const markup = new Map<number, { html: string, layout: 'unified' | 'split' }>()
   let truncatedFrom: number | null = null
 
   // Files mounted without markup, waiting to be asked for, and the ones already
@@ -615,25 +656,26 @@ export function mountDiffFiles(): DiffViewer | null {
   const viewer = createDiffViewer({
     scroller,
     content,
-    layout,
+    layout: initialLayout,
     renderFile(file, host) {
-      const html = markup.get(file.index)
-      if (html != null) {
-        host.innerHTML = html
+      const cached = markup.get(file.index)
+      if (cached != null && cached.layout === layout) {
+        host.innerHTML = cached.html
         return
       }
 
-      // Past the point where inline rows stopped, so this one has to be asked
-      // for. Queued rather than fetched here: mounting happens inside a render
-      // pass, and a screenful of files should be one request rather than twenty.
-      if (rowsUrl != null && truncatedFrom != null && file.index >= truncatedFrom && !asked.has(file.index)) {
+      // Either past the point where inline rows stopped, or rendered in a
+      // layout the reader has since switched away from. Queued rather than
+      // fetched here: mounting happens inside a render pass, and a screenful of
+      // files should be one request rather than twenty.
+      if (rowsUrl != null && !asked.has(file.index)) {
         wanted.add(file.index)
         scheduleRowFetch()
       }
 
       // Rows for this file have not arrived. A placeholder the right height
       // rather than an empty box, so the scrollbar does not lurch when they do.
-      host.innerHTML = `<section class="diff-file panel is-pending">`
+      host.innerHTML = `<section class="diff-file is-pending panel">`
         + `<header class="diff-head"><span class="diff-path mono">${escapeText(file.path)}</span>`
         + `<span class="diff-counts mono"><span class="count-add">+${file.additions}</span>`
         + `<span class="count-del">-${file.deletions}</span></span></header></section>`
@@ -688,7 +730,10 @@ export function mountDiffFiles(): DiffViewer | null {
     }
 
     try {
-      const response = await fetch(`${rowsUrl}&${query}`, { headers: { Accept: 'application/x-ndjson' } })
+      const requested = layout
+      const response = await fetch(`${rowsUrl}&layout=${requested}&${query}`, {
+        headers: { Accept: 'application/x-ndjson' },
+      })
       if (!response.ok)
         throw new Error(await response.text())
 
@@ -699,8 +744,10 @@ export function mountDiffFiles(): DiffViewer | null {
         }
         else if (record.t === 'rows' && pathOfCurrent != null) {
           const index = indexByPath.get(pathOfCurrent)
-          if (index != null) {
-            markup.set(index, String(record.html))
+          // Dropped when the reader switched layout while this was in flight:
+          // the markup is real, and it is the wrong shape.
+          if (index != null && requested === layout) {
+            markup.set(index, { html: String(record.html), layout: requested })
             viewer.refresh(index)
           }
         }
@@ -735,6 +782,31 @@ export function mountDiffFiles(): DiffViewer | null {
       viewer.setCollapsed(Number(index), !file.collapsed)
   })
 
+  // The layout toggle, if the page rendered one. Wired here rather than in the
+  // template so the template holds no DOM code.
+  const toggle = document.querySelector<HTMLElement>('[data-diff-layout-toggle]')
+  const showLayout = () => {
+    if (toggle) {
+      toggle.dataset.layout = layout
+      toggle.setAttribute('aria-pressed', layout === 'split' ? 'true' : 'false')
+      toggle.textContent = layout === 'split' ? 'Split' : 'Unified'
+    }
+  }
+
+  toggle?.addEventListener('click', () => {
+    layout = layout === 'split' ? 'unified' : 'split'
+    writeStoredLayout(layout)
+    showLayout()
+
+    // The geometry switches immediately: the manifest carried the row counts
+    // for both layouts, so the list knows every file's new height without
+    // asking. Only the markup has to be fetched again.
+    asked.clear()
+    wanted.clear()
+    viewer.setLayout(layout)
+  })
+
+  showLayout()
   say('Loading the diff…')
 
   void streamDiffManifest(manifestUrl, {
@@ -743,7 +815,7 @@ export function mountDiffFiles(): DiffViewer | null {
       say(`${viewer.files().length} files…`)
     },
     onRows(index, html) {
-      markup.set(index, html)
+      markup.set(index, { html, layout: servedLayout })
       // The file was laid out the moment its record arrived, so by now it may
       // already be on screen showing a placeholder.
       viewer.refresh(index)
@@ -756,6 +828,7 @@ export function mountDiffFiles(): DiffViewer | null {
         if (file.index >= from && !markup.has(file.index))
           wanted.add(file.index)
       }
+
       scheduleRowFetch()
     },
     onNotice(message) {

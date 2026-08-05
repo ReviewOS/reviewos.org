@@ -92,6 +92,16 @@ const rowsUrl = `/api/repos/pulls/diff/rows?${diffQuery}`
             <span class="mono">{{ pullRequest.base_branch }}</span>
           </span>
           <span class="muted" data-diff-status data-tone="working">Loading the diff…</span>
+
+          {{--
+            Filled in and wired by `mountDiffFiles`. Rendered as a button rather
+            than as two links so switching does not reload the page: the
+            manifest already carries the row counts for both layouts, so only
+            the markup has to come again.
+          --}}
+          <button type="button" class="btn btn-small" data-diff-layout-toggle aria-pressed="false">
+            Unified
+          </button>
         </div>
       </header>
 

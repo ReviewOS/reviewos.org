@@ -157,6 +157,14 @@
       .muted { color: var(--muted); }
       .mono { font-family: var(--mono); font-size: 0.875em; }
 
+      /* A control that sits in a line of running text rather than in a row of
+         its own, so it matches the type around it instead of towering over it. */
+      .btn-small {
+        height: 24px;
+        padding: 0 8px;
+        font-size: 12.5px;
+      }
+
       .btn {
         display: inline-flex;
         align-items: center;
