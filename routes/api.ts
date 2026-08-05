@@ -69,6 +69,18 @@ route.get('/repos/tags', 'Actions/Browse/TagsAction')
 route.get('/repos/blame', 'Actions/Browse/BlameAction')
 route.get('/repos/compare', 'Actions/Browse/CompareAction')
 
+// Releases. A release is a tag plus what somebody wanted to say about it, so
+// listing is a read of the repository and publishing is a settings-level write:
+// an announcement about the project rather than a change to its code. One
+// endpoint for create, update and delete, because all three share the rule that
+// decides whether a tag already has a release.
+route.get('/repos/releases', 'Actions/Repo/ListReleasesAction')
+route.post('/repos/releases', 'Actions/Repo/ManageReleaseAction').middleware('auth')
+
+// Topics. The whole list at once, because that is how the interface presents
+// it; two endpoints would mean the page reconstructing the difference itself.
+route.put('/repos/topics', 'Actions/Repo/UpdateTopicsAction').middleware('auth')
+
 // Bytes rather than JSON. Both stream, and neither serves a repository's
 // content as its own type - see app/Actions/Git/download.ts for why that is a
 // security decision rather than a convenience one.

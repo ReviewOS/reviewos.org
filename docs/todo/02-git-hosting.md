@@ -48,8 +48,27 @@ known to exactly one place.
       ignore)
 - [x] `app/Models/ProtectedBranch.ts`: pattern, required approvals, dismiss stale reviews, required
       status checks, restrict who can push, allow force push, allow deletion
-- [ ] `app/Models/RepoTopic.ts`
-- [ ] `app/Models/Release.ts` and `app/Models/ReleaseAsset.ts`
+- [x] `app/Models/RepoTopic.ts`, normalised to lower case with spaces as dashes so `TypeScript` and
+      `typescript` are one topic. A row per topic rather than a list on the repository, because the
+      query that justifies a topic runs the other way - every repository tagged `rust` - and a
+      comma-joined string cannot be indexed for it
+- [x] `app/Models/RepoRelease.ts` and `app/Models/RepoReleaseAsset.ts`. Named with the `Repo` prefix
+      the other repository-scoped models use, **not** `Release`: the framework ships its own
+      `Release` model on a `releases` table for the dashboard's library releases, and an
+      `app/Models/Release.ts` would override it by name - the generated migration dropped that
+      table's columns while the framework's own actions went on reading them
+- [x] A release is a tag plus notes, so the tag has to exist first. Creating it here was the
+      alternative and is worse: it makes publishing a release something that changes what a clone
+      contains. Deleting a release leaves the tag alone for the same reason
+- [x] `target_sha` is recorded at publication rather than resolved on read, because a tag can be
+      moved - and a release whose notes describe a commit nobody can name again is worth less than
+      no release
+- [x] "Latest" is the highest version, not the most recently published. Sorting by date is the
+      obvious implementation and is wrong in the case that matters: a patch backported to an old
+      branch and published today would become the version every install script fetches. Drafts and
+      prereleases are never latest, and `v1.10.0` outranks `v1.9.0`
+- [ ] Uploading and serving release assets. The rows are there; the upload endpoint is not. It
+      serves a stranger's file, so it follows the raw file rule - never its own content type
 
 ## Smart HTTP
 

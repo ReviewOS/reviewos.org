@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS "repo_topics" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "repository_id" integer not null REFERENCES "repositories"("id"),
+  "topic" varchar(50) not null,
+  "created_at" timestamp not null default CURRENT_TIMESTAMP,
+  "updated_at" timestamp
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "repo_topics_repo_topic_index" ON "repo_topics" ("repository_id", "topic");
+CREATE INDEX IF NOT EXISTS "repo_topics_topic_index" ON "repo_topics" ("topic");
