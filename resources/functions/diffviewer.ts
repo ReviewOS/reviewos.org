@@ -305,7 +305,30 @@ export interface DiffViewer {
   scrollToFile: (index: number) => void
   /** The files, in diff order. */
   files: () => readonly DiffFileEntry[]
+  /**
+   * What the viewer has been doing.
+   *
+   * For the benchmark harness, which cannot see any of this from outside: a
+   * mount count that climbs with the scroll distance means rows are being
+   * recycled, and one that climbs with the *file* count means they are not.
+   */
+  stats: () => ViewerStats
   destroy: () => void
+}
+
+export interface ViewerStats {
+  /** Files mounted since the viewer was created. */
+  mounts: number
+  /** Files released. The difference between the two is what is on screen. */
+  releases: number
+  /** Hosts taken from the pool rather than created, which is the point of it. */
+  recycled: number
+  /** Frames the viewer actually applied, as opposed to frames the browser drew. */
+  frames: number
+  /** Hosts held for reuse. */
+  pooled: number
+  /** Files known, whether or not any of them have been rendered. */
+  files: number
 }
 
 export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
@@ -327,6 +350,7 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
   // fires no event at all, and a flag left standing would then swallow the
   // reader's next real scroll and the list would stick.
   let writtenScrollTop: number | null = null
+  const counters = { mounts: 0, releases: 0, recycled: 0, frames: 0 }
 
   // The list is positioned rather than flowed, so a file mounting or being
   // released cannot move the ones around it.
@@ -352,6 +376,8 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
   function apply(): void {
     if (destroyed)
       return
+
+    counters.frames++
 
     const result = planFrame(
       geometry,
@@ -416,7 +442,12 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     if (!entry)
       return
 
-    const host = pool.pop() ?? createHost()
+    const pooled = pool.pop()
+    if (pooled)
+      counters.recycled++
+
+    const host = pooled ?? createHost()
+    counters.mounts++
     host.dataset.fileIndex = String(index)
     host.dataset.path = entry.path
 
@@ -435,6 +466,7 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     if (entry && releaseFile)
       releaseFile(entry, host)
 
+    counters.releases++
     hosts.delete(index)
     host.remove()
 
@@ -604,6 +636,10 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
 
     files() {
       return entries
+    },
+
+    stats() {
+      return { ...counters, pooled: pool.length, files: entries.length }
     },
 
     destroy() {
@@ -1253,6 +1289,11 @@ export function mountDiffFiles(): DiffViewer | null {
         },
       })
     : null
+
+  // Hung off the host so the benchmark harness can reach the viewer without a
+  // global, and so a page with two of them would not have the second silently
+  // overwrite the first. Nothing in the product reads this.
+  ;(region.closest('[data-diff-stream]') as { __diffViewer?: DiffViewer } | null ?? {}).__diffViewer = viewer
 
   showLayout()
   say('Loading the diff…')
