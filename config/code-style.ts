@@ -87,6 +87,11 @@ const config: PickierOptions = {
     '**/docs/deps/**',
     // Generated scaffolds copied into pantry — out of project control
     '**/pantry/**',
+    // Vendored browser bundles. `public/js/mermaid.js` is three megabytes of
+    // minified third-party output written by `scripts/vendor-mermaid.ts`, and
+    // linting it reports hundreds of problems in code nobody here can edit —
+    // and prints a line of it per problem.
+    '**/public/js/**',
   ],
 }
 
