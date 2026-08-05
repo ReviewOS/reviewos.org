@@ -91,9 +91,11 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
       a reference into another repository would let a merge quietly close an issue there. Only
       issues, and never the pull request's own number, because the numbering is shared and
       `fixes #7` inside pull request 7 would otherwise close it as though it were a report.
-- [ ] The same, on push. Needs post-receive processing first: the receive-pack route streams git
-      straight through and nothing walks the new commits, so there is nowhere yet to read a commit
-      message from. That is the `ProcessPushJob` in [phase 2](./02-git-hosting.md).
+- [x] The same, on push. `ProcessPushJob` in [phase 2](./02-git-hosting.md) reads the messages of
+      the commits a push introduced and acts on them on the same terms a merge does: this
+      repository only, issues only. No actor is recorded, because a commit's author is free text
+      that anybody can set and attributing a close to a local account on the strength of one would
+      put words in somebody's mouth.
 - [x] Task lists that can be ticked directly from the rendered issue, on the body and on comments.
       The edit lands in the markdown source character for character - the rendered checkbox is a
       view of the document, not the document - so nothing else in somebody's writing moves. Each
@@ -159,8 +161,12 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
       *here*, and a forge where anybody can append a line to any issue's history by opening an issue
       on a repository they control has a spam problem. Recorded once, so an edited body does not say
       it twice, which is what lets every write path call it without knowing whether the text is new.
-- [ ] The same from a commit message. Needs the post-receive processing the closing keywords need:
-      that is the `ProcessPushJob` in [phase 2](./02-git-hosting.md).
+- [x] The same from a commit message. Only the incoming half: a commit is not a subject with a
+      timeline of its own, so there is nowhere for the outgoing entry to live and inventing one
+      would mean a second history nobody opens. The short sha travels in `subject_text` rather than
+      in `reference_number`, which only ever holds a number - `entrySentence` reads whichever is
+      present, so a commit reference and an issue reference render as the same kind of line without
+      the column having to hold two kinds of thing.
 
 ## Views
 

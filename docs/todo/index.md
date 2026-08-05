@@ -16,8 +16,8 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 |---|---|---|
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done (27/31) |
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (22/57) |
-| [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (9/61) |
-| [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | In progress (35/37) |
+| [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (31/74) |
+| [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (42/82) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | In progress (21/51) |
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (1/20) |
@@ -40,9 +40,11 @@ work went depth-first through a vertical slice (identity, a repository on disk, 
 request, a notification) rather than finishing one phase before opening the next. That was the right
 order for proving the review screen, and it is the reason the counts are all partial.
 
-Phase 3 is now down to its last two boxes, and both are the same box: reading a commit message needs
-the post-receive processing that phase 2 has not built yet. Everything an issue can do without a
-push works.
+Phase 3 is done. The last two boxes were the same box - reading a commit message - and closing them
+meant building phase 2's push pipeline: a pre-receive hook that can still refuse, a post-receive hook
+that reports what landed, and `ProcessPushJob` behind them. So `fixes #12` in a commit now closes
+issue 12, a commit that mentions an issue leaves a line on it, and a force push at a protected branch
+is refused with a message git prints legibly.
 
 ## The silent failure that costs the most
 
@@ -58,6 +60,30 @@ state, which is indistinguishable from there being nothing to show.
 That is how the issue-template chooser, the milestone state filter, and the `?state=` filter on both
 list views all shipped ticked and none of them ever ran. `STX_DEBUG=1` prints the real cause; it is
 worth running the dev server with it on.
+
+## The other silent failure: the query builder drops what it cannot express
+
+Same shape, different layer, and this one had been wrong since the first counter was written.
+
+**`.set(eb => ...)` emits an empty `SET`.** Every counter in the product was maintained like this:
+
+```ts
+.set(eb => ({ open_issues_count: eb('open_issues_count', '+', 1) }))
+```
+
+which compiles to `UPDATE "repositories" SET  WHERE "id" = $1`. Postgres rejects it, the error is
+swallowed by the `try` around it or surfaces as a failed request nobody connected to a counter, and
+**not one counter had ever moved**: every repository said `0 open issues` from the day it was
+created, and every issue said `0 comments`. Seven call sites, all of them written the same way,
+none of them working.
+
+It is the `where(eb => ...)` defect again - the one `ListIssuesAction` is built around avoiding -
+and it will be some other method next time. **Check the SQL, not the shape of the call.**
+`(query as any).toSQL()` is the fastest way to find out whether a builder understood you.
+
+The counters are recomputed from the rows they count now (`app/Actions/Repo/counters.ts`) rather
+than adjusted. It costs one indexed `COUNT` per mutation and it is correct under concurrency,
+self-healing on the values that are already wrong, and impossible to drift.
 
 ## How work is shaped
 
