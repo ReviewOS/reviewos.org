@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { browseContext } from '../Browse/context'
-import { latestRelease, sortReleases } from './releases'
+import { isDraft, latestRelease, sortReleases } from './releases'
 
 /**
  * A repository's releases, newest version first.
@@ -27,7 +27,7 @@ export default new Action({
     const { repository, viewerId } = browse.context
 
     const rows: any[] = await db
-      .selectFrom('repo_releases')
+      .selectFrom('releases')
       .selectAll()
       .where('repository_id', '=', Number(repository.id))
       .execute()
@@ -36,15 +36,19 @@ export default new Action({
     // established that the caller can read. Asked separately rather than
     // folded into the query so the rule is legible.
     const maySeeDrafts = viewerId !== null && await canWrite(Number(repository.id), viewerId)
-    const visible = maySeeDrafts ? rows : rows.filter(row => !row.is_draft)
+    const visible = maySeeDrafts ? rows : rows.filter(row => !isDraft(row))
 
     const releases = sortReleases(visible).map(release => ({
       id: Number(release.id),
       tag_name: release.tag_name,
       name: release.name || release.tag_name,
-      body: release.body ?? '',
+      // `notes` on the row, `body` in the response: the column is shared with
+      // the framework's library releases, and the API word for a release's
+      // text is the one the rest of this API uses for an issue or a comment.
+      body: release.notes ?? '',
       target_sha: release.target_sha ?? null,
-      is_draft: Boolean(release.is_draft),
+      status: release.status,
+      is_draft: isDraft(release),
       is_prerelease: Boolean(release.is_prerelease),
       published_at: release.published_at ?? null,
     }))

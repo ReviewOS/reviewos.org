@@ -11,10 +11,22 @@
 export interface ReleasePatch {
   tag_name?: string
   name?: string
+  /** Stored in `notes`, which is the framework column that already means this. */
   body?: string | null
   is_draft?: boolean
   is_prerelease?: boolean
 }
+
+/**
+ * The two states a repository release can be in.
+ *
+ * The column is `status` rather than an `is_draft` flag, because the framework
+ * already ships `status` on this table and two columns for one question is two
+ * columns that can disagree. `scheduled` is the framework's own third value and
+ * is not something a repository release can be set to here.
+ */
+export const DRAFT = 'draft'
+export const PUBLISHED = 'published'
 
 export type ReleaseDecision =
   | { ok: true, changes: Record<string, unknown> }
@@ -54,7 +66,7 @@ export function isUsableTagName(name: string): boolean {
  * sets, because "published, with no publication date" is a state nothing else
  * in the product knows how to read.
  */
-export function decideRelease(patch: ReleasePatch, nowIso: string, existing?: { is_draft: boolean, published_at: string | null }): ReleaseDecision {
+export function decideRelease(patch: ReleasePatch, nowIso: string, existing?: { status: string, published_at: string | null }): ReleaseDecision {
   const changes: Record<string, unknown> = {}
 
   if (patch.tag_name !== undefined) {
@@ -75,17 +87,18 @@ export function decideRelease(patch: ReleasePatch, nowIso: string, existing?: { 
     changes.name = name
   }
 
+  // Into `notes`, the framework column that already means this.
   if (patch.body !== undefined)
-    changes.body = patch.body === null ? null : String(patch.body)
+    changes.notes = patch.body === null ? null : String(patch.body)
 
   if (patch.is_prerelease !== undefined)
     changes.is_prerelease = Boolean(patch.is_prerelease)
 
   if (patch.is_draft !== undefined) {
     const draft = Boolean(patch.is_draft)
-    changes.is_draft = draft
+    changes.status = draft ? DRAFT : PUBLISHED
 
-    const wasPublished = existing ? !existing.is_draft : false
+    const wasPublished = existing ? existing.status === PUBLISHED : false
 
     if (!draft && !wasPublished)
       changes.published_at = nowIso
@@ -105,9 +118,14 @@ export function decideRelease(patch: ReleasePatch, nowIso: string, existing?: { 
 
 export interface ReleaseRow {
   tag_name: string
-  is_draft?: boolean
+  status?: string
   is_prerelease?: boolean
   published_at?: string | null
+}
+
+/** Whether a release is still being written. */
+export function isDraft(release: ReleaseRow): boolean {
+  return release.status === DRAFT
 }
 
 /**
@@ -167,7 +185,7 @@ export function compareTags(a: string, b: string): number {
  * wins, and drafts and prereleases are not candidates at all.
  */
 export function latestRelease<T extends ReleaseRow>(releases: readonly T[]): T | null {
-  const candidates = releases.filter(release => !release.is_draft && !release.is_prerelease)
+  const candidates = releases.filter(release => !isDraft(release) && !release.is_prerelease)
 
   if (candidates.length === 0)
     return null

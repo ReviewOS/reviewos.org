@@ -9,9 +9,12 @@ import { describe, expect, test } from 'bun:test'
 import {
   compareTags,
   decideRelease,
+  DRAFT,
+  isDraft,
   isUsableTagName,
   latestRelease,
   looksLikePrerelease,
+  PUBLISHED,
   sortReleases,
 } from '../../app/Actions/Repo/releases'
 
@@ -118,8 +121,8 @@ describe('latestRelease', () => {
 
   test('is never a draft', () => {
     const releases = [
-      { tag_name: 'v3.0.0', is_draft: true },
-      { tag_name: 'v2.0.0' },
+      { tag_name: 'v3.0.0', status: DRAFT },
+      { tag_name: 'v2.0.0', status: PUBLISHED },
     ]
 
     expect(latestRelease(releases)!.tag_name).toBe('v2.0.0')
@@ -152,12 +155,26 @@ describe('decideRelease', () => {
   test('publishing stamps the date', () => {
     const decision = decideRelease({ tag_name: 'v1.0.0', is_draft: false }, NOW)
 
-    expect(decision).toMatchObject({ ok: true, changes: { tag_name: 'v1.0.0', is_draft: false, published_at: NOW } })
+    expect(decision).toMatchObject({ ok: true, changes: { tag_name: 'v1.0.0', status: PUBLISHED, published_at: NOW } })
   })
 
   test('a draft has no publication date', () => {
     expect(decideRelease({ tag_name: 'v1.0.0', is_draft: true }, NOW))
-      .toMatchObject({ changes: { is_draft: true, published_at: null } })
+      .toMatchObject({ changes: { status: DRAFT, published_at: null } })
+  })
+
+  /**
+   * One column rather than a second `is_draft` flag beside the framework's own
+   * `status`, because two columns for one question is two columns that can
+   * disagree.
+   */
+  test('draftness is the status column, not a flag of its own', () => {
+    const changes = (decideRelease({ is_draft: true }, NOW) as any).changes
+
+    expect(changes.is_draft).toBeUndefined()
+    expect(changes.status).toBe(DRAFT)
+    expect(isDraft({ tag_name: 'v1', status: DRAFT })).toBe(true)
+    expect(isDraft({ tag_name: 'v1', status: PUBLISHED })).toBe(false)
   })
 
   /**
@@ -165,14 +182,14 @@ describe('decideRelease', () => {
    * published" are both rows nothing else in the product can read.
    */
   test('going back to a draft takes the date with it', () => {
-    const decision = decideRelease({ is_draft: true }, NOW, { is_draft: false, published_at: '2026-01-01T00:00:00Z' })
+    const decision = decideRelease({ is_draft: true }, NOW, { status: PUBLISHED, published_at: '2026-01-01T00:00:00Z' })
 
-    expect(decision).toMatchObject({ changes: { is_draft: true, published_at: null } })
+    expect(decision).toMatchObject({ changes: { status: DRAFT, published_at: null } })
   })
 
   test('editing an already published release does not restamp it', () => {
     const decision = decideRelease({ body: 'Fixed a typo', is_draft: false }, NOW, {
-      is_draft: false,
+      status: PUBLISHED,
       published_at: '2026-01-01T00:00:00Z',
     })
 
@@ -187,8 +204,9 @@ describe('decideRelease', () => {
     expect(decideRelease({}, NOW)).toMatchObject({ ok: false, status: 422 })
   })
 
+  /** The body is stored in `notes`, the framework column that already means it. */
   test('an empty body clears the notes rather than being ignored', () => {
-    expect(decideRelease({ body: '' }, NOW)).toMatchObject({ changes: { body: '' } })
-    expect(decideRelease({ body: null }, NOW)).toMatchObject({ changes: { body: null } })
+    expect(decideRelease({ body: '' }, NOW)).toMatchObject({ changes: { notes: '' } })
+    expect(decideRelease({ body: null }, NOW)).toMatchObject({ changes: { notes: null } })
   })
 })

@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
-import { decideRelease, isUsableTagName, looksLikePrerelease } from './releases'
+import { decideRelease, DRAFT, isUsableTagName, looksLikePrerelease, PUBLISHED } from './releases'
 
 /**
  * Publish, edit or delete a release.
@@ -41,7 +41,7 @@ export default new Action({
       return response.json({ error: 'That tag name cannot be used' }, 422)
 
     const existing: any = await db
-      .selectFrom('repo_releases')
+      .selectFrom('releases')
       .selectAll()
       .where('repository_id', '=', Number(repository.id))
       .where('tag_name', '=', tag)
@@ -54,8 +54,8 @@ export default new Action({
       // The assets go with it. They are files that only make sense as part of
       // this release, and leaving them would be rows pointing at a release
       // that is not there.
-      await db.deleteFrom('repo_release_assets').where('repo_release_id', '=', Number(existing.id)).execute()
-      await db.deleteFrom('repo_releases').where('id', '=', Number(existing.id)).execute()
+      await db.deleteFrom('release_assets').where('release_id', '=', Number(existing.id)).execute()
+      await db.deleteFrom('releases').where('id', '=', Number(existing.id)).execute()
 
       // The tag is left alone, deliberately. Deleting it would rewrite what a
       // clone contains as a side effect of removing some notes.
@@ -96,19 +96,19 @@ export default new Action({
       // Offered as a default rather than as a rule: the flag decides, and the
       // tag's own suffix is a good guess at what somebody meant by `-rc.1`.
       is_prerelease: prerelease === undefined ? looksLikePrerelease(tag) : readFlag(prerelease),
-    }, new Date().toISOString(), existing ? { is_draft: Boolean(existing.is_draft), published_at: existing.published_at ?? null } : undefined)
+    }, new Date().toISOString(), existing ? { status: String(existing.status ?? DRAFT), published_at: existing.published_at ?? null } : undefined)
 
     if (!decision.ok)
       return response.json({ error: decision.error }, decision.status)
 
     if (existing) {
-      await db.updateTable('repo_releases').set(decision.changes).where('id', '=', Number(existing.id)).execute()
+      await db.updateTable('releases').set(decision.changes).where('id', '=', Number(existing.id)).execute()
 
       return response.json({ id: Number(existing.id), tag_name: tag, ...decision.changes })
     }
 
     const created = await db
-      .insertInto('repo_releases')
+      .insertInto('releases')
       .values({
         repository_id: Number(repository.id),
         user_id: user?.id ?? null,
@@ -116,7 +116,14 @@ export default new Action({
         // A release with no headline shows its tag, which is what people call
         // it anyway.
         name: String(decision.changes.name ?? '') || tag,
-        body: String(decision.changes.body ?? ''),
+        notes: String(decision.changes.notes ?? ''),
+        // The framework's own columns on this table, filled in rather than left
+        // null: a release's version *is* its tag, and `author` is what the
+        // dashboard shows where it has no user to join to.
+        version: tag.slice(0, 50),
+        author: user?.handle ?? '',
+        status: PUBLISHED,
+        downloads: 0,
         ...decision.changes,
       })
       .returning(['id'])

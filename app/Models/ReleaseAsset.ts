@@ -13,15 +13,15 @@ import { schema } from '@stacksjs/validation'
  * get anywhere else: it is the only signal that anybody is using a version.
  */
 export default defineModel({
-  name: 'RepoReleaseAsset',
-  table: 'repo_release_assets',
+  name: 'ReleaseAsset',
+  table: 'release_assets',
   primaryKey: 'id',
   autoIncrement: true,
 
   indexes: [
     // One name per release. A second `checkout-linux-amd64` in one release is
     // two answers to which file that name means.
-    { name: 'repo_release_assets_release_name_index', columns: ['repo_release_id', 'name'], unique: true },
+    { name: 'release_assets_release_name_index', columns: ['release_id', 'name'], unique: true },
   ],
 
   traits: {
@@ -29,10 +29,10 @@ export default defineModel({
     useSeeder: { count: 15 },
   },
 
-  belongsTo: ['RepoRelease'],
+  belongsTo: ['Release'],
 
   attributes: {
-    repo_release_id: {
+    release_id: {
       order: 1,
       fillable: true,
       validation: { rule: schema.number().required() },

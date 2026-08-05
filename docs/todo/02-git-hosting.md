@@ -52,11 +52,20 @@ known to exactly one place.
       `typescript` are one topic. A row per topic rather than a list on the repository, because the
       query that justifies a topic runs the other way - every repository tagged `rust` - and a
       comma-joined string cannot be indexed for it
-- [x] `app/Models/RepoRelease.ts` and `app/Models/RepoReleaseAsset.ts`. Named with the `Repo` prefix
-      the other repository-scoped models use, **not** `Release`: the framework ships its own
-      `Release` model on a `releases` table for the dashboard's library releases, and an
-      `app/Models/Release.ts` would override it by name - the generated migration dropped that
-      table's columns while the framework's own actions went on reading them
+- [x] `app/Models/Release.ts` and `app/Models/ReleaseAsset.ts`, **published from the framework
+      default** (`buddy publish:model Release`) and extended rather than written fresh. A userland
+      model replaces a framework default instead of merging with it, so a hand-written one emitted
+      `ALTER TABLE releases DROP COLUMN version` while the framework's own dashboard actions went on
+      selecting it. Every framework column is still there, and where the two mean the same thing the
+      framework's is used rather than duplicated: `version` is the tag, `status` is draft or
+      published so there is no second flag to disagree with it, `notes` is the body, `author` sits
+      beside `user_id`. Only `type` changed, from required to optional - a git tag is not a decision
+      about major, minor or patch
+- [x] Fixed upstream so nobody else finds it the hard way: `buddy generate:migrations` now refuses to
+      write a migration that drops columns from a table a userland model took over from a framework
+      default, naming the columns and pointing at `buddy publish:model`
+      (`storage/framework/core/database/src/shadowed-models.ts` in the Stacks checkout).
+      `STACKS_ALLOW_SHADOW_DROPS=1` for somebody who means it
 - [x] A release is a tag plus notes, so the tag has to exist first. Creating it here was the
       alternative and is worse: it makes publishing a release something that changes what a clone
       contains. Deleting a release leaves the tag alone for the same reason
