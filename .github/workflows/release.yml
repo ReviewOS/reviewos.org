@@ -20,13 +20,22 @@ concurrency:
 jobs:
   # Nothing stopped a publish before this job existed. `npm` triggers straight
   # off a `v*` tag push with no dependency on CI, and ci.yml does not even run
-  # on tags, so 24+ releases went out while protocol-conformance was red. The
-  # checks were never the problem; having no consequence was.
+  # on tags, so releases went out while CI was red. The checks were never the
+  # problem; having no consequence was.
   #
-  # These are the same ten checks ci.yml runs, re-run here against the tagged
-  # commit rather than trusting a CI verdict that may be absent, cancelled, or
-  # for a different SHA. They cost about a minute against an 11 minute release
-  # that does not start publishing for over two.
+  # What it checks is the tree this app can actually check: lint, types, tests.
+  # It used to run ten `protocol:*` and `docs:*` checks inherited from the
+  # framework's own workflow, and every one of them failed here with `Command
+  # "protocol:check" not found` - they are commands of the Stacks monorepo and
+  # of the protocol repository, and an app that installs the framework from npm
+  # has neither. So the gate blocked every release in this project for a reason
+  # that had nothing to do with this project, while the things that would
+  # actually make a release unsafe went unchecked. A gate that is always red is
+  # a gate everybody learns to bypass.
+  #
+  # Re-run here against the tagged commit rather than trusting a CI verdict that
+  # may be absent, cancelled, or for a different SHA. They cost about two minutes
+  # against a release that does not start publishing for longer than that.
   #
   # Break-glass: set the repository variable RELEASE_GATE_BYPASS to 'true' to
   # ship while something unrelated is red. It is a variable rather than a code
@@ -39,8 +48,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v6
         with:
-          # Full history: protocol:manifest:check resolves a pinned source
-          # revision with git, which a shallow clone cannot see.
           fetch-depth: 0
 
       - name: Setup Pantry
@@ -63,30 +70,36 @@ jobs:
         # cannot block on a lockfile difference the release itself tolerates.
         run: bun install
 
-      - name: Verify pinned checks against the tagged commit
+      - name: Verify the tagged commit
         if: vars.RELEASE_GATE_BYPASS != 'true'
-        # Every check runs even after one fails, so a release blocked by two
-        # stale artifacts reports both instead of hiding the second behind the
+        # Both run even after one fails, so a release blocked by a lint error
+        # and a type error reports both instead of hiding the second behind the
         # first. `::error::` surfaces each failure in the run summary.
+        #
+        # A name that is not a script in package.json fails the gate rather than
+        # being skipped. Skipping is exactly how the previous version came to be
+        # gating on ten commands that had never existed here: each one printed a
+        # notice, nobody read the notices, and the gate quietly checked nothing
+        # until the day it blocked everything.
+        #
+        # The test suite is not re-run here. It needs MySQL, DynamoDB and Redis
+        # containers, and a second copy of that service definition is a second
+        # thing to keep in step with ci.yml - which does run it, on the release
+        # commit, because that commit lands on main. Lint and typecheck need no
+        # infrastructure, take under two minutes, and catch the case this gate
+        # exists for: a tag cut from a tree that does not build.
         run: |
           status=0
-          for check in \
-            protocol:check \
-            protocol:manifest:check \
-            protocol:release:check \
-            protocol:drivers:check \
-            protocol:desktop:check \
-            protocol:pantry:check \
-            protocol:craft:check \
-            docs:buddy:check \
-            docs:artifacts:check \
-            docs:links:check
+          for check in lint typecheck
           do
             echo "::group::$check"
-            if bun run "$check"; then
+            if ! bun -e "process.exit(JSON.parse(require('fs').readFileSync('package.json','utf8')).scripts?.['$check'] ? 0 : 1)"; then
+              echo "::error title=Release gate::$check is not a script in package.json, so the gate is asking for something that does not exist. Fix this workflow."
+              status=1
+            elif bun run "$check"; then
               echo "$check ok"
             else
-              echo "::error title=Release gate::$check failed. Regenerate the artifact and re-tag, or set RELEASE_GATE_BYPASS to ship anyway."
+              echo "::error title=Release gate::$check failed. Fix it and re-tag, or set RELEASE_GATE_BYPASS to ship anyway."
               status=1
             fi
             echo "::endgroup::"
@@ -95,330 +108,77 @@ jobs:
 
       - name: Gate bypassed
         if: vars.RELEASE_GATE_BYPASS == 'true'
-        run: echo "::warning title=Release gate bypassed::RELEASE_GATE_BYPASS is set, so the pinned checks did not run for this release."
-
-  npm:
-    name: npm
+        run: echo "::warning title=Release gate bypassed::RELEASE_GATE_BYPASS is set, so the tagged commit was not verified for this release."
+  # What a release of this project *is*.
+  #
+  # ReviewOS is an application, and `package.json` says `"private": true`. It
+  # has nothing to publish to a registry. What replaced this job published the
+  # Stacks framework: it looped over `storage/framework/core/*/`, built each
+  # package, and ran `pantry publish --npm` against them - in a repository that
+  # has no `storage/framework/core`, because it installs the framework from npm
+  # like any other app. The loops matched nothing, the publish had nothing to
+  # publish, and a `homebrew` job after it pushed a formula for a binary this
+  # repository does not build.
+  #
+  # That is the whole shape of the problem this file had: it was the framework's
+  # release pipeline, copied into an app, gated on the framework's conformance
+  # checks. None of it could ever have run here.
+  #
+  # Deployment is not here either. ci.yml deploys on every push to main, and the
+  # release commit lands on main, so production is already updated by the time
+  # this runs. A tag is a marker and a changelog, and this job writes them.
+  github-release:
+    name: github release
     needs: release-gate
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.get_version.outputs.version }}
+    permissions:
+      contents: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
         with:
+          # Full history: the changelog is generated from the commits since the
+          # previous tag, which a shallow clone cannot see.
           fetch-depth: 0
 
-      - name: Setup Pantry
-        uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
-        with:
-          version: '0.10.50'
+      - name: Read the version from the tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
-      - name: Use Cached node_modules
-        uses: actions/cache@v5
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            node-modules-
-
-      - name: Install Dependencies
-        run: bun install
-
-      # Build each publishable framework package's dist BEFORE publishing.
-      # We publish with `pantry --ignore-scripts` (skips prepublishOnly `tsc`
-      # steps that fail in-workspace), so dist must already exist here.
-      - name: Build framework packages
+      - name: Read the changelog for this version
+        id: changelog
+        # `buddy release` already writes CHANGELOG.md and commits it, and the
+        # tag points at that commit - so the notes are read out of the file
+        # rather than re-derived from `git log`. Two generators over the same
+        # history are two things that can disagree, and the one nobody reads is
+        # always the one that is wrong.
         run: |
-          failed=""
-          for dir in storage/framework/core/*/ storage/framework/core; do
-            pkg="${dir%/}/package.json"
-            [ -f "$pkg" ] || continue
-            grep -q '"private": *true' "$pkg" && continue
-            grep -q '"build"' "$pkg" || continue
-            echo "Building ${dir%/}"
-            if (cd "${dir%/}" && bun run build); then :; else
-              echo "::error::build failed for ${dir%/}"
-              failed="${failed} ${dir%/}"
-            fi
-          done
-          # Fail the release on ANY build failure — a swallowed failure here is
-          # exactly how 0.70.88 shipped dist-less (publish runs --ignore-scripts,
-          # so a missing dist is never rebuilt).
-          if [ -n "$failed" ]; then
-            echo "::error::One or more package builds failed:${failed}"
-            exit 1
+          version="${{ steps.version.outputs.version }}"
+
+          notes=$(awk -v v="## $version" '
+            $0 == v { grab = 1; next }
+            grab && /^## v[0-9]/ { exit }
+            grab { print }
+          ' CHANGELOG.md)
+
+          if [ -z "$(echo "$notes" | tr -d '[:space:]')" ]; then
+            echo "::warning title=Changelog::No $version section in CHANGELOG.md; falling back to the commit list."
+            previous=$(git describe --tags --abbrev=0 "$version^" 2>/dev/null || true)
+            range="${previous:+$previous..}$version"
+            notes=$(git log "$range" --no-merges --pretty=format:'- %s')
           fi
 
-      # Belt-and-suspenders against a dist-less publish: every publishable
-      # package must have a non-empty dist/ (at least one .js) before we publish
-      # with --ignore-scripts. A build that "succeeds" but emits nothing is
-      # caught here instead of shipping an empty tarball to npm.
-      - name: Verify built dist
-        run: |
-          missing=""
-          for dir in storage/framework/core/*/ storage/framework/core; do
-            pkg="${dir%/}/package.json"
-            [ -f "$pkg" ] || continue
-            grep -q '"private": *true' "$pkg" && continue
-            grep -q '"build"' "$pkg" || continue
-            # Packages that intentionally ship no JS dist: the `stacks` meta
-            # (its exports point at sibling packages' dist), `defaults` (ships
-            # resources/app, not dist), and `lint` (config only, no-op build).
-            case "${dir%/}" in
-              storage/framework/core|storage/framework/core/defaults|storage/framework/core/lint) continue ;;
-            esac
-            if [ -z "$(find "${dir%/}/dist" -name '*.js' -type f 2>/dev/null | head -1)" ]; then
-              echo "::error::no built dist/*.js for ${dir%/}"
-              missing="${missing} ${dir%/}"
-            fi
-          done
-          if [ -n "$missing" ]; then
-            echo "::error::Refusing to publish — dist missing for:${missing}"
-            exit 1
-          fi
+          {
+            echo "notes<<CHANGELOG_EOF"
+            echo "$notes"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
 
-      # Publish the whole framework workspace via pantry: every core/* member
-      # AND the `stacks` meta-package (storage/framework/core) — the meta the
-      # old bash script never published. pantry resolves workspace:* → concrete
-      # versions, topo-orders, skips already-published versions, and
-      # authenticates via npm trusted publishing (OIDC; id-token: write above),
-      # falling back to NPM_TOKEN outside OIDC.
-      - name: Publish Framework
-        run: pantry publish --npm --access public --ignore-scripts 'storage/framework/core/*' 'storage/framework/core'
+      - name: Create the release
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # Publishing succeeded is not enough: registry manifests can still carry
-      # monorepo-only protocols that make the package impossible to install.
-      # Exercise the public artifact from a clean, non-workspace directory.
-      - name: Verify published framework install
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          version="${GITHUB_REF#refs/tags/v}"
-          smoke_dir="$(mktemp -d)"
-          trap 'rm -rf "$smoke_dir"' EXIT
-          cd "$smoke_dir"
-          echo '{"name":"stacks-release-smoke","private":true}' > package.json
-          installed=false
-          for attempt in 1 2 3 4 5 6; do
-            # A package published near the end of the workspace can still be
-            # absent from registry metadata cached by the first failed install.
-            # Force each retry to fetch fresh manifests so eventual consistency
-            # can recover without turning a successful publish into a false
-            # release failure.
-            if bun add --no-cache "stacks@$version"; then
-              installed=true
-              break
-            fi
-            if [ "$attempt" -eq 6 ]; then
-              echo "::error::stacks@$version is published but cannot be installed from a clean project"
-              exit 1
-            fi
-            sleep 10
-          done
-          if [ "$installed" != true ]; then
-            exit 1
-          fi
-          bun node_modules/@stacksjs/buddy/dist/cli.js --help >/dev/null
-
-      - name: Publish Dummy Libraries
-        run: ./storage/framework/scripts/publish-dummy-libs
-        env:
-          BUN_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish VS Code Extension
-        continue-on-error: true
-        run: |
-          cd storage/framework/defaults/ide/vscode
-          bun install
-          bunx --bun vsce publish --no-dependencies
-          cd ../../../../
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-
-      - name: Extract tag version
-        id: get_version
-        run: |
-          version=${GITHUB_REF#refs/tags/}
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Build Buddy Release Assets
-        run: |
-          cd storage/framework/core/buddy
-          bun run compile:all
-          bun run zip:all
-
-      - name: Create GitHub Release
-        uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
-        with:
-          version: '0.10.50'
-          install: 'false'
-          release: 'true'
-          release-tag: ${{ steps.get_version.outputs.version }}
-          release-files: |
-            storage/framework/core/buddy/bin/buddy-linux-x64.zip
-            storage/framework/core/buddy/bin/buddy-linux-arm64.zip
-            storage/framework/core/buddy/bin/buddy-windows-x64.zip
-            storage/framework/core/buddy/bin/buddy-darwin-x64.zip
-            storage/framework/core/buddy/bin/buddy-darwin-arm64.zip
-          release-changelog: auto
-          release-token: ${{ secrets.GITHUB_TOKEN }}
-
-  homebrew:
-    needs: npm
-    runs-on: macos-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Debug Tag
-        run: |
-          echo "Tag: ${GITHUB_REF#refs/tags/}"
-          echo "Version from previous job: ${{ needs.npm.outputs.version }}"
-
-      - name: Generate GitHub App Token
-        id: generate-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: stacksjs
-          repositories: homebrew-tap
-
-      - name: Setup GitHub CLI with PAT
-        run: |
-          echo "${{ secrets.GH_PAT }}" | gh auth login --with-token
-
-      - name: Ensure Homebrew Tap Repository Exists
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          tap_ready=false
-          for attempt in $(seq 1 240); do
-            if output=$(gh api repos/stacksjs/homebrew-tap 2>&1); then
-              tap_ready=true
-              echo "homebrew-tap repository already exists"
-              break
-            fi
-
-            if echo "$output" | grep -q 'HTTP 404'; then
-              echo "Creating homebrew-tap repository..."
-              if gh repo create stacksjs/homebrew-tap --public --description "Homebrew tap for Stacks packages"; then
-                tap_ready=true
-                break
-              fi
-              echo "::warning::Repository creation was not confirmed; reconciling before retry"
-            else
-              echo "::warning::Homebrew tap lookup failed transiently; retrying (attempt $attempt/240)"
-            fi
-
-            delay=$((attempt < 7 ? attempt * 5 : 30))
-            sleep "$delay"
-          done
-
-          if [ "$tap_ready" != true ]; then
-            echo "::error::Could not confirm the Homebrew tap after extended retries"
-            exit 1
-          fi
-
-      - name: Authenticate GitHub CLI with App Token
-        run: echo "${{ steps.generate-token.outputs.token }}" | gh auth login --with-token
-
-      - name: Wait for Release Assets
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "Waiting for release assets to be available..."
-
-          # Wait for assets to be available (max 10 minutes)
-          TIMEOUT=600
-          START_TIME=$(date +%s)
-
-          while [ $(( $(date +%s) - START_TIME )) -lt $TIMEOUT ]; do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://github.com/stacksjs/stacks/releases/download/$VERSION/buddy-darwin-arm64.zip)
-            echo "HTTP response code: $HTTP_CODE"
-
-            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ]; then
-              echo "Assets are available!"
-              break
-            fi
-
-            echo "Assets not ready yet, waiting 10 seconds..."
-            sleep 10
-          done
-
-          if [ $(( $(date +%s) - START_TIME )) -ge $TIMEOUT ]; then
-            echo "Timed out waiting for assets, proceeding anyway..."
-          fi
-
-          # Force continue even if we couldn't detect the file
-          # Sometimes GitHub's API can be inconsistent
-          echo "Continuing with asset download..."
-
-      - name: Download Binaries Directly
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          mkdir -p .github/temp
-          cd .github/temp
-
-          # Try direct download with retries
-          download_with_retry() {
-            local url=$1
-            local output=$2
-            local max_retries=5
-            local retry=0
-
-            while [ $retry -lt $max_retries ]; do
-              echo "Downloading $url (attempt $(($retry + 1))/$max_retries)"
-              if curl -L -s -f "$url" -o "$output"; then
-                echo "Downloaded $output successfully"
-                return 0
-              fi
-              echo "Download failed, retrying in 5 seconds..."
-              retry=$((retry + 1))
-              sleep 5
-            done
-
-            echo "Failed to download $url after $max_retries attempts"
-            return 1
-          }
-
-          download_with_retry "https://github.com/stacksjs/stacks/releases/download/$VERSION/buddy-darwin-arm64.zip" "buddy-darwin-arm64.zip"
-          download_with_retry "https://github.com/stacksjs/stacks/releases/download/$VERSION/buddy-darwin-x64.zip" "buddy-darwin-x64.zip"
-          download_with_retry "https://github.com/stacksjs/stacks/releases/download/$VERSION/buddy-linux-arm64.zip" "buddy-linux-arm64.zip"
-          download_with_retry "https://github.com/stacksjs/stacks/releases/download/$VERSION/buddy-linux-x64.zip" "buddy-linux-x64.zip"
-
-          cd ../..
-
-      - name: Update Homebrew Formula
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          bash .github/scripts/update-homebrew-formula.sh $VERSION
-
-      - name: Push to Homebrew Tap Repository
-        run: |
-          # Clone the tap repo using GitHub App token
-          git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/stacksjs/homebrew-tap.git
-
-          # Set up Git config
-          cd homebrew-tap
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Copy the formula to the tap repo
-          mkdir -p Formula
-          cp ../.github/homebrew/stacks.rb Formula/
-
-          # Check if there are changes to commit
-          if git status --porcelain | grep -q .; then
-            # Push the changes to the tap repo
-            git add Formula/stacks.rb
-            git commit -m "chore: update stacks formula to ${GITHUB_REF#refs/tags/}"
-            git push
-            echo "Successfully updated homebrew formula!"
-          else
-            echo "No changes to commit"
-          fi
+          gh release create "${{ steps.version.outputs.version }}" \
+            --title "${{ steps.version.outputs.version }}" \
+            --notes "${{ steps.changelog.outputs.notes }}" \
+            --verify-tag
