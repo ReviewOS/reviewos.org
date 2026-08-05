@@ -12,7 +12,11 @@ known to exactly one place.
 - [x] Bare repositories at `storage/repos/{owner}/{repository}.git`
 - [ ] One helper that resolves an owner and repository name to an absolute path, rejecting `..`,
       absolute paths, and anything that escapes the root. Every other caller uses it.
-- [ ] `git init --bare` on creation, with `core.hooksPath` pointed at a shared hook directory
+- [x] `git init --bare` on creation, with `core.hooksPath` pointed at a shared hook directory. One
+      shared directory rather than a copy of the scripts in every repository: copies drift, and the
+      repositories nobody pushes to would keep whichever version they were created with, which is
+      exactly where a silent failure goes unnoticed longest. `buddy git:hooks` writes them and
+      repoints every repository, which is the deploy step after an upgrade.
 - [ ] Repository size accounting, updated after receives
 - [ ] Deleting a repository moves it aside with a timestamp rather than unlinking, so an accidental
       delete is recoverable for a retention window
@@ -57,16 +61,42 @@ known to exactly one place.
 
 ## Receiving a push
 
-- [ ] Post-receive hook posts ref updates back to the application
-- [ ] `app/Jobs/ProcessPushJob.ts` on the `git` queue, doing the work asynchronously:
-  - [ ] Update `pushed_at` and the default branch when it moves
-  - [ ] Refresh open pull requests whose head branch changed
-  - [ ] Close issues referenced by closing keywords in the pushed commits
-  - [ ] Emit `push:received` for webhooks, notifications, and the activity feed
-  - [ ] Queue a search reindex
-- [ ] Enforce protected branch rules at receive time, rejecting the push with a message git shows
-      the user
-- [ ] Tests: force push to a protected branch is rejected, and a push that closes an issue does
+- [x] Post-receive hook posts ref updates back to the application. A hook rather than diffing the
+      refs either side of `receive-pack`, which is simpler and wrong twice: two pushes to one
+      repository interleave, and the answer would only exist for pushes arriving over HTTP. git
+      hands a hook the exact updates, and it fires for a push over SSH and for one made on the
+      server by hand. It posts to loopback with a shared secret, and the secret gets the request
+      *heard* and nothing more - every ref line is re-parsed and shape-checked, and the repository
+      is resolved from its path on disk rather than from a name in the body.
+- [x] `app/Jobs/ProcessPushJob.ts` on the `git` queue, doing the work asynchronously. The hook runs
+      inside `git push` with somebody standing at a prompt, so nothing that walks commits belongs
+      in it:
+  - [x] Update `pushed_at` and the default branch when it moves. The default branch is only ever
+        *adopted* on the first push into an empty repository, where the row says `main` and the
+        pusher pushed `master`. Any other time, a push that could repoint it is a push that can
+        change what everybody sees when they open the repository.
+  - [x] Refresh open pull requests whose head branch changed: the head sha is brought up to date
+        and the mergeable state is marked unknown. Recomputing mergeability needs a merge
+        simulation and stays where it was; what matters here is that nothing shows a stale "no
+        conflicts" against a branch that has moved, because a wrong green is worse than no green.
+  - [x] Close issues referenced by closing keywords in the pushed commits, on the same terms a
+        merge closes one: this repository only, issues only. No actor is recorded - a commit's
+        author is free text that anybody can set, and attributing a close to a local account on
+        the strength of one would put words in somebody's mouth.
+  - [x] Emit `push:received` for webhooks, notifications, and the activity feed
+  - [ ] Queue a search reindex. Waiting on phase 6: there is no index to reindex yet.
+- [x] Enforce protected branch rules at receive time, rejecting the push with a message git shows
+      the user. A *pre*-receive hook, because receive time is the only moment where refusing is
+      worth anything: once the ref is written the dropped commits are unreachable and everybody who
+      fetches has the rewritten history. Whether a push is a force push is asked of git rather than
+      of the client - `--force` is a flag somebody chose to send, dropping history is what actually
+      happened. The hook fails *open*: an unreachable application allows the push, because branch
+      protection is a guard rail against a mistake and a forge that stops accepting pushes when its
+      web process restarts is a forge people work around.
+- [x] Tests: force push to a protected branch is rejected, and a push that closes an issue does.
+      Both against real git, including one that proves git runs the hooks at all - it says nothing
+      when it skips a hook it cannot execute, so a hook that never runs and a hook that always
+      allows are indistinguishable from outside.
 
 ## Push protection
 

@@ -35,8 +35,11 @@ not how fast it draws. Two boxes below (the large-diff strategy and word-level h
 owned by that phase and are duplicated here on purpose, because a reader of this phase needs to know
 they are somebody's problem.
 
-- [ ] Compute diffs with `git diff` against the merge base, not the base tip. A diff against the tip
+- [x] Compute diffs with `git diff` against the merge base, not the base tip. A diff against the tip
       shows changes the author did not make, which is the single most common way review UIs mislead.
+      Both paths do it: `load.ts` resolves the merge base explicitly, and `streamMergeBaseDiff` uses
+      the three-dot form, which is the same thing in one command. There is a test holding the
+      streamed one to it, against a history where the two answers genuinely differ.
 - [x] Parse unified diff output into structured hunks: file, old and new ranges, line origins
 - [x] Rename and copy detection
 - [x] Binary files, mode changes, symlinks, and submodule bumps each render as themselves rather
@@ -225,5 +228,7 @@ in July 2026. Both agree on the mechanics, so this follows them rather than inve
         work once per line rather than once per render.
   - [x] The code cell is `white-space: pre`, so the template's own indentation was printed and every
         line started a dozen columns in
-- [ ] A `files.stx` route. The diff currently lives behind a tab on the conversation page, so there
-      is no way to link somebody to the review screen itself.
+- [x] A `files.stx` route. The diff used to live behind a tab on the conversation page, so there was
+      no way to link somebody to the review screen itself. It is now
+      `/{owner}/{repository}/pull/{number}/files`, and it renders through the streamed engine from
+      [phase 14](./14-diff-engine.md) rather than as a whole page.
