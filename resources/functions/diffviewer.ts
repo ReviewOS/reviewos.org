@@ -60,6 +60,20 @@ function toFileEntry(record: Record<string, unknown>): DiffFileEntry {
   }
 }
 
+/**
+ * Whether a key press belongs to a field rather than to the page.
+ *
+ * A reply box is a text field, and `j` in one means the letter j.
+ */
+function isTyping(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null
+  if (!element || typeof element.tagName !== 'string')
+    return false
+
+  const tag = element.tagName.toLowerCase()
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || element.isContentEditable
+}
+
 /** Where the reader's layout choice is remembered. */
 const LAYOUT_KEY = 'reviewos:diff-layout'
 
@@ -656,6 +670,12 @@ export function mountDiffFiles(): DiffViewer | null {
   if (!scroller || !content)
     return null
 
+  // Captured after the guard. The narrowing does not reach the closures below,
+  // and asserting it at every use site reads as though these might be null when
+  // they cannot be.
+  const region: HTMLElement = content
+  const view: HTMLElement = scroller
+
   const rowsUrl = root.dataset.rowsUrl
   const contextUrl = root.dataset.contextUrl
 
@@ -814,7 +834,7 @@ export function mountDiffFiles(): DiffViewer | null {
   // Both delegated rather than bound per file: headers and hunk rows come and
   // go as the reader scrolls, and a listener per mounted file would have to be
   // added and removed with them.
-  content.addEventListener('click', (event) => {
+  region.addEventListener('click', (event) => {
     const target = event.target as HTMLElement | null
     const host = target?.closest<HTMLElement>('.diff-file-host')
     const index = host?.dataset.fileIndex
@@ -887,12 +907,6 @@ export function mountDiffFiles(): DiffViewer | null {
    * scrolled away and came back is a different element with none of the state.
    */
   function paintSelection(): void {
-    // Captured rather than closed over: the null guard above narrows the local,
-    // and a closure created before that narrowing does not inherit it.
-    const region = content
-    if (region == null)
-      return
-
     for (const host of region.querySelectorAll<HTMLElement>('.diff-file-host')) {
       const path = host.dataset.path
       for (const cell of host.querySelectorAll<HTMLElement>('.gutter.num[data-line]')) {
@@ -1004,6 +1018,94 @@ export function mountDiffFiles(): DiffViewer | null {
     wanted.clear()
     viewer.setLayout(layout)
   })
+
+  /**
+   * Moving without the mouse.
+   *
+   * A reviewer with eleven pull requests waiting does not want to aim at a
+   * scrollbar. The keys are the ones every forge has trained people on, so
+   * nobody has to learn ours: `j` and `k` for files, `n` and `p` for threads.
+   *
+   * Ignored while the reader is typing. A reply box is a text field, and `j`
+   * in one means the letter j.
+   */
+  window.addEventListener('keydown', (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target))
+      return
+
+    const files = viewer.files()
+    if (files.length === 0)
+      return
+
+    switch (event.key) {
+      case 'j':
+        event.preventDefault()
+        goToFile(currentFile() + 1)
+        break
+      case 'k':
+        event.preventDefault()
+        goToFile(currentFile() - 1)
+        break
+      case 'n':
+        event.preventDefault()
+        goToThread(1)
+        break
+      case 'p':
+        event.preventDefault()
+        goToThread(-1)
+        break
+      default:
+        break
+    }
+  })
+
+  /** The file the reader is looking at: the first one at or below the top. */
+  function currentFile(): number {
+    const mounted = [...region.querySelectorAll<HTMLElement>('.diff-file-host')]
+      .map(host => ({ index: Number(host.dataset.fileIndex), top: host.getBoundingClientRect().top }))
+      .filter(entry => Number.isFinite(entry.index))
+      .sort((a, b) => a.index - b.index)
+
+    const edge = view.getBoundingClientRect().top
+    // A tolerance, because the file at the top is usually a pixel or two above
+    // it rather than exactly on it.
+    const visible = mounted.find(entry => entry.top >= edge - 4)
+
+    return visible?.index ?? mounted[mounted.length - 1]?.index ?? 0
+  }
+
+  function goToFile(index: number): void {
+    const files = viewer.files()
+    const clamped = Math.max(0, Math.min(index, files.length - 1))
+
+    if (files[clamped]?.collapsed)
+      viewer.setCollapsed(clamped, false)
+
+    viewer.scrollToFile(clamped)
+  }
+
+  /**
+   * The next conversation in either direction.
+   *
+   * Over what is mounted rather than over the whole diff, because a thread is
+   * markup and only mounted files have any. Moving past the end of what is
+   * mounted scrolls, which mounts more, so holding the key still walks the
+   * whole review.
+   */
+  function goToThread(direction: 1 | -1): void {
+    const threads = [...region.querySelectorAll<HTMLElement>('.thread')]
+    if (threads.length === 0)
+      return
+
+    const edge = view.getBoundingClientRect().top
+    const ordered = direction === 1 ? threads : [...threads].reverse()
+    const next = ordered.find((thread) => {
+      const offset = thread.getBoundingClientRect().top - edge
+      return direction === 1 ? offset > 8 : offset < -8
+    })
+
+    next?.scrollIntoView({ block: 'center', behavior: 'auto' })
+  }
 
   // Somebody following a link within the page, or pressing back to a selection
   // they made earlier.
