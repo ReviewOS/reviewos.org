@@ -91,6 +91,12 @@ route.put('/repos/pulls/threads', 'Actions/Pull/ResolveThreadAction').middleware
 route.post('/repos/pulls/mergeability', 'Actions/Pull/RefreshMergeabilityAction').middleware('auth')
 route.post('/repos/pulls/merge', 'Actions/Pull/MergePullRequestAction').middleware('auth')
 
+// The file list of a diff, streamed as newline-delimited JSON while git is
+// still writing the patch. No `auth` middleware: a public repository's pull
+// request is public, and `authorizeRepository` inside the action answers 404 to
+// anyone who cannot read a private one.
+route.get('/repos/pulls/diff/manifest', 'Actions/Pull/DiffManifestAction')
+
 // Landing a whole stack, bottom first. Separate from the single merge because
 // it can partially succeed, and the caller needs to know how far it got.
 route.post('/repos/pulls/merge-stack', 'Actions/Pull/MergeStackAction').middleware('auth')
