@@ -1,0 +1,288 @@
+// The markup for a file's diff.
+//
+// One renderer serves both the server-rendered first screen and the rows
+// streamed to the virtualized list, so what is asserted here is mostly that the
+// two layouts agree with the row counts the list lays itself out from, and that
+// nothing from a patch can escape into the page as markup.
+
+import { describe, expect, test } from 'bun:test'
+import { parseDiff } from '../../app/Actions/Pull/diff'
+import { countRows } from '../../app/Actions/Pull/metrics'
+import {
+  escapeHtml,
+  highlightDiffFile,
+  renderDiffFile,
+  renderDiffNote,
+  renderDiffRows,
+  tokenKey,
+} from '../../app/Actions/Pull/rows'
+
+const uneven = `diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1,3 +1,4 @@
+ const a = 1
+-const b = 2
++const b = 3
++const c = 4
+ const d = 5
+`
+
+const fileOf = (raw: string) => parseDiff(raw)[0]!
+
+/** Count `<tr>` openings, which is what the list's row arithmetic predicts. */
+function countTableRows(html: string): number {
+  return (html.match(/<tr[\s>]/g) ?? []).length
+}
+
+describe('escapeHtml', () => {
+  test('closes every hole a patch could come through', () => {
+    expect(escapeHtml('<script>alert("x")</script>'))
+      .toBe('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;')
+  })
+
+  test('escapes the ampersand first, so an entity is not double-decoded', () => {
+    expect(escapeHtml('&lt;')).toBe('&amp;lt;')
+  })
+})
+
+describe('tokenKey', () => {
+  test('keys a removal by its old line and everything else by its new line', () => {
+    expect(tokenKey({ origin: 'removed', oldLine: 4, newLine: null })).toBe('-4')
+    expect(tokenKey({ origin: 'added', oldLine: null, newLine: 7 })).toBe('+7')
+    expect(tokenKey({ origin: 'context', oldLine: 4, newLine: 7 })).toBe('+7')
+  })
+})
+
+describe('renderDiffRows', () => {
+  test('unified renders exactly the rows the list was told to expect', () => {
+    const file = fileOf(uneven)
+    const html = renderDiffRows(file, { layout: 'unified' })
+
+    expect(countTableRows(html)).toBe(countRows(file).unified)
+  })
+
+  test('split renders exactly the rows the list was told to expect', () => {
+    const file = fileOf(uneven)
+    const html = renderDiffRows(file, { layout: 'split' })
+
+    expect(countTableRows(html)).toBe(countRows(file).split)
+  })
+
+  test('the two layouts genuinely differ, which is why both are counted', () => {
+    const file = fileOf(uneven)
+
+    expect(countTableRows(renderDiffRows(file, { layout: 'split' })))
+      .toBeLessThan(countTableRows(renderDiffRows(file, { layout: 'unified' })))
+  })
+
+  test('a change block pads the shorter side rather than stacking the two', () => {
+    const html = renderDiffRows(fileOf(uneven), { layout: 'split' })
+
+    // One removal against two additions, so one row carries an empty left cell.
+    expect(html).toContain('is-empty')
+  })
+
+  test('carries both line numbers in unified, since a thread anchors to a side', () => {
+    const html = renderDiffRows(fileOf(uneven), { layout: 'unified' })
+
+    expect(html).toContain('<td class="gutter num">1</td><td class="gutter num">1</td>')
+  })
+
+  test('markers say which side a line is on', () => {
+    const html = renderDiffRows(fileOf(uneven), { layout: 'unified' })
+
+    expect(html).toContain('>+</span>')
+    expect(html).toContain('>-</span>')
+  })
+
+  test('content is escaped, so a patch cannot write markup into the page', () => {
+    const raw = `diff --git a/x.html b/x.html
+--- a/x.html
++++ b/x.html
+@@ -1 +1 @@
+-<b>old</b>
++<img src=x onerror="alert(1)">
+`
+    const html = renderDiffRows(fileOf(raw))
+
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('&lt;img src=x')
+  })
+
+  test('a path containing a quote cannot break out of an attribute', () => {
+    const raw = `diff --git "a/we\\"ird.ts" "b/we\\"ird.ts"
+--- a/x
++++ b/x
+@@ -1 +1 @@
+-a
++b
+`
+    const html = renderDiffFile(fileOf(raw))
+
+    expect(html).not.toMatch(/id="file-[^"]*"[^>]*"/)
+    expect(html).toContain('&quot;')
+  })
+
+  test('tokens are used when given and the raw line when not', () => {
+    const file = fileOf(uneven)
+    const tokens = { '+1': [{ type: 'keyword', content: 'const a = 1' }] }
+    const html = renderDiffRows(file, { tokens })
+
+    expect(html).toContain('<span class="t-keyword">const a = 1</span>')
+    // A line with no entry still renders, rather than rendering blank.
+    expect(html).toContain('const d = 5')
+  })
+
+  test('whitespace in the source survives exactly', () => {
+    const raw = `diff --git a/w.ts b/w.ts
+--- a/w.ts
++++ b/w.ts
+@@ -1,2 +1,2 @@
+-\tif (a) {
++  if (a) {
+ }
+`
+    const html = renderDiffRows(fileOf(raw))
+
+    expect(html).toContain('\tif (a) {')
+    expect(html).toContain('  if (a) {')
+  })
+
+  test('a binary file renders no rows at all', () => {
+    const raw = `diff --git a/i.png b/i.png
+Binary files a/i.png and b/i.png differ
+`
+    expect(renderDiffRows(fileOf(raw))).toBe('')
+  })
+
+  test('threads are placed under the line they were written about', () => {
+    const html = renderDiffRows(fileOf(uneven), {
+      threadsAt: line => (line.newLine === 3 ? '<div class="thread">a comment</div>' : ''),
+    })
+
+    const threadIndex = html.indexOf('thread-row')
+    const lineIndex = html.indexOf('const b = 3')
+
+    expect(threadIndex).toBeGreaterThan(lineIndex)
+  })
+
+  test('a file with no threads emits no thread rows', () => {
+    expect(renderDiffRows(fileOf(uneven), { threadsAt: () => '' })).not.toContain('thread-row')
+  })
+})
+
+describe('renderDiffNote', () => {
+  test('a binary file says so rather than showing an empty panel', () => {
+    const raw = `diff --git a/i.png b/i.png
+Binary files a/i.png and b/i.png differ
+`
+    expect(renderDiffNote(fileOf(raw))).toContain('Binary file')
+  })
+
+  test('a mode change names both modes', () => {
+    const raw = `diff --git a/s.sh b/s.sh
+old mode 100644
+new mode 100755
+`
+    const note = renderDiffNote(fileOf(raw))
+
+    expect(note).toContain('100644')
+    expect(note).toContain('100755')
+  })
+
+  test('a pure rename says what moved', () => {
+    const raw = `diff --git a/old.ts b/new.ts
+similarity index 100%
+rename from old.ts
+rename to new.ts
+`
+    expect(renderDiffNote(fileOf(raw))).toContain('Renamed from old.ts')
+  })
+
+  test('a file with hunks has no note', () => {
+    expect(renderDiffNote(fileOf(uneven))).toBe('')
+  })
+})
+
+describe('renderDiffFile', () => {
+  test('carries the header a reader needs before opening anything', () => {
+    const html = renderDiffFile(fileOf(uneven))
+
+    expect(html).toContain('a.ts')
+    expect(html).toContain('+2')
+    expect(html).toContain('-1')
+    expect(html).toContain('pill-modified')
+  })
+
+  test('shows both paths for a rename', () => {
+    const raw = `diff --git a/old.ts b/new.ts
+rename from old.ts
+rename to new.ts
+--- a/old.ts
++++ b/new.ts
+@@ -1 +1 @@
+-a
++b
+`
+    const html = renderDiffFile(fileOf(raw))
+
+    expect(html).toContain('old.ts')
+    expect(html).toContain('new.ts')
+  })
+
+  test('a file with nothing to show renders its note instead of an empty table', () => {
+    const raw = `diff --git a/i.png b/i.png
+Binary files a/i.png and b/i.png differ
+`
+    const html = renderDiffFile(fileOf(raw))
+
+    expect(html).not.toContain('<table')
+    expect(html).toContain('Binary file')
+  })
+})
+
+describe('highlightDiffFile', () => {
+  test('keys tokens by side, and the tokens reproduce their line', async () => {
+    const file = fileOf(uneven)
+    const tokens = await highlightDiffFile(file)
+
+    for (const hunk of file.hunks) {
+      for (const line of hunk.lines) {
+        const rendered = tokens[tokenKey(line)]
+        if (!rendered || rendered.length === 0)
+          continue
+
+        // The property the whole diff rests on: the tokens are the line. A
+        // highlighter that drops a space is showing code that is not in the
+        // file, and in a diff the whitespace is often the entire change.
+        expect(rendered.map(token => token.content).join('')).toBe(line.content)
+      }
+    }
+  })
+
+  test('highlights each side as its own document', async () => {
+    const raw = `diff --git a/old.py b/new.ts
+rename from old.py
+rename to new.ts
+--- a/old.py
++++ b/new.ts
+@@ -1 +1 @@
+-def f(): pass
++function f() {}
+`
+    const tokens = await highlightDiffFile(fileOf(raw))
+
+    // The removal came from a .py file and the addition from a .ts one, so the
+    // two are tokenized against different languages rather than as one stream.
+    expect(tokens['-1']).toBeDefined()
+    expect(tokens['+1']).toBeDefined()
+  })
+
+  test('a file with no hunks asks the highlighter for nothing', async () => {
+    const raw = `diff --git a/i.png b/i.png
+Binary files a/i.png and b/i.png differ
+`
+    expect(await highlightDiffFile(fileOf(raw))).toEqual({})
+  })
+})
