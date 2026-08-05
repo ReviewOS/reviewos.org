@@ -52,6 +52,8 @@ feature, a page per use case, and comparisons that say plainly what the alternat
 
 - [x] bunpress configured through `config/docs.ts`, served by `./buddy dev:docs`
 - [x] Roadmap published as task lists that render as checkboxes
+- [x] Roadmap index counts and "not started" states are checked by `tests/unit/roadmap.test.ts`, so
+      completing work cannot leave the summary silently stale
 - [ ] Getting started: requirements, install, first repository
 - [ ] Configuration reference: every environment variable that matters, and what it does
 - [ ] Architecture: how a request becomes a git operation, and where repositories live on disk

@@ -27,6 +27,9 @@ vocabulary, and it is discoverable without reading the source.
       so it cannot drift from what the server accepts
 - [ ] A generated TypeScript client, built from that document rather than maintained by hand
 - [ ] Tests that walk the route table and fail on a route with no OpenAPI operation
+- [ ] Long-running resources, including CI workflow runs, expose their state machine and control
+      operations through the same public actions used by the interface and CLI. No UI-only pause,
+      retry, cancellation, log, or approval path.
 
 ## Built for a program, not a person with curl
 
@@ -48,6 +51,9 @@ vocabulary, and it is discoverable without reading the source.
       assembled by twelve round trips is twelve chances to leave half a review behind.
 - [ ] Webhooks are the supported way to stay current (phase 5), and every event that changes
       something an agent cares about has one
+- [ ] A consistent operation pattern for asynchronous work: create with an idempotency key, receive
+      a resource and status URL, poll cheaply with `ETag`, follow a cursor-based event or log stream,
+      and cancel with the same token authority that created it
 
 ## Agents as a first-class kind of contributor
 

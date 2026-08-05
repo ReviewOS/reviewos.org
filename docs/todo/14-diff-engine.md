@@ -107,9 +107,9 @@ So:
   - [x] *inline*, for anything under the threshold (which is very nearly every pull request): the
         rows stream down with the manifest and the browser mounts from an in-memory map with no
         further requests
-  - [ ] *on demand*, above it: the virtualizer requests row batches ahead of the scroll position,
+  - [x] *on demand*, above it: the virtualizer requests row batches ahead of the scroll position,
         served from a parsed diff cached by (repository, base sha, head sha)
-- [ ] The threshold is measured, not guessed, and the mode is visible in the response so the
+- [x] The threshold is measured, not guessed, and the mode is visible in the response so the
       benchmark harness can pin it
 
 The cost is honest and worth naming: in on-demand mode, throwing the scrollbar to the far end shows
@@ -457,7 +457,7 @@ Everything a reader can turn on. DiffsHub exposes all of these; several we alrea
       and by jumping to a review thread anchored on a context line
 - [ ] Estimated height accounts for expansions already applied, so expanding does not shift everything
       below by a wrong amount and then correct itself
-- [ ] Files loaded on demand: a diff item can be listed and sized before its content exists
+- [x] Files loaded on demand: a diff item can be listed and sized before its content exists
 
 ## Review threads in the diff
 

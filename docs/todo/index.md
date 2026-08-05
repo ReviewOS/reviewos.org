@@ -14,31 +14,31 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 
 | Phase | What it covers | State |
 |---|---|---|
-| [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done (27/31) |
+| [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done, 5 deferred (27/32) |
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (22/57) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (31/74) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
-| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (42/82) |
+| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (46/85) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | In progress (21/51) |
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (1/20) |
-| [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress (20/44) |
-| [08 - Migration](./08-migration.md) | Importing from GitHub and other forges | Not started |
-| [09 - Checks and CI](./09-checks-ci.md) | Commit status API, then runners | Started (3/18) |
-| [10 - Federation](./10-federation.md) | Research: ActivityPub / ForgeFed versus AT Protocol | Research |
+| [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress (21/45) |
+| [08 - Migration](./08-migration.md) | Importing from GitHub and other forges | Not started (0/16) |
+| [09 - Checks and CI](./09-checks-ci.md) | Checks, durable workflows, runner providers, deployments | Started (3/94) |
+| [10 - Federation](./10-federation.md) | Research: ActivityPub / ForgeFed versus AT Protocol | Research (0/13) |
 | [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Started (1/44) |
-| [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Not started |
-| [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | Not started |
-| [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (31/155) |
+| [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Not started (0/30) |
+| [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | In progress (24/44) |
+| [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (34/155) |
 
 Phase 14 was written after reading Pierre's [DiffsHub](https://diffshub.com) and the Apache 2.0
 packages behind it. It is the only phase with a named competitor, because the diff surface is the one
 place where somebody else has already published the number we have to beat. It carries the diff
 engine work that phase 4 refers to but does not describe.
 
-Phases 1 through 5 all have code in them, which is why none of them says "not started" any more: the
-work went depth-first through a vertical slice (identity, a repository on disk, an issue, a pull
-request, a notification) rather than finishing one phase before opening the next. That was the right
-order for proving the review screen, and it is the reason the counts are all partial.
+Several later phases have code in them too. Work went depth-first through vertical slices (identity,
+a repository on disk, an issue, a pull request, a notification, checks, operations, mirroring, and
+the diff engine) rather than finishing one phase before opening the next. That was the right order
+for proving the review screen, and it is the reason the counts are partial across the roadmap.
 
 Phase 3 is done. The last two boxes were the same box - reading a commit message - and closing them
 meant building phase 2's push pipeline: a pre-receive hook that can still refuse, a post-receive hook
@@ -175,5 +175,8 @@ Naming these keeps them from being re-proposed every few weeks:
 - **A wiki.** Repository markdown files cover most of the need.
 - **Projects and boards.** Issues with labels and milestones first.
 - **In-browser editing.** A pull request from the browser is a phase 4 concern at the earliest.
-- **Its own CI runners.** Phase 9 starts with a status API so external CI can report in. Running
-  other people's code is a security project of its own.
+- **An unreviewed hosted CI execution plane.** Phase 9 starts with status and check APIs, then a
+  provider-neutral workflow control plane that self-hosted or external runners can consume. Running
+  other people's code on instance-managed infrastructure remains a separate security project and
+  does not begin until its threat model, isolation boundary, secret flow, cache policy, and quotas
+  pass review.
