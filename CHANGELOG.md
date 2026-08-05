@@ -1,5 +1,15 @@
 # ReviewOS Changelog
 
+[Compare changes](https://github.com/ReviewOS/reviewos.org/compare/v0.1.3...v0.1.4)
+
+## 🐛 Bug Fixes
+
+- **release**: a release ends at the next compare link, not at a heading ([5d90eca](https://github.com/ReviewOS/reviewos.org/commit/5d90eca)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/ReviewOS/reviewos.org/compare/v0.1.2...v0.1.3)
 
 ## 🐛 Bug Fixes
