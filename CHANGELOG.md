@@ -1,5 +1,19 @@
 # ReviewOS Changelog
 
+[Compare changes](https://github.com/ReviewOS/reviewos.org/compare/v0.1.1...v0.1.2)
+
+## 🐛 Bug Fixes
+
+- **release**: gate on what this app can check, not on the framework's protocol suite ([f752a78](https://github.com/ReviewOS/reviewos.org/commit/f752a78)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🔧 Chores
+
+- **types**: the new models are server globals ([4934e20](https://github.com/ReviewOS/reviewos.org/commit/4934e20)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 ## v0.1.1
 
 ## ✨ Features
