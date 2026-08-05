@@ -399,7 +399,12 @@
          the first screen, and `app/Actions/Pull/rows.ts` for every row streamed
          into the virtualized list. Kept here rather than in either one so they
          cannot disagree about what a diff looks like. */
-      .diff-file { overflow: hidden; margin-bottom: 16px; }
+      /* `clip` rather than `hidden`, and the difference matters: `hidden` makes
+         the panel a scroll container, and a scroll container between a sticky
+         element and the real scroller is the one thing that stops sticky
+         working at all. The file header sat here doing nothing for exactly that
+         reason. `clip` clips the same way and scrolls nothing. */
+      .diff-file { overflow: clip; margin-bottom: 16px; }
 
       .diff-head {
         display: flex;
@@ -446,11 +451,56 @@
       .diff-body { overflow-x: auto; }
       .diff-body.is-collapsed { display: none; }
 
+      /* The header stays while its own file scrolls past.
+
+         Sticky within the file rather than within the list, which is what the
+         `contain: paint` on each mounted host gives for free: the header of the
+         file being read is pinned, and it leaves with its file rather than
+         stacking up with every header above it. */
+      .diff-file .diff-head {
+        position: sticky;
+        z-index: 2;
+        top: 0;
+        background: var(--surface);
+        /* Queried below to tell "pinned" from "sitting where it belongs". A
+           scroll listener would answer the same question at sixty times the
+           cost, and get it wrong during momentum scrolling. */
+        container-type: scroll-state;
+      }
+
+      /* Only while actually stuck, so a file at rest has no shadow under its
+         header. Browsers without scroll-state queries simply never match, and
+         the header is still sticky - which is the part that matters. */
+      @container scroll-state(stuck: top) {
+        .diff-head::after {
+          position: absolute;
+          right: 0;
+          bottom: -5px;
+          left: 0;
+          height: 4px;
+          background: linear-gradient(to bottom, rgb(0 0 0 / 8%), transparent);
+          content: '';
+          pointer-events: none;
+        }
+      }
+
       .diff-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
         line-height: 1.5;
+      }
+
+      /* Split: the two code columns share what is left after the gutters, and
+         they share it equally whether or not this file's pane is scrolling.
+
+         The gutter width is measured once per page and published as a custom
+         property by the viewer, because it is zero on a Mac with overlay
+         scrollbars and fifteen on Windows - and a split view that assumed
+         either one has columns of different widths on the other. */
+      .diff-table[data-columns='4'] { table-layout: fixed; }
+      .diff-table[data-columns='4'] .code {
+        width: calc((100% - 92px - var(--scrollbar-gutter, 0px)) / 2);
       }
 
       .gutter {

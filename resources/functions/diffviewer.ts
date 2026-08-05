@@ -20,7 +20,16 @@
 import type { ScrollAnchor, ViewportFile } from '../../app/Actions/Pull/viewport'
 import type { RowCounts } from '../../app/Actions/Pull/metrics'
 import { DEFAULT_HEIGHT_METRICS } from '../../app/Actions/Pull/metrics'
-import { captureAnchor, DEFAULT_OVERSCAN, measuredLayout, planFrame } from '../../app/Actions/Pull/viewport'
+import {
+  captureAnchor,
+  DEFAULT_OVERSCAN,
+  measuredLayout,
+  planFrame,
+  type ScrollAlignment,
+  scrollBehaviourFor,
+  scrollTargetFor,
+  snapToDevicePixel,
+} from '../../app/Actions/Pull/viewport'
 import {
   anchorBetween,
   anchorCovers,
@@ -253,6 +262,11 @@ export function firstBatchSize(viewportHeight: number, rowHeight: number): numbe
   return Math.max(FIRST_BATCH_MIN, Math.min(FIRST_BATCH_MAX, Math.ceil(viewportHeight / rowHeight)))
 }
 
+/** One frame, so a mount or a measurement has happened before reading it back. */
+function nextFrame(): Promise<void> {
+  return new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+}
+
 /**
  * Hand the thread back to the browser.
  *
@@ -351,7 +365,7 @@ export interface DiffViewer {
    */
   remeasureAll: () => void
   collapseAll: (collapsed: boolean) => void
-  scrollToFile: (index: number) => void
+  scrollToFile: (index: number, target?: ScrollToOptions) => void
   /** The files, in diff order. */
   files: () => readonly DiffFileEntry[]
   /**
@@ -363,6 +377,68 @@ export interface DiffViewer {
    */
   stats: () => ViewerStats
   destroy: () => void
+}
+
+export interface ScrollToOptions {
+  alignment?: ScrollAlignment
+  /** Pixels into the file, for scrolling to a line rather than to a file. */
+  offset?: number
+  /** Room to leave above, for a sticky header sitting over the target. */
+  headerOffset?: number
+  /** Animated, unless the reader has asked for less motion. */
+  smooth?: boolean
+}
+
+/**
+ * Safari, and only Safari.
+ *
+ * Chrome's user agent string also contains `Safari`, which is why this looks
+ * for Chrome and Chromium and excludes them rather than looking for Safari.
+ * User agent sniffing is the wrong tool for almost everything and is the right
+ * one here: the guard below is for a specific rendering bug in one engine, it
+ * costs two synchronous layouts, and there is nothing to feature-detect.
+ */
+function isWebKit(): boolean {
+  const agent = navigator.userAgent
+  return /\bSafari\b/.test(agent) && !/Chrom(e|ium)|Android/.test(agent)
+}
+
+/**
+ * The width the scrollbar takes out of a scrolling pane.
+ *
+ * Measured once, with a probe carrying the real class, so custom scrollbar CSS
+ * is reflected rather than assumed away. Zero on a machine with overlay
+ * scrollbars, which is most Macs, and fifteen or so on Windows - and that
+ * difference is exactly why the split columns have to be told rather than left
+ * to work it out: one side scrolls and the other does not, and they end up
+ * disagreeing about their width by the width of a scrollbar.
+ */
+export function measureScrollbarGutter(): number {
+  const probe = document.createElement('div')
+  probe.className = 'diff-body'
+  probe.style.cssText = 'position:absolute;top:-9999px;width:200px;height:100px;overflow:scroll;visibility:hidden'
+
+  const filler = document.createElement('div')
+  filler.style.cssText = 'width:400px;height:400px'
+  probe.appendChild(filler)
+
+  document.body.appendChild(probe)
+  const gutter = probe.offsetWidth - probe.clientWidth
+  probe.remove()
+
+  return gutter
+}
+
+/**
+ * Whether the reader has asked for less motion.
+ *
+ * Asked at the moment of scrolling rather than captured once: it can change
+ * while the page is open, and a viewer that cached it at startup would go on
+ * animating for the rest of the visit.
+ */
+function prefersReducedMotion(): boolean {
+  return typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 export interface ViewerStats {
@@ -400,6 +476,9 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
   // reader's next real scroll and the list would stick.
   let writtenScrollTop: number | null = null
   const counters = { mounts: 0, releases: 0, recycled: 0, frames: 0 }
+  // Asked once. The engine does not change while the page is open, and the
+  // answer gates two synchronous layouts per frame.
+  const webkit = isWebKit()
 
   // The list is positioned rather than flowed, so a file mounting or being
   // released cannot move the ones around it.
@@ -427,6 +506,15 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       return
 
     counters.frames++
+
+    // Safari clamps an ancestor scroller to zero when the subtree of a
+    // `container-type` element is rewritten in bulk, which is every frame that
+    // mounts a file. See https://bugs.webkit.org/show_bug.cgi?id=308027. Pinning
+    // a minimum height across the rewrite keeps the scroller's range alive
+    // while the DOM is in flux. Two synchronous layouts, so it is Safari only.
+    const pinned = webkit ? content.offsetHeight : 0
+    if (pinned > 0)
+      content.style.minHeight = `${pinned}px`
 
     const result = planFrame(
       geometry,
@@ -473,6 +561,14 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     if (remeasured) {
       anchor = captureAnchor(result.layout, scroller.scrollTop)
       schedule()
+    }
+
+    if (pinned > 0) {
+      // Read once while still pinned, so the layout the browser settles on is
+      // the one with the new content in it, then release. Unpinning without
+      // the read is the same as never pinning.
+      void content.offsetHeight
+      content.style.minHeight = ''
     }
 
     afterRender?.()
@@ -534,6 +630,7 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     host.style.width = '100%'
     // One file's layout cannot invalidate another's, which is what keeps a
     // relayout proportional to the screen rather than to the diff.
+    //
     host.style.contain = 'layout paint style'
 
     return host
@@ -682,7 +779,7 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       schedule()
     },
 
-    scrollToFile(index) {
+    scrollToFile(index, target = {}) {
       const { layout: current } = planFrame(
         geometry,
         new Set(hosts.keys()),
@@ -690,12 +787,24 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
         { layout, overscan },
       )
 
-      const top = current.offsets[index]
+      const top = scrollTargetFor(current, scroller.clientHeight, { ...target, index })
       if (top == null)
         return
 
-      writtenScrollTop = top
-      scroller.scrollTop = top
+      const position = snapToDevicePixel(top, window.devicePixelRatio)
+      const behavior = scrollBehaviourFor(target.smooth === true, prefersReducedMotion())
+
+      if (behavior === 'smooth') {
+        // Not recorded as ours: a smooth scroll fires scroll events all the
+        // way there, and swallowing only the final one would leave the list
+        // ignoring every frame of the animation.
+        scroller.scrollTo({ top: position, behavior })
+      }
+      else {
+        writtenScrollTop = position
+        scroller.scrollTop = position
+      }
+
       schedule()
     },
 
@@ -1204,20 +1313,115 @@ export function mountDiffFiles(): DiffViewer | null {
     }
   }
 
-  /** Bring the selected line into view, expanding its file if it is closed. */
-  function revealSelection(): void {
-    if (selection == null)
+  /**
+   * How many rounds `revealSelection` will spend getting to a line.
+   *
+   * Each round can mount the file, wait for its rows, or expand one gap, so a
+   * line buried under several collapsed gaps needs several. Bounded because
+   * every one of those steps can legitimately fail - the line may not exist -
+   * and a loop that kept trying would sit there fetching context forever.
+   */
+  const REVEAL_ROUNDS = 12
+
+  /** Set while a reveal is in flight, so two links do not fight over the scroll. */
+  let revealing = false
+
+  /**
+   * Bring the selected line into view.
+   *
+   * Four things can be in the way and each is handled by trying again rather
+   * than by predicting it: the file may not have arrived yet (the manifest is
+   * still streaming), it may be collapsed, its rows may not have been fetched,
+   * and the line may sit in a gap between hunks that nothing has expanded. The
+   * loop below does one of those per round and stops the moment the row exists.
+   */
+  async function revealSelection(): Promise<void> {
+    if (selection == null || revealing)
       return
 
-    const files = viewer.files()
-    const index = files.findIndex(entry => entry.path === selection!.path)
-    if (index < 0)
-      return
+    revealing = true
 
-    if (files[index]!.collapsed)
-      viewer.setCollapsed(index, false)
+    try {
+      for (let round = 0; round < REVEAL_ROUNDS; round++) {
+        const target = selection
+        if (target == null)
+          return
 
-    viewer.scrollToFile(index)
+        const files = viewer.files()
+        const index = files.findIndex(entry => entry.path === target.path)
+
+        // Not in the list yet. Later batches will call this again, so give up
+        // on this attempt rather than waiting on a file that may not be coming.
+        if (index < 0)
+          return
+
+        if (files[index]!.collapsed) {
+          viewer.setCollapsed(index, false)
+          await nextFrame()
+          continue
+        }
+
+        // Mounting it is what produces the rows to look for.
+        viewer.scrollToFile(index)
+        await nextFrame()
+
+        const host = hostFor(index)
+        if (host == null)
+          continue
+
+        const row = rowFor(host, target.side, target.from)
+        if (row != null) {
+          const offset = row.getBoundingClientRect().top - host.getBoundingClientRect().top
+          viewer.scrollToFile(index, { offset, alignment: 'center' })
+          paintSelection()
+          return
+        }
+
+        // The rows are still on their way, or the line is inside a gap. Asking
+        // for the gap is the only one of those this can act on.
+        const control = expandControlCovering(host, target.from)
+        if (control == null) {
+          await nextFrame()
+          continue
+        }
+
+        await expandGap(index, control)
+      }
+    }
+    finally {
+      revealing = false
+    }
+  }
+
+  /** The mounted element for a file, if it is mounted. */
+  function hostFor(index: number): HTMLElement | null {
+    return region.querySelector<HTMLElement>(`.diff-file-host[data-file-index="${index}"]`)
+  }
+
+  /** The row carrying a line on a side, if it is rendered. */
+  function rowFor(host: HTMLElement, side: 'left' | 'right', line: number): HTMLElement | null {
+    const cell = host.querySelector<HTMLElement>(`.gutter.num[data-line="${line}"][data-side="${side}"]`)
+    return cell?.closest('tr') ?? null
+  }
+
+  /**
+   * The expansion control whose hidden range contains a line.
+   *
+   * Numbered against the new side, which is what the control's range is in.
+   * A line on the old side of a gap is at a different number, and the offset
+   * the control carries is exactly the difference - so the check is done in the
+   * control's own numbering after undoing that offset.
+   */
+  function expandControlCovering(host: HTMLElement, line: number): HTMLElement | null {
+    for (const control of host.querySelectorAll<HTMLElement>('.hunk-expand')) {
+      const from = Number(control.dataset.expandFrom)
+      const to = Number(control.dataset.expandTo)
+
+      if (Number.isFinite(from) && Number.isFinite(to) && line >= from && line <= to)
+        return control
+    }
+
+    return null
   }
 
   /**
@@ -1425,7 +1629,7 @@ export function mountDiffFiles(): DiffViewer | null {
   window.addEventListener('hashchange', () => {
     selection = parseLineAnchor(window.location.hash)
     paintSelection()
-    revealSelection()
+    void revealSelection()
   })
 
   // The sidebar, if the page rendered a host for it.
@@ -1446,6 +1650,10 @@ export function mountDiffFiles(): DiffViewer | null {
   // global, and so a page with two of them would not have the second silently
   // overwrite the first. Nothing in the product reads this.
   ;(region.closest('[data-diff-stream]') as { __diffViewer?: DiffViewer } | null ?? {}).__diffViewer = viewer
+
+  // Measured once and published as a custom property, so the split columns can
+  // reserve the same width whether or not their pane happens to be scrolling.
+  root.style.setProperty('--scrollbar-gutter', `${measureScrollbarGutter()}px`)
 
   showLayout()
   say('Loading the diff…')
@@ -1507,7 +1715,7 @@ export function mountDiffFiles(): DiffViewer | null {
       // Reached once the whole list is known, which is the earliest a link to a
       // file near the end can be honoured.
       refreshFileList(true)
-      revealSelection()
+      void revealSelection()
       const counts = `${summary.files} files, +${summary.additions} -${summary.deletions}`
       say(truncatedFrom == null ? counts : `${counts} (rendered to file ${truncatedFrom})`, 'done')
     },

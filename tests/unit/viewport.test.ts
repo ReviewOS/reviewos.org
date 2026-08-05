@@ -12,6 +12,8 @@ import {
   planFrame,
   planMounts,
   restoreAnchor,
+  scrollBehaviourFor,
+  scrollTargetFor,
   snapToDevicePixel,
   type ViewportFile,
 } from '../../app/Actions/Pull/viewport'
@@ -256,5 +258,77 @@ describe('planFrame', () => {
     const second = planFrame(grown, first.plan.next, { scrollTop: 0, height: 800 }, { overscan: 0 })
 
     expect(second.plan.unmount).toEqual([])
+  })
+})
+
+/**
+ * Where the list has to scroll to bring something into view.
+ *
+ * Pure, and clamped here rather than in the caller: a scroll to the last file
+ * of a diff otherwise asks for a position past the end, the browser lands
+ * somewhere else, and the result is the "it scrolled nearly to the right place"
+ * bug that is impossible to reproduce on a small diff.
+ */
+describe('scrollTargetFor', () => {
+  // Ten files, each 100 tall, 8 apart: tops at 0, 108, 216, ...
+  const layout = measuredLayout(
+    Array.from({ length: 10 }, () => ({ rows: { unified: 2, split: 2 }, collapsed: false, measured: 100 })),
+  )
+
+  test('start puts the file at the top of the viewport', () => {
+    expect(scrollTargetFor(layout, 500, { index: 2 })).toBe(216)
+  })
+
+  test('center leaves half the spare room above it', () => {
+    expect(scrollTargetFor(layout, 500, { index: 5, alignment: 'center' })).toBe(540 - 200)
+  })
+
+  test('end brings its last line to the bottom', () => {
+    expect(scrollTargetFor(layout, 500, { index: 5, alignment: 'end' })).toBe(540 + 100 - 500)
+  })
+
+  test('never asks for a position past the end of the list', () => {
+    const furthest = layout.total - 500
+
+    expect(scrollTargetFor(layout, 500, { index: 9 })).toBe(furthest)
+    expect(scrollTargetFor(layout, 500, { index: 9, alignment: 'end' })).toBe(furthest)
+  })
+
+  test('never asks for a negative position', () => {
+    expect(scrollTargetFor(layout, 500, { index: 0, alignment: 'center' })).toBe(0)
+    expect(scrollTargetFor(layout, 500, { index: 0, headerOffset: 40 })).toBe(0)
+  })
+
+  test('an offset scrolls to a line within the file rather than to the file', () => {
+    expect(scrollTargetFor(layout, 500, { index: 3, offset: 40 })).toBe(324 + 40)
+  })
+
+  test('a header offset leaves room for the header sitting over the target', () => {
+    expect(scrollTargetFor(layout, 500, { index: 3, headerOffset: 20 })).toBe(324 - 20)
+  })
+
+  test('a file that does not exist has no target rather than a wrong one', () => {
+    expect(scrollTargetFor(layout, 500, { index: 99 })).toBeNull()
+    expect(scrollTargetFor(layout, 500, { index: -1 })).toBeNull()
+  })
+})
+
+describe('scrollBehaviourFor', () => {
+  test('smooth when asked for and the reader has not objected', () => {
+    expect(scrollBehaviourFor(true, false)).toBe('smooth')
+  })
+
+  /**
+   * Not a preference about decoration. A smooth scroll of several thousand
+   * pixels is nausea for some readers, and this is the only scroll in the
+   * product that can be that long.
+   */
+  test('never smooth when the reader has asked for less motion', () => {
+    expect(scrollBehaviourFor(true, true)).toBe('auto')
+  })
+
+  test('and jumping stays jumping either way', () => {
+    expect(scrollBehaviourFor(false, false)).toBe('auto')
+    expect(scrollBehaviourFor(false, true)).toBe('auto')
   })
 })

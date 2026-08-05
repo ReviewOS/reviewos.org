@@ -237,3 +237,72 @@ export function planFrame(
  * during a flung scroll because it paints before the mount lands.
  */
 export const DEFAULT_OVERSCAN = 1000
+
+/** Where in the viewport a scroll target should come to rest. */
+export type ScrollAlignment = 'start' | 'center' | 'end'
+
+export interface ScrollTarget {
+  /** The file, by position in the list. */
+  index: number
+  /**
+   * How far into that file, in pixels.
+   *
+   * For a line rather than a file. The caller works this out from a mounted
+   * row's offset, which is the only place the answer actually exists: a line's
+   * height depends on wrapping, on the layout, and on whether a thread is
+   * sitting under it.
+   */
+  offset?: number
+  alignment?: ScrollAlignment
+  /** Extra room above the target, for a sticky header sitting over it. */
+  headerOffset?: number
+}
+
+/**
+ * The scroll position that brings a target into view.
+ *
+ * Pure, and clamped to the scrollable range, so the caller writing it does not
+ * have to know how tall the list is. Clamping here rather than in the caller is
+ * what stops a scroll to the last file of a diff from asking for a position
+ * past the end and having the browser quietly land somewhere else - which is
+ * the shape of every "it scrolled nearly to the right place" bug.
+ */
+export function scrollTargetFor(
+  layout: ListLayout,
+  viewportHeight: number,
+  target: ScrollTarget,
+): number | null {
+  const top = layout.offsets[target.index]
+  const height = layout.heights[target.index]
+  if (top == null || height == null)
+    return null
+
+  const at = top + (target.offset ?? 0)
+  const alignment = target.alignment ?? 'start'
+  // Only meaningful for a whole file. A line has no height here, so centring
+  // one centres its top edge, which is what a reader means by it anyway.
+  const size = target.offset == null ? height : 0
+
+  let position = at - (target.headerOffset ?? 0)
+
+  if (alignment === 'center')
+    position = at - Math.max(0, (viewportHeight - size) / 2)
+  else if (alignment === 'end')
+    position = at + size - viewportHeight
+
+  const furthest = Math.max(0, layout.total - viewportHeight)
+
+  return Math.max(0, Math.min(position, furthest))
+}
+
+/**
+ * Whether to animate a scroll.
+ *
+ * `prefers-reduced-motion` is not a preference about decoration: for some
+ * readers a smooth scroll of several thousand pixels is nausea. Asked at the
+ * moment of scrolling rather than captured at startup, because it can change
+ * while the page is open.
+ */
+export function scrollBehaviourFor(smooth: boolean, prefersReducedMotion: boolean): ScrollBehavior {
+  return smooth && !prefersReducedMotion ? 'smooth' : 'auto'
+}

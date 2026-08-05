@@ -183,6 +183,23 @@ false: it counted any frame over the 16.7ms budget as dropped, and a page holdin
 reports a median of almost exactly 16.7ms. It reported 44% dropped on a run that never stuttered.
 A frame is dropped when the next one missed its slot, which is half a frame late.
 
+### The one-word CSS bug that cost the sticky header
+
+`.diff-file` carried `overflow: hidden`, to clip the table's corners to the panel's radius. That
+makes the panel a **scroll container**, and a scroll container between a sticky element and the real
+scroller is the one thing that stops sticky working at all: the header sticks to a box that never
+scrolls, so it never sticks to anything.
+
+The header was correctly `position: sticky` and correctly `top: 0`, and it scrolled away with its
+file. `overflow: clip` clips identically and scrolls nothing, and the header pins.
+
+Worth the paragraph because there is no error, no warning, and nothing in the computed style that
+looks wrong - `position: sticky` reads back as `sticky` either way. The only way to see it is to walk
+the ancestor chain looking for whichever one is a scrollport.
+
+It costs something, honestly measured: style and layout over the four second scroll went from 180ms
+to about 205ms, which is above the noise floor. Still zero dropped frames.
+
 ### Traces, and comparing two commits
 
 `scripts/benchmarks/trace.ts` records a Chrome trace over the same scroll and totals renderer-main
@@ -321,14 +338,15 @@ in the DOM.
 - [x] Snap computed scroll targets to the device pixel grid (`round(v * dpr) / dpr`), read fresh each
       time so switching monitors or zooming is picked up. Fractional-DPR displays otherwise leave
       scroll deltas hovering on residuals that never settle.
-- [ ] Measure the scrollbar gutter once per page with a hidden probe carrying the same selector as a
+- [x] Measure the scrollbar gutter once per page with a hidden probe carrying the same selector as a
       real code pane, so custom scrollbar CSS is reflected and the split columns do not disagree
-      about their width
-- [ ] Sticky file headers, with the "stuck" shadow driven by `container-type: scroll-state` rather
+      about their width. Fifteen pixels here, zero on a Mac with overlay scrollbars, which is exactly
+      why it is measured rather than assumed.
+- [x] Sticky file headers, with the "stuck" shadow driven by `container-type: scroll-state` rather
       than a scroll listener
-- [ ] Scroll targets by position, item, line, and line range, each with start/center/end alignment
+- [x] Scroll targets by position, item, line, and line range, each with start/center/end alignment
       and instant/smooth behaviour, honouring `prefers-reduced-motion`
-- [ ] A WebKit guard for the bulk-subtree-rewrite bug,
+- [x] A WebKit guard for the bulk-subtree-rewrite bug,
       [webkit 308027](https://bugs.webkit.org/show_bug.cgi?id=308027):
       rewriting the subtree of a `container-type: inline-size` element in bulk makes Safari clamp the
       ancestor scroller to 0. Pin `min-height` across the rebuild, force one layout read while pinned,
@@ -545,8 +563,10 @@ having. Two things fell out of it:
 - [x] Expand hidden context above or below a hunk, in both directions, by a fixed count or all the way
 - [x] Expansion fetches the surrounding lines on demand from the blob rather than shipping full file
       contents with the diff
-- [ ] `revealLine(n)`: expand whatever context is needed to bring a line into view, used by deep links
-      and by jumping to a review thread anchored on a context line
+- [x] `revealLine(n)`: expand whatever context is needed to bring a line into view, used by deep links
+      and by jumping to a review thread anchored on a context line. Four things can be in the way -
+      the file has not streamed in yet, it is collapsed, its rows have not been fetched, the line is
+      inside an unexpanded gap - and each is handled by trying again rather than by predicting it.
 - [ ] Estimated height accounts for expansions already applied, so expanding does not shift everything
       below by a wrong amount and then correct itself
 - [x] Files loaded on demand: a diff item can be listed and sized before its content exists
@@ -602,7 +622,7 @@ already used it.
 - [x] Click a line number to select it, shift-click or drag to select a range, across sides in split
 - [x] The selection writes to the URL hash and the hash restores the selection on load, including
       expanding a collapsed file and revealing collapsed context to reach it
-- [ ] Restoring from a hash mid-stream: the target file may not have arrived yet, so the attempt
+- [x] Restoring from a hash mid-stream: the target file may not have arrived yet, so the attempt
       repeats as batches land and stops once it succeeds
 - [x] `hashchange` is honoured, so an in-page link between two threads works
 - [ ] A selection action surface (copy permalink, comment on selection, copy lines) anchored to the
