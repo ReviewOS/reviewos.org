@@ -28,6 +28,13 @@ Matching GitHub is the floor, not the goal.
 
 The engine everything else here depends on. Get it right before building UI on top.
 
+The rendering half of it now has its own phase: [14 - The diff engine](./14-diff-engine.md) covers
+streaming, virtualization, worker highlighting, and the benchmark harness, written against
+DiffsHub as the standard to beat. What stays here is the git-side correctness: what the diff *is*,
+not how fast it draws. Two boxes below (the large-diff strategy and word-level highlighting) are
+owned by that phase and are duplicated here on purpose, because a reader of this phase needs to know
+they are somebody's problem.
+
 - [ ] Compute diffs with `git diff` against the merge base, not the base tip. A diff against the tip
       shows changes the author did not make, which is the single most common way review UIs mislead.
 - [x] Parse unified diff output into structured hunks: file, old and new ranges, line origins
