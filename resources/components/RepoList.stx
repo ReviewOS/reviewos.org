@@ -12,6 +12,7 @@
  * template cannot be tested.
  */
 import { authorIsLocal, authorLabel, countLabel, filterHref, lastPage, listFilter, pageHref, pageNumber, pageOffset, PAGE_SIZE, relativeTime, stateLabel, statePill, statesFor } from '../functions/browse'
+import { labelColor, labelTextColor } from '../functions/issues'
 
 const ownerHandle = String(owner)
 const repositoryName = String(repository)
@@ -93,6 +94,8 @@ const rows = rowQuery
         `${table}.created_at as created_at`,
         `${table}.external_author as external_author`,
         'users.handle as handle',
+        // Only issues have one, so it is asked for only when reading them.
+        ...(kind === 'issues' ? [`${table}.comments_count as comments_count`] : []),
       ])
       .orderBy(`${table}.number`, 'desc')
       .limit(PAGE_SIZE)
@@ -128,7 +131,70 @@ const labelRows: any[] = kind === 'issues' && repositoryId
   : []
 
 const labelNames = labelRows.map(row => String(row.name))
+
+// The labels *on* the rows, in one query for the page rather than one per row.
+// A label is the second thing people scan a list by, after the state, and a
+// list that hides them makes somebody open twenty issues to find the one about
+// the crash.
+// Issues only: `issue_labels.issue_id` names a row in `issues`, and a pull
+// request id happens to be a number in the same range. Asking for them would
+// silently attach one issue's labels to an unrelated pull request.
+const appliedRows: any[] = kind === 'issues' && rows.length > 0
+  ? await db
+      .selectFrom('issue_labels')
+      .innerJoin('repository_labels', 'repository_labels.id', '=', 'issue_labels.label_id')
+      .select([
+        'issue_labels.issue_id as issue_id',
+        'repository_labels.name as name',
+        'repository_labels.color as color',
+      ])
+      .where('issue_labels.issue_id', 'in', rows.map((row: any) => Number(row.id)))
+      .execute()
+  : []
+
+const labelsByIssue = new Map()
+for (const row of appliedRows) {
+  const id = Number(row.issue_id)
+  const name = String(row.name)
+  const existing = labelsByIssue.get(id) ?? []
+
+  // By name, because the join table has no unique constraint on the pair and a
+  // label applied twice renders as the same pill twice. The row is what a
+  // reader scans, and a repeated pill on it reads as a bug in the label rather
+  // than in the row that carries it.
+  if (existing.some((label: any) => label.name === name))
+    continue
+
+  existing.push({
+    name,
+    color: labelColor(row.color),
+    textColor: labelTextColor(labelColor(row.color)),
+  })
+
+  labelsByIssue.set(id, existing)
+}
+
 const noun = kind === 'issues' ? ['issue', 'issues'] : ['pull request', 'pull requests']
+const detailPath = kind === 'issues' ? 'issue' : 'pull'
+
+// Shaped here rather than in the row component, which cannot import anything
+// and so cannot ask what a state reads as or how long ago something happened.
+const listRows = rows.map((row: any) => ({
+  id: Number(row.id),
+  number: Number(row.number),
+  title: String(row.title),
+  href: `/${ownerHandle}/${repositoryName}/${detailPath}/${row.number}`,
+  statePill: statePill(String(row.state), draftById.get(Number(row.id)) === true),
+  stateLabel: stateLabel(String(row.state), draftById.get(Number(row.id)) === true),
+  when: relativeTime(String(row.created_at ?? '')),
+  author: authorLabel(row.handle, row.external_author),
+  authorHref: authorIsLocal(row.handle) ? `/${row.handle}` : null,
+  // Only issues carry one. `pull_requests` has no `comments_count` column, and
+  // selecting it for both would be a column that is not there.
+  comments: kind === 'issues' ? Number(row.comments_count ?? 0) : 0,
+  labels: labelsByIssue.get(Number(row.id)) ?? [],
+}))
+
 const notFound = !repoRow
 </script>
 
@@ -209,43 +275,25 @@ const notFound = !repoRow
           </div>
         @endif
 
-        <ul class="panel list-rows">
-          @foreach (rows as row)
-            <li class="list-row">
-              @if (kind === 'issues')
-                <input
-                  class="list-check"
-                  type="checkbox"
-                  name="numbers"
-                  value="{{ row.number }}"
-                  aria-label="Select issue {{ row.number }}"
-                >
-              @endif
-
-              <span class="pill pill-{{ statePill(String(row.state), draftById.get(Number(row.id)) === true) }}">
-                {{ stateLabel(String(row.state), draftById.get(Number(row.id)) === true) }}
-              </span>
-
-              <div class="list-row-main">
-                <a class="list-row-title" href="/{{ ownerHandle }}/{{ repositoryName }}/{{ kind === 'issues' ? 'issue' : 'pull' }}/{{ row.number }}">
-                  {{ row.title }}
-                </a>
-                <p class="muted list-row-meta">
-                  #{{ row.number }} opened {{ relativeTime(String(row.created_at ?? '')) }} by
-                  @if (authorIsLocal(row.handle))
-                    <a href="/{{ row.handle }}">{{ authorLabel(row.handle, row.external_author) }}</a>
-                  @else
-                    {{-- No local account to link to. The name is still shown,
-                         because the author being unlinked is a fact about this
-                         forge, not about them. --}}
-                    <span>{{ authorLabel(row.handle, row.external_author) }}</span>
-                  @endif
-                </p>
-              </div>
-            </li>
+        <ul class="panel list-rows" data-list>
+          @foreach (listRows as row)
+            <IssueListItem :row="row" :selectable="kind === 'issues'" />
           @endforeach
         </ul>
         </form>
+
+        {{-- The shortcuts, listed rather than hidden behind a `?` panel nobody
+             finds. Six lines of text at the bottom of a list is cheaper than a
+             modal, and it is how somebody learns the keys exist. --}}
+        <p class="muted list-keys" data-keys hidden>
+          <kbd>j</kbd> <kbd>k</kbd> move &middot;
+          <kbd>Enter</kbd> open &middot;
+          @if (kind === 'issues')
+            <kbd>x</kbd> select &middot;
+            <kbd>c</kbd> new issue &middot;
+          @endif
+          <kbd>Esc</kbd> leave
+        </p>
 
         @if (finalPage > 1)
           <nav class="list-pager" aria-label="Pagination">
@@ -268,8 +316,128 @@ const notFound = !repoRow
     @endif
   </div>
 
+{{-- Keyboard navigation, and the second script in the product.
+
+     People who live in issues navigate by keyboard, and there is no way to do
+     it without one: moving focus is a DOM operation, and stx reactivity drives
+     what a page *contains* rather than where the caret is.
+
+     So it is contained the same way the diagram loader is. The list works
+     completely without it - every row is a link, Tab already walks them, and
+     the checkboxes are ordinary checkboxes - and this only makes the walking
+     faster. Nothing here is the only way to do anything.
+
+     Typing is checked first on every key. A shortcut that fires while somebody
+     is filling in the bulk-label box is not a shortcut, it is a bug that eats
+     text. --}}
+<script type="module">
+  const list = document.querySelector('[data-list]')
+
+  if (list) {
+    const keys = document.querySelector('[data-keys]')
+    if (keys)
+      keys.hidden = false
+
+    const rows = () => [...list.querySelectorAll('.list-row')]
+    const focused = () => rows().findIndex(row => row.contains(document.activeElement))
+
+    const move = (by) => {
+      const all = rows()
+      if (all.length === 0)
+        return
+
+      const at = focused()
+      // From nowhere, `j` starts at the top and `k` at the bottom, which is
+      // what every list that does this has taught people to expect.
+      const next = at < 0
+        ? (by > 0 ? 0 : all.length - 1)
+        : Math.min(Math.max(at + by, 0), all.length - 1)
+
+      all[next].focus()
+      all[next].scrollIntoView({ block: 'nearest' })
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (event.metaKey || event.ctrlKey || event.altKey)
+        return
+
+      const active = document.activeElement
+      const typing = active
+        && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT'
+          || active.isContentEditable)
+
+      // Escape leaves whatever field somebody is in, which is what makes the
+      // rest of these reachable again without a mouse.
+      if (event.key === 'Escape' && typing) {
+        active.blur()
+        event.preventDefault()
+        return
+      }
+
+      if (typing)
+        return
+
+      const at = focused()
+      const row = at >= 0 ? rows()[at] : null
+
+      switch (event.key) {
+        case 'j':
+          move(1)
+          break
+
+        case 'k':
+          move(-1)
+          break
+
+        case 'x': {
+          const box = row?.querySelector('input[type="checkbox"]')
+          if (!box)
+            return
+
+          box.checked = !box.checked
+          break
+        }
+
+        case 'c': {
+          const open = document.querySelector('.list-filter-primary')
+          if (!open)
+            return
+
+          window.location.assign(open.href)
+          break
+        }
+
+        case 'Enter': {
+          const link = row?.querySelector('.list-row-title')
+          if (!link)
+            return
+
+          window.location.assign(link.href)
+          break
+        }
+
+        default:
+          return
+      }
+
+      event.preventDefault()
+    })
+  }
+</script>
+
 <style>
   .list-filters-end { margin-left: auto; display: flex; gap: 14px; align-items: center; }
+
+  .list-keys { margin-top: 14px; text-align: center; font-size: 12px; }
+  .list-keys kbd {
+    padding: 1px 5px;
+    font-family: var(--mono);
+    font-size: 11px;
+    border: 1px solid var(--line-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--surface);
+  }
 
   .bulk-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin-bottom: 10px; flex-wrap: wrap; }
   .bulk-hint { font-size: 12.5px; }
@@ -294,7 +462,6 @@ const notFound = !repoRow
     cursor: pointer;
   }
   .bulk-btn:hover { border-color: var(--fg); }
-  .list-check { margin-right: 2px; flex: 0 0 auto; }
   .list-filter-primary {
     padding: 5px 11px;
     color: var(--bg);
@@ -319,35 +486,9 @@ const notFound = !repoRow
   .list-filter:hover { background: var(--surface-tint); }
   .list-filter.is-current { background: var(--surface-tint); color: var(--text); font-weight: 500; }
 
+  /* The row itself is styled by `IssueListItem`, which owns it. What is left
+     here is the list around the rows. */
   .list-rows { list-style: none; margin: 0; padding: 0; }
-
-  .list-row {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .list-row:last-child { border-bottom: 0; }
-
-  .list-row-main { min-width: 0; }
-
-  .list-row-title {
-    display: block;
-    font-weight: 500;
-    color: var(--text);
-    text-decoration: none;
-    /* A title is one line: a wrapped 200-character title pushes every row
-       below it off the screen, and the number plus the first few words is
-       what people scan by. */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .list-row-title:hover { color: var(--accent-text); }
-  .list-row-meta { margin-top: 3px; font-size: 12px; }
 
   .list-pager {
     display: flex;

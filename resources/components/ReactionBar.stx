@@ -1,0 +1,85 @@
+{{--
+  The reactions on one thing, and the buttons to add or remove one.
+
+  Every button is its own single-button form, for the same reason a task list
+  checkbox is: the page runs no client-side JavaScript, and a form is the only
+  control that can post without any. That means eight forms under a comment,
+  which is more markup than a script would need and is the trade this product
+  makes everywhere - a page that works before anything loads.
+
+  `summaries` carries all eight in a fixed order whether or not anybody has
+  pressed them, and this decides what to show: the ones with a count, always,
+  and the rest only behind the picker. A row of reactions that reorders itself
+  as counts change is unreadable, which is why the order is fixed upstream in
+  `app/Actions/Markdown/emoji` rather than sorted here by popularity.
+--}}
+<div class="reactions">
+  @foreach (summaries as reaction)
+    @if (reaction.count > 0 || open)
+      <form class="reaction-form" method="post" action="{{ action }}">
+        @foreach (fields as field)
+          <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
+        @endforeach
+        <input type="hidden" name="content" value="{{ reaction.content }}">
+        <button
+          type="submit"
+          class="reaction {{ reaction.mine ? 'is-mine' : '' }}"
+          aria-pressed="{{ reaction.mine ? 'true' : 'false' }}"
+          title="{{ reaction.content }}"
+        >
+          <span class="reaction-emoji" aria-hidden="true">{{ reaction.emoji }}</span>
+          @if (reaction.count > 0)
+            <span class="reaction-count">{{ reaction.count }}</span>
+          @endif
+        </button>
+      </form>
+    @endif
+  @endforeach
+
+  @if (!open)
+    {{-- A link rather than a button, because opening the picker is navigation:
+         it is the same page with one more thing on it, and it survives being
+         bookmarked, opened in a new tab, and the back button. --}}
+    <a class="reaction reaction-more" href="{{ pickerHref }}" title="Add a reaction">
+      <span aria-hidden="true">+</span>
+      <span class="visually-hidden">Add a reaction</span>
+    </a>
+  @endif
+</div>
+
+<style>
+  .reactions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+  .reaction-form { display: inline-flex; margin: 0; }
+
+  .reaction {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    font: inherit;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--muted);
+    text-decoration: none;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .reaction:hover { border-color: var(--line-strong); }
+
+  /* The one the reader has already pressed. Tinted rather than filled: a row of
+     reactions is a tally, and a saturated button in it reads as a call to
+     action rather than as something already done. */
+  .reaction.is-mine {
+    color: var(--accent-text);
+    background: var(--accent-quiet);
+    border-color: var(--accent-quiet);
+  }
+
+  .reaction-emoji { font-size: 13.5px; line-height: 1; }
+  .reaction-count { font-variant-numeric: tabular-nums; }
+  .reaction-more { padding: 2px 10px; }
+</style>

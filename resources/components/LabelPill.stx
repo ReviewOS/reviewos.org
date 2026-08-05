@@ -1,0 +1,27 @@
+{{--
+  One label, as it appears everywhere a label appears.
+
+  A pill is three lines of markup and it was already written four times: on the
+  issue, on the new-issue form, in the label editor, and now on the list row.
+  The one that matters is the colour pair - a label's background is chosen by a
+  person and the text on it has to stay readable against whatever they chose -
+  and four copies of that is four places for one of them to be wrong.
+
+  `textColor` is computed by `labelTextColor` in `app/Actions/Issue/labels`,
+  where it is tested. A component imports nothing, so the view passes it in.
+--}}
+<span class="label-pill" style="background: #{{ label.color }}; color: {{ label.textColor }};">
+  {{ label.name }}
+</span>
+
+<style>
+  .label-pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+</style>

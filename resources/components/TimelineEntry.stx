@@ -1,0 +1,34 @@
+{{--
+  One thing that happened, in the conversation.
+
+  A line, not a panel. An entry is a fact rather than authored content, and
+  giving it the same box a comment gets makes a reader weigh "added the bug
+  label" the same as three paragraphs of analysis. The conversation should still
+  read as the conversation with these threaded through it.
+
+  How it reads and which icon it takes are decided by `entrySentence` and
+  `entryIcon` in `app/Actions/Issue/timeline`, where they are tested and where
+  the issue timeline and the pull request timeline share them. A component
+  cannot import, so the view has already called both.
+--}}
+<div class="timeline-event">
+  <span class="{{ entry.icon }} timeline-icon" aria-hidden="true"></span>
+  <span class="muted">
+    <strong class="timeline-actor">{{ entry.actor }}</strong>
+    {{ entry.sentence }}
+    {{ entry.when }}
+  </span>
+</div>
+
+<style>
+  .timeline-event {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 4px 7px 2px;
+    font-size: 13px;
+  }
+
+  .timeline-icon { flex: 0 0 auto; width: 15px; height: 15px; color: var(--muted); }
+  .timeline-actor { font-weight: 500; color: var(--text); }
+</style>

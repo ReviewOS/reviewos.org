@@ -1,0 +1,119 @@
+{{--
+  A markdown box with write and preview tabs.
+
+  Preview is a round trip through the real renderer, not a client-side
+  approximation of it. That costs a page load and buys the only guarantee worth
+  having: what is previewed is exactly what gets published, which an
+  approximation cannot promise and will eventually be wrong about - a reference,
+  a fence, a piece of raw HTML the two disagree on.
+
+  So Preview is a `GET` submit back to the page the form is on, carrying the
+  draft in the query string. Nothing typed is lost, the result is a real URL,
+  and the whole thing works with no client-side JavaScript at all.
+
+  The attachment input is here rather than beside it because it is part of
+  writing: there is no editor to insert a link into, so a file picked here is
+  stored when the form is submitted and its markdown appended to what was
+  written. See `app/Actions/Attachment/upload`.
+--}}
+<div class="editor">
+  <nav class="tab-row" aria-label="Editor">
+    <span class="tab {{ previewing ? '' : 'is-current' }}">Write</span>
+    <button
+      class="tab tab-button {{ previewing ? 'is-current' : '' }}"
+      type="submit"
+      formmethod="get"
+      formaction="{{ previewAction }}"
+      name="preview"
+      value="1"
+    >Preview</button>
+  </nav>
+
+  @if (previewing)
+    <div class="editor-preview markdown">{!! previewHtml !!}</div>
+    {{-- Carried so submitting after previewing still posts the body, which the
+         textarea below is no longer showing. --}}
+    <input type="hidden" name="{{ name }}" value="{{ draft }}">
+  @else
+    <label class="visually-hidden" for="{{ id }}">{{ label }}</label>
+    <textarea
+      id="{{ id }}"
+      class="editor-input"
+      name="{{ name }}"
+      rows="{{ rows ?? 12 }}"
+      placeholder="{{ placeholder ?? '' }}"
+    >{{ draft }}</textarea>
+
+    <div class="editor-tools">
+      <label class="editor-attach">
+        <span class="i-hugeicons-attachment-01" aria-hidden="true"></span>
+        <span>Attach files</span>
+        <input class="visually-hidden" type="file" name="attachments" multiple>
+      </label>
+      <span class="muted editor-hint">Markdown is supported. Images are added to the end.</span>
+    </div>
+  @endif
+</div>
+
+<style>
+  .editor { display: grid; gap: 10px; }
+
+  .tab-row { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
+
+  .tab {
+    padding: 7px 13px;
+    font-size: 13px;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+
+  .tab-button {
+    font: inherit;
+    font-size: 13px;
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+  }
+
+  .tab.is-current { color: var(--text); border-bottom-color: var(--text); }
+
+  .editor-input {
+    width: 100%;
+    padding: 9px 11px;
+    font: inherit;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    resize: vertical;
+  }
+
+  .editor-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .editor-preview { min-height: 180px; padding: 4px 2px; }
+
+  .editor-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  /* The input itself is hidden and the label is the control, because a bare
+     file input cannot be styled and looks like nothing else on the page. The
+     label is still focusable through the input it wraps. */
+  .editor-attach {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    font-size: 12.5px;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: var(--r-control);
+    cursor: pointer;
+  }
+
+  .editor-attach:hover { border-color: var(--line-strong); color: var(--text); }
+  .editor-attach:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .editor-hint { font-size: 12px; }
+</style>

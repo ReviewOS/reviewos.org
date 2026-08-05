@@ -6,16 +6,33 @@
  * is a page, not an application, and it should arrive as one.
  *
  * The rules come from tested modules - `app/Actions/Issue/state` for what a
- * state reads as, `app/Actions/Markdown/render` for turning bodies into HTML -
- * because rules written in a template cannot be tested.
+ * state reads as, `app/Actions/Issue/reactions` for the row of buttons,
+ * `app/Actions/Markdown/render` for turning bodies into HTML - because rules
+ * written in a template cannot be tested. What is left here is the reading and
+ * the shaping, and the shaping is handed to components: `IssueThread` renders
+ * the conversation, and the pull request page will render the same one rather
+ * than a copy of it that drifts.
  */
 import { authorIsLocal, authorLabel, relativeTime } from '../../../../functions/browse'
-import { entryIcon, entrySentence, issueStateLabel, issueStatePill, labelTextColor } from '../../../../functions/issues'
+import { entryIcon, entrySentence, issueStateLabel, issueStatePill, labelColor, labelTextColor } from '../../../../functions/issues'
+import { pressed, subjectKey, summarize, summarizeAll } from '../../../../functions/reactions'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
+import { viewerFromCookies } from '../../../../functions/identity'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
 const number = Number(params.number)
+
+/**
+ * The query string.
+ *
+ * Through `useRoute()`, because a server script has no bare `query`: reaching
+ * for one throws, stx catches the throw and falls back to static extraction,
+ * and the page renders with every variable undefined and no error anywhere a
+ * person would look. That failure is silent by design and cost this file a
+ * not-found page that looked exactly like a missing issue.
+ */
+const search: Record<string, string> = useRoute().query ?? {}
 
 // Resolving the owner first is what stops `/someone/stacks` finding a
 // repository that belongs to somebody else.
@@ -68,7 +85,7 @@ const authorRow: any = issue && issue.author_id
 const authorHandle = authorRow?.handle ? String(authorRow.handle) : null
 const externalAuthor = issue?.external_author ? String(issue.external_author) : null
 
-const labels: any[] = issue
+const labelRows: any[] = issue
   ? await db
       .selectFrom('issue_labels')
       .innerJoin('repository_labels', 'repository_labels.id', '=', 'issue_labels.label_id')
@@ -76,6 +93,14 @@ const labels: any[] = issue
       .where('issue_labels.issue_id', '=', Number(issue.id))
       .execute()
   : []
+
+// Deduplicated by name: the join table has no unique constraint on the pair,
+// and the same label applied twice renders as the same pill twice.
+const labels = [...new Map(labelRows.map((row: any) => [String(row.name), {
+  name: String(row.name),
+  color: labelColor(row.color),
+  textColor: labelTextColor(labelColor(row.color)),
+}])).values()]
 
 const assignees: any[] = issue
   ? await db
@@ -110,9 +135,10 @@ const commentRows: any[] = issue
       .execute()
   : []
 
-// The history: state changes, labels, assignments, milestones. Read alongside
-// the comments and merged with them below, so the page reads as one sequence
-// rather than a conversation with a changelog bolted underneath it.
+// The history: state changes, labels, assignments, milestones, cross
+// references. Read alongside the comments and merged with them below, so the
+// page reads as one sequence rather than a conversation with a changelog bolted
+// underneath it.
 const entryRows: any[] = issue
   ? await db
       .selectFrom('timeline_entries')
@@ -133,6 +159,53 @@ const entryRows: any[] = issue
       .execute()
   : []
 
+// Who is reading, so their own reactions can be shown as already pressed. A
+// server script has no `request`; what it has is the parsed cookies on
+// `__stxServeContext`, and `viewerFromCookies` reads the same two cookies the
+// auth middleware accepts, in the same order, so the page and the endpoint its
+// forms post to cannot disagree about who is signed in.
+const viewer = await viewerFromCookies(__stxServeContext?.cookies)
+const viewerId = viewer ? Number(viewer.id) : null
+
+// Reactions, in two queries for the whole page rather than one per comment. An
+// issue with three hundred comments is exactly where the per-comment version
+// would be felt, and it is the same issue somebody most wants to read.
+
+const bodyReactionRows: any[] = issue
+  ? await db
+      .selectFrom('reactions')
+      .select(['subject_type', 'subject_id', 'content', 'user_id'])
+      .where('subject_type', '=', 'issue')
+      .where('subject_id', '=', Number(issue.id))
+      .execute()
+  : []
+
+const commentReactionRows: any[] = commentRows.length > 0
+  ? await db
+      .selectFrom('reactions')
+      .select(['subject_type', 'subject_id', 'content', 'user_id'])
+      .where('subject_type', '=', 'issue_comment')
+      .where('subject_id', 'in', commentRows.map((row: any) => Number(row.id)))
+      .execute()
+  : []
+
+const commentReactions = summarizeAll(commentReactionRows, viewerId)
+
+// The eight with a count of zero, for a comment nobody has reacted to. Built
+// once rather than per comment: it is the same answer every time.
+const noReactions = summarize([], viewerId)
+
+/**
+ * Which reaction picker is open, from the query string.
+ *
+ * A picker is a link rather than a control: `?react=body` or
+ * `?react=<comment id>` is the same page with the eight buttons showing on one
+ * post. That means it survives a bookmark, a new tab and the back button, and
+ * it needs no script - the two properties this page is built around.
+ */
+const picking = String(search.react ?? '')
+const pickerHref = (target: string) => `?react=${encodeURIComponent(target)}#reactions-${target}`
+
 // Rendered here rather than in the template: every body on this page resolves
 // `#12` against the same repository, and a component could not import the
 // renderer anyway.
@@ -148,29 +221,60 @@ const bodyTaskForm = issue && !issue.locked
   ? { action: taskAction, fields: taskFields }
   : undefined
 
-const bodyHtml = issue?.body
-  ? await renderMarkdownHighlighted(String(issue.body), { ...markdownContext, taskForm: bodyTaskForm })
-  : ''
+const reactionAction = '/api/repos/issues/reactions'
+const reactionFields = [
+  { name: 'owner', value: owner },
+  { name: 'repo', value: repositoryName },
+  { name: 'number', value: issue?.number ?? 0 },
+]
 
-const comments = await Promise.all(commentRows.map(async (row: any) => ({
-  id: Number(row.id),
-  handle: row.handle ? String(row.handle) : null,
-  externalAuthor: row.external_author ? String(row.external_author) : null,
-  createdAt: String(row.created_at ?? ''),
-  edited: Boolean(row.edited_at),
-  bodyHtml: await renderMarkdownHighlighted(String(row.body ?? ''), {
-    ...markdownContext,
-    taskForm: bodyTaskForm ? { action: taskAction, fields: { ...taskFields, comment_id: Number(row.id) } } : undefined,
-  }),
-})))
+const bodyReactions = summarize(bodyReactionRows, viewerId)
+
+const opening = {
+  author: authorLabel(authorHandle, externalAuthor),
+  when: relativeTime(String(issue?.created_at ?? '')),
+  bodyHtml: issue?.body
+    ? await renderMarkdownHighlighted(String(issue.body), { ...markdownContext, taskForm: bodyTaskForm })
+    : '',
+  reactions: picking === 'body'
+    ? bodyReactions
+    : pressed(bodyReactions),
+  reactionFields,
+  picking: picking === 'body',
+  pickerHref: pickerHref('body'),
+}
+
+const comments = await Promise.all(commentRows.map(async (row: any) => {
+  const id = Number(row.id)
+  const summaries = commentReactions.get(subjectKey('issue_comment', id)) ?? noReactions
+
+  return {
+    id,
+    author: authorLabel(row.handle ? String(row.handle) : null, row.external_author ? String(row.external_author) : null),
+    when: relativeTime(String(row.created_at ?? '')),
+    createdAt: String(row.created_at ?? ''),
+    edited: Boolean(row.edited_at),
+    bodyHtml: await renderMarkdownHighlighted(String(row.body ?? ''), {
+      ...markdownContext,
+      taskForm: bodyTaskForm ? { action: taskAction, fields: { ...taskFields, comment_id: id } } : undefined,
+    }),
+    // All eight when the picker is open on this comment, and otherwise only
+    // the ones somebody has actually pressed: a row of eight grey buttons under
+    // every comment on a two-hundred-comment issue is noise.
+    reactions: picking === String(id) ? summaries : pressed(summaries),
+    reactionFields: [...reactionFields, { name: 'comment_id', value: id }],
+    picking: picking === String(id),
+    pickerHref: pickerHref(String(id)),
+  }
+}))
 
 const events = entryRows.map((row: any) => ({
   id: Number(row.id),
-  handle: row.handle ? String(row.handle) : null,
-  externalActor: row.external_actor ? String(row.external_actor) : null,
   createdAt: String(row.created_at ?? ''),
-  icon: entryIcon(String(row.kind) as any),
-  sentence: entrySentence(String(row.kind) as any, {
+  actor: authorLabel(row.handle ? String(row.handle) : null, row.external_actor ? String(row.external_actor) : null),
+  when: relativeTime(String(row.created_at ?? '')),
+  icon: entryIcon(String(row.kind)),
+  sentence: entrySentence(String(row.kind), {
     text: row.subject_text ? String(row.subject_text) : null,
     previous: row.previous_text ? String(row.previous_text) : null,
     reference: row.reference_number ? Number(row.reference_number) : null,
@@ -181,8 +285,8 @@ const events = entryRows.map((row: any) => ({
 // somebody added while writing it belong next to each other; two lists side by
 // side make a reader reconstruct the order themselves.
 const conversation = [
-  ...comments.map(comment => ({ kind: 'comment' as const, at: comment.createdAt, comment, event: null as any })),
-  ...events.map(event => ({ kind: 'event' as const, at: event.createdAt, comment: null as any, event })),
+  ...comments.map(comment => ({ kind: 'comment', at: comment.createdAt, comment, event: null })),
+  ...events.map(event => ({ kind: 'event', at: event.createdAt, comment: null, event })),
 ].sort((a, b) => a.at.localeCompare(b.at))
 
 const stateLabel = issue ? issueStateLabel(String(issue.state), issue.state_reason) : ''
@@ -227,57 +331,35 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
 
       <div class="issue-body">
         <div class="issue-main">
-          <article class="panel issue-post">
-            <header class="post-head">
-              <span class="post-author">{{ authorLabel(authorHandle, externalAuthor) }}</span>
-              <span class="muted post-time">{{ relativeTime(String(issue.created_at ?? '')) }}</span>
-            </header>
-            @if (bodyHtml)
-              <div class="post-body markdown">{!! bodyHtml !!}</div>
-            @else
-              <div class="post-body"><p class="muted">No description was given.</p></div>
-            @endif
-          </article>
-
-          @foreach (conversation as item)
-            @if (item.kind === 'event')
-              {{-- An event is a fact, not authored content: one line, no panel,
-                   so the conversation still reads as the conversation. --}}
-              <div class="timeline-event">
-                <span class="{{ item.event.icon }} timeline-icon" aria-hidden="true"></span>
-                <span class="muted">
-                  <strong class="timeline-actor">{{ authorLabel(item.event.handle, item.event.externalActor) }}</strong>
-                  {{ item.event.sentence }}
-                  {{ relativeTime(item.event.createdAt) }}
-                </span>
-              </div>
-            @else
-              <article class="panel issue-post">
-                <header class="post-head">
-                  {{-- A mirrored comment names its upstream author, the same way
-                       the issue does, so it is no longer shown as "someone". --}}
-                  <span class="post-author">{{ authorLabel(item.comment.handle, item.comment.externalAuthor) }}</span>
-                  <span class="muted post-time">
-                    {{ relativeTime(item.comment.createdAt) }}@if (item.comment.edited) &middot; edited@endif
-                  </span>
-                </header>
-                <div class="post-body markdown">{!! item.comment.bodyHtml !!}</div>
-              </article>
-            @endif
-          @endforeach
-            @endif
-          @endforeach
+          <IssueThread
+            :opening="opening"
+            :items="conversation"
+            reactionAction="{{ reactionAction }}"
+          />
 
           @if (issue.locked)
             <p class="muted issue-locked">
               This conversation is locked. Only people maintaining the repository can comment.
             </p>
           @else
-            <form class="panel issue-reply" method="post" action="/api/repos/issues/comments">
-              <input type="hidden" name="issue_id" value="{{ issue.id }}">
+            {{-- `multipart/form-data`, because a file picked next to the box is
+                 stored when the comment is submitted: the page runs no
+                 client-side JavaScript, so there is no editor to insert a link
+                 into and this is the whole upload flow. --}}
+            <form class="panel issue-reply" method="post" action="/api/repos/issues/comments" enctype="multipart/form-data">
+              <input type="hidden" name="owner" value="{{ owner }}">
+              <input type="hidden" name="repo" value="{{ repositoryName }}">
+              <input type="hidden" name="number" value="{{ issue.number }}">
               <label class="visually-hidden" for="issue-comment">Comment on this issue</label>
               <textarea id="issue-comment" name="body" rows="4" placeholder="Leave a comment" class="reply-input"></textarea>
-              <button type="submit" class="reply-submit">Comment</button>
+              <div class="reply-actions">
+                <label class="reply-attach">
+                  <span class="i-hugeicons-attachment-01" aria-hidden="true"></span>
+                  <span>Attach files</span>
+                  <input class="visually-hidden" type="file" name="attachments" multiple>
+                </label>
+                <button type="submit" class="reply-submit">Comment</button>
+              </div>
             </form>
           @endif
         </div>
@@ -290,9 +372,7 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
             @else
               <div class="label-row">
                 @foreach (labels as label)
-                  <span class="label-pill" style="background: #{{ label.color }}; color: {{ labelTextColor(String(label.color)) }};">
-                    {{ label.name }}
-                  </span>
+                  <LabelPill :label="label" />
                 @endforeach
               </div>
             @endif
@@ -343,20 +423,6 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
     align-items: start;
   }
 
-  .issue-post { margin-bottom: 14px; overflow: hidden; }
-  .post-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--line);
-    background: var(--surface-tint);
-    font-size: 13px;
-  }
-  .post-author { font-weight: 500; }
-  .post-body { padding: 16px 18px; font-size: 14px; }
-
   .issue-locked { padding: 14px 2px; font-size: 13.5px; }
 
   .issue-reply { padding: 14px 16px; }
@@ -371,8 +437,34 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
     font-size: 14px;
     resize: vertical;
   }
-  .reply-submit {
+
+  .reply-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     margin-top: 10px;
+  }
+
+  /* The file input is hidden and the label is the control, because a bare file
+     input cannot be styled and looks like nothing else on the page. It is still
+     focusable through the input it wraps. */
+  .reply-attach {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    font-size: 12.5px;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: var(--r-control);
+    cursor: pointer;
+  }
+
+  .reply-attach:hover { border-color: var(--line-strong); color: var(--text); }
+  .reply-attach:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .reply-submit {
     padding: 7px 14px;
     border: 0;
     border-radius: var(--r-control);
@@ -392,7 +484,6 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
   .side-milestone { margin-top: 8px; font-size: 13.5px; }
 
   .label-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
-  .label-pill { padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 500; }
 
   .visually-hidden {
     position: absolute;

@@ -97,6 +97,59 @@ export async function currentUser(request: any): Promise<{ id: number, handle: s
   return { id: Number(row.id), handle: String(row.handle), is_admin: Boolean(row.is_admin) }
 }
 
+/**
+ * The signed-in user, from cookies rather than from a request object.
+ *
+ * An stx `<script server>` block has no `request`. What it has is
+ * `__stxServeContext`, and the only thing on it that identifies anybody is the
+ * `Cookie` header, already parsed. So a page that needs to know who is reading
+ * it - to show which reactions are already theirs, to offer an edit link on
+ * their own comment - comes through here.
+ *
+ * The two cookies are the two the auth middleware accepts, checked in the same
+ * order, so a page and the endpoint its forms post to never disagree about who
+ * is signed in.
+ *
+ * **Never throws.** stx renders a page with every variable undefined when a
+ * server script throws, and reports nothing: the symptom is a blank region or a
+ * not-found branch, never a stack trace. An expired cookie is an ordinary state
+ * for a page to be in, and it must read as "nobody is signed in" rather than as
+ * an empty page.
+ */
+export async function viewerFromCookies(
+  cookies: Record<string, string> | undefined | null,
+): Promise<{ id: number, handle: string, is_admin: boolean } | null> {
+  if (!cookies)
+    return null
+
+  try {
+    const { Auth, sessionUser } = await import('@stacksjs/auth')
+    const { config } = await import('@stacksjs/config')
+
+    const tokenCookie = cookies[config.auth?.defaultTokenName || 'auth-token']
+    const user = tokenCookie
+      ? await Auth.getUserFromToken(tokenCookie)
+      : (cookies.session_id ? await sessionUser(cookies.session_id) : null)
+
+    if (!user?.id)
+      return null
+
+    const row = await db
+      .selectFrom('users')
+      .select(['id', 'handle', 'is_admin'])
+      .where('id', '=', Number(user.id))
+      .executeTakeFirst()
+
+    if (!row)
+      return null
+
+    return { id: Number(row.id), handle: String(row.handle), is_admin: Boolean(row.is_admin) }
+  }
+  catch {
+    return null
+  }
+}
+
 /** Somebody's role in an organization, or null when they are not a member. */
 export async function organizationRoleOf(organizationId: number, userId: number): Promise<'owner' | 'admin' | 'member' | null> {
   const row = await db

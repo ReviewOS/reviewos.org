@@ -7,19 +7,35 @@
  * not while writing, and every field on this form is a field between somebody
  * and reporting the bug.
  *
- * The write and preview tabs are the markdown editor the roadmap asks for, and
- * preview is a real render rather than a client-side approximation: the same
- * pipeline that will display the issue, so what is previewed is what is
- * published. That means a round trip, which is why preview is a submit rather
- * than a keystroke handler.
+ * Templates come from the repository, so they are versioned with the code and
+ * edited by a pull request like anything else. That is the whole appeal, and it
+ * is why they are read from git rather than kept in a table somebody has to
+ * remember to update. Parsing them is `app/Actions/Issue/templates`, where it
+ * is tested against the ways a hand-written frontmatter block is malformed.
+ *
+ * The write and preview tabs are `MarkdownEditor`, lifted out of here once the
+ * comment box needed them too. Preview is a real render rather than a
+ * client-side approximation: the same pipeline that will display the issue, so
+ * what is previewed is what is published.
  */
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
-import { labelTextColor, loadTemplates, resolveRepository } from '../../../../functions/issues'
+import { labelColor, labelTextColor, loadTemplates, resolveRepository } from '../../../../functions/issues'
 import { listTree, readBlob } from '../../../../functions/browse'
 import { repositoryPath } from '../../../../functions/repo'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
+
+/**
+ * The query string.
+ *
+ * Through `useRoute()`, because a server script has no bare `query`. Reaching
+ * for one throws, stx catches it and falls back to static extraction, and the
+ * page renders with every variable undefined and nothing in the log a person
+ * would look at. This form read `query.template` directly and had been quietly
+ * rendering its not-found branch ever since.
+ */
+const search: Record<string, string> = useRoute().query ?? {}
 
 // `repository` is the route parameter inside `[owner]/[repository]/`, so the
 // resolved row needs its own name: assigning to `repository` loses the row and
@@ -45,47 +61,53 @@ const availableMilestones: any[] = repositoryRow
       .execute()
   : []
 
-const labelChoices = availableLabels.map(row => ({
+const labelChoices = availableLabels.map((row: any) => ({
   id: Number(row.id),
   name: String(row.name),
-  color: String(row.color),
-  textColor: labelTextColor(String(row.color)),
+  color: labelColor(row.color),
+  textColor: labelTextColor(labelColor(row.color)),
 }))
 
-const milestoneChoices = availableMilestones.map(row => ({
+const milestoneChoices = availableMilestones.map((row: any) => ({
   id: Number(row.id),
   title: String(row.title),
 }))
 
-// Templates live in the repository, so they are versioned with the code and
-// edited by a pull request like anything else.
+// Templates live in the repository at the default branch, so what somebody sees
+// is what is on `main` right now rather than what was there when the form was
+// last deployed.
 const diskPath = repositoryRow ? repositoryPath(ownerHandle, repositoryName) : null
 const templates = diskPath?.ok
   ? await loadTemplates(diskPath.path, String(repositoryRow.default_branch ?? 'main'), { listTree, readBlob })
   : []
 
-// Which one was picked, if any. One template and no explicit choice means it
-// is *the* template, so the form opens with it filled in rather than asking a
+// Which one was picked, if any. One template and no explicit choice means it is
+// *the* template, so the form opens with it filled in rather than asking a
 // question with one answer.
-const requested = String(query.template ?? '')
+const requested = String(search.template ?? '')
 const chosen = requested
-  ? templates.find(template => template.slug === requested) ?? null
-  : (templates.length === 1 ? templates[0]! : null)
+  ? templates.find((template: any) => template.slug === requested) ?? null
+  : (templates.length === 1 ? templates[0] : null)
 
 // The chooser only stands between somebody and reporting a bug when there is a
-// real choice to make.
-const choosing = templates.length > 1 && !requested && String(query.body ?? '') === ''
+// real choice to make. `template=` with nothing after it is the blank issue,
+// which is why the test is on the parameter being *present* rather than on it
+// being non-empty.
+const choosing = templates.length > 1
+  && search.template === undefined
+  && search.body === undefined
 
 // A draft comes back through the query string when preview was pressed, so
 // nothing typed is lost by looking at it.
-const draftTitle = query.title !== undefined ? String(query.title) : (chosen?.title ?? '')
-const draftBody = query.body !== undefined ? String(query.body) : (chosen?.body ?? '')
-const previewing = String(query.preview ?? '') === '1' && draftBody.trim() !== ''
+const draftTitle = search.title !== undefined ? String(search.title) : (chosen?.title ?? '')
+const draftBody = search.body !== undefined ? String(search.body) : (chosen?.body ?? '')
+const previewing = String(search.preview ?? '') === '1' && draftBody.trim() !== ''
 
 const previewHtml = previewing
   ? await renderMarkdownHighlighted(draftBody, { owner: ownerHandle, repository: repositoryName })
   : ''
 
+const chosenLabels: string[] = chosen?.labels ?? []
 const base = `/${ownerHandle}/${repositoryName}`
 </script>
 
@@ -102,132 +124,134 @@ const base = `/${ownerHandle}/${repositoryName}`
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="issues" />
 
       <header class="new-head">
-        <h1 class="new-title">Open an issue</h1>
+        <h1 class="new-title">{{ choosing ? 'What would you like to report?' : 'Open an issue' }}</h1>
         <a class="new-back" href="{{ base }}/issues">Back to issues</a>
       </header>
 
-    @elseif (choosing)
-      {{-- A chooser only earns its page load when there is a real choice. One
-           template is *the* template, so the form opens with it filled in. --}}
-      <ul class="panel chooser">
-        @foreach (templates as template)
+      @if (choosing)
+        {{-- A chooser only earns its page load when there is a real choice. One
+             template is *the* template, so the form opens with it filled in
+             instead of asking a question with one answer. --}}
+        <ul class="panel chooser">
+          @foreach (templates as template)
+            <li class="chooser-row">
+              <div>
+                <p class="chooser-name">{{ template.name }}</p>
+                @if (template.about)
+                  <p class="muted chooser-about">{{ template.about }}</p>
+                @endif
+              </div>
+              <a class="btn btn-primary" href="{{ base }}/issues/new?template={{ template.slug }}">Get started</a>
+            </li>
+          @endforeach
+
+          {{-- Always offered, and always last. A repository that ships three
+               templates has still not thought of everything, and a reporter with
+               nowhere to put what they found writes nothing at all. --}}
           <li class="chooser-row">
             <div>
-              <p class="chooser-name">{{ template.name }}</p>
-              @if (template.about)
-                <p class="muted chooser-about">{{ template.about }}</p>
-              @endif
+              <p class="chooser-name">Blank issue</p>
+              <p class="muted chooser-about">Start from nothing.</p>
             </div>
-            <a class="btn btn-primary" href="{{ base }}/issues/new?template={{ template.slug }}">Get started</a>
+            <a class="btn" href="{{ base }}/issues/new?template=">Open a blank issue</a>
           </li>
-        @endforeach
-        <li class="chooser-row">
-          <div>
-            <p class="chooser-name">Blank issue</p>
-            <p class="muted chooser-about">Start from nothing.</p>
-          </div>
-          <a class="btn" href="{{ base }}/issues/new?template=">Open a blank issue</a>
-        </li>
-      </ul>
-    @else
-      <form class="new-form" method="post" action="/api/repos/issues">
-        <input type="hidden" name="owner" value="{{ ownerHandle }}">
-        <input type="hidden" name="repo" value="{{ repositoryName }}">
+        </ul>
+      @else
+        {{-- `multipart/form-data`, because a file picked in the editor is stored
+             when the issue is opened: the page runs no client-side JavaScript,
+             so there is no editor to insert a link into and this is the whole
+             upload flow. --}}
+        <form class="new-form" method="post" action="/api/repos/issues" enctype="multipart/form-data">
+          <input type="hidden" name="owner" value="{{ ownerHandle }}">
+          <input type="hidden" name="repo" value="{{ repositoryName }}">
 
-        <div class="new-main">
-          <div class="panel new-panel">
-            <label class="visually-hidden" for="issue-title">Title</label>
-            <input
-              id="issue-title"
-              class="new-input new-title-input"
-              name="title"
-              value="{{ draftTitle }}"
-              placeholder="Title"
-              maxlength="255"
-              required
-              autofocus
-            >
+          <div class="new-main">
+            <div class="panel new-panel">
+              <label class="visually-hidden" for="issue-title">Title</label>
+              <input
+                id="issue-title"
+                class="new-input new-title-input"
+                name="title"
+                value="{{ draftTitle }}"
+                placeholder="Title"
+                maxlength="255"
+                required
+                autofocus
+              >
 
-            <nav class="tab-row" aria-label="Editor">
-              {{-- Preview is a GET back to this page carrying the draft, so the
-                   preview is the real renderer rather than an approximation of
-                   it that can disagree with what gets published. --}}
-              <span class="tab {{ previewing ? '' : 'is-current' }}">Write</span>
-              <button
-                class="tab tab-button {{ previewing ? 'is-current' : '' }}"
-                type="submit"
-                formmethod="get"
-                formaction="{{ base }}/issues/new"
-                name="preview"
-                value="1"
-              >Preview</button>
-            </nav>
-
-            @if (previewing)
-              <div class="new-preview markdown">{!! previewHtml !!}</div>
-              {{-- Carried so pressing Submit after previewing still posts the
-                   body, which the textarea below is no longer showing. --}}
-              <input type="hidden" name="body" value="{{ draftBody }}">
-            @else
-              <label class="visually-hidden" for="issue-body">Description</label>
-              <textarea
+              <MarkdownEditor
                 id="issue-body"
-                class="new-input new-body"
                 name="body"
-                rows="14"
+                label="Description"
                 placeholder="Describe the problem, and how to see it happen."
-              >{{ draftBody }}</textarea>
-            @endif
+                draft="{{ draftBody }}"
+                previewHtml="{{ previewHtml }}"
+                :previewing="previewing"
+                :rows="14"
+                previewAction="{{ base }}/issues/new"
+              />
+            </div>
+
+            <div class="new-actions">
+              <button class="btn btn-primary" type="submit">Open issue</button>
+            </div>
           </div>
 
-          <div class="new-actions">
-            <button class="btn btn-primary" type="submit">Open issue</button>
-          </div>
-        </div>
+          <aside class="new-side">
+            <section class="panel side-block">
+              <h2 class="side-title">Labels</h2>
+              @if (labelChoices.length === 0)
+                <p class="muted side-empty">
+                  This repository has no labels.
+                  <a href="{{ base }}/labels">Add some</a>.
+                </p>
+              @else
+                <ul class="choice-list">
+                  @foreach (labelChoices as label)
+                    <li class="choice">
+                      <label class="choice-label">
+                        {{-- Ticked when the chosen template asks for it. A
+                             template that says `labels: bug` is a maintainer
+                             saying where this report belongs, and making the
+                             reporter tick it again is asking them to guess. --}}
+                        <input type="checkbox" name="labels" value="{{ label.name }}" {{ chosenLabels.includes(label.name) ? 'checked' : '' }}>
+                        <LabelPill :label="label" />
+                      </label>
+                    </li>
+                  @endforeach
+                </ul>
+              @endif
+            </section>
 
-        <aside class="new-side">
-          <section class="panel side-block">
-            <h2 class="side-title">Labels</h2>
-            @if (labelChoices.length === 0)
-              <p class="muted side-empty">
-                This repository has no labels.
-                <a href="{{ base }}/labels">Add some</a>.
-              </p>
-            @else
-              <ul class="choice-list">
-                @foreach (labelChoices as label)
-                  <li class="choice">
-                    <label class="choice-label">
-                      <input type="checkbox" name="labels" value="{{ label.name }}" {{ chosen && chosen.labels.includes(label.name) ? 'checked' : '' }}>
-                      <span class="label-pill" style="background: #{{ label.color }}; color: {{ label.textColor }};">
-                        {{ label.name }}
-                      </span>
-                    </label>
-                  </li>
-                @endforeach
-              </ul>
-            @endif
-          </section>
+            <section class="panel side-block">
+              <h2 class="side-title">Milestone</h2>
+              @if (milestoneChoices.length === 0)
+                <p class="muted side-empty">
+                  No open milestones.
+                  <a href="{{ base }}/milestones">Create one</a>.
+                </p>
+              @else
+                <label class="visually-hidden" for="issue-milestone">Milestone</label>
+                <select id="issue-milestone" class="new-input" name="milestone_id">
+                  <option value="">No milestone</option>
+                  @foreach (milestoneChoices as milestone)
+                    <option value="{{ milestone.id }}">{{ milestone.title }}</option>
+                  @endforeach
+                </select>
+              @endif
+            </section>
 
-          <section class="panel side-block">
-            <h2 class="side-title">Milestone</h2>
-            @if (milestoneChoices.length === 0)
-              <p class="muted side-empty">
-                No open milestones.
-                <a href="{{ base }}/milestones">Create one</a>.
-              </p>
-            @else
-              <label class="visually-hidden" for="issue-milestone">Milestone</label>
-              <select id="issue-milestone" class="new-input" name="milestone_id">
-                <option value="">No milestone</option>
-                @foreach (milestoneChoices as milestone)
-                  <option value="{{ milestone.id }}">{{ milestone.title }}</option>
-                @endforeach
-              </select>
+            @if (templates.length > 1)
+              <section class="panel side-block">
+                <h2 class="side-title">Template</h2>
+                <p class="muted side-empty">
+                  <a href="{{ base }}/issues/new">Pick a different one</a>.
+                </p>
+              </section>
             @endif
-          </section>
-        </aside>
-      </form>
+          </aside>
+        </form>
+      @endif
     @endif
   </div>
 @endsection
@@ -249,7 +273,7 @@ const base = `/${ownerHandle}/${repositoryName}`
   .new-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 20px 0 14px; }
   .new-title { font-size: 20px; letter-spacing: -0.01em; }
   .new-back { font-size: 13px; color: var(--muted); text-decoration: none; }
-  .new-back:hover { color: var(--fg); }
+  .new-back:hover { color: var(--text); }
 
   .new-form { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; align-items: start; }
   .new-panel { padding: 16px; display: grid; gap: 12px; }
@@ -259,26 +283,12 @@ const base = `/${ownerHandle}/${repositoryName}`
     padding: 9px 11px;
     font: inherit;
     font-size: 14px;
-    color: var(--fg);
+    color: var(--text);
     background: var(--surface);
     border: 1px solid var(--line-strong);
     border-radius: var(--r-control);
   }
   .new-title-input { font-size: 15px; }
-  .new-body { resize: vertical; line-height: 1.6; font-size: 13.5px; }
-
-  .tab-row { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
-  .tab {
-    padding: 7px 13px;
-    font-size: 13px;
-    color: var(--muted);
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-  }
-  .tab-button { font: inherit; font-size: 13px; background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
-  .tab.is-current { color: var(--fg); border-bottom-color: var(--fg); }
-
-  .new-preview { min-height: 200px; padding: 4px 2px; }
 
   .new-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
 
@@ -290,25 +300,27 @@ const base = `/${ownerHandle}/${repositoryName}`
   .choice-list { list-style: none; margin-top: 9px; display: grid; gap: 7px; }
   .choice-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 
-  .label-pill {
-    display: inline-block;
-    padding: 2px 9px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 500;
-  }
-
   .btn {
     padding: 8px 15px;
     font: inherit;
     font-size: 13px;
-    color: var(--fg);
+    color: var(--text);
     background: var(--surface);
     border: 1px solid var(--line-strong);
     border-radius: var(--r-control);
     cursor: pointer;
+    text-decoration: none;
   }
-  .btn-primary { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+  .btn-primary { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
 
   @media (max-width: 860px) {
     .new-form { grid-template-columns: minmax(0, 1fr); }

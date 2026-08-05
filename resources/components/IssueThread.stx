@@ -1,0 +1,94 @@
+{{--
+  An issue's conversation: the opening post, then everything that happened to it
+  in the order it happened.
+
+  One sequence, deliberately. A comment and the label somebody added while
+  writing it belong next to each other; two lists side by side make a reader
+  reconstruct the order themselves, and the order is most of what a history is
+  for.
+
+  Everything here arrives ready. Markdown is rendered by the view, because a
+  component cannot import the renderer; reactions are summarised by the view,
+  because they are one query for the whole page rather than one per comment; and
+  what an event *says* comes from `app/Actions/Issue/timeline`, where the pull
+  request timeline reads it from too.
+
+  The pull request page is the reason this is a component at all: a pull request
+  conversation is an issue conversation, and the second screen that needs this
+  should get the same one rather than a copy that drifts.
+--}}
+<div class="thread-body">
+  <article class="panel issue-post">
+    <header class="post-head">
+      <span class="post-author">{{ opening.author }}</span>
+      <span class="muted post-time">{{ opening.when }}</span>
+    </header>
+
+    @if (opening.bodyHtml)
+      <div class="post-body markdown">{!! opening.bodyHtml !!}</div>
+    @else
+      <div class="post-body"><p class="muted">No description was given.</p></div>
+    @endif
+
+    <footer class="post-foot">
+      <ReactionBar
+        :summaries="opening.reactions"
+        :fields="opening.reactionFields"
+        :open="opening.picking"
+        action="{{ reactionAction }}"
+        pickerHref="{{ opening.pickerHref }}"
+      />
+    </footer>
+  </article>
+
+  @foreach (items as item)
+    @if (item.kind === 'event')
+      <TimelineEntry :entry="item.event" />
+    @else
+      <article class="panel issue-post" id="comment-{{ item.comment.id }}">
+        <header class="post-head">
+          {{-- A mirrored comment names its upstream author, the same way the
+               issue does, so it is no longer shown as "someone". --}}
+          <span class="post-author">{{ item.comment.author }}</span>
+          <span class="muted post-time">
+            {{ item.comment.when }}@if (item.comment.edited) &middot; edited@endif
+          </span>
+        </header>
+
+        <div class="post-body markdown">{!! item.comment.bodyHtml !!}</div>
+
+        <footer class="post-foot">
+          <ReactionBar
+            :summaries="item.comment.reactions"
+            :fields="item.comment.reactionFields"
+            :open="item.comment.picking"
+            action="{{ reactionAction }}"
+            pickerHref="{{ item.comment.pickerHref }}"
+          />
+        </footer>
+      </article>
+    @endif
+  @endforeach
+</div>
+
+<style>
+  .issue-post { margin-bottom: 14px; overflow: hidden; }
+
+  .post-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-tint);
+    font-size: 13px;
+  }
+
+  .post-author { font-weight: 500; }
+  .post-body { padding: 16px 18px; font-size: 14px; }
+
+  /* Separated by space rather than by a rule: a reaction row is part of the
+     post it sits under, and a second border would make it look like a reply. */
+  .post-foot { padding: 0 18px 12px; }
+</style>
