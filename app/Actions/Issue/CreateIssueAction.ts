@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { appendAttachments } from '../Attachment/upload'
 import { allocateNumber, authorizeRepository } from '../Repo/authorize'
+import { recountOpenIssues } from '../Repo/counters'
 import { recordCrossReferences } from './crossReferences'
 
 /**
@@ -74,11 +75,7 @@ export default new Action({
       .returning(['id'])
       .executeTakeFirst()
 
-    await db
-      .updateTable('repositories')
-      .set((eb: any) => ({ open_issues_count: eb('open_issues_count', '+', 1) }))
-      .where('id', '=', repository.id)
-      .execute()
+    await recountOpenIssues(Number(repository.id))
 
     // Labels chosen while writing. Applying a label is normally a triage
     // power, and it still is: this only lets somebody label the issue they are

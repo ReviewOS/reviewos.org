@@ -4,6 +4,7 @@ import { runGit } from '../Git/git'
 import { performMerge } from './apply'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
+import { recountOpenIssues } from '../Repo/counters'
 import { approvalsSatisfied } from './anchoring'
 import { isMergeStrategy, mergeBlockers, mergeCommitMessage, retargetStack } from './merge'
 import { requirementsSatisfied } from '../Checks/status'
@@ -298,11 +299,7 @@ async function closeReferenced(
       .where('id', 'in', open.map(row => Number(row.id)))
       .execute()
 
-    await db
-      .updateTable('repositories')
-      .set((eb: any) => ({ open_issues_count: eb('open_issues_count', '-', open.length) }))
-      .where('id', '=', repositoryId)
-      .execute()
+    await recountOpenIssues(repositoryId)
 
     return open.map(row => Number(row.number))
   }

@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
+import { recountOpenIssues } from '../Repo/counters'
 import { abilityFor, isBulkOperation, selectedNumbers } from './bulk'
 
 /**
@@ -85,11 +86,7 @@ async function setState(issues: any[], ids: number[], closing: boolean, actorId:
     .where('id', 'in', movingIds)
     .execute()
 
-  await db
-    .updateTable('repositories')
-    .set((eb: any) => ({ open_issues_count: eb('open_issues_count', closing ? '-' : '+', moving.length) }))
-    .where('id', '=', repositoryId)
-    .execute()
+  await recountOpenIssues(repositoryId)
 
   return response.json({
     changed: moving.map(row => Number(row.number)),

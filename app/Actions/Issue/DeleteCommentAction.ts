@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
+import { recountComments } from '../Repo/counters'
 
 /**
  * Delete a comment.
@@ -53,12 +54,7 @@ export default new Action({
 
     await db.deleteFrom('issue_comments').where('id', '=', Number(comment.id)).execute()
 
-    await db
-      .updateTable('issues')
-      .set((eb: any) => ({ comments_count: eb('comments_count', '-', 1) }))
-      .where('id', '=', Number(issue.id))
-      .where('comments_count', '>', 0)
-      .execute()
+    await recountComments(Number(issue.id))
 
     return response.json({ id: Number(comment.id), deleted: true })
   },

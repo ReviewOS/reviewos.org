@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
+import { recountOpenIssues } from '../Repo/counters'
 import { record } from './timeline'
 import { transitionIssue } from './state'
 
@@ -51,7 +52,9 @@ export default new Action({
     if (!result.ok)
       return response.json({ error: result.error }, result.status)
 
-    const wasOpen = issue.state === 'open'
+    // The previous state used to matter, because the counter was adjusted by
+    // one and a repeated close would have moved it twice. It is recomputed now,
+    // so only the new state does.
     const nowOpen = result.state === 'open'
 
     await db
@@ -65,15 +68,11 @@ export default new Action({
       .where('id', '=', Number(issue.id))
       .execute()
 
-    // The counter only tracks issues, so a pull request must not move it, and a
-    // repeated close must not move it twice.
-    if (!issue.is_pull_request && wasOpen !== nowOpen) {
-      await db
-        .updateTable('repositories')
-        .set((eb: any) => ({ open_issues_count: eb('open_issues_count', nowOpen ? '+' : '-', 1) }))
-        .where('id', '=', repository.id)
-        .execute()
-    }
+    // The counter only tracks issues, so a pull request must not move it. It is
+    // recomputed rather than adjusted, which also means a repeated close cannot
+    // move it twice - see `app/Actions/Repo/counters`.
+    if (!issue.is_pull_request)
+      await recountOpenIssues(Number(repository.id))
 
     await record(
       { type: 'issue', id: Number(issue.id) },

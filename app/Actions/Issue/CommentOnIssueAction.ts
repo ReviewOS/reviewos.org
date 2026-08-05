@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { appendAttachments } from '../Attachment/upload'
 import { userReferences } from '../Markdown/references'
 import { authorizeRepository } from '../Repo/authorize'
+import { recountComments } from '../Repo/counters'
 import { recordCrossReferences } from './crossReferences'
 import { mayComment } from './state'
 
@@ -76,11 +77,7 @@ export default new Action({
       .returning(['id'])
       .executeTakeFirst()
 
-    await db
-      .updateTable('issues')
-      .set((eb: any) => ({ comments_count: eb('comments_count', '+', 1) }))
-      .where('id', '=', Number(issue.id))
-      .execute()
+    await recountComments(Number(issue.id))
 
     // Mentions are parsed here rather than at render time so a notification is
     // sent once, when the comment is written, and not again on every read. Cross
