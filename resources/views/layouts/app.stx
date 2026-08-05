@@ -267,6 +267,33 @@
       .markdown li { margin: 4px 0; }
       .markdown li > ul, .markdown li > ol { margin: 4px 0; }
 
+      /* A mermaid fence, before and after it is drawn.
+
+         Before, it is the definition in a monospace box, which is exactly what
+         a fence looked like before diagrams existed and is the state a reader
+         is left in if the script never arrives. After, the box is gone and the
+         SVG stands on its own. */
+      .markdown pre.mermaid {
+        padding: 14px 16px;
+        overflow-x: auto;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.55;
+        background: var(--surface-tint);
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel);
+        white-space: pre;
+      }
+
+      .markdown pre.mermaid[data-processed] {
+        padding: 4px 0;
+        text-align: center;
+        background: none;
+        border: 0;
+      }
+
+      .markdown pre.mermaid[data-processed] svg { max-width: 100%; height: auto; }
+
       .markdown li.task-item { list-style: none; margin-left: -20px; }
       .markdown li.task-item input { margin-right: 7px; vertical-align: middle; }
 
@@ -379,5 +406,46 @@
     <main>
       @yield('content')
     </main>
+
+    {{-- Drawing the mermaid fences, and the only script in the product.
+
+         Every other interaction here is a form or a link, and that is a
+         deliberate property: an issue page with two hundred comments should
+         arrive as a page. A diagram is the one thing that cannot follow the
+         rule, because mermaid is a layout engine and there is no server-side
+         form of it short of running a browser per page view.
+
+         So it is contained. Nothing loads unless the page already has a
+         diagram on it; the import is dynamic, so a page without one costs
+         nothing; the bundle is served from here rather than from a CDN, so a
+         forge with no route out still works and a reader of an issue is not
+         announced to a third party; and every failure leaves the definition
+         on screen, which is what a fence showed before this existed.
+
+         `strict` is not the default and matters: diagram text is written by
+         whoever opened the issue, and the looser levels let a label carry
+         markup and a node carry a click handler. --}}
+    <script type="module">
+      const diagrams = document.querySelectorAll('pre.mermaid')
+
+      if (diagrams.length > 0) {
+        try {
+          const { default: mermaid } = await import('/js/mermaid.js')
+
+          mermaid.initialize({
+            startOnLoad: false,
+            securityLevel: 'strict',
+            theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+            fontFamily: 'inherit',
+          })
+
+          await mermaid.run({ nodes: diagrams })
+        }
+        catch {
+          // The definition is still on the page, and a definition somebody can
+          // read beats an error where their diagram was.
+        }
+      }
+    </script>
   </body>
 </html>

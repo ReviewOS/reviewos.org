@@ -13,15 +13,17 @@
  * looks for `<script>` has to be right about every way a browser can be made to
  * see a tag, and it only has to be wrong once.
  *
- * The parser is Bun's (md4c under the hood), run with raw HTML disabled at the
- * parser level, so `<script>` in a README arrives here as *text* and leaves as
- * `&lt;script&gt;`. That is a deliberate fidelity trade: a README that centres
- * its logo with `<div align="center">` shows that markup instead of obeying it.
- * Supporting a safe subset of raw HTML needs a real HTML tokenizer, which is
- * its own piece of work rather than a flag flipped here.
+ * The parser is Bun's (md4c under the hood). Raw HTML is *parsed* but never
+ * trusted: md4c hands every tag back as its own run of text, and `./html.ts`
+ * decides, tag by tag, whether an element with that name and those attributes
+ * can be built at all. `<script>` cannot, so it arrives here as text and leaves
+ * as `&lt;script&gt;`; `<details>` can, so a folded section in a README folds.
+ * The allowlist and the reasoning behind it live in that file.
  */
 
 import { highlightLines } from '../Browse/highlight'
+import { scanEmoji } from './emoji'
+import { createHtmlWriter } from './html'
 import { scanCommitReferences, scanIssueReferences, scanUserReferences } from './references'
 
 export interface MarkdownContext {
@@ -67,13 +69,18 @@ const SAFE_SCHEMES = new Set(['http', 'https', 'mailto'])
 /**
  * Parser options.
  *
- * `noHtmlBlocks` and `noHtmlSpans` are the load-bearing pair: they stop md4c
- * from ever producing a raw-HTML node, so there is no raw HTML to decide about
- * later. The rest is GitHub-flavoured markdown as people expect to write it.
+ * Raw HTML is left enabled, which sounds like the dangerous choice and is the
+ * safe one here. md4c does not emit raw HTML as markup: it splits a run at
+ * every tag boundary and hands each tag to the `text` callback as its own run,
+ * so a tag reaches this file as a *string* that nothing has decided about yet.
+ * `createHtmlWriter` is what decides, and disabling the parser options would
+ * only mean the same strings arrived glued to their neighbours and unlabelled.
+ *
+ * The rest is GitHub-flavoured markdown as people expect to write it.
  */
 const PARSER_OPTIONS = {
-  noHtmlBlocks: true,
-  noHtmlSpans: true,
+  noHtmlBlocks: false,
+  noHtmlSpans: false,
   tables: true,
   strikethrough: true,
   tasklists: true,
@@ -176,12 +183,14 @@ function withMailto(href: string): string {
 }
 
 /**
- * Turn `#12`, `@handle`, `<https://…>` and bare SHAs in one run of text into
- * links, escaping everything around them.
+ * Turn `#12`, `@handle`, `:tada:` and bare SHAs in one run of text into links
+ * and characters, escaping everything around them.
  *
- * Runs on text nodes only, which is what keeps it out of code: the parser hands
- * code spans and code blocks to their own callbacks, so a `#12` inside
- * backticks never reaches this function.
+ * Runs on prose only, which is what keeps it out of code and out of markup: the
+ * parser hands code spans and code blocks to their own callbacks, so a `#12`
+ * inside backticks never reaches this function, and the HTML writer calls it
+ * only with the text *between* tags, so a `#12` inside an attribute cannot
+ * become a link inside a value.
  */
 export function linkifyText(text: string, context: MarkdownContext): string {
   const repository = context.owner && context.repository
@@ -191,13 +200,15 @@ export function linkifyText(text: string, context: MarkdownContext): string {
   interface Span { index: number, length: number, html: string }
   const spans: Span[] = []
 
-  // `<https://example.com>` is a CommonMark autolink, and disabling raw HTML
-  // spans is what stops the parser recognising it, so it is recovered here.
-  for (const match of text.matchAll(/<((?:https?|mailto):[^\s<>]+)>/gi)) {
+  // The character itself, with no wrapper. An emoji is text: it inherits the
+  // font and the line height it is sitting in, screen readers already know its
+  // name, and an element around each one would be markup that exists only to be
+  // styled identically to what encloses it.
+  for (const found of scanEmoji(text)) {
     spans.push({
-      index: match.index!,
-      length: match[0].length,
-      html: link(match[1]!, escapeText(match[1]!)),
+      index: found.index,
+      length: found.length,
+      html: escapeText(found.value),
     })
   }
 
@@ -238,6 +249,22 @@ export function linkifyText(text: string, context: MarkdownContext): string {
   }
 
   return replaceSpans(text, spans)
+}
+
+/**
+ * Shortcodes only, with everything else escaped.
+ *
+ * For link text, which cannot have references linked - an anchor inside an
+ * anchor is not valid HTML and renders as a mess - but has no reason to show
+ * `:tada:` as five characters when the same words outside the link would show
+ * the character.
+ */
+export function emojiText(text: string): string {
+  return replaceSpans(text, scanEmoji(text).map(found => ({
+    index: found.index,
+    length: found.length,
+    html: escapeText(found.value),
+  })))
 }
 
 /**
@@ -366,10 +393,37 @@ export function renderMarkdown(source: string, context: MarkdownContext = {}): s
   const resolve = (children: string, how: (run: string) => string): string =>
     children.replace(RUN_MARKER, (_, index: string) => how(runs[Number(index)] ?? ''))
 
+  /**
+   * The raw HTML in this document, kept balanced.
+   *
+   * One writer for the whole render, because balance is a property of the
+   * document rather than of a run: the `<details>` that opens in one paragraph
+   * is closed by the `</details>` three paragraphs later, and only something
+   * that saw both can decide whether the second one is allowed.
+   *
+   * Written without an apostrophe on purpose, and this is the only comment in
+   * the codebase that has to be. An apostrophe in a comment inside a function
+   * body makes the linter read the rest of the body as a string literal, so
+   * every parameter above it is reported as unused - fixed in pickier
+   * (`maskCommentText` in `no-unused-vars`), which this app is not yet
+   * resolving from.
+   */
+  const markup = createHtmlWriter()
+
   /** Text as written, escaped. For code, and for anything going in an attribute. */
   const plain = (children: string): string => resolve(children, escapeText)
-  /** Text with its references linked. For prose. */
-  const prose = (children: string): string => resolve(children, run => linkifyText(run, context))
+  /**
+   * Prose: references linked, and the allowed tags built.
+   *
+   * Reached only in the final pass, so the writer sees runs in document order.
+   * Everything resolved earlier - code, link text, alt text - goes through
+   * `plain` or `raw` instead and so never reaches the writer, which is what
+   * stops a `<kbd>` inside backticks becoming an element.
+   */
+  const linkify = (text: string): string => linkifyText(text, context)
+  const prose = (children: string): string => resolve(children, run => markup.write(run, linkify))
+  /** Shortcodes resolved, references not. For link text. */
+  const labelled = (children: string): string => resolve(children, emojiText)
   /** Text as written, unescaped, for a caller that will escape it itself. */
   const raw = (children: string): string => resolve(children, run => run)
 
@@ -402,6 +456,17 @@ export function renderMarkdown(source: string, context: MarkdownContext = {}): s
       const language = meta?.language && /^[\w+#.-]{1,30}$/.test(meta.language)
         ? meta.language.toLowerCase()
         : null
+
+      // A diagram is a fence with a different job, so it leaves the code path
+      // here rather than being highlighted as though it were source. What is
+      // emitted is the escaped definition inside the element the drawing script
+      // looks for: with the script the reader gets a diagram, without it they
+      // get the definition, and the definition is what they would have seen
+      // before this existed. Nothing about the page depends on the script
+      // arriving, which is the property that matters on a self-hosted forge
+      // with no outbound network.
+      if (language === 'mermaid')
+        return `<pre class="mermaid">${plain(children)}</pre>`
 
       const attribute = language ? ` class="language-${escapeAttribute(language)}"` : ''
       const body = context.codeBlocks
@@ -443,10 +508,10 @@ export function renderMarkdown(source: string, context: MarkdownContext = {}): s
     th: (children, meta) => `<th${alignAttribute(meta?.align)}>${children}</th>`,
     td: (children, meta) => `<td${alignAttribute(meta?.align)}>${children}</td>`,
 
-    // Link text is escaped rather than linkified: a `#12` inside a link would
-    // otherwise become an anchor nested in an anchor, which is not valid HTML
-    // and renders as a mess.
-    link: (children, meta) => link(withMailto(meta.href), plain(children), meta.title),
+    // Link text is not linkified: a `#12` inside a link would otherwise become
+    // an anchor nested in an anchor, which is not valid HTML and renders as a
+    // mess. Shortcodes are fine, because a character is not an element.
+    link: (children, meta) => link(withMailto(meta.href), labelled(children), meta.title),
     image: (children, meta) => {
       // The alt text arrives as the image's children, not in the metadata.
       const alt = raw(children)
@@ -459,13 +524,18 @@ export function renderMarkdown(source: string, context: MarkdownContext = {}): s
       return `<img src="${escapeAttribute(url)}" alt="${escapeAttribute(alt)}"${title} loading="lazy">`
     },
 
-    // Unreachable while raw HTML is disabled at the parser, and dropped rather
-    // than trusted if that ever changes.
-    html: () => '',
+    // An HTML block's children are the same parked runs everything else is
+    // made of, so they are passed through untouched and decided about in the
+    // final pass with the inline tags. Returning them unwrapped is the point:
+    // a `<details>` block is not a paragraph, and wrapping it in one would put
+    // the open tag and the close tag in different elements.
+    html: children => children,
   }, PARSER_OPTIONS)
 
-  // Everything still carrying a marker is prose, and gets its references.
-  return prose(html)
+  // Everything still carrying a marker is prose, and gets its references and
+  // its tags. `close` is what makes an unclosed `<details>` end with the
+  // document instead of with the page.
+  return prose(html) + markup.close()
 }
 
 /**
