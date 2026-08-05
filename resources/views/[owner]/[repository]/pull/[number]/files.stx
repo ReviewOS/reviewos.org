@@ -1,0 +1,161 @@
+<script server>
+/**
+ * The review screen, on its own route.
+ *
+ * The diff already lived behind a tab on the conversation page, which meant
+ * there was no way to link somebody to the thing this product is about. This is
+ * that link.
+ *
+ * It is also where the streamed engine is used rather than the whole-page
+ * render. The page arrives with a header and an empty, correctly sized scroll
+ * region; the manifest fills in the file list, and rows arrive with it. Nothing
+ * here parses a diff, because by the time the reader is looking at this the
+ * server has already started.
+ */
+const owner = String(params.owner)
+const repositoryName = String(params.repository)
+const number = Number(params.number)
+
+const repoRow: any = await db
+  .selectFrom('repositories')
+  .selectAll()
+  .where('name', '=', repositoryName)
+  .executeTakeFirst()
+
+const pullRequest: any = repoRow
+  ? await db
+      .selectFrom('pull_requests')
+      .selectAll()
+      .where('repository_id', '=', Number(repoRow.id))
+      .where('number', '=', number)
+      .executeTakeFirst()
+  : undefined
+
+const title = pullRequest
+  ? `Files changed · ${pullRequest.title} · ${owner}/${repositoryName} #${number}`
+  : 'Pull request not found'
+
+const stateLabel = pullRequest
+  ? (pullRequest.state === 'merged' ? 'Merged' : (pullRequest.state === 'closed' ? 'Closed' : (pullRequest.draft ? 'Draft' : 'Open')))
+  : ''
+
+const statePill = pullRequest
+  ? (pullRequest.state === 'merged' ? 'merged' : (pullRequest.state === 'closed' ? 'closed' : (pullRequest.draft ? 'draft' : 'open')))
+  : 'draft'
+
+/**
+ * Where the browser fetches the file list from.
+ *
+ * Built here rather than in the client script so the client never has to know
+ * how a pull request is addressed, and so a change to the route is a change in
+ * one place.
+ */
+const manifestUrl = `/api/repos/pulls/diff/manifest?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repositoryName)}&number=${number}`
+</script>
+
+@layout('app')
+
+@section('title', title)
+
+@section('content')
+  <div class="shell files-shell">
+    @if (!pullRequest)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such pull request</h1>
+        <p class="muted" style="margin-top: 6px;">
+          {{ owner }}/{{ repositoryName }} has no pull request numbered {{ number }}.
+        </p>
+      </div>
+    @else
+      <header class="files-head">
+        <div class="pr-title-row">
+          <h1 class="pr-title">{{ pullRequest.title }}</h1>
+          <span class="mono muted pr-number">#{{ number }}</span>
+        </div>
+
+        <div class="pr-meta">
+          <span class="pill pill-{{ statePill }}">{{ stateLabel }}</span>
+          <span class="muted">
+            <span class="mono">{{ pullRequest.head_branch }}</span>
+            into
+            <span class="mono">{{ pullRequest.base_branch }}</span>
+          </span>
+          <span class="muted" data-diff-status data-tone="working">Loading the diff…</span>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="Pull request sections">
+        <a class="tab" href="/{{ owner }}/{{ repositoryName }}/pull/{{ number }}">Conversation</a>
+        <a class="tab" aria-current="page" href="/{{ owner }}/{{ repositoryName }}/pull/{{ number }}/files">Files changed</a>
+      </nav>
+
+      {{--
+        The scroll region is sized by the page rather than by its contents: it
+        is the virtualizer's viewport, and a region that grows with what is
+        inside it would defeat the whole arrangement. `data-` attributes rather
+        than props, because the reader of them is a browser module and not a
+        component.
+      --}}
+      <div
+        class="diff-stream"
+        data-diff-stream
+        data-layout="unified"
+        data-manifest-url="{{ manifestUrl }}"
+      >
+        <div class="diff-scroller" data-diff-scroller>
+          <div data-diff-content></div>
+        </div>
+      </div>
+
+      <noscript>
+        <p class="muted" style="padding: 16px 0;">
+          The streamed view needs JavaScript.
+          <a href="/{{ owner }}/{{ repositoryName }}/pull/{{ number }}">Read the diff on the conversation page</a>,
+          which renders in full on the server.
+        </p>
+      </noscript>
+    @endif
+  </div>
+@endsection
+
+{{--
+  Imported by its path from the project root, not relatively. A `<script client>`
+  block is composed into the layout before it is bundled, so a relative import
+  is resolved against `resources/views/layouts/`, not against this file, and
+  lands somewhere outside the project entirely. The `@/` form has no such
+  ambiguity because it does not depend on where the block ends up.
+--}}
+<script client>
+import { mountDiffFiles } from '@/resources/functions/diffviewer'
+
+mountDiffFiles()
+</script>
+
+<style>
+  .files-shell { display: flex; flex-direction: column; min-height: 0; padding-top: 22px; }
+
+  .files-head { padding-bottom: 12px; }
+
+  /* The viewport the list virtualizes against. Sized by the page, never by its
+     contents: a region that grew with what is inside it would put every file in
+     the document and there would be nothing left to virtualize. */
+  .diff-stream { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+
+  .diff-scroller {
+    height: calc(100vh - 210px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* Layout, paint and style all stop at this boundary, so a file mounting
+       cannot invalidate the page around it. */
+    contain: strict;
+    /* The browser's own scroll anchoring fights ours. */
+    overflow-anchor: none;
+  }
+
+  .diff-file-host { padding-bottom: 8px; }
+
+  .is-pending .diff-head { opacity: 0.6; }
+
+  [data-diff-status][data-tone='error'] { color: var(--bad); }
+  [data-diff-status][data-tone='warn'] { color: var(--warn, var(--bad)); }
+</style>
