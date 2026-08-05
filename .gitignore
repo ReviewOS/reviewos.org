@@ -61,6 +61,7 @@ discovered-packages.json
 #   storage/framework/runtime  migration lock, temp bundles, CLI scratch
 #   storage/cloud              cloud driver state + dashboard credentials
 #   storage/repos              the bare git repositories this instance hosts
+#   storage/attachments        files people attached to issues
 storage/framework/stx/
 storage/framework/runtime/
 storage/cloud/
@@ -79,6 +80,11 @@ storage/framework/database/model-snapshot.sqlite.json
 # bare repository committed inside this one confuses every tool that walks the
 # tree, git included.
 storage/repos/
+
+# Files people attached to issues. User data on a running instance, exactly as
+# the repositories above are, and each one has a row in `attachments` that says
+# which repository it belongs to and therefore who may read it.
+storage/attachments/
 
 # Pre-relocation names of the three directories above. stx and ts-cloud each
 # take their state directory from config now (`stateDir` in config/ui.ts and

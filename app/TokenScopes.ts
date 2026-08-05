@@ -65,6 +65,11 @@ export const REPOSITORY_ABILITY_SCOPES = {
 
   'issue:open': { scope: 'issues', level: 'write' },
   'issue:comment': { scope: 'issues', level: 'write' },
+  'issue:react': { scope: 'issues', level: 'write' },
+  // Under `issues` rather than `contents`: an attachment is part of writing an
+  // issue, and a token that may not write code should still be able to file a
+  // bug with a screenshot in it.
+  'attachment:upload': { scope: 'issues', level: 'write' },
   'issue:label': { scope: 'issues', level: 'write' },
   'issue:assign': { scope: 'issues', level: 'write' },
   'issue:milestone': { scope: 'issues', level: 'write' },

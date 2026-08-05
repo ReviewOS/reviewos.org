@@ -1,5 +1,7 @@
 import { Action } from '@stacksjs/actions'
+import { appendAttachments } from '../Attachment/upload'
 import { allocateNumber, authorizeRepository } from '../Repo/authorize'
+import { recordCrossReferences } from './crossReferences'
 
 /**
  * Open an issue.
@@ -47,13 +49,21 @@ export default new Action({
 
     const number = await allocateNumber(repository.id)
 
+    // The screenshot is usually the report. Stored here and appended to the
+    // body, because the form has no editor to insert a link into: picking a
+    // file and submitting is the whole interaction.
+    const files = request.getFiles?.('attachments') ?? []
+    const uploaded = files.length > 0
+      ? await appendAttachments(String(request.get('body') ?? ''), files, Number(repository.id), user.id)
+      : { body: String(request.get('body') ?? ''), attached: [] as string[], refused: [] as string[] }
+
     const created = await db
       .insertInto('issues')
       .values({
         repository_id: repository.id,
         number,
         title,
-        body: String(request.get('body') ?? ''),
+        body: uploaded.body,
         author_id: user.id,
         state: 'open',
         milestone_id: milestoneId,
@@ -77,12 +87,23 @@ export default new Action({
     // report over a stale label in a bookmarked form is the wrong trade.
     const applied = await applyLabels(Number(created?.id), repository.id, request.get('labels'))
 
+    // A new report often opens by naming the issue it follows on from, and that
+    // link is worth more on the older issue than on this one.
+    const references = await recordCrossReferences(
+      { subject: { type: 'issue', id: Number(created?.id) }, number, repositoryId: repository.id },
+      user.id,
+      uploaded.body,
+    )
+
     return response.json({
       id: Number(created?.id),
       number,
       title,
       state: 'open',
       labels: applied,
+      references,
+      attachments: uploaded.attached,
+      refused: uploaded.refused,
       url: `/${request.get('owner')}/${repository.name}/issue/${number}`,
     }, 201)
   },

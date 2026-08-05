@@ -30,7 +30,16 @@ export type RepositoryVisibility = 'public' | 'private' | 'internal'
 export const REPOSITORY_ABILITIES = {
   'repository:read': 'read',
   'issue:comment': 'read',
+  // Reacting sits with commenting, not with triage. It is the cheapest way to
+  // say "me too" without writing a comment nobody wants to read, and anybody
+  // held back from it writes the comment instead.
+  'issue:react': 'read',
   'issue:open': 'read',
+  // Attaching a screenshot is part of writing the report, and a screenshot is
+  // usually the most useful thing in one. Reading an attachment needs no
+  // ability of its own: it is `repository:read`, checked against the repository
+  // the attachment belongs to.
+  'attachment:upload': 'read',
   'pull:open': 'read',
   'pull:review': 'read',
   'issue:label': 'triage',

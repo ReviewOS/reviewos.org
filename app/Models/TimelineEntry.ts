@@ -82,7 +82,15 @@ export default defineModel({
           'demilestoned',
           'locked',
           'unlocked',
+          // The two halves of a cross reference. `referenced` is the incoming
+          // one - "somebody wrote about this over there" - and `mentioned` is
+          // the outgoing one, on the timeline of the thing that did the
+          // writing. Two kinds rather than one, because a single kind cannot
+          // say which direction a reader is looking along the link, and a
+          // history that words both ends the same way is a history that has to
+          // be decoded.
           'referenced',
+          'mentioned',
           'merged',
         ]),
       },

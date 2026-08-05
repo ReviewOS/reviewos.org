@@ -25,6 +25,7 @@ export type TimelineKind =
   | 'locked'
   | 'unlocked'
   | 'referenced'
+  | 'mentioned'
   | 'merged'
 
 export interface TimelineSubject {
@@ -141,7 +142,11 @@ export function entrySentence(kind: TimelineKind, detail: TimelineDetail = {}): 
     case 'unassigned': return `unassigned ${text}`
     case 'milestoned': return `added this to ${text}`
     case 'demilestoned': return `removed this from ${text}`
+    // The two ends of a cross reference read from where the reader is standing:
+    // on the thing referred to, something else is about it; on the thing that
+    // did the referring, it is about something else.
     case 'referenced': return `referenced this in #${detail.reference ?? ''}`
+    case 'mentioned': return `mentioned #${detail.reference ?? ''}`
     default: return 'changed something'
   }
 }
@@ -161,7 +166,8 @@ export function entryIcon(kind: TimelineKind): string {
     case 'unassigned': return 'i-hugeicons-user-01'
     case 'milestoned':
     case 'demilestoned': return 'i-hugeicons-flag-02'
-    case 'referenced': return 'i-hugeicons-link-02'
+    case 'referenced':
+    case 'mentioned': return 'i-hugeicons-link-02'
     default: return 'i-hugeicons-circle'
   }
 }

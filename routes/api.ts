@@ -56,6 +56,17 @@ route.put('/repos/issues/lock', 'Actions/Issue/LockIssueAction').middleware('aut
 // on a shared issue is a coordination device, and gating it behind write access
 // turns it into a status report from the maintainers.
 route.put('/repos/issues/tasks', 'Actions/Issue/ToggleTaskAction').middleware('auth')
+// Reacting, on an issue body or on a comment. One endpoint, toggling: the page
+// cannot know whether the button it drew has been pressed since it was drawn,
+// so asking it to choose between add and remove is asking it to guess.
+route.post('/repos/issues/reactions', 'Actions/Issue/ReactAction').middleware('auth')
+// Attaching a file. The browser does not use this: a file picked next to a
+// comment box is stored when the comment is submitted, because the page runs no
+// client-side JavaScript and there is no editor to insert a link into. This is
+// for the API, the CLI, and anything writing a body that needs the reference
+// before it writes the body. Reading an attachment is at the root, in
+// `routes/attachments.ts`.
+route.post('/repos/attachments', 'Actions/Attachment/UploadAttachmentAction').middleware('auth')
 // Triage in bulk. Each operation asks for the ability its single-issue version
 // asks for, so nothing is reachable here that is not reachable one at a time.
 route.post('/repos/issues/bulk', 'Actions/Issue/BulkUpdateIssuesAction').middleware('auth')

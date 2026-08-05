@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
+import { recordCrossReferences } from './crossReferences'
 
 /**
  * Edit an issue's title or body.
@@ -25,7 +26,7 @@ export default new Action({
     const number = Number(request.get('number'))
     const issue = await db
       .selectFrom('issues')
-      .select(['id', 'author_id', 'locked'])
+      .select(['id', 'author_id', 'locked', 'is_pull_request'])
       .where('repository_id', '=', repository.id)
       .where('number', '=', number)
       .executeTakeFirst()
@@ -66,6 +67,25 @@ export default new Action({
 
     await db.updateTable('issues').set(changes).where('id', '=', Number(issue.id)).execute()
 
-    return response.json({ number, ...changes })
+    // A reference edited into a body counts, and is exactly the case the entry
+    // on the source side exists for: the link would otherwise appear nowhere in
+    // this issue's own history. Already-recorded references are not written
+    // twice, so editing a body for any other reason records nothing.
+    const references = rawBody === undefined
+      ? []
+      : await recordCrossReferences(
+          {
+            subject: {
+              type: issue.is_pull_request ? 'pull_request' : 'issue',
+              id: Number(issue.id),
+            },
+            number,
+            repositoryId: repository.id,
+          },
+          user.id,
+          String(rawBody),
+        )
+
+    return response.json({ number, ...changes, references })
   },
 })

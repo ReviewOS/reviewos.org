@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
+import { recordCrossReferences } from './crossReferences'
 
 /**
  * Edit a comment.
@@ -43,7 +44,7 @@ export default new Action({
     // editable by anyone with rights on this one.
     const issue = await db
       .selectFrom('issues')
-      .select(['id', 'repository_id', 'locked'])
+      .select(['id', 'number', 'repository_id', 'locked', 'is_pull_request'])
       .where('id', '=', Number(comment.commentable_id))
       .executeTakeFirst()
 
@@ -63,6 +64,20 @@ export default new Action({
       .where('id', '=', Number(comment.id))
       .execute()
 
-    return response.json({ id: Number(comment.id), body, edited: true })
+    // A reference added while editing is as real as one written first time.
+    const references = await recordCrossReferences(
+      {
+        subject: {
+          type: issue.is_pull_request ? 'pull_request' : 'issue',
+          id: Number(issue.id),
+        },
+        number: Number(issue.number),
+        repositoryId: Number(repository.id),
+      },
+      user.id,
+      body,
+    )
+
+    return response.json({ id: Number(comment.id), body, edited: true, references })
   },
 })
