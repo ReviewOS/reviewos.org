@@ -24,7 +24,7 @@
       <span class="i-hugeicons-arrow-down-01" aria-hidden="true"></span>
     </button>
 
-    <span class="mono diff-path">
+    <span class="diff-path mono">
       @if (file.previousPath && file.previousPath !== file.path)
         <span class="muted">{{ file.previousPath }}</span>
         <span class="muted" aria-hidden="true">→</span>
@@ -105,122 +105,11 @@
 </section>
 
 <style>
-  .diff-file { overflow: hidden; margin-bottom: 16px; }
+  /* The diff's own styles live in the app layout, not here.
 
-  .diff-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 9px 12px;
-    background: var(--surface-tint);
-    border-bottom: 1px solid var(--line);
-  }
-
-  .diff-toggle {
-    display: inline-flex;
-    width: 22px;
-    height: 22px;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-  }
-
-  .diff-toggle:hover { background: var(--line); }
-  .diff-toggle[aria-expanded='false'] span { transform: rotate(-90deg); }
-
-  .diff-path { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
-
-  .diff-status { text-transform: capitalize; }
-  .pill-added { background: var(--ok-bg); color: var(--ok); }
-  .pill-deleted { background: var(--bad-bg); color: var(--bad); }
-  .pill-modified { background: var(--surface); color: var(--pill-text); }
-  .pill-renamed, .pill-copied { background: var(--accent-quiet); color: var(--accent-text); }
-
-  .diff-counts { display: inline-flex; gap: 8px; font-weight: 500; }
-  .count-add { color: var(--ok); }
-  .count-del { color: var(--bad); }
-
-  .diff-note { padding: 14px 16px; font-size: 14px; }
-
-  /* The table scrolls inside itself. A long line must never push the page
-     sideways, because then every other file scrolls with it. */
-  .diff-body { overflow-x: auto; }
-  .diff-body.is-collapsed { display: none; }
-
-  .diff-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  .gutter {
-    width: 1%;
-    min-width: 46px;
-    padding: 0 10px;
-    background: var(--gutter);
-    border-right: 1px solid var(--line);
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 12px;
-    text-align: right;
-    user-select: none;
-    vertical-align: top;
-  }
-
-  .code {
-    padding: 0 12px;
-    white-space: pre;
-    vertical-align: top;
-  }
-
-  .marker { display: inline-block; width: 1ch; color: var(--muted); }
-
-  .line-added { background: var(--add-bg); }
-  .line-added .gutter { border-right-color: var(--add-line); }
-  .line-removed { background: var(--del-bg); }
-  .line-removed .gutter { border-right-color: var(--del-line); }
-
-  .hunk-head td { background: var(--surface-tint); border-top: 1px solid var(--line); }
-  .hunk-label { padding: 4px 12px; color: var(--muted); font-size: 12px; }
-
-  .thread-cell { padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--line); }
-
-  /* Syntax colours. Deliberately low-saturation: they sit on top of the green
-     and red diff backgrounds, and a vivid palette turns a reviewed line into a
-     fruit salad. Hue carries the meaning, not intensity. */
-  .t-keyword { color: #8250df; }
-  .t-string { color: #0a6640; }
-  .t-comment { color: var(--muted); font-style: italic; }
-  .t-numeric { color: #0550ae; }
-  .t-function { color: #6639ba; }
-  .t-type { color: #953800; }
-  .t-tag { color: #0a6640; }
-  .t-attribute { color: #6639ba; }
-  .t-operator, .t-punctuation { color: var(--muted); }
-  .t-variable, .t-text { color: inherit; }
-
-  @media (prefers-color-scheme: dark) {
-    .t-keyword { color: #d2a8ff; }
-    .t-string { color: #7ee787; }
-    .t-numeric { color: #79c0ff; }
-    .t-function { color: #d2a8ff; }
-    .t-type { color: #ffa657; }
-    .t-tag { color: #7ee787; }
-    .t-attribute { color: #d2a8ff; }
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
+     The same markup is produced twice: by this component for the first screen,
+     and by `app/Actions/Pull/rows.ts` for every row streamed to the virtualized
+     list. Two copies of the stylesheet would drift the way two renderers do,
+     and the drift would show as the diff changing appearance halfway down the
+     page. One copy, in the shell both paths render into. */
 </style>
