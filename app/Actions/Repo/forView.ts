@@ -24,6 +24,7 @@ import type { GitRepositoryRow, RepositoryGrants } from '../Git/access'
 import type { RepositoryAbility } from '../../Permissions'
 import { canOnRepository } from '../../Permissions'
 import { findRepositoryByPath, permissionOn } from '../Git/access'
+import { repositoryPath } from '../Git/storage'
 import { viewerFromCookies } from '../Identity/lookup'
 
 /** The parts of a repository row the decision depends on. */
@@ -74,6 +75,21 @@ export interface RepositoryForView {
   viewer: ViewerRow | null
   /** Whether the reader may do something beyond reading. */
   can: (ability: RepositoryAbility) => boolean
+  /**
+   * The absolute path to the bare repository, for the loaders that read it.
+   *
+   * Here rather than left to each page, because `repository.disk_path` is
+   * relative to the repository root and every browse view was passing it
+   * straight to git. `git --git-dir annaroberts/checkout.git` resolves against
+   * the server's working directory, finds nothing, and the loader returns its
+   * empty answer - so the commit history, the file tree and the README all
+   * rendered their "nothing here" branch on repositories that were full. No
+   * error anywhere; the pages simply said the repository was empty.
+   *
+   * Nothing outside `app/Actions/Git/storage.ts` should know the layout, and
+   * this is how a page stops needing to.
+   */
+  diskPath: string
 }
 
 /**
@@ -106,7 +122,9 @@ export async function repositoryForView(
     if (!access.readable)
       return null
 
-    return { repository, viewer, can: access.can }
+    const resolved = repositoryPath(ownerHandle, repositoryName)
+
+    return { repository, viewer, can: access.can, diskPath: resolved.ok ? resolved.path! : '' }
   }
   catch {
     return null

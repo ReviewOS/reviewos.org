@@ -303,8 +303,23 @@ the one moment where rejecting is still possible.
 ## Views
 
 - [ ] `resources/views/[owner]/[repository]/index.stx` - tree, README, clone box
-- [ ] `.../tree/[...path].stx`, `.../blob/[...path].stx`, `.../commits.stx`, `.../commit/[sha].stx`
-- [ ] `.../branches.stx`, `.../tags.stx`, `.../releases.stx`, `.../settings.stx`
+- [x] `.../tree/[...path].stx` and `.../commits/[ref]/index.stx` (a blob is the same route as a
+      tree: the path either is a directory or it is not, which is one round trip rather than two)
+- [x] `.../commit/[sha].stx` - one commit, its message, its parents and the files it changed with
+      counts. The file list only, no patch: a commit touching four hundred files would otherwise
+      render the whole diff into one page, and the review screen is where a diff belongs. A merge
+      says out loud that its numbers are against the first parent
+- [x] `.../branches.stx` and `.../tags.stx`, each row carrying the commit on the end of it. The
+      default branch is named rather than left to be inferred from the order, and tags are sorted by
+      the date they point at - alphabetical order puts v10 between v1 and v2, on exactly the list
+      people come to read
+- [x] **Every browse view was passing the wrong path to git.** `repository.disk_path` is relative to
+      `storage/repos`, so `git --git-dir annaroberts/checkout.git` resolved against the server's
+      working directory, found nothing, and every loader returned its empty answer - the commit
+      history, the file tree and the README all rendered "nothing here" on repositories that were
+      full, with no error anywhere. `repositoryForView` now returns the absolute path, so a page
+      never has to know the layout
+- [ ] `.../releases.stx`, `.../settings.stx`
 - [ ] `resources/views/new.stx` - create a repository
 - [ ] Components: `RepoHeader`, `FileTree`, `CodeView`, `CloneUrlBox`, `BranchPicker`,
       `CommitList`, `MarkdownContent`

@@ -29,7 +29,11 @@ const requestedPath = String(path ?? '').replace(/^\/+|\/+$/g, '')
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null
 
-const diskPath = repoRow ? String(repoRow.disk_path ?? '') : ''
+// The absolute path, from the resolver rather than from the row: `disk_path`
+// is relative to the repository root, and passing it to git resolves against
+// the server's working directory instead - which found nothing and rendered
+// this page's empty branch on repositories that were full.
+const diskPath = String(repoAccess?.diskPath ?? '')
 const ref = String(refName || (repoRow ? (repoRow.default_branch ?? 'HEAD') : 'HEAD'))
 
 // Try the path as a directory. When git says it is not one, it is a file, and

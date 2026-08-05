@@ -18,7 +18,10 @@ const ref = String(params.ref ?? 'HEAD')
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null
 
-const commits = repoRow ? await commitHistory(String(repoRow.disk_path ?? ''), ref, '', 50) : []
+// The absolute path from the resolver. `disk_path` on the row is relative to
+// the repository root, so git resolved it against the server's own working
+// directory, found nothing, and this page said the repository had no commits.
+const commits = repoRow ? await commitHistory(String(repoAccess?.diskPath ?? ''), ref, '', 50) : []
 </script>
 
 @layout('app')
@@ -47,10 +50,11 @@ const commits = repoRow ? await commitHistory(String(repoRow.disk_path ?? ''), r
             @foreach (commits as commit)
               <li class="commit-row">
                 <div class="commit-main">
-                  <span class="commit-subject">{{ commit.subject }}</span>
+                  {{-- The subject is the link, because that is what somebody reads and then wants to open. --}}
+                  <a class="commit-subject" href="/{{ ownerHandle }}/{{ repositoryName }}/commit/{{ commit.sha }}">{{ commit.subject }}</a>
                   <span class="muted commit-meta">{{ commit.authorName }} committed {{ relativeTime(commit.when) }}</span>
                 </div>
-                <span class="mono muted commit-sha">{{ shortSha(commit.sha) }}</span>
+                <a class="mono muted commit-sha" href="/{{ ownerHandle }}/{{ repositoryName }}/commit/{{ commit.sha }}">{{ shortSha(commit.sha) }}</a>
               </li>
             @endforeach
           </ul>
@@ -65,7 +69,7 @@ const commits = repoRow ? await commitHistory(String(repoRow.disk_path ?? ''), r
   .commit-row { display: flex; align-items: center; gap: 14px; padding: 11px 15px; border-bottom: 1px solid var(--line); }
   .commit-row:last-child { border-bottom: 0; }
   .commit-main { flex: 1; min-width: 0; }
-  .commit-subject { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .commit-subject { display: block; color: inherit; text-decoration: none; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .commit-meta { display: block; margin-top: 2px; font-size: 12.5px; }
   .commit-sha { flex: none; font-size: 12.5px; }
 </style>

@@ -1,0 +1,121 @@
+<script server>
+/**
+ * Every tag, newest first.
+ *
+ * By the date the tag points at rather than alphabetically, because
+ * alphabetical order puts v10 between v1 and v2 - which is useless on exactly
+ * the list people come here to read.
+ *
+ * A tag with a release row is marked as one. The two lists are deliberately
+ * different: a tag is a thing in git, a release is a tag plus what somebody
+ * wanted to say about it, and a tag with no release is a perfectly normal tag
+ * rather than a missing release.
+ */
+import { repositoryForView } from '../../../functions/repo'
+import { lastCommit, relativeTime, shortSha, tagNames } from '../../../functions/browse'
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
+
+const diskPath = String(repoAccess?.diskPath ?? '')
+const names = repoRow ? (await tagNames(diskPath)).slice(0, 200) : []
+
+// Which of these tags somebody announced. One query rather than one per tag,
+// and only the published ones: a draft is release notes being written, and
+// this page is public.
+const released: any[] = repoRow
+  ? await db
+      .selectFrom('releases')
+      .select(['tag_name', 'name'])
+      .where('repository_id', '=', Number(repoRow.id))
+      .where('status', '=', 'published')
+      .execute()
+  : []
+
+const releaseByTag = new Map(released.map(row => [String(row.tag_name), String(row.name ?? '')]))
+
+const tags = []
+for (const name of names)
+  tags.push({ name, head: await lastCommit(diskPath, name), release: releaseByTag.get(name) ?? null })
+
+const base = `/${ownerHandle}/${repositoryName}`
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repoRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+      </div>
+    @else
+      <header class="repo-head">
+        <h1 class="repo-title">
+          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
+        </h1>
+        <p class="muted" style="margin-top: 6px;">
+          {{ tags.length }} {{ tags.length === 1 ? 'tag' : 'tags' }}
+        </p>
+      </header>
+
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+
+      @if (tags.length === 0)
+        <div class="panel" style="padding: 28px; text-align: center; margin-top: 16px;">
+          <p class="muted">No tags yet. Push one with <span class="mono">git push --tags</span>.</p>
+        </div>
+      @else
+        <ul class="panel refs">
+          @foreach (tags as tag)
+            <li class="ref-row">
+              <span class="ref-name">
+                <a href="{{ base }}/tree/{{ tag.name }}">{{ tag.name }}</a>
+                @if (tag.release !== null)
+                  <span class="pill">released</span>
+                @endif
+              </span>
+
+              @if (tag.head)
+                <span class="ref-head muted">
+                  <a class="mono" href="{{ base }}/commit/{{ tag.head.sha }}">{{ shortSha(tag.head.sha) }}</a>
+                  {{ tag.release || tag.head.subject }}
+                </span>
+                <span class="ref-when muted">{{ relativeTime(tag.head.when) }}</span>
+              @endif
+            </li>
+          @endforeach
+        </ul>
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+  .refs { margin-top: 16px; overflow: hidden; }
+
+  .ref-row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 11px 15px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .ref-row:last-child { border-bottom: 0; }
+
+  .ref-name { flex: none; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .ref-head { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ref-when { flex: none; font-size: 12.5px; }
+
+  .pill {
+    padding: 1px 7px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+</style>

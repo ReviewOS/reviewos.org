@@ -23,7 +23,7 @@ const revision = String(params.sha ?? '')
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null
 
-const commit = repoRow ? await commitDetail(String(repoRow.disk_path ?? ''), revision) : null
+const commit = repoRow ? await commitDetail(String(repoAccess?.diskPath ?? ''), revision) : null
 
 const base = `/${ownerHandle}/${repositoryName}`
 const files = commit?.files ?? []

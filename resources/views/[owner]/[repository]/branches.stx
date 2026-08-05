@@ -1,0 +1,120 @@
+<script server>
+/**
+ * Every branch, with what is on the end of it.
+ *
+ * The default branch is named rather than left for the reader to infer from
+ * the order: it is the one branch whose identity matters, and a list that
+ * merely happens to start with it is a list that stops being right the moment
+ * somebody pushes a branch called `aaa`.
+ *
+ * Same division as every other browse screen: reading is
+ * `app/Actions/Browse/load`, shaping is `resources/functions/browse`, and this
+ * lays it out.
+ */
+import { repositoryForView } from '../../../functions/repo'
+import { branchNames, lastCommit, relativeTime, shortSha } from '../../../functions/browse'
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
+
+const diskPath = String(repoAccess?.diskPath ?? '')
+const defaultBranch = repoRow ? String(repoRow.default_branch ?? 'main') : 'main'
+
+const names = repoRow ? await branchNames(diskPath) : []
+
+// The default first, then the rest as git listed them. Sorting the whole list
+// alphabetically would bury `main` in a repository with a hundred branches,
+// which is the repository where this page is worth having.
+const ordered = [
+  ...names.filter(name => name === defaultBranch),
+  ...names.filter(name => name !== defaultBranch),
+]
+
+// One `git log -1` per branch. A repository with a thousand branches would
+// want a single `for-each-ref` with a format instead; a page listing a thousand
+// branches has a different problem, and this stays legible until then.
+const branches = []
+for (const name of ordered)
+  branches.push({ name, head: await lastCommit(diskPath, name) })
+
+const base = `/${ownerHandle}/${repositoryName}`
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repoRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+      </div>
+    @else
+      <header class="repo-head">
+        <h1 class="repo-title">
+          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
+        </h1>
+        <p class="muted" style="margin-top: 6px;">
+          {{ branches.length }} {{ branches.length === 1 ? 'branch' : 'branches' }}
+        </p>
+      </header>
+
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+
+      @if (branches.length === 0)
+        <div class="panel" style="padding: 28px; text-align: center; margin-top: 16px;">
+          <p class="muted">This repository has no branches yet. Push one.</p>
+        </div>
+      @else
+        <ul class="panel refs">
+          @foreach (branches as branch)
+            <li class="ref-row">
+              <span class="ref-name">
+                <a href="{{ base }}/tree/{{ branch.name }}">{{ branch.name }}</a>
+                @if (branch.name === defaultBranch)
+                  <span class="pill">default</span>
+                @endif
+              </span>
+
+              @if (branch.head)
+                <span class="ref-head muted">
+                  <a class="mono" href="{{ base }}/commit/{{ branch.head.sha }}">{{ shortSha(branch.head.sha) }}</a>
+                  {{ branch.head.subject }}
+                </span>
+                <span class="ref-when muted">{{ relativeTime(branch.head.when) }}</span>
+              @endif
+            </li>
+          @endforeach
+        </ul>
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+  .refs { margin-top: 16px; overflow: hidden; }
+
+  .ref-row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 11px 15px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .ref-row:last-child { border-bottom: 0; }
+
+  .ref-name { flex: none; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .ref-head { flex: 1; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ref-when { flex: none; font-size: 12.5px; }
+
+  .pill {
+    padding: 1px 7px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+</style>
