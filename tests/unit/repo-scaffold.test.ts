@@ -81,16 +81,28 @@ describe('renderReadme', () => {
 })
 
 describe('the licences', () => {
-  test('every one fills in the year and the holder', () => {
-    for (const key of Object.keys(LICENSES)) {
+  test('no licence goes out with an unfilled placeholder in it', () => {
+    for (const key of Object.keys(LICENSES))
+      expect(licenseText(key, 'Ada Lovelace', 2026)!, key).not.toContain('{{')
+  })
+
+  /**
+   * Not every licence has a slot for a name, and the three that do not are
+   * each complete without one: the Unlicense is a dedication to the public
+   * domain, MPL-2.0's Exhibit A is a notice you paste into your own files
+   * rather than a copyright line, and LGPL-3.0 is a supplement that points at
+   * the GPL for its own terms. Putting a name in any of them would be editing
+   * the document.
+   */
+  test('the ones with a copyright line get the year and the holder', () => {
+    const unnamed = new Set(['unlicense', 'mpl-2.0', 'lgpl-3.0'])
+    const named = Object.keys(LICENSES).filter(key => !unnamed.has(key))
+
+    for (const key of named) {
       const text = licenseText(key, 'Ada Lovelace', 2026)!
 
-      expect(text, key).not.toContain('{{')
-      // The Unlicense has no copyright line by design.
-      if (key !== 'unlicense') {
-        expect(text, key).toContain('2026')
-        expect(text, key).toContain('Ada Lovelace')
-      }
+      expect(text, key).toContain('2026')
+      expect(text, key).toContain('Ada Lovelace')
     }
   })
 
@@ -123,14 +135,65 @@ describe('the licences', () => {
   })
 
   /**
-   * The long licences are absent on purpose. Typing Apache-2.0 or a GPL from
-   * memory is how a repository ends up carrying a licence that is subtly not
-   * the licence, so they are on the roadmap as checked-in copies instead.
+   * The long ones were fetched from apache.org, gnu.org and mozilla.org rather
+   * than typed, which is the only way to have them: a licence with a word
+   * changed is not the licence it claims to be.
    */
-  test('offers only licences short enough to have been reproduced exactly', () => {
-    expect(licenseKey('apache-2.0')).toBeNull()
-    expect(licenseKey('gpl-3.0')).toBeNull()
-    expect(Object.keys(LICENSES).sort()).toEqual(['bsd-2-clause', 'bsd-3-clause', 'isc', 'mit', 'unlicense'])
+  test('offers the licences people actually pick', () => {
+    expect(Object.keys(LICENSES).sort()).toEqual([
+      'agpl-3.0',
+      'apache-2.0',
+      'bsd-2-clause',
+      'bsd-3-clause',
+      'gpl-3.0',
+      'isc',
+      'lgpl-3.0',
+      'mit',
+      'mpl-2.0',
+      'unlicense',
+    ])
+  })
+
+  test('every one has an SPDX identifier, which is how a tool recognises it', () => {
+    for (const [key, license] of Object.entries(LICENSES))
+      expect(license.spdx, key).toMatch(/^[\w.+-]+$/)
+  })
+
+  /** Fetched verbatim, so each carries the sentence that identifies it. */
+  test('the long licences are the documents they claim to be', () => {
+    expect(licenseText('apache-2.0', 'Ada', 2026)!)
+      .toContain('Licensed under the Apache License, Version 2.0')
+    expect(licenseText('apache-2.0', 'Ada', 2026)!)
+      .toContain('TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION')
+    expect(licenseText('gpl-3.0', 'Ada', 2026)!).toContain('GNU GENERAL PUBLIC LICENSE')
+    expect(licenseText('gpl-3.0', 'Ada', 2026)!).toContain('Version 3, 29 June 2007')
+    expect(licenseText('agpl-3.0', 'Ada', 2026)!).toContain('GNU AFFERO GENERAL PUBLIC LICENSE')
+    expect(licenseText('lgpl-3.0', 'Ada', 2026)!).toContain('GNU LESSER GENERAL PUBLIC LICENSE')
+    expect(licenseText('mpl-2.0', 'Ada', 2026)!).toContain('Mozilla Public License Version 2.0')
+  })
+
+  test('they are the whole document, not an excerpt of one', () => {
+    expect(licenseText('apache-2.0', 'Ada', 2026)!.length).toBeGreaterThan(10_000)
+    expect(licenseText('gpl-3.0', 'Ada', 2026)!.length).toBeGreaterThan(30_000)
+  })
+
+  /**
+   * The appendix at the end of Apache and the GPLs is where those documents
+   * mark a slot for a name. Nothing else in a licence is variable, so nothing
+   * else is touched.
+   */
+  test('fills in the appendix each long licence marks for it', () => {
+    const apache = licenseText('apache-2.0', 'Ada Lovelace', 2026)!
+
+    expect(apache).toContain('Copyright 2026 Ada Lovelace')
+    expect(apache).not.toContain('[yyyy]')
+    expect(apache).not.toContain('[name of copyright owner]')
+
+    const gpl = licenseText('gpl-3.0', 'Ada Lovelace', 2026)!
+
+    expect(gpl).toContain('Copyright (C) 2026  Ada Lovelace')
+    expect(gpl).not.toContain('<year>')
+    expect(gpl).not.toContain('<name of author>')
   })
 
   test('an unknown key is null rather than a default licence', () => {

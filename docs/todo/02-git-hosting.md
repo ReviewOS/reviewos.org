@@ -272,9 +272,10 @@ the one moment where rejecting is still possible.
       column was created with, Postgres holds both, and the stricter one wins - so the migration
       applies cleanly and deletes go on failing. Needs a `bun-query-builder` fix that replaces a
       foreign key rather than adding a second one
-- [ ] `app/Actions/Pull/MergePullRequestAction.ts` closes issues with
-      `updateTable(...).where('id', 'in', ids)`, which the query builder renders as `in $1`. It has
-      never closed anything. Use `updateWhereIn` from `app/Actions/Support/rows.ts`
+- [x] `app/Actions/Pull/MergePullRequestAction.ts` closed issues with
+      `updateTable(...).where('id', 'in', ids)`, which the query builder renders as `in $1` - so
+      merging a pull request had never closed anything it said it closed. Through `updateWhereIn`
+      from `app/Actions/Support/rows.ts` now
 - [x] `app/Jobs/RepositoryMaintenanceJob.ts` - `git gc` and repack, nightly at 03:30, plus the
       retention sweep above. Repositories are measured before being packed rather than run through
       `gc --auto`: git's own thresholds are tuned for a person's working copy, and a forge receives
@@ -285,10 +286,12 @@ the one moment where rejecting is still possible.
       to make one commit. Off by default, which is the half that matters: a repository created to
       receive an existing history must be empty, or the first push is a non-fast-forward rejection
       against a commit nobody made
-- [ ] The long licences - Apache-2.0, the GPLs, MPL-2.0 - as checked-in verbatim copies. Five short
-      ones ship (`app/Actions/Repo/scaffold.ts`); the long ones are absent on purpose, because a
-      licence is a legal document and typing one from memory is how a repository ends up carrying a
-      licence that is subtly not the licence
+- [x] Ten licences, every text verbatim in `resources/licenses/*.txt`. The long ones - Apache-2.0,
+      GPL-3.0, AGPL-3.0, LGPL-3.0, MPL-2.0 - were fetched from apache.org, gnu.org and mozilla.org
+      rather than typed, which is the only honest way to have them. Files rather than string
+      literals: a thirty-five thousand character constant in a source file is a constant nobody
+      reviews. The year and the holder are filled into the slot each document marks for them and
+      nowhere else, so the three that have no such slot are left exactly as published
 
 ## Views
 

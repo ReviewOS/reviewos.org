@@ -5,6 +5,7 @@ import { performMerge } from './apply'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
 import { recountOpenIssues } from '../Repo/counters'
+import { updateWhereIn } from '../Support/rows'
 import { approvalsSatisfied } from './anchoring'
 import { isMergeStrategy, mergeBlockers, mergeCommitMessage, retargetStack } from './merge'
 import { requirementsSatisfied } from '../Checks/status'
@@ -288,16 +289,16 @@ async function closeReferenced(
     if (open.length === 0)
       return []
 
-    await db
-      .updateTable('issues')
-      .set({
-        state: 'closed',
-        state_reason: 'completed',
-        closed_at: new Date().toISOString(),
-        closed_by_id: actorId,
-      })
-      .where('id', 'in', open.map(row => Number(row.id)))
-      .execute()
+    // Through `updateWhereIn` rather than the query builder's own `in`, which
+    // renders `WHERE "id" in $1` on an update and fails - so merging a pull
+    // request had never closed anything it said it closed. See
+    // `app/Actions/Support/rows.ts`.
+    await updateWhereIn('issues', 'id', open.map(row => Number(row.id)), {
+      state: 'closed',
+      state_reason: 'completed',
+      closed_at: new Date().toISOString(),
+      closed_by_id: actorId,
+    })
 
     await recountOpenIssues(repositoryId)
 
