@@ -17,7 +17,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done (27/31) |
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (22/57) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (9/61) |
-| [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | In progress (25/36) |
+| [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | In progress (35/37) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (39/82) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | In progress (21/51) |
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (1/20) |
@@ -33,6 +33,25 @@ Phases 1 through 5 all have code in them, which is why none of them says "not st
 work went depth-first through a vertical slice (identity, a repository on disk, an issue, a pull
 request, a notification) rather than finishing one phase before opening the next. That was the right
 order for proving the review screen, and it is the reason the counts are all partial.
+
+Phase 3 is now down to its last two boxes, and both are the same box: reading a commit message needs
+the post-receive processing that phase 2 has not built yet. Everything an issue can do without a
+push works.
+
+## The silent failure that costs the most
+
+Worth stating once, because three ticked boxes turned out to be untrue for the same reason and the
+next one will be too.
+
+**stx server scripts have no `query`.** `params` is bound, `db` is bound, `query` is not - it comes
+from `useRoute()`. Reaching for a bare `query` throws, stx catches the throw and falls back to
+static extraction, and the page renders with *every variable undefined*: no error in the log, no
+stack trace, no failed request. The symptom is a page showing its not-found branch or its empty
+state, which is indistinguishable from there being nothing to show.
+
+That is how the issue-template chooser, the milestone state filter, and the `?state=` filter on both
+list views all shipped ticked and none of them ever ran. `STX_DEBUG=1` prints the real cause; it is
+worth running the dev server with it on.
 
 ## How work is shaped
 
@@ -80,12 +99,38 @@ them would have hit any other project the same way:
   for that guard to survive it, and while it was open it also learned that a `;` or a `--` inside a
   string is data rather than punctuation.
 
+- **The guard made `CREATE TYPE` meaningless.** Adding a value to an enum in a model regenerates the
+  `CREATE TYPE` with the full new set, and on a database that already has the type the guard above
+  swallowed it - so the value never arrived, every insert using it failed against a column that
+  would not take it, and the next diff proposed the same statement again. The silent-no-op loop the
+  guard was written to end, moved one step along. `guardPostgresEnumTypes` now emits an
+  `ALTER TYPE … ADD VALUE IF NOT EXISTS` per member alongside the guarded create, including for
+  corpora that an earlier version already guarded. Found by adding one value to
+  `TimelineEntry.kind`.
+
 Two properties worth keeping true, because both were broken and neither is obvious:
 
 - Running `generate:migrations` twice writes files once. The second run diffs against the snapshot
   the first one wrote, and finds nothing.
 - Running `migrate` twice applies once. Nothing in a generated corpus fails because it has already
   been done.
+
+## The in-house tools are not linked here
+
+`node_modules/@stacksjs/*`, `pickier` and `bun-query-builder` are published copies in this checkout,
+not symlinks into the local checkouts that [AGENTS.md](../../AGENTS.md) describes. So a fix made
+upstream does not reach this app until it is released or `./buddy link:core --all` is run, and a
+generated file may need the fixed statement added by hand in the meantime - migration
+`0000000105-auto-misc.sql` carries one, with a comment saying so.
+
+Two upstream fixes are waiting on that:
+
+- **stacks** (`storage/framework/core/database`): the enum `ADD VALUE` fix above.
+- **pickier**: an apostrophe in a comment inside a function body made `no-unused-vars` read the rest
+  of the body as a string literal, so every parameter above it was reported as unused - and the
+  autofix then offers to rename them to `_name` while the body still says `name`. Comments are now
+  blanked before the scanners run (`maskCommentText`). Until pickier is picked up here, one comment
+  in `app/Actions/Markdown/render.ts` is written without an apostrophe, and says why.
 
 ## Deliberately not doing yet
 
