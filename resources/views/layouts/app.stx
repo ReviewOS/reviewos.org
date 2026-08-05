@@ -494,6 +494,21 @@
 
       /* Asking for the lines a hunk left out. Sits inside the hunk header,
          which is where the gap it fills is. */
+      /* A line number is the handle for selecting the line and the link to it,
+         so it looks like neither until it is reached for. */
+      .line-anchor {
+        display: block;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .gutter.num:hover { background: var(--line); cursor: pointer; }
+
+      /* The selected lines. A left edge rather than a wash, so it survives on
+         top of the add and remove tints without becoming a third colour. */
+      tr.is-selected .gutter.num { box-shadow: inset 2px 0 0 var(--accent); }
+      tr.is-selected .code { background: var(--accent-quiet); }
+
       .hunk-expand {
         display: inline-flex;
         align-items: center;

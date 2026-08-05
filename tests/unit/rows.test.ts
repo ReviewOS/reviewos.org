@@ -85,8 +85,27 @@ describe('renderDiffRows', () => {
 
   test('carries both line numbers in unified, since a thread anchors to a side', () => {
     const html = renderDiffRows(fileOf(uneven), { layout: 'unified' })
+    const firstRow = /<tr class="line line-context">(.*?)<\/tr>/.exec(html)![1]!
+    const gutters = [...firstRow.matchAll(/data-side="(left|right)"[^>]*>[\s\S]*?>(\d+)</g)]
 
-    expect(html).toContain('<td class="gutter num">1</td><td class="gutter num">1</td>')
+    expect(gutters.map(match => [match[1], match[2]])).toEqual([['left', '1'], ['right', '1']])
+  })
+
+  test('every numbered line is a link to itself', () => {
+    // So a reader can copy the link from the context menu without the page
+    // running any JavaScript at all.
+    const html = renderDiffRows(fileOf(uneven))
+
+    expect(html).toContain('class="line-anchor" href="#a.ts:R:1"')
+    expect(html).toContain('aria-label="Line 1"')
+  })
+
+  test('a line that exists on one side only is a link on that side only', () => {
+    const html = renderDiffRows(fileOf(uneven))
+    const addedRow = /<tr class="line line-added">(.*?)<\/tr>/.exec(html)![1]!
+
+    expect((addedRow.match(/line-anchor/g) ?? []).length).toBe(1)
+    expect(addedRow).toContain('data-side="right"')
   })
 
   test('markers say which side a line is on', () => {

@@ -21,6 +21,13 @@ import type { ScrollAnchor, ViewportFile } from '../../app/Actions/Pull/viewport
 import type { RowCounts } from '../../app/Actions/Pull/metrics'
 import { DEFAULT_HEIGHT_METRICS } from '../../app/Actions/Pull/metrics'
 import { captureAnchor, DEFAULT_OVERSCAN, measuredLayout, planFrame } from '../../app/Actions/Pull/viewport'
+import {
+  anchorBetween,
+  anchorCovers,
+  formatLineAnchor,
+  type LineAnchor,
+  parseLineAnchor,
+} from '../../app/Actions/Pull/lineLink'
 
 /**
  * How many hosts to keep for reuse.
@@ -127,6 +134,13 @@ export interface DiffViewerOptions {
   releaseFile?: (file: DiffFileEntry, host: HTMLElement) => void
   /** Called after every applied frame, for a caller keeping a file tree in step. */
   onVisibleChange?: (start: number, end: number) => void
+  /**
+   * Called at the end of every applied frame.
+   *
+   * For state the caller paints onto rows rather than into them: a row that
+   * scrolled away and came back is a new element carrying none of it.
+   */
+  afterRender?: () => void
 }
 
 export interface DiffViewer {
@@ -159,7 +173,7 @@ export interface DiffViewer {
 }
 
 export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
-  const { scroller, content, renderFile, releaseFile, onVisibleChange } = options
+  const { scroller, content, renderFile, releaseFile, onVisibleChange, afterRender } = options
 
   const entries: DiffFileEntry[] = []
   const geometry: ViewportFile[] = []
@@ -249,6 +263,8 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       anchor = captureAnchor(result.layout, scroller.scrollTop)
       schedule()
     }
+
+    afterRender?.()
 
     const mountedIndexes = [...hosts.keys()]
     if (onVisibleChange && mountedIndexes.length > 0) {
@@ -667,6 +683,13 @@ export function mountDiffFiles(): DiffViewer | null {
   const wanted = new Set<number>()
   const asked = new Set<number>()
   let fetchTimer: number | null = null
+  /**
+   * The lines the reader has selected, which is also what the URL says.
+   *
+   * Read from the fragment on load, so a link somebody was sent selects what
+   * they were sent rather than merely scrolling near it.
+   */
+  let selection: LineAnchor | null = parseLineAnchor(window.location.hash)
 
   const say = (message: string, tone: 'working' | 'done' | 'warn' | 'error' = 'working') => {
     if (!status)
@@ -679,6 +702,7 @@ export function mountDiffFiles(): DiffViewer | null {
     scroller,
     content,
     layout: initialLayout,
+    afterRender: () => paintSelection(),
     renderFile(file, host) {
       const cached = markup.get(file.index)
       if (cached != null && cached.layout === layout) {
@@ -810,8 +834,91 @@ export function mountDiffFiles(): DiffViewer | null {
     if (expand) {
       event.preventDefault()
       void expandGap(Number(index), expand)
+      return
+    }
+
+    const gutterCell = target?.closest<HTMLElement>('.gutter.num[data-line]')
+    if (gutterCell) {
+      // Intercepted rather than followed: the browser would jump to a fragment
+      // for a row that may not be mounted, and a shift-click has to extend
+      // rather than navigate.
+      event.preventDefault()
+      selectLine(viewer.files()[Number(index)]?.path, gutterCell, event.shiftKey)
     }
   })
+
+  /**
+   * Select a line, or extend the selection to it.
+   *
+   * The selection lives in the URL, so it is the same thing as the link: what
+   * the reader sees selected is exactly what they would send somebody.
+   */
+  function selectLine(path: string | undefined, cell: HTMLElement, extend: boolean): void {
+    const line = Number(cell.dataset.line)
+    const side = cell.dataset.side === 'left' ? 'left' : 'right'
+    if (path == null || !Number.isFinite(line))
+      return
+
+    const clicked: LineAnchor = { path, side, from: line, to: line }
+
+    // Extending only makes sense within one side of one file; across either,
+    // the click starts a new selection instead of producing a range that spans
+    // two things a comment could not be about.
+    selection = extend && selection != null && selection.path === path && selection.side === side
+      ? anchorBetween(selection, clicked)
+      : clicked
+
+    writeSelectionToUrl()
+    paintSelection()
+  }
+
+  function writeSelectionToUrl(): void {
+    const fragment = selection == null ? '' : formatLineAnchor(selection)
+    // replaceState rather than assigning `location.hash`: the latter adds a
+    // history entry per click, so leaving the page takes as many presses of
+    // back as the reader made selections.
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${fragment}`)
+  }
+
+  /**
+   * Mark the selected lines in whatever is currently mounted.
+   *
+   * Re-applied after every frame as well as on change, because a row that
+   * scrolled away and came back is a different element with none of the state.
+   */
+  function paintSelection(): void {
+    // Captured rather than closed over: the null guard above narrows the local,
+    // and a closure created before that narrowing does not inherit it.
+    const region = content
+    if (region == null)
+      return
+
+    for (const host of region.querySelectorAll<HTMLElement>('.diff-file-host')) {
+      const path = host.dataset.path
+      for (const cell of host.querySelectorAll<HTMLElement>('.gutter.num[data-line]')) {
+        const line = Number(cell.dataset.line)
+        const side = cell.dataset.side === 'left' ? 'left' : 'right'
+        const on = path != null && selection != null && anchorCovers(selection, path, side, line)
+        cell.closest('tr')?.classList.toggle('is-selected', on)
+      }
+    }
+  }
+
+  /** Bring the selected line into view, expanding its file if it is closed. */
+  function revealSelection(): void {
+    if (selection == null)
+      return
+
+    const files = viewer.files()
+    const index = files.findIndex(entry => entry.path === selection!.path)
+    if (index < 0)
+      return
+
+    if (files[index]!.collapsed)
+      viewer.setCollapsed(index, false)
+
+    viewer.scrollToFile(index)
+  }
 
   /**
    * Fill in the lines a hunk left out.
@@ -898,6 +1005,14 @@ export function mountDiffFiles(): DiffViewer | null {
     viewer.setLayout(layout)
   })
 
+  // Somebody following a link within the page, or pressing back to a selection
+  // they made earlier.
+  window.addEventListener('hashchange', () => {
+    selection = parseLineAnchor(window.location.hash)
+    paintSelection()
+    revealSelection()
+  })
+
   showLayout()
   say('Loading the diff…')
 
@@ -927,6 +1042,9 @@ export function mountDiffFiles(): DiffViewer | null {
       say(message, 'warn')
     },
     onEnd(summary) {
+      // Reached once the whole list is known, which is the earliest a link to a
+      // file near the end can be honoured.
+      revealSelection()
       const counts = `${summary.files} files, +${summary.additions} -${summary.deletions}`
       say(truncatedFrom == null ? counts : `${counts} (rendered to file ${truncatedFrom})`, 'done')
     },

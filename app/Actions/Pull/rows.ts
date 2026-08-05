@@ -19,6 +19,7 @@ import type { CharRange } from './inline'
 import { highlightLines } from '../Browse/highlight'
 import { gapsIn, oldOffsetAt } from './expand'
 import { inlineChangedRanges, worthComparing } from './inline'
+import { formatLineAnchor } from './lineLink'
 
 export interface DiffToken {
   type: string
@@ -85,6 +86,8 @@ export interface RenderRowsOptions {
   inlineChanges?: boolean
   /** Computed by `renderDiffRows`; not something a caller supplies. */
   marks?: Map<DiffLine, CharRange[]>
+  /** Also set by `renderDiffRows`, so a gutter can name the file it links into. */
+  path?: string
   /**
    * Render the file closed.
    *
@@ -234,6 +237,25 @@ export function pairInlineChanges(
   return marks
 }
 
+/**
+ * A line-number gutter, which is also the handle for selecting the line.
+ *
+ * An anchor rather than a button, and it carries the fragment it points at, so
+ * a reader can copy the link from the context menu without the page running any
+ * JavaScript at all. Clicking it is intercepted for the range behaviour; middle
+ * clicking and copying still do what a link does.
+ */
+function gutter(path: string, side: 'left' | 'right', line: number | null): string {
+  if (line == null)
+    return `<td class="gutter num"></td>`
+
+  const fragment = formatLineAnchor({ path, side, from: line, to: line })
+
+  return `<td class="gutter num" data-line="${line}" data-side="${side}">`
+    + `<a class="line-anchor" href="${escapeHtml(fragment)}"`
+    + ` aria-label="Line ${line}">${line}</a></td>`
+}
+
 /** The `+`, `-` or space that opens a code cell. */
 function marker(origin: DiffLine['origin']): string {
   if (origin === 'added')
@@ -302,8 +324,8 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
       // every line would start a dozen columns in.
       parts.push(
         `<tr class="line line-${line.origin}">`
-        + `<td class="gutter num">${line.oldLine ?? ''}</td>`
-        + `<td class="gutter num">${line.newLine ?? ''}</td>`
+        + gutter(file.path, 'left', line.oldLine)
+        + gutter(file.path, 'right', line.newLine)
         + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}</td>`
         + `</tr>`,
       )
@@ -324,7 +346,7 @@ function splitCell(line: DiffLine | null, side: 'old' | 'new', options: RenderRo
 
   const number = side === 'old' ? line.oldLine : line.newLine
 
-  return `<td class="gutter num">${number ?? ''}</td>`
+  return gutter(options.path ?? '', side === 'old' ? 'left' : 'right', number)
     + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}</td>`
 }
 
@@ -400,9 +422,11 @@ export function renderDiffRows(file: DiffFile, options: RenderRowsOptions = {}):
   if (file.binary || file.hunks.length === 0)
     return ''
 
-  const resolved: RenderRowsOptions = options.inlineChanges === false
-    ? options
-    : { ...options, marks: inlineMarksFor(file) }
+  const resolved: RenderRowsOptions = {
+    ...options,
+    path: file.path,
+    marks: options.inlineChanges === false ? undefined : inlineMarksFor(file),
+  }
 
   return resolved.layout === 'split' ? renderSplit(file, resolved) : renderUnified(file, resolved)
 }
