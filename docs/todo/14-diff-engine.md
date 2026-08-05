@@ -433,10 +433,13 @@ comment nesting wrong, and the failure is silent and ugly: half a file rendered 
 
 Everything a reader can turn on. DiffsHub exposes all of these; several we already have.
 
-- [ ] Split and unified layouts. `DiffView.stx` renders unified only today, despite phase 4 listing
-      both, so this is not a refinement of something that exists.
+- [x] Split and unified layouts, switchable without reloading. The manifest carries the row counts
+      for both, so the geometry switches from what the list already has and only the markup is
+      refetched.
 - [ ] Split columns scroll-synced horizontally
-- [ ] Word-level and character-level highlighting inside changed lines, as a setting, not only word
+- [x] Word-level highlighting inside changed lines. Reported as character ranges rather than as
+      substrings, because the line is already carved into syntax tokens by the time it renders and
+      neither carving may be dropped. Character-level is still open.
 - [ ] Diff indicators as a choice: classic `+`/`-` glyphs, a colour bar, or none
 - [ ] Line numbers toggleable, and both sides' numbers always present in split
 - [ ] Change backgrounds toggleable, for readers who find the wash of colour harder to read
@@ -446,7 +449,7 @@ Everything a reader can turn on. DiffsHub exposes all of these; several we alrea
       position
 - [ ] Hunk separators that say what was skipped and how much
 - [ ] Deleted files collapsed by default
-- [ ] Every one of these settings persists per reader and survives a reload
+- [x] Every one of these settings persists per reader and survives a reload
 
 ## Hunk expansion and partial diffs
 

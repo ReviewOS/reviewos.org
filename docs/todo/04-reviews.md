@@ -46,7 +46,7 @@ they are somebody's problem.
       than as noise
 - [ ] Large-diff strategy: collapse by default past a threshold, load file diffs on demand, and
       never send the whole thing to the browser at once
-- [ ] Word-level highlighting inside changed lines
+- [x] Word-level highlighting inside changed lines
 - [x] Whitespace-only changes hidden behind a toggle
 - [x] Generated files (lockfiles, `.gitattributes` `linguist-generated`) collapsed by default
 - [ ] Tests against real-world shapes: a moved file, a 5,000 line diff, a file with no trailing
