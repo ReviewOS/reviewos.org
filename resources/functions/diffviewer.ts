@@ -22,6 +22,20 @@ import type { RowCounts } from '../../app/Actions/Pull/metrics'
 import { DEFAULT_HEIGHT_METRICS } from '../../app/Actions/Pull/metrics'
 import { captureAnchor, DEFAULT_OVERSCAN, planFrame } from '../../app/Actions/Pull/viewport'
 
+/**
+ * How many hosts to keep for reuse.
+ *
+ * A screen's worth plus the overscan either side, with room to spare. Beyond
+ * that the pool is holding elements nobody is going to ask for.
+ */
+const POOL_LIMIT = 64
+
+/** Files per batch handed to the viewer. */
+const MANIFEST_BATCH_SIZE = 50
+
+/** And the longest a batch waits to be handed over, however few are in it. */
+const MANIFEST_BATCH_MS = 100
+
 /** One file, as the manifest describes it. */
 export interface DiffFileEntry {
   index: number
@@ -78,7 +92,7 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
   const pool: HTMLElement[] = []
 
   let layout = options.layout ?? 'unified'
-  let overscan = options.overscan ?? DEFAULT_OVERSCAN
+  const overscan = options.overscan ?? DEFAULT_OVERSCAN
   let frame: number | null = null
   let anchor: ScrollAnchor | null = null
   let destroyed = false
@@ -358,14 +372,6 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
 }
 
 /**
- * How many hosts to keep for reuse.
- *
- * A screen's worth plus the overscan either side, with room to spare. Beyond
- * that the pool is holding elements nobody is going to ask for.
- */
-const POOL_LIMIT = 64
-
-/**
  * Read a newline-delimited JSON stream, yielding records as they land.
  *
  * The point is the same as everywhere else in this pipeline: the first record
@@ -473,11 +479,5 @@ export async function streamDiffManifest(
 
   flush()
 }
-
-/** Files per batch handed to the viewer. */
-const MANIFEST_BATCH_SIZE = 50
-
-/** And the longest a batch waits to be handed over, however few are in it. */
-const MANIFEST_BATCH_MS = 100
 
 export { DEFAULT_HEIGHT_METRICS }

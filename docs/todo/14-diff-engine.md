@@ -215,7 +215,8 @@ in the DOM.
       than a scroll listener
 - [ ] Scroll targets by position, item, line, and line range, each with start/center/end alignment
       and instant/smooth behaviour, honouring `prefers-reduced-motion`
-- [ ] A WebKit guard for the bulk-subtree-rewrite bug ([webkit #308027](https://bugs.webkit.org/show_bug.cgi?id=308027)):
+- [ ] A WebKit guard for the bulk-subtree-rewrite bug,
+      [webkit 308027](https://bugs.webkit.org/show_bug.cgi?id=308027):
       rewriting the subtree of a `container-type: inline-size` element in bulk makes Safari clamp the
       ancestor scroller to 0. Pin `min-height` across the rebuild, force one layout read while pinned,
       then unpin. Gate it to Safari only, because it costs two synchronous layouts.
