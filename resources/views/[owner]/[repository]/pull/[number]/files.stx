@@ -50,7 +50,17 @@ const statePill = pullRequest
  * how a pull request is addressed, and so a change to the route is a change in
  * one place.
  */
-const manifestUrl = `/api/repos/pulls/diff/manifest?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repositoryName)}&number=${number}`
+const diffQuery = `owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repositoryName)}&number=${number}`
+const manifestUrl = `/api/repos/pulls/diff/manifest?${diffQuery}`
+
+/**
+ * Where the browser asks for rows it was not sent.
+ *
+ * Only reached on a diff large enough that rows stopped partway through. The
+ * viewer appends the paths it wants, so the server can hand git a pathspec
+ * rather than walking a large diff to an offset.
+ */
+const rowsUrl = `/api/repos/pulls/diff/rows?${diffQuery}`
 </script>
 
 @layout('app')
@@ -101,6 +111,7 @@ const manifestUrl = `/api/repos/pulls/diff/manifest?owner=${encodeURIComponent(o
         data-diff-stream
         data-layout="unified"
         data-manifest-url="{{ manifestUrl }}"
+        data-rows-url="{{ rowsUrl }}"
       >
         <div class="diff-scroller" data-diff-scroller>
           <div data-diff-content></div>

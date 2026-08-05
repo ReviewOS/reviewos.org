@@ -53,6 +53,12 @@ function toFileEntry(record: Record<string, unknown>): DiffFileEntry {
   }
 }
 
+/** How long a row request waits to collect more files before it goes. */
+const ROW_FETCH_DELAY_MS = 32
+
+/** Files per row request. Matches the server's own cap on how many it will take. */
+const ROW_FETCH_BATCH = 40
+
 /** Files per batch handed to the viewer. */
 const MANIFEST_BATCH_SIZE = 50
 
@@ -585,11 +591,19 @@ export function mountDiffFiles(): DiffViewer | null {
     return null
 
   const layout = root.dataset.layout === 'split' ? 'split' : 'unified'
-  // Markup for files whose rows arrived inline, by index. A file the reader has
+  const rowsUrl = root.dataset.rowsUrl
+  // Markup for files whose rows have arrived, by index. A file the reader has
   // not reached yet costs one string; a file they scrolled past costs the same
   // string and no elements.
   const markup = new Map<number, string>()
   let truncatedFrom: number | null = null
+
+  // Files mounted without markup, waiting to be asked for, and the ones already
+  // asked for. Two sets rather than one, so a slow response does not make the
+  // viewer ask again on every frame the file stays on screen.
+  const wanted = new Set<number>()
+  const asked = new Set<number>()
+  let fetchTimer: number | null = null
 
   const say = (message: string, tone: 'working' | 'done' | 'warn' | 'error' = 'working') => {
     if (!status)
@@ -609,6 +623,14 @@ export function mountDiffFiles(): DiffViewer | null {
         return
       }
 
+      // Past the point where inline rows stopped, so this one has to be asked
+      // for. Queued rather than fetched here: mounting happens inside a render
+      // pass, and a screenful of files should be one request rather than twenty.
+      if (rowsUrl != null && truncatedFrom != null && file.index >= truncatedFrom && !asked.has(file.index)) {
+        wanted.add(file.index)
+        scheduleRowFetch()
+      }
+
       // Rows for this file have not arrived. A placeholder the right height
       // rather than an empty box, so the scrollbar does not lurch when they do.
       host.innerHTML = `<section class="diff-file panel is-pending">`
@@ -617,6 +639,84 @@ export function mountDiffFiles(): DiffViewer | null {
         + `<span class="count-del">-${file.deletions}</span></span></header></section>`
     },
   })
+
+  /**
+   * Ask for the rows of files that are on screen without any.
+   *
+   * Batched behind a frame, so a scroll that mounts twenty files makes one
+   * request. Asked for by path, which is what lets the server hand `git diff` a
+   * pathspec instead of walking to an offset.
+   */
+  function scheduleRowFetch(): void {
+    if (fetchTimer != null || wanted.size === 0)
+      return
+
+    fetchTimer = window.setTimeout(() => {
+      fetchTimer = null
+      void fetchWantedRows()
+    }, ROW_FETCH_DELAY_MS)
+  }
+
+  async function fetchWantedRows(): Promise<void> {
+    if (rowsUrl == null || wanted.size === 0)
+      return
+
+    const files = viewer.files()
+    const batch = [...wanted].slice(0, ROW_FETCH_BATCH)
+    const query = new URLSearchParams()
+
+    for (const index of batch) {
+      wanted.delete(index)
+      const file = files[index]
+      if (!file)
+        continue
+      asked.add(index)
+      query.append('path', file.path)
+    }
+
+    if ([...query].length === 0)
+      return
+
+    // Indexed by path on the way back, because the rows response numbers files
+    // from zero within its own small diff and those are not the positions the
+    // list uses.
+    const indexByPath = new Map<string, number>()
+    for (const index of batch) {
+      const file = files[index]
+      if (file)
+        indexByPath.set(file.path, index)
+    }
+
+    try {
+      const response = await fetch(`${rowsUrl}&${query}`, { headers: { Accept: 'application/x-ndjson' } })
+      if (!response.ok)
+        throw new Error(await response.text())
+
+      let pathOfCurrent: string | null = null
+      for await (const record of readNdjson<Record<string, unknown>>(response)) {
+        if (record.t === 'file') {
+          pathOfCurrent = String(record.path)
+        }
+        else if (record.t === 'rows' && pathOfCurrent != null) {
+          const index = indexByPath.get(pathOfCurrent)
+          if (index != null) {
+            markup.set(index, String(record.html))
+            viewer.refresh(index)
+          }
+        }
+      }
+    }
+    catch {
+      // Let them be asked for again: a failed batch that stayed in `asked`
+      // would leave those files showing a placeholder for the rest of the visit
+      // with no way to recover but a reload.
+      for (const index of batch)
+        asked.delete(index)
+    }
+
+    if (wanted.size > 0)
+      scheduleRowFetch()
+  }
 
   // Collapsing is delegated rather than bound per file: the headers come and go
   // as the reader scrolls, and a listener per mounted file would have to be
@@ -650,6 +750,13 @@ export function mountDiffFiles(): DiffViewer | null {
     },
     onRowsTruncated(from) {
       truncatedFrom = from
+      // Files already mounted past this point are showing placeholders and have
+      // nothing coming, so they have to be asked for now.
+      for (const file of viewer.files()) {
+        if (file.index >= from && !markup.has(file.index))
+          wanted.add(file.index)
+      }
+      scheduleRowFetch()
     },
     onNotice(message) {
       say(message, 'warn')
