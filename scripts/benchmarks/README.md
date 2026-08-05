@@ -43,17 +43,55 @@ What it reports, and why each is there:
   `recycled` count near `mounts` is that claim holding.
 - `heapMb.grew`. Memory after a long scroll should settle near where it started.
 
-### What it deliberately does not do
+## Chrome traces
 
-It is not a Chrome trace. A trace attributes time to `UpdateLayoutTree`, `Layout` and `Paint`, and
-that attribution is what a CSS, containment or scrollbar change needs. Capturing one requires the
-DevTools protocol and a browser launched for it.
+The probe says whether frames were dropped. `trace.ts` says which phase dropped them.
 
-The two are complements: this says whether frames were dropped, a trace says which phase dropped
-them. Reach for a trace when this reports a regression and the cause is not obvious.
+```bash
+bun scripts/benchmarks/trace.ts http://localhost:3000/stacks/stacks/pull/9001/files --runs 3
+```
 
-### Comparing two commits
+It launches headless Chrome against a throwaway profile, waits for the page to settle, records a
+trace while running the same scroll driver, and totals renderer-main time per phase: style and
+layout, paint and compositing, script, and HTML parsing. `cdp.ts` is the client, which is a
+WebSocket and four methods rather than a browser-automation dependency.
 
-Neither script does this for you yet. The shape it wants is two git worktrees at two shas, both
-built in production mode and both served, with runs alternating between them so machine drift does
-not land on one side. Recorded in [phase 14](../../docs/todo/14-diff-engine.md) as still to build.
+Waiting for the page to *settle* means more than waiting for the file list. Heights are estimates
+until their file has been mounted and measured, so the scrollable range keeps moving after the last
+record lands; the runner waits for it to hold still, because two runs over different ranges are not
+comparable. `stepsClamped` in the output counts steps that asked for more than the list had left,
+which is ordinary at the very end and a sign the page had not settled if there are many.
+
+Headless and headed traces are not comparable to each other: compositing differs, and headless runs
+uncapped rather than at the display's refresh rate. Pick one and stay with it.
+
+## Comparing two commits
+
+```bash
+git worktree add /tmp/bench-base <base-sha>
+git worktree add /tmp/bench-head <head-sha>
+# install and start a dev server in each, on its own port
+
+bun scripts/benchmarks/compare.ts \
+  --base http://localhost:3000/stacks/stacks/pull/9001/files \
+  --head http://localhost:3001/stacks/stacks/pull/9001/files \
+  --runs 3
+```
+
+It alternates one run each rather than measuring one side to completion and then the other.
+Anything that changes over the minute in between - a background job, thermal throttling, a cache
+filling - would otherwise land entirely on one side and read as a regression.
+
+### The noise floor
+
+Found by running it against the same URL on both sides, which is the only honest way to find one.
+On this machine the three large metrics drift 2 to 4 percent between identical runs, so a change has
+to clear **5 percent and 5 milliseconds** before it is called one.
+
+Both bars matter. `ParseHTML` totals under thirty milliseconds over a four second scroll, so two
+milliseconds of ordinary drift is six percent of it, and the first version of this called two
+identical URLs "slower" on exactly that. Run it against itself after changing the thresholds; if it
+finds a difference, the thresholds are wrong.
+
+It does not build or serve anything. Two dev servers, two databases and two builds is a lot of
+machinery to get subtly wrong, and a misconfigured server produces confident numbers.

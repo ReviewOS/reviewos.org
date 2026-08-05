@@ -173,11 +173,39 @@ false: it counted any frame over the 16.7ms budget as dropped, and a page holdin
 reports a median of almost exactly 16.7ms. It reported 44% dropped on a run that never stuttered.
 A frame is dropped when the next one missed its slot, which is half a frame late.
 
-- [ ] Chrome traces, for the attribution this cannot give: `UpdateLayoutTree` against `Layout`
-      against paint. Needed when the probe reports a regression and the cause is not obvious, and
-      the right tool for any CSS, containment or scrollbar change.
-- [ ] Two worktrees at two shas, built and served, with runs alternating between them, so a change is
-      measured against its own baseline rather than against a memory
+### Traces, and comparing two commits
+
+`scripts/benchmarks/trace.ts` records a Chrome trace over the same scroll and totals renderer-main
+time per phase. `cdp.ts` is the client it uses: a WebSocket and four methods rather than a
+browser-automation dependency.
+
+The same 100 file diff, headless, over a four second scroll:
+
+| | |
+|---|---|
+| style and layout | 180ms |
+| paint and compositing | 381ms |
+| script | 535ms |
+| HTML parsing | 28ms |
+
+`compare.ts` alternates one run each between two URLs, rather than measuring one side to completion
+and then the other: anything that changes over the minute in between would otherwise land entirely
+on one side and read as a regression.
+
+Two things fell out of running these that are worth keeping:
+
+- **The page has to settle, not just finish loading.** Heights are estimates until their file has
+  been mounted and measured, so the scrollable range keeps moving after the last manifest record
+  lands. A run started before it holds still scrolls a different distance than the one it was asked
+  for. The runner waits, and the probe reports `stepsClamped` for the steps that asked for more than
+  was left.
+- **The noise floor is 5% *and* 5ms.** Found by running `compare.ts` against the same URL on both
+  sides. The three large metrics drift 2 to 4 percent between identical runs, and a percentage alone
+  is the wrong test for a small one: `ParseHTML` totals under thirty milliseconds, so two
+  milliseconds of drift is six percent of it, and the first version called two identical URLs
+  "slower" on exactly that.
+
+- [ ] Run it in CI on a machine quiet enough for the floor to be lower than a laptop's
 - [ ] A corpus larger than this repository can provide. `stacks` at 5,722 files is a tenth of the
       Linux compare DiffsHub uses as its demo.
 
@@ -595,21 +623,21 @@ repository.
 
 - [ ] Two git worktrees at two shas, both built in production mode, both served, so a change is
       measured against its own baseline rather than against a memory
-- [ ] A deterministic scroll driver: a fixed `scrollTop` sequence over a fixed duration, applied to
+- [x] A deterministic scroll driver: a fixed `scrollTop` sequence over a fixed duration, applied to
       the real scroll element, asserting the position after each step and returning a checksum. Never
       dispatch synthetic `scroll` events; they do not move browser scroll state.
-- [ ] A stable-page precondition checked before recording: the scroller exists, streaming has
+- [x] A stable-page precondition checked before recording: the scroller exists, streaming has
       finished, and the worker pool is idle
-- [ ] Chrome traces via CDP with the renderer-main categories, one unrecorded warmup per sha, then at
+- [x] Chrome traces via CDP with the renderer-main categories, one unrecorded warmup per sha, then at
       least three kept runs, alternating base and test so machine drift does not land on one side
-- [ ] An analysis script summarizing `UpdateLayoutTree`, `Layout`, and the paint/composite group per
+- [x] An analysis script summarizing `UpdateLayoutTree`, `Layout`, and the paint/composite group per
       run, with average, median, min and max
 - [ ] Two modes: highlighting stubbed out (for CSS and layout work, where token spans are noise) and
       full production (for anything else). Never mix modes or browser headedness within a comparison.
 - [ ] A fixed corpus of test diffs committed or hosted: a 15 file pull request, a 5k line diff, a 30k
       line diff, and the Linux `v6.0...v7.0` compare. Host the large ones ourselves rather than
       hammering GitHub, which is what Pierre does for their demo links.
-- [ ] Results recorded per change with the sha, route, viewport, mode, and run count, so "this got
+- [x] Results recorded per change with the sha, route, viewport, mode, and run count, so "this got
       slower" is answerable
 - [ ] A memory profile alongside the scroll trace: heap after load, after a full scroll, and after a
       forced GC

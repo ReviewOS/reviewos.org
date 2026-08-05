@@ -92,6 +92,7 @@
     const started = performance.now()
     let previousFrame = started
     let mismatches = 0
+    let clamped = 0
 
     for (let step = 1; step <= steps; step++) {
       // Paced against the clock rather than against frames, so the same run
@@ -105,8 +106,18 @@
         previousFrame = now
       }
 
-      const target = Math.round((distance * step) / steps)
+      const wanted = Math.round((distance * step) / steps)
+      // Clamped against the range as it is *now*. The list replaces estimated
+      // heights with measured ones as files mount, so the scrollable range
+      // moves under a run that computed its distance once at the start, and a
+      // target past the end is the page being honest rather than the scroll
+      // going wrong.
+      const reachable = scroller.scrollHeight - scroller.clientHeight
+      const target = Math.min(wanted, Math.max(0, reachable))
       scroller.scrollTop = target
+
+      if (target !== wanted)
+        clamped++
 
       // The browser stores scrollTop on the device pixel grid, so an exact
       // match is not required; a whole pixel of drift means the scroll did not
@@ -136,6 +147,11 @@
       // Every step should have landed where it was told. Anything else means
       // the numbers below describe a different scroll than the one asked for.
       stepMismatches: mismatches,
+      // Steps that asked for more than the list had left. Not a fault: it means
+      // the range shrank while the run was going, usually because measured
+      // heights came in under the estimates. Many of them means the run started
+      // before the page had settled.
+      stepsClamped: clamped,
       frames: frameGaps.length,
       framesPerSecond: Math.round((frameGaps.length / elapsed) * 1000),
       droppedFrames: dropped,
