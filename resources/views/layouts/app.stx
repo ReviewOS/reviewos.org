@@ -606,17 +606,76 @@
 
       /* The list of files beside a diff. Windowed, so the rows are absolutely
          positioned inside a sizer standing in for the whole list. */
-      .file-list-viewport { height: 100%; overflow-y: auto; overscroll-behavior: contain; }
+      .file-list-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 34px;
+        padding: 0 10px;
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+      }
+
+      .file-list-count { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+      /* The count gives up its space to the filter rather than being clipped
+         to `100 files, 1 vie…`, which is worse than not being there. */
+      .file-list-head:has(.file-list-search:not([hidden])) .file-list-count { display: none; }
+
+      .file-list-search-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .file-list-search-toggle:hover { background: var(--surface-tint); color: var(--text); }
+      .file-list-search-toggle[aria-expanded='true'] { color: var(--accent); }
+
+      /* Takes the whole row when it is open, and no space at all when it is
+         not. A filter is worth a row of vertical space on a four thousand file
+         compare and not on a fifteen file pull request. */
+      .file-list-search {
+        flex: 1;
+        min-width: 0;
+        height: 22px;
+        padding: 0 8px;
+        border: 1px solid var(--line-strong);
+        border-radius: 6px;
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+        font-size: 12px;
+      }
+
+      .file-list-viewport { height: calc(100% - 34px); overflow-y: auto; overscroll-behavior: contain; }
       .file-list-sizer { position: relative; }
       .file-list-rows { position: absolute; top: 0; right: 0; left: 0; }
 
       .file-row {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 7px;
         width: 100%;
         height: 26px;
         padding: 0 10px;
+      }
+
+      .file-open {
+        display: flex;
+        flex: 1;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        height: 100%;
+        padding: 0;
         border: 0;
         background: transparent;
         color: var(--text);
@@ -626,8 +685,16 @@
         cursor: pointer;
       }
 
+      .file-viewed { flex: none; margin: 0; cursor: pointer; }
+
       .file-row:hover { background: var(--surface-tint); }
       .file-row.is-current { background: var(--accent-quiet); }
+
+      /* A file the reader has finished with. Dimmed rather than removed: they
+         may want to go back to it, and a list that shortens as you work is a
+         list you cannot find your place in. */
+      .file-row.is-viewed .file-open { opacity: 0.5; }
+      .file-row.is-viewed .file-name { text-decoration: line-through; }
 
       .file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
       /* The directory dimmed and the filename bright, which is what a reader

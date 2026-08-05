@@ -652,18 +652,30 @@ already used it.
       filename, which is what a reviewer scans to tell two `index.ts` apart, and folding is a state
       machine that earns its keep on a repository browser rather than on a diff where every file
       listed is one somebody changed.
-- [ ] Slice-first reads: `getVisibleCount()` and `getVisibleSlice(start, end)` are the fast path, and
-      the full list is never materialized to render a screenful
-- [ ] Prepared input for presorted paths, so a 40,000 path tree is built once rather than sorted on
-      every rebuild during a stream
-- [ ] Empty directories flattened in the projection only, never in the canonical topology
-- [ ] Sticky ancestor folders while scrolling, so the reader always knows where they are
+- [x] Slice-first reads: a screenful is rendered from a window into the list rather than from a copy
+      of it, and the filter produces *positions in the diff* rather than a renumbered list - so a
+      filtered sidebar still scrolls the viewer to the right file.
+- [ ] Search over the tree found one thing worth saying: three items that were on this list are
+      about a *folded* tree, and this list is flat. Prepared input for presorted paths, flattening
+      empty directories in the projection, and sticky ancestor folders are all answers to problems a
+      folded tree has. A flat list sorted by the diff's own order has none of them: it is never
+      sorted, it has no directories to flatten, and there are no ancestors to pin. They are left
+      unticked rather than deleted because adopting a folded tree would bring all three back.
 - [x] Per-file change decoration (added, modified, deleted, renamed) with counts
-- [ ] Search over the tree, opt-in so it takes no vertical space until asked for
+- [x] Search over the tree, opt-in so it takes no vertical space until asked for. `/` opens it,
+      which is the key every list on the internet uses and therefore the one nobody has to be told
+      about. Terms match anywhere in the path in any order, so `cart test` finds
+      `tests/commerce/cart.test.ts` without the reader remembering the directory order - and it is
+      substring rather than fuzzy, because a filter that returns files whose match you cannot see is
+      worse than one that returns none.
 - [x] Selecting a file scrolls the viewer to it, expanding it if collapsed
 - [x] The tree is a separate state tree from the diff items, so a comment landing does not rebuild it
-- [ ] Viewed state per file, checkable from the tree, persisted across visits (this is the phase 4
-      item; the tree is where it belongs in the interface)
+- [x] Viewed state per file, checkable from the tree, persisted across visits. Ticking one folds the
+      file away, which is the point of ticking it: the next unread file moves up to where the reader
+      is looking. Kept per pull request rather than per path - a key of just the path would tick a
+      file on every other pull request that touches it, which looks exactly like the feature working.
+- [ ] Viewed state on the server rather than in local storage, so it follows a reviewer between
+      machines. Phase 4 owns that; this is the interface half.
 - [x] A mobile presentation: an overlay rather than a column
 
 ## Theming

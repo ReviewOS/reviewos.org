@@ -1,0 +1,209 @@
+<script server>
+/**
+ * One commit: who wrote it, what it says, and what it changed.
+ *
+ * The file list only, with counts - not the patch. A commit touching four
+ * hundred files would otherwise render the whole diff into one page, and the
+ * review screen is where a diff belongs anyway.
+ *
+ * Same division as every other browse screen: reading is
+ * `app/Actions/Browse/load`, shaping is `resources/functions/browse`, and this
+ * lays it out.
+ */
+import { repositoryForView } from '../../../../functions/repo'
+import { commitDetail, relativeTime, shortSha } from '../../../../functions/browse'
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+const revision = String(params.sha ?? '')
+
+// Resolved and permission-checked together. A repository the reader may not
+// see comes back null, exactly as one that does not exist does, so a private
+// repository does not announce itself by answering differently.
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
+
+const commit = repoRow ? await commitDetail(String(repoRow.disk_path ?? ''), revision) : null
+
+const base = `/${ownerHandle}/${repositoryName}`
+const files = commit?.files ?? []
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repoRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+      </div>
+    @elseif (!commit)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such commit</h1>
+        <p class="muted" style="margin-top: 6px;">
+          Nothing in this repository is called <span class="mono">{{ revision }}</span>.
+        </p>
+      </div>
+    @else
+      <header class="repo-head">
+        <h1 class="repo-title">
+          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
+        </h1>
+      </header>
+
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+
+      <article class="panel commit-card">
+        <h2 class="commit-subject">{{ commit.subject }}</h2>
+
+        @if (commit.body)
+          <pre class="commit-body">{{ commit.body }}</pre>
+        @endif
+
+        <div class="commit-by">
+          <span>{{ commit.authorName }}</span>
+          <span class="muted">authored {{ relativeTime(commit.authoredAt) }}</span>
+          @if (commit.committerName !== commit.authorName)
+            <span class="muted">&middot; {{ commit.committerName }} committed {{ relativeTime(commit.committedAt) }}</span>
+          @endif
+        </div>
+
+        <dl class="commit-refs">
+          <dt class="muted">commit</dt>
+          <dd class="mono">{{ commit.sha }}</dd>
+
+          @if (commit.parents.length > 0)
+            <dt class="muted">{{ commit.parents.length === 1 ? 'parent' : 'parents' }}</dt>
+            <dd>
+              @foreach (commit.parents as parent)
+                <a class="mono" href="{{ base }}/commit/{{ parent }}">{{ shortSha(parent) }}</a>
+              @endforeach
+            </dd>
+          @endif
+        </dl>
+      </article>
+
+      <div class="commit-summary">
+        <span>{{ files.length }} {{ files.length === 1 ? 'file' : 'files' }} changed</span>
+        <span class="add">+{{ commit.additions }}</span>
+        <span class="del">&minus;{{ commit.deletions }}</span>
+
+        {{--
+          Said out loud rather than left for somebody to notice. A merge is
+          diffed against its first parent, so the numbers here are what arrived
+          on this branch - not the combined diff, which would be a different and
+          much larger answer.
+        --}}
+        @if (commit.isMerge)
+          <span class="muted">against the first parent</span>
+        @endif
+      </div>
+
+      @if (files.length === 0)
+        <div class="panel" style="padding: 28px; text-align: center;">
+          <p class="muted">This commit changed no files.</p>
+        </div>
+      @else
+        <ul class="panel files">
+          @foreach (files as file)
+            <li class="file-row">
+              <span class="status status-{{ file.status }}" title="{{ file.status }}">{{ file.status.slice(0, 1).toUpperCase() }}</span>
+
+              <span class="file-path mono">
+                @if (file.from)
+                  <span class="muted">{{ file.from }}</span> &rarr; <a href="{{ base }}/tree/{{ commit.sha }}/{{ file.path }}">{{ file.path }}</a>
+                @else
+                  <a href="{{ base }}/tree/{{ commit.sha }}/{{ file.path }}">{{ file.path }}</a>
+                @endif
+              </span>
+
+              @if (file.binary)
+                <span class="muted counts">binary</span>
+              @else
+                <span class="counts">
+                  <span class="add">+{{ file.additions }}</span>
+                  <span class="del">&minus;{{ file.deletions }}</span>
+                </span>
+              @endif
+            </li>
+          @endforeach
+        </ul>
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+  .commit-card { padding: 18px 20px; margin-top: 16px; }
+  .commit-subject { font-size: 17px; font-weight: 600; margin: 0; }
+
+  .commit-body {
+    margin: 10px 0 0;
+    font-family: inherit;
+    font-size: 13.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    color: var(--muted);
+  }
+
+  .commit-by { margin-top: 14px; font-size: 13px; display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .commit-refs {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 14px;
+    margin: 14px 0 0;
+    font-size: 12.5px;
+  }
+
+  .commit-refs dt { margin: 0; }
+  .commit-refs dd { margin: 0; }
+  .commit-refs dd a { margin-right: 8px; }
+
+  .commit-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0 10px;
+    font-size: 13px;
+  }
+
+  .files { overflow: hidden; }
+
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 15px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .file-row:last-child { border-bottom: 0; }
+  .file-path { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .counts { flex: none; font-size: 12.5px; display: flex; gap: 6px; }
+
+  .add { color: var(--add, #1a7f37); }
+  .del { color: var(--del, #b3261e); }
+
+  /*
+   * One letter, in a box, the way git itself writes a status. Colour carries
+   * the same information a second time rather than on its own, so it still
+   * reads for somebody who cannot tell the two greens apart.
+   */
+  .status {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .status-added { color: var(--add, #1a7f37); }
+  .status-deleted { color: var(--del, #b3261e); }
+  .status-renamed { color: var(--accent); }
+</style>

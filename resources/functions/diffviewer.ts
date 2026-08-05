@@ -42,6 +42,7 @@ import { applyPreferences, type DiffPreferences, readPreferences, wirePreference
 // `shell.ts` exists: `rows.ts` reaches the highlighter, and the browser must
 // never download forty eight grammars to draw a file header.
 import { renderDiffShell } from '../../app/Actions/Pull/shell'
+import { filterFiles, readViewed, writeViewed } from './filelist'
 
 /**
  * How many hosts to keep for reuse.
@@ -96,58 +97,110 @@ const FILE_LIST_OVERSCAN = 200
 export function createFileList(options: {
   host: HTMLElement
   onSelect: (index: number) => void
+  /**
+   * Where the viewed set is remembered, which is one pull request.
+   *
+   * Passed in rather than read from the URL here, because this function knows
+   * about files and not about how a pull request is addressed.
+   */
+  scope?: string
+  /** Called when a file is ticked or unticked, so the diff can fold it away. */
+  onViewedChange?: (path: string, viewed: boolean) => void
 }): {
   setFiles: (files: readonly DiffFileEntry[]) => void
   setCurrent: (index: number) => void
+  /** The paths the reader has marked as read. */
+  viewed: () => ReadonlySet<string>
+  /** Open the search field and put the cursor in it. */
+  focusSearch: () => void
   destroy: () => void
 } {
-  const { host, onSelect } = options
+  const { host, onSelect, scope, onViewedChange } = options
+
+  const header = document.createElement('div')
   const viewport = document.createElement('div')
   const sizer = document.createElement('div')
   const rows = document.createElement('div')
+
+  header.className = 'file-list-head'
+  header.innerHTML = `<span class="file-list-count muted"></span>`
+    + `<button type="button" class="file-list-search-toggle" aria-expanded="false"`
+    + ` aria-label="Search the files"><span class="i-hugeicons-search-01" aria-hidden="true"></span></button>`
+    + `<input type="search" class="file-list-search" placeholder="Filter files" hidden>`
 
   viewport.className = 'file-list-viewport'
   sizer.className = 'file-list-sizer'
   rows.className = 'file-list-rows'
   sizer.appendChild(rows)
   viewport.appendChild(sizer)
+  host.appendChild(header)
   host.appendChild(viewport)
 
+  const search = header.querySelector<HTMLInputElement>('.file-list-search')!
+  const searchToggle = header.querySelector<HTMLElement>('.file-list-search-toggle')!
+  const count = header.querySelector<HTMLElement>('.file-list-count')!
+
   let files: readonly DiffFileEntry[] = []
+  // The positions that survive the current filter, in diff order. Positions
+  // rather than files, so everything downstream still addresses the diff by
+  // the number it uses.
+  let shown: number[] = []
   let current = -1
   let frame: number | null = null
+  // Mutated, never replaced: the list holds a reference to it.
+  const viewed = scope == null ? new Set<string>() : readViewed(scope)
 
   const schedule = () => {
     if (frame == null)
       frame = requestAnimationFrame(() => { frame = null; paint() })
   }
 
+  function refilter(): void {
+    shown = filterFiles(files, search.value)
+  }
+
+  /** How many files the reader has left to read, said plainly. */
+  function paintCount(): void {
+    const read = files.filter(file => viewed.has(file.path)).length
+    const filtered = shown.length !== files.length ? `${shown.length} of ` : ''
+
+    count.textContent = read === 0
+      ? `${filtered}${files.length} files`
+      : `${filtered}${files.length} files, ${read} viewed`
+  }
+
   function paint(): void {
     const height = viewport.clientHeight || 1
-    const total = files.length * FILE_ROW_HEIGHT
-    sizer.style.height = `${total}px`
+    sizer.style.height = `${shown.length * FILE_ROW_HEIGHT}px`
+    paintCount()
 
     const first = Math.max(0, Math.floor((viewport.scrollTop - FILE_LIST_OVERSCAN) / FILE_ROW_HEIGHT))
     const last = Math.min(
-      files.length,
+      shown.length,
       Math.ceil((viewport.scrollTop + height + FILE_LIST_OVERSCAN) / FILE_ROW_HEIGHT),
     )
 
     rows.style.transform = `translateY(${first * FILE_ROW_HEIGHT}px)`
-    rows.innerHTML = files.slice(first, last).map((file, offset) => {
-      const index = first + offset
+    // Sliced, never materialized: a screenful is rendered from a window into
+    // the list rather than from a copy of it, whatever the diff's size.
+    rows.innerHTML = shown.slice(first, last).map((index) => {
+      const file = files[index]!
       const cut = file.path.lastIndexOf('/')
       const directory = cut < 0 ? '' : file.path.slice(0, cut + 1)
       const name = cut < 0 ? file.path : file.path.slice(cut + 1)
+      const isViewed = viewed.has(file.path)
 
-      return `<button type="button" class="file-row${index === current ? ' is-current' : ''}"`
-        + ` data-file-index="${index}" title="${escapeAttribute(file.path)}">`
+      return `<div class="file-row${index === current ? ' is-current' : ''}${isViewed ? ' is-viewed' : ''}">`
+        + `<input type="checkbox" class="file-viewed" data-file-index="${index}"`
+        + ` aria-label="Mark ${escapeAttribute(file.path)} as viewed"${isViewed ? ' checked' : ''}>`
+        + `<button type="button" class="file-open" data-file-index="${index}"`
+        + ` title="${escapeAttribute(file.path)}">`
         + `<span class="file-status file-status-${escapeAttribute(file.status)}" aria-hidden="true"></span>`
         + `<span class="file-name">`
         + (directory ? `<span class="file-dir">${escapeText(directory)}</span>` : '')
         + `${escapeText(name)}</span>`
         + `<span class="file-counts mono"><span class="count-add">+${file.additions}</span>`
-        + `<span class="count-del">-${file.deletions}</span></span></button>`
+        + `<span class="count-del">-${file.deletions}</span></span></button></div>`
     }).join('')
   }
 
@@ -155,15 +208,66 @@ export function createFileList(options: {
   viewport.addEventListener('scroll', onScroll, { passive: true })
 
   const onClick = (event: Event) => {
-    const row = (event.target as HTMLElement | null)?.closest<HTMLElement>('.file-row')
-    if (row?.dataset.fileIndex != null)
-      onSelect(Number(row.dataset.fileIndex))
+    const target = event.target as HTMLElement | null
+    const open = target?.closest<HTMLElement>('.file-open')
+    if (open?.dataset.fileIndex != null)
+      onSelect(Number(open.dataset.fileIndex))
   }
   viewport.addEventListener('click', onClick)
+
+  const onChange = (event: Event) => {
+    const box = (event.target as HTMLElement | null)?.closest<HTMLInputElement>('.file-viewed')
+    const index = box?.dataset.fileIndex
+    const file = index == null ? undefined : files[Number(index)]
+    if (box == null || file == null)
+      return
+
+    if (box.checked)
+      viewed.add(file.path)
+    else
+      viewed.delete(file.path)
+
+    if (scope != null)
+      writeViewed(scope, viewed)
+
+    onViewedChange?.(file.path, box.checked)
+    schedule()
+  }
+  viewport.addEventListener('change', onChange)
+
+  /**
+   * The filter opens only when it is asked for.
+   *
+   * A search field sitting above the list costs a row of vertical space on
+   * every review, and the list it filters is usually short enough to read. It
+   * earns its place on the compare that is four thousand files long, and that
+   * is when the reader reaches for it.
+   */
+  const toggleSearch = (open: boolean) => {
+    search.hidden = !open
+    searchToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+
+    if (open) {
+      search.focus()
+    }
+    else if (search.value !== '') {
+      search.value = ''
+      refilter()
+      schedule()
+    }
+  }
+
+  searchToggle.addEventListener('click', () => toggleSearch(search.hidden === true))
+  search.addEventListener('input', () => { refilter(); viewport.scrollTop = 0; schedule() })
+  search.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape')
+      toggleSearch(false)
+  })
 
   return {
     setFiles(next) {
       files = next
+      refilter()
       schedule()
     },
     setCurrent(index) {
@@ -175,17 +279,26 @@ export function createFileList(options: {
 
       // Follow the reader down the diff, but only when the row would otherwise
       // be off screen: scrolling a sidebar somebody is reading is worse than
-      // letting them lose their place in it.
-      const top = index * FILE_ROW_HEIGHT
+      // letting them lose their place in it. Measured in the *filtered* list,
+      // because that is what is on screen.
+      const row = shown.indexOf(index)
+      if (row < 0)
+        return
+
+      const top = row * FILE_ROW_HEIGHT
       const bottom = top + FILE_ROW_HEIGHT
       if (top < viewport.scrollTop || bottom > viewport.scrollTop + viewport.clientHeight)
         viewport.scrollTop = top - viewport.clientHeight / 3
     },
+    viewed: () => viewed,
+    focusSearch: () => toggleSearch(true),
     destroy() {
       if (frame != null)
         cancelAnimationFrame(frame)
       viewport.removeEventListener('scroll', onScroll)
       viewport.removeEventListener('click', onClick)
+      viewport.removeEventListener('change', onChange)
+      header.remove()
       viewport.remove()
     },
   }
@@ -1913,6 +2026,13 @@ export function mountDiffFiles(): DiffViewer | null {
         event.preventDefault()
         goToThread(-1)
         break
+      case '/':
+        // The key every list on the internet uses for its filter. Worth
+        // matching rather than inventing, because nobody reads a shortcut
+        // list before reviewing a pull request.
+        event.preventDefault()
+        fileList?.focusSearch()
+        break
       default:
         break
     }
@@ -1979,11 +2099,22 @@ export function mountDiffFiles(): DiffViewer | null {
   const fileList = listHost
     ? createFileList({
         host: listHost,
+        // One pull request's worth of viewed files. The manifest url already
+        // names the repository and the number, and it is the same for every
+        // reader of this page, which is exactly the scope wanted.
+        scope: manifestUrl,
         onSelect: (index) => {
           const file = viewer.files()[index]
           if (file?.collapsed)
             viewer.setCollapsed(index, false)
           viewer.scrollToFile(index)
+        },
+        // Marking a file read folds it away, which is the point of marking it:
+        // the next unread file moves up to where the reader is looking.
+        onViewedChange: (path, isViewed) => {
+          const index = viewer.files().findIndex(file => file.path === path)
+          if (index >= 0)
+            viewer.setCollapsed(index, isViewed)
         },
       })
     : null

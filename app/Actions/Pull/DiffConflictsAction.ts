@@ -5,6 +5,9 @@ import { renderConflictFile } from './conflictRows'
 import { parseConflicts } from './conflicts'
 import { checkMergeability } from './mergeability'
 
+/** How many conflicting files are rendered before the rest are only counted. */
+const MAX_CONFLICT_FILES = 50
+
 /**
  * The files that conflict, with both versions in them.
  *
@@ -80,6 +83,3 @@ export default new Action({
     })
   },
 })
-
-/** How many conflicting files are rendered before the rest are only counted. */
-const MAX_CONFLICT_FILES = 50
