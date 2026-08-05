@@ -43,9 +43,12 @@ function fakeSource(text: string, chunkSize = 16, ok = true, stderr = '') {
   }
 }
 
-async function collect(source: Parameters<typeof streamManifest>[0]): Promise<ManifestRecord[]> {
+async function collect(
+  source: Parameters<typeof streamManifest>[0],
+  options?: Parameters<typeof streamManifest>[1],
+): Promise<ManifestRecord[]> {
   const records: ManifestRecord[] = []
-  for await (const record of streamManifest(source))
+  for await (const record of streamManifest(source, options))
     records.push(record)
   return records
 }
@@ -188,5 +191,54 @@ describe('manifestToNdjson', () => {
       text += line
 
     expect(text.split('\n').filter(Boolean)).toHaveLength(2)
+  })
+})
+
+describe('inline rows', () => {
+  test('rows follow their file record, in order', async () => {
+    const records = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified' } })
+
+    expect(records.map(record => record.t)).toEqual(['file', 'rows', 'file', 'rows', 'end'])
+    expect(records[1]).toMatchObject({ t: 'rows', i: 0, layout: 'unified' })
+    expect(records[3]).toMatchObject({ t: 'rows', i: 1, layout: 'unified' })
+  })
+
+  test('the markup is the file, ready to mount', async () => {
+    const [, rows] = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified' } })
+
+    expect((rows as { html: string }).html).toContain('one.ts')
+    expect((rows as { html: string }).html).toContain('<table')
+  })
+
+  test('split rows are asked for and delivered as split', async () => {
+    const [, rows] = await collect(fakeSource(TWO_FILES), { rows: { layout: 'split' } })
+
+    expect(rows).toMatchObject({ layout: 'split' })
+  })
+
+  test('no rows at all unless they are asked for', async () => {
+    const records = await collect(fakeSource(TWO_FILES))
+
+    expect(records.some(record => record.t === 'rows')).toBe(false)
+  })
+
+  test('rows stop at the budget and say where they stopped', async () => {
+    const records = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified', budgetBytes: 1 } })
+
+    expect(records.map(record => record.t)).toEqual(['file', 'rows-truncated', 'file', 'end'])
+    expect(records[1]).toEqual({ t: 'rows-truncated', from: 0 })
+  })
+
+  test('past the budget the file records keep flowing, so the scrollbar stays right', async () => {
+    const records = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified', budgetBytes: 1 } })
+
+    expect(records.filter(record => record.t === 'file')).toHaveLength(2)
+    expect(records[records.length - 1]).toMatchObject({ t: 'end', files: 2 })
+  })
+
+  test('truncation is announced once, not per file', async () => {
+    const records = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified', budgetBytes: 1 } })
+
+    expect(records.filter(record => record.t === 'rows-truncated')).toHaveLength(1)
   })
 })

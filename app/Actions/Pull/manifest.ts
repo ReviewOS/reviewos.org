@@ -22,6 +22,7 @@ import type { RowCounts } from './metrics'
 import { isGenerated, parseDiffFile } from './diff'
 import { countRows } from './metrics'
 import { createPatchSplitter, releaseDetachBuffer } from './patch'
+import { highlightDiffFile, renderDiffFile } from './rows'
 
 /**
  * Changed lines past which a file arrives collapsed.
@@ -57,6 +58,25 @@ export interface ManifestFile {
   collapsed: boolean
 }
 
+export interface ManifestRows {
+  t: 'rows'
+  /** The file these rows belong to, by its position in the diff. */
+  i: number
+  layout: 'unified' | 'split'
+  html: string
+}
+
+/**
+ * Rows stopped here; everything from `from` onwards is fetched on demand.
+ *
+ * Sent rather than inferred, because a client that simply never received rows
+ * for a file cannot tell "still coming" from "you will have to ask".
+ */
+export interface ManifestRowsTruncated {
+  t: 'rows-truncated'
+  from: number
+}
+
 export interface ManifestEnd {
   t: 'end'
   files: number
@@ -69,7 +89,12 @@ export interface ManifestError {
   message: string
 }
 
-export type ManifestRecord = ManifestFile | ManifestEnd | ManifestError
+export type ManifestRecord =
+  | ManifestFile
+  | ManifestRows
+  | ManifestRowsTruncated
+  | ManifestEnd
+  | ManifestError
 
 /** One file's record. Pure, so the collapse policy is testable on its own. */
 export function manifestFile(file: DiffFile, index: number): ManifestFile {
@@ -96,6 +121,33 @@ export interface ManifestSource {
 }
 
 /**
+ * How much rendered markup rides along with the manifest.
+ *
+ * Under it, a diff is *inline*: the rows arrive with the file list and the
+ * reader can scroll the whole thing without another request. Over it, rows stop
+ * and the rest is fetched as the reader reaches it.
+ *
+ * Eight megabytes covers very nearly every pull request anyone actually opens,
+ * and is small enough that a phone can hold it. It is a starting number rather
+ * than a measured one, and the benchmark harness in the roadmap is what will
+ * settle it.
+ */
+export const INLINE_ROWS_BUDGET_BYTES = 8 * 1024 * 1024
+
+export interface ManifestOptions {
+  /**
+   * Render rows alongside the file records.
+   *
+   * Off by default, so a caller that only wants the file list (a tree, a
+   * summary, a count) does not pay for highlighting it will throw away.
+   */
+  rows?: {
+    layout: 'unified' | 'split'
+    budgetBytes?: number
+  }
+}
+
+/**
  * Turn a stream of patch text into a stream of manifest records.
  *
  * Always ends with exactly one terminal record, an `end` or an `error`, so a
@@ -103,13 +155,21 @@ export interface ManifestSource {
  * distinction is the difference between "nothing changed" and "something
  * broke", and a viewer that cannot tell them apart shows the wrong one.
  */
-export async function* streamManifest(source: ManifestSource): AsyncGenerator<ManifestRecord> {
+export async function* streamManifest(
+  source: ManifestSource,
+  options: ManifestOptions = {},
+): AsyncGenerator<ManifestRecord> {
   const splitter = createPatchSplitter()
+  const rowOptions = options.rows
+  const budget = rowOptions?.budgetBytes ?? INLINE_ROWS_BUDGET_BYTES
+
   let index = 0
   let additions = 0
   let deletions = 0
+  let spent = 0
+  let truncatedAt: number | null = null
 
-  const emit = function* (fileText: string): Generator<ManifestFile> {
+  const emit = async function* (fileText: string): AsyncGenerator<ManifestRecord> {
     // Not detached: the record is serialized and dropped on the next line, so
     // it never outlives the text it was cut from and copying would be pure
     // cost. The server-side row cache is where detaching earns its keep.
@@ -117,9 +177,29 @@ export async function* streamManifest(source: ManifestSource): AsyncGenerator<Ma
     if (!file)
       return
 
+    const at = index++
     additions += file.additions
     deletions += file.deletions
-    yield manifestFile(file, index++)
+    yield manifestFile(file, at)
+
+    if (!rowOptions || truncatedAt !== null)
+      return
+
+    // Highlighting is the expensive half, so it stops at the budget rather than
+    // at the end of the diff. Past that point the file records keep flowing at
+    // full speed, which is what keeps the scrollbar correct on a compare nobody
+    // could render inline.
+    const tokens = await highlightDiffFile(file)
+    const html = renderDiffFile(file, { layout: rowOptions.layout, tokens })
+
+    spent += html.length
+    if (spent > budget) {
+      truncatedAt = at
+      yield { t: 'rows-truncated', from: at }
+      return
+    }
+
+    yield { t: 'rows', i: at, layout: rowOptions.layout, html }
   }
 
   try {

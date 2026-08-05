@@ -424,6 +424,16 @@ export async function* readNdjson<T>(response: Response, signal?: AbortSignal): 
 
 export interface ManifestStreamHandlers {
   onFiles: (files: DiffFileEntry[]) => void
+  /** Markup for one file, ready to mount. */
+  onRows?: (index: number, html: string) => void
+  /**
+   * Rows stopped here.
+   *
+   * Everything from this index onwards has to be fetched as the reader reaches
+   * it. Announced rather than inferred, because a file that simply has no rows
+   * yet is indistinguishable from one that never will.
+   */
+  onRowsTruncated?: (from: number) => void
   onEnd?: (summary: { files: number, additions: number, deletions: number }) => void
   onError?: (message: string) => void
 }
@@ -466,6 +476,17 @@ export async function streamDiffManifest(
 
       if (batch.length >= MANIFEST_BATCH_SIZE || performance.now() - lastFlush >= MANIFEST_BATCH_MS)
         flush()
+    }
+    else if (record.t === 'rows') {
+      // Flushed first, so the viewer has the file before it is handed markup
+      // for it. Out of order, the rows would arrive for a file the list has
+      // never heard of.
+      flush()
+      handlers.onRows?.(Number(record.i), String(record.html))
+    }
+    else if (record.t === 'rows-truncated') {
+      flush()
+      handlers.onRowsTruncated?.(Number(record.from))
     }
     else if (record.t === 'end') {
       flush()

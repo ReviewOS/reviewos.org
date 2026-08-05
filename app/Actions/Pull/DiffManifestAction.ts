@@ -55,8 +55,14 @@ export default new Action({
       return response.json({ error: 'This pull request has no usable revisions' }, 422)
     }
 
+    // Unified unless the reader asked for split. The layout decides the row
+    // markup, so it has to be known before anything is rendered; switching
+    // afterwards costs a refetch of the rows and nothing else, because the
+    // manifest already carries the counts for both.
+    const layout = String(request.get('layout') ?? '') === 'split' ? 'split' : 'unified'
+
     const encoder = new TextEncoder()
-    const records = manifestToNdjson(streamManifest(diff))
+    const records = manifestToNdjson(streamManifest(diff, { rows: { layout } }))
 
     const body = new ReadableStream<Uint8Array>({
       async pull(controller) {

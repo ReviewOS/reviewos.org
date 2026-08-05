@@ -160,7 +160,7 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
 /** One side of a split row: a number gutter and a code cell, or a filler pair. */
 function splitCell(line: DiffLine | null, side: 'old' | 'new', options: RenderRowsOptions): string {
   if (!line)
-    return `<td class="gutter num"></td><td class="code mono is-empty"></td>`
+    return `<td class="gutter num"></td><td class="code is-empty mono"></td>`
 
   const number = side === 'old' ? line.oldLine : line.newLine
 
@@ -289,7 +289,7 @@ export function renderDiffFile(file: DiffFile, options: RenderRowsOptions = {}):
     + `<header class="diff-head">`
     + `<button type="button" class="diff-toggle" aria-expanded="true" aria-controls="body-${escapeHtml(file.path)}">`
     + `<span class="i-hugeicons-arrow-down-01" aria-hidden="true"></span></button>`
-    + `<span class="mono diff-path">${renamedFrom}${escapeHtml(file.path)}</span>`
+    + `<span class="diff-path mono">${renamedFrom}${escapeHtml(file.path)}</span>`
     + `<span class="diff-status pill pill-${escapeHtml(file.status)}">${escapeHtml(file.status)}</span>`
     + `<span class="diff-counts mono" aria-label="${file.additions} added, ${file.deletions} removed">`
     + `<span class="count-add">+${file.additions}</span><span class="count-del">-${file.deletions}</span>`
