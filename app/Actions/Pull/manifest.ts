@@ -89,10 +89,26 @@ export interface ManifestError {
   message: string
 }
 
+/**
+ * git succeeded but said something the reader should know.
+ *
+ * The case this exists for: past `diff.renameLimit` git silently stops looking
+ * for renames, writes a warning to stderr, and exits zero. The diff that comes
+ * back is correct as far as it goes, but a moved file renders as a deletion and
+ * an addition with nothing saying why, and a reviewer reads it as two thousand
+ * lines of new code. Discarding a warning because the exit code was clean is
+ * how that happens.
+ */
+export interface ManifestNotice {
+  t: 'notice'
+  message: string
+}
+
 export type ManifestRecord =
   | ManifestFile
   | ManifestRows
   | ManifestRowsTruncated
+  | ManifestNotice
   | ManifestEnd
   | ManifestError
 
@@ -230,6 +246,9 @@ export async function* streamManifest(
     return
   }
 
+  for (const notice of gitNotices(result.stderr))
+    yield { t: 'notice', message: notice }
+
   yield { t: 'end', files: index, additions, deletions }
 }
 
@@ -243,6 +262,27 @@ export async function* streamManifest(
 export async function* manifestToNdjson(records: AsyncIterable<ManifestRecord>): AsyncGenerator<string> {
   for await (const record of records)
     yield `${JSON.stringify(record)}\n`
+}
+
+/**
+ * Warnings git wrote while succeeding.
+ *
+ * Only the ones that change what the reader is looking at. git's suggestion to
+ * raise `diff.renameLimit` is advice for whoever runs the server and not
+ * something to put in front of a reviewer, so the two lines are collapsed into
+ * one statement of what it means for the diff on screen.
+ */
+function gitNotices(stderr: string): string[] {
+  const notices: string[] = []
+
+  if (/rename detection was skipped/i.test(stderr)) {
+    notices.push(
+      'This diff is large enough that git stopped looking for renames, so some moved files '
+      + 'are shown as a deletion and an addition.',
+    )
+  }
+
+  return notices
 }
 
 /** git's complaint, trimmed to something worth showing a reader. */

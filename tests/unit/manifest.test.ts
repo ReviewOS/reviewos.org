@@ -242,3 +242,46 @@ describe('inline rows', () => {
     expect(records.filter(record => record.t === 'rows-truncated')).toHaveLength(1)
   })
 })
+
+describe('notices', () => {
+  test('a warning git wrote while succeeding reaches the reader', async () => {
+    const stderr = 'warning: exhaustive rename detection was skipped due to too many files.\n'
+      + 'warning: you may want to set your diff.renameLimit variable to at least 3399 and retry.\n'
+    const records = await collect({
+      chunks: fakeSource(TWO_FILES).chunks,
+      done: Promise.resolve({ ok: true, code: 0, stderr }),
+    })
+
+    const notice = records.find(record => record.t === 'notice')
+    expect(notice).toBeDefined()
+    // What it means for the diff on screen, not git's advice to whoever runs
+    // the server about a configuration variable.
+    expect((notice as { message: string }).message).toContain('moved files')
+    expect((notice as { message: string }).message).not.toContain('renameLimit')
+  })
+
+  test('the notice comes before the end, so a reader has it when the diff settles', async () => {
+    const records = await collect({
+      chunks: fakeSource(TWO_FILES).chunks,
+      done: Promise.resolve({ ok: true, code: 0, stderr: 'warning: exhaustive rename detection was skipped\n' }),
+    })
+
+    expect(records[records.length - 2]).toMatchObject({ t: 'notice' })
+    expect(records[records.length - 1]).toMatchObject({ t: 'end' })
+  })
+
+  test('nothing on stderr means no notice', async () => {
+    const records = await collect(fakeSource(TWO_FILES))
+
+    expect(records.some(record => record.t === 'notice')).toBe(false)
+  })
+
+  test('chatter git writes that changes nothing is not shown', async () => {
+    const records = await collect({
+      chunks: fakeSource(TWO_FILES).chunks,
+      done: Promise.resolve({ ok: true, code: 0, stderr: 'warning: LF will be replaced by CRLF\n' }),
+    })
+
+    expect(records.some(record => record.t === 'notice')).toBe(false)
+  })
+})

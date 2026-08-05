@@ -434,6 +434,14 @@ export interface ManifestStreamHandlers {
    * yet is indistinguishable from one that never will.
    */
   onRowsTruncated?: (from: number) => void
+  /**
+   * git succeeded but said something that changes what the reader is seeing.
+   *
+   * Worth showing. The case it exists for is git giving up on rename detection
+   * on a large diff, where a moved file arrives as a deletion and an addition
+   * and a reviewer reads it as new code.
+   */
+  onNotice?: (message: string) => void
   onEnd?: (summary: { files: number, additions: number, deletions: number }) => void
   onError?: (message: string) => void
 }
@@ -487,6 +495,9 @@ export async function streamDiffManifest(
     else if (record.t === 'rows-truncated') {
       flush()
       handlers.onRowsTruncated?.(Number(record.from))
+    }
+    else if (record.t === 'notice') {
+      handlers.onNotice?.(String(record.message))
     }
     else if (record.t === 'end') {
       flush()
