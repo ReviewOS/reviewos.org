@@ -19,6 +19,10 @@ export default {
   dialect,
   database: databaseConfig,
   snapshotDir: 'storage/framework/database',
+  // Where `buddy generate:migrations` writes and `buddy migrate` reads. The
+  // same path Stacks' own config uses; it became a required field when the
+  // query builder took over migration generation.
+  migrationDir: 'database/migrations',
   timestamps: {
     createdAt: 'created_at',
     updatedAt: 'updated_at',
