@@ -166,7 +166,7 @@ this is where the claim is either true or marketing.
 
 - [x] `resources/views/[owner]/[repository]/pulls/index.stx`
 - [ ] `.../pull/[number].stx` - conversation, commits, checks, and files, as tabs over one page
-- [ ] `.../pull/[number]/files.stx` - the review screen, and the most important screen in the product
+- [x] `.../pull/[number]/files.stx` - the review screen, and the most important screen in the product
 - [ ] `.../compare/[...refs].stx`
 - [ ] Components: `DiffView` (split and unified), `DiffFile`, `DiffHunk`, `ReviewPanel`,
       `ReviewThread`, `PullRequestHeader`, `MergeBox`, `StackIndicator`, `FileTreeSidebar`

@@ -157,6 +157,26 @@ Two things these numbers do not yet show, both deliberately:
 - [ ] A corpus larger than this repository can provide. `stacks` at 5,722 files is a tenth of the
       Linux compare DiffsHub uses as its demo.
 
+### The last mile, as it actually went
+
+Wiring the view took three silent failures and one loud one, all found by loading the page rather
+than by reasoning about it. Recorded because each is the kind that leaves no trace:
+
+- **A relative import in a `<script client>` block resolves against the layout, not the page.** The
+  block is composed into `resources/views/layouts/app.stx` before it is bundled, so
+  `../../../../../functions/diffviewer` pointed outside the project. The bundler said so only with
+  `STX_DEBUG=1`; without it the block was emitted as a classic script and the browser said
+  "Cannot use import statement outside a module", which names nothing. Use `@/resources/functions/…`,
+  which does not depend on where the block ends up.
+- **The wire calls a file's position `i` and the client type called it `index`**, so every lookup
+  keyed on it missed and every file rendered its placeholder forever. The header and the counts came
+  through, because those field names happen to match, which is what made it look like a rendering
+  problem rather than a naming one.
+- **A file is mounted before its rows arrive.** The record comes first and is laid out immediately;
+  the markup follows. Without a way to re-render a mounted file, the placeholder is permanent.
+- **The status line is outside the scroll region**, so looking for it inside the viewer's own element
+  found nothing.
+
 ## Transport: move the patch before it is complete
 
 The single largest perceived-speed win, and it comes before any rendering work. DiffsHub streams the
@@ -241,9 +261,9 @@ in the DOM.
       walk 400,000 line heights
 - [x] Batched read/write render passes: all measurement, then all mutation, never interleaved. Every
       synchronous layout read outside that pass is a bug and should be findable by name.
-- [ ] `contain: strict` on the scroll container and `contain: layout paint style` on each file, so
+- [x] `contain: strict` on the scroll container and `contain: layout paint style` on each file, so
       one file's layout cannot invalidate the list
-- [ ] `overflow-anchor: none`, because the browser's own scroll anchoring fights ours
+- [x] `overflow-anchor: none`, because the browser's own scroll anchoring fights ours
 - [x] Snap computed scroll targets to the device pixel grid (`round(v * dpr) / dpr`), read fresh each
       time so switching monitors or zooming is picked up. Fractional-DPR displays otherwise leave
       scroll deltas hovering on residuals that never settle.
