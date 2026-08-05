@@ -10,7 +10,8 @@
  * Server-rendered on purpose. A hundred-file diff assembled in the browser is
  * where forges get slow, and it is slowest exactly when the review matters.
  */
-import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, highlightLines, reanchor, requirementsSatisfied, startsCollapsed, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, threadsAt, refreshMergeability } from '../../../../functions/review'
+import { findRepositoryByPath } from '../../../../functions/repo'
+import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, startsCollapsed, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor } from '../../../../functions/review'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
@@ -21,11 +22,7 @@ const number = Number(params.number)
 // means the same thing in a description as it does in a review comment.
 const markdownContext = { owner, repository: repositoryName }
 
-const repoRow: any = await db
-  .selectFrom('repositories')
-  .selectAll()
-  .where('name', '=', repositoryName)
-  .executeTakeFirst()
+const repoRow: any = await findRepositoryByPath(owner, repositoryName)
 
 const pullRequest = repoRow
   ? await db
@@ -58,35 +55,19 @@ const reviews = pullRequest
       .execute()
   : []
 
-const threadRows = pullRequest
-  ? await db
-      .selectFrom('review_threads')
-      .selectAll()
-      .where('pull_request_id', '=', Number(pullRequest.id))
-      .orderBy('id', 'asc')
-      .execute()
+/**
+ * The review threads, loaded once and rendered with the diff.
+ *
+ * The query and the re-anchoring both live in `app/Actions/Pull/loadThreads.ts`
+ * now, because the streamed review screen needs exactly the same two and a
+ * second copy would have drifted from this one.
+ */
+const storedThreads = pullRequest
+  ? await loadReviewThreads({
+      pullRequestId: Number(pullRequest.id),
+      renderBody: (body: string) => renderMarkdownHighlighted(body, markdownContext),
+    })
   : []
-
-const commentRows = threadRows.length === 0
-  ? []
-  : await db
-      .selectFrom('review_comments')
-      // A LEFT join, not an inner one: a comment whose author has no local
-      // account - mirrored from elsewhere, or written by an account since
-      // deleted - is still something someone wrote, and an inner join drops it
-      // from the review entirely without saying so.
-      .leftJoin('users', 'users.id', '=', 'review_comments.author_id')
-      .select([
-        'review_comments.id as id',
-        'review_comments.review_thread_id as review_thread_id',
-        'review_comments.body as body',
-        'review_comments.created_at as created_at',
-        'review_comments.external_author as external_author',
-        'users.handle as handle',
-      ])
-      .where('review_comments.review_thread_id', 'in', threadRows.map((row: any) => Number(row.id)))
-      .orderBy('review_comments.id', 'asc')
-      .execute()
 
 /**
  * The diff, from the merge base rather than the base tip.
@@ -107,246 +88,35 @@ const totals = diffTotals(files)
  * the whole page, and so a hundred-file diff does not re-enter the highlighter
  * per rendered row. A file the highlighter declines simply renders plain.
  */
-const highlightedByPath: Record<string, Record<string, Array<{ type: string, content: string }>>> = {}
-
-for (const file of files) {
-  if (file.binary)
-    continue
-
-  const left: string[] = []
-  const right: string[] = []
-  const leftKeys: string[] = []
-  const rightKeys: string[] = []
-
-  for (const hunk of file.hunks) {
-    for (const line of hunk.lines) {
-      if (line.origin !== 'added') {
-        left.push(line.content)
-        leftKeys.push(`-${line.oldLine}`)
-      }
-      if (line.origin !== 'removed') {
-        right.push(line.content)
-        rightKeys.push(`+${line.newLine}`)
-      }
-    }
-  }
-
-  const map: Record<string, Array<{ type: string, content: string }>> = {}
-  const leftTokens = await highlightLines(left, file.previousPath ?? file.path)
-  const rightTokens = await highlightLines(right, file.path)
-
-  leftKeys.forEach((key, index) => { map[key] = leftTokens[index] ?? [] })
-  rightKeys.forEach((key, index) => { map[key] = rightTokens[index] ?? [] })
-
-  highlightedByPath[file.path] = map
-
-  // The tokens are attached to the line rather than looked up from the
-  // component. A function auto-imported from `resources/functions` is in scope
-  // in a view but comes back undefined inside a component, and the failure is
-  // silent: the `@foreach` reports the value is not iterable and every line of
-  // every diff renders blank. Attaching them here also means the lookup happens
-  // once per line instead of once per render.
-  for (const hunk of file.hunks) {
-    for (const line of hunk.lines) {
-      const key = line.origin === 'removed' ? `-${line.oldLine}` : `+${line.newLine}`
-      const tokens = map[key]
-
-      // An empty array is a blank line and is left alone. A missing entry means
-      // the highlighter declined, and the raw content is better than nothing.
-      ;(line as any).tokens = tokens ?? [{ type: 'text', content: line.content }]
-    }
-  }
-}
+/**
+ * Each file's diff, rendered.
+ *
+ * The same call the streamed review screen makes, so the two cannot disagree
+ * about what a diff looks like. Rendered here rather than in a component
+ * because a component imports nothing of its own: a helper called inside one
+ * comes back undefined and the `@foreach` over it fails into an HTML comment
+ * that nobody reads.
+ */
+const threadsByPath: Record<string, any[]> = {}
+const diffHtmlByPath: Record<string, string> = {}
 
 // Threads were written against an earlier commit. Follow each one through the
 // diff so it sits on the line it is about now, or is marked outdated.
-const threads = await Promise.all(threadRows.map(async (row: any) => {
-  const outcome = reanchor(
-    { path: String(row.path), line: Number(row.line), side: row.side === 'left' ? 'left' : 'right' },
-    files,
-  )
+const threads = anchorThreads(storedThreads, files)
 
-  return {
-    id: Number(row.id),
-    path: outcome.anchor.path,
-    line: outcome.status === 'outdated' ? Number(row.original_line) : outcome.anchor.line,
-    side: outcome.anchor.side,
-    resolved: Boolean(row.resolved),
-    outdated: outcome.status === 'outdated',
-    comments: await Promise.all(commentRows
-      .filter((comment: any) => Number(comment.review_thread_id) === Number(row.id))
-      .map(async (comment: any) => ({
-        id: Number(comment.id),
-        authorHandle: String(comment.handle ?? comment.external_author ?? 'someone'),
-        // Rendered here because a component has no imports of its own, so a
-        // markdown call inside ReviewThread would silently be undefined.
-        bodyHtml: await renderMarkdownHighlighted(String(comment.body ?? ''), markdownContext),
-        createdAt: String(comment.created_at ?? ''),
-      }))),
-  }
-}))
-
-// Attached to the line for the same reason the tokens are: `threadsAt` is in
-// scope here and undefined inside the component, and the `@foreach` there fails
-// silently. Doing it here also walks the thread list once per file rather than
-// once per rendered line.
+// Render each file once, with its tokens and the threads that belong in it.
+// Serially rather than in parallel: highlighting is CPU-bound, so racing every
+// file only shortens the time before the event loop is saturated.
 for (const file of files) {
-  for (const hunk of file.hunks) {
-    // Braces matter here: written without them, the `;` that guards the line
-    // below becomes the loop body, the assignment runs once with `line` out of
-    // scope, and the ReferenceError renders the whole page as not found.
-    for (const line of hunk.lines) {
-      (line as any).threads = threadsAt(threads, file.path, line)
-    }
-  }
+  const fileThreads = threads.filter((thread: any) => thread.path === file.path)
+  threadsByPath[file.path] = fileThreads
+
+  diffHtmlByPath[file.path] = renderDiffFile(file, {
+    tokens: await highlightDiffFile(file),
+    collapsed: startsCollapsed(file, isGenerated(file.path)),
+    threadsAt: threadSlotFor(fileThreads, file.path),
+  })
 }
-
-const descriptionHtml = pullRequest?.body
-  ? await renderMarkdownHighlighted(String(pullRequest.body), markdownContext)
-  : ''
-
-const protection = repoRow && pullRequest
-  ? await db
-      .selectFrom('protected_branches')
-      .selectAll()
-      .where('repository_id', '=', Number(repoRow.id))
-      .where('pattern', '=', pullRequest.base_branch)
-      .executeTakeFirst()
-  : undefined
-
-let requiredChecks: string[] = []
-try {
-  const parsed = JSON.parse(String(protection?.required_checks ?? '[]'))
-  if (Array.isArray(parsed))
-    requiredChecks = parsed.map(String)
-}
-catch {
-  requiredChecks = []
-}
-
-const checkRows = pullRequest && requiredChecks.length > 0
-  ? await db
-      .selectFrom('check_runs')
-      .select(['name', 'status', 'conclusion', 'started_at'])
-      .where('repository_id', '=', Number(repoRow!.id))
-      .where('head_sha', '=', pullRequest.head_sha)
-      .execute()
-  : []
-
-const checkResult = requirementsSatisfied(
-  checkRows.map((row: any) => ({
-    name: String(row.name),
-    status: row.status,
-    conclusion: row.conclusion,
-    startedAt: Date.parse(String(row.started_at ?? '')) || 0,
-  })),
-  requiredChecks,
-)
-
-const approval = approvalsSatisfied({
-  reviews: reviews.map((review: any) => ({
-    reviewerId: Number(review.reviewer_id),
-    state: String(review.state),
-    commitSha: review.commit_sha as string | null,
-  })),
-  headSha: pullRequest ? (pullRequest.head_sha as string | null) : null,
-  requiredApprovals: Number(protection?.required_approvals ?? 0),
-  dismissStaleReviews: Boolean(protection?.dismiss_stale_reviews),
-})
-
-const unresolvedThreads = threads.filter(thread => !thread.resolved).length
-
-/*
- * Mergeability, cached against the two commits it was computed from.
- *
- * The roadmap wants this computed in the background; it is computed here for
- * now, and the cache is what makes that acceptable: the answer is recomputed
- * only when one of the branches has moved, so a hundred people opening this
- * page cost one merge between them rather than a hundred. Nothing here can move
- * a ref, because `git merge-tree` merges in memory.
- */
-const mergeability = pullRequest
-  ? await refreshMergeability(owner, repositoryName, {
-      id: Number(pullRequest.id),
-      base_sha: String(pullRequest.base_sha),
-      head_sha: String(pullRequest.head_sha),
-      mergeable_state: pullRequest.mergeable_state as string | null,
-      mergeable_base_sha: pullRequest.mergeable_base_sha as string | null,
-      mergeable_head_sha: pullRequest.mergeable_head_sha as string | null,
-      mergeable_conflicts: pullRequest.mergeable_conflicts as string | null,
-    })
-  : { state: 'unknown' as const, treeSha: null, conflictingPaths: [], recomputed: false }
-
-const blockers = pullRequest
-  ? mergeBlockers(
-      {
-        state: pullRequest.state as 'open' | 'closed' | 'merged',
-        draft: Boolean(pullRequest.draft),
-        mergeable: mergeability.state === 'clean'
-          ? true
-          : (mergeability.state === 'unknown' ? null : false),
-        stackParent: null,
-      },
-      {
-        requiredApprovals: Number(protection?.required_approvals ?? 0),
-        requireThreadsResolved: Boolean(protection?.require_conversation_resolution),
-        requireLinearHistory: Boolean(protection?.require_linear_history),
-        allowedStrategies: ['merge', 'squash', 'rebase'],
-        requiredChecks,
-      },
-      {
-        approvals: approval.approvals,
-        blockingReviews: approval.blocking,
-        unresolvedThreads,
-        checks: checkResult,
-      },
-      'merge',
-    )
-  : []
-
-/*
- * The stack this pull request belongs to.
- *
- * Loaded for the whole repository in one query rather than by walking parent
- * links a level at a time: a stack is small, and a round trip per level is the
- * shape that makes a deep stack slow to open.
- */
-const stackRows = pullRequest
-  ? await db
-      .selectFrom('pull_requests')
-      .select(['id', 'number', 'title', 'state', 'head_branch', 'base_branch', 'stack_parent_id', 'draft'])
-      .where('repository_id', '=', Number(repoRow.id))
-      .execute()
-  : []
-
-const stackMembers = stackRows.map(row => ({
-  id: Number(row.id),
-  number: Number(row.number),
-  title: String(row.title),
-  state: String(row.state),
-  headBranch: String(row.head_branch),
-  baseBranch: String(row.base_branch),
-  stackParentId: row.stack_parent_id ? Number(row.stack_parent_id) : null,
-  draft: Boolean(row.draft),
-}))
-
-const currentMember = pullRequest ? stackMembers.find(entry => entry.id === Number(pullRequest.id)) : undefined
-const stack = currentMember ? buildStack(stackMembers, currentMember.id) : []
-const stackText = stackSummary(stack)
-const stackOrphan = currentMember ? orphanMessage(orphanReason(currentMember, stackMembers)) : null
-
-/*
- * Only this pull request's own blockers are known here, so the rest of the
- * stack is judged on what can be checked cheaply. A member whose readiness is
- * unknown counts as not ready, which errs toward saying "waiting on" rather
- * than promising a merge that would then be refused.
- */
-const stackReadiness = stack.map(entry => ({
-  id: entry.id,
-  blockers: currentMember && entry.id === currentMember.id ? blockers : (entry.state === 'open' && !entry.draft ? [] : ['not ready']),
-}))
-
-const stackBlocker = currentMember ? blockedBy(stack, currentMember.id, stackReadiness) : null
 
 const title = pullRequest
   ? `${pullRequest.title} by ${authorName ?? 'someone'} · ${owner}/${repositoryName} #${number}`
@@ -416,19 +186,14 @@ const statePill = pullRequest
           @endif
 
           {{--
-            Bound with `:prop`, not `prop="{{ }}"`. The interpolation form is
-            string interpolation into an attribute, so an object arrives as
-            "[object Object]" and every field reads as empty; the binding form
-            passes the value itself. Scalars survive either way, which is what
-            makes the mistake survive review.
+            The markup comes from `app/Actions/Pull/rows.ts`, which is what the
+            streamed review screen renders too. It used to be a component here
+            and a string builder there, and two renderers producing nearly the
+            same rows is how a diff ends up looking one way on this page and
+            another on the screen built for reading it.
           --}}
           @foreach (files as file)
-            <DiffView
-              :file="file"
-              :threads="threads"
-              :highlighted="highlightedByPath[file.path]"
-              :collapsed="startsCollapsed(file, isGenerated(file.path))"
-            />
+            {!! diffHtmlByPath[file.path] !!}
           @endforeach
         </div>
 

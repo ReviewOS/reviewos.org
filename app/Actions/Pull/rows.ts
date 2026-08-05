@@ -74,6 +74,14 @@ export interface RenderRowsOptions {
   layout?: 'unified' | 'split'
   tokens?: DiffTokenMap
   /**
+   * Render the file closed.
+   *
+   * Through a class rather than the `hidden` attribute. `hidden` is a boolean
+   * attribute, so the browser hides the element whenever it is present whatever
+   * the value: `hidden="false"` once made every diff on the page invisible.
+   */
+  collapsed?: boolean
+  /**
    * Markup for the review threads on a line, if any.
    *
    * A slot rather than a parameter, so this module knows nothing about threads
@@ -273,6 +281,7 @@ export function renderDiffNote(file: DiffFile): string {
  * The unit the virtualized list mounts, and the unit the first screen renders.
  */
 export function renderDiffFile(file: DiffFile, options: RenderRowsOptions = {}): string {
+  const collapsed = options.collapsed === true
   const columns = options.layout === 'split' ? 4 : 3
   const body = renderDiffRows(file, options)
   const contents = body === ''
@@ -287,13 +296,14 @@ export function renderDiffFile(file: DiffFile, options: RenderRowsOptions = {}):
 
   return `<section class="diff-file panel" id="file-${escapeHtml(file.path)}">`
     + `<header class="diff-head">`
-    + `<button type="button" class="diff-toggle" aria-expanded="true" aria-controls="body-${escapeHtml(file.path)}">`
+    + `<button type="button" class="diff-toggle" aria-expanded="${collapsed ? 'false' : 'true'}"`
+    + ` aria-controls="body-${escapeHtml(file.path)}">`
     + `<span class="i-hugeicons-arrow-down-01" aria-hidden="true"></span></button>`
     + `<span class="diff-path mono">${renamedFrom}${escapeHtml(file.path)}</span>`
     + `<span class="diff-status pill pill-${escapeHtml(file.status)}">${escapeHtml(file.status)}</span>`
     + `<span class="diff-counts mono" aria-label="${file.additions} added, ${file.deletions} removed">`
     + `<span class="count-add">+${file.additions}</span><span class="count-del">-${file.deletions}</span>`
     + `</span></header>`
-    + `<div id="body-${escapeHtml(file.path)}" class="diff-body">${contents}</div>`
+    + `<div id="body-${escapeHtml(file.path)}" class="diff-body${collapsed ? ' is-collapsed' : ''}">${contents}</div>`
     + `</section>`
 }

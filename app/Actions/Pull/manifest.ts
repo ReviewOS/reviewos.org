@@ -19,10 +19,13 @@
 
 import type { DiffFile, FileStatus } from './diff'
 import type { RowCounts } from './metrics'
+import type { StoredThread } from './loadThreads'
 import { isGenerated, parseDiffFile } from './diff'
 import { countRows } from './metrics'
 import { createPatchSplitter, releaseDetachBuffer } from './patch'
 import { highlightDiffFile, renderDiffFile } from './rows'
+import { anchorThreadsToFile } from './loadThreads'
+import { threadSlotFor } from './threads'
 
 /**
  * Changed lines past which a file arrives collapsed.
@@ -176,6 +179,15 @@ export interface ManifestOptions {
   rows?: {
     layout: 'unified' | 'split'
     budgetBytes?: number
+    /**
+     * Review threads to place under the lines they were written about.
+     *
+     * As stored: each is anchored against its own file as that file goes past,
+     * which is the only form that works while streaming, since the whole diff
+     * is never held. This module does not know how to find them, and the rows
+     * renderer does not know what they are.
+     */
+    threads?: readonly StoredThread[]
   }
 }
 
@@ -222,7 +234,13 @@ export async function* streamManifest(
     // full speed, which is what keeps the scrollbar correct on a compare nobody
     // could render inline.
     const tokens = await highlightDiffFile(file)
-    const html = renderDiffFile(file, { layout: rowOptions.layout, tokens })
+    const html = renderDiffFile(file, {
+      layout: rowOptions.layout,
+      tokens,
+      threadsAt: rowOptions.threads
+        ? threadSlotFor(anchorThreadsToFile(rowOptions.threads, file), file.path)
+        : undefined,
+    })
 
     spent += html.length
     if (spent > budget) {

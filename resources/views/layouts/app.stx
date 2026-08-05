@@ -509,6 +509,73 @@
         clip: rect(0 0 0 0);
         white-space: nowrap;
       }
+
+      /* ---- Review threads ----
+
+         Shared by `ReviewThread.stx` on the conversation page and by
+         `app/Actions/Pull/threads.ts` for every thread streamed into the review
+         screen, for the same reason the diff styles are here. */
+      .thread {
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel);
+        background: var(--surface);
+        overflow: hidden;
+      }
+
+      .thread.is-resolved { opacity: 0.72; }
+
+      .thread-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: var(--surface-tint);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .thread-anchor { margin-left: auto; font-size: 12px; }
+
+      .thread-comments { padding: 0; }
+
+      .comment { padding: 11px 13px; border-bottom: 1px solid var(--line); }
+      .comment:last-child { border-bottom: 0; }
+
+      .comment-head {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 3px;
+      }
+
+      .comment-author { font-weight: 600; font-size: 14px; }
+      .comment-time { font-size: 12.5px; }
+
+      .comment-body {
+        font-size: 14px;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .thread-reply { padding: 11px 13px; border-top: 1px solid var(--line); }
+
+      .reply-input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--r-control);
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+        font-size: 14px;
+        resize: vertical;
+      }
+
+      .reply-input:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+
+      .thread-actions { display: flex; gap: 8px; margin-top: 8px; }
     </style>
     {!! head ?? '' !!}
   </head>

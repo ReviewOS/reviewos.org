@@ -143,6 +143,9 @@ import { commitsOnBranch as commitsOnBranchImpl, pullRequestDiff as pullRequestD
 import { isMergeStrategy as isMergeStrategyImpl, mergeBlockers as mergeBlockersImpl } from '../../app/Actions/Pull/merge'
 import { combinedState as combinedStateImpl, requirementSummary as requirementSummaryImpl, requirementsSatisfied as requirementsSatisfiedImpl } from '../../app/Actions/Checks/status'
 import { labelTextColor as labelTextColorImpl } from '../../app/Actions/Issue/labels'
+import { highlightDiffFile as highlightDiffFileImpl, renderDiffFile as renderDiffFileImpl } from '../../app/Actions/Pull/rows'
+import { anchorThreads as anchorThreadsImpl, loadReviewThreads as loadReviewThreadsImpl } from '../../app/Actions/Pull/loadThreads'
+import { threadSlotFor as threadSlotForImpl } from '../../app/Actions/Pull/threads'
 import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
 import { blockedBy as blockedByImpl, buildStack as buildStackImpl, orphanMessage as orphanMessageImpl, orphanReason as orphanReasonImpl, stackSummary as stackSummaryImpl } from './stack'
 import { refreshMergeability as refreshMergeabilityImpl } from '../../app/Actions/Pull/refresh-mergeability'
@@ -171,3 +174,16 @@ export const orphanMessage = orphanMessageImpl
 export const blockedBy = blockedByImpl
 export const stackSummary = stackSummaryImpl
 export const refreshMergeability = refreshMergeabilityImpl
+
+/**
+ * Rendering a file's diff, and the threads that sit inside it.
+ *
+ * The same functions the streamed review screen uses. One renderer serves both,
+ * so the diff cannot look one way on the conversation page and another on the
+ * screen built for reading it.
+ */
+export const renderDiffFile = renderDiffFileImpl
+export const highlightDiffFile = highlightDiffFileImpl
+export const loadReviewThreads = loadReviewThreadsImpl
+export const anchorThreads = anchorThreadsImpl
+export const threadSlotFor = threadSlotForImpl

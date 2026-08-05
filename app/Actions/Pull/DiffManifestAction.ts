@@ -2,6 +2,8 @@ import { Action } from '@stacksjs/actions'
 import { diskPathFor } from '../Git/access'
 import { streamMergeBaseDiff } from '../Git/diffStream'
 import { authorizeRepository } from '../Repo/authorize'
+import { renderMarkdownHighlighted } from '../Markdown/render'
+import { loadReviewThreads } from './loadThreads'
 import { manifestToNdjson, streamManifest } from './manifest'
 
 /**
@@ -35,7 +37,7 @@ export default new Action({
 
     const pullRequest = await db
       .selectFrom('pull_requests')
-      .select(['base_sha', 'head_sha'])
+      .select(['id', 'base_sha', 'head_sha'])
       .where('repository_id', '=', repository.id)
       .where('number', '=', number)
       .executeTakeFirst()
@@ -61,8 +63,16 @@ export default new Action({
     // manifest already carries the counts for both.
     const layout = String(request.get('layout') ?? '') === 'split' ? 'split' : 'unified'
 
+    // Loaded before the stream opens, because every file may carry one and
+    // asking the database per file would be a query per file. A pull request
+    // has tens of threads, not thousands, so this is one small read.
+    const threads = await loadReviewThreads({
+      pullRequestId: Number(pullRequest.id),
+      renderBody: body => renderMarkdownHighlighted(body, { owner, repository: repository.name }),
+    })
+
     const encoder = new TextEncoder()
-    const records = manifestToNdjson(streamManifest(diff, { rows: { layout } }))
+    const records = manifestToNdjson(streamManifest(diff, { rows: { layout, threads } }))
 
     const body = new ReadableStream<Uint8Array>({
       async pull(controller) {
