@@ -76,8 +76,17 @@ known to exactly one place.
       obvious implementation and is wrong in the case that matters: a patch backported to an old
       branch and published today would become the version every install script fetches. Drafts and
       prereleases are never latest, and `v1.10.0` outranks `v1.9.0`
-- [ ] Uploading and serving release assets. The rows are there; the upload endpoint is not. It
-      serves a stranger's file, so it follows the raw file rule - never its own content type
+- [x] Uploading and serving release assets. Simpler rules than an issue attachment and deliberately
+      stricter: an attachment is often a screenshot somebody wants to see inline, so that module has
+      to decide which types are safe to render. A release asset is a compiled artefact somebody
+      downloads and runs, so there is no allowlist to get wrong - every asset goes out as an opaque
+      download with `nosniff`, whatever it is called. A SHA-256 is recorded on upload and published
+      beside the file, because a checksum nobody can see is a checksum nobody can check
+- [x] A name is refused rather than replaced when it is already taken on that release: an asset name
+      is what an install script fetches, and quietly swapping the bytes under a published name is
+      the worst version of that endpoint
+- [x] A draft's assets are not downloadable by anybody who cannot see the draft, and answer 404
+      rather than 403 - the existence of an unannounced release is exactly what a draft is keeping
 
 ## Smart HTTP
 

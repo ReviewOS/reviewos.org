@@ -77,6 +77,14 @@ route.get('/repos/compare', 'Actions/Browse/CompareAction')
 route.get('/repos/releases', 'Actions/Repo/ListReleasesAction')
 route.post('/repos/releases', 'Actions/Repo/ManageReleaseAction').middleware('auth')
 
+// The files attached to a release. Downloading carries no auth middleware, the
+// same as the rest of the read surface: a public repository's binaries are
+// public, and the action answers 404 to anyone who cannot read a private one -
+// and to anyone at all for a draft, because an unannounced release is the thing
+// a draft is keeping.
+route.post('/repos/releases/assets', 'Actions/Release/UploadAssetAction').middleware('auth')
+route.get('/repos/releases/assets', 'Actions/Release/DownloadAssetAction')
+
 // Topics. The whole list at once, because that is how the interface presents
 // it; two endpoints would mean the page reconstructing the difference itself.
 route.put('/repos/topics', 'Actions/Repo/UpdateTopicsAction').middleware('auth')
