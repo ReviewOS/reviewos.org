@@ -1,11 +1,31 @@
-{{--
-  The pull list.
+<script server>
+/**
+ * The pull request list.
+ *
+ * The filter and page come off the query string here, where the request is, and
+ * are handed to the component as props. One component serves both lists.
+ *
+ * Through `useRoute()`, and that is the whole reason this file has a script at
+ * all. `{{ query.state }}` interpolated straight into the component's attribute
+ * looks like it reads the query string and does not: `query` is not bound in a
+ * template any more than it is in a server script, so the filter arrived empty
+ * and every `?state=closed` link on the page answered with the open ones.
+ * Nothing failed loudly, because an empty filter is a valid filter.
+ */
+const search: Record<string, string> = useRoute().query ?? {}
 
-  The filter and page come off the query string here, where the request is, and
-  are handed to the component as props. One component serves both lists.
---}}
+const filterState = String(search.state ?? '')
+const pageNumberParam = String(search.page ?? '')
+</script>
+
 @layout('app')
 
 @section('content')
-  <RepoList owner="{{ params.owner }}" repository="{{ params.repository }}" sort="pulls" filterState="{{ query.state ?? '' }}" pageNumberParam="{{ query.page ?? '' }}" />
+  <RepoList
+    owner="{{ params.owner }}"
+    repository="{{ params.repository }}"
+    sort="pulls"
+    filterState="{{ filterState }}"
+    pageNumberParam="{{ pageNumberParam }}"
+  />
 @endsection

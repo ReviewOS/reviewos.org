@@ -15,7 +15,19 @@ import { resolveRepository } from '../../../functions/issues'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
-const showClosed = String(query.state ?? 'open') === 'closed'
+
+/**
+ * The query string, through `useRoute()`.
+ *
+ * A server script has no bare `query`. Reaching for one throws, stx catches it
+ * and falls back to static extraction, and the page renders with every variable
+ * undefined and nothing in the log a person would look at - so this file had
+ * been showing its empty state regardless of what the repository contained.
+ * Interpolating `{{ query.x }}` in the *template* is a different binding and
+ * does work, which is why the two look interchangeable and are not.
+ */
+const search: Record<string, string> = useRoute().query ?? {}
+const showClosed = String(search.state ?? 'open') === 'closed'
 
 // `repository` is the route parameter in this view, so the resolved row needs
 // its own name: assigning to `repository` silently loses the row and every
