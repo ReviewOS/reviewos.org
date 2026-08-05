@@ -17,6 +17,7 @@
 import type { DiffFile, DiffHunk, DiffLine } from './diff'
 import type { CharRange } from './inline'
 import { highlightLines } from '../Browse/highlight'
+import { gapsIn, oldOffsetAt } from './expand'
 import { inlineChangedRanges, worthComparing } from './inline'
 
 export interface DiffToken {
@@ -100,6 +101,14 @@ export interface RenderRowsOptions {
    * in the flow, so scrolling never separates a comment from its code.
    */
   threadsAt?: (line: DiffLine) => string
+  /**
+   * Offer to show the lines between hunks.
+   *
+   * Off by default, because the control is only useful where something can act
+   * on it. The server-rendered first screen and the streamed rows both turn it
+   * on; a row rendered *as* expanded context does not.
+   */
+  expandable?: boolean
 }
 
 /** Escape for text content and for a double-quoted attribute value. */
@@ -233,10 +242,16 @@ function marker(origin: DiffLine['origin']): string {
   return origin === 'removed' ? '-' : ' '
 }
 
-function hunkHeadRow(hunk: DiffHunk, layout: 'unified' | 'split'): string {
+function hunkHeadRow(
+  hunk: DiffHunk,
+  layout: 'unified' | 'split',
+  gap?: { from: number, to: number, size: number },
+): string {
   const range = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`
   const heading = hunk.heading ? ` <span class="muted">${escapeHtml(hunk.heading)}</span>` : ''
-  const label = `<td class="hunk-label mono" colspan="${layout === 'split' ? 4 : 1}">${escapeHtml(range)}${heading}</td>`
+  const label = `<td class="hunk-label mono" colspan="${layout === 'split' ? 4 : 1}">`
+    + expandControl(gap, oldOffsetAt(hunk))
+    + `${escapeHtml(range)}${heading}</td>`
 
   // In split the header spans the whole width. Sat in the last column, as it
   // did, it reads as a heading for the right-hand side rather than for the hunk
@@ -244,6 +259,27 @@ function hunkHeadRow(hunk: DiffHunk, layout: 'unified' | 'split'): string {
   return layout === 'split'
     ? `<tr class="hunk-head">${label}</tr>`
     : `<tr class="hunk-head"><td class="gutter" colspan="2"></td>${label}</tr>`
+}
+
+/**
+ * The control that asks for the lines a hunk left out.
+ *
+ * A button rather than a link, and it carries the range it would ask for, so
+ * the page needs no map from control to gap. Absent when there is no gap, which
+ * is why it takes the gap rather than checking for one.
+ */
+function expandControl(gap: { from: number, to: number, size: number } | undefined, offset: number): string {
+  if (!gap || gap.size <= 0)
+    return ''
+
+  const lines = gap.size === 1 ? '1 line' : `${gap.size} lines`
+
+  return `<button type="button" class="hunk-expand" data-expand-from="${gap.from}"`
+    + ` data-expand-to="${gap.to}" data-expand-offset="${offset}"`
+    + ` title="Show the ${escapeHtml(lines)} above this">`
+    + `<span aria-hidden="true">⋯</span>`
+    + `<span class="visually-hidden">Show the ${escapeHtml(lines)} above this hunk</span>`
+    + `</button>`
 }
 
 /**
@@ -255,9 +291,10 @@ function hunkHeadRow(hunk: DiffHunk, layout: 'unified' | 'split'): string {
  */
 function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
   const parts: string[] = []
+  const gaps = options.expandable ? gapsByHunk(file) : undefined
 
-  for (const hunk of file.hunks) {
-    parts.push(hunkHeadRow(hunk, 'unified'))
+  for (const [index, hunk] of file.hunks.entries()) {
+    parts.push(hunkHeadRow(hunk, 'unified', gaps?.get(index)))
 
     for (const line of hunk.lines) {
       // The code cell's content is emitted with no surrounding whitespace: it
@@ -300,9 +337,10 @@ function splitCell(line: DiffLine | null, side: 'old' | 'new', options: RenderRo
  */
 function renderSplit(file: DiffFile, options: RenderRowsOptions): string {
   const parts: string[] = []
+  const gaps = options.expandable ? gapsByHunk(file) : undefined
 
-  for (const hunk of file.hunks) {
-    parts.push(hunkHeadRow(hunk, 'split'))
+  for (const [index, hunk] of file.hunks.entries()) {
+    parts.push(hunkHeadRow(hunk, 'split', gaps?.get(index)))
 
     let removed: DiffLine[] = []
     let added: DiffLine[] = []
@@ -367,6 +405,11 @@ export function renderDiffRows(file: DiffFile, options: RenderRowsOptions = {}):
     : { ...options, marks: inlineMarksFor(file) }
 
   return resolved.layout === 'split' ? renderSplit(file, resolved) : renderUnified(file, resolved)
+}
+
+/** The gap sitting above each hunk, by hunk index. */
+function gapsByHunk(file: DiffFile): Map<number, { from: number, to: number, size: number }> {
+  return new Map(gapsIn(file).map(gap => [gap.hunkIndex, gap]))
 }
 
 /**

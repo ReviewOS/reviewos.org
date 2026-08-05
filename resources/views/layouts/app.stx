@@ -492,6 +492,30 @@
       .has-removed .w { background: var(--del-line); border-radius: 2px; }
       .has-added .w { background: var(--add-line); border-radius: 2px; }
 
+      /* Asking for the lines a hunk left out. Sits inside the hunk header,
+         which is where the gap it fills is. */
+      .hunk-expand {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 18px;
+        margin-right: 8px;
+        padding: 0;
+        border: 1px solid var(--line-strong);
+        border-radius: 4px;
+        background: var(--surface);
+        color: var(--muted);
+        font: inherit;
+        font-size: 12px;
+        line-height: 1;
+        cursor: pointer;
+        vertical-align: middle;
+      }
+
+      .hunk-expand:hover { border-color: var(--accent); color: var(--accent); }
+      .hunk-expand[data-busy='true'] { opacity: 0.5; cursor: progress; }
+
       .hunk-head td { background: var(--surface-tint); border-top: 1px solid var(--line); }
       .hunk-label { padding: 4px 12px; color: var(--muted); font-size: 12px; }
 

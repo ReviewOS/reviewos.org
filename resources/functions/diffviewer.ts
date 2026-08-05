@@ -20,7 +20,7 @@
 import type { ScrollAnchor, ViewportFile } from '../../app/Actions/Pull/viewport'
 import type { RowCounts } from '../../app/Actions/Pull/metrics'
 import { DEFAULT_HEIGHT_METRICS } from '../../app/Actions/Pull/metrics'
-import { captureAnchor, DEFAULT_OVERSCAN, planFrame } from '../../app/Actions/Pull/viewport'
+import { captureAnchor, DEFAULT_OVERSCAN, measuredLayout, planFrame } from '../../app/Actions/Pull/viewport'
 
 /**
  * How many hosts to keep for reuse.
@@ -143,6 +143,14 @@ export interface DiffViewer {
    * in for them stays there forever.
    */
   refresh: (index: number) => void
+  /**
+   * Measure a file again, because something changed its height in place.
+   *
+   * Expanding a hunk inserts rows into markup already on screen, so nothing the
+   * viewer rendered changed and its recorded height is now short by however
+   * many rows arrived.
+   */
+  remeasure: (index: number) => void
   collapseAll: (collapsed: boolean) => void
   scrollToFile: (index: number) => void
   /** The files, in diff order. */
@@ -366,6 +374,19 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       for (const index of [...hosts.keys()])
         release(index)
 
+      schedule()
+    },
+
+    remeasure(index) {
+      const file = geometry[index]
+      if (!file)
+        return
+
+      // Cleared rather than measured here: the next frame measures every
+      // mounted file in one pass, and anchors the correction so nothing the
+      // reader is looking at moves.
+      file.measured = undefined
+      anchor = captureAnchor(measuredLayout(geometry, { layout }), scroller.scrollTop)
       schedule()
     },
 
@@ -620,6 +641,7 @@ export function mountDiffFiles(): DiffViewer | null {
     return null
 
   const rowsUrl = root.dataset.rowsUrl
+  const contextUrl = root.dataset.contextUrl
 
   // The reader's own choice wins over the page's default, which is what the
   // server rendered the first batch of rows in.
@@ -765,22 +787,92 @@ export function mountDiffFiles(): DiffViewer | null {
       scheduleRowFetch()
   }
 
-  // Collapsing is delegated rather than bound per file: the headers come and go
-  // as the reader scrolls, and a listener per mounted file would have to be
+  // Both delegated rather than bound per file: headers and hunk rows come and
+  // go as the reader scrolls, and a listener per mounted file would have to be
   // added and removed with them.
   content.addEventListener('click', (event) => {
     const target = event.target as HTMLElement | null
-    const toggle = target?.closest<HTMLElement>('.diff-toggle')
-    const host = toggle?.closest<HTMLElement>('.diff-file-host')
+    const host = target?.closest<HTMLElement>('.diff-file-host')
     const index = host?.dataset.fileIndex
-    if (!toggle || index == null)
+    if (index == null)
       return
 
-    event.preventDefault()
-    const file = viewer.files()[Number(index)]
-    if (file)
-      viewer.setCollapsed(Number(index), !file.collapsed)
+    const toggle = target?.closest<HTMLElement>('.diff-toggle')
+    if (toggle) {
+      event.preventDefault()
+      const file = viewer.files()[Number(index)]
+      if (file)
+        viewer.setCollapsed(Number(index), !file.collapsed)
+      return
+    }
+
+    const expand = target?.closest<HTMLElement>('.hunk-expand')
+    if (expand) {
+      event.preventDefault()
+      void expandGap(Number(index), expand)
+    }
   })
+
+  /**
+   * Fill in the lines a hunk left out.
+   *
+   * The rows are inserted before the hunk header that offered them, which is
+   * where the gap is. The control is replaced rather than left in place when
+   * the whole gap has been shown, so it does not sit there offering nothing.
+   */
+  async function expandGap(index: number, control: HTMLElement): Promise<void> {
+    if (contextUrl == null || control.dataset.busy === 'true')
+      return
+
+    const file = viewer.files()[index]
+    const from = Number(control.dataset.expandFrom)
+    const to = Number(control.dataset.expandTo)
+    const offset = Number(control.dataset.expandOffset ?? 0)
+    if (!file || !Number.isFinite(from) || !Number.isFinite(to))
+      return
+
+    control.dataset.busy = 'true'
+
+    try {
+      const query = new URLSearchParams({
+        path: file.path,
+        from: String(from),
+        to: String(to),
+        offset: String(offset),
+        layout,
+      })
+      const response = await fetch(`${contextUrl}&${query}`, { headers: { Accept: 'application/json' } })
+      if (!response.ok)
+        throw new Error(await response.text())
+
+      const expanded = await response.json() as { html: string, count: number, more: boolean }
+      const row = control.closest('tr')
+      if (!row || expanded.count === 0)
+        return
+
+      row.insertAdjacentHTML('beforebegin', expanded.html)
+
+      if (expanded.more) {
+        // More to come, so the control stays and asks for what is left: the
+        // same end, starting after what just arrived.
+        control.dataset.expandFrom = String(from + expanded.count)
+        control.dataset.expandTo = String(to)
+      }
+      else {
+        control.remove()
+      }
+
+      // The file just got taller by however many rows arrived.
+      viewer.remeasure(index)
+    }
+    catch {
+      // Left in place to be tried again. A control that vanished on a failed
+      // request would take the only way back with it.
+    }
+    finally {
+      delete control.dataset.busy
+    }
+  }
 
   // The layout toggle, if the page rendered one. Wired here rather than in the
   // template so the template holds no DOM code.

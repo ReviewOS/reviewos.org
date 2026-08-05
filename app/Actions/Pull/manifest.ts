@@ -236,6 +236,7 @@ export async function* streamManifest(
     const tokens = await highlightDiffFile(file)
     const html = renderDiffFile(file, {
       layout: rowOptions.layout,
+      expandable: true,
       tokens,
       threadsAt: rowOptions.threads
         ? threadSlotFor(anchorThreadsToFile(rowOptions.threads, file), file.path)

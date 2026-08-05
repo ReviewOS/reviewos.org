@@ -62,6 +62,9 @@ const manifestUrl = `/api/repos/pulls/diff/manifest?${diffQuery}`
  * rather than walking a large diff to an offset.
  */
 const rowsUrl = `/api/repos/pulls/diff/rows?${diffQuery}`
+
+/** Where the browser asks for the lines a hunk left out. */
+const contextUrl = `/api/repos/pulls/diff/context?${diffQuery}`
 </script>
 
 @layout('app')
@@ -123,6 +126,7 @@ const rowsUrl = `/api/repos/pulls/diff/rows?${diffQuery}`
         data-layout="unified"
         data-manifest-url="{{ manifestUrl }}"
         data-rows-url="{{ rowsUrl }}"
+        data-context-url="{{ contextUrl }}"
       >
         <div class="diff-scroller" data-diff-scroller>
           <div data-diff-content></div>

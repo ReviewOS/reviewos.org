@@ -370,3 +370,61 @@ describe('intra-line marking', () => {
     expect(marksOf(split)).toEqual(marksOf(unified))
   })
 })
+
+describe('expansion controls', () => {
+  const twoHunks = `diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -10,2 +10,2 @@
+-old
++new
+@@ -40,2 +40,2 @@
+-gone
++here
+`
+
+  test('offers to show the lines above a hunk when there are some', () => {
+    const html = renderDiffRows(fileOf(twoHunks), { expandable: true })
+
+    expect(html).toContain('data-expand-from="1"')
+    expect(html).toContain('data-expand-to="9"')
+  })
+
+  test('carries the drift between the two sides, so expanded lines number correctly', () => {
+    const html = renderDiffRows(fileOf(twoHunks), { expandable: true })
+
+    expect(html).toContain('data-expand-offset="0"')
+  })
+
+  test('says how many lines are hidden rather than just offering a control', () => {
+    expect(renderDiffRows(fileOf(twoHunks), { expandable: true })).toContain('9 lines')
+  })
+
+  test('a hunk with nothing above it offers nothing', () => {
+    const atTop = `diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1,2 +1,2 @@
+-a
++b
+`
+    expect(renderDiffRows(fileOf(atTop), { expandable: true })).not.toContain('hunk-expand')
+  })
+
+  test('off by default, so a row rendered as expanded context offers no expansion of its own', () => {
+    expect(renderDiffRows(fileOf(twoHunks))).not.toContain('hunk-expand')
+  })
+
+  test('split offers it too', () => {
+    const html = renderDiffRows(fileOf(twoHunks), { expandable: true, layout: 'split' })
+
+    expect(html).toContain('hunk-expand')
+  })
+
+  test('the control is reachable without a mouse and says what it does', () => {
+    const html = renderDiffRows(fileOf(twoHunks), { expandable: true })
+
+    expect(html).toContain('<button type="button" class="hunk-expand"')
+    expect(html).toContain('Show the 9 lines above this hunk')
+  })
+})
