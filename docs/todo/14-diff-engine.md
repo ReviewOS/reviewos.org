@@ -684,11 +684,21 @@ already used it.
 
 Adjacent, and it falls out of the same renderer.
 
-- [ ] Parse conflict markers (`<<<<<<<`, `|||||||`, `=======`, `>>>>>>>`) into regions
-- [ ] Render a conflicted file with each region marked and its sides distinguished
-- [ ] Accept current, accept incoming, or accept both, per region
-- [ ] Tests: nested markers, a marker appearing inside a string literal, a diff3-style conflict with
-      a base section
+The cheap part is where the content comes from. `git merge-tree --write-tree` already writes the
+merged tree into the object database with the markers in it, and the mergeability check already runs
+it to find out *which* paths conflict - so the conflicted content is in the repository before anybody
+asks for it, and `DiffConflictsAction` reads it back with `cat-file`. No working tree is checked out
+at any point, which is what makes this affordable on a page load rather than a job.
+
+- [x] Parse conflict markers (`<<<<<<<`, `|||||||`, `=======`, `>>>>>>>`) into regions
+- [x] Render a conflicted file with each region marked and its sides distinguished
+- [x] Accept current, accept incoming, or accept both, per region - as a pure function over the
+      parsed regions, so resolving one leaves the others exactly as git wrote them. The route that
+      writes an answer back is phase 4's, and is deliberately not here.
+- [x] Tests: nested markers, a marker appearing inside a string literal, a diff3-style conflict with
+      a base section - plus one that builds a real conflict with real git and reads the blob
+      `merge-tree` wrote, because every other test in the file is written against markers typed by
+      hand, which is how a parser comes to handle a shape nobody produces.
 
 ## A public diff viewer as a front door
 

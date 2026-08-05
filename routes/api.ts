@@ -164,6 +164,10 @@ route.get('/repos/pulls/diff/rows', 'Actions/Pull/DiffRowsAction')
 // the patch does not contain them: not containing them is what makes them a gap.
 route.get('/repos/pulls/diff/context', 'Actions/Pull/DiffContextAction')
 
+// The files that conflict, both versions in each. Read out of the tree that
+// `git merge-tree` already wrote, so no working tree is checked out to answer.
+route.get('/repos/pulls/diff/conflicts', 'Actions/Pull/DiffConflictsAction')
+
 // Landing a whole stack, bottom first. Separate from the single merge because
 // it can partially succeed, and the caller needs to know how far it got.
 route.post('/repos/pulls/merge-stack', 'Actions/Pull/MergeStackAction').middleware('auth')

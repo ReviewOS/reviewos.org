@@ -718,6 +718,22 @@
 
       .thread-cell { padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--line); }
 
+      /* A conflicted file. Two versions of the same lines, and the reader is
+         being asked for an answer rather than an opinion - so the sides are
+         tinted like a diff's, and the labels git wrote are shown, because they
+         are the only thing saying which side is which. */
+      .conflict-head td { padding: 4px 12px; font-size: 12px; }
+      .conflict-head-ours td { background: var(--del-bg); color: var(--bad); }
+      .conflict-head-base td { background: var(--surface-tint); color: var(--muted); }
+      .conflict-head-theirs td { background: var(--add-bg); color: var(--ok); }
+
+      .conflict-ours { background: var(--del-bg); }
+      .conflict-base { background: var(--surface-tint); color: var(--muted); }
+      .conflict-theirs { background: var(--add-bg); }
+
+      .conflict-actions td { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+      .conflict-actions .btn + .btn { margin-left: 6px; }
+
       /* Starting a comment on a line.
 
          Sits inside the number gutter and appears on hover or on keyboard
