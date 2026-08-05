@@ -17,6 +17,21 @@ export type DiffLayout = 'unified' | 'split'
 /** How a changed line announces itself. */
 export type DiffIndicators = 'glyph' | 'bar' | 'none'
 
+/**
+ * Which pair of colours the added and removed lines use.
+ *
+ * Red and green is the convention and it fails roughly one in twelve men, who
+ * see the two as the same muddy colour. The alternatives are not a
+ * simulation of what those readers see - they are pairs chosen to stay
+ * distinguishable *for* them: blue against orange survives red-green
+ * deficiency, and teal against magenta survives blue-yellow.
+ *
+ * Colour is never the only cue whichever pair is in force. The `+`/`-` glyph
+ * or the edge bar carries the same information in shape, which is the part
+ * that actually makes a diff readable rather than merely tinted.
+ */
+export type DiffPalette = 'classic' | 'deuteranopia' | 'tritanopia' | 'contrast'
+
 export interface DiffPreferences {
   layout: DiffLayout
   /**
@@ -25,6 +40,7 @@ export interface DiffPreferences {
    * carry it alone.
    */
   indicators: DiffIndicators
+  palette: DiffPalette
   lineNumbers: boolean
   /**
    * The green and red wash behind changed lines.
@@ -40,6 +56,7 @@ export interface DiffPreferences {
 export const DEFAULT_PREFERENCES: DiffPreferences = {
   layout: 'unified',
   indicators: 'glyph',
+  palette: 'classic',
   lineNumbers: true,
   changeBackground: true,
   wrap: false,
@@ -81,6 +98,10 @@ function isIndicators(value: unknown): value is DiffIndicators {
   return value === 'glyph' || value === 'bar' || value === 'none'
 }
 
+function isPalette(value: unknown): value is DiffPalette {
+  return value === 'classic' || value === 'deuteranopia' || value === 'tritanopia' || value === 'contrast'
+}
+
 /**
  * The reader's choices, with anything missing or unrecognised defaulted.
  *
@@ -110,6 +131,7 @@ export function readPreferences(): DiffPreferences {
   return {
     layout: isLayout(stored.layout) ? stored.layout : (isLayout(legacy) ? legacy : DEFAULT_PREFERENCES.layout),
     indicators: isIndicators(stored.indicators) ? stored.indicators : DEFAULT_PREFERENCES.indicators,
+    palette: isPalette(stored.palette) ? stored.palette : DEFAULT_PREFERENCES.palette,
     lineNumbers: typeof stored.lineNumbers === 'boolean' ? stored.lineNumbers : DEFAULT_PREFERENCES.lineNumbers,
     changeBackground: typeof stored.changeBackground === 'boolean'
       ? stored.changeBackground
@@ -137,6 +159,7 @@ export function writePreferences(preferences: DiffPreferences): void {
  */
 export function applyPreferences(root: HTMLElement, preferences: DiffPreferences): void {
   root.dataset.diffIndicators = preferences.indicators
+  root.dataset.diffPalette = preferences.palette
   root.dataset.diffNumbers = preferences.lineNumbers ? 'on' : 'off'
   root.dataset.diffBackgrounds = preferences.changeBackground ? 'on' : 'off'
   root.dataset.diffWrap = preferences.wrap ? 'on' : 'off'
@@ -163,6 +186,11 @@ function assign(preferences: DiffPreferences, key: keyof DiffPreferences, value:
       if (!isIndicators(value))
         return false
       preferences.indicators = value
+      return true
+    case 'palette':
+      if (!isPalette(value))
+        return false
+      preferences.palette = value
       return true
     case 'lineNumbers':
     case 'changeBackground':

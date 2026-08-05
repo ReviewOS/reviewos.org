@@ -561,6 +561,72 @@
          and the pair of them off is prevented in the panel rather than here. */
       [data-diff-indicators='none'] .marker { visibility: hidden; }
 
+      /* Colour pairs that survive colour vision deficiency.
+
+         Not a simulation of what those readers see - pairs chosen to stay
+         distinguishable *for* them. Roughly one in twelve men cannot reliably
+         tell the red from the green, and a diff whose only cue is that pair is
+         failing them completely. The glyph and the bar carry the same
+         information in shape, which is why they stay on by default. */
+
+      /* Red-green: blue against orange, which survives both protanopia and
+         deuteranopia and is the pair every accessible chart palette reaches
+         for first. */
+      [data-diff-palette='deuteranopia'] {
+        --add-bg: #e7f0fb;
+        --add-line: #b9d4f2;
+        --del-bg: #fdf0e2;
+        --del-line: #f4d3ab;
+        --ok: #10457f;
+        --bad: #8a4b06;
+      }
+
+      /* Blue-yellow: teal against magenta, because blue and yellow are the
+         pair tritanopia flattens. */
+      [data-diff-palette='tritanopia'] {
+        --add-bg: #e2f3f1;
+        --add-line: #b3ded8;
+        --del-bg: #fbe9f3;
+        --del-line: #f0c2dc;
+        --ok: #0d5852;
+        --bad: #8c2062;
+      }
+
+      /* Neither hue nor tint: a heavy edge and a near-neutral wash, for a
+         reader who wants contrast rather than colour. */
+      [data-diff-palette='contrast'] {
+        --add-bg: #f4f4f4;
+        --add-line: #111111;
+        --del-bg: #ffffff;
+        --del-line: #767676;
+      }
+
+      [data-diff-palette='contrast'] .line-added .code { box-shadow: inset 3px 0 0 var(--add-line); }
+      [data-diff-palette='contrast'] .line-removed .code { box-shadow: inset 3px 0 0 var(--del-line); }
+
+      @media (prefers-color-scheme: dark) {
+        [data-diff-palette='deuteranopia'] {
+          --add-bg: #10203a;
+          --add-line: #1e3c66;
+          --del-bg: #2e2110;
+          --del-line: #5b3f16;
+        }
+
+        [data-diff-palette='tritanopia'] {
+          --add-bg: #0d2725;
+          --add-line: #16463f;
+          --del-bg: #2c1122;
+          --del-line: #5a2044;
+        }
+
+        [data-diff-palette='contrast'] {
+          --add-bg: #1a1a1a;
+          --add-line: #f2f2f2;
+          --del-bg: #0c0c0c;
+          --del-line: #9a9a9a;
+        }
+      }
+
       /* The wash behind changed lines, off. The gutter edge stays, and so does
          whichever indicator is in force, so which side a line belongs to is
          still legible without it. */

@@ -140,6 +140,14 @@ const commentUrl = `/api/repos/pulls/comments?${diffQuery}`
               </fieldset>
 
               <fieldset>
+                <legend>Colours</legend>
+                <label><input type="radio" name="diff-palette" value="classic" data-diff-pref="palette"> Red and green</label>
+                <label><input type="radio" name="diff-palette" value="deuteranopia" data-diff-pref="palette"> Blue and orange</label>
+                <label><input type="radio" name="diff-palette" value="tritanopia" data-diff-pref="palette"> Teal and magenta</label>
+                <label><input type="radio" name="diff-palette" value="contrast" data-diff-pref="palette"> High contrast</label>
+              </fieldset>
+
+              <fieldset>
                 <legend>Show</legend>
                 <label><input type="checkbox" data-diff-pref="lineNumbers"> Line numbers</label>
                 <label><input type="checkbox" data-diff-pref="changeBackground"> Change backgrounds</label>

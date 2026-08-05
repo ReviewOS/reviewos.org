@@ -477,15 +477,26 @@ comment nesting wrong, and the failure is silent and ugly: half a file rendered 
 
 - [ ] Three themes ship today (`github-dark`, `github-light`, `nord`). Pierre ship ten first-party
       plus everything Shiki bundles, and their theme picker is a visible product feature.
-- [ ] **Import VS Code / TextMate / Shiki theme JSON.** `export-textmate.ts` already goes one way;
+- [x] **Import VS Code / TextMate / Shiki theme JSON.** `export-textmate.ts` already goes one way;
       the inverse is the higher-value direction, because it makes every theme anyone has ever
       published work with zero grammar work on our side. This is the single change that closes the
-      theme gap in one move.
-- [ ] Colour-vision-deficiency variants (red-green and blue-yellow) as first-party themes, and a
-      high-contrast pair
-- [ ] A theme normalizer that also yields UI chrome colours (background, foreground, border, muted,
-      selection) so the app around the code can be coloured from the same file, which is what makes
-      a themed page look like one surface
+      theme gap in one move. Shipped in `ts-syntax-highlighter@0.2.9` as `importTheme`.
+
+  Most of the work turned out to be tolerating fifteen years of format drift rather than translating
+  anything: `scope` is an array, or one string, or a comma-separated list in one string; very old
+  `.tmTheme` conversions put everything in a `settings` array and give the editor's own colours as
+  the entry with *no* scope; `type` is usually missing and has to be inferred from the background's
+  luminance; colours arrive as `#rgb`, `#rrggbbaa` and occasionally with no `#`; and VS Code reads
+  its own theme files as JSONC, so a great many published themes have comments in them and are not
+  valid JSON at all. A file that cannot be read throws; a file with one unreadable *part* loses that
+  part and keeps the rest, because a colour scheme missing one rule is a working colour scheme and a
+  thrown error is a blank page.
+- [ ] Colour-vision-deficiency variants of the *syntax* themes as first-party themes in the library.
+      The diff's own colours are done (below); the token palette is not.
+- [x] A theme normalizer that also yields UI chrome colours (background, foreground, surface,
+      border, muted, selection) so the app around the code can be coloured from the same file, which
+      is what makes a themed page look like one surface. `themeChrome` derives whatever the theme did
+      not state rather than leaving holes, so every imported theme yields a complete set.
 
 ### Correctness and grammars
 
@@ -686,10 +697,13 @@ already used it.
 - [ ] Switching theme re-colours from cache rather than re-tokenizing
 - [ ] The chrome around the diff (sidebar, header, dropdowns) derives its colours from the same theme,
       so the page is one surface rather than a code pane pasted into an app
-- [ ] Colour-vision-deficiency variants: a red-green (protanopia/deuteranopia) and a blue-yellow
-      (tritanopia) pair, where the add/remove distinction does not rest on hue alone. Pierre ships
-      four such themes; a diff viewer that only distinguishes changes by red and green is failing
-      roughly one in twelve male readers.
+- [x] Colour-vision-deficiency variants: a red-green (protanopia/deuteranopia) and a blue-yellow
+      (tritanopia) pair, plus a high-contrast pair with no hue in it at all. Not a simulation of what
+      those readers see - pairs chosen to stay distinguishable *for* them: blue against orange
+      survives red-green deficiency, teal against magenta survives blue-yellow. Roughly one in twelve
+      men cannot reliably tell the conventional pair apart, and the shape cue - the `+`/`-` glyph or
+      the edge bar - stays on by default whichever palette is chosen, because that is the part that
+      makes a diff readable rather than merely tinted.
 - [ ] Diff add/remove colours are legible against every shipped theme, checked rather than assumed
 
 ## Merge conflicts
