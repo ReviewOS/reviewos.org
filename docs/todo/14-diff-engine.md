@@ -118,64 +118,41 @@ Linux compare at all, and nothing about the page gets slower as the diff gets bi
 
 ---
 
-## What it measures, so far
+## What it measures
 
-Against the real `stacksjs/stacks` bare repository in `storage/repos/`, on this laptop. Not the
-benchmark harness below - that is still to build, and these come from a script rather than from
-Chrome traces - but they are numbers rather than feelings, and they are the baseline the harness
-inherits.
+`scripts/benchmarks/diff-engine.ts` is the harness for the server half: git, the splitter, the
+parser, the highlighter, the row renderer. It discards a warm-up run and reports the median of
+several, because the first pass pays for git's caches and the JIT and reports a machine warming up.
 
-`v0.70.230...v0.70.231`, 100 files, 1,662 changed lines:
+```bash
+bun scripts/benchmarks/diff-engine.ts storage/repos/stacks/stacks.git v0.70.0 v0.70.231 --rows
+```
 
-| | manifest only | with rows inline |
+Against the real `stacksjs/stacks` repository on this laptop:
+
+| | 100 files, 1.6k lines | 5,722 files, 810k lines |
 |---|---|---|
-| first record on the wire | 72ms | 26ms |
-| complete | 77ms | 65ms |
-| sent to the browser | 21KB | 1.3MB |
-| per file | 207 bytes | 12.8KB |
+| first record on the wire | 17ms | 23ms |
+| complete | 18ms | 406ms |
+| peak heap | 36MB | 107MB |
+| bytes per file (manifest only) | 207 | 225 |
 
-`v0.70.0...v0.70.231`, 5,722 files, 810,481 changed lines:
+The path this replaces - buffer the whole patch, then parse it - took 606ms to first useful output on
+the large compare and held 134MB, and would then have sent the browser 34MB of patch to render as
+810k table rows.
 
-| | today's path (buffer, then parse) | the manifest |
-|---|---|---|
-| first useful output | 606ms | 85ms |
-| complete | 606ms | 610ms |
-| server heap | 134MB | 81MB |
-| the browser receives | 34MB of patch, as 810k table rows | 9MB, of which 8MB is the first 89 files' rows |
+The 207 bytes a file is the number the architecture rests on, and it came out where the plan guessed.
+A 40,000 file compare is therefore about 8MB of manifest, which a phone can hold.
 
-The row budget stopped at file 89 and said so, and the remaining 5,633 file records kept flowing at
-full speed, which is the behaviour the two-mode design exists for: the scrollbar is correct for all
-5,722 files half a second in, whatever is or is not rendered yet.
+One honest cost worth recording: inline rows now carry expansion controls and per-line link anchors,
+so each file's markup is larger and the byte budget is reached sooner. On the large compare the
+inline mode covers 77 files where it covered 89 before the features landed. Everything past that is
+fetched on demand, which is what the mode is for.
 
-The 207 bytes a file is the number the whole architecture rests on and it came out where the plan
-guessed it would. A 40,000 file compare is therefore about 8MB of manifest, which a phone can hold.
-
-Two things these numbers do not yet show, both deliberately:
-
-- [ ] The same measurements from the browser rather than from a script: paint, scroll, and memory
-      after a full scroll, which is what the harness below is for
+- [ ] The other half: paint, scroll and memory measured from the browser with Chrome traces, which is
+      what the runbook below describes and what these numbers do not cover
 - [ ] A corpus larger than this repository can provide. `stacks` at 5,722 files is a tenth of the
       Linux compare DiffsHub uses as its demo.
-
-### The last mile, as it actually went
-
-Wiring the view took three silent failures and one loud one, all found by loading the page rather
-than by reasoning about it. Recorded because each is the kind that leaves no trace:
-
-- **A relative import in a `<script client>` block resolves against the layout, not the page.** The
-  block is composed into `resources/views/layouts/app.stx` before it is bundled, so
-  `../../../../../functions/diffviewer` pointed outside the project. The bundler said so only with
-  `STX_DEBUG=1`; without it the block was emitted as a classic script and the browser said
-  "Cannot use import statement outside a module", which names nothing. Use `@/resources/functions/…`,
-  which does not depend on where the block ends up.
-- **The wire calls a file's position `i` and the client type called it `index`**, so every lookup
-  keyed on it missed and every file rendered its placeholder forever. The header and the counts came
-  through, because those field names happen to match, which is what made it look like a rendering
-  problem rather than a naming one.
-- **A file is mounted before its rows arrive.** The record comes first and is laid out immediately;
-  the markup follows. Without a way to re-render a mounted file, the placeholder is permanent.
-- **The status line is outside the scroll region**, so looking for it inside the viewer's own element
-  found nothing.
 
 ## Transport: move the patch before it is complete
 
@@ -453,8 +430,8 @@ Everything a reader can turn on. DiffsHub exposes all of these; several we alrea
 
 ## Hunk expansion and partial diffs
 
-- [ ] Expand hidden context above or below a hunk, in both directions, by a fixed count or all the way
-- [ ] Expansion fetches the surrounding lines on demand from the blob rather than shipping full file
+- [x] Expand hidden context above or below a hunk, in both directions, by a fixed count or all the way
+- [x] Expansion fetches the surrounding lines on demand from the blob rather than shipping full file
       contents with the diff
 - [ ] `revealLine(n)`: expand whatever context is needed to bring a line into view, used by deep links
       and by jumping to a review thread anchored on a context line
@@ -510,32 +487,34 @@ already used it.
 
 ## Selection and deep links
 
-- [ ] Click a line number to select it, shift-click or drag to select a range, across sides in split
-- [ ] The selection writes to the URL hash and the hash restores the selection on load, including
+- [x] Click a line number to select it, shift-click or drag to select a range, across sides in split
+- [x] The selection writes to the URL hash and the hash restores the selection on load, including
       expanding a collapsed file and revealing collapsed context to reach it
 - [ ] Restoring from a hash mid-stream: the target file may not have arrived yet, so the attempt
       repeats as batches land and stops once it succeeds
-- [ ] `hashchange` is honoured, so an in-page link between two threads works
+- [x] `hashchange` is honoured, so an in-page link between two threads works
 - [ ] A selection action surface (copy permalink, comment on selection, copy lines) anchored to the
       selection
 
 ## The file tree
 
-- [ ] A virtualized tree beside the diff, driven by a path store that keeps numeric ids internal and
-      canonical slash-delimited paths at its boundary
+- [x] A windowed list beside the diff. Not a folded tree: the directory is dimmed beside the
+      filename, which is what a reviewer scans to tell two `index.ts` apart, and folding is a state
+      machine that earns its keep on a repository browser rather than on a diff where every file
+      listed is one somebody changed.
 - [ ] Slice-first reads: `getVisibleCount()` and `getVisibleSlice(start, end)` are the fast path, and
       the full list is never materialized to render a screenful
 - [ ] Prepared input for presorted paths, so a 40,000 path tree is built once rather than sorted on
       every rebuild during a stream
 - [ ] Empty directories flattened in the projection only, never in the canonical topology
 - [ ] Sticky ancestor folders while scrolling, so the reader always knows where they are
-- [ ] Per-file change decoration (added, modified, deleted, renamed) with counts
+- [x] Per-file change decoration (added, modified, deleted, renamed) with counts
 - [ ] Search over the tree, opt-in so it takes no vertical space until asked for
-- [ ] Selecting a file scrolls the viewer to it, expanding it if collapsed
-- [ ] The tree is a separate state tree from the diff items, so a comment landing does not rebuild it
+- [x] Selecting a file scrolls the viewer to it, expanding it if collapsed
+- [x] The tree is a separate state tree from the diff items, so a comment landing does not rebuild it
 - [ ] Viewed state per file, checkable from the tree, persisted across visits (this is the phase 4
       item; the tree is where it belongs in the interface)
-- [ ] A mobile presentation: an overlay rather than a column
+- [x] A mobile presentation: an overlay rather than a column
 
 ## Theming
 

@@ -44,7 +44,7 @@ they are somebody's problem.
 - [x] Rename and copy detection
 - [x] Binary files, mode changes, symlinks, and submodule bumps each render as themselves rather
       than as noise
-- [ ] Large-diff strategy: collapse by default past a threshold, load file diffs on demand, and
+- [x] Large-diff strategy: collapse by default past a threshold, load file diffs on demand, and
       never send the whole thing to the browser at once
 - [x] Word-level highlighting inside changed lines
 - [x] Whitespace-only changes hidden behind a toggle
@@ -176,7 +176,7 @@ this is where the claim is either true or marketing.
       same markup is needed by the streamed review screen, and a component cannot be called from a
       string. Both now come from `app/Actions/Pull/rows.ts` and `threads.ts`, which is one renderer
       rather than two that drift.
-- [ ] Keyboard navigation through files and threads, and submitting a review without the mouse
+- [x] Keyboard navigation through files and threads, and submitting a review without the mouse
 - [ ] The diff renders on the server; the browser gets HTML, not a diff library and a JSON payload
 
 ## Stacked pull requests
