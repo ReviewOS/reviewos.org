@@ -31,4 +31,5 @@ export default {
   'seed:demo': 'SeedDemo',
   'mirror:add': 'MirrorAdd',
   'git:hooks': 'GitHooks',
+  'git:scan': 'GitScan',
 } satisfies CommandRegistry

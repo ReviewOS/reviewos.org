@@ -211,6 +211,10 @@ const body = Buffer.concat(chunks).toString('utf8')
 
 const gitDir = require('node:path').resolve(process.cwd(), process.env.GIT_DIR ?? '.')
 
+const pushOptions = []
+for (let i = 0; i < Number(process.env.GIT_PUSH_OPTION_COUNT ?? 0); i++)
+  pushOptions.push(process.env['GIT_PUSH_OPTION_' + i] ?? '')
+
 try {
   const response = await fetch(${JSON.stringify(url)}, {
     method: 'POST',
@@ -218,8 +222,31 @@ try {
       'Content-Type': 'application/json',
       'X-Git-Hook-Secret': process.env.${HOOK_SECRET_ENV} ?? '',
     },
-    body: JSON.stringify({ gitDir, updates: body }),
-    signal: AbortSignal.timeout(3000),
+    // The quarantine. While pre-receive runs, git has written the incoming
+    // objects into a temporary directory and has not linked them into the
+    // repository, and it says where through these two variables - which belong
+    // to this process alone. The application is a different process, so without
+    // forwarding them it cannot read a single byte of what is being pushed: a
+    // scanner built on that finds nothing, reports every push clean, and looks
+    // like it is working.
+    body: JSON.stringify({
+      gitDir,
+      updates: body,
+      quarantine: {
+        GIT_OBJECT_DIRECTORY: process.env.GIT_OBJECT_DIRECTORY,
+        GIT_ALTERNATE_OBJECT_DIRECTORIES: process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES,
+      },
+      // Push options, which is how somebody overrides a finding:
+      //
+      //   git push -o secret-scan=bypass -o reason="fixture, not a real key"
+      //
+      // git passes them one variable per option, and only when the repository
+      // has \`receive.advertisePushOptions\` on - which \`buddy git:hooks\` sets.
+      pushOptions,
+    }),
+    // Longer than a branch rule needs, because this one reads the patch of
+    // every commit in the push.
+    signal: AbortSignal.timeout(15000),
   })
 
   if (!response.ok) process.exit(0)
@@ -231,7 +258,7 @@ try {
     console.error(refusal.reason)
 
   console.error('')
-  console.error('This push was refused by a branch protection rule.')
+  console.error('This push was refused by the forge.')
   process.exit(1)
 }
 catch {
@@ -283,6 +310,13 @@ export async function installHooks(root = HOOK_DIRECTORY): Promise<{ ok: boolean
 export async function useSharedHooks(repositoryPath: string, root = HOOK_DIRECTORY): Promise<boolean> {
   const directory = resolve(process.cwd(), root)
   const result = await runGit(repositoryPath, ['config', 'core.hooksPath', directory])
+
+  // Push options are how somebody bypasses a push-protection finding, and git
+  // does not send them at all unless the receiving repository advertises that
+  // it accepts them. Without this the bypass silently does nothing: the option
+  // is accepted by the client, never transmitted, and the push is refused again
+  // with no explanation of why the documented escape did not work.
+  await runGit(repositoryPath, ['config', 'receive.advertisePushOptions', 'true'])
 
   return result.ok
 }

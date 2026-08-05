@@ -2,7 +2,11 @@ import { route } from '@stacksjs/router'
 import { diskPathFor, findRepositoryByPath, mayUseService, tokenFromBasicAuth } from '../app/Actions/Git/access'
 import { recordTokenUse } from '../app/Actions/Tokens/authenticate'
 import { spawnGit } from '../app/Actions/Git/git'
-import { GATE_ENDPOINT, HOOK_ENDPOINT, hookSecret, repositoryByGitDir } from '../app/Actions/Git/hooks'
+import { GATE_ENDPOINT, HOOK_ENDPOINT, hookSecret, repositoryByGitDir, repositoryPaths } from '../app/Actions/Git/hooks'
+import { refsToExclude, reportLines, safeQuarantine, scanUpdate } from '../app/Actions/Git/scan'
+import { instancePatterns, pushProtectionSettings } from '../app/Actions/Git/patterns'
+import { decideBypass, readBypass } from '../app/Actions/Git/bypass'
+import { recordAudit } from '../app/Actions/Git/audit'
 import { decidePush, rulesFor } from '../app/Actions/Git/protection'
 import { parseRefUpdates } from '../app/Actions/Git/push'
 import { isAncestor } from '../app/Actions/Mirror/fetch'
@@ -186,32 +190,144 @@ route.post(GATE_ENDPOINT, async (request: any) => {
   if (!repository)
     return allow()
 
+  const path = repositoryPaths(gitDir).absolute
+  const refused: Array<{ ref: string, reason: string }> = []
+
+  // Branch rules first. They are a database read and an occasional
+  // `merge-base`, where the scan below reads the patch of every commit - and a
+  // push that is going to be refused for touching a protected branch should be
+  // refused before anything expensive happens.
   const rules: any[] = await db
     .selectFrom('protected_branches')
     .select(['pattern', 'allow_force_push', 'allow_deletion'])
     .where('repository_id', '=', Number(repository.id))
     .execute()
 
-  if (rules.length === 0)
-    return allow()
+  if (rules.length > 0) {
+    const judged = []
+    for (const update of updates) {
+      // Only asked when a rule could refuse it, because it costs a git process
+      // per ref and most pushes are covered by no rule at all.
+      const forced = update.change === 'updated' && rulesFor(rules, update.name).length > 0
+        ? !(await isAncestor(path, update.before, update.after))
+        : false
 
-  const judged = []
-  for (const update of updates) {
-    // Only asked when a rule could refuse it, because it costs a git process
-    // per ref and most pushes are covered by no rule at all.
-    const forced = update.change === 'updated' && rulesFor(rules, update.name).length > 0
-      ? !(await isAncestor(gitDir, update.before, update.after))
-      : false
+      judged.push({ update, isForced: forced })
+    }
 
-    judged.push({ update, isForced: forced })
+    refused.push(...decidePush(rules, judged).refused)
   }
 
-  const decision = decidePush(rules, judged)
+  if (refused.length > 0)
+    return new Response(JSON.stringify({ ok: false, refused }), { headers: { 'Content-Type': 'application/json' } })
 
-  return new Response(JSON.stringify(decision), {
-    headers: { 'Content-Type': 'application/json' },
-  })
+  // Push protection. Scanning after the fact is a cleanup procedure: by then
+  // the credential is in the reflog, in every clone, and possibly in a mirror.
+  // This is the one moment where refusing prevents anything.
+  const settings = await pushProtectionSettings()
+  if (!settings.enabled)
+    return allow()
+
+  const protection = await scanPushed(payload, path, repository, updates)
+  if (protection.length === 0)
+    return allow()
+
+  // Somebody has looked at a finding and decided it is wrong. The bypass is
+  // easy to use and impossible to use quietly - see `app/Actions/Git/bypass`.
+  const bypass = decideBypass(readBypass(payload?.pushOptions ?? []), settings)
+
+  if (bypass.allowed) {
+    const token = await tokenFromBasicAuth(request.headers?.get?.('authorization') ?? null)
+
+    await recordAudit({
+      action: 'push.protection.bypassed',
+      subject: { type: 'repository', id: Number(repository.id) },
+      actorId: token?.userId ?? null,
+      reason: bypass.reason,
+      detail: {
+        refs: protection.map(one => one.ref),
+        findings: protection.map(one => one.reason),
+      },
+      ip: request.headers?.get?.('x-forwarded-for') ?? null,
+    })
+
+    return allow({ bypassed: true })
+  }
+
+  // A refusal that does not say what to do next is the one that turns into
+  // "just disable the scanner".
+  const help = bypass.message
+    || (settings.allowBypass
+      ? 'If this is not a credential: git push -o secret-scan=bypass -o reason="why"'
+      : 'Push protection cannot be bypassed on this instance.')
+
+  return new Response(
+    JSON.stringify({ ok: false, refused: [...protection, { ref: '', reason: help }] }),
+    { headers: { 'Content-Type': 'application/json' } },
+  )
 }).skipCsrf()
+
+/**
+ * Scan what a push is carrying, and say what has to be taken out.
+ *
+ * Returns one entry per ref, because git reports a refusal per ref and a push
+ * of three branches where one carries a key should name that branch.
+ *
+ * Nothing here can fail the push by accident: a scan that throws returns no
+ * findings, which allows. Refusing a push because the scanner broke would be
+ * the surest way to have the scanner turned off.
+ */
+async function scanPushed(
+  payload: any,
+  path: string,
+  repository: any,
+  updates: ReturnType<typeof parseRefUpdates>,
+): Promise<Array<{ ref: string, reason: string }>> {
+  if (repository.push_protection === false)
+    return []
+
+  try {
+    // The quarantine, forwarded by the hook. Without it none of the pushed
+    // objects are readable from this process and the scan silently finds
+    // nothing - see `app/Actions/Git/scan.ts`.
+    const quarantine = safeQuarantine(payload?.quarantine, path)
+    const creating = updates.filter(update => update.change === 'created')
+    const excludeRefs = creating.length > 0
+      ? await refsToExclude(path, updates.map(update => update.ref), quarantine)
+      : []
+
+    const refused: Array<{ ref: string, reason: string }> = []
+
+    for (const update of updates) {
+      // A deletion introduces no content, and the one push that must always be
+      // allowed is the one that takes a secret out.
+      if (update.change === 'deleted')
+        continue
+
+      const result = await scanUpdate(path, update.before, update.after, {
+        quarantine,
+        excludeRefs,
+        extra: await instancePatterns(),
+      })
+
+      if (result.findings.length === 0)
+        continue
+
+      refused.push({
+        ref: update.ref,
+        reason: [
+          `${update.name} carries what looks like a credential:`,
+          ...reportLines(result.findings, result.truncated),
+        ].join('\n'),
+      })
+    }
+
+    return refused
+  }
+  catch {
+    return []
+  }
+}
 
 /**
  * Where the post-receive hook reports a push.

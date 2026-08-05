@@ -193,6 +193,27 @@ describe('the generated scripts', () => {
     expect(pre.startsWith('#!/usr/bin/env bun')).toBe(true)
   })
 
+  /**
+   * The one that matters most, and the one that was missing.
+   *
+   * A generated script that does not parse exits non-zero, and a non-zero
+   * pre-receive **refuses the push** - so a typo in a template string does not
+   * degrade the feature, it stops everybody from pushing anything. Nothing in
+   * the script can catch that either: a syntax error happens before its own
+   * `try` exists.
+   *
+   * These are built by string concatenation, which is exactly the kind of code
+   * that breaks silently when somebody edits the middle of it.
+   */
+  test('both parse, because a script that does not refuses every push', () => {
+    const transpiler = new Bun.Transpiler({ loader: 'ts' })
+
+    for (const [name, script] of [['post-receive', post], ['pre-receive', pre]] as const) {
+      expect(() => transpiler.transformSync(script.replace('#!/usr/bin/env bun', '')), name)
+        .not.toThrow()
+    }
+  })
+
   test('both carry the secret header and the url they were built with', () => {
     for (const script of [post, pre]) {
       expect(script).toContain('X-Git-Hook-Secret')

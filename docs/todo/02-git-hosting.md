@@ -105,17 +105,40 @@ the secret is in the reflog, in every clone, and possibly in a mirror before any
 Rejecting the push is the only version of this feature that prevents anything, and receive time is
 the one moment where rejecting is still possible.
 
-- [ ] Scan the incoming pack for credential shapes before accepting it: provider tokens with a known
-      prefix first, since those are unambiguous, then private keys, then high-entropy strings in
-      assignment position
-- [ ] Reject with a message git prints legibly, naming the file, the line, and what it looks like.
-      A rejection the pusher cannot act on gets bypassed once and disabled forever.
-- [ ] A bypass that requires a reason and is recorded in the audit log, because a false positive on
-      a test fixture at 6pm will otherwise turn the whole feature off
-- [ ] Patterns are configurable per instance, and a self-hosted instance can add its own
-- [ ] Scan history on demand for a repository that predates this, reporting rather than rejecting
-- [ ] Tests: a known token shape is rejected, a documented example placeholder is not, and the
-      bypass is logged
+- [x] Scan the incoming pack for credential shapes before accepting it, in that order of certainty.
+      The detectors are ordered by how sure they are because the failure that matters is the false
+      positive: a miss costs one credential, and a wrong refusal on a test fixture costs the whole
+      feature. The entropy heuristic is last and narrowest, and needs a variable name that says what
+      the value is, a long value, real entropy, *and* that the value is not one of the placeholders
+      every README contains. Entropy is worth measuring rather than assuming: English words run
+      together score *above* a real base64 key, which is why the name carries most of the signal.
+- [x] Reject with a message git prints legibly, naming the file, the line, and what it looks like -
+      with the value redacted, because the finding reaches a terminal, the audit log and possibly a
+      support thread, and a message that quotes the whole credential leaks it a second time to help
+      with the first.
+- [x] A bypass that requires a reason and is recorded in the audit log
+      (`git push -o secret-scan=bypass -o reason="..."`). Push options are the channel, which means
+      `receive.advertisePushOptions` has to be on or git never transmits them and the documented
+      escape silently does nothing. Every refusal says what the override needs, because a refusal
+      that does not is the one that turns into "just disable the scanner".
+- [x] Patterns are configurable per instance, in `config/push-protection.ts`. A configured pattern
+      is compiled once and tried against a pathological input with a time budget: a regular
+      expression is a program, and one written carelessly takes exponential time - a scanner that
+      hangs is a push that hangs, which is indistinguishable from the forge being down.
+- [x] Scan history on demand (`buddy git:scan`), reporting rather than rejecting. There is nothing
+      left to refuse: the commits are in every clone and in the reflog. It says so, and says that
+      rotating the credential is the step that ends the exposure - removing it from history
+      afterwards is tidying up, and rewrites everybody's copy.
+- [x] Tests: a known token shape is rejected, ten documented placeholders are not, and the bypass is
+      logged. Two things this cost, both of which reported success while doing nothing:
+      **the pushed objects are quarantined** - during pre-receive they are in a temporary directory
+      that only the hook process can see, so the application cannot read a byte of the push without
+      the hook forwarding `GIT_OBJECT_DIRECTORY`, and a scanner built without that finds nothing and
+      looks like it works; and **the zero sha is forty hex characters**, so it passes a
+      full-sha check and a created branch was scanned as the range `000…000..<new>`, which resolves
+      to nothing - the exact case somebody pushing a new branch with a key is in.
+- [x] A generated hook that does not parse refuses every push, and nothing inside it can catch that:
+      a syntax error happens before its own `try` exists. Both scripts are parsed in a test.
 
 ## Browsing
 
