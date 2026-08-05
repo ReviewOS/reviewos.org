@@ -207,11 +207,75 @@ const ROW_FETCH_DELAY_MS = 32
 /** Files per row request. Matches the server's own cap on how many it will take. */
 const ROW_FETCH_BATCH = 40
 
-/** Files per batch handed to the viewer. */
-const MANIFEST_BATCH_SIZE = 50
+/** Files per batch handed to the viewer, after the first one. */
+const MANIFEST_BATCH_SIZE = 25
 
 /** And the longest a batch waits to be handed over, however few are in it. */
 const MANIFEST_BATCH_MS = 100
+
+/**
+ * The first batch waits longer.
+ *
+ * Everything after it is appended below the fold, where a hundred milliseconds
+ * of latency is invisible. The first one *is* the page, and half a second buys
+ * a screen that is full rather than a screen that fills in while the reader
+ * watches. Past that it is a spinner with extra steps, so it is a ceiling and
+ * not a delay: whichever of the two conditions comes first still wins.
+ */
+const FIRST_BATCH_MS = 500
+
+/** Bounds on the first batch, whatever the viewport works out to. */
+const FIRST_BATCH_MIN = 25
+const FIRST_BATCH_MAX = 96
+
+/**
+ * How long parsing may hold the main thread before yielding.
+ *
+ * Eight milliseconds is half a frame at sixty. The work is not interruptible
+ * once started - a record is parsed or it is not - so the budget is checked
+ * between records, and a single pathological record can still overrun it.
+ */
+const WORK_BUDGET_MS = 8
+
+/**
+ * How big the first batch should be, from the size of the viewport.
+ *
+ * Rows that would fit, not files: a file is a header plus its rows, so this
+ * over-counts, and deliberately. Under-filling the first screen is the failure
+ * that shows - the reader watches the page assemble itself - and over-filling
+ * it costs a few file records the browser was going to receive anyway. The
+ * ceiling is what stops that argument running away.
+ */
+export function firstBatchSize(viewportHeight: number, rowHeight: number): number {
+  if (!(viewportHeight > 0) || !(rowHeight > 0))
+    return FIRST_BATCH_MIN
+
+  return Math.max(FIRST_BATCH_MIN, Math.min(FIRST_BATCH_MAX, Math.ceil(viewportHeight / rowHeight)))
+}
+
+/**
+ * Hand the thread back to the browser.
+ *
+ * A frame if there is going to be one, and a timeout if there is not. A
+ * backgrounded tab gets no animation frames at all, so a stream that yielded
+ * only on `requestAnimationFrame` would stop dead when somebody opened a diff
+ * in a background tab and went to read something else - which is exactly how
+ * people open several pull requests.
+ */
+function yieldToBrowser(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let done = false
+    const finish = () => {
+      if (done)
+        return
+      done = true
+      resolve()
+    }
+
+    requestAnimationFrame(finish)
+    setTimeout(finish, 0)
+  })
+}
 
 /** One file, as the manifest describes it. */
 export interface DiffFileEntry {
@@ -735,18 +799,36 @@ export interface ManifestStreamHandlers {
   onError?: (message: string) => void
 }
 
+export interface ManifestStreamOptions {
+  /**
+   * Files in the first batch, which should be a screenful.
+   *
+   * See `firstBatchSize`. Passed in rather than measured here, because this
+   * function does not own a viewport and should not go looking for one.
+   */
+  firstBatchSize?: number
+}
+
 /**
  * Pull a diff manifest and hand it over in batches.
  *
- * Batched rather than one at a time, and against a clock as well as a count: a
- * diff of forty thousand files would otherwise schedule forty thousand frames,
- * and one of twelve would wait for a batch that never fills. Whichever comes
- * first wins, so both shapes stay responsive.
+ * Three things decide when a batch goes out, and all three are needed:
+ *
+ * - a **count**, so a forty thousand file compare does not schedule forty
+ *   thousand frames
+ * - a **clock**, so a twelve file pull request does not wait for a batch that
+ *   will never fill
+ * - a **work budget**, so a run of very large files cannot hold the main
+ *   thread between the other two. Parsing every record as fast as they arrive
+ *   and publishing on a timer still leaves the thread pinned, which is the
+ *   failure this one exists for: the page is not repainting, so nothing the
+ *   reader does gets a response, and the batching looks like it is working.
  */
 export async function streamDiffManifest(
   url: string,
   handlers: ManifestStreamHandlers,
   signal?: AbortSignal,
+  options: ManifestStreamOptions = {},
 ): Promise<void> {
   const response = await fetch(url, { signal, headers: { Accept: 'application/x-ndjson' } })
 
@@ -755,23 +837,40 @@ export async function streamDiffManifest(
     return
   }
 
+  const firstSize = options.firstBatchSize ?? FIRST_BATCH_MIN
   let batch: DiffFileEntry[] = []
+  let published = 0
   let lastFlush = performance.now()
+  let sinceYield = performance.now()
 
   const flush = () => {
     if (batch.length === 0)
       return
 
     handlers.onFiles(batch)
+    published++
     batch = []
     lastFlush = performance.now()
   }
 
+  /** The batch this one is: the first is bigger and waits longer. */
+  const limits = () => published === 0
+    ? { size: firstSize, ms: FIRST_BATCH_MS }
+    : { size: MANIFEST_BATCH_SIZE, ms: MANIFEST_BATCH_MS }
+
   for await (const record of readNdjson<Record<string, unknown>>(response, signal)) {
+    // Checked before the record is handled rather than after, so the yield
+    // happens between two records and never in the middle of one.
+    if (performance.now() - sinceYield >= WORK_BUDGET_MS) {
+      await yieldToBrowser()
+      sinceYield = performance.now()
+    }
+
     if (record.t === 'file') {
       batch.push(toFileEntry(record))
 
-      if (batch.length >= MANIFEST_BATCH_SIZE || performance.now() - lastFlush >= MANIFEST_BATCH_MS)
+      const { size, ms } = limits()
+      if (batch.length >= size || performance.now() - lastFlush >= ms)
         flush()
     }
     else if (record.t === 'rows') {
@@ -1351,10 +1450,37 @@ export function mountDiffFiles(): DiffViewer | null {
   showLayout()
   say('Loading the diff…')
 
+  /**
+   * The list beside the diff rebuilds on its own, slower schedule.
+   *
+   * Rebuilding it costs a pass over every file known so far, and during a
+   * stream nobody is reading it - they are reading the first file, which
+   * arrived before the sidebar had anything in it. Every thousand files or
+   * every second is often enough that it never looks stuck, and rare enough
+   * that a forty thousand file compare rebuilds it forty times rather than
+   * sixteen hundred.
+   */
+  const TREE_EVERY_FILES = 1000
+  const TREE_EVERY_MS = 1000
+  let treeAt = 0
+  let treeTime = performance.now()
+
+  const refreshFileList = (force = false) => {
+    const files = viewer.files()
+    const now = performance.now()
+
+    if (!force && files.length - treeAt < TREE_EVERY_FILES && now - treeTime < TREE_EVERY_MS)
+      return
+
+    treeAt = files.length
+    treeTime = now
+    fileList?.setFiles(files)
+  }
+
   void streamDiffManifest(manifestUrl, {
     onFiles(files) {
       viewer.addFiles(files)
-      fileList?.setFiles(viewer.files())
+      refreshFileList()
       say(`${viewer.files().length} files…`)
     },
     onRows(index, html) {
@@ -1380,13 +1506,20 @@ export function mountDiffFiles(): DiffViewer | null {
     onEnd(summary) {
       // Reached once the whole list is known, which is the earliest a link to a
       // file near the end can be honoured.
+      refreshFileList(true)
       revealSelection()
       const counts = `${summary.files} files, +${summary.additions} -${summary.deletions}`
       say(truncatedFrom == null ? counts : `${counts} (rendered to file ${truncatedFrom})`, 'done')
     },
     onError(message) {
+      refreshFileList(true)
       say(message, 'error')
     },
+  }, undefined, {
+    // Measured from the scroll region the viewer actually owns, and read now
+    // rather than captured earlier: the page has laid out by the time this
+    // runs, so this is a real height and not a guess about one.
+    firstBatchSize: firstBatchSize(view.clientHeight, DEFAULT_HEIGHT_METRICS.lineHeight),
   }).catch((error: unknown) => {
     say(error instanceof Error ? error.message : 'The diff could not be loaded.', 'error')
   })
