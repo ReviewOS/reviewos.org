@@ -1,7 +1,7 @@
 import { route } from '@stacksjs/router'
 import { diskPathFor, findRepositoryByPath, mayUseService, tokenFromBasicAuth } from '../app/Actions/Git/access'
 import { recordTokenUse } from '../app/Actions/Tokens/authenticate'
-import { spawnGit } from '../app/Actions/Git/git'
+import { serviceArgs, spawnGit } from '../app/Actions/Git/git'
 import { GATE_ENDPOINT, HOOK_ENDPOINT, hookSecret, repositoryByGitDir, repositoryPaths } from '../app/Actions/Git/hooks'
 import { refsToExclude, reportLines, safeQuarantine, scanUpdate } from '../app/Actions/Git/scan'
 import { instancePatterns, pushProtectionSettings } from '../app/Actions/Git/patterns'
@@ -108,7 +108,11 @@ route.get('/{owner}/{repository}/info/refs', async (request: any) => {
   if (!auth.ok)
     return unauthorized(auth.status)
 
-  const child = spawnGit(auth.path, [`${service}`, '--stateless-rpc', '--advertise-refs', '.'])
+  // The repository is named as the service's own argument, not as `.`. See the
+  // note on `streamService`: these commands resolve their positional argument
+  // themselves and ignore `--git-dir`, so `.` advertised the refs of whatever
+  // directory the server process happened to be running in.
+  const child = spawnGit(auth.path, serviceArgs(auth.path, service, { advertiseRefs: true }))
 
   const stream = new ReadableStream({
     start(controller) {
@@ -381,9 +385,24 @@ route.post(HOOK_ENDPOINT, async (request: any) => {
 /**
  * Pipe the request body into git and its output back out, without either side
  * being held in memory.
+ *
+ * The repository is named as `upload-pack`'s and `receive-pack`'s own argument,
+ * and that is not a detail. Both take the repository as a positional argument
+ * and resolve it themselves; they do **not** read `--git-dir`. Passing `.` -
+ * which this did - made every request operate on the server process's current
+ * working directory, which is the application's own checkout. So a clone of any
+ * URL served the forge's source code, a clone of a *private* repository served
+ * it too because the permission check passed on the repository that was asked
+ * for and a different one was handed over, and a push wrote its refs into the
+ * application's own repository.
+ *
+ * It went unnoticed because everything looked right: the permission checks are
+ * correct, the streaming is correct, `git clone` succeeded, and the ref
+ * advertisement matched what the same wrong command produced on the command
+ * line.
  */
 function streamService(request: any, path: string, service: 'upload-pack' | 'receive-pack'): Response {
-  const child = spawnGit(path, [service, '--stateless-rpc', '.'])
+  const child = spawnGit(path, serviceArgs(path, service))
 
   const body: ReadableStream | null = request.body ?? null
   if (body) {

@@ -16,7 +16,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 |---|---|---|
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done, 5 deferred (27/32) |
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (22/57) |
-| [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (38/75) |
+| [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (43/74) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (46/85) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | In progress (21/51) |
@@ -60,6 +60,29 @@ state, which is indistinguishable from there being nothing to show.
 That is how the issue-template chooser, the milestone state filter, and the `?state=` filter on both
 list views all shipped ticked and none of them ever ran. `STX_DEBUG=1` prints the real cause; it is
 worth running the dev server with it on.
+
+## Ask which one, not whether it worked
+
+The worst bug found so far passed every check anybody would think to run.
+`upload-pack` and `receive-pack` take the repository as their own positional
+argument and ignore `--git-dir`, and the wire-protocol routes passed `.` - so
+every request operated on the server process's working directory rather than on
+the repository in the URL.
+
+`git clone` succeeded. It checked out a real tree with real files. `git push`
+reported a new branch. The permission checks were correct and passed - on the
+repository that was *asked for*, while a different one was handed over. The ref
+advertisement even matched, byte for byte, what the same command produced on the
+command line, because the command line was wrong in the same way.
+
+What it actually did: served the forge's own source for any URL including
+private repositories nobody had access to, and wrote pushed refs into the
+application's checkout.
+
+The question that found it was not "did the clone work" but **"which repository
+did it clone"** - and the answer was visible in one `rev-parse`. Verification
+that only asks whether an operation succeeded will miss every bug of this shape,
+and this will not be the last one.
 
 ## The other silent failure: the query builder drops what it cannot express
 

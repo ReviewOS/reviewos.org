@@ -191,3 +191,35 @@ export async function isEmpty(repositoryPath: string): Promise<boolean> {
   const result = await runGit(repositoryPath, ['rev-parse', '--verify', 'HEAD'])
   return !result.ok
 }
+
+/**
+ * The argument list for a wire-protocol service.
+ *
+ * Extracted so it can be tested, because the mistake it exists to prevent is
+ * invisible from the outside. `upload-pack` and `receive-pack` take the
+ * repository as their own positional argument and resolve it themselves - they
+ * do **not** read `--git-dir`. Passing `.` therefore makes them operate on the
+ * server process's working directory, and everything still *works*: git speaks
+ * the protocol correctly, the clone succeeds, the push succeeds. It is just the
+ * wrong repository.
+ *
+ * That shipped here. A clone of any URL served the forge's own source, a clone
+ * of a private repository served it too - the permission check passed on the
+ * repository that was asked for, and a different one was handed over - and a
+ * push wrote its refs into the application's checkout.
+ */
+export function serviceArgs(
+  repositoryPath: string,
+  service: 'upload-pack' | 'receive-pack',
+  options: { advertiseRefs?: boolean } = {},
+): string[] {
+  const args = [service, '--stateless-rpc']
+
+  if (options.advertiseRefs)
+    args.push('--advertise-refs')
+
+  // The repository, named explicitly. Never `.`.
+  args.push(repositoryPath)
+
+  return args
+}

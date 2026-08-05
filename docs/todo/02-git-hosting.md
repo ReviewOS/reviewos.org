@@ -40,13 +40,22 @@ known to exactly one place.
 
 ## Smart HTTP
 
-- [ ] `routes/git.ts`, registered in `app/Routes.ts` with an empty prefix so URLs are
+- [x] `routes/git.ts`, registered in `app/Routes.ts` with an empty prefix so URLs are
       `/{owner}/{repository}.git/...`
 - [x] `GET /{owner}/{repository}.git/info/refs?service=git-upload-pack` (clone and fetch discovery)
-- [ ] `POST /{owner}/{repository}.git/git-upload-pack`
-- [ ] `POST /{owner}/{repository}.git/git-receive-pack`
-- [ ] Stream request and response bodies. Buffering a packfile is how this breaks on a real
+- [x] `POST /{owner}/{repository}.git/git-upload-pack`
+- [x] `POST /{owner}/{repository}.git/git-receive-pack`
+- [x] Stream request and response bodies. Buffering a packfile is how this breaks on a real
       repository, and it will pass every test written against a small one.
+- [x] **Name the repository as the service's own argument, never `.`.** `upload-pack` and
+      `receive-pack` take the repository positionally and resolve it themselves; they do not read
+      `--git-dir`. Passing `.` made every request operate on the server process's working directory,
+      which is the application's own checkout - so a clone of any URL served the forge's source, a
+      clone of a *private* repository served it too (the permission check passes on the repository
+      that was asked for, and a different one is handed over), and a push wrote its refs into the
+      application's repository. Nothing about it looked wrong: the protocol is spoken correctly,
+      `git clone` succeeds and checks out a real tree, `git push` reports a new branch. Found by
+      asking not "did the clone work" but "which repository did it clone".
 - [x] HTTP basic auth: username plus access token. Password login over git is not accepted.
       This authenticated against a `personal_access_tokens` table that no migration ever created, so
       every authenticated git request failed on a missing relation. It now goes through the access
@@ -55,9 +64,24 @@ known to exactly one place.
       repositories cannot touch a third. The username is not checked, because the token already
       names its owner and treating it as meaningful would fail a correct token for a cosmetic
       reason.
-- [ ] Anonymous read for public repositories; everything else authenticates
-- [ ] Correct content types and the `no-cache` headers git expects
-- [ ] Tests: clone, fetch, push, shallow clone, and a repository large enough that streaming matters
+- [x] Anonymous read for public repositories; everything else authenticates. Verified against a
+      real client: a public repository clones anonymously, a private one answers 404 rather than 403
+      so its existence is not confirmed, a read-only token can fetch and is refused a push, and an
+      anonymous push is refused. Worth knowing when testing this by hand - `git` will silently reuse
+      a credential from the system keychain, so an "anonymous" push that succeeds may not be
+      anonymous. `-c credential.helper=` is what makes the test mean anything.
+- [x] Correct content types and the `no-cache` headers git expects. git caches aggressively
+      otherwise, and a stale ref advertisement makes a fetch quietly miss commits.
+- [x] Tests: the argument rule above, checked the way the bug would have been caught - run the real
+      command from inside a *different* repository and assert the answer belongs to the one that was
+      named. Both directions, so it cannot pass by accident, plus the old behaviour pinned as a
+      demonstration of why it was invisible.
+- [x] Verified by hand against a live server: shallow clone, full clone, incremental fetch, push,
+      and the hook chain firing through the HTTP path (`pushed_at` moves, which is the end-to-end
+      proof that the push reached the application).
+- [ ] The same as an automated end-to-end test. It needs the router, the database and a listening
+      server, which is a different shape of test than the suite has anywhere yet.
+- [ ] A repository large enough that streaming matters, as a test rather than by inspection.
 
 ## Receiving a push
 
