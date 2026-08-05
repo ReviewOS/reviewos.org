@@ -464,19 +464,38 @@ Everything a reader can turn on. DiffsHub exposes all of these; several we alrea
 Pierre's annotation framework injects arbitrary rows into the grid; ours has to carry real review
 threads, which is where our version has to be better rather than equal.
 
-- [ ] Annotation rows injected at a (file, side, line), measured like any other row so the
+- [x] Annotation rows injected at a (file, side, line), measured like any other row so the
       virtualizer's height math includes them
 - [ ] A gutter affordance on hover that starts a comment on that line, and a drag across the gutter
       that starts one on a range
 - [ ] A draft comment is a row in the diff, not a modal. Only one draft open at a time across the
       whole list.
 - [ ] Threads render collapsed to one line once resolved, expandable in place
-- [ ] Outdated threads render on the line they were written against, marked, rather than being
+- [x] Outdated threads render on the line they were written against, marked, rather than being
       dropped (phase 4 already anchors them; this is the rendering half)
 - [ ] Draft reviews survive reload and machine change (phase 4 owns the persistence; this owns
       restoring them into the right rows)
 - [ ] Annotation rows are part of the pooling story: they must recycle too, or a heavily-commented
       diff leaks
+
+## One renderer, and what converging onto it found
+
+`DiffView.stx` and `ReviewThread.stx` are gone. Both screens render through `app/Actions/Pull/rows.ts`
+and `threads.ts`, and their styles live in the layout, because a stylesheet inside a component only
+reaches the pages that use the component.
+
+Converging them turned up a bug that had nothing to do with rendering. Both pull request views
+resolved a repository **by name alone**, so two owners with a repository of the same name got
+whichever row was created first. The demo data has exactly that, and the review screen had been
+reporting "no changes against main": it found the other owner's pull request and diffed its shas
+against a repository those commits are not in. Reporting nothing is the mild version - the same
+lookup renders one owner's pull request under another owner's URL, and nothing says the row it lands
+on has to be public. `findRepositoryByPath` already did it correctly and the issue and commits views
+already used it.
+
+- [ ] Audit every other direct `repositories` query for the same shape, and decide whether views
+      should be reaching for the table at all rather than going through `authorizeRepository`, which
+      also settles visibility
 
 ## Selection and deep links
 

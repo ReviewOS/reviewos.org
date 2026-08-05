@@ -171,8 +171,11 @@ this is where the claim is either true or marketing.
 - [ ] `.../pull/[number].stx` - conversation, commits, checks, and files, as tabs over one page
 - [x] `.../pull/[number]/files.stx` - the review screen, and the most important screen in the product
 - [ ] `.../compare/[...refs].stx`
-- [ ] Components: `DiffView` (split and unified), `DiffFile`, `DiffHunk`, `ReviewPanel`,
-      `ReviewThread`, `PullRequestHeader`, `MergeBox`, `StackIndicator`, `FileTreeSidebar`
+- [ ] Components: `ReviewPanel`, `PullRequestHeader`, `MergeBox`, `StackIndicator`,
+      `FileTreeSidebar`. `DiffView` and `ReviewThread` were components and are not any more: the
+      same markup is needed by the streamed review screen, and a component cannot be called from a
+      string. Both now come from `app/Actions/Pull/rows.ts` and `threads.ts`, which is one renderer
+      rather than two that drift.
 - [ ] Keyboard navigation through files and threads, and submitting a review without the mouse
 - [ ] The diff renders on the server; the browser gets HTML, not a diff library and a JSON payload
 
