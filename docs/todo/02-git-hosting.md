@@ -10,8 +10,10 @@ known to exactly one place.
 ## Storage
 
 - [x] Bare repositories at `storage/repos/{owner}/{repository}.git`
-- [ ] One helper that resolves an owner and repository name to an absolute path, rejecting `..`,
-      absolute paths, and anything that escapes the root. Every other caller uses it.
+- [x] One helper that resolves an owner and repository name to an absolute path, rejecting `..`,
+      absolute paths, and anything that escapes the root (`app/Actions/Git/storage.ts`). Every other
+      caller uses it, and the resolved path is checked against the root a second time, so if the
+      allowlist and the resolution ever disagree the allowlist is what is wrong.
 - [x] `git init --bare` on creation, with `core.hooksPath` pointed at a shared hook directory. One
       shared directory rather than a copy of the scripts in every repository: copies drift, and the
       repositories nobody pushes to would keep whichever version they were created with, which is
@@ -24,7 +26,10 @@ known to exactly one place.
       delete is recoverable for a retention window. The database work happens first: a failure then
       is a delete that did not happen, where the other order leaves a repository that is gone from
       disk and still listed
-- [ ] A retention sweep that removes `storage/repos-deleted/` entries older than the window
+- [x] A retention sweep that removes `storage/repos-deleted/` entries older than the window, at
+      thirty days - longer than a holiday, which is the case that matters. A directory whose name
+      the sweep cannot read is **never** removed: the bytes in there are the last copy, so anything
+      unexpected is a reason for a person to look rather than a reason to delete
 
 ## Models
 
@@ -233,8 +238,20 @@ the one moment where rejecting is still possible.
 - [ ] `app/Actions/Pull/MergePullRequestAction.ts` closes issues with
       `updateTable(...).where('id', 'in', ids)`, which the query builder renders as `in $1`. It has
       never closed anything. Use `updateWhereIn` from `app/Actions/Support/rows.ts`
-- [ ] `app/Jobs/RepositoryMaintenanceJob.ts` - `git gc` and repack, scheduled nightly
-- [ ] Initial commit options on create: README, .gitignore, license
+- [x] `app/Jobs/RepositoryMaintenanceJob.ts` - `git gc` and repack, nightly at 03:30, plus the
+      retention sweep above. Repositories are measured before being packed rather than run through
+      `gc --auto`: git's own thresholds are tuned for a person's working copy, and a forge receives
+      pushes under `transfer.unpackLimit` as loose objects, so it accumulates them far faster.
+      Verified against a repository with 1205 loose objects: 4820 kB became one 2 kB pack
+- [x] Initial commit options on create: README, .gitignore, license. Written with plumbing
+      (`hash-object`, `mktree`, `commit-tree`, `update-ref`) rather than by checking out a worktree
+      to make one commit. Off by default, which is the half that matters: a repository created to
+      receive an existing history must be empty, or the first push is a non-fast-forward rejection
+      against a commit nobody made
+- [ ] The long licences - Apache-2.0, the GPLs, MPL-2.0 - as checked-in verbatim copies. Five short
+      ones ship (`app/Actions/Repo/scaffold.ts`); the long ones are absent on purpose, because a
+      licence is a legal document and typing one from memory is how a repository ends up carrying a
+      licence that is subtly not the licence
 
 ## Views
 

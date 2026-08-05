@@ -29,6 +29,8 @@ export interface RepositorySize {
   looseKb: number
   packKb: number
   looseObjects: number
+  /** How many packfiles. Every one is another index an object lookup searches. */
+  packs: number
 }
 
 /**
@@ -60,6 +62,7 @@ export function parseCountObjects(output: string): RepositorySize {
     looseKb,
     packKb,
     looseObjects: values.get('count') ?? 0,
+    packs: values.get('packs') ?? 0,
   }
 }
 

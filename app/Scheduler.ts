@@ -23,6 +23,15 @@ export default function () {
     .job('MirrorSweep')
     .everyFiveMinutes()
 
+  // Packing repositories and letting go of deletions past the retention window.
+  // Nightly and early, because `git gc` on a large repository is the most
+  // expensive thing this server does and nobody wants to be cloning while it
+  // runs.
+  schedule
+    .job('RepositoryMaintenance')
+    .daily()
+    .at('03:30')
+
   // Run a custom action every five minutes
   // schedule.action('CleanupTempFiles').everyFiveMinutes()
 

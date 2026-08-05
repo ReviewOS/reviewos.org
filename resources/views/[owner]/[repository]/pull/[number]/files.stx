@@ -128,6 +128,14 @@ const contextUrl = `/api/repos/pulls/diff/context?${diffQuery}`
         data-rows-url="{{ rowsUrl }}"
         data-context-url="{{ contextUrl }}"
       >
+        {{--
+          The list is filled in by `mountDiffFiles` from the manifest, which is
+          the same data the diff is laid out from. Rendering it on the server
+          would mean parsing the diff twice and sending the file list down
+          twice with it.
+        --}}
+        <aside class="diff-files" data-diff-file-list aria-label="Files changed"></aside>
+
         <div class="diff-scroller" data-diff-scroller>
           <div data-diff-content></div>
         </div>
@@ -165,7 +173,30 @@ mountDiffFiles()
   /* The viewport the list virtualizes against. Sized by the page, never by its
      contents: a region that grew with what is inside it would put every file in
      the document and there would be nothing left to virtualize. */
-  .diff-stream { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+  /* The list beside the diff rather than above it, so a reader can see where
+     they are in the change while reading part of it. */
+  .diff-stream {
+    display: grid;
+    min-height: 0;
+    flex: 1;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  @media (max-width: 900px) {
+    /* Not enough width for both. The diff is the point, so the list goes. */
+    .diff-stream { grid-template-columns: minmax(0, 1fr); }
+    .diff-files { display: none; }
+  }
+
+  .diff-files {
+    height: calc(100vh - 210px);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--r-panel);
+    background: var(--surface);
+    contain: strict;
+  }
 
   .diff-scroller {
     height: calc(100vh - 210px);

@@ -60,6 +60,128 @@ function toFileEntry(record: Record<string, unknown>): DiffFileEntry {
   }
 }
 
+/** One row. Fixed, which is what makes the window a division rather than a layout. */
+const FILE_ROW_HEIGHT = 26
+
+/** Rows rendered beyond the viewport, so a scroll does not outrun the paint. */
+const FILE_LIST_OVERSCAN = 200
+
+/**
+ * The list of files beside the diff.
+ *
+ * Windowed like the diff itself, and for the same reason: a forty thousand file
+ * compare is forty thousand rows, and a sidebar that renders all of them costs
+ * more than the diff it is helping somebody navigate. Rows here are a fixed
+ * height, so the arithmetic is a division rather than a layout.
+ *
+ * A flat list rather than a folded tree. The directory is shown dimmed beside
+ * the filename, which is what a reviewer reads to tell two `index.ts` apart;
+ * folding is a state machine that earns its keep on a repository browser and
+ * not on a diff, where every file listed is one somebody changed.
+ */
+export function createFileList(options: {
+  host: HTMLElement
+  onSelect: (index: number) => void
+}): {
+  setFiles: (files: readonly DiffFileEntry[]) => void
+  setCurrent: (index: number) => void
+  destroy: () => void
+} {
+  const { host, onSelect } = options
+  const viewport = document.createElement('div')
+  const sizer = document.createElement('div')
+  const rows = document.createElement('div')
+
+  viewport.className = 'file-list-viewport'
+  sizer.className = 'file-list-sizer'
+  rows.className = 'file-list-rows'
+  sizer.appendChild(rows)
+  viewport.appendChild(sizer)
+  host.appendChild(viewport)
+
+  let files: readonly DiffFileEntry[] = []
+  let current = -1
+  let frame: number | null = null
+
+  const schedule = () => {
+    if (frame == null)
+      frame = requestAnimationFrame(() => { frame = null; paint() })
+  }
+
+  function paint(): void {
+    const height = viewport.clientHeight || 1
+    const total = files.length * FILE_ROW_HEIGHT
+    sizer.style.height = `${total}px`
+
+    const first = Math.max(0, Math.floor((viewport.scrollTop - FILE_LIST_OVERSCAN) / FILE_ROW_HEIGHT))
+    const last = Math.min(
+      files.length,
+      Math.ceil((viewport.scrollTop + height + FILE_LIST_OVERSCAN) / FILE_ROW_HEIGHT),
+    )
+
+    rows.style.transform = `translateY(${first * FILE_ROW_HEIGHT}px)`
+    rows.innerHTML = files.slice(first, last).map((file, offset) => {
+      const index = first + offset
+      const cut = file.path.lastIndexOf('/')
+      const directory = cut < 0 ? '' : file.path.slice(0, cut + 1)
+      const name = cut < 0 ? file.path : file.path.slice(cut + 1)
+
+      return `<button type="button" class="file-row${index === current ? ' is-current' : ''}"`
+        + ` data-file-index="${index}" title="${escapeAttribute(file.path)}">`
+        + `<span class="file-status file-status-${escapeAttribute(file.status)}" aria-hidden="true"></span>`
+        + `<span class="file-name">`
+        + (directory ? `<span class="file-dir">${escapeText(directory)}</span>` : '')
+        + `${escapeText(name)}</span>`
+        + `<span class="file-counts mono"><span class="count-add">+${file.additions}</span>`
+        + `<span class="count-del">-${file.deletions}</span></span></button>`
+    }).join('')
+  }
+
+  const onScroll = () => schedule()
+  viewport.addEventListener('scroll', onScroll, { passive: true })
+
+  const onClick = (event: Event) => {
+    const row = (event.target as HTMLElement | null)?.closest<HTMLElement>('.file-row')
+    if (row?.dataset.fileIndex != null)
+      onSelect(Number(row.dataset.fileIndex))
+  }
+  viewport.addEventListener('click', onClick)
+
+  return {
+    setFiles(next) {
+      files = next
+      schedule()
+    },
+    setCurrent(index) {
+      if (index === current)
+        return
+
+      current = index
+      schedule()
+
+      // Follow the reader down the diff, but only when the row would otherwise
+      // be off screen: scrolling a sidebar somebody is reading is worse than
+      // letting them lose their place in it.
+      const top = index * FILE_ROW_HEIGHT
+      const bottom = top + FILE_ROW_HEIGHT
+      if (top < viewport.scrollTop || bottom > viewport.scrollTop + viewport.clientHeight)
+        viewport.scrollTop = top - viewport.clientHeight / 3
+    },
+    destroy() {
+      if (frame != null)
+        cancelAnimationFrame(frame)
+      viewport.removeEventListener('scroll', onScroll)
+      viewport.removeEventListener('click', onClick)
+      viewport.remove()
+    },
+  }
+}
+
+/** Escape for a double-quoted attribute value. */
+function escapeAttribute(value: string): string {
+  return escapeText(value).replace(/"/g, '&quot;')
+}
+
 /**
  * Whether a key press belongs to a field rather than to the page.
  *
@@ -723,6 +845,9 @@ export function mountDiffFiles(): DiffViewer | null {
     content,
     layout: initialLayout,
     afterRender: () => paintSelection(),
+    // The sidebar follows the diff rather than the other way round, so the row
+    // highlighted is the file the reader is actually looking at.
+    onVisibleChange: start => fileList?.setCurrent(start),
     renderFile(file, host) {
       const cached = markup.get(file.index)
       if (cached != null && cached.layout === layout) {
@@ -1115,12 +1240,27 @@ export function mountDiffFiles(): DiffViewer | null {
     revealSelection()
   })
 
+  // The sidebar, if the page rendered a host for it.
+  const listHost = document.querySelector<HTMLElement>('[data-diff-file-list]')
+  const fileList = listHost
+    ? createFileList({
+        host: listHost,
+        onSelect: (index) => {
+          const file = viewer.files()[index]
+          if (file?.collapsed)
+            viewer.setCollapsed(index, false)
+          viewer.scrollToFile(index)
+        },
+      })
+    : null
+
   showLayout()
   say('Loading the diff…')
 
   void streamDiffManifest(manifestUrl, {
     onFiles(files) {
       viewer.addFiles(files)
+      fileList?.setFiles(viewer.files())
       say(`${viewer.files().length} files…`)
     },
     onRows(index, html) {

@@ -509,6 +509,49 @@
       tr.is-selected .gutter.num { box-shadow: inset 2px 0 0 var(--accent); }
       tr.is-selected .code { background: var(--accent-quiet); }
 
+      /* The list of files beside a diff. Windowed, so the rows are absolutely
+         positioned inside a sizer standing in for the whole list. */
+      .file-list-viewport { height: 100%; overflow-y: auto; overscroll-behavior: contain; }
+      .file-list-sizer { position: relative; }
+      .file-list-rows { position: absolute; top: 0; right: 0; left: 0; }
+
+      .file-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        height: 26px;
+        padding: 0 10px;
+        border: 0;
+        background: transparent;
+        color: var(--text);
+        font: inherit;
+        font-size: 12.5px;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .file-row:hover { background: var(--surface-tint); }
+      .file-row.is-current { background: var(--accent-quiet); }
+
+      .file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
+      /* The directory dimmed and the filename bright, which is what a reader
+         scans to tell two files called index.ts apart. `direction: rtl` keeps
+         the filename visible when the path is too long, and the span below puts
+         the text back the right way round. */
+      .file-name > * { direction: ltr; unicode-bidi: embed; }
+      .file-dir { color: var(--muted); }
+
+      .file-counts { display: inline-flex; gap: 5px; font-size: 11px; }
+
+      /* A dot rather than a word: the status of forty files reads at a glance
+         as colour and not at all as text. */
+      .file-status { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+      .file-status-added { background: var(--ok); }
+      .file-status-deleted { background: var(--bad); }
+      .file-status-modified { background: var(--line-strong); }
+      .file-status-renamed, .file-status-copied { background: var(--accent); }
+
       .hunk-expand {
         display: inline-flex;
         align-items: center;

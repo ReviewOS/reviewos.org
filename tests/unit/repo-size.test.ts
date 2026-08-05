@@ -27,7 +27,7 @@ describe('parseCountObjects', () => {
   test('adds loose and packed, and keeps them apart', () => {
     const size = parseCountObjects(SAMPLE)
 
-    expect(size).toEqual({ kb: 2192, looseKb: 48, packKb: 2144, looseObjects: 12 })
+    expect(size).toEqual({ kb: 2192, looseKb: 48, packKb: 2144, looseObjects: 12, packs: 1 })
   })
 
   /** `count` is objects. Reading it as kilobytes is the whole bug. */
@@ -41,6 +41,16 @@ describe('parseCountObjects', () => {
 
     expect(size.looseKb).toBe(0)
     expect(size.kb).toBe(96)
+  })
+
+  /**
+   * Read as well as the sizes, because packs are half of what decides whether
+   * a repository is worth packing: fifty packfiles is fifty indexes to search
+   * per object lookup, which is what makes a small repository slow to clone.
+   */
+  test('counts packfiles, not only their bytes', () => {
+    expect(parseCountObjects('count: 0\nsize: 0\npacks: 23\nsize-pack: 96').packs).toBe(23)
+    expect(parseCountObjects('count: 4\nsize: 8').packs).toBe(0)
   })
 
   test('an empty repository weighs nothing rather than failing', () => {

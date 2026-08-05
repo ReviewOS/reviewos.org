@@ -8,6 +8,9 @@ import { log } from '@stacksjs/logging'
 import { initBare } from '../Git/git'
 import { installHooks, useSharedHooks } from '../Git/hooks'
 import { repositoryPath } from '../Git/storage'
+import { writeInitialCommit } from './initialCommit'
+import { scaffoldFiles } from './scaffold'
+import { recordSize } from './size'
 
 /**
  * Create a repository: the row and the bare repository on disk.
@@ -101,6 +104,45 @@ export default new Action({
       throw error
     }
 
+    // A first commit, when one was asked for.
+    //
+    // Not by default, and that is the important half: somebody creating a
+    // repository to push an existing history into must get an empty one, or
+    // their first push is a non-fast-forward rejection against a commit they
+    // never made. So an empty repository stays what you get unless a file is
+    // named.
+    const scaffold = scaffoldFiles({
+      repository: name,
+      description: String(request.get('description') ?? ''),
+      readme: readFlag(request.get('readme')),
+      gitignore: request.get('gitignore'),
+      license: request.get('license'),
+      holder: String(request.get('license_holder') ?? '') || owner.handle,
+    })
+
+    let initialCommit: string | null = null
+
+    if (scaffold.length > 0) {
+      const written = await writeInitialCommit(resolved.path!, defaultBranch, scaffold, {
+        name: user.handle,
+        // A local address rather than the account's own: the commit is made by
+        // the server on somebody's behalf, and putting their real address in a
+        // commit they did not write publishes it to everyone who clones.
+        email: `${user.handle}@users.noreply.${String(request.get('host') ?? 'localhost')}`,
+      })
+
+      if (written.ok) {
+        initialCommit = written.sha ?? null
+        await recordSize(repositoryId, resolved.path!)
+      }
+      else {
+        // The repository exists and works; it is simply empty. Failing the
+        // creation over a README would throw away a repository somebody can
+        // push to for the sake of a file they can add in one commit.
+        log.warn(`[repo] could not write the initial commit for ${resolved.relative}: ${written.error}`)
+      }
+    }
+
     // The starting vocabulary for triage. Without it the first person to file
     // an issue has to invent a taxonomy before they can label anything.
     await db
@@ -121,6 +163,19 @@ export default new Action({
       visibility,
       default_branch: defaultBranch,
       clone_url: `/${owner.handle}/${name}.git`,
+      initial_commit: initialCommit,
     }, 201)
   },
 })
+
+/**
+ * A checkbox, as a form sends it.
+ *
+ * Absent is false here rather than "leave alone", because there is nothing yet
+ * to leave alone: a repository being created either gets a README or does not.
+ */
+function readFlag(value: unknown): boolean {
+  const text = String(value ?? '').toLowerCase()
+
+  return text === 'true' || text === '1' || text === 'on' || text === 'yes'
+}
