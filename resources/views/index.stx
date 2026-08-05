@@ -12,6 +12,7 @@
  * review states inside the product, so the brand cannot borrow them.
  */
 const siteUrl = 'https://reviewos.org'
+
 const siteDescription = 'An open source, self-hostable git forge built around code review. Stacked pull requests, review threads that survive a force-push, and a diff that stays fast at a hundred files.'
 
 const jsonLd = JSON.stringify({
@@ -335,6 +336,51 @@ const nots = [
         background: var(--surface);
         box-shadow: var(--shadow);
         overflow: hidden;
+        position: relative;
+      }
+
+      /*
+       * The review of your double-click.
+       *
+       * Somebody double-clicking a terminal on a landing page is trying to
+       * select text, which is a reasonable thing to want and is left working.
+       * This sits above it and says nothing until then, in the shape of a
+       * review comment - which is the joke, and also the shortest possible
+       * demonstration of what this product is.
+       */
+      .verdict {
+        position: absolute;
+        top: 10px;
+        right: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--bg);
+        box-shadow: var(--shadow);
+        font-size: 13px;
+        line-height: 1;
+        color: var(--text);
+        opacity: 0;
+        transform: translateY(-4px);
+        transition: opacity 160ms ease, transform 160ms ease;
+        pointer-events: none;
+      }
+
+      .verdict.is-shown {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .verdict-who {
+        color: var(--muted);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .verdict { transition: none; transform: none; }
+        .verdict.is-shown { transform: none; }
       }
 
       .terminal-bar {
@@ -672,7 +718,15 @@ const nots = [
           </a>
         </div>
 
-        <div class="terminal settle">
+        <div
+          class="terminal settle"
+          x-data="{ reviews: 0, verdicts: ['Approved.', 'Approved again. Nothing changed.', 'Requesting changes: consider one click.', 'Nit: this is a terminal, not a button.', 'LGTM. Shipping it.', 'Reviewed six times. Adding you to CODEOWNERS.'] }"
+          @dblclick="reviews = reviews + 1"
+        >
+          <div class="verdict" x-class="{ 'is-shown': reviews > 0 }" role="status" aria-live="polite">
+            <span class="verdict-who">reviewos</span>
+            <span>{{ reviews > 0 ? verdicts[(reviews < verdicts.length ? reviews : verdicts.length) - 1] : '' }}</span>
+          </div>
           <div class="terminal-bar">
             <i class="i-hugeicons-command-line" aria-hidden="true"></i>
             reviewos.localhost

@@ -129,8 +129,15 @@ known to exactly one place.
 - [x] Verified by hand against a live server: shallow clone, full clone, incremental fetch, push,
       and the hook chain firing through the HTTP path (`pushed_at` moves, which is the end-to-end
       proof that the push reached the application).
-- [ ] The same as an automated end-to-end test. It needs the router, the database and a listening
-      server, which is a different shape of test than the suite has anywhere yet.
+- [x] The same as an automated end-to-end test (`tests/e2e/git-http.test.ts`). It boots the router
+      on an ephemeral port, creates a repository behind a row, and drives the real `git` client
+      through clone, push and fetch - plus the JSON API on the same server. It skips itself, loudly,
+      without a database, and CI now has Postgres so it does not skip there. Two things it cost:
+      the git driver has to be **async**, because a synchronous child blocks the very event loop
+      the in-process server answers on and `git clone` then waits sixty seconds for a response
+      nobody can write; and the run's hooks go in a directory of its own, because installing into
+      the shared one repoints every repository on the machine at a server that stops existing when
+      the file finishes
 - [ ] A repository large enough that streaming matters, as a test rather than by inspection.
 
 ## Receiving a push
