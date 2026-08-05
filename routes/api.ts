@@ -54,6 +54,27 @@ route.post('/repos/forks', 'Actions/Repo/ForkRepositoryAction').middleware('auth
 route.post('/repos/stars', 'Actions/Repo/StarAction').middleware('auth')
 route.put('/repos/watches', 'Actions/Repo/WatchAction').middleware('auth')
 
+// Reading a repository. None of these carries `auth` middleware, and that is
+// the point: a public repository is public, and `browseContext` inside each
+// action answers 404 to anyone who cannot read a private one - the same answer
+// a repository that does not exist gives, so a stranger learns nothing either
+// way. A token still works, over Bearer or over the basic auth somebody clones
+// with, because the same credential should read a file and a clone.
+route.get('/repos/tree', 'Actions/Browse/TreeAction')
+route.get('/repos/blob', 'Actions/Browse/BlobAction')
+route.get('/repos/commits', 'Actions/Browse/CommitsAction')
+route.get('/repos/commit', 'Actions/Browse/CommitAction')
+route.get('/repos/branches', 'Actions/Browse/BranchesAction')
+route.get('/repos/tags', 'Actions/Browse/TagsAction')
+route.get('/repos/blame', 'Actions/Browse/BlameAction')
+route.get('/repos/compare', 'Actions/Browse/CompareAction')
+
+// Bytes rather than JSON. Both stream, and neither serves a repository's
+// content as its own type - see app/Actions/Git/download.ts for why that is a
+// security decision rather than a convenience one.
+route.get('/repos/raw', 'Actions/Git/RawFileAction')
+route.get('/repos/archive', 'Actions/Git/ArchiveAction')
+
 // Issues. Both issues and pull requests live in one numbering sequence, so
 // `#12` means one thing in a repository, and a comment endpoint serves both.
 // Listing is the one that is readable without an account, because a public
@@ -118,6 +139,10 @@ route.get('/repos/pulls/diff/manifest', 'Actions/Pull/DiffManifestAction')
 // rendered inline. By path rather than by position, so `git diff` can be given
 // a pathspec and the cost is the files asked for rather than the ones skipped.
 route.get('/repos/pulls/diff/rows', 'Actions/Pull/DiffRowsAction')
+
+// The lines between two hunks. Read from the blob at the head commit, because
+// the patch does not contain them: not containing them is what makes them a gap.
+route.get('/repos/pulls/diff/context', 'Actions/Pull/DiffContextAction')
 
 // Landing a whole stack, bottom first. Separate from the single merge because
 // it can partially succeed, and the caller needs to know how far it got.

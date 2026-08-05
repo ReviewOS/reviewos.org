@@ -174,14 +174,28 @@ the one moment where rejecting is still possible.
 
 ## Browsing
 
-- [ ] `app/Actions/Browse/TreeAction.ts` - directory listing at a ref and path
-- [ ] `app/Actions/Browse/BlobAction.ts` - file contents, with binary detection and a size ceiling
-- [ ] `app/Actions/Browse/CommitsAction.ts` - paginated history, optionally scoped to a path
-- [ ] `app/Actions/Browse/CommitAction.ts` - a single commit with its diff
-- [ ] `app/Actions/Browse/BranchesAction.ts`, `TagsAction.ts`
-- [ ] `app/Actions/Browse/BlameAction.ts`
-- [ ] `app/Actions/Browse/CompareAction.ts` - two refs, the basis for opening a pull request
-- [ ] `app/Actions/Git/RawFileAction.ts` and `ArchiveAction.ts` (zip and tar.gz via `git archive`)
+- [x] `app/Actions/Browse/TreeAction.ts` - directory listing at a ref and path
+- [x] `app/Actions/Browse/BlobAction.ts` - file contents, with binary detection and a size ceiling
+- [x] `app/Actions/Browse/CommitsAction.ts` - history, optionally scoped to a path. Paged by sha
+      rather than by offset: history is append-only at the tip, so a push while somebody is on page
+      three shifts every commit down by one and an offset then repeats one and skips one
+- [x] `app/Actions/Browse/CommitAction.ts` - a single commit with the files it changed. A merge is
+      diffed against its first parent, because `diff-tree` on a merge with no options prints nothing
+      and a page confidently reporting that a merge changed no files is worse than no page
+- [x] `app/Actions/Browse/BranchesAction.ts`, `TagsAction.ts`
+- [x] `app/Actions/Browse/BlameAction.ts`, capped at 5000 lines. The porcelain format states each
+      commit once and then refers to it by sha, so the parser has to remember - reading each line
+      independently leaves every line after the first with no author, which looks like a blank
+      column rather than a bug
+- [x] `app/Actions/Browse/CompareAction.ts` - two refs, the basis for opening a pull request.
+      Diffed from the merge base, never from the base tip
+- [x] `app/Actions/Git/RawFileAction.ts` and `ArchiveAction.ts` (zip and tar.gz via `git archive`),
+      both streamed. Neither serves a repository's content as its own type: `index.html` returned as
+      `text/html` from this origin runs script with this application's cookies, so everything is
+      `text/plain` or `application/octet-stream` with `nosniff`, and every archive carries a
+      directory prefix so it cannot unpack over whatever directory somebody is standing in
+- [x] One place decides whether a read may proceed (`app/Actions/Browse/context.ts`), because there
+      are ten of these endpoints and ten chances to forget the visibility check
 - [x] Syntax highlighting server-side. The client does not download a highlighter.
 - [ ] Render README, and markdown files generally, at the tree view
 

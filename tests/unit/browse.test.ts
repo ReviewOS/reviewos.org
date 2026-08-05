@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'bun:test'
+import { parseTreeEntries, type TreeEntry } from '../../app/Actions/Browse/parse'
 import {
   breadcrumbs,
   childPath,
   findReadme,
   formatSize,
   isMarkdown,
-  parseTreeEntries,
   shortSha,
   sortEntries,
-  type TreeEntry,
 } from '../../resources/functions/browse'
 
 function entry(overrides: Partial<TreeEntry> = {}): TreeEntry {

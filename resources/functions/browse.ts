@@ -7,55 +7,6 @@
  * already fetched and shapes it for display.
  */
 
-export interface TreeEntry {
-  mode: string
-  type: 'blob' | 'tree' | 'commit'
-  sha: string
-  /** Null for trees and submodules, which have no meaningful size. */
-  size: number | null
-  name: string
-}
-
-/**
- * Parse `git ls-tree -z --long` output.
- *
- * The `-z` matters and is why this is not a `split('\n')`. A filename may
- * legally contain a newline, and that is a classic way to make a parser report
- * one entry as two - which in a file browser means inventing a file that does
- * not exist. NUL cannot appear in a filename, so it is the only safe delimiter.
- *
- * Each record is `<mode> <type> <sha> <size>\t<name>`, and the name is taken
- * from the first tab onward rather than by splitting, since a name may contain
- * tabs too.
- */
-export function parseTreeEntries(stdout: string): TreeEntry[] {
-  const entries: TreeEntry[] = []
-
-  for (const record of stdout.split('\0')) {
-    if (!record) continue
-
-    const tab = record.indexOf('\t')
-    if (tab === -1) continue
-
-    const meta = record.slice(0, tab).trim().split(/\s+/)
-    if (meta.length < 4) continue
-
-    const type = meta[1]
-    if (type !== 'blob' && type !== 'tree' && type !== 'commit') continue
-
-    entries.push({
-      mode: meta[0]!,
-      type,
-      sha: meta[2]!,
-      // git prints `-` for anything without a size.
-      size: meta[3] === '-' ? null : Number(meta[3]),
-      name: record.slice(tab + 1),
-    })
-  }
-
-  return entries
-}
-
 /**
  * Directories first, then files, each alphabetically.
  *
@@ -157,6 +108,7 @@ export function shortSha(sha: string): string {
  * under an alias and re-exported as a const. Same reason `resources/functions`
  * exists at all: the template gets one import and no logic.
  */
+import type { TreeEntry as TreeEntryImpl } from '../../app/Actions/Browse/parse'
 import { branchNames as branchNamesImpl, commitHistory as commitHistoryImpl, lastCommit as lastCommitImpl, listTree as listTreeImpl, MAX_BLOB_BYTES as MAX_BLOB_BYTES_IMPL, readBlob as readBlobImpl, tagNames as tagNamesImpl } from '../../app/Actions/Browse/load'
 import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
 // The list helpers. Every import in this file has to sit in this one block:
@@ -164,6 +116,9 @@ import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } 
 // hoisted by stx's server-script transform, and every name from it arrives
 // undefined inside a component.
 import { authorIsLocal as authorIsLocalImpl, authorLabel as authorLabelImpl, countLabel as countLabelImpl, filterHref as filterHrefImpl, lastPage as lastPageImpl, listFilter as listFilterImpl, PAGE_SIZE as PAGE_SIZE_IMPL, pageHref as pageHrefImpl, pageNumber as pageNumberImpl, pageOffset as pageOffsetImpl, statePill as statePillImpl, stateLabel as stateLabelImpl, statesFor as statesForImpl } from '../../app/Actions/Browse/lists'
+
+/** The tree entry shape, so this file's own signatures can name it. */
+type TreeEntry = TreeEntryImpl
 
 export const listTree = listTreeImpl
 export const readBlob = readBlobImpl

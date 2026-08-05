@@ -7,8 +7,18 @@
  * fetches.
  */
 
-import { parseTreeEntries, type TreeEntry } from '../../../resources/functions/browse'
+import type { BlameLine, ChangedFile, CommitDetail, TreeEntry } from './parse'
 import { isSafeRevision, runGit } from '../Git/git'
+import {
+  COMMIT_FORMAT,
+  parseTreeEntries,
+  mergeChangeStatus,
+  parseAheadBehind,
+  parseBlame,
+  parseCommitDetail,
+  parseNameStatus,
+  parseNumstat,
+} from './parse'
 
 /** How large a file may be before the browser declines to render it. */
 export const MAX_BLOB_BYTES = 512 * 1024
@@ -161,4 +171,244 @@ export async function commitHistory(
       return { sha: sha ?? '', subject: subject ?? '', authorName: authorName ?? '', when: when ?? '' }
     })
     .filter(c => c.sha.length > 0)
+}
+
+/**
+ * One commit, with what it changed.
+ *
+ * A merge is diffed against its **first parent** rather than shown as a
+ * combined diff. `git diff-tree` on a merge with no options prints nothing at
+ * all, which reads as "this commit changed no files" - and a merge commit page
+ * that says a merge changed nothing is worse than useless, because it is
+ * confidently wrong. First parent answers the question people are actually
+ * asking of a merge: what arrived on this branch.
+ */
+export interface CommitWithChanges extends CommitDetail {
+  files: ChangedFile[]
+  additions: number
+  deletions: number
+  /** True when this is a merge and the file list is against the first parent. */
+  isMerge: boolean
+}
+
+export async function commitDetail(repositoryPath: string, revision: string): Promise<CommitWithChanges | null> {
+  if (!isSafeRevision(revision))
+    return null
+
+  const shown = await runGit(repositoryPath, ['log', '-1', `--format=${COMMIT_FORMAT}`, revision])
+  if (!shown.ok)
+    return null
+
+  const commit = parseCommitDetail(shown.stdout)
+  if (!commit)
+    return null
+
+  const isMerge = commit.parents.length > 1
+
+  // `--root` is what makes the very first commit in a repository show its files
+  // rather than nothing: it has no parent to diff against, and without this git
+  // treats that as an empty change set.
+  const base = ['diff-tree', '-r', '--root', '-z', '-M', '--first-parent', commit.sha]
+
+  const [numstat, nameStatus] = await Promise.all([
+    runGit(repositoryPath, [...base, '--numstat']),
+    runGit(repositoryPath, [...base, '--name-status']),
+  ])
+
+  const files = numstat.ok
+    ? mergeChangeStatus(parseNumstat(stripDiffTreeHeader(numstat.stdout)), nameStatus.ok ? parseNameStatus(stripDiffTreeHeader(nameStatus.stdout)) : [])
+    : []
+
+  return {
+    ...commit,
+    files,
+    additions: files.reduce((total, file) => total + file.additions, 0),
+    deletions: files.reduce((total, file) => total + file.deletions, 0),
+    isMerge,
+  }
+}
+
+/**
+ * `diff-tree` prints the commit sha on its own before the records.
+ *
+ * With `-z` that sha is followed by a NUL like everything else, so it arrives
+ * as a record that no format below recognises - it has no tab and no status
+ * letter, so both parsers skip it. It is removed anyway rather than relied on
+ * being skipped: a parser that silently ignores what it does not understand is
+ * a parser that ignores a real record the day the format changes.
+ */
+function stripDiffTreeHeader(stdout: string): string {
+  const firstNul = stdout.indexOf('\0')
+  if (firstNul === -1)
+    return stdout
+
+  return /^[0-9a-f]{40}$/.test(stdout.slice(0, firstNul).trim())
+    ? stdout.slice(firstNul + 1)
+    : stdout
+}
+
+export interface Comparison {
+  ok: boolean
+  base: string
+  head: string
+  /** Where the two last agreed. Null when they share no history at all. */
+  mergeBase: string | null
+  ahead: number
+  behind: number
+  commits: CommitSummary[]
+  files: ChangedFile[]
+  additions: number
+  deletions: number
+  error: string | null
+}
+
+/**
+ * Compare two refs, the way a pull request does.
+ *
+ * Diffed from the **merge base**, not from the base tip. Diffing against the
+ * tip shows every change made on the base since the branch left it, mixed in
+ * with the author's own work, and that is the single most common way a review
+ * interface misleads a reviewer - it shows them other people's commits and asks
+ * them to approve.
+ *
+ * Two refs with no common ancestor are a real thing (an orphan branch, an
+ * imported history) and are reported rather than treated as an error: the
+ * comparison is then simply everything on the head side.
+ */
+export async function compareRefs(repositoryPath: string, base: string, head: string, limit = 100): Promise<Comparison> {
+  const empty = {
+    ok: false,
+    base,
+    head,
+    mergeBase: null,
+    ahead: 0,
+    behind: 0,
+    commits: [],
+    files: [],
+    additions: 0,
+    deletions: 0,
+  }
+
+  if (!isSafeRevision(base) || !isSafeRevision(head))
+    return { ...empty, error: 'Invalid ref' }
+
+  const resolved = await Promise.all([
+    runGit(repositoryPath, ['rev-parse', '--verify', `${base}^{commit}`]),
+    runGit(repositoryPath, ['rev-parse', '--verify', `${head}^{commit}`]),
+  ])
+
+  if (!resolved[0].ok || !resolved[1].ok)
+    return { ...empty, error: 'No such ref' }
+
+  const mergeBaseResult = await runGit(repositoryPath, ['merge-base', base, head])
+  const mergeBase = mergeBaseResult.ok ? mergeBaseResult.stdout.trim() || null : null
+
+  // With no common ancestor there is nothing to diff *from*, so the comparison
+  // is the head's whole history. `--root` on the diff covers the same case.
+  const from = mergeBase ?? base
+
+  const [counts, log, numstat, nameStatus] = await Promise.all([
+    runGit(repositoryPath, ['rev-list', '--left-right', '--count', `${base}...${head}`]),
+    runGit(repositoryPath, [
+      'log',
+      `-${Math.max(1, Math.min(limit, 500))}`,
+      '--format=%H%x00%s%x00%an%x00%aI%x1e',
+      mergeBase ? `${mergeBase}..${head}` : head,
+    ]),
+    runGit(repositoryPath, ['diff', '-z', '-M', '--numstat', `${from}..${head}`]),
+    runGit(repositoryPath, ['diff', '-z', '-M', '--name-status', `${from}..${head}`]),
+  ])
+
+  const files = numstat.ok
+    ? mergeChangeStatus(parseNumstat(numstat.stdout), nameStatus.ok ? parseNameStatus(nameStatus.stdout) : [])
+    : []
+
+  const { ahead, behind } = counts.ok ? parseAheadBehind(counts.stdout) : { ahead: 0, behind: 0 }
+
+  return {
+    ok: true,
+    base,
+    head,
+    mergeBase,
+    ahead,
+    behind,
+    commits: log.ok ? parseCommitRecords(log.stdout) : [],
+    files,
+    additions: files.reduce((total, file) => total + file.additions, 0),
+    deletions: files.reduce((total, file) => total + file.deletions, 0),
+    error: mergeBase ? null : 'These refs share no history',
+  }
+}
+
+/** How many lines of one file may be blamed in a single request. */
+export const MAX_BLAME_LINES = 5000
+
+export interface BlameResult {
+  ok: boolean
+  lines: BlameLine[]
+  truncated: boolean
+  error: string | null
+}
+
+/**
+ * Who last touched each line of a file.
+ *
+ * Capped, because blame is the most expensive thing in the browser: git walks
+ * history per line, and a minified bundle checked in years ago is both the
+ * slowest case and the one nobody wants the answer to. The cap is applied as a
+ * line range so git does the work for the lines that are asked for rather than
+ * for the whole file and then being truncated here.
+ */
+export async function blameFile(
+  repositoryPath: string,
+  ref: string,
+  path: string,
+  limit = MAX_BLAME_LINES,
+): Promise<BlameResult> {
+  if (!isSafeRevision(ref))
+    return { ok: false, lines: [], truncated: false, error: 'Invalid ref' }
+
+  if (!path)
+    return { ok: false, lines: [], truncated: false, error: 'No path given' }
+
+  const capped = Math.max(1, Math.min(limit, MAX_BLAME_LINES))
+
+  const result = await runGit(repositoryPath, [
+    'blame',
+    '--porcelain',
+    '-L',
+    `1,${capped}`,
+    ref,
+    '--',
+    path,
+  ])
+
+  // git refuses a range past the end of a short file, which is not an error
+  // anybody asked about: retry unbounded, since the file is smaller than the
+  // cap by definition.
+  if (!result.ok) {
+    const whole = await runGit(repositoryPath, ['blame', '--porcelain', ref, '--', path])
+    if (!whole.ok)
+      return { ok: false, lines: [], truncated: false, error: 'No such file at that ref' }
+
+    const lines = parseBlame(whole.stdout)
+    return { ok: true, lines: lines.slice(0, capped), truncated: lines.length > capped, error: null }
+  }
+
+  const lines = parseBlame(result.stdout)
+
+  return { ok: true, lines, truncated: lines.length >= capped, error: null }
+}
+
+/** Shared by `commitHistory` and `compareRefs`, which ask for the same format. */
+function parseCommitRecords(stdout: string): CommitSummary[] {
+  return stdout
+    .split('\x1e')
+    .map(record => record.replace(/^\n/, ''))
+    .filter(Boolean)
+    .map((record) => {
+      const [sha, subject, authorName, when] = record.split('\0')
+      return { sha: sha ?? '', subject: subject ?? '', authorName: authorName ?? '', when: when ?? '' }
+    })
+    .filter(commit => commit.sha.length > 0)
 }

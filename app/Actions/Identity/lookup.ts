@@ -79,22 +79,82 @@ export async function resolveRepository(owner: string, name: string): Promise<an
   return row ?? null
 }
 
-/** The signed-in user, or null. */
+/**
+ * The signed-in user, or null.
+ *
+ * `request.user()` is filled in by the `auth` middleware, and a route that does
+ * not carry that middleware never gets one - which is most of the read
+ * endpoints, on purpose: a public repository's issues and files are public, so
+ * requiring authentication to reach them would be wrong.
+ *
+ * The consequence was not obvious and was wrong everywhere. On those routes the
+ * `Authorization` header was never looked at, so an authenticated caller was
+ * indistinguishable from a stranger, and **every private repository answered
+ * 404 to its own owner** through the JSON API. It reads as a permission bug and
+ * is really an absent one: there was nobody to permit.
+ *
+ * So the header is resolved here when the middleware has not already done it.
+ * Only the framework's own bearer token, which is exactly what that middleware
+ * accepts - the same credential, resolved in the same way, one step later.
+ *
+ * Deliberately **not** this application's fine-grained tokens. Those carry a
+ * reach and a set of grants, and answering "who is this" with a bare user id
+ * would drop both: a read-only token scoped to one repository would arrive
+ * here as its owner, with everything its owner can do. They are resolved where
+ * those limits are enforced instead - `tokenFromBasicAuth` and
+ * `browseContext`, which pass the whole token to the permission check.
+ */
 export async function currentUser(request: any): Promise<{ id: number, handle: string, is_admin: boolean } | null> {
   const user = await request.user?.()
-  if (!user?.id)
+  const id = Number(user?.id ?? 0) || await frameworkTokenUserId(request)
+
+  if (!id)
     return null
 
   const row = await db
     .selectFrom('users')
     .select(['id', 'handle', 'is_admin'])
-    .where('id', '=', Number(user.id))
+    .where('id', '=', id)
     .executeTakeFirst()
 
   if (!row)
     return null
 
   return { id: Number(row.id), handle: String(row.handle), is_admin: Boolean(row.is_admin) }
+}
+
+/**
+ * The user behind an `Authorization: Bearer` header, for routes with no auth
+ * middleware.
+ *
+ * Never throws: an expired or unknown token is an ordinary state for a request
+ * to be in, and it has to read as "nobody is signed in" rather than as a failed
+ * request - the endpoint may well serve a public repository perfectly happily.
+ */
+async function frameworkTokenUserId(request: any): Promise<number> {
+  const header = String(
+    request.headers?.get?.('authorization') ?? request.header?.('authorization') ?? '',
+  )
+
+  if (!header.startsWith('Bearer '))
+    return 0
+
+  const token = header.slice('Bearer '.length).trim()
+
+  // This application's own tokens start with their scheme, and are deliberately
+  // not resolved here. See the note above.
+  if (!token || token.startsWith('ros_'))
+    return 0
+
+  try {
+    const { Auth } = await import('@stacksjs/auth')
+    const found = await Auth.getUserFromToken(token)
+
+    return Number((found as any)?.id ?? 0) || 0
+  }
+  catch {
+    return 0
+  }
 }
 
 /**
