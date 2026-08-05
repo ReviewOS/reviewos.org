@@ -1,6 +1,17 @@
+import type { KeysetSegment } from './listing'
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
-import { encodeCursor, isPageable, MATCH_LIMIT, NONE, nextCursor, parseIssueQuery, SORT_COLUMNS, statesFor } from './listing'
+import {
+  encodeCursor,
+  keysetPlan,
+  MATCH_LIMIT,
+  NONE,
+  nextCursor,
+  parseIssueQuery,
+  SORT_COLUMNS,
+  SORT_VALUE_TYPES,
+  statesFor,
+} from './listing'
 
 /**
  * List a repository's issues.
@@ -18,6 +29,13 @@ import { encodeCursor, isPageable, MATCH_LIMIT, NONE, nextCursor, parseIssueQuer
  * Postgres. A filter that quietly fails open is worse than one that is not
  * offered, so the relation filters resolve their ids in a separate query and
  * come back as a plain `whereIn`.
+ *
+ * Paging follows the same rule rather than working around it. A keyset boundary
+ * over a column that ties is `col < v OR (col = v AND id < i)`, and the `OR` is
+ * exactly what cannot be written - so `keysetPlan` splits it along the `OR` into
+ * segments that are each an `AND`, and they run in order until the page is full.
+ * One query when the page falls inside a segment, two when it straddles a
+ * boundary, and the same rows in the same order either way.
  */
 export default new Action({
   name: 'ListIssues',
@@ -33,14 +51,26 @@ export default new Action({
     const query = parseIssueQuery(request.all?.() ?? {})
     const empty = () => response.json({ issues: [], next: null })
 
-    let rows = db
-      .selectFrom('issues')
-      .where('issues.repository_id', '=', repository.id)
-      .where('issues.is_pull_request', '=', false)
+    // The filters, applied to a fresh builder each time. A segment is its own
+    // query, so it needs its own copy: this builder appends clauses to a string
+    // in call order rather than composing them, and reusing one across two
+    // segments would stack the second segment's boundary on top of the first's.
+    const filters: Array<(builder: any) => any> = []
+    const scope = (): any => {
+      let builder = db
+        .selectFrom('issues')
+        .where('issues.repository_id', '=', repository.id)
+        .where('issues.is_pull_request', '=', false)
+
+      for (const filter of filters)
+        builder = filter(builder)
+
+      return builder
+    }
 
     const states = statesFor(query.state)
     if (states)
-      rows = rows.where('issues.state', 'in', states)
+      filters.push(builder => builder.where('issues.state', 'in', states))
 
     if (query.author) {
       const author = await db
@@ -54,7 +84,7 @@ export default new Action({
       if (!author)
         return empty()
 
-      rows = rows.where('issues.author_id', '=', Number(author.id))
+      filters.push(builder => builder.where('issues.author_id', '=', Number(author.id)))
     }
 
     if (query.assignee === NONE) {
@@ -67,7 +97,7 @@ export default new Action({
 
       const ids = [...new Set(assigned.map((row: any) => Number(row.issue_id)))]
       if (ids.length > 0)
-        rows = rows.whereNotIn('issues.id', ids)
+        filters.push(builder => builder.whereNotIn('issues.id', ids))
     }
     else if (query.assignee) {
       const assignee = await db
@@ -89,11 +119,11 @@ export default new Action({
       if (ids.length === 0)
         return empty()
 
-      rows = rows.whereIn('issues.id', ids)
+      filters.push(builder => builder.whereIn('issues.id', ids))
     }
 
     if (query.milestone === NONE) {
-      rows = rows.whereNull('issues.milestone_id')
+      filters.push(builder => builder.whereNull('issues.milestone_id'))
     }
     else if (query.milestone) {
       const milestone = await db
@@ -106,7 +136,7 @@ export default new Action({
       if (!milestone)
         return empty()
 
-      rows = rows.where('issues.milestone_id', '=', Number(milestone.id))
+      filters.push(builder => builder.where('issues.milestone_id', '=', Number(milestone.id)))
     }
 
     // Every named label has to be present, not any of them: "bug and
@@ -125,7 +155,7 @@ export default new Action({
       if (ids.length === 0)
         return empty()
 
-      rows = rows.whereIn('issues.id', ids)
+      filters.push(builder => builder.whereIn('issues.id', ids))
     }
 
     if (query.search) {
@@ -155,37 +185,98 @@ export default new Action({
       if (ids.length === 0)
         return empty()
 
-      rows = rows.whereIn('issues.id', ids)
+      filters.push(builder => builder.whereIn('issues.id', ids))
     }
 
     const direction = query.descending ? 'desc' : 'asc'
+    const column = `issues.${SORT_COLUMNS[query.sort]}`
+    const after = query.descending ? '<' : '>'
 
-    // Paged on the id, which for the creation order *is* the order: ids are
-    // handed out as issues are opened, so it is the sort key and unique at
-    // once, and no tiebreak has to travel in the cursor. `nextCursor` refuses to
-    // issue one for the sorts where that is not true.
-    if (query.cursor && isPageable(query.sort))
-      rows = rows.where('issues.id', query.descending ? '<' : '>', query.cursor.id)
+    /**
+     * A value from the cursor, as the column will take it.
+     *
+     * The cursor travels as text, so a comment count comes back as `'3'`. Bound
+     * against an integer column that is a type error on Postgres rather than a
+     * comparison, and the error is at the bottom of a page load somebody was
+     * expecting rows from.
+     */
+    const bound = (value: string): string | number =>
+      SORT_VALUE_TYPES[query.sort] === 'number' ? Number(value) : value
 
-    const found = await rows
-      .leftJoin('users', 'users.id', '=', 'issues.author_id')
-      .select([
-        'issues.id as id',
-        'issues.number as number',
-        'issues.title as title',
-        'issues.state as state',
-        'issues.state_reason as state_reason',
-        'issues.comments_count as comments_count',
-        'issues.created_at as created_at',
-        'issues.updated_at as updated_at',
-        'issues.external_author as external_author',
-        'users.handle as handle',
-      ])
-      .orderBy(`issues.${SORT_COLUMNS[query.sort]}`, direction)
-      // Always last, so a page boundary never falls inside a tie.
-      .orderBy('issues.id', direction)
-      .limit(query.limit)
-      .execute()
+    /** One segment of the plan, as a query, limited to what is still needed. */
+    const run = async (segment: KeysetSegment, remaining: number): Promise<any[]> => {
+      let builder = scope()
+      // Within a tie the sort column is fixed, so the id is the only thing left
+      // to order by. Everywhere else the column leads and the id breaks ties,
+      // which is what stops a page boundary landing inside one.
+      let byId = false
+
+      switch (segment.kind) {
+        case 'all':
+          break
+
+        case 'afterId':
+          builder = builder.where('issues.id', after, segment.afterId)
+          byId = true
+          break
+
+        case 'tie':
+          builder = segment.value === null
+            ? builder.whereNull(column)
+            : builder.where(column, '=', bound(segment.value))
+          builder = builder.where('issues.id', after, segment.afterId)
+          byId = true
+          break
+
+        case 'beyond':
+          builder = builder.where(column, after, bound(segment.value))
+          break
+
+        case 'nulls':
+          builder = builder.whereNull(column)
+          byId = true
+          break
+
+        case 'nonNulls':
+          builder = builder.whereNotNull(column)
+          break
+      }
+
+      builder = builder
+        .leftJoin('users', 'users.id', '=', 'issues.author_id')
+        .select([
+          'issues.id as id',
+          'issues.number as number',
+          'issues.title as title',
+          'issues.state as state',
+          'issues.state_reason as state_reason',
+          'issues.comments_count as comments_count',
+          'issues.created_at as created_at',
+          'issues.updated_at as updated_at',
+          'issues.external_author as external_author',
+          'users.handle as handle',
+        ])
+
+      if (!byId)
+        builder = builder.orderBy(column, direction)
+
+      // `limit` last, and never before a `where`. This builder appends clauses
+      // in call order rather than composing them, so a `where` added after a
+      // `limit` lands after `LIMIT` in the SQL and Postgres rejects the whole
+      // statement.
+      return await builder
+        .orderBy('issues.id', direction)
+        .limit(remaining)
+        .execute()
+    }
+
+    const found: any[] = []
+    for (const segment of keysetPlan(query)) {
+      if (found.length >= query.limit)
+        break
+
+      found.push(...await run(segment, query.limit - found.length))
+    }
 
     const cursor = nextCursor(found, query)
 

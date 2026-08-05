@@ -10,10 +10,12 @@
 
 import { describe, expect, test } from 'bun:test'
 import {
+  cursorValueOf,
   DEFAULT_LIMIT,
   decodeCursor,
   encodeCursor,
   isPageable,
+  keysetPlan,
   MAX_LIMIT,
   nextCursor,
   parseIssueQuery,
@@ -94,8 +96,28 @@ describe('parseIssueQuery', () => {
 })
 
 describe('cursors', () => {
-  test('round-trips', () => {
+  test('round-trips the id-only form', () => {
     expect(decodeCursor(encodeCursor({ id: 42 }))).toEqual({ id: 42 })
+  })
+
+  test('round-trips a value alongside the id', () => {
+    expect(decodeCursor(encodeCursor({ id: 42, value: '2026-08-02T10:00:00.000Z' })))
+      .toEqual({ id: 42, value: '2026-08-02T10:00:00.000Z' })
+    expect(decodeCursor(encodeCursor({ id: 7, value: '3' }))).toEqual({ id: 7, value: '3' })
+  })
+
+  /**
+   * Null is a position in the order, not the absence of one: an issue nobody
+   * has touched since opening it has no `updated_at`, and Postgres sorts that
+   * block at one end. A cursor that could not say "null" would skip it.
+   */
+  test('round-trips a null value, which is a position rather than a gap', () => {
+    expect(decodeCursor(encodeCursor({ id: 42, value: null }))).toEqual({ id: 42, value: null })
+  })
+
+  /** The value goes last and is split on the first separator, so it may contain one. */
+  test('survives a value containing the separator', () => {
+    expect(decodeCursor(encodeCursor({ id: 5, value: 'a|b|c' }))).toEqual({ id: 5, value: 'a|b|c' })
   })
 
   test('refuses a cursor that did not come from here', () => {
@@ -111,6 +133,12 @@ describe('cursors', () => {
     expect(decodeCursor(Buffer.from('i0', 'utf8').toString('base64url'))).toBeNull()
     expect(decodeCursor(Buffer.from('i-1', 'utf8').toString('base64url'))).toBeNull()
     expect(decodeCursor(Buffer.from('12', 'utf8').toString('base64url'))).toBeNull()
+  })
+
+  test('refuses a tuple cursor that is missing its value', () => {
+    expect(decodeCursor(Buffer.from('t42', 'utf8').toString('base64url'))).toBeNull()
+    expect(decodeCursor(Buffer.from('t42|', 'utf8').toString('base64url'))).toBeNull()
+    expect(decodeCursor(Buffer.from('t42|x', 'utf8').toString('base64url'))).toBeNull()
   })
 
   test('a bad cursor leaves the query at the first page rather than failing', () => {
@@ -138,28 +166,119 @@ describe('nextCursor', () => {
 
   /**
    * A cursor has to name a row uniquely or a page boundary lands inside a tie
-   * and one of the tied rows is never returned. Ties are possible on both of
-   * these, and expressing `(value, id) < (x, y)` needs an `OR` the query
-   * builder in use cannot be given safely - so rather than hand out a cursor
-   * that would repeat rows, these sorts answer one page and say so.
+   * and one of the tied rows is never returned. Ties are constant on these two -
+   * a thousand issues with no comments all sort equal - so the boundary is the
+   * pair, and the pair has to travel.
    */
-  test('refuses to page a sort whose key is not unique', () => {
-    for (const sort of ['updated', 'comments']) {
-      const sorted = parseIssueQuery({ limit: '1', sort })
+  test('carries the sort value on a sort that can tie', () => {
+    const sorted = parseIssueQuery({ limit: '1', sort: 'comments' })
 
-      expect(nextCursor([{ id: 3 }], sorted)).toBeNull()
-    }
+    expect(nextCursor([{ id: 3, comments_count: 0 }], sorted)).toEqual({ id: 3, value: '0' })
+  })
+
+  test('carries a null value rather than pretending the row had none', () => {
+    const sorted = parseIssueQuery({ limit: '1', sort: 'updated' })
+
+    expect(nextCursor([{ id: 3, updated_at: null }], sorted)).toEqual({ id: 3, value: null })
+  })
+
+  /** A `Date` stringifies to something Postgres will not take back. */
+  test('writes a timestamp in the one spelling that survives the round trip', () => {
+    const sorted = parseIssueQuery({ limit: '1', sort: 'updated' })
+    const at = new Date('2026-08-02T10:00:00.000Z')
+
+    expect(nextCursor([{ id: 3, updated_at: at }], sorted)).toEqual({ id: 3, value: at.toISOString() })
+  })
+
+  /** The id-only form stays, so a cursor already out in the world still works. */
+  test('keeps creation order on the id alone', () => {
+    expect(nextCursor([{ id: 8, created_at: '2026-08-01' }], parseIssueQuery({ limit: '1' })))
+      .toEqual({ id: 8 })
   })
 })
 
 describe('isPageable', () => {
-  test('creation order pages, because the id is the order and is unique', () => {
+  test('every sort pages now', () => {
     expect(isPageable('created')).toBe(true)
+    expect(isPageable('updated')).toBe(true)
+    expect(isPageable('comments')).toBe(true)
+  })
+})
+
+/**
+ * The boundary a keyset page needs is `col < v OR (col = v AND id < i)`, and
+ * the `OR` is exactly what this project's query builder cannot be given safely.
+ * The plan splits it along the `OR` into segments that are each an `AND` of
+ * single-column comparisons, to be run in order until the page is full.
+ *
+ * Nulls are the part that is easy to get wrong. Postgres sorts them first on
+ * `DESC` and last on `ASC`, and `updated_at` is null on every issue nobody has
+ * touched since opening it - most of them, in a young repository.
+ */
+describe('keysetPlan', () => {
+  const at = (params: Record<string, unknown>) => parseIssueQuery(params)
+
+  test('the first page has no boundary at all', () => {
+    expect(keysetPlan(at({ sort: 'updated' }))).toEqual([{ kind: 'all' }])
   })
 
-  test('the sorts that can tie do not', () => {
-    expect(isPageable('updated')).toBe(false)
-    expect(isPageable('comments')).toBe(false)
+  test('creation order needs one comparison, because its key cannot tie', () => {
+    const query = at({ cursor: encodeCursor({ id: 8 }) })
+
+    expect(keysetPlan(query)).toEqual([{ kind: 'afterId', afterId: 8 }])
+  })
+
+  test('a sort that ties finishes the tie group, then goes past it', () => {
+    const query = at({ sort: 'comments', cursor: encodeCursor({ id: 8, value: '4' }) })
+
+    expect(keysetPlan(query)).toEqual([
+      { kind: 'tie', value: '4', afterId: 8 },
+      { kind: 'beyond', value: '4' },
+    ])
+  })
+
+  test('descending, the null block leads, so the non-null rows follow it', () => {
+    const query = at({ sort: 'updated', cursor: encodeCursor({ id: 8, value: null }) })
+
+    expect(keysetPlan(query)).toEqual([
+      { kind: 'tie', value: null, afterId: 8 },
+      { kind: 'nonNulls' },
+    ])
+  })
+
+  test('ascending, the null block trails, so it is what comes last', () => {
+    const query = at({ sort: 'updated', direction: 'asc', cursor: encodeCursor({ id: 8, value: '2026-08-01' }) })
+
+    expect(keysetPlan(query)).toEqual([
+      { kind: 'tie', value: '2026-08-01', afterId: 8 },
+      { kind: 'beyond', value: '2026-08-01' },
+      { kind: 'nulls' },
+    ])
+  })
+
+  test('ascending, inside the null block there is nothing after it', () => {
+    const query = at({ sort: 'updated', direction: 'asc', cursor: encodeCursor({ id: 8, value: null }) })
+
+    expect(keysetPlan(query)).toEqual([{ kind: 'tie', value: null, afterId: 8 }])
+  })
+
+  /** A column that cannot be null has no null block to walk through. */
+  test('a sort with no nulls never looks for them', () => {
+    const query = at({ sort: 'comments', direction: 'asc', cursor: encodeCursor({ id: 8, value: '0' }) })
+
+    expect(keysetPlan(query).some(segment => segment.kind === 'nulls')).toBe(false)
+  })
+})
+
+describe('cursorValueOf', () => {
+  test('reads the column the sort orders by', () => {
+    expect(cursorValueOf({ comments_count: 12 }, 'comments')).toBe('12')
+    expect(cursorValueOf({ updated_at: '2026-08-01' }, 'updated')).toBe('2026-08-01')
+  })
+
+  test('says null for a row that has none', () => {
+    expect(cursorValueOf({ updated_at: null }, 'updated')).toBeNull()
+    expect(cursorValueOf({}, 'updated')).toBeNull()
   })
 })
 
