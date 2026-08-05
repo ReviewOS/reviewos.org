@@ -71,6 +71,30 @@ export const REPOSITORY_ABILITIES = {
 
 export type RepositoryAbility = keyof typeof REPOSITORY_ABILITIES
 
+/**
+ * What is still allowed on an archived repository.
+ *
+ * Archived means readable and frozen: no push, no new issue, no comment on an
+ * old one. Stating it as an allowlist rather than a denylist is the point - a
+ * new ability added to the table above is frozen by default, and an ability
+ * that should survive archiving has to be argued for here.
+ *
+ * Four survive. Reading, because that is what archiving is for. Settings,
+ * because otherwise archiving is irreversible and nobody means that. Delete and
+ * transfer, because the whole reason a repository is archived is that somebody
+ * is deciding what to do with it, and both of those are answers.
+ */
+export const ARCHIVE_EXEMPT_ABILITIES = new Set<RepositoryAbility>([
+  'repository:read',
+  'repository:settings',
+  'repository:delete',
+  'repository:transfer',
+])
+
+export function allowedOnArchivedRepository(ability: RepositoryAbility): boolean {
+  return ARCHIVE_EXEMPT_ABILITIES.has(ability)
+}
+
 /** What each organization action needs. */
 export const ORGANIZATION_ABILITIES = {
   'members:view': 'member',
@@ -112,11 +136,27 @@ export function repositoryPermissionSatisfies(
 ): boolean {
   if (!held)
     return false
-  return repositoryRank(held) >= repositoryRank(required)
+
+  const requiredRank = repositoryRank(required)
+
+  // A level this module does not recognise is refused rather than allowed.
+  // `repositoryRank` returns -1 for one, and every real permission outranks -1,
+  // so the comparison below would have granted it to anybody holding anything.
+  // Types are supposed to make that unreachable, and did not: an ability named
+  // `repository:write` (the real one is `repository:push`) reached this from a
+  // caller TypeScript was not checking, and read as granted.
+  if (requiredRank < 0)
+    return false
+
+  return repositoryRank(held) >= requiredRank
 }
 
 /** Whether `held` covers `required`. */
 export function organizationRoleSatisfies(held: OrganizationRole | null, required: OrganizationRole): boolean {
+  // The same refusal as above, for the same reason.
+  if (organizationRank(required) < 0)
+    return false
+
   if (!held)
     return false
   return organizationRank(held) >= organizationRank(required)
