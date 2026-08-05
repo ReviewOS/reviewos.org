@@ -152,8 +152,14 @@ jobs:
         # rather than re-derived from `git log`. Two generators over the same
         # history are two things that can disagree, and the one nobody reads is
         # always the one that is wrong.
+        #
+        # The newest release sits at the top of the file with no version
+        # heading of its own; it only grows one when the *next* release pushes
+        # it down. So both shapes are looked for, newest-at-top second, and the
+        # commit list is a last resort that leaves a warning on the run.
         run: |
           version="${{ steps.version.outputs.version }}"
+          blank() { [ -z "$(printf '%s' "$1" | tr -d '[:space:]')" ]; }
 
           notes=$(awk -v v="## $version" '
             $0 == v { grab = 1; next }
@@ -161,8 +167,16 @@ jobs:
             grab { print }
           ' CHANGELOG.md)
 
-          if [ -z "$(echo "$notes" | tr -d '[:space:]')" ]; then
-            echo "::warning title=Changelog::No $version section in CHANGELOG.md; falling back to the commit list."
+          if blank "$notes"; then
+            notes=$(awk '
+              NR == 1 && /^# / { next }
+              /^## v[0-9]/ { exit }
+              { print }
+            ' CHANGELOG.md)
+          fi
+
+          if blank "$notes"; then
+            echo "::warning title=Changelog::Nothing for $version in CHANGELOG.md; falling back to the commit list."
             previous=$(git describe --tags --abbrev=0 "$version^" 2>/dev/null || true)
             range="${previous:+$previous..}$version"
             notes=$(git log "$range" --no-merges --pretty=format:'- %s')
