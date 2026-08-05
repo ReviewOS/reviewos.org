@@ -493,9 +493,17 @@ lookup renders one owner's pull request under another owner's URL, and nothing s
 on has to be public. `findRepositoryByPath` already did it correctly and the issue and commits views
 already used it.
 
-- [ ] Audit every other direct `repositories` query for the same shape, and decide whether views
-      should be reaching for the table at all rather than going through `authorizeRepository`, which
-      also settles visibility
+- [x] Audit every other direct `repositories` query for the same shape. Six places resolved a
+      repository by hand and **none of them checked visibility**, so a private repository's pull
+      requests, issues, commits and code rendered to anyone with the URL, with the word `private`
+      printed beside the name. `authorizeRepository` could not be used because it needs a `request`
+      and an stx server script has none; `app/Actions/Repo/forView.ts` is the same decision reading
+      the viewer from cookies instead, and every view and component now goes through it.
+- [x] While pinning that rule down: `canOnRepository` **granted** an ability it did not recognise.
+      `repositoryRank` returns -1 for an unknown level and every real permission outranks -1, so a
+      misspelled ability read as allowed to anybody holding anything. Found by writing
+      `repository:write` in a test, where the real ability is `repository:push`, in a directory the
+      typechecker does not cover. Both ladders now refuse what they cannot interpret.
 
 ## Selection and deep links
 
