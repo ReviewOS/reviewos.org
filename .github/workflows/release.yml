@@ -153,10 +153,12 @@ jobs:
         # history are two things that can disagree, and the one nobody reads is
         # always the one that is wrong.
         #
-        # The newest release sits at the top of the file with no version
-        # heading of its own; it only grows one when the *next* release pushes
-        # it down. So both shapes are looked for, newest-at-top second, and the
-        # commit list is a last resort that leaves a warning on the run.
+        # Releases in this file are separated by their `[Compare changes]`
+        # link rather than by a version heading, and the newest one sits at the
+        # top with nothing naming it. Older entries written by an earlier
+        # generator do carry a `## vX.Y.Z` heading, so both shapes are looked
+        # for - the heading first, the top of the file second - and the commit
+        # list is a last resort that leaves a warning on the run.
         run: |
           version="${{ steps.version.outputs.version }}"
           blank() { [ -z "$(printf '%s' "$1" | tr -d '[:space:]')" ]; }
@@ -170,6 +172,10 @@ jobs:
           if blank "$notes"; then
             notes=$(awk '
               NR == 1 && /^# / { next }
+              # Releases are separated by their compare link, not by a heading.
+              # The first one belongs to this release; the second starts the
+              # previous one and ends the section.
+              /^\[Compare changes\]/ { if (seen++) exit; next }
               /^## v[0-9]/ { exit }
               { print }
             ' CHANGELOG.md)
