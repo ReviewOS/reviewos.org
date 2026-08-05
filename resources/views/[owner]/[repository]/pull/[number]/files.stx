@@ -12,15 +12,12 @@
  * here parses a diff, because by the time the reader is looking at this the
  * server has already started.
  */
+import { findRepositoryByPath } from '../../../../../functions/repo'
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
 const number = Number(params.number)
 
-const repoRow: any = await db
-  .selectFrom('repositories')
-  .selectAll()
-  .where('name', '=', repositoryName)
-  .executeTakeFirst()
+const repoRow: any = await findRepositoryByPath(owner, repositoryName)
 
 const pullRequest: any = repoRow
   ? await db
