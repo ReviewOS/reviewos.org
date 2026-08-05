@@ -718,6 +718,86 @@
 
       .thread-cell { padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--line); }
 
+      /* Starting a comment on a line.
+
+         Sits inside the number gutter and appears on hover or on keyboard
+         focus, so a diff at rest is code and line numbers rather than a column
+         of buttons. Absolutely positioned so it does not widen the gutter when
+         it appears and shift every line of the file sideways. */
+      .gutter.num { position: relative; }
+
+      .line-comment {
+        position: absolute;
+        top: 50%;
+        left: 2px;
+        display: none;
+        width: 17px;
+        height: 17px;
+        margin-top: -9px;
+        padding: 0;
+        border: 0;
+        border-radius: 4px;
+        background: var(--accent);
+        color: var(--on-accent);
+        font: inherit;
+        font-size: 13px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .gutter.num:hover .line-comment,
+      .line-comment:focus-visible { display: block; }
+
+      /* The comment being written. A row in the diff rather than a modal, so
+         the code it is about stays on screen while it is written. */
+      .draft { display: flex; flex-direction: column; gap: 8px; }
+      .draft-input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--r-control);
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+        font-size: 14px;
+        resize: vertical;
+      }
+
+      .draft-actions { display: flex; align-items: center; gap: 8px; }
+      .draft-status { font-size: 12.5px; }
+
+      /* A resolved conversation, folded to one line. */
+      .thread-summary {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        list-style: none;
+        font-size: 12.5px;
+      }
+
+      .thread-summary::-webkit-details-marker { display: none; }
+      details.thread > .thread-comments, details.thread > .thread-reply { margin-top: 10px; }
+
+      /* What a reader can do with the lines they have selected. Beside the
+         selection rather than in a menu somewhere else on the page. */
+      .selection-surface {
+        position: absolute;
+        z-index: 5;
+        top: 0;
+        right: 14px;
+        display: flex;
+        gap: 6px;
+        padding: 5px;
+        border: 1px solid var(--line);
+        border-radius: var(--r-control);
+        background: var(--surface);
+        box-shadow: 0 6px 18px rgb(0 0 0 / 12%);
+      }
+
+      .selection-surface[data-copied='true'] { border-color: var(--ok); }
+      .selection-surface[data-copied='false'] { border-color: var(--bad); }
+
       /* Syntax colours. Deliberately low-saturation: they sit on top of the green
          and red diff backgrounds, and a vivid palette turns a reviewed line into a
          fruit salad. Hue carries the meaning, not intensity. */

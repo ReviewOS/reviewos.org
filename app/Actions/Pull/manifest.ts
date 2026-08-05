@@ -282,6 +282,7 @@ export async function* streamManifest(
     const html = renderDiffFile(file, {
       layout: rowOptions.layout,
       expandable: true,
+      commentable: true,
       // Always the open form. Whether a file is *shown* folded is the client's
       // decision and it can change at any moment, so markup rendered folded
       // would have to be thrown away the instant the reader clicked. A file

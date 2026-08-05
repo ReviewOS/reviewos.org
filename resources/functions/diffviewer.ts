@@ -539,7 +539,7 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     content.style.height = `${result.layout.total}px`
 
     for (const [index, host] of hosts)
-      host.style.transform = `translateY(${result.layout.offsets[index]!}px)`
+      host.style.top = `${result.layout.offsets[index]!}px`
 
     if (result.scrollTop != null) {
       writtenScrollTop = result.scrollTop
@@ -625,7 +625,6 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     const host = document.createElement('div')
     host.className = 'diff-file-host'
     host.style.position = 'absolute'
-    host.style.top = '0'
     host.style.left = '0'
     host.style.width = '100%'
     // One file's layout cannot invalidate another's, which is what keeps a
@@ -1045,6 +1044,7 @@ export function mountDiffFiles(): DiffViewer | null {
 
   const rowsUrl = root.dataset.rowsUrl
   const contextUrl = root.dataset.contextUrl
+  const commentUrl = root.dataset.commentUrl
 
   // The reader's own choices win over the page's defaults, which is what the
   // server rendered the first batch of rows in. Applied to the root before
@@ -1108,7 +1108,7 @@ export function mountDiffFiles(): DiffViewer | null {
     scroller,
     content,
     layout: initialLayout,
-    afterRender: () => paintSelection(),
+    afterRender: () => { paintSelection(); paintDraft(); paintSelectionSurface() },
     // The sidebar follows the diff rather than the other way round, so the row
     // highlighted is the file the reader is actually looking at.
     onVisibleChange: start => fileList?.setCurrent(start),
@@ -1252,6 +1252,24 @@ export function mountDiffFiles(): DiffViewer | null {
       return
     }
 
+    const comment = target?.closest<HTMLElement>('.line-comment')
+    if (comment) {
+      event.preventDefault()
+      const cell = comment.closest<HTMLElement>('.gutter.num[data-line]')
+      const path = viewer.files()[Number(index)]?.path
+      if (cell != null && path != null) {
+        // A comment started from a line that is already inside the selection is
+        // about the selection: the reader picked a range and then asked to talk
+        // about it. One started anywhere else is about that line alone.
+        const line = Number(cell.dataset.line)
+        const side = cell.dataset.side === 'left' ? 'left' : 'right'
+        const covered = selection != null && anchorCovers(selection, path, side, line)
+
+        openDraft(covered && selection != null ? selection : { path, side, from: line, to: line })
+      }
+      return
+    }
+
     const gutterCell = target?.closest<HTMLElement>('.gutter.num[data-line]')
     if (gutterCell) {
       // Intercepted rather than followed: the browser would jump to a fragment
@@ -1261,6 +1279,58 @@ export function mountDiffFiles(): DiffViewer | null {
       selectLine(viewer.files()[Number(index)]?.path, gutterCell, event.shiftKey)
     }
   })
+
+  /**
+   * Selecting a range by dragging down the gutter.
+   *
+   * Pointer events rather than mouse events, so a touch drag works the same
+   * way, and captured on the region rather than per row because rows come and
+   * go under the finger as the list scrolls.
+   */
+  let dragging: LineAnchor | null = null
+
+  region.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0)
+      return
+
+    const cell = (event.target as HTMLElement | null)?.closest<HTMLElement>('.gutter.num[data-line]')
+    const host = cell?.closest<HTMLElement>('.diff-file-host')
+    const path = host?.dataset.path
+    if (cell == null || path == null)
+      return
+
+    const line = Number(cell.dataset.line)
+    const side = cell.dataset.side === 'left' ? 'left' : 'right'
+    if (!Number.isFinite(line))
+      return
+
+    dragging = { path, side, from: line, to: line }
+  })
+
+  region.addEventListener('pointermove', (event) => {
+    if (dragging == null)
+      return
+
+    const cell = (event.target as HTMLElement | null)?.closest<HTMLElement>('.gutter.num[data-line]')
+    if (cell == null)
+      return
+
+    const line = Number(cell.dataset.line)
+    const side = cell.dataset.side === 'left' ? 'left' : 'right'
+
+    // A drag that wanders onto the other side of a split view, or onto another
+    // file, is ignored rather than producing a range that spans two things a
+    // comment could not be about.
+    if (!Number.isFinite(line) || side !== dragging.side)
+      return
+
+    selection = anchorBetween(dragging, { ...dragging, from: line, to: line })
+    writeSelectionToUrl()
+    paintSelection()
+    paintSelectionSurface()
+  })
+
+  window.addEventListener('pointerup', () => { dragging = null })
 
   /**
    * Select a line, or extend the selection to it.
@@ -1285,6 +1355,7 @@ export function mountDiffFiles(): DiffViewer | null {
 
     writeSelectionToUrl()
     paintSelection()
+    paintSelectionSurface()
   }
 
   function writeSelectionToUrl(): void {
@@ -1293,6 +1364,277 @@ export function mountDiffFiles(): DiffViewer | null {
     // history entry per click, so leaving the page takes as many presses of
     // back as the reader made selections.
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${fragment}`)
+  }
+
+  /**
+   * The comment being written, if there is one.
+   *
+   * One at a time across the whole list, deliberately. Several half-written
+   * comments scattered down a diff is a way to lose one, and the reader can
+   * only be typing in a single place anyway.
+   *
+   * Held here rather than only in the DOM because the row it lives in is
+   * recycled: scroll away from a draft and the element is gone, and without
+   * this the words would be too. `text` is what makes it survive.
+   */
+  let draft: { anchor: LineAnchor, text: string, busy: boolean } | null = null
+
+  /** Open a draft on a line or a range, replacing whatever was open. */
+  function openDraft(anchor: LineAnchor): void {
+    draft = { anchor, text: '', busy: false }
+    selection = anchor
+    writeSelectionToUrl()
+    paintSelection()
+    paintDraft()
+
+    // Focused after the row exists. Without the frame the element being asked
+    // to take focus is the one that is about to be replaced.
+    requestAnimationFrame(() => {
+      region.querySelector<HTMLTextAreaElement>('.draft-input')?.focus()
+    })
+  }
+
+  function closeDraft(): void {
+    draft = null
+    for (const row of region.querySelectorAll('.draft-row'))
+      row.remove()
+  }
+
+  /**
+   * Put the draft row under the line it is about, wherever that line now is.
+   *
+   * Called after every frame, so a draft that scrolled off and came back is
+   * restored into the new row with its text intact, and a draft whose file is
+   * not mounted simply is not in the document.
+   */
+  function paintDraft(): void {
+    const current = draft
+    if (current == null)
+      return
+
+    const existing = region.querySelector<HTMLElement>('.draft-row')
+    const host = region.querySelector<HTMLElement>(`.diff-file-host[data-path="${cssEscape(current.anchor.path)}"]`)
+    const cell = host?.querySelector<HTMLElement>(
+      `.gutter.num[data-line="${current.anchor.to}"][data-side="${current.anchor.side}"]`,
+    )
+    const row = cell?.closest('tr')
+
+    if (row == null) {
+      // The line is not rendered right now. The text is still held, so this is
+      // a pause rather than a loss.
+      existing?.remove()
+      return
+    }
+
+    if (existing != null && existing.previousElementSibling === row)
+      return
+
+    existing?.remove()
+
+    const columns = row.closest('table')?.dataset.columns === '4' ? 4 : 3
+    const lines = current.anchor.from === current.anchor.to
+      ? `line ${current.anchor.to}`
+      : `lines ${current.anchor.from} to ${current.anchor.to}`
+
+    const draftRow = document.createElement('tr')
+    draftRow.className = 'draft-row'
+    draftRow.innerHTML = `<td class="thread-cell" colspan="${columns}">`
+      + `<form class="draft">`
+      + `<label class="visually-hidden" for="draft-input">Comment on ${escapeText(lines)}</label>`
+      + `<textarea id="draft-input" class="draft-input" rows="3"`
+      + ` placeholder="Comment on ${escapeText(lines)}"></textarea>`
+      + `<div class="draft-actions">`
+      + `<button type="submit" class="btn btn-primary btn-small">Comment</button>`
+      + `<button type="button" class="btn btn-small draft-cancel">Cancel</button>`
+      + `<span class="draft-status muted" role="status"></span>`
+      + `</div></form></td>`
+
+    row.insertAdjacentElement('afterend', draftRow)
+
+    const input = draftRow.querySelector<HTMLTextAreaElement>('.draft-input')!
+    input.value = current.text
+    input.addEventListener('input', () => { current.text = input.value })
+
+    draftRow.querySelector('.draft-cancel')?.addEventListener('click', () => closeDraft())
+    draftRow.querySelector('form')?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      void submitDraft(draftRow)
+    })
+  }
+
+  /** Post the draft, then reload the file so the new thread is in its rows. */
+  async function submitDraft(row: HTMLElement): Promise<void> {
+    const current = draft
+    const status = row.querySelector<HTMLElement>('.draft-status')
+    if (current == null || current.busy || commentUrl == null)
+      return
+
+    const body = current.text.trim()
+    if (body.length === 0) {
+      if (status)
+        status.textContent = 'A comment needs something in it.'
+      return
+    }
+
+    current.busy = true
+    if (status)
+      status.textContent = 'Posting…'
+
+    try {
+      const form = new URLSearchParams({
+        path: current.anchor.path,
+        line: String(current.anchor.to),
+        side: current.anchor.side,
+        body,
+      })
+
+      // Only for a real range. A single line with a start line equal to it is
+      // accepted by the server, and storing it would make every comment look
+      // like a range comment in every later reader of the row.
+      if (current.anchor.from !== current.anchor.to)
+        form.set('start_line', String(current.anchor.from))
+
+      const response = await fetch(commentUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form,
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null) as { error?: string } | null
+        throw new Error(error?.error ?? 'The comment could not be posted.')
+      }
+
+      const path = current.anchor.path
+      closeDraft()
+      // The thread is rendered into the file's rows by the server, so the way
+      // to show it is to ask for that file again rather than to build a copy of
+      // the thread markup here and have two renderers of it.
+      await reloadFile(path)
+    }
+    catch (error) {
+      current.busy = false
+      if (status)
+        status.textContent = error instanceof Error ? error.message : 'The comment could not be posted.'
+    }
+  }
+
+  /**
+   * What a reader can do with the lines they have selected.
+   *
+   * A bar that appears beside the selection rather than a menu they have to go
+   * and find. Three things, which are the three reasons anybody selects lines
+   * in a diff: to talk about them, to send somebody the link, or to take the
+   * code somewhere else.
+   *
+   * Built once and moved, rather than created and destroyed as the selection
+   * changes: this is repositioned after every frame, and a surface that
+   * rebuilt itself at sixty hertz would take the focus ring with it.
+   */
+  let surface: HTMLElement | null = null
+
+  function selectionSurface(): HTMLElement {
+    if (surface != null)
+      return surface
+
+    const element = document.createElement('div')
+    element.className = 'selection-surface'
+    element.innerHTML = `<button type="button" class="btn btn-small" data-surface="comment">Comment</button>`
+      + `<button type="button" class="btn btn-small" data-surface="link">Copy link</button>`
+      + `<button type="button" class="btn btn-small" data-surface="lines">Copy lines</button>`
+
+    element.addEventListener('click', (event) => {
+      const action = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-surface]')?.dataset.surface
+      if (action == null || selection == null)
+        return
+
+      if (action === 'comment')
+        openDraft(selection)
+      else if (action === 'link')
+        void copyText(new URL(formatLineAnchor(selection), window.location.href).href, element)
+      else
+        void copyText(selectedText(selection), element)
+    })
+
+    region.appendChild(element)
+    surface = element
+    return element
+  }
+
+  /** The code of the selected lines, as text, from what is rendered. */
+  function selectedText(anchor: LineAnchor): string {
+    const host = region.querySelector<HTMLElement>(`.diff-file-host[data-path="${cssEscape(anchor.path)}"]`)
+    if (host == null)
+      return ''
+
+    const lines: string[] = []
+    for (let line = anchor.from; line <= anchor.to; line++) {
+      const cell = host.querySelector<HTMLElement>(`.gutter.num[data-line="${line}"][data-side="${anchor.side}"]`)
+      const code = cell?.closest('tr')?.querySelector<HTMLElement>('.code')
+      if (code == null)
+        continue
+
+      // Without the marker: `+` and `-` belong to the diff, not to the code,
+      // and pasting them into an editor is somebody's afternoon.
+      const marker = code.querySelector('.marker')
+      lines.push((code.textContent ?? '').slice(marker?.textContent?.length ?? 0))
+    }
+
+    return lines.join('\n')
+  }
+
+  async function copyText(text: string, element: HTMLElement): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text)
+      element.dataset.copied = 'true'
+      window.setTimeout(() => { delete element.dataset.copied }, 1200)
+    }
+    catch {
+      // Clipboard access can be refused, and there is nothing useful to say
+      // about it beyond not pretending it worked.
+      element.dataset.copied = 'false'
+      window.setTimeout(() => { delete element.dataset.copied }, 1200)
+    }
+  }
+
+  /** Put the surface beside the selection, or take it away. */
+  function paintSelectionSurface(): void {
+    const anchor = selection
+    // Hidden while a draft is open: the draft *is* the thing the surface would
+    // have offered, and two of them on screen is one too many.
+    if (anchor == null || draft != null) {
+      surface?.remove()
+      surface = null
+      return
+    }
+
+    const host = region.querySelector<HTMLElement>(`.diff-file-host[data-path="${cssEscape(anchor.path)}"]`)
+    const cell = host?.querySelector<HTMLElement>(
+      `.gutter.num[data-line="${anchor.from}"][data-side="${anchor.side}"]`,
+    )
+    const row = cell?.closest('tr')
+
+    if (host == null || row == null) {
+      surface?.remove()
+      surface = null
+      return
+    }
+
+    const element = selectionSurface()
+    const top = row.getBoundingClientRect().top - region.getBoundingClientRect().top
+    element.style.transform = `translateY(${Math.round(top)}px)`
+  }
+
+  /** Fetch a file's rows again, discarding what was cached for it. */
+  async function reloadFile(path: string): Promise<void> {
+    const index = viewer.files().findIndex(file => file.path === path)
+    if (index < 0)
+      return
+
+    markup.delete(index)
+    asked.delete(index)
+    wanted.add(index)
+    scheduleRowFetch()
   }
 
   /**
@@ -1733,6 +2075,18 @@ export function mountDiffFiles(): DiffViewer | null {
   })
 
   return viewer
+}
+
+/**
+ * Escape a value for use inside a double-quoted attribute selector.
+ *
+ * Only the quote and the backslash need it there - not the whole of
+ * `CSS.escape`, which is for identifiers and would turn every slash in a path
+ * into an escape sequence. A path can legally contain a quote, and a selector
+ * built by concatenation around one silently selects nothing.
+ */
+function cssEscape(value: string): string {
+  return value.replace(/["\\]/g, '\\$&')
 }
 
 /** Escape text for the placeholder, which is the only markup built here. */

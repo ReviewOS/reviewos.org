@@ -65,6 +65,16 @@ const rowsUrl = `/api/repos/pulls/diff/rows?${diffQuery}`
 
 /** Where the browser asks for the lines a hunk left out. */
 const contextUrl = `/api/repos/pulls/diff/context?${diffQuery}`
+
+/**
+ * Where a comment written in the diff is posted.
+ *
+ * The same query as the rest, so the action can find the repository and the
+ * pull request from the request alone. The body carries the path, the line and
+ * the side, which are the only things the browser knows that the server does
+ * not.
+ */
+const commentUrl = `/api/repos/pulls/comments?${diffQuery}`
 </script>
 
 @layout('app')
@@ -159,6 +169,7 @@ const contextUrl = `/api/repos/pulls/diff/context?${diffQuery}`
         data-manifest-url="{{ manifestUrl }}"
         data-rows-url="{{ rowsUrl }}"
         data-context-url="{{ contextUrl }}"
+        data-comment-url="{{ commentUrl }}"
       >
         {{--
           The list is filled in by `mountDiffFiles` from the manifest, which is

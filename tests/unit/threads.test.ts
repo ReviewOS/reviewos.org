@@ -235,3 +235,38 @@ rename to new.ts
     expect(anchorThreadsToFile([stored({ path: 'old.ts', line: 1 })], renamed!)).toHaveLength(1)
   })
 })
+
+/**
+ * A settled conversation folds down to one line.
+ *
+ * Folded rather than dropped: it is still the record of why the code looks
+ * like this. `<details>` rather than a class the client toggles, because this
+ * markup is also what the server-rendered page sends and that page runs no
+ * JavaScript at all.
+ */
+describe('a resolved thread', () => {
+  test('is a details element, so it opens in place with no script', () => {
+    const html = renderThread(thread({ resolved: true }))
+
+    expect(html).toContain('<details class="is-resolved thread">')
+    expect(html).toContain('<summary')
+  })
+
+  test('says how many comments are folded away', () => {
+    expect(renderThread(thread({ resolved: true }))).toContain('1 comment')
+  })
+
+  test('still carries the whole conversation and its reply form', () => {
+    const html = renderThread(thread({ resolved: true }))
+
+    expect(html).toContain('comment-body')
+    expect(html).toContain('thread-reply')
+  })
+
+  test('an unresolved thread is not folded', () => {
+    const html = renderThread(thread())
+
+    expect(html).toContain('<article class="thread">')
+    expect(html).not.toContain('<details')
+  })
+})

@@ -81,12 +81,32 @@ export function renderThread(thread: ReviewThreadView): string {
     + `<div class="comment-body markdown">${comment.bodyHtml}</div>`
     + `</li>`).join('')
 
-  return `<article class="thread${thread.resolved ? ' is-resolved' : ''}">`
-    + `<header class="thread-head">${outdated}${resolved}`
-    + `<span class="mono muted thread-anchor">${escapeHtml(thread.path)}:${thread.line ?? '?'}</span>`
-    + `</header>`
-    + `<ol class="thread-comments">${comments}</ol>`
-    + renderReplyForm(thread)
+  const anchor = `<span class="mono muted thread-anchor">${escapeHtml(thread.path)}:${thread.line ?? '?'}</span>`
+  const body = `<ol class="thread-comments">${comments}</ol>${renderReplyForm(thread)}`
+
+  /**
+   * A resolved thread folds down to one line.
+   *
+   * Folded rather than hidden: a settled conversation is still the record of
+   * why the code looks like this, and a reviewer scanning a file with fifteen
+   * resolved threads in it should be able to see the code. `<details>` because
+   * it opens in place, it is keyboard reachable, and it needs no JavaScript -
+   * which matters, because this markup is also what the server-rendered page
+   * sends and that page runs none.
+   */
+  if (thread.resolved) {
+    const count = thread.comments.length === 1 ? '1 comment' : `${thread.comments.length} comments`
+
+    return `<details class="is-resolved thread">`
+      + `<summary class="thread-summary">${resolved}${outdated}`
+      + `<span class="muted">${escapeHtml(count)}</span>${anchor}</summary>`
+      + body
+      + `</details>`
+  }
+
+  return `<article class="thread">`
+    + `<header class="thread-head">${outdated}${anchor}</header>`
+    + body
     + `</article>`
 }
 

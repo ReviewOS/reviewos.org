@@ -100,7 +100,14 @@ export default new Action({
         heading: '',
         lines,
       }],
-    }, { layout, tokens: map, inlineChanges: false })
+    }, {
+      layout,
+      tokens: map,
+      inlineChanges: false,
+      // Expanded context is code somebody can have an opinion about, so it
+      // carries the same affordance the rest of the file does.
+      commentable: true,
+    })
 
     return response.json({
       from: expanded.from,

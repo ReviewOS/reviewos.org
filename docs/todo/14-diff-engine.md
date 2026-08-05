@@ -197,8 +197,22 @@ Worth the paragraph because there is no error, no warning, and nothing in the co
 looks wrong - `position: sticky` reads back as `sticky` either way. The only way to see it is to walk
 the ancestor chain looking for whichever one is a scrollport.
 
-It costs something, honestly measured: style and layout over the four second scroll went from 180ms
-to about 205ms, which is above the noise floor. Still zero dropped frames.
+There was a second obstacle behind it, and it cost more. The virtualizer positioned each mounted file
+with `transform: translateY(...)`, which is the cheap way to move an element because it composites
+rather than lays out. But a sticky element inside a transformed ancestor computes its offset against
+the scroller while its box is moved by the transform, so the two disagree: every header ended up
+pinned to the *bottom* of its own file, with a blank strip where it should have been.
+
+Positioning with `top` instead fixes it, and the price is measurable and worth stating:
+
+| over a four second scroll | `transform` | `top` |
+|---|---|---|
+| style and layout | 205ms | 219ms |
+| paint and compositing | 425ms | 497ms |
+| dropped frames | 0 | 0 to 1 |
+
+Seventy milliseconds of paint spread over four seconds, for a header that tells the reader which file
+they are in. Taken.
 
 ### Traces, and comparing two commits
 
@@ -578,17 +592,20 @@ threads, which is where our version has to be better rather than equal.
 
 - [x] Annotation rows injected at a (file, side, line), measured like any other row so the
       virtualizer's height math includes them
-- [ ] A gutter affordance on hover that starts a comment on that line, and a drag across the gutter
+- [x] A gutter affordance on hover that starts a comment on that line, and a drag across the gutter
       that starts one on a range
-- [ ] A draft comment is a row in the diff, not a modal. Only one draft open at a time across the
-      whole list.
-- [ ] Threads render collapsed to one line once resolved, expandable in place
+- [x] A draft comment is a row in the diff, not a modal. Only one draft open at a time across the
+      whole list. Its text is held outside the DOM, so scrolling away from a half-written comment and
+      back does not lose it - the row it lives in is recycled like any other.
+- [x] Threads render collapsed to one line once resolved, expandable in place. A `<details>`, so it
+      works on the server-rendered page too, which runs no JavaScript at all.
 - [x] Outdated threads render on the line they were written against, marked, rather than being
       dropped (phase 4 already anchors them; this is the rendering half)
 - [ ] Draft reviews survive reload and machine change (phase 4 owns the persistence; this owns
       restoring them into the right rows)
-- [ ] Annotation rows are part of the pooling story: they must recycle too, or a heavily-commented
-      diff leaks
+- [x] Annotation rows are part of the pooling story: they must recycle too, or a heavily-commented
+      diff leaks. They are inside the file's markup, so they are released with it; the draft row is
+      the one exception and it is re-created from held text on the way back.
 
 ## One renderer, and what converging onto it found
 
@@ -625,8 +642,9 @@ already used it.
 - [x] Restoring from a hash mid-stream: the target file may not have arrived yet, so the attempt
       repeats as batches land and stops once it succeeds
 - [x] `hashchange` is honoured, so an in-page link between two threads works
-- [ ] A selection action surface (copy permalink, comment on selection, copy lines) anchored to the
-      selection
+- [x] A selection action surface (copy permalink, comment on selection, copy lines) anchored to the
+      selection. Copying lines strips the `+`/`-` marker, which belongs to the diff and not to the
+      code.
 
 ## The file tree
 

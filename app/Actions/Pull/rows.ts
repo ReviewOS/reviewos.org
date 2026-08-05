@@ -113,6 +113,13 @@ export interface RenderRowsOptions {
    * on; a row rendered *as* expanded context does not.
    */
   expandable?: boolean
+  /**
+   * Offer to start a comment on a line.
+   *
+   * Off by default, for the same reason `expandable` is: the control only makes
+   * sense where something is listening for it.
+   */
+  commentable?: boolean
 }
 
 /** The tokens for one line, falling back to its raw content. */
@@ -237,13 +244,23 @@ export function pairInlineChanges(
  * JavaScript at all. Clicking it is intercepted for the range behaviour; middle
  * clicking and copying still do what a link does.
  */
-function gutter(path: string, side: 'left' | 'right', line: number | null): string {
+function gutter(path: string, side: 'left' | 'right', line: number | null, commentable = false): string {
   if (line == null)
     return `<td class="gutter num"></td>`
 
   const fragment = formatLineAnchor({ path, side, from: line, to: line })
 
+  // The affordance that starts a comment, shown on hover and on focus. Only
+  // rendered where something can act on it: the streamed viewer wires it, and
+  // a server-rendered page with no JavaScript would otherwise carry a control
+  // that does nothing at all.
+  const comment = commentable
+    ? `<button type="button" class="line-comment" tabindex="-1"`
+      + ` aria-label="Comment on line ${line}"><span aria-hidden="true">+</span></button>`
+    : ''
+
   return `<td class="gutter num" data-line="${line}" data-side="${side}">`
+    + comment
     + `<a class="line-anchor" href="${escapeHtml(fragment)}"`
     + ` aria-label="Line ${line}">${line}</a></td>`
 }
@@ -337,8 +354,8 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
       // every line would start a dozen columns in.
       parts.push(
         `<tr class="line line-${line.origin}">`
-        + gutter(file.path, 'left', line.oldLine)
-        + gutter(file.path, 'right', line.newLine)
+        + gutter(file.path, 'left', line.oldLine, options.commentable)
+        + gutter(file.path, 'right', line.newLine, options.commentable)
         + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}</td>`
         + `</tr>`,
       )
@@ -359,7 +376,7 @@ function splitCell(line: DiffLine | null, side: 'old' | 'new', options: RenderRo
 
   const number = side === 'old' ? line.oldLine : line.newLine
 
-  return gutter(options.path ?? '', side === 'old' ? 'left' : 'right', number)
+  return gutter(options.path ?? '', side === 'old' ? 'left' : 'right', number, options.commentable)
     + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}</td>`
 }
 
