@@ -480,6 +480,46 @@
       .line-removed { background: var(--del-bg); }
       .line-removed .gutter { border-right-color: var(--del-line); }
 
+      /* What the reader has asked a diff to look like.
+
+         All of it is attributes on an ancestor and selectors here, which is
+         the point: a row is created and destroyed as the list scrolls, so a
+         setting applied per row would have to be re-applied on every mount.
+         Applied to the container it is true of every row that ever appears
+         under it, and switching one costs a style recalculation rather than a
+         refetch. */
+
+      /* A coloured edge instead of the +/- column. Reads better beside syntax
+         colours, because a glyph in the text flow competes with the code and
+         an edge does not. */
+      [data-diff-indicators='bar'] .marker { visibility: hidden; }
+      [data-diff-indicators='bar'] .line-added .code,
+      [data-diff-indicators='bar'] .has-added .code:last-child {
+        box-shadow: inset 3px 0 0 var(--add-line);
+      }
+      [data-diff-indicators='bar'] .line-removed .code,
+      [data-diff-indicators='bar'] .has-removed .code:nth-child(2) {
+        box-shadow: inset 3px 0 0 var(--del-line);
+      }
+
+      /* Nothing but the background. Only offered alongside the background,
+         and the pair of them off is prevented in the panel rather than here. */
+      [data-diff-indicators='none'] .marker { visibility: hidden; }
+
+      /* The wash behind changed lines, off. The gutter edge stays, and so does
+         whichever indicator is in force, so which side a line belongs to is
+         still legible without it. */
+      [data-diff-backgrounds='off'] .line-added,
+      [data-diff-backgrounds='off'] .line-removed { background: transparent; }
+
+      [data-diff-numbers='off'] .gutter.num { display: none; }
+
+      /* Wrapping. `anywhere` rather than `break-word` because a minified line
+         has no break opportunities at all and `break-word` would leave it
+         overflowing exactly as before. */
+      [data-diff-wrap='on'] .code { white-space: pre-wrap; overflow-wrap: anywhere; }
+      [data-diff-wrap='on'] .diff-body { overflow-x: hidden; }
+
       /* What changed within a line.
 
          A wash behind the characters that differ, rather than a colour on
@@ -556,10 +596,11 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 26px;
+        gap: 5px;
+        min-width: 26px;
         height: 18px;
         margin-right: 8px;
-        padding: 0;
+        padding: 0 6px;
         border: 1px solid var(--line-strong);
         border-radius: 4px;
         background: var(--surface);
@@ -573,6 +614,49 @@
 
       .hunk-expand:hover { border-color: var(--accent); color: var(--accent); }
       .hunk-expand[data-busy='true'] { opacity: 0.5; cursor: progress; }
+      /* How much is behind the control. Says four lines or four hundred, which
+         is the judgement a reviewer is making when they look at it. */
+      .hunk-skipped { font-size: 11px; font-variant-numeric: tabular-nums; }
+
+      /* The display panel. A details element rather than a menu widget: it
+         opens, it closes, it is keyboard reachable, and it needed no code. */
+      .diff-settings { position: relative; }
+      .diff-settings > summary {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border: 1px solid var(--line-strong);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--text);
+        font-size: 12.5px;
+        cursor: pointer;
+        list-style: none;
+      }
+
+      .diff-settings > summary::-webkit-details-marker { display: none; }
+      .diff-settings[open] > summary { border-color: var(--accent); color: var(--accent); }
+
+      .diff-settings-panel {
+        position: absolute;
+        z-index: 20;
+        top: calc(100% + 6px);
+        right: 0;
+        width: 232px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel);
+        background: var(--surface);
+        box-shadow: 0 12px 30px rgb(0 0 0 / 12%);
+        font-size: 12.5px;
+        text-align: left;
+      }
+
+      .diff-settings-panel fieldset { margin: 0 0 10px; padding: 0; border: 0; }
+      .diff-settings-panel fieldset:last-child { margin-bottom: 0; }
+      .diff-settings-panel legend { padding: 0 0 5px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+      .diff-settings-panel label { display: flex; align-items: center; gap: 7px; padding: 3px 0; cursor: pointer; }
 
       .hunk-head td { background: var(--surface-tint); border-top: 1px solid var(--line); }
       .hunk-label { padding: 4px 12px; color: var(--muted); font-size: 12px; }

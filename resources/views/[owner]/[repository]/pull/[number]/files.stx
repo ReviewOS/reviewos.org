@@ -105,6 +105,38 @@ const contextUrl = `/api/repos/pulls/diff/context?${diffQuery}`
           <button type="button" class="btn btn-small" data-diff-layout-toggle aria-pressed="false">
             Unified
           </button>
+
+          <button type="button" class="btn btn-small" data-diff-collapse-all aria-pressed="false">
+            Collapse all
+          </button>
+
+          {{--
+            Presentation only. Every control here is read by CSS off an
+            attribute on the diff root, so switching one costs a style
+            recalculation and never a refetch, whatever the diff is.
+          --}}
+          <details class="diff-settings">
+            <summary>
+              <span class="i-hugeicons-settings-01" aria-hidden="true"></span>
+              Display
+            </summary>
+
+            <div class="diff-settings-panel" data-diff-settings>
+              <fieldset>
+                <legend>Change indicator</legend>
+                <label><input type="radio" name="diff-indicators" value="glyph" data-diff-pref="indicators"> Plus and minus</label>
+                <label><input type="radio" name="diff-indicators" value="bar" data-diff-pref="indicators"> Colour bar</label>
+                <label><input type="radio" name="diff-indicators" value="none" data-diff-pref="indicators"> None</label>
+              </fieldset>
+
+              <fieldset>
+                <legend>Show</legend>
+                <label><input type="checkbox" data-diff-pref="lineNumbers"> Line numbers</label>
+                <label><input type="checkbox" data-diff-pref="changeBackground"> Change backgrounds</label>
+                <label><input type="checkbox" data-diff-pref="wrap"> Wrap long lines</label>
+              </fieldset>
+            </div>
+          </details>
         </div>
       </header>
 
@@ -209,7 +241,10 @@ mountDiffFiles()
     overflow-anchor: none;
   }
 
-  .diff-file-host { padding-bottom: 8px; }
+  /* No padding of its own. The space between files is the layout's `gap`, and
+     a host that padded itself would have that space counted twice: once in the
+     height the viewer measures, and once when it adds the gap. */
+  .diff-file-host { padding-bottom: 0; }
 
   .is-pending .diff-head { opacity: 0.6; }
 

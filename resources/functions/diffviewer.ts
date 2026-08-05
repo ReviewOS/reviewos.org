@@ -28,6 +28,11 @@ import {
   type LineAnchor,
   parseLineAnchor,
 } from '../../app/Actions/Pull/lineLink'
+import { applyPreferences, type DiffPreferences, readPreferences, wirePreferenceControls, writePreferences } from './diffprefs'
+// From `shell.ts` rather than from `rows.ts`, and that is the whole reason
+// `shell.ts` exists: `rows.ts` reaches the highlighter, and the browser must
+// never download forty eight grammars to draw a file header.
+import { renderDiffShell } from '../../app/Actions/Pull/shell'
 
 /**
  * How many hosts to keep for reuse.
@@ -196,35 +201,6 @@ function isTyping(target: EventTarget | null): boolean {
   return tag === 'input' || tag === 'textarea' || tag === 'select' || element.isContentEditable
 }
 
-/** Where the reader's layout choice is remembered. */
-const LAYOUT_KEY = 'reviewos:diff-layout'
-
-/**
- * The layout the reader last chose.
- *
- * Storage can throw: Safari in private browsing, and any browser with
- * third-party storage blocked in a frame. A reader who cannot be remembered
- * still gets a working page, so this never throws.
- */
-function readStoredLayout(): 'unified' | 'split' | null {
-  try {
-    const value = window.localStorage.getItem(LAYOUT_KEY)
-    return value === 'split' || value === 'unified' ? value : null
-  }
-  catch {
-    return null
-  }
-}
-
-function writeStoredLayout(layout: 'unified' | 'split'): void {
-  try {
-    window.localStorage.setItem(LAYOUT_KEY, layout)
-  }
-  catch {
-    // Not being remembered is not a reason to stop.
-  }
-}
-
 /** How long a row request waits to collect more files before it goes. */
 const ROW_FETCH_DELAY_MS = 32
 
@@ -301,6 +277,15 @@ export interface DiffViewer {
    * many rows arrived.
    */
   remeasure: (index: number) => void
+  /**
+   * Measure every file again, because something changed all of them.
+   *
+   * Turning word wrap on is the case: nothing the viewer rendered changed, and
+   * every measured height is now wrong by however many lines wrapped. Cheaper
+   * than it sounds - only mounted files are measured, and the rest go back to
+   * their estimates, which is what they would have had anyway.
+   */
+  remeasureAll: () => void
   collapseAll: (collapsed: boolean) => void
   scrollToFile: (index: number) => void
   /** The files, in diff order. */
@@ -574,6 +559,18 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       schedule()
     },
 
+    remeasureAll() {
+      // The anchor is taken against the layout as it stands, before the
+      // measurements are dropped, so the correction that follows can put the
+      // reader back on the line they were reading.
+      anchorNow()
+
+      for (const file of geometry)
+        file.measured = undefined
+
+      schedule()
+    },
+
     refresh(index) {
       const host = hosts.get(index)
       const entry = entries[index]
@@ -594,6 +591,9 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       anchorNow()
       entry.collapsed = collapsed
       geometry[index]!.collapsed = collapsed
+      // What it measured was the other state, and measurements now win over
+      // estimates whether a file is folded or not.
+      geometry[index]!.measured = undefined
 
       // Re-rendered rather than hidden with CSS, so a collapsed file is not
       // holding the markup of the eight thousand lines it is not showing.
@@ -609,6 +609,7 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       for (let index = 0; index < entries.length; index++) {
         entries[index]!.collapsed = collapsed
         geometry[index]!.collapsed = collapsed
+        geometry[index]!.measured = undefined
       }
 
       for (const index of [...hosts.keys()])
@@ -837,10 +838,29 @@ export function mountDiffFiles(): DiffViewer | null {
   const rowsUrl = root.dataset.rowsUrl
   const contextUrl = root.dataset.contextUrl
 
-  // The reader's own choice wins over the page's default, which is what the
-  // server rendered the first batch of rows in.
-  const stored = readStoredLayout()
-  const initialLayout = stored ?? (root.dataset.layout === 'split' ? 'split' : 'unified')
+  // The reader's own choices win over the page's defaults, which is what the
+  // server rendered the first batch of rows in. Applied to the root before
+  // anything mounts, so the first file to appear is already shaped the way the
+  // reader asked rather than being restyled a frame later.
+  const settingsPanel = document.querySelector<HTMLElement>('[data-diff-settings]')
+  const preferences: DiffPreferences = settingsPanel
+    ? wirePreferenceControls({
+        root,
+        panel: settingsPanel,
+        onChange: (next, changed) => {
+          // Everything but wrapping is a repaint of markup that is already
+          // there. Wrapping changes how tall every line is, so what the viewer
+          // measured is now wrong for every mounted file.
+          if (changed === 'wrap')
+            viewer.remeasureAll()
+        },
+      })
+    : readPreferences()
+
+  if (!settingsPanel)
+    applyPreferences(root, preferences)
+
+  const initialLayout = preferences.layout
   let layout: 'unified' | 'split' = initialLayout
   // The layout the page rendered its inline rows in, which is what those arrive
   // already shaped as.
@@ -885,6 +905,14 @@ export function mountDiffFiles(): DiffViewer | null {
     // highlighted is the file the reader is actually looking at.
     onVisibleChange: start => fileList?.setCurrent(start),
     renderFile(file, host) {
+      // Folded up: the header and nothing else. No rows are asked for, because
+      // the reader has not asked to see any, and a diff where every collapsed
+      // lock file quietly fetches itself is a diff that collapses nothing.
+      if (file.collapsed) {
+        host.innerHTML = renderDiffShell(file, { collapsed: true })
+        return
+      }
+
       const cached = markup.get(file.index)
       if (cached != null && cached.layout === layout) {
         host.innerHTML = cached.html
@@ -900,12 +928,10 @@ export function mountDiffFiles(): DiffViewer | null {
         scheduleRowFetch()
       }
 
-      // Rows for this file have not arrived. A placeholder the right height
-      // rather than an empty box, so the scrollbar does not lurch when they do.
-      host.innerHTML = `<section class="diff-file is-pending panel">`
-        + `<header class="diff-head"><span class="diff-path mono">${escapeText(file.path)}</span>`
-        + `<span class="diff-counts mono"><span class="count-add">+${file.additions}</span>`
-        + `<span class="count-del">-${file.deletions}</span></span></header></section>`
+      // Rows for this file have not arrived. The same header it will have when
+      // they do, so opening a diff does not look like a list of grey boxes
+      // turning into files.
+      host.innerHTML = renderDiffShell(file, { pending: true })
     },
   })
 
@@ -1169,7 +1195,8 @@ export function mountDiffFiles(): DiffViewer | null {
 
   toggle?.addEventListener('click', () => {
     layout = layout === 'split' ? 'unified' : 'split'
-    writeStoredLayout(layout)
+    preferences.layout = layout
+    writePreferences(preferences)
     showLayout()
 
     // The geometry switches immediately: the manifest carried the row counts
@@ -1179,6 +1206,32 @@ export function mountDiffFiles(): DiffViewer | null {
     wanted.clear()
     viewer.setLayout(layout)
   })
+
+  /**
+   * Fold the whole review up, or open it out again.
+   *
+   * One button rather than two, because the reader can see which state the list
+   * is in and a pair of buttons where one is always a no-op is a pair of
+   * buttons to read. Collapsing keeps the scroll position because the viewer
+   * anchors it, so this is a way to *skim* rather than a way to lose your place.
+   */
+  const collapseAllButton = document.querySelector<HTMLElement>('[data-diff-collapse-all]')
+  let allCollapsed = false
+
+  const showCollapseAll = () => {
+    if (collapseAllButton) {
+      collapseAllButton.textContent = allCollapsed ? 'Expand all' : 'Collapse all'
+      collapseAllButton.setAttribute('aria-pressed', allCollapsed ? 'true' : 'false')
+    }
+  }
+
+  collapseAllButton?.addEventListener('click', () => {
+    allCollapsed = !allCollapsed
+    viewer.collapseAll(allCollapsed)
+    showCollapseAll()
+  })
+
+  showCollapseAll()
 
   /**
    * Moving without the mouse.
