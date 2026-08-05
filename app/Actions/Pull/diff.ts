@@ -6,7 +6,13 @@
  * both sides, which is what a comment needs to point at. Pure over a string, so
  * the awkward shapes (a file with no trailing newline, a rename with no content
  * change, a binary file) can be tested without a repository.
+ *
+ * The unit is one file rather than the whole patch, because the streaming path
+ * in `patch.ts` hands over one file at a time as it arrives. `parseDiff` is the
+ * convenience wrapper for a caller that already holds a complete diff.
  */
+
+import { detachString, splitPatchFiles } from './patch'
 
 export type LineOrigin = 'context' | 'added' | 'removed'
 
@@ -45,48 +51,66 @@ export interface DiffFile {
   newMode: string | null
 }
 
-/** Parse `git diff` output. */
-export function parseDiff(raw: string): DiffFile[] {
-  const files: DiffFile[] = []
-  const lines = raw.split('\n')
+export interface ParseDiffFileOptions {
+  /**
+   * Copy retained strings away from the text they were sliced out of.
+   *
+   * A slice in V8 points into its parent, so keeping one line of a 600MB patch
+   * keeps all 600MB. Pass true when the parsed file outlives the text it came
+   * from, which is the server-side cache; leave it off for a parse whose
+   * output is serialized and dropped straight away, where it is pure overhead.
+   */
+  detach?: boolean
+}
+
+/**
+ * Parse one file's worth of `git diff` output.
+ *
+ * This is the unit the streaming path works in: `createPatchSplitter` hands
+ * over one of these as soon as the following file's header proves it complete,
+ * so a reader sees the first file while git is still writing the last.
+ *
+ * Returns null when the text does not begin a file, which is how a caller
+ * distinguishes patch preamble and malformed input from an empty diff.
+ */
+export function parseDiffFile(fileText: string, options: ParseDiffFileOptions = {}): DiffFile | null {
+  const keep = options.detach === true ? detachString : identity
+  const lines = fileText.split('\n')
 
   // `split` leaves an empty final element for the trailing newline every diff
-  // ends with. Left in, it is counted as a blank context line and every file
+  // ends with. Left in, it is counted as a blank context line and the file
   // gains a line it does not have.
   if (lines.length > 0 && lines[lines.length - 1] === '')
     lines.pop()
 
-  let file: DiffFile | null = null
+  const header = lines[0]
+  if (header === undefined || !header.startsWith('diff --git '))
+    return null
+
+  const file: DiffFile = {
+    path: keep(pathFromDiffHeader(header)),
+    previousPath: null,
+    status: 'modified',
+    binary: false,
+    additions: 0,
+    deletions: 0,
+    hunks: [],
+    oldMode: null,
+    newMode: null,
+  }
+
   let hunk: DiffHunk | null = null
   let oldLine = 0
   let newLine = 0
 
-  const closeFile = () => {
-    if (file)
-      files.push(file)
-    file = null
-    hunk = null
-  }
+  for (let index = 1; index < lines.length; index++) {
+    const line = lines[index]!
 
-  for (const line of lines) {
-    if (line.startsWith('diff --git ')) {
-      closeFile()
-      file = {
-        path: pathFromDiffHeader(line),
-        previousPath: null,
-        status: 'modified',
-        binary: false,
-        additions: 0,
-        deletions: 0,
-        hunks: [],
-        oldMode: null,
-        newMode: null,
-      }
-      continue
-    }
-
-    if (!file)
-      continue
+    // A second header inside one file's text means the splitter cut on a line
+    // that only looked like a boundary. Stop rather than folding two files
+    // into one.
+    if (line.startsWith('diff --git '))
+      break
 
     if (line.startsWith('new file mode ')) {
       file.status = 'added'
@@ -112,25 +136,25 @@ export function parseDiff(raw: string): DiffFile[] {
 
     if (line.startsWith('rename from ')) {
       file.status = 'renamed'
-      file.previousPath = line.slice('rename from '.length)
+      file.previousPath = keep(line.slice('rename from '.length))
       continue
     }
 
     if (line.startsWith('rename to ')) {
       file.status = 'renamed'
-      file.path = line.slice('rename to '.length)
+      file.path = keep(line.slice('rename to '.length))
       continue
     }
 
     if (line.startsWith('copy from ')) {
       file.status = 'copied'
-      file.previousPath = line.slice('copy from '.length)
+      file.previousPath = keep(line.slice('copy from '.length))
       continue
     }
 
     if (line.startsWith('copy to ')) {
       file.status = 'copied'
-      file.path = line.slice('copy to '.length)
+      file.path = keep(line.slice('copy to '.length))
       continue
     }
 
@@ -140,14 +164,14 @@ export function parseDiff(raw: string): DiffFile[] {
       continue
     }
 
-    const header = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/.exec(line)
-    if (header) {
+    const hunkHeader = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/.exec(line)
+    if (hunkHeader) {
       hunk = {
-        oldStart: Number(header[1]),
-        oldLines: header[2] === undefined ? 1 : Number(header[2]),
-        newStart: Number(header[3]),
-        newLines: header[4] === undefined ? 1 : Number(header[4]),
-        heading: header[5]!.trim(),
+        oldStart: Number(hunkHeader[1]),
+        oldLines: hunkHeader[2] === undefined ? 1 : Number(hunkHeader[2]),
+        newStart: Number(hunkHeader[3]),
+        newLines: hunkHeader[4] === undefined ? 1 : Number(hunkHeader[4]),
+        heading: keep(hunkHeader[5]!.trim()),
         lines: [],
       }
       file.hunks.push(hunk)
@@ -165,7 +189,7 @@ export function parseDiff(raw: string): DiffFile[] {
       continue
 
     const marker = line[0]
-    const content = line.slice(1)
+    const content = keep(line.slice(1))
 
     if (marker === '+') {
       hunk.lines.push({ origin: 'added', content, oldLine: null, newLine })
@@ -184,8 +208,32 @@ export function parseDiff(raw: string): DiffFile[] {
     }
   }
 
-  closeFile()
+  return file
+}
+
+/**
+ * Parse a whole `git diff` output.
+ *
+ * The convenience form over `parseDiffFile`, for callers that already hold the
+ * complete text. Anything that reads from a stream should use the splitter and
+ * the per-file parser directly, so the first file is available while git is
+ * still writing.
+ */
+export function parseDiff(raw: string, options: ParseDiffFileOptions = {}): DiffFile[] {
+  const files: DiffFile[] = []
+
+  for (const fileText of splitPatchFiles(raw)) {
+    const file = parseDiffFile(fileText, options)
+    if (file)
+      files.push(file)
+  }
+
   return files
+}
+
+/** Used in place of `detachString` when the parse output does not outlive its input. */
+function identity(value: string): string {
+  return value
 }
 
 /**

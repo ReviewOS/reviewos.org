@@ -6,7 +6,7 @@
 // of a file edited at the top, and a line that is genuinely gone.
 
 import { describe, expect, test } from 'bun:test'
-import { diffTotals, isGenerated, isWhitespaceOnly, parseDiff } from '../../app/Actions/Pull/diff'
+import { diffTotals, isGenerated, isWhitespaceOnly, parseDiff, parseDiffFile } from '../../app/Actions/Pull/diff'
 import { approvalsSatisfied, mapLine, reanchor, reviewIsStale } from '../../app/Actions/Pull/anchoring'
 
 const simple = `diff --git a/src/app.ts b/src/app.ts
@@ -153,6 +153,57 @@ new mode 100755
 
   test('returns nothing for empty input', () => {
     expect(parseDiff('')).toEqual([])
+  })
+})
+
+// The unit the streaming path works in. A file arrives on its own, so the
+// parser has to decide what it is looking at without the rest of the patch.
+describe('parseDiffFile', () => {
+  test('parses one file on its own', () => {
+    const file = parseDiffFile(simple)
+
+    expect(file).not.toBeNull()
+    expect(file!.path).toBe('src/app.ts')
+    expect(file!.additions).toBe(2)
+  })
+
+  test('declines text that does not begin a file', () => {
+    expect(parseDiffFile('')).toBeNull()
+    expect(parseDiffFile('commit abc123\n\n    message\n')).toBeNull()
+    expect(parseDiffFile('@@ -1 +1 @@\n-a\n+b\n')).toBeNull()
+  })
+
+  test('stops at a second header rather than folding two files into one', () => {
+    const two = `${simple}diff --git a/b.ts b/b.ts
+--- a/b.ts
++++ b/b.ts
+@@ -1 +1 @@
+-x
++y
+`
+    const file = parseDiffFile(two)
+
+    expect(file!.path).toBe('src/app.ts')
+    expect(file!.additions).toBe(2)
+  })
+
+  test('detaching does not change what is parsed', () => {
+    expect(parseDiffFile(simple, { detach: true })).toEqual(parseDiffFile(simple))
+  })
+
+  test('detaching preserves content exactly, whitespace included', () => {
+    const raw = `diff --git a/w.ts b/w.ts
+--- a/w.ts
++++ b/w.ts
+@@ -1,2 +1,2 @@
+-\tif (a) {
++  if (a) {
+ }
+`
+    const [removed, added] = parseDiffFile(raw, { detach: true })!.hunks[0]!.lines
+
+    expect(removed!.content).toBe('\tif (a) {')
+    expect(added!.content).toBe('  if (a) {')
   })
 })
 
