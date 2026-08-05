@@ -10,7 +10,7 @@
 
 import type { RepositoryAbility } from '../../Permissions'
 import type { GitRepositoryRow } from '../Git/access'
-import { canOnRepository, repositoryPermissionFor } from '../../Permissions'
+import { allowedOnArchivedRepository, canOnRepository, repositoryPermissionFor } from '../../Permissions'
 import { findRepositoryByPath, permissionOn } from '../Git/access'
 import { currentUser } from '../Identity/lookup'
 
@@ -59,6 +59,21 @@ export async function authorizeRepository(request: any, ability: RepositoryAbili
 
   if (!canOnRepository(input, ability))
     return { ok: false, error: user ? 'Forbidden' : 'Unauthenticated', status: user ? 403 : 401 }
+
+  // Archived is checked after the permission, so a stranger learns nothing:
+  // "this repository is archived" from an endpoint they could never have used
+  // is still a confirmation that it exists.
+  //
+  // 409 rather than 403, because the caller is not the problem. They have the
+  // permission; the repository is in a state that refuses the change, and the
+  // fix is to unarchive rather than to ask somebody for access.
+  if (repository.is_archived && !allowedOnArchivedRepository(ability)) {
+    return {
+      ok: false,
+      error: 'This repository is archived. Unarchive it to make changes.',
+      status: 409,
+    }
+  }
 
   return {
     ok: true,

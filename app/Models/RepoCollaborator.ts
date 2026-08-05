@@ -9,7 +9,10 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
-    { name: 'repo_collaborators_repo_user_index', columns: ['repository_id', 'user_id'] },
+    // One grant per person per repository. Two rows would mean two answers to
+    // "what may this person do here", and the permission check would take
+    // whichever the database returned first.
+    { name: 'repo_collaborators_repo_user_index', columns: ['repository_id', 'user_id'], unique: true },
   ],
 
   traits: {

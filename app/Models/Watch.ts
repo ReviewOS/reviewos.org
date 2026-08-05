@@ -14,7 +14,9 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
-    { name: 'watches_repo_user_index', columns: ['repository_id', 'user_id'] },
+    // One answer per person per repository. Two rows would mean the product
+    // holds two opinions about how much somebody wants to hear from it.
+    { name: 'watches_repo_user_index', columns: ['repository_id', 'user_id'], unique: true },
   ],
 
   traits: {

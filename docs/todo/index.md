@@ -16,7 +16,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 |---|---|---|
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done, 5 deferred (27/32) |
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (22/57) |
-| [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (47/79) |
+| [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (56/85) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (46/85) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | In progress (21/51) |
@@ -107,6 +107,25 @@ and it will be some other method next time. **Check the SQL, not the shape of th
 The counters are recomputed from the rows they count now (`app/Actions/Repo/counters.ts`) rather
 than adjusted. It costs one indexed `COUNT` per mutation and it is correct under concurrency,
 self-healing on the values that are already wrong, and impossible to drift.
+
+**`.where(column, 'in', ids)` renders `in $1` on a write.** The third one, found the same way. On a
+`SELECT` it is correct - `WHERE repository_id IN ($1, $2, $3)` - because the select path expands the
+array itself. On an `UPDATE` or a `DELETE` the operator is spliced in with a single placeholder
+after it:
+
+```
+DELETE FROM "issue_labels" WHERE "issue_id" in $1
+```
+
+Postgres answers `syntax error at or near "$1"`. So bulk close, bulk label, bulk unlabel and bulk
+milestone had never done anything, and neither had closing an issue by merging a pull request.
+
+What makes this one nastier than the last is that the *same call, spelled the same way, works* - as
+long as it is a read. The pattern looks proven by a dozen working call sites, and it is, for reads.
+
+`deleteWhereIn` and `updateWhereIn` in `app/Actions/Support/rows.ts` are the workaround, in one
+place so it is worked around once rather than remembered. They go away when the builder renders
+`IN` on writes.
 
 ## How work is shaped
 

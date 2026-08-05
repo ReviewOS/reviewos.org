@@ -22,6 +22,10 @@ export interface GitRepositoryRow {
   is_archived: boolean
   default_branch: string
   disk_path: string
+  /** Carried so a fork can inherit it. Never used by the wire protocol. */
+  description: string
+  /** The repository this one was forked from, when it was. */
+  parent_id: number | null
 }
 
 /** Look up a repository by the owner handle and name in a git URL. */
@@ -41,7 +45,18 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
 
   const repository = await db
     .selectFrom('repositories')
-    .select(['id', 'name', 'owner_type', 'owner_id', 'visibility', 'is_archived', 'default_branch', 'disk_path'])
+    .select([
+      'id',
+      'name',
+      'owner_type',
+      'owner_id',
+      'visibility',
+      'is_archived',
+      'default_branch',
+      'disk_path',
+      'description',
+      'parent_id',
+    ])
     .where('owner_type', '=', ownerType)
     .where('owner_id', '=', ownerId)
     .where('name', '=', name)
@@ -59,6 +74,8 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
     is_archived: Boolean(repository.is_archived),
     default_branch: String(repository.default_branch),
     disk_path: String(repository.disk_path),
+    description: repository.description ? String(repository.description) : '',
+    parent_id: repository.parent_id === null || repository.parent_id === undefined ? null : Number(repository.parent_id),
   }
 }
 

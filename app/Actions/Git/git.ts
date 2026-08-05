@@ -159,6 +159,37 @@ export async function initBare(repositoryPath: string, defaultBranch = 'main'): 
 }
 
 /**
+ * Copy a bare repository, for a fork.
+ *
+ * Not through `runGit`, and that is the point: `runGit` prefixes `--git-dir`,
+ * which `clone` reads as the repository it is cloning *into*, so a clone routed
+ * through it writes the new repository over whichever repository was named. Its
+ * own spawn here means the arguments say exactly what they mean.
+ *
+ * `--local` is what makes a fork cheap. Cloning from a path on the same
+ * filesystem hardlinks the object store instead of copying it, so a fork of a
+ * repository with a decade of history costs a directory of refs and takes no
+ * meaningful time. Both paths are under `storage/repos`, so the condition
+ * `--local` needs always holds.
+ */
+export async function cloneBare(from: string, to: string): Promise<GitResult> {
+  return await new Promise<GitResult>((resolvePromise) => {
+    const child = spawn('git', ['clone', '--bare', '--local', from, to], {
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: '0',
+        GIT_CONFIG_NOSYSTEM: '1',
+      },
+    })
+
+    let stderr = ''
+    child.stderr.on('data', chunk => stderr += chunk)
+    child.on('error', error => resolvePromise({ ok: false, stdout: '', stderr: String(error), code: -1 }))
+    child.on('close', code => resolvePromise({ ok: code === 0, stdout: '', stderr, code: code ?? -1 }))
+  })
+}
+
+/**
  * The commit both refs descend from.
  *
  * This is what a pull request diffs against. Diffing against the base tip shows

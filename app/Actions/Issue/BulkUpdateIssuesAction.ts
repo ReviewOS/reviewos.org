@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
 import { recountOpenIssues } from '../Repo/counters'
+import { deleteWhereIn, updateWhereIn } from '../Support/rows'
 import { abilityFor, isBulkOperation, selectedNumbers } from './bulk'
 
 /**
@@ -78,13 +79,9 @@ async function setState(issues: any[], ids: number[], closing: boolean, actorId:
 
   const movingIds = moving.map(row => Number(row.id))
 
-  await db
-    .updateTable('issues')
-    .set(closing
-      ? { state: 'closed', state_reason: 'completed', closed_at: new Date().toISOString(), closed_by_id: actorId }
-      : { state: 'open', state_reason: null, closed_at: null, closed_by_id: null })
-    .where('id', 'in', movingIds)
-    .execute()
+  await updateWhereIn('issues', 'id', movingIds, closing
+    ? { state: 'closed', state_reason: 'completed', closed_at: new Date().toISOString(), closed_by_id: actorId }
+    : { state: 'open', state_reason: null, closed_at: null, closed_by_id: null })
 
   await recountOpenIssues(repositoryId)
 
@@ -117,7 +114,7 @@ async function setMilestone(ids: number[], requested: unknown, repositoryId: num
     milestoneId = Number(milestone.id)
   }
 
-  await db.updateTable('issues').set({ milestone_id: milestoneId }).where('id', 'in', ids).execute()
+  await updateWhereIn('issues', 'id', ids, { milestone_id: milestoneId })
 
   return response.json({ changed: ids.length, milestone_id: milestoneId })
 }
@@ -147,7 +144,7 @@ async function setLabel(ids: number[], requested: unknown, repositoryId: number,
   const labelId = Number(label.id)
 
   if (!adding) {
-    await db.deleteFrom('issue_labels').where('label_id', '=', labelId).where('issue_id', 'in', ids).execute()
+    await deleteWhereIn('issue_labels', 'issue_id', ids, { label_id: labelId })
 
     return response.json({ changed: ids.length, label: String(label.name), added: false })
   }

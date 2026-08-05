@@ -20,7 +20,13 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
-    { name: 'repositories_owner_name_index', columns: ['owner_type', 'owner_id', 'name'] },
+    // Unique, not merely indexed. Every path that creates a repository under a
+    // name - create, fork, rename, transfer - checks first that the name is
+    // free, and every one of those checks is a read followed by a write with a
+    // gap in between. Two requests arriving together both find the name free.
+    // The constraint is what actually holds the rule; the checks exist to turn
+    // it into a sentence rather than a database error.
+    { name: 'repositories_owner_name_index', columns: ['owner_type', 'owner_id', 'name'], unique: true },
     { name: 'repositories_pushed_at_index', columns: ['pushed_at'] },
   ],
 

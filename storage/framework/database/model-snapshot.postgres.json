@@ -8581,7 +8581,7 @@
               "repository_id",
               "user_id"
             ],
-            "type": "index"
+            "type": "unique"
           }
         ]
       },
@@ -8789,7 +8789,7 @@
               "owner_id",
               "name"
             ],
-            "type": "index"
+            "type": "unique"
           },
           {
             "name": "repositories_pushed_at_index",
@@ -10325,7 +10325,7 @@
               "repository_id",
               "user_id"
             ],
-            "type": "index"
+            "type": "unique"
           }
         ]
       },
@@ -11922,7 +11922,7 @@
               "repository_id",
               "user_id"
             ],
-            "type": "index"
+            "type": "unique"
           }
         ]
       },
@@ -12792,7 +12792,7 @@
       }
     ]
   },
-  "hash": "c2ff8cf2a7e9340192685dda3a1c80a76f71d4f9e79a1a4c50a3aa8d17d59fbc",
+  "hash": "1a5096772c30f1d073ff58fc4217e7ff7190221654b52b3bcb5dfb4916f35a41",
   "dialect": "postgres",
-  "updatedAt": "2026-08-05T18:18:54.717Z"
+  "updatedAt": "2026-08-05T20:16:44.299Z"
 }

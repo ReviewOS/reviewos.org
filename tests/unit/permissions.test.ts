@@ -6,12 +6,14 @@
 
 import { describe, expect, test } from 'bun:test'
 import {
+  allowedOnArchivedRepository,
   canInOrganization,
   canOnRepository,
   highestRepositoryPermission,
   ORGANIZATION_ROLES,
   organizationRoleGrants,
   organizationRoleSatisfies,
+  REPOSITORY_ABILITIES,
   REPOSITORY_LEVELS,
   repositoryPermissionFor,
   repositoryPermissionSatisfies,
@@ -221,6 +223,45 @@ describe('canInOrganization', () => {
 
   test('a non-member can do nothing', () => {
     expect(canInOrganization(null, 'members:view')).toBe(false)
+  })
+})
+
+/**
+ * Archiving, as an allowlist.
+ *
+ * The denylist version of this rule is the one that rots: somebody adds an
+ * ability next year, nobody remembers this file exists, and an archived
+ * repository quietly accepts the new kind of write. Stated as an allowlist, the
+ * new ability is frozen by default and this test is what says so.
+ */
+describe('allowedOnArchivedRepository', () => {
+  test('reading is what archiving is for', () => {
+    expect(allowedOnArchivedRepository('repository:read')).toBe(true)
+  })
+
+  test('settings survive, or archiving would be irreversible', () => {
+    expect(allowedOnArchivedRepository('repository:settings')).toBe(true)
+  })
+
+  test('deciding what to do with it survives', () => {
+    expect(allowedOnArchivedRepository('repository:delete')).toBe(true)
+    expect(allowedOnArchivedRepository('repository:transfer')).toBe(true)
+  })
+
+  test('every other ability is frozen', () => {
+    const exempt = new Set(['repository:read', 'repository:settings', 'repository:delete', 'repository:transfer'])
+
+    for (const ability of Object.keys(REPOSITORY_ABILITIES) as (keyof typeof REPOSITORY_ABILITIES)[]) {
+      if (!exempt.has(ability))
+        expect(allowedOnArchivedRepository(ability), ability).toBe(false)
+    }
+  })
+
+  test('pushing, commenting and opening an issue are all refused', () => {
+    expect(allowedOnArchivedRepository('repository:push')).toBe(false)
+    expect(allowedOnArchivedRepository('issue:comment')).toBe(false)
+    expect(allowedOnArchivedRepository('issue:open')).toBe(false)
+    expect(allowedOnArchivedRepository('pull:merge')).toBe(false)
   })
 })
 

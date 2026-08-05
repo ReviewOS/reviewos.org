@@ -5,6 +5,7 @@ import { isFullSha, isSafeRevision, listBranches, runGit } from '../Actions/Git/
 import { repositoryByGitDir } from '../Actions/Git/hooks'
 import { adoptedDefaultBranch, branchUpdates, commitRange } from '../Actions/Git/push'
 import { recountOpenIssues } from '../Actions/Repo/counters'
+import { recordSize } from '../Actions/Repo/size'
 import { recordCommitReferences } from '../Actions/Issue/crossReferences'
 import { closingTargets } from '../Actions/Issue/closing'
 import { record } from '../Actions/Issue/timeline'
@@ -48,6 +49,8 @@ export default new Job({
     const branches = branchUpdates(updates)
 
     await touchPushedAt(Number(repository.id))
+    // After the objects have landed, so what is measured is what the push left.
+    const sizeKb = await recordSize(Number(repository.id), gitDir)
     const defaultBranch = await settleDefaultBranch(repository, updates, gitDir)
     const refreshed = await refreshPullRequests(Number(repository.id), branches)
     const commits = await collectCommits(gitDir, branches)
@@ -79,6 +82,7 @@ export default new Job({
       commits: commits.length,
       closedIssues: closed,
       pullRequestsRefreshed: refreshed,
+      sizeKb,
     }
   },
 })

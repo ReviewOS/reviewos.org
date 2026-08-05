@@ -17,9 +17,14 @@ known to exactly one place.
       repositories nobody pushes to would keep whichever version they were created with, which is
       exactly where a silent failure goes unnoticed longest. `buddy git:hooks` writes them and
       repoints every repository, which is the deploy step after an upgrade.
-- [ ] Repository size accounting, updated after receives
-- [ ] Deleting a repository moves it aside with a timestamp rather than unlinking, so an accidental
-      delete is recoverable for a retention window
+- [x] Repository size accounting, updated after receives and after a fork. From
+      `git count-objects -v` rather than `du`: forks share their objects through hardlinks, so `du`
+      counts the same bytes once per fork and a hundred forks look like a hundred times the disk
+- [x] Deleting a repository moves it aside with a timestamp rather than unlinking, so an accidental
+      delete is recoverable for a retention window. The database work happens first: a failure then
+      is a delete that did not happen, where the other order leaves a repository that is gone from
+      disk and still listed
+- [ ] A retention sweep that removes `storage/repos-deleted/` entries older than the window
 
 ## Models
 
@@ -27,9 +32,12 @@ known to exactly one place.
       `description`, `visibility` (public, private, internal), `default_branch`, `is_fork`,
       `parent_id`, `is_archived`, `is_template`, `size_kb`, `stars_count`, `forks_count`,
       `open_issues_count`, `pushed_at`
-- [ ] Unique constraint on `(owner_type, owner_id, name)`
+- [x] Unique constraint on `(owner_type, owner_id, name)`, and on `(repository_id, user_id)` for
+      stars, watches and collaborators
 - [ ] Counter columns are denormalized on purpose; every writer updates them in the same transaction
-      as the row it counts
+      as the row it counts. They are recomputed rather than incremented - see
+      `app/Actions/Repo/counters.ts` for why an increment nobody can verify is an increment that has
+      been wrong since it was written
 - [x] `app/Models/RepoCollaborator.ts`: `repository_id`, `user_id`, `permission`
 - [x] `app/Models/Star.ts`, `app/Models/Watch.ts` with a `subscription` level (all, participating,
       ignore)
@@ -181,10 +189,36 @@ the one moment where rejecting is still possible.
 
 - [x] `app/Actions/Repo/CreateRepositoryAction.ts` - row and bare repository together, cleaning up
       the row if the disk operation fails
-- [ ] `app/Actions/Repo/UpdateSettingsAction.ts`, `DeleteRepositoryAction.ts`,
-      `TransferRepositoryAction.ts`, `ArchiveRepositoryAction.ts`
-- [ ] `app/Actions/Repo/ForkRepositoryAction.ts` using `git clone --bare`, recorded as a fork
-- [ ] `app/Actions/Repo/StarAction.ts`, `WatchAction.ts`
+- [x] `app/Actions/Repo/UpdateSettingsAction.ts`, `DeleteRepositoryAction.ts`,
+      `TransferRepositoryAction.ts`. No `ArchiveRepositoryAction`: archiving is a flag on the
+      settings endpoint, because a rename and an archive share the rule that the row and the
+      directory have to end up agreeing, and splitting them is how that gets implemented twice.
+      The rules are pure in `app/Actions/Repo/settings.ts` and tested away from the database.
+- [x] Archived means readable and frozen everywhere, not only for pushes. `authorizeRepository`
+      refuses every ability except reading, settings, delete and transfer, stated as an allowlist
+      in `app/Permissions.ts` so an ability added later is frozen by default
+- [x] A transfer needs admin on the repository *and* the right to create in the destination, and
+      drops the old owner's collaborator grants rather than carrying them into a structure the new
+      owner did not choose
+- [x] `app/Actions/Repo/ForkRepositoryAction.ts` using `git clone --bare --local`, recorded as a
+      fork. `--local` hardlinks the object store, which is what makes forking a large repository
+      cheap enough to be the normal way to contribute; the test asserts the link count rather than
+      the claim
+- [x] `app/Actions/Repo/StarAction.ts`, `WatchAction.ts`. Starring toggles because the page cannot
+      know whether the star it drew has been pressed since; watching does not, because it has three
+      answers and the middle one is the one people want
+- [x] Unique indexes on `(owner_type, owner_id, name)` and on the person-plus-repository pairs, so
+      the read-then-write checks in create, fork, rename and transfer have something behind them
+- [ ] **Cascade the repository foreign keys.** Twenty-two tables hang off a repository and every
+      constraint is `NO ACTION`, so `app/Actions/Repo/purge.ts` works the deletion order out from
+      `information_schema` at delete time. `onDelete: 'cascade'` on the models would replace all of
+      it, and does not work yet: the generator emits the new constraint without dropping the one the
+      column was created with, Postgres holds both, and the stricter one wins - so the migration
+      applies cleanly and deletes go on failing. Needs a `bun-query-builder` fix that replaces a
+      foreign key rather than adding a second one
+- [ ] `app/Actions/Pull/MergePullRequestAction.ts` closes issues with
+      `updateTable(...).where('id', 'in', ids)`, which the query builder renders as `in $1`. It has
+      never closed anything. Use `updateWhereIn` from `app/Actions/Support/rows.ts`
 - [ ] `app/Jobs/RepositoryMaintenanceJob.ts` - `git gc` and repack, scheduled nightly
 - [ ] Initial commit options on create: README, .gitignore, license
 

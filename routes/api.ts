@@ -37,6 +37,23 @@ route.delete('/user/tokens', 'Actions/Tokens/RevokeTokenAction').middleware('aut
 route.put('/user/notifications/schedule', 'Actions/Notification/UpdateScheduleAction').middleware('auth')
 route.post('/user/notifications/mutes', 'Actions/Notification/MuteAction').middleware('auth')
 
+// Repositories. Settings is one endpoint for every field, because a rename
+// moves a directory and the row and the directory have to end up agreeing;
+// splitting it up is how that ends up implemented twice. Delete, transfer and
+// fork are their own, because each does something to disk that a general update
+// endpoint should never be able to reach by accident.
+route.post('/repos', 'Actions/Repo/CreateRepositoryAction').middleware('auth')
+route.put('/repos', 'Actions/Repo/UpdateSettingsAction').middleware('auth')
+route.delete('/repos', 'Actions/Repo/DeleteRepositoryAction').middleware('auth')
+route.post('/repos/transfer', 'Actions/Repo/TransferRepositoryAction').middleware('auth')
+route.post('/repos/forks', 'Actions/Repo/ForkRepositoryAction').middleware('auth')
+
+// Following a repository. Starring toggles, because the page cannot know
+// whether the star it drew has been pressed since it was drawn. Watching does
+// not, because it has three answers and the middle one is the one people want.
+route.post('/repos/stars', 'Actions/Repo/StarAction').middleware('auth')
+route.put('/repos/watches', 'Actions/Repo/WatchAction').middleware('auth')
+
 // Issues. Both issues and pull requests live in one numbering sequence, so
 // `#12` means one thing in a repository, and a comment endpoint serves both.
 // Listing is the one that is readable without an account, because a public

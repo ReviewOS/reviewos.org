@@ -9,7 +9,9 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
-    { name: 'stars_repo_user_index', columns: ['repository_id', 'user_id'] },
+    // One star per person per repository. Two rapid clicks would otherwise
+    // leave two rows, and the star count would be permanently one too high.
+    { name: 'stars_repo_user_index', columns: ['repository_id', 'user_id'], unique: true },
   ],
 
   traits: {

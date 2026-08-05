@@ -69,6 +69,55 @@ export async function recountOpenIssues(repositoryId: number): Promise<number | 
   }
 }
 
+/** Recompute a repository's star count, for the same reasons as above. */
+export async function recountStars(repositoryId: number): Promise<number | null> {
+  return await recount('stars', 'repository_id', repositoryId, 'stars_count')
+}
+
+/** Recompute how many forks point back at a repository. */
+export async function recountForks(repositoryId: number): Promise<number | null> {
+  return await recount('repositories', 'parent_id', repositoryId, 'forks_count')
+}
+
+/**
+ * One count over an index, written back to one column on `repositories`.
+ *
+ * Shared rather than repeated because the shape is identical and the failure
+ * mode is not: a counter that is wrong on one list is a cosmetic bug, and a
+ * counter that is wrong because one of three near-identical functions was
+ * edited and the others were not is the bug that takes an afternoon to find.
+ */
+async function recount(
+  table: 'stars' | 'repositories',
+  column: string,
+  repositoryId: number,
+  target: string,
+): Promise<number | null> {
+  if (!Number.isFinite(repositoryId) || repositoryId <= 0)
+    return null
+
+  try {
+    const row: any = await db
+      .selectFrom(table as any)
+      .select(db.fn.count('id').as('n'))
+      .where(column as any, '=', repositoryId)
+      .executeTakeFirst()
+
+    const count = Number(row?.n ?? 0)
+
+    await db
+      .updateTable('repositories')
+      .set({ [target]: count } as any)
+      .where('id', '=', repositoryId)
+      .execute()
+
+    return count
+  }
+  catch {
+    return null
+  }
+}
+
 /** Recompute one issue's comment count. */
 export async function recountComments(issueId: number): Promise<number | null> {
   if (!Number.isFinite(issueId) || issueId <= 0)
