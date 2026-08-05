@@ -13,6 +13,7 @@
  * the conversation, and the pull request page will render the same one rather
  * than a copy of it that drifts.
  */
+import { repositoryForView } from '../../../../functions/repo'
 import { authorIsLocal, authorLabel, relativeTime } from '../../../../functions/browse'
 import { entryIcon, entrySentence, issueStateLabel, issueStatePill, labelColor, labelTextColor } from '../../../../functions/issues'
 import { pressed, subjectKey, summarize, summarizeAll } from '../../../../functions/reactions'
@@ -36,28 +37,11 @@ const search: Record<string, string> = useRoute().query ?? {}
 
 // Resolving the owner first is what stops `/someone/stacks` finding a
 // repository that belongs to somebody else.
-const orgRow: any = await db
-  .selectFrom('organizations')
-  .selectAll()
-  .where('handle', '=', owner)
-  .executeTakeFirst()
-
-const userRow: any = orgRow
-  ? null
-  : await db.selectFrom('users').selectAll().where('handle', '=', owner).executeTakeFirst()
-
-const ownerId = orgRow ? Number(orgRow.id) : (userRow ? Number(userRow.id) : null)
-const ownerType = orgRow ? 'organization' : (userRow ? 'user' : null)
-
-const repoRow: any = ownerId
-  ? await db
-      .selectFrom('repositories')
-      .selectAll()
-      .where('owner_type', '=', ownerType)
-      .where('owner_id', '=', ownerId)
-      .where('name', '=', repositoryName)
-      .executeTakeFirst()
-  : null
+// Resolved and permission-checked together. A repository the reader may not
+// see comes back null, exactly as a repository that does not exist does, so a
+// private one does not announce itself by answering differently.
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
 
 // Issues and pull requests share the number sequence and the same table carries
 // both, so the flag is what keeps `/issue/12` from opening a pull request.

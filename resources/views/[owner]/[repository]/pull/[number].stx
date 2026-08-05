@@ -10,7 +10,7 @@
  * Server-rendered on purpose. A hundred-file diff assembled in the browser is
  * where forges get slow, and it is slowest exactly when the review matters.
  */
-import { findRepositoryByPath } from '../../../../functions/repo'
+import { repositoryForView } from '../../../../functions/repo'
 import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, startsCollapsed, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor } from '../../../../functions/review'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
@@ -22,7 +22,11 @@ const number = Number(params.number)
 // means the same thing in a description as it does in a review comment.
 const markdownContext = { owner, repository: repositoryName }
 
-const repoRow: any = await findRepositoryByPath(owner, repositoryName)
+// Resolved and permission-checked together. A repository the reader may not
+// see comes back null, exactly as a repository that does not exist does, so a
+// private one does not announce itself by answering differently.
+const access = await repositoryForView(owner, repositoryName, __stxServeContext?.cookies)
+const repoRow: any = access?.repository ?? null
 
 const pullRequest = repoRow
   ? await db

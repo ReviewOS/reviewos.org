@@ -5,27 +5,18 @@
  * Same division as the browse screen: reading is `app/Actions/Browse/load`,
  * shaping is `resources/functions/browse`, and this lays it out.
  */
+import { repositoryForView } from '../../../../../functions/repo'
 import { commitHistory, relativeTime, shortSha } from '../../../../../functions/browse'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
 const ref = String(params.ref ?? 'HEAD')
 
-const orgRow = await db.selectFrom('organizations').selectAll().where('handle', '=', ownerHandle).executeTakeFirst()
-const userRow = orgRow ? null : await db.selectFrom('users').selectAll().where('handle', '=', ownerHandle).executeTakeFirst()
-
-const ownerType = orgRow ? 'organization' : (userRow ? 'user' : null)
-const ownerId = orgRow ? Number(orgRow.id) : (userRow ? Number(userRow.id) : null)
-
-const repoRow = ownerId
-  ? await db
-      .selectFrom('repositories')
-      .selectAll()
-      .where('owner_type', '=', ownerType)
-      .where('owner_id', '=', ownerId)
-      .where('name', '=', repositoryName)
-      .executeTakeFirst()
-  : null
+// Resolved and permission-checked together. A repository the reader may not
+// see comes back null, exactly as a repository that does not exist does, so a
+// private one does not announce itself by answering differently.
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
 
 const commits = repoRow ? await commitHistory(String(repoRow.disk_path ?? ''), ref, '', 50) : []
 </script>

@@ -10,6 +10,7 @@
  * Server-rendered, like the review screen, so a repository with thousands of
  * files costs the browser nothing.
  */
+import { repositoryForView } from '../functions/repo'
 import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, lastCommit, listTree, readBlob, shortSha, sortEntries, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
 
@@ -22,32 +23,11 @@ const requestedPath = String(path ?? '').replace(/^\/+|\/+$/g, '')
 // The owner is a user or an organization, and both live in their own table, so
 // the handle is looked up in each. Resolving the owner first is what stops
 // `/someone/stacks` finding a repository that belongs to somebody else.
-const orgRow = await db
-  .selectFrom('organizations')
-  .selectAll()
-  .where('handle', '=', ownerHandle)
-  .executeTakeFirst()
-
-const userRow = orgRow
-  ? null
-  : await db
-      .selectFrom('users')
-      .selectAll()
-      .where('handle', '=', ownerHandle)
-      .executeTakeFirst()
-
-const ownerType = orgRow ? 'organization' : (userRow ? 'user' : null)
-const ownerId = orgRow ? Number(orgRow.id) : (userRow ? Number(userRow.id) : null)
-
-const repoRow = ownerId
-  ? await db
-      .selectFrom('repositories')
-      .selectAll()
-      .where('owner_type', '=', ownerType)
-      .where('owner_id', '=', ownerId)
-      .where('name', '=', repositoryName)
-      .executeTakeFirst()
-  : null
+// Resolved and permission-checked in one place. A component reaching for the
+// table itself is how the owner check gets skipped in one of them and the
+// visibility check in all of them.
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
 
 const diskPath = repoRow ? String(repoRow.disk_path ?? '') : ''
 const ref = String(refName || (repoRow ? (repoRow.default_branch ?? 'HEAD') : 'HEAD'))

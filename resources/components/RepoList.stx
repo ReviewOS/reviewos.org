@@ -11,6 +11,7 @@
  * what a filter means, how a page is bounded, how a state reads. Rules in a
  * template cannot be tested.
  */
+import { repositoryForView } from '../functions/repo'
 import { authorIsLocal, authorLabel, countLabel, filterHref, lastPage, listFilter, pageHref, pageNumber, pageOffset, PAGE_SIZE, relativeTime, stateLabel, statePill, statesFor } from '../functions/browse'
 import { labelColor, labelTextColor } from '../functions/issues'
 
@@ -30,28 +31,11 @@ const states = statesFor(filter, kind)
 // The owner is a user or an organization and both have handles, so resolving it
 // first is what stops `/someone/stacks` finding a repository owned by somebody
 // else.
-const orgRow = await db
-  .selectFrom('organizations')
-  .selectAll()
-  .where('handle', '=', ownerHandle)
-  .executeTakeFirst()
-
-const userRow = orgRow
-  ? null
-  : await db.selectFrom('users').selectAll().where('handle', '=', ownerHandle).executeTakeFirst()
-
-const ownerType = orgRow ? 'organization' : (userRow ? 'user' : null)
-const ownerId = orgRow ? Number(orgRow.id) : (userRow ? Number(userRow.id) : null)
-
-const repoRow = ownerId
-  ? await db
-      .selectFrom('repositories')
-      .selectAll()
-      .where('owner_type', '=', ownerType)
-      .where('owner_id', '=', ownerId)
-      .where('name', '=', repositoryName)
-      .executeTakeFirst()
-  : null
+// Resolved and permission-checked in one place. A component reaching for the
+// table itself is how the owner check gets skipped in one of them and the
+// visibility check in all of them.
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
 
 const table = kind === 'issues' ? 'issues' : 'pull_requests'
 const repositoryId = repoRow ? Number(repoRow.id) : 0

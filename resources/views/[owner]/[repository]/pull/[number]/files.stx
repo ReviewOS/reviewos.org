@@ -12,12 +12,16 @@
  * here parses a diff, because by the time the reader is looking at this the
  * server has already started.
  */
-import { findRepositoryByPath } from '../../../../../functions/repo'
+import { repositoryForView } from '../../../../../functions/repo'
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
 const number = Number(params.number)
 
-const repoRow: any = await findRepositoryByPath(owner, repositoryName)
+// Resolved and permission-checked together. A repository the reader may not
+// see comes back null, exactly as a repository that does not exist does, so a
+// private one does not announce itself by answering differently.
+const access = await repositoryForView(owner, repositoryName, __stxServeContext?.cookies)
+const repoRow: any = access?.repository ?? null
 
 const pullRequest: any = repoRow
   ? await db

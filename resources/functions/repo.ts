@@ -22,3 +22,14 @@ export const repositoryPath = repositoryPathImpl
 import { findRepositoryByPath as findRepositoryByPathImpl } from '../../app/Actions/Git/access'
 
 export const findRepositoryByPath = findRepositoryByPathImpl
+
+/**
+ * The repository a page is about, with the reader's standing on it.
+ *
+ * What a view should call instead of querying `repositories` itself. Returns
+ * null for a repository that does not exist and for one the reader may not see,
+ * which are deliberately the same answer.
+ */
+import { repositoryForView as repositoryForViewImpl } from '../../app/Actions/Repo/forView'
+
+export const repositoryForView = repositoryForViewImpl
