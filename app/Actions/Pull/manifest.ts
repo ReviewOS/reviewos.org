@@ -115,10 +115,34 @@ export type ManifestRecord =
   | ManifestEnd
   | ManifestError
 
+/**
+ * Whether a file arrives folded up.
+ *
+ * The one place this is decided. It used to be decided twice - once here for
+ * the streamed list and once in `resources/functions/review.ts` for the
+ * server-rendered page - and two copies of a policy is how the same pull
+ * request comes to look different depending on which screen you opened it from.
+ */
+export function startsCollapsed(file: {
+  path: string
+  status: FileStatus
+  additions: number
+  deletions: number
+}): boolean {
+  // A deletion is rarely something to read line by line. What the file used to
+  // contain is not the change; the fact that it is gone is, and that is on the
+  // header either way.
+  if (file.status === 'deleted')
+    return true
+
+  if (isGenerated(file.path))
+    return true
+
+  return file.additions + file.deletions > COLLAPSE_ABOVE_CHANGED_LINES
+}
+
 /** One file's record. Pure, so the collapse policy is testable on its own. */
 export function manifestFile(file: DiffFile, index: number): ManifestFile {
-  const changed = file.additions + file.deletions
-
   return {
     t: 'file',
     i: index,
@@ -130,7 +154,7 @@ export function manifestFile(file: DiffFile, index: number): ManifestFile {
     deletions: file.deletions,
     hunks: file.hunks.length,
     rows: countRows(file),
-    collapsed: isGenerated(file.path) || changed > COLLAPSE_ABOVE_CHANGED_LINES,
+    collapsed: startsCollapsed(file),
   }
 }
 
@@ -180,6 +204,16 @@ export interface ManifestOptions {
     layout: 'unified' | 'split'
     budgetBytes?: number
     /**
+     * Send nothing for a file that arrives folded up.
+     *
+     * On for the manifest stream, where a collapsed file costs a header and
+     * the rows are fetched if the reader opens it. Off - and it must be off -
+     * when the caller has named the files it wants, because that request *is*
+     * the reader opening it, and answering it with nothing leaves a collapsed
+     * file that can never be read.
+     */
+    skipCollapsed?: boolean
+    /**
      * Review threads to place under the lines they were written about.
      *
      * As stored: each is anchored against its own file as that file goes past,
@@ -224,9 +258,20 @@ export async function* streamManifest(
     const at = index++
     additions += file.additions
     deletions += file.deletions
-    yield manifestFile(file, at)
+
+    const record = manifestFile(file, at)
+    yield record
 
     if (!rowOptions || truncatedAt !== null)
+      return
+
+    // A file that arrives folded up gets no rows and is not highlighted. It is
+    // folded because somebody decided it is not what this review is about - a
+    // lock file, a regenerated snapshot - and highlighting eight thousand lines
+    // of it, sending them, and parsing them into a hidden element is the whole
+    // cost of showing it with none of the benefit. The client builds the header
+    // from the record, and the rows are fetched if the reader opens it.
+    if (record.collapsed && rowOptions.skipCollapsed)
       return
 
     // Highlighting is the expensive half, so it stops at the budget rather than
@@ -237,6 +282,11 @@ export async function* streamManifest(
     const html = renderDiffFile(file, {
       layout: rowOptions.layout,
       expandable: true,
+      // Always the open form. Whether a file is *shown* folded is the client's
+      // decision and it can change at any moment, so markup rendered folded
+      // would have to be thrown away the instant the reader clicked. A file
+      // that arrives folded is handled by not sending rows for it at all,
+      // above; anything that reaches here is rows somebody wants.
       tokens,
       threadsAt: rowOptions.threads
         ? threadSlotFor(anchorThreadsToFile(rowOptions.threads, file), file.path)

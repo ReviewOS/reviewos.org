@@ -3,7 +3,8 @@ import { highlightLines } from '../Browse/highlight'
 import { diskPathFor } from '../Git/access'
 import { authorizeRepository } from '../Repo/authorize'
 import { contextLinesFrom, expandRange, MAX_EXPAND_LINES } from './expand'
-import { escapeHtml, renderDiffRows } from './rows'
+import { renderDiffRows } from './rows'
+import { escapeHtml } from './shell'
 
 /**
  * The lines between two hunks, on request.

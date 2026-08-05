@@ -110,7 +110,12 @@ export interface HeightMetrics {
  */
 export const DEFAULT_HEIGHT_METRICS: HeightMetrics = {
   lineHeight: 20,
-  headerHeight: 40,
+  // Measured in a browser rather than guessed: a file's header renders at 61
+  // pixels with the stylesheet this application ships. It was 40, which is
+  // twenty one pixels short per file - unnoticeable on a pull request and
+  // eight hundred thousand pixels of lying scrollbar on a forty thousand file
+  // compare, where almost every file is estimated and never measured.
+  headerHeight: 61,
   gap: 8,
 }
 

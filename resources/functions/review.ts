@@ -48,20 +48,6 @@ export function threadsAt(
   })
 }
 
-/**
- * Whether a file should start collapsed.
- *
- * Generated files and very large diffs are collapsed so the changes somebody
- * actually needs to read are on the first screen. Everything stays one click
- * away, and nothing is hidden without saying so.
- */
-export function startsCollapsed(file: { path: string, additions: number, deletions: number }, isGeneratedFile: boolean): boolean {
-  if (isGeneratedFile)
-    return true
-
-  return file.additions + file.deletions > 500
-}
-
 /** `1,234` rather than `1234`, which is hard to size at a glance. */
 export function formatCount(value: number): string {
   return value.toLocaleString('en-US')

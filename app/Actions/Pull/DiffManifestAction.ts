@@ -72,7 +72,7 @@ export default new Action({
     })
 
     const encoder = new TextEncoder()
-    const records = manifestToNdjson(streamManifest(diff, { rows: { layout, threads } }))
+    const records = manifestToNdjson(streamManifest(diff, { rows: { layout, threads, skipCollapsed: true } }))
 
     const body = new ReadableStream<Uint8Array>({
       async pull(controller) {

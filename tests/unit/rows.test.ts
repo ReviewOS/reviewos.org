@@ -8,8 +8,8 @@
 import { describe, expect, test } from 'bun:test'
 import { parseDiff } from '../../app/Actions/Pull/diff'
 import { countRows } from '../../app/Actions/Pull/metrics'
+import { escapeHtml, renderDiffShell } from '../../app/Actions/Pull/shell'
 import {
-  escapeHtml,
   highlightDiffFile,
   renderDiffFile,
   renderDiffNote,
@@ -445,5 +445,48 @@ describe('expansion controls', () => {
 
     expect(html).toContain('<button type="button" class="hunk-expand"')
     expect(html).toContain('Show the 9 lines above this hunk')
+  })
+})
+
+/**
+ * The header, which both machines render.
+ *
+ * The server renders it for a file it has parsed; the browser renders it for a
+ * file it has only a manifest record for. One function, so a collapsed file and
+ * an open one are the same product.
+ */
+describe('renderDiffShell', () => {
+  const entry = { path: 'src/app.ts', status: 'modified', additions: 3, deletions: 1 }
+
+  test('is a header and an empty body', () => {
+    const html = renderDiffShell(entry, { collapsed: true })
+
+    expect(html).toContain('src/app.ts')
+    expect(html).toContain('+3')
+    expect(html).toContain('-1')
+    expect(html).not.toContain('<table')
+  })
+
+  test('says it is closed, so the control points the right way', () => {
+    expect(renderDiffShell(entry, { collapsed: true })).toContain('aria-expanded="false"')
+    expect(renderDiffShell(entry)).toContain('aria-expanded="true"')
+  })
+
+  test('a file still on its way is marked as such rather than looking collapsed', () => {
+    expect(renderDiffShell(entry, { pending: true })).toContain('is-pending')
+  })
+
+  test('a rename shows what it used to be called', () => {
+    const html = renderDiffShell({ ...entry, previousPath: 'src/old.ts', status: 'renamed' })
+
+    expect(html).toContain('src/old.ts')
+    expect(html).toContain('src/app.ts')
+  })
+
+  test('a path that is also markup is escaped', () => {
+    const html = renderDiffShell({ ...entry, path: 'a<script>.ts' })
+
+    expect(html).not.toContain('<script>')
+    expect(html).toContain('&lt;script&gt;')
   })
 })

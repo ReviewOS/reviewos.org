@@ -20,6 +20,7 @@ import { highlightLines } from '../Browse/highlight'
 import { gapsIn, oldOffsetAt } from './expand'
 import { inlineChangedRanges, worthComparing } from './inline'
 import { formatLineAnchor } from './lineLink'
+import { escapeHtml, renderDiffHeader, renderDiffShell } from './shell'
 
 export interface DiffToken {
   type: string
@@ -112,15 +113,6 @@ export interface RenderRowsOptions {
    * on; a row rendered *as* expanded context does not.
    */
   expandable?: boolean
-}
-
-/** Escape for text content and for a double-quoted attribute value. */
-export function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
 }
 
 /** The tokens for one line, falling back to its raw content. */
@@ -289,17 +281,23 @@ function hunkHeadRow(
  * A button rather than a link, and it carries the range it would ask for, so
  * the page needs no map from control to gap. Absent when there is no gap, which
  * is why it takes the gap rather than checking for one.
+ *
+ * It says how much it is hiding, on its face. A row of anonymous ellipses
+ * between two hunks tells a reviewer nothing about whether the thing they
+ * cannot see is four lines of imports or four hundred lines of the function
+ * they are reading, and that is exactly the judgement they are trying to make.
  */
 function expandControl(gap: { from: number, to: number, size: number } | undefined, offset: number): string {
   if (!gap || gap.size <= 0)
     return ''
 
-  const lines = gap.size === 1 ? '1 line' : `${gap.size} lines`
+  const lines = gap.size === 1 ? '1 line' : `${gap.size.toLocaleString('en-US')} lines`
 
   return `<button type="button" class="hunk-expand" data-expand-from="${gap.from}"`
     + ` data-expand-to="${gap.to}" data-expand-offset="${offset}"`
     + ` title="Show the ${escapeHtml(lines)} above this">`
     + `<span aria-hidden="true">⋯</span>`
+    + `<span class="hunk-skipped">${escapeHtml(lines)}</span>`
     + `<span class="visually-hidden">Show the ${escapeHtml(lines)} above this hunk</span>`
     + `</button>`
 }
@@ -505,6 +503,10 @@ export function renderDiffNote(file: DiffFile): string {
  */
 export function renderDiffFile(file: DiffFile, options: RenderRowsOptions = {}): string {
   const collapsed = options.collapsed === true
+
+  if (collapsed)
+    return renderDiffShell(file, { collapsed: true })
+
   const columns = options.layout === 'split' ? 4 : 3
   const body = renderDiffRows(file, options)
   const contents = body === ''
@@ -513,20 +515,8 @@ export function renderDiffFile(file: DiffFile, options: RenderRowsOptions = {}):
       + `<caption class="visually-hidden">Changes to ${escapeHtml(file.path)}</caption>`
       + `<tbody>${body}</tbody></table>`
 
-  const renamedFrom = file.previousPath && file.previousPath !== file.path
-    ? `<span class="muted">${escapeHtml(file.previousPath)}</span> <span class="muted" aria-hidden="true">-&gt;</span> `
-    : ''
-
   return `<section class="diff-file panel" id="file-${escapeHtml(file.path)}">`
-    + `<header class="diff-head">`
-    + `<button type="button" class="diff-toggle" aria-expanded="${collapsed ? 'false' : 'true'}"`
-    + ` aria-controls="body-${escapeHtml(file.path)}">`
-    + `<span class="i-hugeicons-arrow-down-01" aria-hidden="true"></span></button>`
-    + `<span class="diff-path mono">${renamedFrom}${escapeHtml(file.path)}</span>`
-    + `<span class="diff-status pill pill-${escapeHtml(file.status)}">${escapeHtml(file.status)}</span>`
-    + `<span class="diff-counts mono" aria-label="${file.additions} added, ${file.deletions} removed">`
-    + `<span class="count-add">+${file.additions}</span><span class="count-del">-${file.deletions}</span>`
-    + `</span></header>`
-    + `<div id="body-${escapeHtml(file.path)}" class="diff-body${collapsed ? ' is-collapsed' : ''}">${contents}</div>`
+    + renderDiffHeader(file)
+    + `<div id="body-${escapeHtml(file.path)}" class="diff-body">${contents}</div>`
     + `</section>`
 }

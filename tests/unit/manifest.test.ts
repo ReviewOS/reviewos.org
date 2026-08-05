@@ -14,6 +14,7 @@ import {
   manifestToNdjson,
   streamManifest,
 } from '../../app/Actions/Pull/manifest'
+import { renderDiffFile } from '../../app/Actions/Pull/rows'
 
 const TWO_FILES = `diff --git a/one.ts b/one.ts
 --- a/one.ts
@@ -234,6 +235,46 @@ describe('inline rows', () => {
 
     expect(records.filter(record => record.t === 'file')).toHaveLength(2)
     expect(records[records.length - 1]).toMatchObject({ t: 'end', files: 2 })
+  })
+
+  /**
+   * A file that arrives folded up costs a header and nothing else.
+   *
+   * It used to cost everything: the record said collapsed, the rows were
+   * rendered anyway, and the client laid out a header's worth of space and
+   * mounted eight thousand lines into it. That overlapped every file below and
+   * made the scrollbar wrong, and it spent the inline row budget on markup
+   * nobody had asked to see.
+   */
+  test('a collapsed file is sent no rows', async () => {
+    const withLock = `${TWO_FILES}diff --git a/bun.lock b/bun.lock\n--- a/bun.lock\n+++ b/bun.lock\n@@ -1 +1 @@\n-a\n+b\n`
+    const records = await collect(fakeSource(withLock), { rows: { layout: 'unified', skipCollapsed: true } })
+
+    const lock = records.find(record => record.t === 'file' && record.path === 'bun.lock')
+    expect(lock).toMatchObject({ collapsed: true })
+
+    const rowsFor = records.filter(record => record.t === 'rows').map(record => record.i)
+    expect(rowsFor).toEqual([0, 1])
+  })
+
+  /**
+   * The rows endpoint answers a request for named files, and that request is
+   * the reader opening the file. Skipping there would leave a collapsed file
+   * with no way to ever be read.
+   */
+  test('asked for by name, a collapsed file still gets its rows', async () => {
+    const lock = `diff --git a/bun.lock b/bun.lock\n--- a/bun.lock\n+++ b/bun.lock\n@@ -1 +1 @@\n-a\n+b\n`
+    const records = await collect(fakeSource(lock), { rows: { layout: 'unified' } })
+
+    expect(records.some(record => record.t === 'rows')).toBe(true)
+  })
+
+  test('and its markup, when it is asked for directly, is the header alone', async () => {
+    const [file] = parseDiff(`diff --git a/bun.lock b/bun.lock\n--- a/bun.lock\n+++ b/bun.lock\n@@ -1 +1 @@\n-a\n+b\n`)
+
+    const html = renderDiffFile(file!, { collapsed: true })
+    expect(html).toContain('bun.lock')
+    expect(html).not.toContain('<table')
   })
 
   test('truncation is announced once, not per file', async () => {

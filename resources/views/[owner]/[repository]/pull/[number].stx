@@ -11,7 +11,8 @@
  * where forges get slow, and it is slowest exactly when the review matters.
  */
 import { repositoryForView } from '../../../../functions/repo'
-import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, startsCollapsed, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor } from '../../../../functions/review'
+import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
+import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor } from '../../../../functions/review'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
@@ -118,7 +119,7 @@ for (const file of files) {
   diffHtmlByPath[file.path] = renderDiffFile(file, {
     expandable: true,
     tokens: await highlightDiffFile(file),
-    collapsed: startsCollapsed(file, isGenerated(file.path)),
+    collapsed: startsCollapsed(file),
     threadsAt: threadSlotFor(fileThreads, file.path),
   })
 }

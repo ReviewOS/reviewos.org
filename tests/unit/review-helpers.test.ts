@@ -6,7 +6,8 @@
 // the line that replaced the one it was written about is worse than no comment.
 
 import { describe, expect, test } from 'bun:test'
-import { formatCount, relativeTime, startsCollapsed, threadsAt } from '../../resources/functions/review'
+import { formatCount, relativeTime, threadsAt } from '../../resources/functions/review'
+import { startsCollapsed } from '../../app/Actions/Pull/manifest'
 
 function thread(id: number, path: string, line: number | null, side: 'left' | 'right' = 'right') {
   return { id, path, line, side, resolved: false, outdated: false, comments: [] }
@@ -66,22 +67,28 @@ describe('threadsAt', () => {
 })
 
 describe('startsCollapsed', () => {
-  const small = { path: 'src/app.ts', additions: 10, deletions: 4 }
+  const small = { path: 'src/app.ts', status: 'modified' as const, additions: 10, deletions: 4 }
 
   test('an ordinary file starts open', () => {
-    expect(startsCollapsed(small, false)).toBe(false)
+    expect(startsCollapsed(small)).toBe(false)
   })
 
   test('a generated file starts collapsed', () => {
-    expect(startsCollapsed({ path: 'bun.lock', additions: 4000, deletions: 12 }, true)).toBe(true)
+    expect(startsCollapsed({ ...small, path: 'bun.lock', additions: 4000, deletions: 12 })).toBe(true)
   })
 
   test('a very large file starts collapsed even when it is hand written', () => {
-    expect(startsCollapsed({ path: 'src/big.ts', additions: 400, deletions: 200 }, false)).toBe(true)
+    expect(startsCollapsed({ ...small, path: 'src/big.ts', additions: 400, deletions: 200 })).toBe(true)
   })
 
   test('a file just under the threshold stays open', () => {
-    expect(startsCollapsed({ path: 'src/big.ts', additions: 300, deletions: 200 }, false)).toBe(false)
+    expect(startsCollapsed({ ...small, path: 'src/big.ts', additions: 300, deletions: 200 })).toBe(false)
+  })
+
+  // What a deleted file used to contain is not the change. The deletion is,
+  // and the header carries that whether the body is open or not.
+  test('a deleted file starts collapsed however small it is', () => {
+    expect(startsCollapsed({ ...small, status: 'deleted', additions: 0, deletions: 3 })).toBe(true)
   })
 })
 

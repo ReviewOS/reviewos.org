@@ -169,10 +169,15 @@ export function measuredLayout(files: readonly ViewportFile[], options: Viewport
 
   for (let index = 0; index < files.length; index++) {
     const file = files[index]!
-    // A collapsed file is its header, whatever it measured when it was open.
-    const height = file.collapsed || file.measured == null
-      ? estimated.heights[index]!
-      : file.measured
+    // Measured wins, collapsed or not.
+    //
+    // It did not used to: a collapsed file kept its estimate however tall it
+    // measured, because the markup for a collapsed file still contained every
+    // row and was merely hidden, so what it measured was the open height. A
+    // collapsed file is now rendered as its header alone, so the measurement is
+    // the header - which is the one number worth having, since the estimate for
+    // a header is a constant somebody guessed.
+    const height = file.measured ?? estimated.heights[index]!
 
     offsets[index] = top
     heights[index] = height

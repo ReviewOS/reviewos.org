@@ -13,7 +13,7 @@
  */
 
 import type { DiffLine } from './diff'
-import { escapeHtml } from './rows'
+import { escapeHtml } from './shell'
 
 export interface ThreadComment {
   id: number
@@ -74,7 +74,7 @@ export function renderThread(thread: ReviewThreadView): string {
   const comments = thread.comments.map(comment => `<li class="comment">`
     + `<div class="comment-head">`
     + `<span class="comment-author">${escapeHtml(comment.authorHandle)}</span>`
-    + `<span class="muted comment-time">${escapeHtml(comment.createdAt)}</span>`
+    + `<span class="comment-time muted">${escapeHtml(comment.createdAt)}</span>`
     + `</div>`
     // Already HTML: rendered from markdown before it reached here, and escaping
     // it again would print the tags.
@@ -83,7 +83,7 @@ export function renderThread(thread: ReviewThreadView): string {
 
   return `<article class="thread${thread.resolved ? ' is-resolved' : ''}">`
     + `<header class="thread-head">${outdated}${resolved}`
-    + `<span class="muted thread-anchor mono">${escapeHtml(thread.path)}:${thread.line ?? '?'}</span>`
+    + `<span class="mono muted thread-anchor">${escapeHtml(thread.path)}:${thread.line ?? '?'}</span>`
     + `</header>`
     + `<ol class="thread-comments">${comments}</ol>`
     + renderReplyForm(thread)

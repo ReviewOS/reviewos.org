@@ -145,9 +145,24 @@ describe('measuredLayout', () => {
     expect(layout.offsets[1]).toBe(1000 + DEFAULT_HEIGHT_METRICS.gap)
   })
 
-  test('a collapsed file is its header even after it was measured open', () => {
+  /**
+   * A collapsed file used to keep its estimate however tall it measured,
+   * because collapsing hid the rows rather than dropping them, so what it
+   * measured was still the open height. A collapsed file is now rendered as its
+   * header alone, so the measurement is the header - and a measured header
+   * beats a guessed one. The caller clears the measurement when the fold state
+   * changes, which is what keeps this honest.
+   */
+  test('a measured height wins whether the file is collapsed or not', () => {
     const list = files(2)
-    list[0]!.measured = 1000
+    list[0]!.measured = 61
+    list[0]!.collapsed = true
+
+    expect(measuredLayout(list).heights[0]).toBe(61)
+  })
+
+  test('a collapsed file with nothing measured is its estimated header', () => {
+    const list = files(2)
     list[0]!.collapsed = true
 
     expect(measuredLayout(list).heights[0]).toBe(DEFAULT_HEIGHT_METRICS.headerHeight)
