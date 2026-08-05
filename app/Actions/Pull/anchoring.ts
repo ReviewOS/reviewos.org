@@ -36,7 +36,7 @@ export type AnchorOutcome =
  * current head. A file absent from that diff did not change, so the line is
  * where it was.
  */
-export function reanchor(anchor: Anchor, files: DiffFile[]): AnchorOutcome {
+export function reanchor(anchor: Anchor, files: readonly DiffFile[]): AnchorOutcome {
   const file = files.find(candidate => candidate.path === anchor.path || candidate.previousPath === anchor.path)
 
   // Untouched between the two commits: nothing to do.
