@@ -1,3 +1,4 @@
+import { canInOrganization } from '../../Permissions'
 import { checkHandle, normalizeHandle } from './handles'
 
 /**
@@ -232,4 +233,42 @@ export async function organizationOwnerCount(organizationId: number): Promise<nu
     .execute()
 
   return rows.length
+}
+
+/**
+ * The owners somebody may create a repository under.
+ *
+ * Their own account, then the organizations they belong to. The membership
+ * check is the same rule the create endpoint enforces, read from the same
+ * table: a page that offers an owner the endpoint would refuse is a page that
+ * hands somebody a 403 after they have filled in a form.
+ */
+export async function ownersForCreate(
+  user: { id: number, handle: string },
+): Promise<{ handle: string, kind: 'user' | 'organization' }[]> {
+  const memberships = await db
+    .selectFrom('org_members')
+    .select(['organization_id', 'role'])
+    .where('user_id', '=', user.id)
+    .execute()
+
+  const allowed = memberships.filter(row => canInOrganization(String(row.role) as any, 'repositories:create'))
+  if (allowed.length === 0)
+    return [{ handle: user.handle, kind: 'user' }]
+
+  const organizations = await db
+    .selectFrom('organizations')
+    .select(['id', 'handle'])
+    .execute()
+
+  const byId = new Map(organizations.map(row => [Number(row.id), String(row.handle)]))
+
+  return [
+    { handle: user.handle, kind: 'user' as const },
+    ...allowed
+      .map(row => byId.get(Number(row.organization_id)))
+      .filter((handle): handle is string => Boolean(handle))
+      .sort()
+      .map(handle => ({ handle, kind: 'organization' as const })),
+  ]
 }

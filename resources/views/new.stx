@@ -1,0 +1,240 @@
+<script server>
+/**
+ * Create a repository.
+ *
+ * Every choice on this page is reversible except one, and the page says which:
+ * a first commit is what decides whether an existing history can be pushed
+ * into this repository at all. Ticking the README means the first push of a
+ * local project is rejected as a non-fast-forward against a commit nobody
+ * wrote, and the person on the other end reads that as the forge being broken.
+ * So the boxes start unticked and the page says what ticking them costs.
+ *
+ * The owner list comes from the same membership rule the endpoint enforces.
+ * Offering an owner the endpoint would refuse is handing somebody a 403 after
+ * they have filled in a form.
+ */
+import { ownersForCreate, viewerFromCookies } from '../functions/identity'
+import { GITIGNORES, LICENSES } from '../functions/repo'
+
+const viewer = await viewerFromCookies(__stxServeContext?.cookies)
+
+// Signing in is the whole precondition, so an anonymous reader gets a page
+// that says so rather than a form that cannot be submitted.
+if (!viewer)
+  setResponseStatus(401)
+
+const owners = viewer ? await ownersForCreate(viewer) : []
+
+// Object.entries in the script rather than in the template: `@foreach` over an
+// expression is harder to read than over a name, and the shaping belongs here.
+const licenses = Object.entries(LICENSES).map(([key, value]) => ({ key, name: value.name }))
+const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name: value.name }))
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell narrow">
+    @if (!viewer)
+      <div class="panel signin">
+        <h1>Create a repository</h1>
+        <p class="muted">
+          You need an account to create one. <a href="/login">Sign in</a>, and this page will be
+          waiting.
+        </p>
+      </div>
+    @else
+      <header class="page-head">
+        <h1>Create a repository</h1>
+        <p class="muted">
+          A repository holds your code, its issues and the review of every change to it.
+        </p>
+      </header>
+
+      <form class="panel form" method="post" action="/api/repos">
+        <CsrfField />
+
+        <div class="field-pair">
+          <label class="field">
+            <span class="label">Owner</span>
+            <select class="input" name="owner">
+              @foreach (owners as candidate)
+                <option value="{{ candidate.handle }}">{{ candidate.handle }}</option>
+              @endforeach
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="label">Repository name</span>
+            <input class="input" name="name" required maxlength="100" autocomplete="off"
+                   spellcheck="false" placeholder="checkout">
+            <span class="hint muted">
+              Letters, numbers, dashes, underscores and dots. It becomes part of every URL and
+              every clone command, so short is kind.
+            </span>
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="label">Description <span class="muted">optional</span></span>
+          <input class="input" name="description" maxlength="500"
+                 placeholder="What this is, in one line.">
+        </label>
+
+        <fieldset class="field visibility">
+          <legend class="label">Visibility</legend>
+
+          <label class="choice">
+            <input type="radio" name="visibility" value="public" checked>
+            <span>
+              <strong>Public</strong>
+              <span class="muted">Anybody can read it and clone it. Only people you name can push.</span>
+            </span>
+          </label>
+
+          <label class="choice">
+            <input type="radio" name="visibility" value="internal">
+            <span>
+              <strong>Internal</strong>
+              <span class="muted">Anybody signed in to this instance can read it.</span>
+            </span>
+          </label>
+
+          <label class="choice">
+            <input type="radio" name="visibility" value="private">
+            <span>
+              <strong>Private</strong>
+              <span class="muted">Only you and the people you give access to.</span>
+            </span>
+          </label>
+        </fieldset>
+
+        <label class="field">
+          <span class="label">Default branch</span>
+          <input class="input input-small mono" name="default_branch" value="main" maxlength="100"
+                 spellcheck="false">
+          <span class="hint muted">What a clone checks out, and what a pull request targets.</span>
+        </label>
+
+        <section class="field start">
+          <span class="label">Start it with</span>
+          <p class="hint muted">
+            Leave these alone if you have a repository to push. A first commit here means your
+            first push is refused for not being a fast forward, against a commit you did not write.
+          </p>
+
+          <label class="choice">
+            <input type="checkbox" name="readme" value="true">
+            <span>
+              <strong>A README</strong>
+              <span class="muted">The name and the description, as a starting point.</span>
+            </span>
+          </label>
+
+          <div class="field-pair">
+            <label class="field">
+              <span class="label">.gitignore</span>
+              <select class="input" name="gitignore">
+                <option value="">None</option>
+                @foreach (gitignores as option)
+                  <option value="{{ option.key }}">{{ option.name }}</option>
+                @endforeach
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="label">Licence</span>
+              <select class="input" name="license">
+                <option value="">None</option>
+                @foreach (licenses as option)
+                  <option value="{{ option.key }}">{{ option.name }}</option>
+                @endforeach
+              </select>
+            </label>
+          </div>
+
+          {{--
+            The holder is written into the licence text where the document
+            marks a slot for it. Defaulted to the owner rather than left empty,
+            because a licence naming nobody is the one mistake in this form
+            that is awkward to correct: it is in the history from the first
+            commit.
+          --}}
+          <label class="field">
+            <span class="label">Copyright holder <span class="muted">optional</span></span>
+            <input class="input" name="license_holder" maxlength="200"
+                   placeholder="{{ owners[0]?.handle ?? '' }}">
+            <span class="hint muted">
+              Used only by licences with a slot for a name. Empty means the owner.
+            </span>
+          </label>
+        </section>
+
+        <div class="actions">
+          <button class="btn btn-primary" type="submit">Create repository</button>
+          <a class="btn" href="/">Cancel</a>
+        </div>
+      </form>
+    @endif
+  </div>
+@endsection
+
+<style>
+  .narrow { max-width: 720px; padding-top: 28px; padding-bottom: 72px; }
+
+  .page-head h1, .signin h1 { font-size: 22px; margin: 0; }
+  .page-head p { margin-top: 6px; font-size: 13.5px; }
+  .signin { padding: 32px; text-align: center; }
+  .signin p { margin-top: 8px; font-size: 13.5px; }
+
+  .form { margin-top: 20px; padding: 22px; display: grid; gap: 20px; }
+
+  .field-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 16px; }
+  /* `align-content: start` because the two fields in a pair have different
+     heights - one carries a hint under it and the other does not - and a
+     stretched row makes the shorter field's control grow to fill it. */
+  .field { display: grid; gap: 6px; min-width: 0; border: 0; padding: 0; margin: 0; align-content: start; }
+  .label { font-size: 13px; font-weight: 500; }
+  .label .muted { font-weight: 400; }
+
+  .input {
+    width: 100%;
+    padding: 8px 11px;
+    font: inherit;
+    font-size: 13.5px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-field, 10px);
+  }
+
+  .input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .input-small { max-width: 220px; }
+
+  .hint { font-size: 12.5px; line-height: 1.45; }
+
+  .visibility, .start { gap: 10px; }
+  .start { padding-top: 18px; border-top: 1px solid var(--line); }
+
+  .choice {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 9px 11px;
+    font-size: 13px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-field, 10px);
+    cursor: pointer;
+  }
+
+  .choice:hover { border-color: var(--accent); }
+  .choice span { display: grid; gap: 2px; }
+  .choice .muted { font-size: 12.5px; line-height: 1.45; }
+  .choice input { margin-top: 3px; }
+
+  .actions { display: flex; gap: 8px; align-items: center; }
+
+  @media (max-width: 640px) {
+    .field-pair { grid-template-columns: 1fr; }
+  }
+</style>

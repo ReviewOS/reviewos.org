@@ -364,7 +364,12 @@ the one moment where rejecting is still possible.
       milestone and merging a pull request all failed before reaching an action. `<CsrfField />` puts
       the token in the body, in one component rather than a line per form, because a form that
       forgets it is a button that silently does nothing
-- [ ] `resources/views/new.stx` - create a repository
+- [x] `resources/views/new.stx` - create a repository. The owner list is built from the same
+      membership rule the endpoint enforces, because offering an owner the endpoint would refuse is
+      handing somebody a 403 after they have filled in a form. The scaffold boxes start unticked and
+      the page says why: a first commit here means the first push of an existing project is refused
+      for not being a fast forward, against a commit nobody wrote, which reads as the forge being
+      broken rather than as a choice made on this page
 - [ ] Components: `RepoHeader`, `FileTree`, `CodeView`, `CloneUrlBox`, `BranchPicker`,
       `CommitList`, `MarkdownContent`
 

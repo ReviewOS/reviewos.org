@@ -43,3 +43,13 @@ export const repositoryForView = repositoryForViewImpl
 import { cloneUrlFor as cloneUrlForImpl } from '../../app/Actions/Repo/cloneUrl'
 
 export const cloneUrlFor = cloneUrlForImpl
+
+/**
+ * What a new repository can be started with: a licence, and an ignore file.
+ * The lists are in `app/Actions/Repo/scaffold.ts`, which is what the create
+ * endpoint reads, so the page cannot offer one the endpoint does not know.
+ */
+import { GITIGNORES as GITIGNORES_IMPL, LICENSES as LICENSES_IMPL } from '../../app/Actions/Repo/scaffold'
+
+export const LICENSES = LICENSES_IMPL
+export const GITIGNORES = GITIGNORES_IMPL
