@@ -297,10 +297,23 @@ the one moment where rejecting is still possible.
 - [ ] **Cascade the repository foreign keys.** Twenty-two tables hang off a repository and every
       constraint is `NO ACTION`, so `app/Actions/Repo/purge.ts` works the deletion order out from
       `information_schema` at delete time. `onDelete: 'cascade'` on the models would replace all of
-      it, and does not work yet: the generator emits the new constraint without dropping the one the
-      column was created with, Postgres holds both, and the stricter one wins - so the migration
-      applies cleanly and deletes go on failing. Needs a `bun-query-builder` fix that replaces a
-      foreign key rather than adding a second one
+      it. Two things were in the way; one is gone:
+  - [x] **`bun-query-builder` added a second foreign key instead of replacing the first.** A column
+        created inline with `REFERENCES` already carries a constraint the server named itself
+        (`x_repository_id_fkey`), and `addForeignKey` added `x_repository_id_fk` beside it. A server
+        enforces every constraint it holds, so the migration applied cleanly, the cascade was real,
+        and deletes went on failing against the `NO ACTION` next to it - with nothing in the output
+        saying so. Fixed in 0.2.18 by dropping what is already on the column first, found by
+        querying the catalog rather than by guessing the server's naming convention: guessing covers
+        the constraint the server named and misses one named by hand or by an older version, and
+        missing it reproduces the bug exactly. Verified against a real Postgres - one constraint
+        afterwards rather than two, the delete cascades, and re-running the migration is not an error
+  - [ ] **Stacks has no way for a `belongsTo` to declare its `onDelete`.** `ForeignKeyConfig` in
+        `@stacksjs/types` carries the field, and the only place the Postgres migration generator
+        emits `onDelete` is the pivot table for a many-to-many. A plain `belongsTo` - which is where
+        every one of these twenty-two columns comes from - has nowhere to say it. That is a
+        framework feature rather than a bug, so it wants its own change and its own release before
+        the models here can be touched
 - [x] `app/Actions/Pull/MergePullRequestAction.ts` closed issues with
       `updateTable(...).where('id', 'in', ids)`, which the query builder renders as `in $1` - so
       merging a pull request had never closed anything it said it closed. Through `updateWhereIn`
