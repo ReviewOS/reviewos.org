@@ -1,0 +1,40 @@
+{{--
+  Rendered markdown, in a panel with a name on it.
+
+  The HTML arrives rendered. A component cannot import the renderer, and the
+  renderer is where the sanitising lives - see `app/Actions/Markdown/render.ts`
+  for what a mirrored repository's README is allowed to contain. Rendering here
+  would mean a second path to the same output, and only one of them sanitised.
+
+  `@markdown` is deliberately not used: the directive runs before interpolation,
+  so it would markdown-render the literal `{!! html !!}` token and then drop the
+  file's text into the page untouched.
+--}}
+<section class="panel markdown-panel">
+  @if (title)
+    <header class="markdown-head">
+      <span class="{{ icon || 'i-hugeicons-book-open-01' }}" aria-hidden="true"></span>
+      <span>{{ title }}</span>
+    </header>
+  @endif
+
+  <div class="markdown-body markdown">
+    {!! html !!}
+  </div>
+</section>
+
+<style>
+  .markdown-panel { margin-top: 18px; }
+
+  .markdown-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13.5px;
+    font-weight: 500;
+  }
+
+  .markdown-body { padding: 24px 26px; line-height: 1.65; }
+</style>

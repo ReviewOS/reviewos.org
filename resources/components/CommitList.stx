@@ -1,0 +1,61 @@
+{{--
+  A commit history.
+
+  The rows arrive ready, from `commitRows` in `app/Actions/Browse/rows.ts`. The
+  subject is the link because that is what somebody reads and then wants to
+  open, and the sha is a second link to the same place for anybody navigating
+  by sha rather than by message.
+
+  No commits is said out loud rather than drawn as an empty list: an empty box
+  and a box that failed to load look the same, and one of them is worth
+  telling somebody about.
+--}}
+@if (rows.length === 0)
+  <div class="panel commits-empty">
+    <p class="muted">{{ empty || 'No commits on this ref.' }}</p>
+  </div>
+@else
+  <div class="panel commits">
+    <ul>
+      @foreach (rows as row)
+        <li class="commit-row">
+          <div class="commit-main">
+            <a class="commit-subject" href="{{ row.href }}">{{ row.subject }}</a>
+            <span class="muted commit-meta">{{ row.byline }}</span>
+          </div>
+          <a class="mono muted commit-sha" href="{{ row.href }}">{{ row.short }}</a>
+        </li>
+      @endforeach
+    </ul>
+  </div>
+@endif
+
+<style>
+  .commits { margin-top: 14px; overflow: hidden; }
+  .commits-empty { margin-top: 16px; padding: 28px; text-align: center; }
+
+  .commit-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 15px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .commit-row:last-child { border-bottom: 0; }
+  .commit-main { flex: 1; min-width: 0; }
+
+  .commit-subject {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .commit-subject:hover { text-decoration: underline; }
+  .commit-meta { display: block; margin-top: 2px; font-size: 12.5px; }
+  .commit-sha { flex: none; font-size: 12.5px; }
+</style>

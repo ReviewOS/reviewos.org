@@ -11,7 +11,7 @@
  * files costs the browser nothing.
  */
 import { repositoryForView } from '../functions/repo'
-import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, shortSha, sortEntries, splitRefAndPath, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
+import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, refLinks, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
 
 // Props arrive as attribute strings, so everything is normalised here rather
@@ -92,6 +92,27 @@ const blobMarkdownHtml = (blob?.ok && blob.text !== null && !blob.binary && !blo
 
 const notFound = !repoRow
 
+// The base every link on this page hangs off. One string, so a page that links
+// to a file and a page that links to a branch cannot disagree about it.
+const base = `/${ownerHandle}/${repositoryName}`
+
+// Rows and links, shaped where they can be tested. What the components below
+// receive is already decided: a name, a link or none, and one piece of text.
+const rows = treeRows(entries, base, ref, requestedPath, formatSize, shortSha)
+const branchLinks = refLinks(branches, base, ref, requestedPath)
+const tagLinks = refLinks(tags, base, ref, requestedPath)
+
+// Which of the ways a file is not shown applies, decided once. The template
+// asking `!blob || !blob.ok` and then `blob.binary` in sequence is the same
+// decision spread over four branches, and the fourth one is easy to leave out.
+const fileState = !blob || !blob.ok
+  ? 'missing'
+  : blob.binary
+    ? 'binary'
+    : blob.tooLarge
+      ? 'too-large'
+      : isMarkdown(requestedPath) ? 'markdown' : 'source'
+
 // A page that renders "no such repository" under a 200 tells a crawler, a
 // cache and an uptime check that the page is fine. Only the render knows, so
 // only the render can say - a private repository answers the same way a
@@ -110,56 +131,15 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
         </p>
       </div>
     @else
-      <header class="repo-head">
-        <div class="repo-title-row">
-          <h1 class="repo-title">
-            <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="/{{ ownerHandle }}/{{ repositoryName }}">{{ repositoryName }}</a>
-          </h1>
-          <span class="pill pill-{{ repoRow.visibility }}">{{ repoRow.visibility }}</span>
-          {{-- An empty repository has nothing to clone yet, but the URL is
-               what somebody pushes their first commit to, so it belongs here
-               most of all. --}}
-          <CloneUrlBox owner="{{ ownerHandle }}" repository="{{ repositoryName }}" />
-        </div>
-
-        @if (repoRow.description)
-          <p class="muted repo-description">{{ repoRow.description }}</p>
-        @endif
-
-        <div class="repo-meta muted">
-          {{-- A plain <details> rather than a scripted menu: it works before
-               any JavaScript runs, which is the point of rendering on the
-               server. --}}
-          @if (branches.length > 1)
-            <details class="branch-picker">
-              <summary class="mono">{{ ref }}</summary>
-              <ul class="branch-list">
-                <li class="branch-group">Branches</li>
-                @foreach (branches as branch)
-                  <li>
-                    <a class="branch-item {{ branch === ref ? 'is-current' : '' }}"
-                       href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ joinRefAndPath(branch, requestedPath) }}">{{ branch }}</a>
-                  </li>
-                @endforeach
-                @if (tags.length > 0)
-                  <li class="branch-group">Tags</li>
-                  @foreach (tags as tag)
-                    <li>
-                      <a class="branch-item {{ tag === ref ? 'is-current' : '' }}"
-                         href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ joinRefAndPath(tag, requestedPath) }}">{{ tag }}</a>
-                    </li>
-                  @endforeach
-                @endif
-              </ul>
-            </details>
-            <span>&middot; {{ branches.length }} branches</span>
-            <span>&middot; <a href="/{{ ownerHandle }}/{{ repositoryName }}/commits/{{ ref }}">commits</a></span>
-          @else
-            <span class="mono">{{ ref }}</span>
-          @endif
-          <span>&middot; {{ formatSize(Number(repoRow.size_kb ?? 0) * 1024) }}</span>
-        </div>
-      </header>
+      <RepoHeader
+        owner="{{ ownerHandle }}"
+        repository="{{ repositoryName }}"
+        visibility="{{ repoRow.visibility }}"
+        description="{{ repoRow.description ?? '' }}"
+        refName="{{ ref }}"
+        size="{{ formatSize(Number(repoRow.size_kb ?? 0) * 1024) }}"
+        :branches="branchLinks"
+        :tags="tagLinks" />
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
 
@@ -192,90 +172,26 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
         @endif
 
         @if (isDirectory)
-          <div class="panel tree">
-            @if (entries.length === 0)
-              <p class="muted" style="padding: 18px;">This directory is empty.</p>
-            @else
-              <ul class="tree-list">
-                @foreach (entries as entry)
-                  <li class="tree-row">
-                    <span class="tree-icon {{ entry.type === 'tree' ? 'i-hugeicons-folder-01' : (entry.type === 'commit' ? 'i-hugeicons-git-merge' : 'i-hugeicons-file-01') }}" aria-hidden="true"></span>
-                    @if (entry.type === 'commit')
-                      {{-- A submodule points elsewhere; there is nothing here to open. --}}
-                      <span class="tree-name">{{ entry.name }}</span>
-                      <span class="muted mono tree-size">{{ shortSha(entry.sha) }}</span>
-                    @else
-                      <a class="tree-name" href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ joinRefAndPath(ref, childPath(requestedPath, entry.name)) }}">{{ entry.name }}</a>
-                      <span class="muted tree-size">{{ formatSize(entry.size) }}</span>
-                    @endif
-                  </li>
-                @endforeach
-              </ul>
-            @endif
-          </div>
+          <FileTree :rows="rows" />
 
           @if (readmeHtml)
-            <section class="panel readme">
-              <header class="readme-head">
-                <span class="i-hugeicons-book-open-01" aria-hidden="true"></span>
-                <span>{{ readmeEntry.name }}</span>
-              </header>
-              <div class="readme-body markdown">
-                {!! readmeHtml !!}
-              </div>
-            </section>
+            <MarkdownContent title="{{ readmeEntry.name }}" :html="readmeHtml" />
           @endif
         @else
-          <div class="panel file">
-            <header class="file-head">
-              <span class="mono">{{ requestedPath }}</span>
-              <span class="muted">
-                @if (language)
-                  {{ language }} &middot;
-                @endif
-                {{ formatSize(blob?.size ?? null) }}
-              </span>
-            </header>
-
-            @if (!blob || !blob.ok)
-              <p class="muted" style="padding: 18px;">This file does not exist at {{ ref }}.</p>
-            @elseif (blob.binary)
-              <p class="muted" style="padding: 18px;">Binary file, not shown.</p>
-            @elseif (blob.tooLarge)
-              <p class="muted" style="padding: 18px;">
-                This file is {{ formatSize(blob.size) }}, too large to display.
-              </p>
-            @elseif (isMarkdown(requestedPath))
-              <div class="readme-body markdown" style="padding: 20px 22px;">
-                {!! blobMarkdownHtml !!}
-              </div>
-            @else
-              <table class="source">
-                <tbody>
-                  @foreach (highlighted as tokens, index)
-                    <tr class="source-row">
-                      <td class="source-num mono">{{ index + 1 }}</td>
-                      <td class="source-code mono">@foreach (tokens as token)<span class="t-{{ token.type }}">{{ token.content }}</span>@endforeach</td>
-                    </tr>
-                  @endforeach
-                </tbody>
-              </table>
-            @endif
-          </div>
+          <CodeView
+            path="{{ requestedPath }}"
+            refName="{{ ref }}"
+            language="{{ language ?? '' }}"
+            size="{{ formatSize(blob?.size ?? null) }}"
+            state="{{ fileState }}"
+            :lines="highlighted"
+            :markdownHtml="blobMarkdownHtml" />
         @endif
       @endif
     @endif
   </div>
 
 <style>
-  .repo-head { padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-  .repo-title-row { display: flex; align-items: center; gap: 10px; }
-  .repo-title { font-size: 20px; font-weight: 600; }
-  .repo-title a { text-decoration: none; }
-  .repo-title a:hover { text-decoration: underline; }
-  .repo-description { margin-top: 6px; font-size: 14px; }
-  .repo-meta { margin-top: 8px; font-size: 13px; display: flex; gap: 6px; }
-
   .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 16px 0 10px; font-size: 14px; }
   .crumb { text-decoration: none; }
   .crumb:hover { text-decoration: underline; }
@@ -284,68 +200,4 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
 
   .last-commit { display: flex; align-items: center; gap: 10px; padding: 10px 14px; font-size: 13px; }
   .last-commit-subject { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  .tree { margin-top: 10px; overflow: hidden; }
-  .tree-list { display: flex; flex-direction: column; }
-  .tree-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 14px; }
-  .tree-row:last-child { border-bottom: 0; }
-  .tree-icon { flex: none; color: var(--muted); }
-  .tree-name { flex: 1; min-width: 0; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tree-name:hover { text-decoration: underline; }
-  .tree-size { flex: none; font-size: 12.5px; }
-
-  .readme { margin-top: 18px; }
-  .readme-head { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; font-weight: 500; }
-  .readme-body { padding: 24px 26px; line-height: 1.65; }
-
-  .file { margin-top: 10px; overflow: hidden; }
-  .file-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 13px; }
-  .source { width: 100%; border-collapse: collapse; font-size: 12.5px; line-height: 1.55; }
-  .source-num {
-    width: 1%;
-    padding: 0 12px 0 16px;
-    text-align: right;
-    color: var(--muted);
-    vertical-align: top;
-    user-select: none;
-    white-space: nowrap;
-  }
-  .source-code { padding: 0 16px 0 0; white-space: pre; }
-  .source-row:first-child .source-num, .source-row:first-child .source-code { padding-top: 14px; }
-  .source-row:last-child .source-num, .source-row:last-child .source-code { padding-bottom: 14px; }
-
-  .branch-picker { position: relative; display: inline-block; }
-  .branch-picker summary { cursor: pointer; list-style: none; }
-  .branch-picker summary::-webkit-details-marker { display: none; }
-  .branch-list {
-    position: absolute;
-    z-index: 20;
-    top: calc(100% + 6px);
-    left: 0;
-    min-width: 220px;
-    max-height: 320px;
-    overflow-y: auto;
-    padding: 5px;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--r-control);
-    background: var(--surface);
-    box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
-  }
-  .branch-item {
-    display: block;
-    padding: 6px 9px;
-    border-radius: var(--r-control);
-    font-size: 13px;
-    text-decoration: none;
-  }
-  .branch-item:hover { background: var(--accent-quiet); }
-  .branch-group {
-    padding: 7px 9px 4px;
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .branch-item.is-current { font-weight: 600; color: var(--accent-text); }
 </style>

@@ -246,7 +246,12 @@ the one moment where rejecting is still possible.
 - [x] One place decides whether a read may proceed (`app/Actions/Browse/context.ts`), because there
       are ten of these endpoints and ten chances to forget the visibility check
 - [x] Syntax highlighting server-side. The client does not download a highlighter.
-- [ ] Render README, and markdown files generally, at the tree view
+- [x] Render README, and markdown files generally, at the tree view. The README goes under the
+      listing, the way every forge does it, but only in a directory - inside a file the file is the
+      subject. Rendering happens in the view rather than through `@markdown`: the directive runs
+      before interpolation, so it would markdown-render the literal `{!! readme.text !!}` token and
+      then drop the file's text into the page untouched, which for a mirrored repository means
+      whatever HTML its README happens to contain
 
 ## Repository management
 
@@ -370,8 +375,15 @@ the one moment where rejecting is still possible.
       the page says why: a first commit here means the first push of an existing project is refused
       for not being a fast forward, against a commit nobody wrote, which reads as the forge being
       broken rather than as a choice made on this page
-- [ ] Components: `RepoHeader`, `FileTree`, `CodeView`, `CloneUrlBox`, `BranchPicker`,
-      `CommitList`, `MarkdownContent`
+- [x] Components: `RepoHeader`, `FileTree`, `CodeView`, `CloneUrlBox`, `BranchPicker`,
+      `CommitList`, `MarkdownContent`. Each one takes rows that are already decided - a name, a
+      link, one piece of text - shaped by `app/Actions/Browse/rows.ts` where a test can reach them.
+      A component with no `<script>` block cannot import anything and one with a script can, which
+      is exactly what makes building links inside a template tempting; the link rule has already
+      been wrong once, and it was wrong in a way no test could have caught while it lived in the
+      markup. `RepoBrowser` is 203 lines rather than 352, and the four ways a file is not shown -
+      missing, binary, too large, markdown - are one decision in the view rather than four branches
+      in the template
 
 ## Later in this phase
 

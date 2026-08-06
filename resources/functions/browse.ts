@@ -185,3 +185,18 @@ import { joinRefAndPath as joinRefAndPathImpl, splitRefAndPath as splitRefAndPat
 
 export const splitRefAndPath = splitRefAndPathImpl
 export const joinRefAndPath = joinRefAndPathImpl
+
+/**
+ * Shaping git's answers into what a component draws: a row with a name, a link
+ * and one piece of text. See `app/Actions/Browse/rows.ts` for why the rules
+ * live there rather than in a template.
+ */
+import { refLinks as refLinksImpl, treeRows as treeRowsImpl } from '../../app/Actions/Browse/rows'
+
+export const treeRows = treeRowsImpl
+export const refLinks = refLinksImpl
+
+/** A commit history, shaped for `CommitList`. */
+import { commitRows as commitRowsImpl } from '../../app/Actions/Browse/rows'
+
+export const commitRows = commitRowsImpl

@@ -1,0 +1,80 @@
+{{--
+  Which ref you are looking at, and how to change it.
+
+  A plain `<details>` rather than a scripted menu: it opens before any
+  JavaScript has run, which is the point of rendering on the server. The whole
+  list is in the page, so a browser's own find-in-page works on it - which is
+  how anybody with more than twenty branches actually finds one.
+
+  The links arrive ready, from `refLinks` in `app/Actions/Browse/rows.ts`. Each
+  points at the path being looked at rather than the repository root: the usual
+  reason to switch branch is to see *this* file on the other one.
+--}}
+@if (branches.length > 1 || tags.length > 0)
+  <details class="branch-picker">
+    <summary class="mono">{{ current }}</summary>
+    <ul class="branch-list">
+      @if (branches.length > 0)
+        <li class="branch-group">Branches</li>
+        @foreach (branches as branch)
+          <li>
+            <a class="branch-item {{ branch.isCurrent ? 'is-current' : '' }}" href="{{ branch.href }}">{{ branch.name }}</a>
+          </li>
+        @endforeach
+      @endif
+
+      @if (tags.length > 0)
+        <li class="branch-group">Tags</li>
+        @foreach (tags as tag)
+          <li>
+            <a class="branch-item {{ tag.isCurrent ? 'is-current' : '' }}" href="{{ tag.href }}">{{ tag.name }}</a>
+          </li>
+        @endforeach
+      @endif
+    </ul>
+  </details>
+@else
+  {{-- One branch and no tags is not a choice, so it reads as a fact. --}}
+  <span class="mono">{{ current }}</span>
+@endif
+
+<style>
+  .branch-picker { position: relative; display: inline-block; }
+  .branch-picker summary { cursor: pointer; list-style: none; }
+  .branch-picker summary::-webkit-details-marker { display: none; }
+
+  .branch-list {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 220px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 5px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control);
+    background: var(--surface);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  }
+
+  .branch-item {
+    display: block;
+    padding: 6px 9px;
+    border-radius: var(--r-control);
+    font-size: 13px;
+    text-decoration: none;
+  }
+
+  .branch-item:hover { background: var(--accent-quiet); }
+  .branch-item.is-current { font-weight: 600; color: var(--accent-text); }
+
+  .branch-group {
+    padding: 7px 9px 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+</style>

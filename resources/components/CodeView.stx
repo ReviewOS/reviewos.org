@@ -1,0 +1,85 @@
+{{--
+  One file.
+
+  Highlighted on the server, which is why `lines` arrives as tokens rather than
+  as text: a large file tokenised in the browser is jank exactly when somebody
+  is trying to read code, and the client downloads no highlighter at all.
+
+  The four ways a file is not shown - missing, binary, too large, markdown -
+  are each said out loud. "Nothing here" for a binary and "nothing here" for a
+  path that does not exist read the same to somebody who is trying to work out
+  which of the two they are looking at.
+
+  The `@foreach` over tokens is written on one line on purpose: whitespace
+  between the spans would be whitespace in the code.
+--}}
+<div class="panel file">
+  <header class="file-head">
+    <span class="mono">{{ path }}</span>
+    <span class="muted">
+      @if (language)
+        {{ language }} &middot;
+      @endif
+      {{ size }}
+    </span>
+  </header>
+
+  @if (state === 'missing')
+    <p class="muted file-note">This file does not exist at {{ refName }}.</p>
+  @elseif (state === 'binary')
+    <p class="muted file-note">Binary file, not shown.</p>
+  @elseif (state === 'too-large')
+    <p class="muted file-note">This file is {{ size }}, too large to display.</p>
+  @elseif (state === 'markdown')
+    <MarkdownContent :html="markdownHtml" />
+  @else
+    <table class="source">
+      <tbody>
+        @foreach (lines as tokens, index)
+          <tr class="source-row">
+            <td class="source-num mono">{{ index + 1 }}</td>
+            <td class="source-code mono">@foreach (tokens as token)<span class="t-{{ token.type }}">{{ token.content }}</span>@endforeach</td>
+          </tr>
+        @endforeach
+      </tbody>
+    </table>
+  @endif
+</div>
+
+<style>
+  .file { margin-top: 10px; overflow: hidden; }
+
+  .file-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+
+  .file-note { padding: 18px; }
+
+  /* Already inside a panel with its own header, so the markdown panel drops
+     its border and its gap rather than drawing a card inside a card. A
+     descendant rule rather than a prop: a boolean passed to a component is a
+     boolean two callers can disagree about. */
+  .file .markdown-panel { margin-top: 0; border: 0; border-radius: 0; background: none; }
+  .file .markdown-body { padding: 20px 22px; }
+
+  .source { width: 100%; border-collapse: collapse; font-size: 12.5px; line-height: 1.55; }
+
+  .source-num {
+    width: 1%;
+    padding: 0 12px 0 16px;
+    text-align: right;
+    color: var(--muted);
+    vertical-align: top;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .source-code { padding: 0 16px 0 0; white-space: pre; }
+  .source-row:first-child .source-num, .source-row:first-child .source-code { padding-top: 14px; }
+  .source-row:last-child .source-num, .source-row:last-child .source-code { padding-bottom: 14px; }
+</style>

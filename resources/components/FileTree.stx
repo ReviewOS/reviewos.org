@@ -1,0 +1,62 @@
+{{--
+  A directory listing.
+
+  The rows arrive ready, from `treeRows` in `app/Actions/Browse/rows.ts`: a
+  name, a link or none, and one piece of text on the right. Deciding any of
+  that here would put it in a file no test can reach, and the link rule in
+  particular has already been wrong once - a branch called `fix/rounding` is a
+  branch, not a ref and a path.
+
+  A row with no `href` is a submodule. It points at another repository and
+  there is nothing here to open, so it is not a link rather than being a link
+  that goes nowhere.
+--}}
+<div class="panel tree">
+  @if (rows.length === 0)
+    <p class="muted tree-empty">This directory is empty.</p>
+  @else
+    <ul class="tree-list">
+      @foreach (rows as row)
+        <li class="tree-row">
+          <span class="tree-icon {{ row.icon }}" aria-hidden="true"></span>
+          @if (row.href)
+            <a class="tree-name" href="{{ row.href }}">{{ row.name }}</a>
+          @else
+            <span class="tree-name">{{ row.name }}</span>
+          @endif
+          <span class="muted tree-size">{{ row.meta }}</span>
+        </li>
+      @endforeach
+    </ul>
+  @endif
+</div>
+
+<style>
+  .tree { margin-top: 10px; overflow: hidden; }
+  .tree-empty { padding: 18px; }
+  .tree-list { display: flex; flex-direction: column; }
+
+  .tree-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+
+  .tree-row:last-child { border-bottom: 0; }
+  .tree-icon { flex: none; color: var(--muted); }
+
+  .tree-name {
+    flex: 1;
+    min-width: 0;
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  a.tree-name:hover { text-decoration: underline; }
+  .tree-size { flex: none; font-size: 12.5px; }
+</style>

@@ -6,7 +6,7 @@
  * shaping is `resources/functions/browse`, and this lays it out.
  */
 import { repositoryForView } from '../../../../../functions/repo'
-import { commitHistory, relativeTime, shortSha } from '../../../../../functions/browse'
+import { commitHistory, commitRows, relativeTime, shortSha } from '../../../../../functions/browse'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
@@ -27,6 +27,10 @@ if (!repoRow)
 // the repository root, so git resolved it against the server's own working
 // directory, found nothing, and this page said the repository had no commits.
 const commits = repoRow ? await commitHistory(String(repoAccess?.diskPath ?? ''), ref, '', 50) : []
+
+// Shaped where it can be tested. What `CommitList` receives is already
+// decided: a subject, a link, a byline.
+const rows = commitRows(commits, `/${ownerHandle}/${repositoryName}`, relativeTime, shortSha)
 </script>
 
 @layout('app')
@@ -45,36 +49,8 @@ const commits = repoRow ? await commitHistory(String(repoAccess?.diskPath ?? '')
         <p class="muted" style="margin-top: 6px;">Commits on <span class="mono">{{ ref }}</span></p>
       </header>
 
-      @if (commits.length === 0)
-        <div class="panel" style="padding: 28px; text-align: center; margin-top: 16px;">
-          <p class="muted">No commits on this ref.</p>
-        </div>
-      @else
-        <div class="panel commits">
-          <ul>
-            @foreach (commits as commit)
-              <li class="commit-row">
-                <div class="commit-main">
-                  {{-- The subject is the link, because that is what somebody reads and then wants to open. --}}
-                  <a class="commit-subject" href="/{{ ownerHandle }}/{{ repositoryName }}/commit/{{ commit.sha }}">{{ commit.subject }}</a>
-                  <span class="muted commit-meta">{{ commit.authorName }} committed {{ relativeTime(commit.when) }}</span>
-                </div>
-                <a class="mono muted commit-sha" href="/{{ ownerHandle }}/{{ repositoryName }}/commit/{{ commit.sha }}">{{ shortSha(commit.sha) }}</a>
-              </li>
-            @endforeach
-          </ul>
-        </div>
-      @endif
+      <CommitList :rows="rows" />
+
     @endif
   </div>
 @endsection
-
-<style>
-  .commits { margin-top: 14px; overflow: hidden; }
-  .commit-row { display: flex; align-items: center; gap: 14px; padding: 11px 15px; border-bottom: 1px solid var(--line); }
-  .commit-row:last-child { border-bottom: 0; }
-  .commit-main { flex: 1; min-width: 0; }
-  .commit-subject { display: block; color: inherit; text-decoration: none; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .commit-meta { display: block; margin-top: 2px; font-size: 12.5px; }
-  .commit-sha { flex: none; font-size: 12.5px; }
-</style>

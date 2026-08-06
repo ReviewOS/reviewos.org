@@ -1,0 +1,43 @@
+{{--
+  Who owns this, what it is, and which ref you are on.
+
+  The same three facts every repository page opens with, so every repository
+  page draws them from here rather than from a copy of them. The clone URL is
+  in the header rather than beside the file list because an empty repository is
+  where it matters most: there is nothing to browse yet, and the URL is what
+  somebody pushes their first commit to.
+--}}
+<header class="repo-head">
+  <div class="repo-title-row">
+    <h1 class="repo-title">
+      <a href="/{{ owner }}">{{ owner }}</a><span class="muted">/</span><a href="/{{ owner }}/{{ repository }}">{{ repository }}</a>
+    </h1>
+    <span class="pill pill-{{ visibility }}">{{ visibility }}</span>
+    <CloneUrlBox owner="{{ owner }}" repository="{{ repository }}" />
+  </div>
+
+  @if (description)
+    <p class="muted repo-description">{{ description }}</p>
+  @endif
+
+  <div class="repo-meta muted">
+    <BranchPicker :branches="branches" :tags="tags" current="{{ refName }}" />
+
+    @if (branches.length > 1)
+      <span>&middot; {{ branches.length }} branches</span>
+    @endif
+
+    <span>&middot; <a href="/{{ owner }}/{{ repository }}/commits/{{ refName }}">commits</a></span>
+    <span>&middot; {{ size }}</span>
+  </div>
+</header>
+
+<style>
+  .repo-head { padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .repo-title-row { display: flex; align-items: center; gap: 10px; }
+  .repo-title { font-size: 20px; font-weight: 600; }
+  .repo-title a { text-decoration: none; }
+  .repo-title a:hover { text-decoration: underline; }
+  .repo-description { margin-top: 6px; font-size: 14px; }
+  .repo-meta { margin-top: 8px; font-size: 13px; display: flex; gap: 6px; align-items: center; }
+</style>
