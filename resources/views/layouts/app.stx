@@ -491,17 +491,22 @@
         line-height: 1.5;
       }
 
-      /* Split: the two code columns share what is left after the gutters, and
-         they share it equally whether or not this file's pane is scrolling.
+      /* Split: the two code columns are scrolled together, by being in one
+         scrolling box rather than by two of them being kept in step.
 
-         The gutter width is measured once per page and published as a custom
-         property by the viewer, because it is zero on a Mac with overlay
-         scrollbars and fifteen on Windows - and a split view that assumed
-         either one has columns of different widths on the other. */
-      .diff-table[data-columns='4'] { table-layout: fixed; }
-      .diff-table[data-columns='4'] .code {
-        width: calc((100% - 92px - var(--scrollbar-gutter, 0px)) / 2);
-      }
+         A pair of scrollers synchronised by script is the obvious reading of
+         "scroll-synced", and it is the wrong one here: it costs a scroll
+         listener per file, it drifts by a pixel under momentum scrolling, and
+         it has nothing to say about what happens while a row is being
+         recycled. One scroller cannot drift from itself.
+
+         The two columns must be the same width for that to be worth anything,
+         and equal width is what `table-layout: fixed` promises - but it also
+         freezes the columns at the width of the first row, which clipped every
+         long line and left the two halves overlapping. So the columns are
+         sized from content and the *minimum* width is what keeps them even. */
+      .diff-table[data-columns='4'] .code { min-width: 44%; }
+      .diff-table[data-columns='4'] .gutter { width: 1px; white-space: nowrap; }
 
       .gutter {
         width: 1%;

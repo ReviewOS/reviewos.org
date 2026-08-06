@@ -280,15 +280,15 @@ Appending each file as it parses is as bad as waiting for all of them: the main 
 and the page is unresponsive for the whole download. DiffsHub's numbers, worth starting from and then
 measuring:
 
-- [ ] First batch sized to the viewport (`ceil(viewportHeight / rowHeight)`, clamped to 25..96) so the
+- [x] First batch sized to the viewport (`ceil(viewportHeight / rowHeight)`, clamped to 25..96) so the
       first paint fills the screen exactly once, then 25 files per batch after that
-- [ ] Publish when the batch is full **or** 100ms has passed (500ms for the very first batch, which
+- [x] Publish when the batch is full **or** 100ms has passed (500ms for the very first batch, which
       buys a fuller first screen)
-- [ ] An 8ms work budget: if parsing has held the thread that long, yield before continuing, even
-      mid-batch
-- [ ] Yield via `requestAnimationFrame` with a `setTimeout` race behind it, so a backgrounded tab
-      still makes progress
-- [ ] The file tree publishes on its own slower schedule (every 1,000 files or 1,000ms) because a
+- [x] An 8ms work budget: if parsing has held the thread that long, yield before continuing, even
+      mid-batch. Checked *between* records, so a yield never lands in the middle of one.
+- [x] Yield via `requestAnimationFrame` with a `setTimeout` race behind it, so a backgrounded tab
+      still makes progress - which is exactly how people open several pull requests at once.
+- [x] The file tree publishes on its own slower schedule (every 1,000 files or 1,000ms) because a
       tree rebuild is expensive and nobody is reading it during the stream
 - [x] Every published batch is guarded by a request id, so a navigation mid-stream cannot append
       files from the previous diff into the new viewer
@@ -534,13 +534,14 @@ comment nesting wrong, and the failure is silent and ugly: half a file rendered 
 
 ### Worker and output shape
 
-- [ ] A worker entry in the package, so consumers do not each write their own. Initialize with a
-      language set and a theme; receive lines or a file; post back tokens.
-- [ ] Token output that survives structured clone cheaply. An object per token
-      (`{ type, content }`) allocates hard on a 100k line file. Offer a flat representation: one
-      string per line plus parallel typed arrays of offsets and token-class ids, with the current
-      object API kept as a convenience wrapper.
-- [ ] Cancellation: a queued tokenize request must be droppable when the reader scrolls past it
+- [x] A worker entry in the package, so consumers do not each write their own. Four messages, and
+      the scope is passed in rather than reached for, so the same function serves a browser `Worker`,
+      a Bun worker and a `MessagePort`.
+- [x] Token output that survives structured clone cheaply: one string per line plus parallel typed
+      arrays of offsets and class ids, with the object API kept as a wrapper. The contents are *not*
+      stored - they are slices of the line - which is only sound while the tokens reproduce the line,
+      so the packer checks rather than assumes and falls back to one plain token when they do not.
+- [x] Cancellation: a queued tokenize request must be droppable when the reader scrolls past it
 
 ### Themes
 
@@ -586,8 +587,8 @@ comment nesting wrong, and the failure is silent and ugly: half a file rendered 
 
 - [ ] Throughput benchmarks in MB/s per language in the `benchmarks` package, tracked over time and
       run in CI, so a grammar change that halves throughput is visible
-- [ ] A tokenize ceiling with an explicit plain-text result inside the library, so every consumer
-      gets the same fallback rather than each inventing one
+- [x] A tokenize ceiling with an explicit plain-text result inside the library, so every consumer
+      gets the same fallback rather than each inventing one - or, much more often, not having one
 - [ ] Profile `Tokenizer` against `FastTokenizer` on the corpus and decide when each is used
       automatically, rather than making the caller choose
 - [ ] Reuse the `Uint8Array` character-class table approach from `FastTokenizer` in the main
@@ -602,7 +603,15 @@ Everything a reader can turn on. DiffsHub exposes all of these; several we alrea
 - [x] Split and unified layouts, switchable without reloading. The manifest carries the row counts
       for both, so the geometry switches from what the list already has and only the markup is
       refetched.
-- [ ] Split columns scroll-synced horizontally
+- [x] Split columns scroll-synced horizontally - by being one scrolling box rather than two kept in
+      step. A pair of scrollers synchronised by script is the obvious reading and the wrong one: it
+      costs a listener per file, it drifts under momentum scrolling, and it has nothing to say about
+      a row being recycled mid-gesture. One scroller cannot drift from itself.
+
+  Finding it turned up a regression from the scrollbar-gutter work: `table-layout: fixed` promises
+  equal columns and also freezes them at the width of the first row, so every long line was clipped
+  and the two halves overlapped. Columns are sized from content now, with a minimum width keeping
+  them even.
 - [x] Word-level highlighting inside changed lines. Reported as character ranges rather than as
       substrings, because the line is already carved into syntax tokens by the time it renders and
       neither carving may be dropped. Character-level is still open.

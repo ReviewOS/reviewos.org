@@ -371,13 +371,17 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
 
 /** One side of a split row: a number gutter and a code cell, or a filler pair. */
 function splitCell(line: DiffLine | null, side: 'old' | 'new', options: RenderRowsOptions): string {
+  // The side is on the cell so the two columns can be scrolled together. A
+  // reader comparing two versions of a long line is reading across, and a
+  // split view where only one side moves makes that impossible - which is the
+  // one thing split view exists to make possible.
   if (!line)
-    return `<td class="gutter num"></td><td class="code is-empty mono"></td>`
+    return `<td class="gutter num"></td><td class="code is-empty mono" data-side="${side}"></td>`
 
   const number = side === 'old' ? line.oldLine : line.newLine
 
   return gutter(options.path ?? '', side === 'old' ? 'left' : 'right', number, options.commentable)
-    + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}</td>`
+    + `<td class="code mono" data-side="${side}"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}</td>`
 }
 
 /**
