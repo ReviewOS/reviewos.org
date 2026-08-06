@@ -116,6 +116,7 @@ const base = `/${ownerHandle}/${repositoryName}`
       </header>
 
       <form class="panel set-new" method="post" action="/api/repos/milestones">
+        <CsrfField />
         <input type="hidden" name="owner" value="{{ ownerHandle }}">
         <input type="hidden" name="repo" value="{{ repositoryName }}">
         <input type="hidden" name="operation" value="create">
@@ -170,6 +171,7 @@ const base = `/${ownerHandle}/${repositoryName}`
 
               <div class="milestone-actions">
                 <form class="set-form" method="post" action="/api/repos/milestones">
+                  <CsrfField />
                   <input type="hidden" name="owner" value="{{ ownerHandle }}">
                   <input type="hidden" name="repo" value="{{ repositoryName }}">
                   <input type="hidden" name="id" value="{{ milestone.id }}">
@@ -181,6 +183,7 @@ const base = `/${ownerHandle}/${repositoryName}`
                 </form>
 
                 <form method="post" action="/api/repos/milestones">
+                  <CsrfField />
                   <input type="hidden" name="owner" value="{{ ownerHandle }}">
                   <input type="hidden" name="repo" value="{{ repositoryName }}">
                   <input type="hidden" name="id" value="{{ milestone.id }}">
@@ -189,6 +192,7 @@ const base = `/${ownerHandle}/${repositoryName}`
                 </form>
 
                 <form method="post" action="/api/repos/milestones">
+                  <CsrfField />
                   <input type="hidden" name="owner" value="{{ ownerHandle }}">
                   <input type="hidden" name="repo" value="{{ repositoryName }}">
                   <input type="hidden" name="id" value="{{ milestone.id }}">

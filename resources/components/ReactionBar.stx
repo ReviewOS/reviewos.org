@@ -17,6 +17,7 @@
   @foreach (summaries as reaction)
     @if (reaction.count > 0 || open)
       <form class="reaction-form" method="post" action="{{ action }}">
+        <CsrfField />
         @foreach (fields as field)
           <input type="hidden" name="{{ field.name }}" value="{{ field.value }}">
         @endforeach

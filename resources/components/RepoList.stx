@@ -239,6 +239,7 @@ const notFound = !repoRow
              checkboxes and the toolbar are the same submission with no client
              script holding them together. --}}
         <form method="post" action="/api/repos/issues/bulk">
+          <CsrfField />
         <input type="hidden" name="owner" value="{{ ownerHandle }}">
         <input type="hidden" name="repo" value="{{ repositoryName }}">
 

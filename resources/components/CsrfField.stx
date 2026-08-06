@@ -1,0 +1,32 @@
+<script server>
+/**
+ * The CSRF token, as a form field.
+ *
+ * Every form in this application was returning 403.
+ *
+ * The middleware is double-submit: it compares a value from the request
+ * against the `X-CSRF-Token` cookie, and it will take that value from an
+ * `x-csrf-token` header **or** from a `_token` body field. A single-page app
+ * reads the cookie with JavaScript and echoes the header, which is the path
+ * the middleware was written for. This application deliberately runs no
+ * client-side JavaScript, so its forms could send neither - and every write
+ * from a browser (opening an issue, commenting, creating a label, merging a
+ * pull request) failed with `CSRF token mismatch` before it reached an action.
+ *
+ * So the token goes in the body, which is what a form can carry. One component
+ * rather than a line in each form, because a form that forgets it is a button
+ * that silently does nothing, and that is exactly the failure nobody notices
+ * until somebody tries to use the product.
+ *
+ * Reading the cookie is enough. The router seeds it on every safe-method
+ * response, so by the time a page with a form has been fetched, the browser
+ * holds one.
+ */
+const cookies = __stxServeContext?.cookies ?? {}
+
+// Both spellings, because the middleware accepts both and a proxy may
+// normalise the case of a cookie name.
+const token = String(cookies['X-CSRF-Token'] ?? cookies['x-csrf-token'] ?? cookies['csrf-token'] ?? '')
+</script>
+
+<input type="hidden" name="_token" value="{{ token }}">

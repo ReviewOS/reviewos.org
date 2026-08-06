@@ -331,6 +331,7 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
                  client-side JavaScript, so there is no editor to insert a link
                  into and this is the whole upload flow. --}}
             <form class="panel issue-reply" method="post" action="/api/repos/issues/comments" enctype="multipart/form-data">
+              <CsrfField />
               <input type="hidden" name="owner" value="{{ owner }}">
               <input type="hidden" name="repo" value="{{ repositoryName }}">
               <input type="hidden" name="number" value="{{ issue.number }}">

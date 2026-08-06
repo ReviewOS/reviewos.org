@@ -319,7 +319,21 @@ the one moment where rejecting is still possible.
       history, the file tree and the README all rendered "nothing here" on repositories that were
       full, with no error anywhere. `repositoryForView` now returns the absolute path, so a page
       never has to know the layout
-- [ ] `.../releases.stx`, `.../settings.stx`
+- [x] `.../releases.stx` - newest version first, not newest publication, with the notes rendered and
+      both the uploaded assets and the source archives (generated from the tag on demand, so they
+      cannot drift from the tag they claim to be). A draft shows only to somebody who could have
+      written it
+- [x] `.../settings.stx` - name, description, default branch, visibility, topics, and a danger zone
+      that says what each thing costs before somebody presses it. Reading the repository is not
+      enough to see the page: somebody who cannot change anything gets the same answer a stranger
+      gets, because a settings page that renders read-only is one people file bugs about
+- [x] **Every form in the product was returning 403.** The CSRF middleware is double-submit and takes
+      its value from an `x-csrf-token` header *or* a `_token` body field. A single-page app reads the
+      cookie and echoes the header; this application deliberately runs no client-side JavaScript, so
+      its forms could send neither - and opening an issue, commenting, creating a label, creating a
+      milestone and merging a pull request all failed before reaching an action. `<CsrfField />` puts
+      the token in the body, in one component rather than a line per form, because a form that
+      forgets it is a button that silently does nothing
 - [ ] `resources/views/new.stx` - create a repository
 - [ ] Components: `RepoHeader`, `FileTree`, `CodeView`, `CloneUrlBox`, `BranchPicker`,
       `CommitList`, `MarkdownContent`

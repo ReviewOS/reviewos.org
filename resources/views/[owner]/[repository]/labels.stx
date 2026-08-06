@@ -79,6 +79,7 @@ const base = `/${ownerHandle}/${repositoryName}`
       </header>
 
       <form class="panel set-new" method="post" action="/api/repos/labels">
+        <CsrfField />
         <input type="hidden" name="owner" value="{{ ownerHandle }}">
         <input type="hidden" name="repo" value="{{ repositoryName }}">
         <input type="hidden" name="operation" value="create">
@@ -101,6 +102,7 @@ const base = `/${ownerHandle}/${repositoryName}`
           @foreach (labelRows as label)
             <li class="set-row">
               <form class="set-form" method="post" action="/api/repos/labels">
+                <CsrfField />
                 <input type="hidden" name="owner" value="{{ ownerHandle }}">
                 <input type="hidden" name="repo" value="{{ repositoryName }}">
                 <input type="hidden" name="id" value="{{ label.id }}">
@@ -122,6 +124,7 @@ const base = `/${ownerHandle}/${repositoryName}`
               </form>
 
               <form class="set-delete" method="post" action="/api/repos/labels">
+                <CsrfField />
                 <input type="hidden" name="owner" value="{{ ownerHandle }}">
                 <input type="hidden" name="repo" value="{{ repositoryName }}">
                 <input type="hidden" name="id" value="{{ label.id }}">

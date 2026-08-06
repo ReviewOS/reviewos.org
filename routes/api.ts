@@ -44,7 +44,14 @@ route.post('/user/notifications/mutes', 'Actions/Notification/MuteAction').middl
 // endpoint should never be able to reach by accident.
 route.post('/repos', 'Actions/Repo/CreateRepositoryAction').middleware('auth')
 route.put('/repos', 'Actions/Repo/UpdateSettingsAction').middleware('auth')
+// The same action on POST, because an HTML form can only GET or POST and the
+// settings page is a form. The action does not care which verb carried it.
+route.post('/repos/settings', 'Actions/Repo/UpdateSettingsAction').middleware('auth')
 route.delete('/repos', 'Actions/Repo/DeleteRepositoryAction').middleware('auth')
+// And on POST, for the settings page's form. Same action, same typed-back
+// confirmation - a form cannot send DELETE, and a hidden `_method` field is a
+// convention the router does not have.
+route.post('/repos/delete', 'Actions/Repo/DeleteRepositoryAction').middleware('auth')
 route.post('/repos/transfer', 'Actions/Repo/TransferRepositoryAction').middleware('auth')
 route.post('/repos/forks', 'Actions/Repo/ForkRepositoryAction').middleware('auth')
 
@@ -88,6 +95,7 @@ route.get('/repos/releases/assets', 'Actions/Release/DownloadAssetAction')
 // Topics. The whole list at once, because that is how the interface presents
 // it; two endpoints would mean the page reconstructing the difference itself.
 route.put('/repos/topics', 'Actions/Repo/UpdateTopicsAction').middleware('auth')
+route.post('/repos/topics', 'Actions/Repo/UpdateTopicsAction').middleware('auth')
 
 // Bytes rather than JSON. Both stream, and neither serves a repository's
 // content as its own type - see app/Actions/Git/download.ts for why that is a

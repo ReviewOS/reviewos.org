@@ -226,6 +226,7 @@ const statePill = pullRequest
             @if (blockers.length === 0)
               <p class="merge-state ok">Everything checks out.</p>
               <form method="post" action="/api/repos/pulls/merge">
+                <CsrfField />
                 <input type="hidden" name="owner" value="{{ owner }}">
                 <input type="hidden" name="repo" value="{{ repositoryName }}">
                 <input type="hidden" name="number" value="{{ number }}">

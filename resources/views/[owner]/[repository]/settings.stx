@@ -1,0 +1,278 @@
+<script server>
+/**
+ * Repository settings.
+ *
+ * Every field here is a decision with consequences outside its row: a rename
+ * moves a directory and breaks every clone URL somebody wrote down, a
+ * visibility change can expose work, a transfer moves the repository into a
+ * permission structure it has never been under, and a delete is the one thing
+ * nobody gets to undo. The rules are in `app/Actions/Repo/settings.ts` and the
+ * endpoints enforce them; this page's job is to say what each one costs before
+ * somebody presses it.
+ *
+ * The page runs no client-side JavaScript, so every control is a form that
+ * posts to the same endpoint the API uses. That is why the destructive ones ask
+ * for the repository's name typed back: it is the only confirmation that
+ * survives a misdirected click, a stale tab, or a script pointed at the wrong
+ * repository, and none of those are things a permission check can catch.
+ */
+import { repositoryForView } from '../../../functions/repo'
+import { branchNames } from '../../../functions/browse'
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
+
+// Reading the repository is not enough to see this page. Somebody who cannot
+// change anything gets the same answer a stranger gets, because a settings page
+// that renders read-only is a settings page people file bugs about.
+const mayEdit = Boolean(repoAccess?.can('repository:settings'))
+const mayDelete = Boolean(repoAccess?.can('repository:delete'))
+const mayTransfer = Boolean(repoAccess?.can('repository:transfer'))
+
+const branches = repoRow && mayEdit ? await branchNames(String(repoAccess?.diskPath ?? '')) : []
+
+const topics: any[] = repoRow && mayEdit
+  ? await db
+      .selectFrom('repo_topics')
+      .select(['topic'])
+      .where('repository_id', '=', Number(repoRow.id))
+      .execute()
+  : []
+
+const topicList = topics.map(row => String(row.topic)).join(', ')
+const base = `/${ownerHandle}/${repositoryName}`
+const isArchived = Boolean(repoRow?.is_archived)
+const fullName = `${ownerHandle}/${repositoryName}`
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repoRow || !mayEdit)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+      </div>
+    @else
+      <header class="repo-head">
+        <h1 class="repo-title">
+          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
+        </h1>
+        <p class="muted" style="margin-top: 6px;">Settings</p>
+      </header>
+
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+
+      @if (isArchived)
+        <div class="panel notice">
+          <strong>This repository is archived.</strong>
+          It is readable and frozen: no pushes, no new issues, no comments. Unarchiving is the
+          only change it accepts, which is what keeps archiving reversible.
+        </div>
+      @endif
+
+      <section class="panel card">
+        <h2 class="card-title">Details</h2>
+
+        <form class="grid" method="post" action="/api/repos/settings">
+          <CsrfField />
+          <input type="hidden" name="owner" value="{{ ownerHandle }}">
+          <input type="hidden" name="repo" value="{{ repositoryName }}">
+
+          <label class="field">
+            <span class="label">Name</span>
+            <input class="input" name="name" value="{{ repositoryName }}" maxlength="100" required>
+            <span class="hint muted">
+              Renaming moves the repository on disk. Every clone URL somebody has written down
+              stops working.
+            </span>
+          </label>
+
+          <label class="field">
+            <span class="label">Description</span>
+            <input class="input" name="description" value="{{ repoRow.description ?? '' }}" maxlength="500">
+            <span class="hint muted">Submitting this empty clears it.</span>
+          </label>
+
+          <label class="field">
+            <span class="label">Default branch</span>
+            <select class="input" name="default_branch">
+              @foreach (branches as branch)
+                <option value="{{ branch }}" {{ branch === repoRow.default_branch ? 'selected' : '' }}>{{ branch }}</option>
+              @endforeach
+            </select>
+            <span class="hint muted">What a clone checks out, and what a pull request targets.</span>
+          </label>
+
+          <label class="field">
+            <span class="label">Visibility</span>
+            <select class="input" name="visibility">
+              <option value="public" {{ repoRow.visibility === 'public' ? 'selected' : '' }}>Public - anybody can read and clone it</option>
+              <option value="internal" {{ repoRow.visibility === 'internal' ? 'selected' : '' }}>Internal - anybody signed in to this instance</option>
+              <option value="private" {{ repoRow.visibility === 'private' ? 'selected' : '' }}>Private - only people you give access to</option>
+            </select>
+          </label>
+
+          <div class="actions">
+            <button class="btn btn-primary" type="submit">Save</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel card">
+        <h2 class="card-title">Topics</h2>
+
+        <form class="grid" method="post" action="/api/repos/topics">
+          <CsrfField />
+          <input type="hidden" name="owner" value="{{ ownerHandle }}">
+          <input type="hidden" name="repo" value="{{ repositoryName }}">
+
+          <label class="field">
+            <span class="label">Topics</span>
+            <input class="input" name="topics" value="{{ topicList }}" placeholder="typescript, git, code-review">
+            <span class="hint muted">
+              Comma separated, up to twenty. Lower case with dashes, so <span class="mono">TypeScript</span>
+              and <span class="mono">typescript</span> are one topic.
+            </span>
+          </label>
+
+          <div class="actions">
+            <button class="btn" type="submit">Save topics</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel card danger">
+        <h2 class="card-title">Danger zone</h2>
+
+        <div class="row">
+          <div class="row-text">
+            <strong>{{ isArchived ? 'Unarchive this repository' : 'Archive this repository' }}</strong>
+            <span class="muted">
+              {{ isArchived
+                ? 'It starts accepting pushes, issues and comments again.'
+                : 'It becomes readable and frozen. Nothing is lost, and you can undo this.' }}
+            </span>
+          </div>
+
+          <form method="post" action="/api/repos/settings">
+            <CsrfField />
+            <input type="hidden" name="owner" value="{{ ownerHandle }}">
+            <input type="hidden" name="repo" value="{{ repositoryName }}">
+            <input type="hidden" name="is_archived" value="{{ isArchived ? 'false' : 'true' }}">
+            <button class="btn" type="submit">{{ isArchived ? 'Unarchive' : 'Archive' }}</button>
+          </form>
+        </div>
+
+        @if (mayTransfer)
+          <div class="row">
+            <div class="row-text">
+              <strong>Transfer ownership</strong>
+              <span class="muted">
+                Every clone URL changes, and the collaborators you granted here stop applying -
+                the new owner's own structure takes over. An archived repository cannot be
+                transferred.
+              </span>
+            </div>
+
+            <form class="inline" method="post" action="/api/repos/transfer">
+              <CsrfField />
+              <input type="hidden" name="owner" value="{{ ownerHandle }}">
+              <input type="hidden" name="repo" value="{{ repositoryName }}">
+              <input class="input input-small" name="to" placeholder="new owner" required>
+              <button class="btn btn-danger" type="submit">Transfer</button>
+            </form>
+          </div>
+        @endif
+
+        @if (mayDelete)
+          <div class="row">
+            <div class="row-text">
+              <strong>Delete this repository</strong>
+              <span class="muted">
+                The repository is moved aside rather than erased, so a mistake is recoverable for
+                thirty days. Its issues, pull requests and reviews are not: those go now.
+              </span>
+            </div>
+
+            {{--
+              A form cannot send DELETE, so this posts to the endpoint's POST
+              twin. The name is typed back for the reason the endpoint asks for
+              it: a permission check cannot tell a deliberate delete from a
+              misdirected one.
+            --}}
+            <form class="inline" method="post" action="/api/repos/delete">
+              <CsrfField />
+              <input type="hidden" name="owner" value="{{ ownerHandle }}">
+              <input type="hidden" name="repo" value="{{ repositoryName }}">
+              <input class="input input-small" name="confirm" placeholder="{{ fullName }}" required>
+              <button class="btn btn-danger" type="submit">Delete</button>
+            </form>
+          </div>
+        @endif
+      </section>
+    @endif
+  </div>
+@endsection
+
+<style>
+  .card { padding: 18px 20px; margin-top: 16px; }
+  .card-title { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
+
+  .notice {
+    padding: 12px 16px;
+    margin-top: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+    border-left: 3px solid var(--accent);
+  }
+
+  .grid { display: grid; gap: 16px; }
+  .field { display: grid; gap: 6px; }
+  .label { font-size: 13px; font-weight: 500; }
+
+  .input {
+    width: 100%;
+    padding: 8px 11px;
+    font: inherit;
+    font-size: 13.5px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-field, 10px);
+  }
+
+  .input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .input-small { width: 220px; }
+
+  .hint { font-size: 12.5px; line-height: 1.45; }
+  .actions { display: flex; gap: 8px; }
+
+  .danger { border-color: var(--del, #b3261e); }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .row:first-of-type { border-top: 0; padding-top: 0; }
+  .row-text { display: grid; gap: 4px; max-width: 62ch; font-size: 13px; }
+  .row-text .muted { font-size: 12.5px; line-height: 1.45; }
+
+  .inline { display: flex; gap: 8px; align-items: center; }
+
+  .btn-danger { border-color: var(--del, #b3261e); color: var(--del, #b3261e); }
+  .btn-danger:hover { background: var(--del, #b3261e); color: #fff; }
+
+  @media (max-width: 720px) {
+    .row { flex-direction: column; align-items: stretch; }
+    .input-small { width: 100%; }
+  }
+</style>

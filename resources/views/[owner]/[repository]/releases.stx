@@ -1,0 +1,217 @@
+<script server>
+/**
+ * A repository's releases, newest version first.
+ *
+ * Ordered by version rather than by publication date, which is the whole
+ * subtlety: a patch backported to an old branch and published today would sit
+ * at the top of a date-ordered list and be the thing people download. The rule
+ * lives in `app/Actions/Repo/releases.ts` and is tested there.
+ *
+ * Drafts are visible only to somebody who could have written them. That is the
+ * point of a draft: release notes get written while a release is being
+ * prepared, and a half-written changelog on a public page is worse than none.
+ */
+import { repositoryForView } from '../../../functions/repo'
+import { relativeTime, shortSha } from '../../../functions/browse'
+import { latestRelease, sortReleases } from '../../../functions/releases'
+import { renderMarkdownHighlighted } from '../../../functions/markdown'
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
+
+const maySeeDrafts = Boolean(repoAccess?.can('repository:settings'))
+
+const rows: any[] = repoRow
+  ? await db
+      .selectFrom('releases')
+      .selectAll()
+      .where('repository_id', '=', Number(repoRow.id))
+      .execute()
+  : []
+
+const visible = maySeeDrafts ? rows : rows.filter(row => String(row.status) !== 'draft')
+const ordered = sortReleases(visible)
+const latest = latestRelease(ordered)
+
+// The assets, in one query rather than one per release. A release with a dozen
+// binaries is normal, and a page that issues a query per release is a page that
+// gets slower every time somebody ships.
+const assets: any[] = ordered.length > 0
+  ? await db
+      .selectFrom('release_assets')
+      .selectAll()
+      .where('release_id', 'in', ordered.map(release => Number(release.id)))
+      .execute()
+  : []
+
+const assetsByRelease = new Map<number, any[]>()
+for (const asset of assets) {
+  const held = assetsByRelease.get(Number(asset.release_id))
+  if (held)
+    held.push(asset)
+  else
+    assetsByRelease.set(Number(asset.release_id), [asset])
+}
+
+// Notes are markdown, rendered here rather than in the template: the
+// `@markdown` directive runs before interpolation, so wrapping the raw notes in
+// it renders the literal token and drops the text into the page untouched.
+const releases = []
+for (const release of ordered) {
+  releases.push({
+    ...release,
+    html: release.notes
+      ? await renderMarkdownHighlighted(String(release.notes), { owner: ownerHandle, repository: repositoryName })
+      : '',
+    assets: assetsByRelease.get(Number(release.id)) ?? [],
+  })
+}
+
+const base = `/${ownerHandle}/${repositoryName}`
+
+/** A size somebody can read, for a download button. */
+function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repoRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+      </div>
+    @else
+      <header class="repo-head">
+        <h1 class="repo-title">
+          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
+        </h1>
+        <p class="muted" style="margin-top: 6px;">
+          {{ releases.length }} {{ releases.length === 1 ? 'release' : 'releases' }}
+        </p>
+      </header>
+
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+
+      @if (releases.length === 0)
+        <div class="panel" style="padding: 28px; text-align: center; margin-top: 16px;">
+          <p class="muted">No releases yet.</p>
+          <p class="muted" style="margin-top: 6px; font-size: 13px;">
+            A release is a tag plus what you wanted to say about it, so push a tag first.
+          </p>
+        </div>
+      @else
+        <div class="releases">
+          @foreach (releases as release)
+            <article class="panel release">
+              <header class="release-head">
+                <h2 class="release-name">
+                  <a href="{{ base }}/tree/{{ release.tag_name }}">{{ release.name || release.tag_name }}</a>
+                </h2>
+
+                <div class="release-pills">
+                  @if (latest && release.tag_name === latest.tag_name)
+                    <span class="pill pill-latest">latest</span>
+                  @endif
+                  @if (release.is_prerelease)
+                    <span class="pill">prerelease</span>
+                  @endif
+                  @if (release.status === 'draft')
+                    <span class="pill pill-draft">draft</span>
+                  @endif
+                </div>
+              </header>
+
+              <p class="release-meta muted">
+                <span class="mono">{{ release.tag_name }}</span>
+                @if (release.target_sha)
+                  &middot; <a class="mono" href="{{ base }}/commit/{{ release.target_sha }}">{{ shortSha(release.target_sha) }}</a>
+                @endif
+                @if (release.published_at)
+                  &middot; published {{ relativeTime(release.published_at) }}
+                @endif
+                @if (release.author)
+                  &middot; by {{ release.author }}
+                @endif
+              </p>
+
+              @if (release.html)
+                <div class="release-notes markdown">{!! release.html !!}</div>
+              @endif
+
+              <div class="release-downloads">
+                @foreach (release.assets as asset)
+                  <a class="asset" href="/api/repos/releases/assets?owner={{ ownerHandle }}&repository={{ repositoryName }}&tag_name={{ release.tag_name }}&name={{ asset.name }}">
+                    <span class="mono">{{ asset.name }}</span>
+                    <span class="muted">{{ fileSize(Number(asset.size_bytes ?? 0)) }}</span>
+                  </a>
+                @endforeach
+
+                {{--
+                  The source archives are generated from the tag on demand
+                  rather than stored, so they cannot drift from the tag they
+                  claim to be and cost nothing until somebody asks.
+                --}}
+                <a class="asset" href="/api/repos/archive?owner={{ ownerHandle }}&repository={{ repositoryName }}&ref={{ release.tag_name }}&format=tar.gz">
+                  <span class="mono">Source code (tar.gz)</span>
+                </a>
+                <a class="asset" href="/api/repos/archive?owner={{ ownerHandle }}&repository={{ repositoryName }}&ref={{ release.tag_name }}&format=zip">
+                  <span class="mono">Source code (zip)</span>
+                </a>
+              </div>
+            </article>
+          @endforeach
+        </div>
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+  .releases { display: grid; gap: 14px; margin-top: 16px; }
+  .release { padding: 18px 20px; }
+
+  .release-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .release-name { font-size: 17px; font-weight: 600; margin: 0; }
+  .release-name a { color: inherit; text-decoration: none; }
+  .release-name a:hover { text-decoration: underline; }
+
+  .release-pills { display: flex; gap: 6px; }
+
+  .pill {
+    padding: 1px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .pill-latest { border-color: var(--accent); color: var(--accent); }
+  .pill-draft { border-style: dashed; }
+
+  .release-meta { margin: 8px 0 0; font-size: 12.5px; }
+  .release-notes { margin-top: 14px; font-size: 14px; }
+
+  .release-downloads { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+
+  .asset {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 11px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-field, 10px);
+    font-size: 12.5px;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .asset:hover { border-color: var(--muted); }
+</style>
