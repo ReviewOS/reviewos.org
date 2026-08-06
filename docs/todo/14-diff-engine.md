@@ -50,8 +50,14 @@ Numbers, so the work can be checked rather than argued about:
 - [ ] Memory after scrolling a 500k line diff end to end settles back near where it started, because
       rows are recycled and the raw patch text is not retained
 - [ ] Mobile Safari renders the bun and node pull requests DiffsHub uses as demos without blanking
-- [ ] No regression for the small case: a fifteen-file pull request must still be readable with
-      JavaScript disabled
+- [x] No regression for the small case: a fifteen-file pull request is still readable with JavaScript
+      disabled. The conversation page renders every row, every syntax token and every review thread
+      server-side, and its reply and resolve controls are plain forms - checked by fetching the page
+      and counting what is in the HTML, rather than by looking at it in a browser with a working
+      script engine, which proves nothing.
+- [ ] And an end-to-end test that keeps it true. `tests/e2e/git-http.test.ts` already boots the
+      router against a real repository on disk; the same harness could fetch the review page and
+      assert the rows are in the HTML.
 
 ## The decision that comes first
 
@@ -344,8 +350,19 @@ in the DOM.
 - [x] Element pooling: rows and their child nodes are recycled rather than created and destroyed.
       A cleanup path that can recycle instead of discarding is the difference between steady memory
       and a sawtooth.
-- [ ] Sparse layout checkpoints inside a very long single file, so seeking to line 400,000 does not
-      walk 400,000 line heights
+- [ ] **One enormous file is the hole left in this design, and it is worth naming precisely.** The
+      list virtualizes *files*: a compare of forty thousand files mounts a screenful, which is the
+      whole point. A single file of four hundred thousand lines mounts four hundred thousand rows,
+      because within a file there is no virtualization at all.
+
+  Three things currently stand between a reader and that: a file over five hundred changed lines
+  arrives folded, the inline row budget stops sending rows long before it, and a file over the
+  tokenize ceiling renders plain. None of them is a fix - each is a reason the reader has not opened
+  it yet.
+
+  The fix is line-level virtualization within a file, and that is where sparse layout checkpoints
+  earn their keep: seeking to line 400,000 has to be a binary search over checkpoints rather than a
+  walk of 400,000 heights. It is substantial, and it is the next architectural piece.
 - [x] Batched read/write render passes: all measurement, then all mutation, never interleaved. Every
       synchronous layout read outside that pass is a bug and should be findable by name.
 - [x] `contain: strict` on the scroll container and `contain: layout paint style` on each file, so
