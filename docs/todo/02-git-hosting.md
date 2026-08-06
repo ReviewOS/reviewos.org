@@ -302,7 +302,14 @@ the one moment where rejecting is still possible.
 
 ## Views
 
-- [ ] `resources/views/[owner]/[repository]/index.stx` - tree, README, clone box
+- [x] `resources/views/[owner]/[repository]/index.stx` - tree and README, through `RepoBrowser`
+- [ ] The clone box on the repository page
+- [ ] **`/{owner}/{repository}` renders correctly and answers 404.** Not a content bug: the body is
+      byte-for-byte identical to `/{owner}/{repository}/index`, which answers 200. It is the
+      `index`-stripped form of a dynamic route resolving somewhere that does not carry the status
+      through, in `bun-plugin-stx`. Every deeper page (`/commits/{ref}`, `/branches`, `/tags`,
+      `/releases`, `/settings`) answers 200, so it is specific to the two routes whose file is
+      `index.stx` inside a dynamic directory. Worth fixing before anything crawls this
 - [x] `.../tree/[...path].stx` and `.../commits/[ref]/index.stx` (a blob is the same route as a
       tree: the path either is a directory or it is not, which is one round trip rather than two)
 - [x] `.../commit/[sha].stx` - one commit, its message, its parents and the files it changed with

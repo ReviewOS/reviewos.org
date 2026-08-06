@@ -67,10 +67,10 @@
     "typecheck:framework": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false"
   },
   "dependencies": {
-    "@stacksjs/stx": "^0.2.151",
+    "@stacksjs/stx": "^0.2.153",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.48",
-    "stacks": "^0.70.267",
+    "stacks": "^0.70.276",
     "ts-syntax-highlighter": "^0.2.11"
   },
   "workspaces": [
@@ -90,8 +90,8 @@
     "better-dx": "^0.2.17"
   },
   "overrides": {
-    "@stacksjs/stx": "0.2.151",
+    "@stacksjs/stx": "0.2.153",
     "stx-router": "0.2.151",
-    "bun-plugin-stx": "0.2.151"
+    "bun-plugin-stx": "0.2.153"
   }
 }
