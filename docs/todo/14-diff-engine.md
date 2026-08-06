@@ -304,8 +304,10 @@ measuring:
       scratch buffer after a parsing run so one pathological line does not pin its peak allocation.
 - [x] Line-ending detection per file (`lf`, `crlf`, `mixed`, or nothing known), and a
       `\ No newline at end of file` marker rendered as itself rather than dropped
-- [ ] Partial diff metadata: a file can exist in the list, with correct estimated height, before its
-      contents have been loaded. A loader fills them in on demand.
+- [x] Partial diff metadata: a file can exist in the list, with correct estimated height, before its
+      contents have been loaded. A loader fills them in on demand. This is what the manifest *is* -
+      the row counts and the estimated height arrive in the record, and the rows follow or are
+      fetched.
 - [x] Tests against the shapes that break parsers: a rename with no content change, a mode-only
       change, mixed CRLF and LF in one file, a file with no trailing newline, a filename containing a
       quote or a newline, a 5,000 line single-file diff
@@ -670,8 +672,11 @@ having. Two things fell out of it:
       and by jumping to a review thread anchored on a context line. Four things can be in the way -
       the file has not streamed in yet, it is collapsed, its rows have not been fetched, the line is
       inside an unexpanded gap - and each is handled by trying again rather than by predicting it.
-- [ ] Estimated height accounts for expansions already applied, so expanding does not shift everything
-      below by a wrong amount and then correct itself
+- [x] Estimated height accounts for expansions already applied, so expanding does not shift
+      everything below by a wrong amount and then correct itself. The viewer is *told* the delta
+      rather than asked to measure again: clearing the measurement drops back to an estimate that
+      knows nothing about the expansion, so the list shrank for one frame and grew on the next, and
+      the reader watched everything below the hunk jump twice.
 - [x] Files loaded on demand: a diff item can be listed and sized before its content exists
 
 ## Review threads in the diff

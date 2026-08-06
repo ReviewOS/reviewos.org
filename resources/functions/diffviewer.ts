@@ -477,6 +477,17 @@ export interface DiffViewer {
    * their estimates, which is what they would have had anyway.
    */
   remeasureAll: () => void
+  /**
+   * A file just got taller by a known amount, in place.
+   *
+   * Expanding a hunk inserts rows into markup already on screen. Clearing the
+   * measurement and waiting for the next frame to take a new one works, but it
+   * drops back to the *estimate* in between - which knows nothing about the
+   * expansion - so the list shrinks for a frame and then grows again, and the
+   * reader watches everything below jump twice. Adding the delta means the
+   * layout is right immediately and the measurement only refines it.
+   */
+  growBy: (index: number, pixels: number) => void
   collapseAll: (collapsed: boolean) => void
   scrollToFile: (index: number, target?: ScrollToOptions) => void
   /** The files, in diff order. */
@@ -829,6 +840,16 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       // reader is looking at moves.
       file.measured = undefined
       anchor = captureAnchor(measuredLayout(geometry, { layout }), scroller.scrollTop)
+      schedule()
+    },
+
+    growBy(index, pixels) {
+      const file = geometry[index]
+      if (!file || !(pixels > 0))
+        return
+
+      anchorNow()
+      file.measured = (file.measured ?? measuredLayout(geometry, { layout }).heights[index] ?? 0) + pixels
       schedule()
     },
 
@@ -1928,8 +1949,11 @@ export function mountDiffFiles(): DiffViewer | null {
         control.remove()
       }
 
-      // The file just got taller by however many rows arrived.
-      viewer.remeasure(index)
+      // Taller by exactly the rows that arrived. Told rather than measured, so
+      // the list is right on this frame instead of dropping to the estimate for
+      // one frame and correcting on the next - which the reader sees as
+      // everything below the hunk jumping twice.
+      viewer.growBy(index, expanded.count * DEFAULT_HEIGHT_METRICS.lineHeight)
     }
     catch {
       // Left in place to be tried again. A control that vanished on a failed
