@@ -40,7 +40,23 @@ const search: Record<string, string> = useRoute().query ?? {}
 // Resolved and permission-checked together. A repository the reader may not
 // see comes back null, exactly as a repository that does not exist does, so a
 // private one does not announce itself by answering differently.
-const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
+/**
+ * The request, when there is one, without naming a binding that may not exist.
+ *
+ * stx declares `__stxServeContext` on the path that serves a request and on no
+ * other, and an *undeclared* identifier is a ReferenceError - which optional
+ * chaining does not save, because `x?.y` throws on `x` before the chain is
+ * reached. It throws inside the server script's IIFE, so it takes every other
+ * variable in this file down with it and the page renders its not-found branch
+ * as though the answer were no.
+ *
+ * The globalThis mirror is not the fix: it is shared between concurrent
+ * requests, so reading cookies off it could hand one reader another reader's
+ * session.
+ */
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null
 
 // Issues and pull requests share the number sequence and the same table carries
@@ -150,10 +166,10 @@ const entryRows: any[] = issue
 
 // Who is reading, so their own reactions can be shown as already pressed. A
 // server script has no `request`; what it has is the parsed cookies on
-// `__stxServeContext`, and `viewerFromCookies` reads the same two cookies the
+// `serveContext`, and `viewerFromCookies` reads the same two cookies the
 // auth middleware accepts, in the same order, so the page and the endpoint its
 // forms post to cannot disagree about who is signed in.
-const viewer = await viewerFromCookies(__stxServeContext?.cookies)
+const viewer = await viewerFromCookies(serveContext?.cookies)
 const viewerId = viewer ? Number(viewer.id) : null
 
 // Reactions, in two queries for the whole page rather than one per comment. An

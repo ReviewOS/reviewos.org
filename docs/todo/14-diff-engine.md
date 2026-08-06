@@ -55,9 +55,52 @@ Numbers, so the work can be checked rather than argued about:
       server-side, and its reply and resolve controls are plain forms - checked by fetching the page
       and counting what is in the HTML, rather than by looking at it in a browser with a working
       script engine, which proves nothing.
-- [ ] And an end-to-end test that keeps it true. `tests/e2e/git-http.test.ts` already boots the
-      router against a real repository on disk; the same harness could fetch the review page and
-      assert the rows are in the HTML.
+- [x] And an end-to-end test that keeps it true. `tests/e2e/review-page.test.ts` boots the router,
+      puts a repository and two branches on disk, opens a pull request with a thread on a changed
+      line, and fetches the page with nothing to run a script. It asserts the code, the context
+      around it, the token classes, the thread, its comment and a plain `method="post"` form with a
+      real submit control.
+
+  Content assertions run against the page with its tags stripped, which is not fussiness: highlighted
+  code is not contiguous text. `export function greet` arrives as a keyword span and two text spans,
+  so asking the markup whether it contains that phrase answers no even on a page that renders it
+  perfectly.
+
+  Removing the fix below makes seven of the eight fail. The one that survives is the status check -
+  the page still answers 200 while rendering its not-found branch, which is exactly why a status
+  code is not evidence and why this test asserts on content instead.
+
+### The third silent failure: an undeclared identifier is not an undefined one
+
+Found by the end-to-end test above, on its first run, and worth writing down because the guarded
+spelling *looks* like the fix and is not.
+
+Ten views and four components read the request through `__stxServeContext?.cookies`. stx declares
+that binding on the path that serves a request and on no other, so under any other render path the
+identifier does not exist - and an undeclared identifier is a ReferenceError. Optional chaining does
+not save it: `x?.y` throws on `x` before the chain is reached. It throws inside the server script's
+IIFE, so it takes *every other variable in the file* down with it, and the page renders its
+not-found branch under a 200.
+
+So the review page reported that a pull request which plainly exists could not be found, on a page
+whose repository lookup worked perfectly when called directly. Same shape as the `query` failure and
+the unresolvable import above: the page answers, and the answer is no.
+
+Fixed twice, deliberately. Here, each site now tests the binding with `typeof` before naming it and
+falls back to undefined, which is the only spelling that is safe for a binding that may not be
+declared. The `globalThis` mirror stx also
+maintains is *not* a substitute: it is shared between concurrent requests, so reading cookies off it
+could hand one reader another reader's session.
+
+And upstream in stx, twice over: `render.ts` now declares `__stxServeContext` as undefined by
+default, so the guarded spelling everyone already writes works on every path; and a ReferenceError
+from a server script now warns unconditionally rather than only under `STX_DEBUG`, alongside the
+unresolvable-import warning that already did. Both are the same argument - a page using only client
+APIs fails on `document` or `window` and on nothing else, so anything else that is "not defined" is
+a bug and should say so.
+
+- [ ] Pick up the stx fix here when it releases, and drop the fourteen local guards. They are
+      correct and they are noise once the binding is always declared.
 
 ## The decision that comes first
 
@@ -1128,7 +1171,8 @@ Beyond the per-section tests above, the shapes that catch virtualizer bugs speci
       the worker threshold on the first run, so all seven tests passed through the inline path
       instead of the pool - caught only because the first assertion in the block is that the fixture
       is big enough to reach a worker at all.
-- [ ] The no-JavaScript path still renders the first screen and its threads
+- [x] The no-JavaScript path still renders the first screen and its threads. `tests/e2e/review-page.test.ts`,
+      described under *The standard to hold*, and it found a real bug on its first run.
 
 ## Deliberately not doing yet
 

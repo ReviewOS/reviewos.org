@@ -22,7 +22,23 @@
  * response, so by the time a page with a form has been fetched, the browser
  * holds one.
  */
-const cookies = __stxServeContext?.cookies ?? {}
+/**
+ * The request, when there is one, without naming a binding that may not exist.
+ *
+ * stx declares `__stxServeContext` on the path that serves a request and on no
+ * other, and an *undeclared* identifier is a ReferenceError - which optional
+ * chaining does not save, because `x?.y` throws on `x` before the chain is
+ * reached. It throws inside the server script's IIFE, so it takes every other
+ * variable in this file down with it and the page renders its not-found branch
+ * as though the answer were no.
+ *
+ * The globalThis mirror is not the fix: it is shared between concurrent
+ * requests, so reading cookies off it could hand one reader another reader's
+ * session.
+ */
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+
+const cookies = serveContext?.cookies ?? {}
 
 // Both spellings, because the middleware accepts both and a proxy may
 // normalise the case of a cookie name.

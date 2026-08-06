@@ -25,7 +25,23 @@ const repositoryName = String(repository)
 // Resolved and permission-checked in one place. A component reaching for the
 // table itself is how the owner check gets skipped in one of them and the
 // visibility check in all of them.
-const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
+/**
+ * The request, when there is one, without naming a binding that may not exist.
+ *
+ * stx declares `__stxServeContext` on the path that serves a request and on no
+ * other, and an *undeclared* identifier is a ReferenceError - which optional
+ * chaining does not save, because `x?.y` throws on `x` before the chain is
+ * reached. It throws inside the server script's IIFE, so it takes every other
+ * variable in this file down with it and the page renders its not-found branch
+ * as though the answer were no.
+ *
+ * The globalThis mirror is not the fix: it is shared between concurrent
+ * requests, so reading cookies off it could hand one reader another reader's
+ * session.
+ */
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null
 
 // The absolute path, from the resolver rather than from the row: `disk_path`
