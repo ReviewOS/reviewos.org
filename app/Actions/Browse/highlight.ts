@@ -54,7 +54,6 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   json5: 'json5',
   css: 'css',
   scss: 'scss',
-  sass: 'sass',
   html: 'html',
   htm: 'html',
   xml: 'xml',
@@ -88,28 +87,151 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   graphql: 'graphql',
   gql: 'graphql',
   tex: 'latex',
+
+  // Languages a forge sees constantly. Every one of these has a grammar in the
+  // library already, so the only thing standing between them and colour was
+  // this table - which is the least interesting reason for a file to render
+  // plain, and the easiest to leave unnoticed.
+  stx: 'stx',
+  tf: 'terraform',
+  tfvars: 'terraform',
+  proto: 'protobuf',
+  sol: 'solidity',
+  ps1: 'powershell',
+  psm1: 'powershell',
+  bat: 'cmd',
+  cmd: 'cmd',
+  csv: 'csv',
+  tsv: 'csv',
+  log: 'log',
+  abnf: 'abnf',
+  bnf: 'bnf',
+  idl: 'idl',
+  // A patch inside a repository is a patch, and this is a diff viewer.
+  diff: 'diff',
+  patch: 'diff',
+  // `sass` is the indented syntax and has no grammar of its own; scss is close
+  // enough to be useful and far enough that it is worth saying so here.
+  sass: 'scss',
+}
+
+/**
+ * Two-part extensions, longest first.
+ *
+ * `.blade.php` is PHP with a templating layer, and `.d.ts` is TypeScript - but
+ * a resolver that only looks after the last dot sees `php` and `ts` anyway, so
+ * these exist for the cases where the answer differs, and to be the place the
+ * next one goes.
+ */
+const LANGUAGE_BY_COMPOUND_EXTENSION: Record<string, string> = {
+  'blade.php': 'php',
+  'd.ts': 'typescript',
 }
 
 /** Files whose whole name decides the language. */
 const LANGUAGE_BY_FILENAME: Record<string, string> = {
-  dockerfile: 'dockerfile',
-  makefile: 'makefile',
+  'dockerfile': 'dockerfile',
+  'containerfile': 'dockerfile',
+  'makefile': 'makefile',
+  'gnumakefile': 'makefile',
+  'gemfile': 'ruby',
+  'rakefile': 'ruby',
+  'vagrantfile': 'ruby',
+  'brewfile': 'ruby',
+  'nginx.conf': 'nginx',
   '.gitignore': 'bash',
+  '.gitattributes': 'bash',
+  '.dockerignore': 'bash',
   '.env': 'bash',
+  '.bashrc': 'bash',
+  '.zshrc': 'bash',
+  '.profile': 'bash',
 }
 
-/** The language for a path, or null when we would only be guessing. */
+/**
+ * What a shebang says the file is.
+ *
+ * The last resort, and the only one that needs the file's contents. It is
+ * worth having: `bin/deploy`, `scripts/release` and every git hook are
+ * extensionless by convention, and a forge that renders all of them as plain
+ * text is failing on exactly the files somebody wrote by hand.
+ *
+ * `env` is stripped first, because `#!/usr/bin/env python3` is the common form
+ * and the interpreter is the second word in it.
+ */
+export function languageForShebang(firstLine: string): string | null {
+  if (!firstLine.startsWith('#!'))
+    return null
+
+  const words = firstLine.slice(2).trim().split(/\s+/).filter(Boolean)
+  const command = words[0]?.split('/').pop()
+  const interpreter = command === 'env' ? words[1]?.split('/').pop() : command
+  if (!interpreter)
+    return null
+
+  // A version suffix is not part of the name: `python3`, `ruby2.7`, `node20`.
+  const name = interpreter.replace(/[\d.]+$/, '').toLowerCase()
+
+  const byInterpreter: Record<string, string> = {
+    sh: 'bash',
+    bash: 'bash',
+    zsh: 'bash',
+    dash: 'bash',
+    ksh: 'bash',
+    fish: 'bash',
+    python: 'python',
+    ruby: 'ruby',
+    node: 'javascript',
+    bun: 'typescript',
+    deno: 'typescript',
+    php: 'php',
+    perl: 'bash',
+    lua: 'lua',
+    pwsh: 'powershell',
+    powershell: 'powershell',
+    r: 'r',
+    rscript: 'r',
+  }
+
+  return byInterpreter[name] ?? null
+}
+
+/**
+ * The language for a path, or null when we would only be guessing.
+ *
+ * Most specific first: the whole filename, then a two-part extension, then the
+ * extension, then the `Dockerfile.staging` shape. A wrong guess colours code as
+ * the wrong language, which is more distracting than no colour at all, so every
+ * step here is a lookup and none of them is a heuristic.
+ */
 export function languageFor(path: string): string | null {
-  const name = path.split('/').pop() ?? path
-  const byName = LANGUAGE_BY_FILENAME[name.toLowerCase()]
+  const name = (path.split('/').pop() ?? path).toLowerCase()
+
+  const byName = LANGUAGE_BY_FILENAME[name]
   if (byName)
     return byName
 
-  const dot = name.lastIndexOf('.')
-  if (dot <= 0)
-    return null
+  for (const [suffix, language] of Object.entries(LANGUAGE_BY_COMPOUND_EXTENSION)) {
+    if (name.endsWith(`.${suffix}`))
+      return language
+  }
 
-  return LANGUAGE_BY_EXTENSION[name.slice(dot + 1).toLowerCase()] ?? null
+  const dot = name.lastIndexOf('.')
+  if (dot > 0) {
+    const byExtension = LANGUAGE_BY_EXTENSION[name.slice(dot + 1)]
+    if (byExtension)
+      return byExtension
+  }
+
+  // `Dockerfile.staging` and `staging.Dockerfile` are both ordinary, and
+  // neither has an extension that means anything on its own.
+  if (name.startsWith('dockerfile.') || name.endsWith('.dockerfile'))
+    return 'dockerfile'
+
+  if (name.startsWith('.env.'))
+    return 'bash'
+
+  return null
 }
 
 /**
@@ -156,7 +278,10 @@ function normalize(type: string): TokenClass {
 export async function highlightLines(lines: readonly string[], path: string): Promise<HighlightedToken[][]> {
   const plain = (): HighlightedToken[][] => lines.map(line => [{ type: 'text' as const, content: line }])
 
-  const language = languageFor(path)
+  // The path first, and the shebang only when the path said nothing: an
+  // extensionless script is common (`bin/deploy`, every git hook) and is
+  // exactly the file somebody wrote by hand.
+  const language = languageFor(path) ?? languageForShebang(lines[0] ?? '')
   if (!language)
     return plain()
 

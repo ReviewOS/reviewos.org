@@ -48,19 +48,31 @@ export interface DiffHeaderFile {
  * whether a file happened to be open.
  */
 export function renderDiffHeader(file: DiffHeaderFile, options: { collapsed?: boolean } = {}): string {
-  const renamedFrom = file.previousPath && file.previousPath !== file.path
-    ? `<span class="muted">${escapeHtml(file.previousPath)}</span> <span class="muted" aria-hidden="true">-&gt;</span> `
-    : ''
-
   return `<header class="diff-head">`
     + `<button type="button" class="diff-toggle" aria-expanded="${options.collapsed ? 'false' : 'true'}"`
     + ` aria-controls="body-${escapeHtml(file.path)}">`
     + `<span class="i-hugeicons-arrow-down-01" aria-hidden="true"></span></button>`
-    + `<span class="diff-path mono">${renamedFrom}${escapeHtml(file.path)}</span>`
+    + renderDiffHeadContents(file)
+    + `</header>`
+}
+
+/**
+ * Everything in a header except the control that folds it.
+ *
+ * Split out because a `<details>` needs the same path, status and counts inside
+ * a `<summary>`, where the fold control is the summary itself and a button
+ * inside it would be a second control for the same thing.
+ */
+export function renderDiffHeadContents(file: DiffHeaderFile): string {
+  const renamedFrom = file.previousPath && file.previousPath !== file.path
+    ? `<span class="muted">${escapeHtml(file.previousPath)}</span> <span class="muted" aria-hidden="true">-&gt;</span> `
+    : ''
+
+  return `<span class="diff-path mono">${renamedFrom}${escapeHtml(file.path)}</span>`
     + `<span class="diff-status pill pill-${escapeHtml(file.status)}">${escapeHtml(file.status)}</span>`
     + `<span class="diff-counts mono" aria-label="${file.additions} added, ${file.deletions} removed">`
     + `<span class="count-add">+${file.additions}</span><span class="count-del">-${file.deletions}</span>`
-    + `</span></header>`
+    + `</span>`
 }
 
 /**

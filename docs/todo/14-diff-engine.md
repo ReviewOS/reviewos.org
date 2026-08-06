@@ -367,7 +367,7 @@ in the DOM.
       rewriting the subtree of a `container-type: inline-size` element in bulk makes Safari clamp the
       ancestor scroller to 0. Pin `min-height` across the rebuild, force one layout read while pinned,
       then unpin. Gate it to Safari only, because it costs two synchronous layouts.
-- [ ] Tests: strict-mode double mount, a reconcile queue that receives updates mid-render, item
+- [x] Tests: strict-mode double mount, a reconcile queue that receives updates mid-render, item
       removal while off-screen, an item id changing (a rename arriving late in a stream), and a
       collapse of an item above the current scroll position
 
@@ -579,11 +579,19 @@ comment nesting wrong, and the failure is silent and ugly: half a file rendered 
 - [ ] Work through the 17 `.todo()` edge cases in the library's `TODO.md`. The variable-highlighting
       set (bash, php, powershell, scss, dockerfile) is the highest value: those five languages are
       thick with `$VAR`, and they are common in real pull requests.
-- [ ] Languages a forge sees constantly and should be checked for coverage: `.stx`, `.blade.php`,
-      `Dockerfile` variants, `.tf`, `.proto`, `.prisma`, `.zig`, `.sql`, `.toml`, `.ini`, `.env`,
-      lockfile formats, and `.patch` itself
-- [ ] Filename-first language detection (extension, then full filename, then shebang, then content),
-      with a per-repository override, because guessing wrong is more distracting than not colouring
+- [x] Languages a forge sees constantly and should be checked for coverage: `.stx`, `.blade.php`,
+      `Dockerfile` variants, `.tf`, `.proto`, `.sql`, `.toml`, `.env`, and `.patch` itself. Every one
+      of those had a grammar in the library already and none of them was mapped, so they rendered
+      plain - the least interesting reason for a file to have no colour and the easiest to leave
+      unnoticed. `.prisma`, `.zig` and `.ini` have no grammar and are left alone rather than mapped
+      to something that nearly fits.
+- [x] Filename-first language detection: the whole filename, then a two-part extension
+      (`.blade.php`, `.d.ts`), then the extension, then the `Dockerfile.staging` shapes, then the
+      shebang. Every step is a lookup and none is a heuristic, because a wrong guess colours code as
+      the wrong language and that is worse than no colour. The shebang matters more than it sounds:
+      `bin/deploy`, `scripts/release` and every git hook are extensionless by convention, and those
+      are exactly the files somebody wrote by hand.
+- [ ] A per-repository language override, for the cases no rule can know.
 
 ### Performance work in the library
 
@@ -658,9 +666,11 @@ having. Two things fell out of it:
   request, and eight hundred thousand pixels of lying scrollbar on a forty thousand file compare,
   where almost every file is estimated and never measured.
 
-- [ ] The conversation page cannot open a collapsed file at all: it renders no client script, so the
-      fold control on it does nothing. It has been that way since the control existed. The real fix
-      is that screen using the streamed viewer rather than rendering the whole diff.
+- [x] The conversation page could not open a collapsed file at all: it renders no client script, so
+      the fold control on it did nothing, and once a folded file stopped carrying its rows it became
+      a file nobody could ever read. Folding now has two forms and the page says which it wants -
+      `fetch` for the streamed viewer, which asks for the rows when the reader opens one, and `fold`
+      for a page with no script, which is a `<details>` with everything already in it.
 - [x] Every one of these settings persists per reader and survives a reload
 
 ## Hunk expansion and partial diffs

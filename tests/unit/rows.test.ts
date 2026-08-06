@@ -490,3 +490,56 @@ describe('renderDiffShell', () => {
     expect(html).toContain('&lt;script&gt;')
   })
 })
+
+/**
+ * Two ways to fold a file, one per page.
+ *
+ * The streamed viewer fetches the rows when a reader opens a folded file, so
+ * sending them would be sending markup nobody has looked at. The conversation
+ * page runs no client script at all, so a header on its own there is a file
+ * that can never be read - which is what it was, until this.
+ */
+describe('folding a file', () => {
+  const file = fileOf(`diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1,2 +1,2 @@
+-const a = 1
++const a = 2
+`)
+
+  test('fetch renders the header and nothing else', () => {
+    const html = renderDiffFile(file, { collapsed: 'fetch' })
+
+    expect(html).toContain('a.ts')
+    expect(html).not.toContain('<table')
+  })
+
+  test('true still means fetch, which is what it always meant', () => {
+    expect(renderDiffFile(file, { collapsed: true })).toBe(renderDiffFile(file, { collapsed: 'fetch' }))
+  })
+
+  test('fold keeps the rows, closed, in something that opens without script', () => {
+    const html = renderDiffFile(file, { collapsed: 'fold' })
+
+    expect(html).toContain('<details class="diff-file panel"')
+    expect(html).toContain('<summary')
+    expect(html).toContain('<table')
+    expect(html).not.toContain('open>')
+  })
+
+  test('a folded summary carries the path and the counts, and no second control', () => {
+    const html = renderDiffFile(file, { collapsed: 'fold' })
+
+    expect(html).toContain('a.ts')
+    expect(html).toContain('+1')
+    expect(html).not.toContain('diff-toggle')
+  })
+
+  test('an unfolded file is a section, as it was', () => {
+    const html = renderDiffFile(file)
+
+    expect(html).toContain('<section class="diff-file panel"')
+    expect(html).toContain('<table')
+  })
+})

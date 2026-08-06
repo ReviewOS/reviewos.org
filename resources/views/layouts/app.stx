@@ -406,6 +406,25 @@
          reason. `clip` clips the same way and scrolls nothing. */
       .diff-file { overflow: clip; margin-bottom: 16px; }
 
+      /* A folded file on a page with no script. The summary *is* the fold
+         control, so the marker takes the place of the button the streamed
+         viewer draws, and it points the same way. */
+      details.diff-file > summary { cursor: pointer; list-style: none; }
+      details.diff-file > summary::-webkit-details-marker { display: none; }
+
+      details.diff-file > summary::before {
+        display: inline-block;
+        flex: none;
+        width: 22px;
+        color: var(--muted);
+        content: '›';
+        font-size: 15px;
+        text-align: center;
+        transition: transform 0.12s ease;
+      }
+
+      details.diff-file[open] > summary::before { transform: rotate(90deg); }
+
       .diff-head {
         display: flex;
         align-items: center;

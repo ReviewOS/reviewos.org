@@ -20,7 +20,7 @@ import { highlightLines } from '../Browse/highlight'
 import { gapsIn, oldOffsetAt } from './expand'
 import { inlineChangedRanges, worthComparing } from './inline'
 import { formatLineAnchor } from './lineLink'
-import { escapeHtml, renderDiffHeader, renderDiffShell } from './shell'
+import { escapeHtml, renderDiffHeadContents, renderDiffHeader, renderDiffShell } from './shell'
 
 export interface DiffToken {
   type: string
@@ -90,13 +90,20 @@ export interface RenderRowsOptions {
   /** Also set by `renderDiffRows`, so a gutter can name the file it links into. */
   path?: string
   /**
-   * Render the file closed.
+   * Render the file closed, and say who is going to open it.
    *
-   * Through a class rather than the `hidden` attribute. `hidden` is a boolean
-   * attribute, so the browser hides the element whenever it is present whatever
-   * the value: `hidden="false"` once made every diff on the page invisible.
+   * Two answers, because there are two pages and they have different machinery:
+   *
+   * - `fetch` renders the header alone. The streamed viewer asks for the rows
+   *   when the reader opens it, so sending them would be sending markup for
+   *   something nobody has looked at - which is the whole point of folding it.
+   * - `fold` renders the rows inside a `<details>`, closed. For a page with no
+   *   client script, where nothing is going to fetch anything and a header on
+   *   its own is a file that can never be read.
+   *
+   * `true` means `fetch`, which is what it always meant.
    */
-  collapsed?: boolean
+  collapsed?: boolean | 'fetch' | 'fold'
   /**
    * Markup for the review threads on a line, if any.
    *
@@ -538,9 +545,9 @@ export function renderDiffNote(file: DiffFile): string {
  * The unit the virtualized list mounts, and the unit the first screen renders.
  */
 export function renderDiffFile(file: DiffFile, options: RenderRowsOptions = {}): string {
-  const collapsed = options.collapsed === true
+  const collapsed = options.collapsed === true ? 'fetch' : options.collapsed
 
-  if (collapsed)
+  if (collapsed === 'fetch')
     return renderDiffShell(file, { collapsed: true })
 
   const columns = options.layout === 'split' ? 4 : 3
@@ -550,6 +557,16 @@ export function renderDiffFile(file: DiffFile, options: RenderRowsOptions = {}):
     : `<table class="diff-table" data-columns="${columns}">`
       + `<caption class="visually-hidden">Changes to ${escapeHtml(file.path)}</caption>`
       + `<tbody>${body}</tbody></table>`
+
+  // Folded, with everything in it. A `<details>` opens with no script at all,
+  // which is the requirement: the page this is for runs none, and a fold that
+  // cannot be undone is a file that cannot be read.
+  if (collapsed === 'fold') {
+    return `<details class="diff-file panel" id="file-${escapeHtml(file.path)}">`
+      + `<summary class="diff-head">${renderDiffHeadContents(file)}</summary>`
+      + `<div id="body-${escapeHtml(file.path)}" class="diff-body">${contents}</div>`
+      + `</details>`
+  }
 
   return `<section class="diff-file panel" id="file-${escapeHtml(file.path)}">`
     + renderDiffHeader(file)

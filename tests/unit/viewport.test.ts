@@ -332,3 +332,123 @@ describe('scrollBehaviourFor', () => {
     expect(scrollBehaviourFor(false, true)).toBe('auto')
   })
 })
+
+/**
+ * The shapes that catch virtualizer bugs specifically.
+ *
+ * None of these is visible in a screenshot and every one of them is a real
+ * report from somebody using a list: a file that remounts on every frame, a
+ * reader thrown up the page by something collapsing above them, an item that
+ * changes identity while the stream is still arriving.
+ */
+describe('the shapes that catch virtualizer bugs', () => {
+  /**
+   * React's strict mode mounts, unmounts and mounts again to find effects that
+   * are not idempotent. Whatever the framework, the property is the same: two
+   * plans over the same state must ask for the same thing, and the second must
+   * ask for no work.
+   */
+  test('planning twice over the same state asks for no work the second time', () => {
+    const list = files(50)
+    const viewport = { scrollTop: 400, height: 800 }
+
+    const first = planFrame(list, new Set(), viewport)
+    const second = planFrame(list, first.plan.next, viewport)
+
+    expect(second.plan.mount).toEqual([])
+    expect(second.plan.unmount).toEqual([])
+    expect([...second.plan.next]).toEqual([...first.plan.next])
+  })
+
+  /**
+   * A reconcile that receives new files mid-render must not disturb what is
+   * already mounted. Appending is the only thing a manifest stream does, and a
+   * plan that remounted everything on each batch would throw away every
+   * measured height sixty times a second.
+   */
+  test('files arriving mid-stream do not disturb what is mounted', () => {
+    const viewport = { scrollTop: 0, height: 800 }
+    const first = planFrame(files(20), new Set(), viewport)
+
+    // The next batch lands: twenty more files, appended.
+    const second = planFrame(files(40), first.plan.next, viewport)
+
+    expect(second.plan.unmount).toEqual([])
+    for (const index of first.plan.next)
+      expect(second.plan.next.has(index)).toBe(true)
+  })
+
+  test('an item removed while off screen is not asked to unmount twice', () => {
+    // Mounted 0..2, then the list shrinks to one file.
+    const plan = planMounts(new Set([0, 1, 2]), 0, 1)
+
+    expect(plan.unmount).toEqual([1, 2])
+    expect(planMounts(plan.next, 0, 1).unmount).toEqual([])
+  })
+
+  /**
+   * A rename can arrive late in a stream, which renumbers the file. The list is
+   * addressed by position, so the guarantee that matters is that a shorter list
+   * never leaves the reader scrolled past its end.
+   */
+  test('a list that shrinks under the reader lands them inside it', () => {
+    const long = layoutList(Array.from({ length: 100 }, () => rows(10)))
+    const anchor = captureAnchor(long, long.offsets[90]! + 30)
+
+    const short = layoutList(Array.from({ length: 5 }, () => rows(10)))
+    const restored = restoreAnchor(short, anchor)
+
+    expect(restored).toBeGreaterThanOrEqual(0)
+    expect(restored).toBeLessThanOrEqual(short.total)
+  })
+
+  /**
+   * The one that is most obviously wrong when it breaks: a file above the
+   * reader collapses, everything below it moves up by its height, and the
+   * passage being read jumps off the screen unless the anchor holds.
+   */
+  test('collapsing a file above the reader leaves them on the same line', () => {
+    const before = layoutList(Array.from({ length: 20 }, () => rows(40)))
+    const readingAt = before.offsets[10]! + 55
+    const anchor = captureAnchor(before, readingAt)
+
+    const after = layoutList(Array.from({ length: 20 }, () => rows(40)), {
+      collapsedAt: index => index === 3,
+    })
+    const restored = restoreAnchor(after, anchor)
+
+    // Same distance into the same file, even though everything moved up.
+    expect(restored - after.offsets[10]!).toBe(55)
+    expect(restored).toBeLessThan(readingAt)
+  })
+
+  test('collapsing a file below the reader does not move them at all', () => {
+    const before = layoutList(Array.from({ length: 20 }, () => rows(40)))
+    const readingAt = before.offsets[10]! + 55
+    const anchor = captureAnchor(before, readingAt)
+
+    const after = layoutList(Array.from({ length: 20 }, () => rows(40)), {
+      collapsedAt: index => index === 17,
+    })
+
+    expect(restoreAnchor(after, anchor)).toBe(readingAt)
+  })
+
+  /**
+   * The scrollbar must not lie. Estimates are what a forty thousand file
+   * compare is laid out from, so an estimate that is wildly off makes the
+   * scrollbar's thumb the wrong size and the reader's drag land somewhere else.
+   */
+  test('an estimate is within a sane distance of what a file measures', () => {
+    const list = files(1, 40)
+    const estimated = measuredLayout(list).heights[0]!
+
+    // A file of forty lines, measured at the line height the metrics assume
+    // plus a header. The estimate should be the same order, not the same to
+    // the pixel: wrapping and injected rows are exactly what it cannot know.
+    list[0]!.measured = 40 * DEFAULT_HEIGHT_METRICS.lineHeight + DEFAULT_HEIGHT_METRICS.headerHeight
+    const measured = measuredLayout(list).heights[0]!
+
+    expect(Math.abs(measured - estimated) / measured).toBeLessThan(0.1)
+  })
+})

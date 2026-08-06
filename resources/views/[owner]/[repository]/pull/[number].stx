@@ -119,7 +119,10 @@ for (const file of files) {
   diffHtmlByPath[file.path] = renderDiffFile(file, {
     expandable: true,
     tokens: await highlightDiffFile(file),
-    collapsed: startsCollapsed(file),
+    // `fold` rather than the streamed viewer's `fetch`: this page runs no
+    // client script, so nothing is going to ask for the rows of a folded file
+    // and a header on its own would be a file nobody can ever read.
+    collapsed: startsCollapsed(file) ? 'fold' : false,
     threadsAt: threadSlotFor(fileThreads, file.path),
   })
 }
