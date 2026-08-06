@@ -465,6 +465,11 @@
 
       .diff-note { padding: 14px 16px; font-size: 14px; }
 
+      /* Standing in for the rows of a very large file that are not in the
+         document. Sized in pixels by the viewer, so the scrollbar means the
+         whole file rather than the part of it currently mounted. */
+      .row-spacer td { padding: 0; border: 0; }
+
       /* The table scrolls inside itself. A long line must never push the page
          sideways, because then every other file scrolls with it. */
       .diff-body { overflow-x: auto; }

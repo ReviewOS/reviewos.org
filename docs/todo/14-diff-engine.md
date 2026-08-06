@@ -350,19 +350,34 @@ in the DOM.
 - [x] Element pooling: rows and their child nodes are recycled rather than created and destroyed.
       A cleanup path that can recycle instead of discarding is the difference between steady memory
       and a sawtooth.
-- [ ] **One enormous file is the hole left in this design, and it is worth naming precisely.** The
-      list virtualizes *files*: a compare of forty thousand files mounts a screenful, which is the
-      whole point. A single file of four hundred thousand lines mounts four hundred thousand rows,
-      because within a file there is no virtualization at all.
+- [x] **A very large single file is windowed in turn.** The list virtualizes *files*, so one file is
+      one item and mounts whole - and four hundred thousand table rows in one document is the failure
+      the whole engine exists to avoid. A file past two thousand rows now holds a window of its rows
+      and two spacers standing in for the rest, and asks for another window as the reader moves.
 
-  Three things currently stand between a reader and that: a file over five hundred changed lines
-  arrives folded, the inline row budget stops sending rows long before it, and a file over the
-  tokenize ceiling renders plain. None of them is a fix - each is a reason the reader has not opened
-  it yet.
+  What makes it safe is one number meaning the same thing in three places: the row index `countRows`
+  counts, the row index `renderDiffRows` emits, and the row index the client asks for. If those
+  drifted by one, every window would be off by a line and the file would appear to scroll past
+  itself - so a test renders the file in seven-row windows and asserts the result is byte for byte
+  what rendering it whole produces, in both layouts, with threads travelling with their lines.
 
-  The fix is line-level virtualization within a file, and that is where sparse layout checkpoints
-  earn their keep: seeking to line 400,000 has to be a binary search over checkpoints rather than a
-  walk of 400,000 heights. It is substantial, and it is the next architectural piece.
+  Measured against `v0.68.0...v0.70.231` of `stacks` - 5,214 files, 613,396 added lines, and an
+  `openapi.json` of 28,122 rows:
+
+  | | |
+  |---|---|
+  | rows in the *whole document*, scrolled to line 15,000 of that file | **1,200** |
+  | rows the file has | 28,122 |
+  | height the file occupies, so the scrollbar means something | 559,441px |
+  | spacers standing in for what is not mounted | 288,000px above, 249,780px below |
+
+  The window is aligned to a grid, which is what stops a slow scroll asking for a range nudged by one
+  on every frame, and it is fetched while the reader is still a margin from its edge rather than
+  after they have run out of rows.
+
+- [ ] Windowing sizes its spacers from the metric line height, so a windowed file with word wrap on
+      has an approximate scrollbar. Everything mounted is measured as usual; it is only the rows
+      standing in for themselves that are assumed to be one line tall.
 - [x] Batched read/write render passes: all measurement, then all mutation, never interleaved. Every
       synchronous layout read outside that pass is a bug and should be findable by name.
 - [x] `contain: strict` on the scroll container and `contain: layout paint style` on each file, so

@@ -41,7 +41,15 @@ import { applyPreferences, type DiffPreferences, readPreferences, wirePreference
 // From `shell.ts` rather than from `rows.ts`, and that is the whole reason
 // `shell.ts` exists: `rows.ts` reaches the highlighter, and the browser must
 // never download forty eight grammars to draw a file header.
-import { renderDiffShell } from '../../app/Actions/Pull/shell'
+import { renderDiffHeader, renderDiffShell } from '../../app/Actions/Pull/shell'
+import {
+  needsWindow,
+  type RowWindow,
+  shouldWindow,
+  spacers,
+  visibleRows,
+  windowFor,
+} from '../../app/Actions/Pull/window'
 import { filterFiles, readDraft, readViewed, writeDraft, writeViewed } from './filelist'
 
 /**
@@ -492,6 +500,14 @@ export interface DiffViewer {
   scrollToFile: (index: number, target?: ScrollToOptions) => void
   /** The files, in diff order. */
   files: () => readonly DiffFileEntry[]
+  /**
+   * Where a file's top sits in the list, or null if there is no such file.
+   *
+   * For a caller that has to work out which *rows* of a file are on screen -
+   * the inside of a very large one. Read from the layout rather than from the
+   * element, so the answer is the same whether or not the file is mounted.
+   */
+  positionOf: (index: number) => number | null
   /**
    * What the viewer has been doing.
    *
@@ -945,6 +961,10 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       return entries
     },
 
+    positionOf(index) {
+      return measuredLayout(geometry, { layout }).offsets[index] ?? null
+    },
+
     stats() {
       return { ...counters, pooled: pool.length, files: entries.length }
     },
@@ -1217,6 +1237,35 @@ export function mountDiffFiles(): DiffViewer | null {
   const markup = new Map<number, { html: string, layout: 'unified' | 'split' }>()
   let truncatedFrom: number | null = null
 
+  /**
+   * Files too large to put in the document at once.
+   *
+   * The list virtualizes files; this virtualizes the inside of one. A file of
+   * four hundred thousand lines is a single item to the list, so without this
+   * it mounts whole - four hundred thousand table rows in one document, which
+   * is the failure the whole engine exists to avoid.
+   *
+   * What is held per file: the window of rows in hand, its markup, and whether
+   * a request for another is already out. Nothing else - the rest of the file
+   * is two spacers and a number.
+   */
+  const windows = new Map<number, {
+    held: RowWindow | null
+    html: string
+    layout: 'unified' | 'split'
+    pending: RowWindow | null
+  }>()
+
+  /** How many rows a file has in the layout being shown. */
+  function rowCount(file: DiffFileEntry): number {
+    return layout === 'split' ? file.rows.split : file.rows.unified
+  }
+
+  /** Whether this file is shown a window at a time. */
+  function windowed(file: DiffFileEntry): boolean {
+    return !file.collapsed && rowsUrl != null && shouldWindow(rowCount(file))
+  }
+
   // Files mounted without markup, waiting to be asked for, and the ones already
   // asked for. Two sets rather than one, so a slow response does not make the
   // viewer ask again on every frame the file stays on screen.
@@ -1242,7 +1291,17 @@ export function mountDiffFiles(): DiffViewer | null {
     scroller,
     content,
     layout: initialLayout,
-    afterRender: () => { paintSelection(); paintDraft(); paintSelectionSurface() },
+    afterRender: () => {
+      paintSelection()
+      paintDraft()
+      paintSelectionSurface()
+
+      // A windowed file needs a different window as the reader moves through
+      // it, and moving through it does not mount or unmount anything - so the
+      // frame is the only place that notices.
+      for (const host of region.querySelectorAll<HTMLElement>('.diff-file-host'))
+        scheduleWindowFetch(Number(host.dataset.fileIndex))
+    },
     // The sidebar follows the diff rather than the other way round, so the row
     // highlighted is the file the reader is actually looking at.
     onVisibleChange: start => fileList?.setCurrent(start),
@@ -1252,6 +1311,12 @@ export function mountDiffFiles(): DiffViewer | null {
       // lock file quietly fetches itself is a diff that collapses nothing.
       if (file.collapsed) {
         host.innerHTML = renderDiffShell(file, { collapsed: true })
+        return
+      }
+
+      if (windowed(file)) {
+        host.innerHTML = renderWindow(file)
+        scheduleWindowFetch(file.index)
         return
       }
 
@@ -1276,6 +1341,134 @@ export function mountDiffFiles(): DiffViewer | null {
       host.innerHTML = renderDiffShell(file, { pending: true })
     },
   })
+
+  /**
+   * A windowed file: the rows in hand, and two spacers for the rest.
+   *
+   * The spacers are what keep the scrollbar honest. Without them the file would
+   * be as tall as its window, and a reader would reach the end of a hundred
+   * thousand line file in four screens.
+   */
+  function renderWindow(file: DiffFileEntry): string {
+    const total = rowCount(file)
+    const state = windows.get(file.index)
+    const held = state != null && state.layout === layout ? state.held : null
+    const rowHeight = DEFAULT_HEIGHT_METRICS.lineHeight
+    const columns = layout === 'split' ? 4 : 3
+    const { above, below } = held == null
+      ? { above: 0, below: total * rowHeight }
+      : spacers(held, total, rowHeight)
+
+    const spacer = (height: number) => height <= 0
+      ? ''
+      : `<tr class="row-spacer" aria-hidden="true"><td colspan="${columns}" style="height:${height}px"></td></tr>`
+
+    return `<section class="diff-file panel" id="file-${escapeAttribute(file.path)}">`
+      + renderDiffHeader(file)
+      + `<div id="body-${escapeAttribute(file.path)}" class="diff-body">`
+      + `<table class="diff-table" data-columns="${columns}"><tbody>`
+      + spacer(above)
+      + (held == null ? '' : (state?.html ?? ''))
+      + spacer(below)
+      + `</tbody></table></div></section>`
+  }
+
+  /**
+   * Ask for the window a windowed file needs, if it needs a different one.
+   *
+   * Where the file sits in the list is read from the viewer rather than from
+   * the element, so this answers the same way whether or not the file happens
+   * to be mounted at the moment.
+   */
+  function scheduleWindowFetch(index: number): void {
+    const file = viewer.files()[index]
+    if (file == null || !windowed(file) || rowsUrl == null)
+      return
+
+    const total = rowCount(file)
+    const position = viewer.positionOf(index)
+    if (position == null)
+      return
+
+    const visible = visibleRows({
+      scrollTop: view.scrollTop,
+      viewportHeight: view.clientHeight,
+      // The rows start under the header.
+      fileTop: position + DEFAULT_HEIGHT_METRICS.headerHeight,
+      totalRows: total,
+      rowHeight: DEFAULT_HEIGHT_METRICS.lineHeight,
+    })
+
+    const state = windows.get(index)
+    const held = state != null && state.layout === layout ? state.held : null
+    if (!needsWindow(held, visible, total))
+      return
+
+    const wanted = windowFor(visible, total)
+    if (state?.pending != null && state.pending.from === wanted.from && state.pending.to === wanted.to)
+      return
+
+    windows.set(index, {
+      held,
+      html: state?.layout === layout ? (state.html ?? '') : '',
+      layout,
+      pending: wanted,
+    })
+
+    void fetchWindow(index, file.path, wanted, layout)
+  }
+
+  async function fetchWindow(
+    index: number,
+    path: string,
+    wanted: RowWindow,
+    requested: 'unified' | 'split',
+  ): Promise<void> {
+    if (rowsUrl == null)
+      return
+
+    try {
+      const query = new URLSearchParams({
+        path,
+        layout: requested,
+        from: String(wanted.from),
+        to: String(wanted.to),
+      })
+
+      const response = await fetch(`${rowsUrl}&${query}`, { headers: { Accept: 'application/x-ndjson' } })
+      if (!response.ok)
+        throw new Error(await response.text())
+
+      let html = ''
+      for await (const record of readNdjson<Record<string, unknown>>(response)) {
+        if (record.t === 'rows')
+          html = String(record.html)
+      }
+
+      // Dropped when the reader switched layout while this was in flight: the
+      // markup is real, and it is rows of the other shape.
+      if (requested !== layout)
+        return
+
+      // The rows endpoint returns a whole file element; only its rows are
+      // wanted here, because the header and the spacers are this side's.
+      windows.set(index, { held: wanted, html: rowsOf(html), layout: requested, pending: null })
+      viewer.refresh(index)
+    }
+    catch {
+      const state = windows.get(index)
+      if (state != null)
+        windows.set(index, { ...state, pending: null })
+    }
+  }
+
+  /** The `<tr>` rows out of a rendered file, without its header or table. */
+  function rowsOf(html: string): string {
+    const start = html.indexOf('<tbody>')
+    const end = html.lastIndexOf('</tbody>')
+
+    return start < 0 || end < 0 ? '' : html.slice(start + '<tbody>'.length, end)
+  }
 
   /**
    * Ask for the rows of files that are on screen without any.
