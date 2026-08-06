@@ -40,7 +40,7 @@ import { unpackLines } from 'ts-syntax-highlighter'
  * to serve while looking busy. Characters rather than lines, because one
  * minified line is more work than four hundred short ones.
  */
-export const WORKER_THRESHOLD_CHARS = Number(process.env.HIGHLIGHT_WORKER_THRESHOLD ?? 12_000)
+export const WORKER_THRESHOLD_CHARS = 12_000
 
 /**
  * How many workers, at most.

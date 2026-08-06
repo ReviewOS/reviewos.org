@@ -55,27 +55,40 @@ export const LOOK_AHEAD = 4
  * time includes the consumer's time and the time spent suspended, and a budget
  * measured that way finds every file over budget. Yielding per file took a 1.4
  * second compare to 33 seconds. A count has no such confusion.
+ *
+ * Five hundred and twelve is measured, not chosen. Handing control back is far
+ * from free here, and the curve over a 5,722 file compare is steep enough that
+ * guessing would have been hopeless:
+ *
+ *   every 32 files    17.3s total, 293ms worst hold
+ *   every 128 files    5.1s total, 409ms
+ *   every 512 files    0.8s total, 115ms
+ *   every 2048 files   0.7s total, 274ms
+ *   never              0.5s total, 499ms
+ *
+ * So this buys a bounded hold for about 50% more wall time on the largest
+ * compare in the corpus, and both ends of the curve are worse than the middle.
  */
-const FILES_PER_YIELD = 32
+const FILES_PER_YIELD = 512
 
-/** Hand the event loop back, properly. */
+/**
+ * Hand the event loop back, properly.
+ *
+ * Worth stating why a yield is needed at all, since this generator is already
+ * full of `await`: because awaiting a promise that is already resolved is not a
+ * yield. It queues a *microtask*, and the microtask queue runs to exhaustion
+ * before a timer or a socket gets a turn - so a consumer that does nothing slow
+ * keeps this generator running, file after file, in one uninterrupted cascade.
+ * Every `await` in the chain looked like a yield and none of them was, which is
+ * why the hold survived several rounds of adding more of them.
+ *
+ * `setImmediate` rather than `setTimeout(0)`, too. A timer has a floor of about
+ * a millisecond, and paying that per yield is most of how the first attempt at
+ * this turned a 1.4 second compare into a 33 second one.
+ */
 function yieldToLoop(): Promise<void> {
   return new Promise(resolve => setImmediate(resolve))
 }
-
-/**
- * Why a yield is needed at all, since this generator is full of `await`.
- *
- *
- * Because awaiting a promise that is already resolved is not a yield. It queues
- * a *microtask*, and the microtask queue runs to exhaustion before a timer or a
- * socket gets a turn - so a consumer that does nothing slow keeps this
- * generator running, file after file, in one uninterrupted cascade. Every
- * `await` in the chain looked like a yield and none of them was.
- *
- * Measured on a 5,722 file compare, the event loop was held for over a second
- * at the tail. Which is a second in which the server answers nobody.
- */
 
 export interface ManifestFile {
   t: 'file'
