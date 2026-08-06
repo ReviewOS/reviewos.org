@@ -498,8 +498,66 @@ what moving the work off the event loop should look like when the machine is bus
 The benefit that matters most is one this harness structurally cannot see: it measures one stream in
 isolation, and the point of not blocking the event loop is what happens to the *other* requests.
 
-- [ ] A benchmark that loads the server while a large compare streams, which is the only way to
-      measure the thing the pool was actually built for.
+- [x] A benchmark that loads the server while a large compare streams, which is the only way to
+      measure the thing the pool was actually built for. Two of them, in the end:
+      `scripts/benchmarks/under-load.ts` probes a small route over HTTP while a compare streams and
+      reports what that page load cost somebody who arrived mid-render, and a second in-process
+      probe times a 10ms interval to measure how long the event loop is held directly. The HTTP one
+      answers the product question; the in-process one is the only one precise enough to debug with.
+
+### What the load benchmark found, which was not the pool
+
+Idle p99 5.6ms against 407.6ms under load. So the pool had moved the tokenizing off the event loop
+and the event loop was still being held for most of a second, which meant something else was holding
+it. Three hypotheses died in order, and the order is the point:
+
+**It is the worker threshold.** If too much tokenizing were still running inline, lowering the bar
+for dispatching to a worker should help. It made things worse - worst hold 1197ms, then 1601ms, then
+1725ms as the threshold came down. More dispatching, more holding.
+
+**It is the rendering.** Turning row rendering off entirely still held the loop for 451ms, with no
+highlighting and no markup being built at all. Whatever this was, it was in the parse.
+
+**It is one enormous file.** Plausible: the corpus has a 28,122 row generated file in it. Timed on
+its own it costs 11ms to parse, 8ms to highlight, 45ms to render and 40ms to serialize. Around
+100ms, not 450, and no single file in the corpus is big enough to explain the rest.
+
+What it actually was: **awaiting a resolved promise is not a yield.** `streamManifest` is full of
+`await`, every one of which queues a microtask, and the microtask queue runs to exhaustion before a
+timer or a socket gets a turn. A consumer that does nothing slow therefore drives the whole compare
+in one uninterrupted cascade. Every `await` in the chain looked like a yield and none of them was,
+which is exactly why adding more of them never helped.
+
+The fix is a real macrotask (`setImmediate`) every 512 files, and both halves of that were measured
+rather than chosen:
+
+- **A timer is the wrong macrotask.** `setTimeout(0)` has a floor around a millisecond, and paying
+  it per file took the 1.4 second compare to **33 seconds**. `setImmediate` has no floor.
+- **A time budget is the wrong budget.** This is a pull-based generator, so it is suspended between
+  records, so elapsed wall time includes the consumer's time - every file measures as over budget no
+  matter how small the work was. Counting files has no such confusion.
+- **The count matters more than expected.** Every 32 files: 17.3s total, 293ms worst hold. Every
+  128: 5.1s, 409ms. Every 512: **0.8s, 115ms**. Every 2048: 0.7s, 274ms. Never: 0.5s, 499ms. Both
+  ends of that curve are worse than the middle, and 512 buys a bounded hold for about 50% more wall
+  time on the largest compare in the corpus.
+
+### And the second worth of it was warm-up
+
+With the yield in place the tail was still 791ms with rows on, which looked like the fix not working.
+Running the same compare twice in one process separated the two:
+
+| | total | worst hold |
+|---|---|---|
+| first compare | 2058ms | 1080ms |
+| second compare | 920ms | **124ms** |
+
+Grammar loading and JIT, once per process, not once per request. On a long-lived server exactly one
+reader ever pays it. Recorded rather than fixed, because the obvious fix - warm the grammars at boot
+- has nowhere to be called from: `app/Routes.ts` is a config object and this framework has no boot
+hook. An exported `warmHighlighter()` that nothing calls is dead code.
+
+- [ ] A boot hook in Stacks to hang warm-up on, then warm the grammars from it. Belongs upstream in
+      the framework, not worked around here.
 
 ### The bug that came with it
 
