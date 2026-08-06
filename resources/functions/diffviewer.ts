@@ -407,7 +407,14 @@ function yieldToBrowser(): Promise<void> {
       resolve()
     }
 
-    requestAnimationFrame(finish)
+    // Guarded rather than assumed. `requestAnimationFrame` is the better of the
+    // two - it yields until the browser has painted - but it does not exist
+    // everywhere this module is loaded, and calling it where it is missing
+    // throws *before* the timeout below can act as the fallback it was written
+    // to be. The race only works if both sides are optional.
+    if (typeof requestAnimationFrame === 'function')
+      requestAnimationFrame(finish)
+
     setTimeout(finish, 0)
   })
 }

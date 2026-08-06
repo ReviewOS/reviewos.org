@@ -452,3 +452,73 @@ describe('the shapes that catch virtualizer bugs', () => {
     expect(Math.abs(measured - estimated) / measured).toBeLessThan(0.1)
   })
 })
+
+/**
+ * The reader stays where they were, whatever moved.
+ *
+ * Anchoring is the difference between a list that changes under somebody and a
+ * list that changes around them. Each case below is a real thing the viewer
+ * does - and each is a different way for everything below the reader to move.
+ */
+describe('scroll anchoring across every change that moves things', () => {
+  const twenty = () => Array.from({ length: 20 }, () => rows(40))
+  const readingIn = 10
+  const readingOffset = 55
+
+  function anchoredAt(layout: ReturnType<typeof layoutList>) {
+    return captureAnchor(layout, layout.offsets[readingIn]! + readingOffset)
+  }
+
+  test('a file above collapsing', () => {
+    const before = layoutList(twenty())
+    const after = layoutList(twenty(), { collapsedAt: index => index === 3 })
+
+    expect(restoreAnchor(after, anchoredAt(before)) - after.offsets[readingIn]!).toBe(readingOffset)
+  })
+
+  test('a file above expanding', () => {
+    const before = layoutList(twenty(), { collapsedAt: index => index === 3 })
+    const after = layoutList(twenty())
+
+    expect(restoreAnchor(after, anchoredAt(before)) - after.offsets[readingIn]!).toBe(readingOffset)
+  })
+
+  /**
+   * Turning wrap on makes every line potentially two, so every measured height
+   * is wrong at once - which is the largest change the list ever makes.
+   */
+  test('word wrap turning on, which invalidates every measurement at once', () => {
+    const list = twenty().map(rowCounts => ({ rows: rowCounts, collapsed: false, measured: 800 }))
+    const before = measuredLayout(list)
+    const anchor = captureAnchor(before, before.offsets[readingIn]! + readingOffset)
+
+    // Wrapped: every file is taller, and the viewer drops its measurements.
+    const after = measuredLayout(list.map(file => ({ ...file, measured: 1_400 })))
+
+    expect(restoreAnchor(after, anchor) - after.offsets[readingIn]!).toBe(readingOffset)
+  })
+
+  /**
+   * A theme change does not move anything by itself, so the property is that
+   * the reader does not move either - a no-op that anchors to a no-op.
+   */
+  test('a theme change, which moves nothing and must therefore move nobody', () => {
+    const layout = measuredLayout(twenty().map(rowCounts => ({ rows: rowCounts, collapsed: false })))
+    const at = layout.offsets[readingIn]! + readingOffset
+
+    expect(restoreAnchor(layout, captureAnchor(layout, at))).toBe(at)
+  })
+
+  test('a layout switch, where every file is a different height', () => {
+    const list = Array.from({ length: 20 }, () => ({ rows: { unified: 40, split: 26 }, collapsed: false }))
+    const before = measuredLayout(list, { layout: 'unified' })
+    const anchor = captureAnchor(before, before.offsets[readingIn]! + readingOffset)
+    const after = measuredLayout(list, { layout: 'split' })
+
+    // The offset within the file is kept, clamped to the file's new height -
+    // which is what stops a reader ending up past the end of a shorter file.
+    const restored = restoreAnchor(after, anchor)
+    expect(restored).toBeGreaterThanOrEqual(after.offsets[readingIn]!)
+    expect(restored).toBeLessThanOrEqual(after.offsets[readingIn]! + after.heights[readingIn]!)
+  })
+})

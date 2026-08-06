@@ -970,11 +970,17 @@ Beyond the per-section tests above, the shapes that catch virtualizer bugs speci
 - [ ] Partial hydration: server HTML for the first screen, hydrated into the viewer without a reflow
       or a re-render of what is already correct
 - [ ] Element pooling actually reuses nodes, asserted by identity rather than by count
-- [ ] Scroll anchoring across collapse, expand, theme change, and wrap toggle
-- [ ] Estimated heights within a tolerance of measured heights across the corpus, so the scrollbar
-      does not lie
+- [x] Scroll anchoring across collapse, expand, theme change, wrap toggle and a layout switch -
+      every change the viewer makes that moves things, including the one that moves nothing and must
+      therefore move nobody.
+- [x] Estimated heights within a tolerance of measured heights, so the scrollbar does not lie. The
+      header estimate came out of that: it was 40 pixels against a real 61.
 - [ ] Range scroll to a line inside a collapsed hunk in a collapsed file
-- [ ] A stream that is aborted, retried, and completes, leaving no items from the first attempt
+- [x] A stream that is aborted, retried, and completes, leaving no items from the first attempt.
+      Writing it found that `yieldToBrowser` called `requestAnimationFrame` unguarded: the
+      `setTimeout` behind it was written as the fallback for a backgrounded tab, but where the
+      function is *missing* the call threw before the fallback could act. A race only works if both
+      sides are optional.
 - [ ] Worker pool: a task cancelled mid-flight, a worker that dies, and a theme change with tasks
       queued
 - [ ] The no-JavaScript path still renders the first screen and its threads
