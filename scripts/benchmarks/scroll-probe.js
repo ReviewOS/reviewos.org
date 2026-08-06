@@ -87,6 +87,17 @@
     scroller.scrollTop = 0
     await settle(3)
 
+    // Marked so the same elements can be recognised after the scroll.
+    //
+    // The pooling claim is that hosts are *recycled* rather than created and
+    // destroyed, and a count of mounts and recycles can be made to look right
+    // by a pool that hands back a fresh element every time. Identity cannot:
+    // an element carrying a mark this run wrote is the same element.
+    let marked = 0
+    for (const host of content.querySelectorAll('.diff-file-host')) {
+      host.dataset.probeMark = String(marked++)
+    }
+
     const heapBefore = heapBytes()
     const frameGaps = []
     const started = performance.now()
@@ -129,6 +140,19 @@
     await settle(3)
     const elapsed = performance.now() - started
     observer?.disconnect()
+
+    // Scrolled far from where the marks were written, so any element still
+    // carrying one has travelled - which is what recycling means.
+    const marksSurviving = content.querySelectorAll('.diff-file-host[data-probe-mark]').length
+
+    // A forced collection before the second reading, where the browser allows
+    // it. Without one, "memory settled back" is indistinguishable from "the
+    // collector has not run yet", which is the claim nobody can make honestly.
+    const collected = typeof globalThis.gc === 'function'
+    if (collected) {
+      globalThis.gc()
+      await settle(3)
+    }
 
     const heapAfter = heapBytes()
     const after = viewer?.stats() ?? null
@@ -174,6 +198,13 @@
             mounted: after.mounts - after.releases,
           }
         : null,
+      // Elements that were on screen at the start and are still mounted after
+      // scrolling away - recycling, asserted by identity rather than by count.
+      pooling: {
+        markedAtStart: marked,
+        stillCarryingAMark: marksSurviving,
+      },
+      heapCollectedBeforeReading: collected,
       heapMb: heapBefore == null || heapAfter == null
         ? null
         : {

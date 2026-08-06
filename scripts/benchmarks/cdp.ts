@@ -158,6 +158,10 @@ export async function launch(options: { port?: number, headed?: boolean } = {}):
     '--disable-background-timer-throttling',
     '--disable-backgrounding-occluded-windows',
     '--disable-renderer-backgrounding',
+    // A collection the probe can ask for. Without it, "memory settled back
+    // after the scroll" cannot be told apart from "the collector has not run
+    // yet", and the second is what an unforced reading usually is.
+    '--js-flags=--expose-gc',
     '--window-size=1440,1000',
     'about:blank',
   ]
