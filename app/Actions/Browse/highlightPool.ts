@@ -132,6 +132,29 @@ let nextId = 1
 let capacity: number | null = null
 let available = true
 
+/**
+ * How a worker is opened, behind a seam.
+ *
+ * The seam earns its keep rather than existing for tidiness. Everything
+ * interesting about this pool is what it does when a worker *misbehaves* - dies
+ * mid-job, wedges, answers after its caller has gone - and none of those can be
+ * provoked from a test with a real worker, which is well-behaved by
+ * construction. Failure handling that is never exercised is failure handling
+ * that does not work, and the retire path here answers a job with null and drops
+ * a worker from the pool, both of which fail silently if they are wrong.
+ */
+export type WorkerFactory = () => Worker
+
+const openRealWorker: WorkerFactory = () =>
+  new Worker(new URL('./highlight.worker.ts', import.meta.url).href, { type: 'module' })
+
+let openWorker: WorkerFactory = openRealWorker
+
+/** Swap the worker this pool opens. Null restores the real one. */
+export function setWorkerFactory(factory: WorkerFactory | null): void {
+  openWorker = factory ?? openRealWorker
+}
+
 function limit(): number {
   if (capacity != null)
     return capacity
@@ -163,7 +186,7 @@ function grow(): PooledWorker | null {
     return null
 
   try {
-    const worker = new Worker(new URL('./highlight.worker.ts', import.meta.url).href, { type: 'module' })
+    const worker = openWorker()
     const pooled: PooledWorker = { worker, job: null }
 
     // A pool must not keep a process alive. Without this a script that
@@ -419,7 +442,22 @@ export function cacheTokens(key: string, tokens: FlatToken[][]): void {
 export function resetHighlightPool(): void {
   cache.clear()
 
+  // Answer everything in flight *before* terminating the workers that would
+  // have answered it. A reset happens while requests are in progress - a theme
+  // change is the real case - and each one of those is a caller holding a
+  // promise. Clearing the queue without resolving it left every one of them
+  // waiting forever, which is not a slow page but a page that never finishes,
+  // and null is a state all of them already handle as "tokenize it here".
   for (const pooled of workers ?? []) {
+    const job = pooled.job
+    pooled.job = null
+
+    if (job != null) {
+      if (job.timer != null)
+        clearTimeout(job.timer)
+      job.resolve(null)
+    }
+
     try {
       pooled.worker.terminate()
     }
@@ -428,10 +466,26 @@ export function resetHighlightPool(): void {
     }
   }
 
+  for (const job of pending) {
+    if (job.timer != null)
+      clearTimeout(job.timer)
+    job.resolve(null)
+  }
+
   workers = null
   capacity = null
   available = true
   pending.length = 0
   busy.clear()
+
+  // The real factory comes back, so a test that swapped it cannot leak a fake
+  // worker into whatever runs next. A test wanting a fake sets it *after* the
+  // reset, which is the order that cannot go wrong by forgetting something.
+  openWorker = openRealWorker
+
   stats.workers = 0
+  stats.dispatched = 0
+  stats.cached = 0
+  stats.inline = 0
+  stats.cancelled = 0
 }

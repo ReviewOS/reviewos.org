@@ -8,6 +8,7 @@
  */
 
 import { afterEach, describe, expect, test } from 'bun:test'
+import { packLines } from 'ts-syntax-highlighter'
 import {
   cachedTokens,
   cacheTokens,
@@ -16,6 +17,7 @@ import {
   poolSize,
   poolStats,
   resetHighlightPool,
+  setWorkerFactory,
   WORKER_THRESHOLD_CHARS,
 } from '../../app/Actions/Browse/highlightPool'
 
@@ -157,5 +159,226 @@ describe('the result cache', () => {
 
     expect(cachedTokens('k3')).toBeUndefined()
     expect(poolStats().cacheSize).toBe(0)
+  })
+})
+
+/**
+ * What the pool does when a worker misbehaves.
+ *
+ * The only part of this file that needs a worker at all, and it needs one that
+ * a real worker cannot be: real workers answer, and every branch worth testing
+ * here is a branch where something does not. A worker that dies mid-job, one
+ * that wedges, one that replies to a job whose caller has gone - all three fail
+ * *silently* if they are wrong. A dropped job that never resolves is a page load
+ * that hangs, and a job resolved twice is a row rendered over itself.
+ *
+ * So the seam. The fake below is a postbox: it records what it was sent and
+ * answers only when the test says to, which is what makes "and then it died"
+ * something that can be written down.
+ */
+describe('a worker that does not behave', () => {
+  interface Fake {
+    worker: Worker
+    sent: { id: number, type: string }[]
+    /** Answer the job it is holding, the way the real worker would. */
+    reply: (tokens?: ReturnType<typeof packLines>) => void
+    /** Die, the way a worker that runs out of memory does. */
+    die: () => void
+    terminated: boolean
+  }
+
+  function fakeWorker(): Fake {
+    const listeners = new Map<string, ((event: unknown) => void)[]>()
+    const sent: { id: number, type: string }[] = []
+    const fake = {
+      sent,
+      terminated: false,
+    } as Fake
+
+    fake.worker = {
+      addEventListener(type: string, handler: (event: unknown) => void) {
+        listeners.set(type, [...(listeners.get(type) ?? []), handler])
+      },
+      postMessage(message: { id: number, type: string }) {
+        sent.push(message)
+      },
+      terminate() {
+        fake.terminated = true
+      },
+    } as unknown as Worker
+
+    const emit = (type: string, event: unknown): void => {
+      for (const handler of listeners.get(type) ?? [])
+        handler(event)
+    }
+
+    fake.reply = (tokens) => {
+      const last = sent.filter(message => message.type === 'tokenize').at(-1)
+      // A real packed result, not a stand-in: the pool unpacks whatever comes
+      // back, so a fake that posts the wrong shape tests the unpacker's error
+      // handling rather than the pool's.
+      emit('message', {
+        data: { id: last?.id, type: 'tokens', flat: tokens ?? packLines([[{ type: 'text', content: 'a' }]], ['a']) },
+      })
+    }
+    fake.die = () => emit('error', new Error('worker died'))
+
+    return fake
+  }
+
+  /** Big enough to be worth a thread, so the pool actually dispatches it. */
+  const big = Array.from(
+    { length: 400 },
+    (_unused, index) => `export const identifier${index} = someFunction(${index}, 'a string argument')`,
+  )
+
+  afterEach(() => {
+    resetHighlightPool()
+  })
+
+  test('the fixture is over the threshold, or none of this tests anything', () => {
+    expect(big.join('\n').length).toBeGreaterThan(WORKER_THRESHOLD_CHARS)
+  })
+
+  /**
+   * The failure this exists for. A worker that dies is holding a job, and that
+   * job has a caller waiting on a promise - so the death has to be turned into
+   * an answer. Null is the answer, because every caller already reads null as
+   * "tokenize it here instead", and the reader gets their page slightly later
+   * rather than never.
+   */
+  test('a worker that dies answers its job rather than dropping it', async () => {
+    const fake = fakeWorker()
+    setWorkerFactory(() => fake.worker)
+
+    const job = highlightOnWorker(big, 'ts')
+    expect(fake.sent).toHaveLength(1)
+
+    fake.die()
+
+    expect(await job.tokens).toBeNull()
+  })
+
+  test('and is dropped from the pool rather than handed more work', () => {
+    const fake = fakeWorker()
+    setWorkerFactory(() => fake.worker)
+
+    highlightOnWorker(big, 'ts')
+    expect(poolStats().workers).toBe(1)
+
+    fake.die()
+
+    expect(poolStats().workers).toBe(0)
+    expect(fake.terminated).toBe(true)
+  })
+
+  /**
+   * Cancellation mid-flight, which is what the on-demand row fetcher depends
+   * on: a reader who scrolls past forty files should not have the server finish
+   * tokenizing all of them.
+   */
+  test('cancelling a job a worker has already started tells the worker', () => {
+    const fake = fakeWorker()
+    setWorkerFactory(() => fake.worker)
+
+    const job = highlightOnWorker(big, 'ts')
+    job.cancel()
+
+    expect(fake.sent.map(message => message.type)).toEqual(['tokenize', 'cancel'])
+    expect(fake.sent[1]!.id).toBe(fake.sent[0]!.id)
+  })
+
+  /**
+   * Best effort, and honest about it. The tokenizer is a tight loop with
+   * nowhere to yield, so a job already started runs to completion and posts a
+   * result - which must be dropped rather than resolved, or a reader who
+   * scrolled away gets rows for a file they are no longer looking at.
+   */
+  test('a cancelled job that answers anyway is answered null, not with its tokens', async () => {
+    const fake = fakeWorker()
+    setWorkerFactory(() => fake.worker)
+
+    const job = highlightOnWorker(big, 'ts')
+    job.cancel()
+    fake.reply()
+
+    expect(await job.tokens).toBeNull()
+  })
+
+  test('cancelling twice does not post a second cancel', () => {
+    const fake = fakeWorker()
+    setWorkerFactory(() => fake.worker)
+
+    const job = highlightOnWorker(big, 'ts')
+    job.cancel()
+    job.cancel()
+
+    expect(fake.sent.filter(message => message.type === 'cancel')).toHaveLength(1)
+  })
+
+  /**
+   * Work waiting on a worker is work the stats have to admit to. A queue that
+   * reports itself as empty is how a stall gets diagnosed as a slow disk.
+   */
+  test('work beyond the pool size is queued, and says so', () => {
+    setWorkerFactory(() => fakeWorker().worker)
+
+    const jobs = Array.from({ length: poolSize(navigator.hardwareConcurrency) + 3 }, () =>
+      highlightOnWorker(big, 'ts'))
+
+    const busy = poolStats()
+    expect(busy.active).toBe(poolSize(navigator.hardwareConcurrency))
+    expect(busy.queued).toBe(3)
+    expect(jobs).toHaveLength(busy.active + busy.queued)
+  })
+
+  /**
+   * A queued job cancelled before any worker touches it should never reach one.
+   * It is counted separately from a dispatched cancel precisely so the
+   * benchmark can tell the difference between work avoided and work wasted.
+   */
+  test('a job cancelled while still queued is dropped rather than dispatched', async () => {
+    const fakes: Fake[] = []
+    setWorkerFactory(() => {
+      const fake = fakeWorker()
+      fakes.push(fake)
+      return fake.worker
+    })
+
+    const running = Array.from({ length: poolSize(navigator.hardwareConcurrency) }, () =>
+      highlightOnWorker(big, 'ts'))
+    const waiting = highlightOnWorker(big, 'ts')
+
+    expect(poolStats().queued).toBe(1)
+    waiting.cancel()
+
+    // Free a worker. The queued job is next, and must be discarded rather than
+    // handed over.
+    const dispatchedBefore = poolStats().dispatched
+    fakes[0]!.reply()
+    await running[0]!.tokens
+
+    expect(await waiting.tokens).toBeNull()
+    expect(poolStats().dispatched).toBe(dispatchedBefore)
+    expect(poolStats().cancelled).toBe(1)
+  })
+
+  /**
+   * A reset happens when the theme changes, and there may be work in flight
+   * when it does. Every one of those callers is holding a promise, and a reset
+   * that leaves them holding it forever is a page that never finishes loading -
+   * which looks like a hung request rather than like a theme change.
+   */
+  test('a reset with work queued leaves nobody waiting forever', async () => {
+    setWorkerFactory(() => fakeWorker().worker)
+
+    const jobs = Array.from({ length: poolSize(navigator.hardwareConcurrency) + 2 }, () =>
+      highlightOnWorker(big, 'ts'))
+
+    resetHighlightPool()
+
+    expect(await Promise.all(jobs.map(job => job.tokens))).toEqual(jobs.map(() => null))
+    expect(poolStats().queued).toBe(0)
+    expect(poolStats().active).toBe(0)
   })
 })

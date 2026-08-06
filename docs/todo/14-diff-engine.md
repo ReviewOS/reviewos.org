@@ -1056,8 +1056,15 @@ Beyond the per-section tests above, the shapes that catch virtualizer bugs speci
       `setTimeout` behind it was written as the fallback for a backgrounded tab, but where the
       function is *missing* the call threw before the fallback could act. A race only works if both
       sides are optional.
-- [ ] Worker pool: a task cancelled mid-flight, a worker that dies, and a theme change with tasks
-      queued
+- [x] Worker pool: a task cancelled mid-flight, a worker that dies, and a theme change with tasks
+      queued. Needed a seam - the pool now opens its workers through a factory - because every branch
+      worth testing here is one where a worker *misbehaves*, and a real worker cannot be made to.
+      Two of the three found real bugs. A reset with work queued cleared the queue without resolving
+      it, so every caller waiting on one of those jobs waited forever: not a slow page, a page that
+      never finishes, and a theme change is exactly when it would happen. And the fixture was under
+      the worker threshold on the first run, so all seven tests passed through the inline path
+      instead of the pool - caught only because the first assertion in the block is that the fixture
+      is big enough to reach a worker at all.
 - [ ] The no-JavaScript path still renders the first screen and its threads
 
 ## Deliberately not doing yet
