@@ -13,6 +13,7 @@ import {
   reviewCommentRow,
   threadRow,
 } from '../Actions/Mirror/metadata'
+import { recountOpenIssues } from '../Actions/Repo/counters'
 
 /**
  * Import a mirrored repository's issues, pull requests and review threads.
@@ -90,6 +91,12 @@ export default new Job({
       pulls: await writePulls(pulls, repositoryId),
       threads: await writeReviewThreads(commentsResult.items, repositoryId, linked),
     }
+
+    // A sync is the largest single change to a repository's issue count there
+    // is - a mirror arrives with hundreds at once, and the upstream closes
+    // some of them between one run and the next. Without this the repository
+    // read `0 open issues` no matter how many it had just imported.
+    await recountOpenIssues(repositoryId)
 
     if (failure) {
       const failures = Number(mirror.metadata_failure_count ?? 0) + 1

@@ -39,10 +39,17 @@ known to exactly one place.
       `open_issues_count`, `pushed_at`
 - [x] Unique constraint on `(owner_type, owner_id, name)`, and on `(repository_id, user_id)` for
       stars, watches and collaborators
-- [ ] Counter columns are denormalized on purpose; every writer updates them in the same transaction
+- [x] Counter columns are denormalized on purpose; every writer updates them in the same transaction
       as the row it counts. They are recomputed rather than incremented - see
       `app/Actions/Repo/counters.ts` for why an increment nobody can verify is an increment that has
-      been wrong since it was written
+      been wrong since it was written. What keeps this true is `tests/unit/repo-counters.test.ts`,
+      which reads the action and job sources, finds the writes that change something counted, and
+      insists the same file recounts it: a denormalized counter does not go wrong in the arithmetic,
+      it goes wrong at the eighth call site somebody adds without knowing the other seven exist.
+      **It found one on its first run.** `MirrorMetadataSyncJob` imported a mirror's issues -
+      hundreds at once, and the upstream's closes between runs - and never recounted, so a mirrored
+      repository read `0 open issues` however many it had. Nobody files that as a bug, because it
+      looks exactly like a repository with no issues
 - [x] `app/Models/RepoCollaborator.ts`: `repository_id`, `user_id`, `permission`
 - [x] `app/Models/Star.ts`, `app/Models/Watch.ts` with a `subscription` level (all, participating,
       ignore)
