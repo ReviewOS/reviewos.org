@@ -83,9 +83,6 @@ const RULES: Rule[] = [
       /insertInto\(['"]repositories['"]\)[\s\S]{0,600}?[^_]parent_id:/,
       /updateTable\(['"]repositories['"]\)[\s\S]{0,400}?[^_]parent_id/,
     ],
-    deferredTo: {
-      'app/Actions/Repo/purge.ts': 'DeleteRepositoryAction, which owns the delete this is a step of',
-    },
   },
 ]
 

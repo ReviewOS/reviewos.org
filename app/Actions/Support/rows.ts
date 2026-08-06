@@ -29,7 +29,15 @@
 /** How many values one `IN (…)` may carry. Postgres tolerates more; drivers vary. */
 export const IN_CHUNK = 1000
 
-/** Delete every row whose `column` is one of `values`. Returns rows matched. */
+/**
+ * Delete every row whose `column` is one of `values`. Returns rows deleted.
+ *
+ * `RETURNING` rather than a driver row count, because `execute()` hands back an
+ * empty array for a plain `DELETE` and there is no count on it to read. This
+ * used to return `values.length` - the number of ids it was *asked* about - so
+ * a caller reporting "removed 2 reactions" was reporting how many ids it had
+ * looked for, and said 2 just as readily when the answer was none.
+ */
 export async function deleteWhereIn(
   table: string,
   column: string,
@@ -38,6 +46,8 @@ export async function deleteWhereIn(
 ): Promise<number> {
   if (values.length === 0)
     return 0
+
+  let deleted = 0
 
   for (const chunk of chunks(values)) {
     const extra = Object.entries(and)
@@ -50,10 +60,14 @@ export async function deleteWhereIn(
 
     const where = [`${quote(column)} IN (${placeholders})`, conditions].filter(Boolean).join(' AND ')
 
-    await db.unsafe(`DELETE FROM ${quote(table)} WHERE ${where}`, bound).execute()
+    const rows: any = await db
+      .unsafe(`DELETE FROM ${quote(table)} WHERE ${where} RETURNING ${quote('id')}`, bound)
+      .execute()
+
+    deleted += Array.isArray(rows) ? rows.length : 0
   }
 
-  return values.length
+  return deleted
 }
 
 /** Set the same columns on every row whose `column` is one of `values`. */

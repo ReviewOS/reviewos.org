@@ -219,11 +219,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try {
-    if (created.repositoryId) {
-      const { purgeRepository } = await import('../../app/Actions/Repo/purge')
-      await purgeRepository(created.repositoryId)
+    // One statement takes the issues, stars and everything else this run made:
+    // the foreign keys cascade. It used to need a purge pass first.
+    if (created.repositoryId)
       await (globalThis as any).db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute()
-    }
 
     if (created.tokenId) {
       await (globalThis as any).db.deleteFrom('access_token_permissions').where('access_token_id', '=', created.tokenId).execute()

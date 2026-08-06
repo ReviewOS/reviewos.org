@@ -47,6 +47,36 @@ export const COLLAPSE_ABOVE_CHANGED_LINES = 500
  */
 export const LOOK_AHEAD = 4
 
+/**
+ * How many files may be emitted before the event loop gets a turn.
+ *
+ * Counted rather than timed, and that is the whole trick. This is a pull-based
+ * generator, so it is suspended between records - which means elapsed *wall*
+ * time includes the consumer's time and the time spent suspended, and a budget
+ * measured that way finds every file over budget. Yielding per file took a 1.4
+ * second compare to 33 seconds. A count has no such confusion.
+ */
+const FILES_PER_YIELD = 32
+
+/** Hand the event loop back, properly. */
+function yieldToLoop(): Promise<void> {
+  return new Promise(resolve => setImmediate(resolve))
+}
+
+/**
+ * Why a yield is needed at all, since this generator is full of `await`.
+ *
+ *
+ * Because awaiting a promise that is already resolved is not a yield. It queues
+ * a *microtask*, and the microtask queue runs to exhaustion before a timer or a
+ * socket gets a turn - so a consumer that does nothing slow keeps this
+ * generator running, file after file, in one uninterrupted cascade. Every
+ * `await` in the chain looked like a yield and none of them was.
+ *
+ * Measured on a 5,722 file compare, the event loop was held for over a second
+ * at the tail. Which is a second in which the server answers nobody.
+ */
+
 export interface ManifestFile {
   t: 'file'
   /** Position in the diff. The client renders in this order and never sorts. */
@@ -366,6 +396,8 @@ export async function* streamManifest(
     yield* drain(false)
   }
 
+  let sinceYield = 0
+
   try {
     for await (const chunk of source.chunks) {
       splitter.push(chunk)
@@ -374,7 +406,13 @@ export async function* streamManifest(
         const fileText = splitter.take()
         if (fileText === undefined)
           break
+
         yield* emit(fileText)
+
+        if (++sinceYield >= FILES_PER_YIELD) {
+          sinceYield = 0
+          await yieldToLoop()
+        }
       }
     }
 

@@ -5,7 +5,7 @@ import { recordAudit } from '../Git/audit'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
 import { recountForks } from './counters'
-import { purgeRepository } from './purge'
+import { sweepPolymorphic } from './polymorphic'
 import { retiredPath } from './settings'
 
 /**
@@ -46,17 +46,13 @@ export default new Action({
     if (!from.ok || !retired)
       return response.json({ error: 'That repository cannot be deleted by name' }, 422)
 
-    // Database first, disk second, and the order is the whole design.
-    //
-    // Everything that hangs off a repository - issues, pull requests, reviews,
-    // stars - has to go before the row will delete, and any of it can fail. A
-    // failure here is a delete that did not happen: the row is intact, the
-    // directory has not moved, and the repository still works. The other order
-    // moves the repository aside and *then* discovers it cannot remove the row,
-    // which leaves a repository that is gone from disk and still listed.
-    const purged = await purgeRepository(Number(repository.id))
-    if (!purged.ok)
-      return response.json({ error: purged.error }, 500)
+    // The rows no foreign key can reach, removed first because finding them
+    // needs the issues and pull requests the cascade is about to take. A
+    // failure here is a delete that did not happen: nothing has moved on disk
+    // and the row is intact.
+    const swept = await sweepPolymorphic(Number(repository.id))
+    if (!swept.ok)
+      return response.json({ error: swept.error }, 500)
 
     // Recorded before the row goes, because afterwards there is no id to look
     // up and no name to report. The audit row and the directory on disk are
@@ -65,12 +61,31 @@ export default new Action({
       action: 'repository.deleted',
       subject: { type: 'repository', id: Number(repository.id) },
       actorId: user?.id ?? null,
-      detail: { owner, name: repository.name, retired_to: retired, removed: purged.removed },
+      detail: { owner, name: repository.name, retired_to: retired, swept: swept.removed },
     })
 
     const parentId = Number(repository.parent_id ?? 0)
 
-    await db.deleteFrom('repositories').where('id', '=', Number(repository.id)).execute()
+    // Database first, disk second, and the order is the whole design. A failure
+    // here is a delete that did not happen: the row is intact, the directory
+    // has not moved, and the repository still works. The other order moves the
+    // repository aside and *then* discovers it cannot remove the row, which
+    // leaves a repository that is gone from disk and still listed.
+    //
+    // One statement. Everything that hangs off a repository goes with it
+    // because the foreign keys say so, and the forks detach because
+    // `repositories.parent_id` says so. This used to be three hundred lines
+    // that read the foreign keys out of `information_schema`, sorted the tables
+    // so nothing was deleted before the rows pointing at it, and emptied them
+    // one by one - a second implementation of a rule the database already
+    // holds, and the kind that goes wrong quietly when somebody adds a table
+    // and only one of the two learns about it.
+    try {
+      await db.deleteFrom('repositories').where('id', '=', Number(repository.id)).execute()
+    }
+    catch (error) {
+      return response.json({ error: `That repository could not be deleted: ${error}` }, 500)
+    }
 
     // Deleting a fork is one fewer fork. Recomputed rather than decremented,
     // for the reason every counter here is: an increment nobody can verify is
@@ -102,7 +117,6 @@ export default new Action({
     return response.json({
       deleted: `${owner}/${repository.name}`,
       recoverable_at: retired,
-      removed: purged.removed,
     })
   },
 })

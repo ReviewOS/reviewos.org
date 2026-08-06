@@ -345,9 +345,28 @@ the one moment where rejecting is still possible.
         and a bare `DELETE FROM repositories` - no ordering, no purge, nothing the application
         knows about - takes its labels, topics, issues and stars with it. That statement failed
         before this change
-  - [ ] `app/Actions/Repo/purge.ts` still walks `information_schema` to order its deletes. It is
-        now belt and braces rather than the mechanism, and it is what produces the per-table counts
-        the delete endpoint reports, so removing it is a deliberate follow-on rather than a tidy-up
+  - [x] `app/Actions/Repo/purge.ts` and `dependents.ts` are **gone** - three hundred lines that read
+        the foreign keys out of `information_schema`, sorted the tables so nothing was deleted
+        before the rows pointing at it, and emptied them one by one. A second implementation of a
+        rule the database holds, and the kind that goes wrong quietly when somebody adds a table and
+        only one of the two learns about it. The delete is one statement now
+  - [x] **Deleting it uncovered a real gap, which is why it was worth doing.** A polymorphic row
+        cannot be reached by a foreign key: `issue_comments.commentable_id` is an issue on one row
+        and a pull request on the next, so a constraint would name one table and reject the other.
+        Before the schema came from the models, `commentable_id` carried `REFERENCES issues(id)` -
+        wrong, since it would have rejected every comment on a pull request - and the old walk
+        followed that wrong constraint to find these rows. Removing it was right; nothing replacing
+        it was not, and deleting a repository left its comments, reactions and timeline entries
+        behind. `app/Actions/Repo/polymorphic.ts` sweeps exactly those five tables, as an explicit
+        list somebody can read rather than a graph that decides for itself. `audit_events` and
+        `activities` are deliberately left: a log that disappears with its subject cannot tell you
+        what happened to it
+  - [x] **`deleteWhereIn` returned how many ids it was asked about, not how many rows it deleted**,
+        while its own comment said "rows matched". The sweep's first run reported removing two
+        reactions and two notification mutes when it had removed one and none. The counts go into
+        the audit record, so that is a lie in the one place meant to say what happened. It counts
+        `RETURNING` rows now - `execute()` hands back an empty array for a plain `DELETE` with no
+        count on it to read
 - [x] `app/Actions/Pull/MergePullRequestAction.ts` closed issues with
       `updateTable(...).where('id', 'in', ids)`, which the query builder renders as `in $1` - so
       merging a pull request had never closed anything it said it closed. Through `updateWhereIn`
