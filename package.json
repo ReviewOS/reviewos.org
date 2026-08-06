@@ -71,7 +71,7 @@
     "mermaid": "^11.16.1",
     "pickier": "^0.1.48",
     "stacks": "^0.70.276",
-    "ts-syntax-highlighter": "^0.2.11"
+    "ts-syntax-highlighter": "^0.2.13"
   },
   "workspaces": [
     "storage/framework",

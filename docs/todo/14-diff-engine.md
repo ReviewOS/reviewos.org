@@ -582,8 +582,31 @@ comment nesting wrong, and the failure is silent and ugly: half a file rendered 
       script, a Blade template and a stylesheet of variables all rendered with the one thing a reader
       scans for uncoloured. Gated on the language, because `$` is a legal identifier character in
       JavaScript and TypeScript and `$foo` there is a name rather than a reference.
-- [ ] The remaining `.todo()` cases in the library's `TODO.md`: markdown inline links and fenced
-      code, rust lifetimes and macros, C# attributes, yaml keys.
+- [x] Markdown headings, which are the most common structure in the most common non-code file in a
+      pull request and rendered as plain text.
+- [ ] The remaining `.todo()` cases in the library's `TODO.md`: markdown inline links, emphasis and
+      fenced code, rust lifetimes and macros, C# attributes.
+
+### A URL is not a comment
+
+Found while looking at those, and much worse than any of them.
+
+The tokenizer decided whether `//` opened a comment by asking "is this HTML?" - so every language
+that was not HTML inherited JavaScript's comment syntax. A URL is the shape that exposes it:
+
+```bash
+curl https://example.dev/thing     # everything from the second slash was a comment
+```
+
+There is no string around an unquoted URL to protect it, so a shell script, a YAML file or a README
+link had the rest of its line rendered grey and italic. READMEs and CI files are full of URLs, so
+this was visible on ordinary files, on every page - and it looked like the highlighter giving up
+halfway through a line rather than like a bug with a cause.
+
+The same check had the mirror problem: `#` was *not* a comment anywhere, so every comment in bash,
+YAML, Python, TOML and Dockerfile rendered as code. Both are now named sets of languages rather than
+one negative test, and a hash inside a string stays inside the string because the string is consumed
+whole before the loop comes back round.
 - [x] Languages a forge sees constantly and should be checked for coverage: `.stx`, `.blade.php`,
       `Dockerfile` variants, `.tf`, `.proto`, `.sql`, `.toml`, `.env`, and `.patch` itself. Every one
       of those had a grammar in the library already and none of them was mapped, so they rendered
