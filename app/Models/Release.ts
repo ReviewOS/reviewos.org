@@ -67,7 +67,7 @@ export default defineModel({
     },
   },
 
-  belongsTo: ['Repository', 'User'],
+  belongsTo: [{ model: 'Repository', onDelete: 'cascade' }, 'User'],
   hasMany: ['ReleaseAsset'],
 
   attributes: {

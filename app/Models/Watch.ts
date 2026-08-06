@@ -24,7 +24,7 @@ export default defineModel({
     useSeeder: { count: 15 },
   },
 
-  belongsTo: ['Repository', 'User'],
+  belongsTo: [{ model: 'Repository', onDelete: 'cascade' }, 'User'],
 
   attributes: {
     repository_id: {

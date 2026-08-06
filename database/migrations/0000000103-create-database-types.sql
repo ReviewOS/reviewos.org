@@ -1,6 +1,17 @@
 DO $stacks$ BEGIN CREATE TYPE "reactions_subject_type_type" AS ENUM ('issue', 'issue_comment', 'review_comment');
 EXCEPTION WHEN duplicate_object THEN null;
 END $stacks$;
+ALTER TYPE "reactions_subject_type_type" ADD VALUE IF NOT EXISTS 'issue';
+ALTER TYPE "reactions_subject_type_type" ADD VALUE IF NOT EXISTS 'issue_comment';
+ALTER TYPE "reactions_subject_type_type" ADD VALUE IF NOT EXISTS 'review_comment';
 DO $stacks$ BEGIN CREATE TYPE "reactions_content_type" AS ENUM ('+1', '-1', 'laugh', 'hooray', 'confused', 'heart', 'rocket', 'eyes');
 EXCEPTION WHEN duplicate_object THEN null;
 END $stacks$;
+ALTER TYPE "reactions_content_type" ADD VALUE IF NOT EXISTS '+1';
+ALTER TYPE "reactions_content_type" ADD VALUE IF NOT EXISTS '-1';
+ALTER TYPE "reactions_content_type" ADD VALUE IF NOT EXISTS 'laugh';
+ALTER TYPE "reactions_content_type" ADD VALUE IF NOT EXISTS 'hooray';
+ALTER TYPE "reactions_content_type" ADD VALUE IF NOT EXISTS 'confused';
+ALTER TYPE "reactions_content_type" ADD VALUE IF NOT EXISTS 'heart';
+ALTER TYPE "reactions_content_type" ADD VALUE IF NOT EXISTS 'rocket';
+ALTER TYPE "reactions_content_type" ADD VALUE IF NOT EXISTS 'eyes';

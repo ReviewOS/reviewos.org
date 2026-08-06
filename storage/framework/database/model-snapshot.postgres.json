@@ -15,7 +15,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -171,7 +171,7 @@
           },
           {
             "name": "access_token_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -256,7 +256,7 @@
           },
           {
             "name": "access_token_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -268,7 +268,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -335,11 +335,12 @@
           },
           {
             "name": "description",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "subject_type",
@@ -563,11 +564,12 @@
           },
           {
             "name": "bio",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "avatar",
@@ -751,7 +753,7 @@
           },
           {
             "name": "board_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -942,7 +944,7 @@
           },
           {
             "name": "email_list_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -1102,7 +1104,7 @@
           },
           {
             "name": "campaign_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -1114,7 +1116,7 @@
           },
           {
             "name": "subscriber_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -1126,7 +1128,7 @@
           },
           {
             "name": "email_list_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -1251,7 +1253,7 @@
           },
           {
             "name": "board_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -1263,11 +1265,12 @@
           },
           {
             "name": "title",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 300
           },
           {
             "name": "description",
@@ -1382,7 +1385,7 @@
           },
           {
             "name": "card_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -1394,7 +1397,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -1710,11 +1713,12 @@
           },
           {
             "name": "notes",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "cart_id",
@@ -1881,7 +1885,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -2107,11 +2111,12 @@
           },
           {
             "name": "user_agent",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "is_approved",
@@ -2627,11 +2632,12 @@
           },
           {
             "name": "commit_message",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "branch",
@@ -2677,11 +2683,12 @@
           },
           {
             "name": "url",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "error_log",
@@ -2980,11 +2987,12 @@
           },
           {
             "name": "description",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "subscriber_count",
@@ -3111,7 +3119,7 @@
           },
           {
             "name": "email_list_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -3123,7 +3131,7 @@
           },
           {
             "name": "subscriber_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -3558,7 +3566,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -3649,7 +3657,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -3686,7 +3694,7 @@
           },
           {
             "name": "author_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -3849,7 +3857,7 @@
           },
           {
             "name": "issue_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -3861,7 +3869,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -3935,7 +3943,7 @@
           },
           {
             "name": "author_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -4035,7 +4043,7 @@
           },
           {
             "name": "issue_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -4047,7 +4055,7 @@
           },
           {
             "name": "label_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -4171,7 +4179,7 @@
           },
           {
             "name": "board_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -4596,11 +4604,12 @@
           },
           {
             "name": "description",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "points_required",
@@ -4720,11 +4729,12 @@
           },
           {
             "name": "mailbox",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": true,
             "isNullable": false,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 320
           },
           {
             "name": "account_name",
@@ -5078,7 +5088,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -5252,7 +5262,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -5377,7 +5387,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -5467,7 +5477,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -5517,12 +5527,13 @@
           },
           {
             "name": "breaks_through",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
             "hasDefault": true,
-            "defaultValue": ""
+            "defaultValue": "",
+            "maxLength": 500
           },
           {
             "name": "do_not_disturb_until",
@@ -5573,7 +5584,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -5859,7 +5870,7 @@
           },
           {
             "name": "order_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -6101,7 +6112,7 @@
           },
           {
             "name": "organization_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -6113,7 +6124,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -6498,11 +6509,12 @@
           },
           {
             "name": "type",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 512
           },
           {
             "name": "last_four",
@@ -6598,11 +6610,12 @@
           },
           {
             "name": "name",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 512
           },
           {
             "name": "description",
@@ -6807,11 +6820,12 @@
           },
           {
             "name": "excerpt",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "views",
@@ -7380,7 +7394,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -7502,7 +7516,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -7539,7 +7553,7 @@
           },
           {
             "name": "author_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -7818,7 +7832,7 @@
           },
           {
             "name": "pull_request_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -7830,7 +7844,7 @@
           },
           {
             "name": "reviewer_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -7948,7 +7962,7 @@
           },
           {
             "name": "pull_request_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -8486,7 +8500,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -8498,7 +8512,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -8601,7 +8615,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -8613,7 +8627,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -8745,11 +8759,12 @@
           },
           {
             "name": "disk_path",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 512
           },
           {
             "name": "is_fork",
@@ -8904,7 +8919,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -9008,14 +9023,15 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -9049,11 +9065,12 @@
           },
           {
             "name": "remote_url",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "remote_owner",
@@ -9499,7 +9516,7 @@
           },
           {
             "name": "review_thread_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -9511,7 +9528,7 @@
           },
           {
             "name": "review_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -9523,7 +9540,7 @@
           },
           {
             "name": "author_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -9637,7 +9654,7 @@
           },
           {
             "name": "pull_request_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -9801,11 +9818,12 @@
           },
           {
             "name": "description",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "base_rate",
@@ -9998,11 +10016,12 @@
           },
           {
             "name": "regions",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "postal_codes",
@@ -10256,7 +10275,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -10362,7 +10381,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -10374,7 +10393,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -10613,11 +10632,12 @@
           },
           {
             "name": "type",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 512
           },
           {
             "name": "plan",
@@ -10973,7 +10993,7 @@
           },
           {
             "name": "organization_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -11074,7 +11094,7 @@
           },
           {
             "name": "team_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -11086,7 +11106,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -11199,7 +11219,7 @@
           },
           {
             "name": "actor_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -11644,11 +11664,12 @@
           },
           {
             "name": "notes",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "status",
@@ -11944,7 +11965,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -11956,7 +11977,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -12023,7 +12044,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -12155,7 +12176,7 @@
           },
           {
             "name": "webhook_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -12528,7 +12549,7 @@
           },
           {
             "name": "user_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -12633,19 +12654,20 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
             "name": "uploader_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -12777,7 +12799,7 @@
           },
           {
             "name": "actor_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -12887,7 +12909,7 @@
           },
           {
             "name": "repository_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -12955,7 +12977,7 @@
           },
           {
             "name": "release_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -12976,11 +12998,12 @@
           },
           {
             "name": "storage_path",
-            "type": "text",
+            "type": "string",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
-            "hasDefault": false
+            "hasDefault": false,
+            "maxLength": 500
           },
           {
             "name": "content_type",
@@ -13050,7 +13073,7 @@
       }
     ]
   },
-  "hash": "058869eb599983797dbb1cbffa950a9aa33733b3a9c74283aaa4ed6a75916856",
+  "hash": "3fe43ada39ce94ed873843349ca384e9c7a32b2b0d203049f7fa616ed414080c",
   "dialect": "postgres",
-  "updatedAt": "2026-08-05T21:34:06.960Z"
+  "updatedAt": "2026-08-06T06:13:22.687Z"
 }

@@ -25,7 +25,7 @@ export default defineModel({
     useSeeder: { count: 20 },
   },
 
-  belongsTo: ['AccessToken', 'Repository'],
+  belongsTo: ['AccessToken', { model: 'Repository', onDelete: 'cascade' }],
 
   attributes: {
     access_token_id: {

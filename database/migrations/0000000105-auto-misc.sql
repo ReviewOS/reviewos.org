@@ -1,6 +1,19 @@
 DO $stacks$ BEGIN CREATE TYPE "timeline_entries_kind_type" AS ENUM ('closed', 'reopened', 'renamed', 'labeled', 'unlabeled', 'assigned', 'unassigned', 'milestoned', 'demilestoned', 'locked', 'unlocked', 'referenced', 'mentioned', 'merged');
 EXCEPTION WHEN duplicate_object THEN null;
 END $stacks$;
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'closed';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'reopened';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'renamed';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'labeled';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'unlabeled';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'assigned';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'unassigned';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'milestoned';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'demilestoned';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'locked';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'unlocked';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'referenced';
+ALTER TYPE "timeline_entries_kind_type" ADD VALUE IF NOT EXISTS 'merged';
 -- The guard above swallows the CREATE on any database that already has the
 -- type, which is every database: migration 1 created it. So the new member has
 -- to be asserted on its own, or `mentioned` never exists and every cross

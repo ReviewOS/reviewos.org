@@ -20,7 +20,7 @@ export default defineModel({
     useSeeder: { count: 10 },
   },
 
-  belongsTo: ['Repository', 'User'],
+  belongsTo: [{ model: 'Repository', onDelete: 'cascade' }, 'User'],
 
   attributes: {
     repository_id: {

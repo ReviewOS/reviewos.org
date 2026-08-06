@@ -68,10 +68,10 @@
   },
   "dependencies": {
     "@stacksjs/stx": "^0.2.155",
-    "bun-query-builder": "^0.2.18",
+    "bun-query-builder": "^0.2.21",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.48",
-    "stacks": "^0.70.279",
+    "stacks": "^0.70.289",
     "ts-syntax-highlighter": "^0.2.13"
   },
   "workspaces": [

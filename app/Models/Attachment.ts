@@ -35,7 +35,7 @@ export default defineModel({
     useSeeder: { count: 0 },
   },
 
-  belongsTo: [{ model: 'Repository', foreignKey: 'repository_id' }, { model: 'User', foreignKey: 'uploader_id' }],
+  belongsTo: [{ model: 'Repository', foreignKey: 'repository_id', onDelete: 'cascade' }, { model: 'User', foreignKey: 'uploader_id' }],
 
   attributes: {
     /**

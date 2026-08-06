@@ -31,7 +31,19 @@ export default defineModel({
     useSeeder: { count: 30 },
   },
 
-  belongsTo: ['Repository'],
+  // Repository-scoped: this row means nothing without the repository, so the
+  // database removes it rather than the application remembering to. An
+  // application that deletes a parent and then its children has to get the
+  // order right in every place it deletes, forever, and the place it misses
+  // leaves rows nothing can reach - while the database applies the rule to
+  // deletes the application never made: a manual DELETE, a restore, another
+  // service sharing the schema.
+  //
+  // Only the repository relation cascades. Deleting a *user* deliberately does
+  // not take their issues, comments or reviews with them: that is a history
+  // other people took part in, and it is the reason those rows carry an
+  // external author name.
+  belongsTo: [{ model: 'Repository', onDelete: 'cascade' }],
 
   attributes: {
     repository_id: {

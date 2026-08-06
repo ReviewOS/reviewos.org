@@ -294,26 +294,41 @@ the one moment where rejecting is still possible.
       answers and the middle one is the one people want
 - [x] Unique indexes on `(owner_type, owner_id, name)` and on the person-plus-repository pairs, so
       the read-then-write checks in create, fork, rename and transfer have something behind them
-- [ ] **Cascade the repository foreign keys.** Twenty-two tables hang off a repository and every
-      constraint is `NO ACTION`, so `app/Actions/Repo/purge.ts` works the deletion order out from
-      `information_schema` at delete time. `onDelete: 'cascade'` on the models would replace all of
-      it. Two things were in the way; one is gone:
-  - [x] **`bun-query-builder` added a second foreign key instead of replacing the first.** A column
-        created inline with `REFERENCES` already carries a constraint the server named itself
-        (`x_repository_id_fkey`), and `addForeignKey` added `x_repository_id_fk` beside it. A server
-        enforces every constraint it holds, so the migration applied cleanly, the cascade was real,
-        and deletes went on failing against the `NO ACTION` next to it - with nothing in the output
-        saying so. Fixed in 0.2.18 by dropping what is already on the column first, found by
-        querying the catalog rather than by guessing the server's naming convention: guessing covers
-        the constraint the server named and misses one named by hand or by an older version, and
-        missing it reproduces the bug exactly. Verified against a real Postgres - one constraint
-        afterwards rather than two, the delete cascades, and re-running the migration is not an error
-  - [ ] **Stacks has no way for a `belongsTo` to declare its `onDelete`.** `ForeignKeyConfig` in
-        `@stacksjs/types` carries the field, and the only place the Postgres migration generator
-        emits `onDelete` is the pivot table for a many-to-many. A plain `belongsTo` - which is where
-        every one of these twenty-two columns comes from - has nowhere to say it. That is a
-        framework feature rather than a bug, so it wants its own change and its own release before
-        the models here can be touched
+- [x] **Cascade the repository foreign keys.** Fifteen tables hang off a repository and every
+      constraint was `NO ACTION`, so a delete had to remove the children first, in the right order,
+      in every place that deletes - and the place that misses one leaves rows nothing can reach.
+      The database now removes them, which also covers the deletes the application never made: a
+      manual `DELETE`, a restore, another service sharing the schema. Only the repository relation
+      cascades; deleting a *user* deliberately does not take their issues, comments or reviews with
+      them, because that is a history other people took part in. Three things had to change:
+  - [x] **`bun-query-builder` added a second foreign key instead of replacing the first** (0.2.18).
+        A column created inline with `REFERENCES` already carries a constraint the server named
+        itself (`x_repository_id_fkey`), and `addForeignKey` added `x_repository_id_fk` beside it.
+        A server enforces every constraint it holds, so the migration applied cleanly, the cascade
+        was real, and deletes went on failing against the `NO ACTION` next to it - with nothing in
+        the output saying so
+  - [x] **A declared foreign key column lost its relation's `onDelete`** (0.2.21). Writing
+        `repository_id` in `attributes` is the ordinary way to give it a validation rule, and it
+        cost the relation its cascade silently: the same model with the same `belongsTo` cascaded
+        or did not depending on whether its `_id` column happened to be written down twice
+  - [x] **A `belongsTo` could not declare `onDelete` at all** (stacks 0.70.289). The field existed
+        on `ForeignKeyConfig` for the explicit attribute-level form, and the generator emitted it
+        only for the pivot table of a many-to-many - so the relation every one of these fifteen
+        columns comes from had nowhere to say it. Now on `BaseRelation`, documented in
+        `stacks-models`
+  - [x] One hand-written migration alongside the generated ones
+        (`0000000123-drop-superseded-repository-fkeys.sql`): the constraints this database was
+        created with predate the declaration and had to go, and `releases` needed it *first* rather
+        than merely alongside, because its existing constraint already had the name the new one
+        wanted. `IF EXISTS` throughout, so a database created after the models declared their
+        cascade sees a no-op rather than an error
+  - [x] Verified against the real database: fifteen constraints, all `CASCADE`, none duplicated,
+        and a bare `DELETE FROM repositories` - no ordering, no purge, nothing the application
+        knows about - takes its labels, topics, issues and stars with it. That statement failed
+        before this change
+  - [ ] `app/Actions/Repo/purge.ts` still walks `information_schema` to order its deletes. It is
+        now belt and braces rather than the mechanism, and it is what produces the per-table counts
+        the delete endpoint reports, so removing it is a deliberate follow-on rather than a tidy-up
 - [x] `app/Actions/Pull/MergePullRequestAction.ts` closed issues with
       `updateTable(...).where('id', 'in', ids)`, which the query builder renders as `in $1` - so
       merging a pull request had never closed anything it said it closed. Through `updateWhereIn`
