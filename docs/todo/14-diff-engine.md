@@ -1064,7 +1064,14 @@ Beyond the per-section tests above, the shapes that catch virtualizer bugs speci
 
 - [ ] Partial hydration: server HTML for the first screen, hydrated into the viewer without a reflow
       or a re-render of what is already correct
-- [ ] Element pooling actually reuses nodes, asserted by identity rather than by count
+- [x] Element pooling actually reuses nodes, asserted by identity rather than by count. In the
+      browser probe rather than as a unit test, because the claim is about real elements surviving a
+      real scroll and there is no DOM in the unit suite. Hosts are marked before the scroll and
+      checked after: a count of mounts and recycles can be made to look right by a pool that hands
+      back a fresh element every time, and identity cannot be. Surviving alone is not enough either,
+      since a host the scroll never reached still carries its mark and has been reused for nothing -
+      so what decides it is how many marked hosts are now showing a *different* file, and the probe
+      states the verdict rather than leaving two numbers to be interpreted.
 - [x] Scroll anchoring across collapse, expand, theme change, wrap toggle and a layout switch -
       every change the viewer makes that moves things, including the one that moves nothing and must
       therefore move nobody.

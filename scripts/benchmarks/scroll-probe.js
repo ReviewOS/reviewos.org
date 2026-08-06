@@ -94,8 +94,11 @@
     // by a pool that hands back a fresh element every time. Identity cannot:
     // an element carrying a mark this run wrote is the same element.
     let marked = 0
+    const fileAtMark = new Map()
     for (const host of content.querySelectorAll('.diff-file-host')) {
-      host.dataset.probeMark = String(marked++)
+      const mark = String(marked++)
+      host.dataset.probeMark = mark
+      fileAtMark.set(mark, host.dataset.fileIndex ?? '')
     }
 
     const heapBefore = heapBytes()
@@ -143,7 +146,20 @@
 
     // Scrolled far from where the marks were written, so any element still
     // carrying one has travelled - which is what recycling means.
-    const marksSurviving = content.querySelectorAll('.diff-file-host[data-probe-mark]').length
+    //
+    // Surviving is not quite enough on its own: a host that was never released
+    // because the scroll did not reach far enough is also still carrying its
+    // mark, and it has been reused for nothing. So the number that decides it
+    // is how many marked hosts are now showing a *different* file than they
+    // were - an element cannot be both the original and reused for something
+    // else unless it was recycled.
+    let marksSurviving = 0
+    let marksReused = 0
+    for (const host of content.querySelectorAll('.diff-file-host[data-probe-mark]')) {
+      marksSurviving++
+      if (fileAtMark.get(host.dataset.probeMark ?? '') !== (host.dataset.fileIndex ?? ''))
+        marksReused++
+    }
 
     // A forced collection before the second reading, where the browser allows
     // it. Without one, "memory settled back" is indistinguishable from "the
@@ -203,6 +219,10 @@
       pooling: {
         markedAtStart: marked,
         stillCarryingAMark: marksSurviving,
+        reusedForAnotherFile: marksReused,
+        // Stated rather than left to be read off two numbers, so a regression
+        // reads as a failure instead of as a table somebody has to interpret.
+        recycling: marked === 0 ? 'nothing was mounted to mark' : marksReused > 0 ? 'working' : 'NOT OBSERVED',
       },
       heapCollectedBeforeReading: collected,
       heapMb: heapBefore == null || heapAfter == null
