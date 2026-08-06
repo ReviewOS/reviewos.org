@@ -214,6 +214,14 @@ export interface ManifestOptions {
      */
     skipCollapsed?: boolean
     /**
+     * Render only this window of rows, for a file too large to send whole.
+     *
+     * Only meaningful when the caller has named one file: a window is a range
+     * within *a* file, and applying one range to several would be asking for
+     * rows 1,000 to 1,200 of each of them, which is not a thing anybody wants.
+     */
+    range?: { from: number, to: number }
+    /**
      * Review threads to place under the lines they were written about.
      *
      * As stored: each is anchored against its own file as that file goes past,
@@ -283,6 +291,7 @@ export async function* streamManifest(
       layout: rowOptions.layout,
       expandable: true,
       commentable: true,
+      range: rowOptions.range,
       // Always the open form. Whether a file is *shown* folded is the client's
       // decision and it can change at any moment, so markup rendered folded
       // would have to be thrown away the instant the reader clicked. A file

@@ -127,6 +127,20 @@ export interface RenderRowsOptions {
    * sense where something is listening for it.
    */
   commentable?: boolean
+  /**
+   * Render only the rows in this half-open range.
+   *
+   * For a file too large to put in the document at once. The indices are the
+   * ones `countRows` counts, and that is not a coincidence to be maintained by
+   * hand: the client asks for a range by number, and if the renderer's numbering
+   * drifted from the counter's by one, every window would be off by a line and
+   * the file would appear to scroll past itself.
+   *
+   * A thread row belongs to the line above it and shares that line's index, so
+   * a conversation is never separated from the code it is about by a window
+   * boundary.
+   */
+  range?: { from: number, to: number }
 }
 
 /** The tokens for one line, falling back to its raw content. */
@@ -342,6 +356,32 @@ function expandControl(gap: { from: number, to: number, size: number } | undefin
 }
 
 /**
+ * Collect rows, keeping only the ones the caller asked for.
+ *
+ * The row index is maintained here rather than by each layout, because the
+ * whole point is that one number means the same thing to the counter, to both
+ * renderers and to the client. `next()` is called once per row whether or not
+ * it is kept, so the numbering never depends on the range.
+ */
+function rowCollector(range: RenderRowsOptions['range']) {
+  const parts: string[] = []
+  let index = -1
+
+  return {
+    /** Start a row, and say whether it is one to keep. */
+    next(): boolean {
+      index += 1
+      return range == null || (index >= range.from && index < range.to)
+    },
+    /** Add markup to the row `next` just started. */
+    push(markup: string): void {
+      parts.push(markup)
+    },
+    html: () => parts.join(''),
+  }
+}
+
+/**
  * Unified rows: one line per row, both line numbers in the gutters.
  *
  * Both numbers, always. A review comment anchors to a line, a side and a
@@ -349,17 +389,21 @@ function expandControl(gap: { from: number, to: number, size: number } | undefin
  * outdated thread was written against.
  */
 function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
-  const parts: string[] = []
+  const rows = rowCollector(options.range)
   const gaps = options.expandable ? gapsByHunk(file) : undefined
 
   for (const [index, hunk] of file.hunks.entries()) {
-    parts.push(hunkHeadRow(hunk, 'unified', gaps?.get(index)))
+    if (rows.next())
+      rows.push(hunkHeadRow(hunk, 'unified', gaps?.get(index)))
 
     for (const line of hunk.lines) {
+      if (!rows.next())
+        continue
+
       // The code cell's content is emitted with no surrounding whitespace: it
       // is `white-space: pre`, so any indentation here would be printed and
       // every line would start a dozen columns in.
-      parts.push(
+      rows.push(
         `<tr class="line line-${line.origin}">`
         + gutter(file.path, 'left', line.oldLine, options.commentable)
         + gutter(file.path, 'right', line.newLine, options.commentable)
@@ -369,11 +413,11 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
 
       const threads = options.threadsAt?.(line)
       if (threads)
-        parts.push(`<tr class="thread-row"><td class="gutter" colspan="2"></td><td class="thread-cell">${threads}</td></tr>`)
+        rows.push(`<tr class="thread-row"><td class="gutter" colspan="2"></td><td class="thread-cell">${threads}</td></tr>`)
     }
   }
 
-  return parts.join('')
+  return rows.html()
 }
 
 /** One side of a split row: a number gutter and a code cell, or a filler pair. */
@@ -399,11 +443,12 @@ function splitCell(line: DiffLine | null, side: 'old' | 'new', options: RenderRo
  * layouts and why `countRows` reports both.
  */
 function renderSplit(file: DiffFile, options: RenderRowsOptions): string {
-  const parts: string[] = []
+  const rows = rowCollector(options.range)
   const gaps = options.expandable ? gapsByHunk(file) : undefined
 
   for (const [index, hunk] of file.hunks.entries()) {
-    parts.push(hunkHeadRow(hunk, 'split', gaps?.get(index)))
+    if (rows.next())
+      rows.push(hunkHeadRow(hunk, 'split', gaps?.get(index)))
 
     let removed: DiffLine[] = []
     let added: DiffLine[] = []
@@ -412,18 +457,21 @@ function renderSplit(file: DiffFile, options: RenderRowsOptions): string {
       const height = Math.max(removed.length, added.length)
 
       for (let index = 0; index < height; index++) {
+        if (!rows.next())
+          continue
+
         const left = removed[index] ?? null
         const right = added[index] ?? null
         const classes = `line${left ? ' has-removed' : ''}${right ? ' has-added' : ''}`
 
-        parts.push(`<tr class="${classes}">${splitCell(left, 'old', options)}${splitCell(right, 'new', options)}</tr>`)
+        rows.push(`<tr class="${classes}">${splitCell(left, 'old', options)}${splitCell(right, 'new', options)}</tr>`)
 
         // A thread belongs to one side. Rendered under the row that carries the
         // line it was written about, so a comment on a deletion does not appear
         // to be about the addition beside it.
         const threads = (left ? options.threadsAt?.(left) : '') || (right ? options.threadsAt?.(right) : '')
         if (threads)
-          parts.push(`<tr class="thread-row"><td class="gutter" colspan="4"><div class="thread-cell">${threads}</div></td></tr>`)
+          rows.push(`<tr class="thread-row"><td class="gutter" colspan="4"><div class="thread-cell">${threads}</div></td></tr>`)
       }
 
       removed = []
@@ -433,11 +481,14 @@ function renderSplit(file: DiffFile, options: RenderRowsOptions): string {
     for (const line of hunk.lines) {
       if (line.origin === 'context') {
         flush()
-        parts.push(`<tr class="line">${splitCell(line, 'old', options)}${splitCell(line, 'new', options)}</tr>`)
 
-        const threads = options.threadsAt?.(line)
-        if (threads)
-          parts.push(`<tr class="thread-row"><td class="gutter" colspan="4"><div class="thread-cell">${threads}</div></td></tr>`)
+        if (rows.next()) {
+          rows.push(`<tr class="line">${splitCell(line, 'old', options)}${splitCell(line, 'new', options)}</tr>`)
+
+          const threads = options.threadsAt?.(line)
+          if (threads)
+            rows.push(`<tr class="thread-row"><td class="gutter" colspan="4"><div class="thread-cell">${threads}</div></td></tr>`)
+        }
       }
       else if (line.origin === 'removed') {
         removed.push(line)
@@ -450,7 +501,7 @@ function renderSplit(file: DiffFile, options: RenderRowsOptions): string {
     flush()
   }
 
-  return parts.join('')
+  return rows.html()
 }
 
 /**

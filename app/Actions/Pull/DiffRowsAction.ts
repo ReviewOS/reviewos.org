@@ -26,6 +26,30 @@ import { manifestToNdjson, streamManifest } from './manifest'
  */
 export const MAX_ROW_PATHS = 40
 
+/**
+ * The largest window one request may ask for.
+ *
+ * A window is meant to be a screenful and its overscan. Asking for a hundred
+ * thousand rows is asking for the whole file by another name, and the whole
+ * file is what windowing exists to avoid putting in one response.
+ */
+export const MAX_ROW_WINDOW = 5_000
+
+/** The row window a request asks for, or null for the whole file. */
+function readRange(request: any): { from: number, to: number } | null {
+  const raw = request.get('from')
+  if (raw === undefined || raw === null || String(raw) === '')
+    return null
+
+  const from = Number(raw)
+  const to = Number(request.get('to'))
+
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to <= from)
+    return null
+
+  return { from, to: Math.min(to, from + MAX_ROW_WINDOW) }
+}
+
 export default new Action({
   name: 'DiffRows',
   description: 'Stream rendered diff rows for named files',
@@ -62,6 +86,14 @@ export default new Action({
       return response.json({ error: 'Repository not found' }, 404)
 
     const layout = String(request.get('layout') ?? '') === 'split' ? 'split' : 'unified'
+
+    // A window within one file, for a file too large to send whole. Only
+    // honoured for a single path, because a range is a range *within* a file
+    // and applying one to forty would be asking for rows 1,000 to 1,200 of
+    // each of them.
+    const range = readRange(request)
+    if (range != null && paths.length !== 1)
+      return response.json({ error: 'A row range needs exactly one path' }, 422)
     const diff = streamMergeBaseDiff(path, String(pullRequest.base_sha), String(pullRequest.head_sha), { paths })
     if (!diff)
       return response.json({ error: 'This pull request has no usable revisions' }, 422)
@@ -70,7 +102,9 @@ export default new Action({
     // size of what was asked for. The budget exists to stop a whole diff being
     // rendered eagerly, which is not what this is.
     const encoder = new TextEncoder()
-    const records = manifestToNdjson(streamManifest(diff, { rows: { layout, budgetBytes: Number.POSITIVE_INFINITY } }))
+    const records = manifestToNdjson(streamManifest(diff, {
+      rows: { layout, budgetBytes: Number.POSITIVE_INFINITY, range: range ?? undefined },
+    }))
 
     const body = new ReadableStream<Uint8Array>({
       async pull(controller) {
