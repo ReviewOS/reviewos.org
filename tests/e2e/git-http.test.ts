@@ -569,3 +569,292 @@ describe('a repository large enough that streaming matters', () => {
     expect(firstChunkAt).toBeLessThan(finishedAt * 0.9 + 50)
   }, 180_000)
 })
+
+/**
+ * Git LFS, through the same server and the same permissions.
+ *
+ * The protocol is `ts-git-lfs` and is tested there. What is worth testing here
+ * is the wiring: that the endpoint is discovered where a client looks for it,
+ * that permissions come from the same rule the wire protocol uses, and that the
+ * bytes survive a round trip through the real routes.
+ */
+describe('git LFS, over the same server', () => {
+  const lfsUrl = (path: string) => `http://127.0.0.1:${port}/${created.handle}/${created.name}.git/info/lfs${path}`
+  const basic = () => `Basic ${btoa(`x:${created.token}`)}`
+
+  // A small object, and the id it is named by.
+  const contents = new TextEncoder().encode('a large file, notionally\n')
+  let oid = ''
+
+  test('the batch endpoint asks for an object it does not have', async () => {
+    if (!available)
+      return
+
+    const hasher = new Bun.CryptoHasher('sha256')
+    hasher.update(contents)
+    oid = hasher.digest('hex')
+
+    const response = await fetch(lfsUrl('/objects/batch'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/vnd.git-lfs+json', 'Authorization': basic() },
+      body: JSON.stringify({ operation: 'upload', transfers: ['basic'], objects: [{ oid, size: contents.byteLength }] }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const body: any = await response.json()
+    expect(body.transfer).toBe('basic')
+
+    // The href has to be one the client can reach, not the path this process
+    // sees - it is what git lfs will PUT to next.
+    expect(body.objects[0].actions.upload.href).toBe(lfsUrl(`/objects/${oid}`))
+    expect(body.objects[0].actions.verify.href).toBe(lfsUrl('/verify'))
+  }, 60_000)
+
+  test('the bytes go up, and come back the same', async () => {
+    if (!available)
+      return
+
+    const put = await fetch(lfsUrl(`/objects/${oid}`), {
+      method: 'PUT',
+      headers: { Authorization: basic() },
+      body: contents,
+    })
+    expect(put.status).toBe(200)
+
+    const get = await fetch(lfsUrl(`/objects/${oid}`))
+    expect(get.status).toBe(200)
+    expect(new Uint8Array(await get.arrayBuffer())).toEqual(contents)
+  }, 60_000)
+
+  /** Where all the speed of pushing a mostly-existing branch comes from. */
+  test('a second batch says nothing about the object it now holds', async () => {
+    if (!available)
+      return
+
+    const response = await fetch(lfsUrl('/objects/batch'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/vnd.git-lfs+json', 'Authorization': basic() },
+      body: JSON.stringify({ operation: 'upload', objects: [{ oid, size: contents.byteLength }] }),
+    })
+
+    const body: any = await response.json()
+    expect(body.objects[0].actions).toBeUndefined()
+    expect(body.objects[0].error).toBeUndefined()
+  }, 60_000)
+
+  test('verify confirms what arrived', async () => {
+    if (!available)
+      return
+
+    const response = await fetch(lfsUrl('/verify'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/vnd.git-lfs+json', 'Authorization': basic() },
+      body: JSON.stringify({ oid, size: contents.byteLength }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ oid, size: contents.byteLength })
+  }, 60_000)
+
+  /** The store is content-addressed, and the route is what enforces it. */
+  test('bytes that do not hash to the id in the URL are refused', async () => {
+    if (!available)
+      return
+
+    const response = await fetch(lfsUrl(`/objects/${'a'.repeat(64)}`), {
+      method: 'PUT',
+      headers: { Authorization: basic() },
+      body: 'not what was promised',
+    })
+
+    expect(response.status).toBe(422)
+  }, 60_000)
+
+  /**
+   * The wiring that matters most: permissions come from the same rule the wire
+   * protocol uses. Anonymous read is the point of a public repository;
+   * anonymous write is not.
+   *
+   * The refusal is **401 with a challenge**, not 403, and this assertion was
+   * wrong until a real `git lfs` client was pointed at the server. The client
+   * tries anonymously first - it cannot know whether a public repository needs
+   * a credential to push to - and it treats 403 as final, so the push failed
+   * with "you may not write to this repository" while it was holding a
+   * perfectly good token. Every test here sent credentials, so every test
+   * passed.
+   */
+  test('an anonymous client may download, and is asked to authenticate to upload', async () => {
+    if (!available)
+      return
+
+    const download = await fetch(lfsUrl('/objects/batch'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/vnd.git-lfs+json' },
+      body: JSON.stringify({ operation: 'download', objects: [{ oid, size: contents.byteLength }] }),
+    })
+    expect(download.status).toBe(200)
+
+    const upload = await fetch(lfsUrl('/objects/batch'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/vnd.git-lfs+json' },
+      body: JSON.stringify({ operation: 'upload', objects: [{ oid, size: contents.byteLength }] }),
+    })
+    expect(upload.status).toBe(401)
+    expect(upload.headers.get('www-authenticate')).toContain('Basic')
+  }, 60_000)
+
+  test('locks are taken, listed and released, and survive in the database', async () => {
+    if (!available)
+      return
+
+    const taken = await fetch(lfsUrl('/locks'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/vnd.git-lfs+json', 'Authorization': basic() },
+      body: JSON.stringify({ path: 'design/cover.psd' }),
+    })
+
+    expect(taken.status).toBe(201)
+    const lock = (await taken.json() as any).lock
+
+    // In the database, not in memory: a lock a deploy forgets is a lock
+    // somebody was relying on.
+    const stored: any = await (globalThis as any).db
+      .selectFrom('repository_lfs_locks')
+      .selectAll()
+      .where('lock_id', '=', lock.id)
+      .executeTakeFirst()
+
+    expect(stored?.path).toBe('design/cover.psd')
+    expect(Number(stored?.repository_id)).toBe(created.repositoryId)
+
+    const verified: any = await (await fetch(lfsUrl('/locks/verify'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/vnd.git-lfs+json', 'Authorization': basic() },
+      body: JSON.stringify({}),
+    })).json()
+
+    expect(verified.ours.map((entry: any) => entry.path)).toContain('design/cover.psd')
+    expect(verified.theirs).toEqual([])
+
+    const released = await fetch(lfsUrl(`/locks/${lock.id}/unlock`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/vnd.git-lfs+json', 'Authorization': basic() },
+      body: JSON.stringify({}),
+    })
+
+    expect(released.status).toBe(200)
+  }, 60_000)
+
+  test('a repository nobody has is a 404, not an empty store', async () => {
+    if (!available)
+      return
+
+    const response = await fetch(`http://127.0.0.1:${port}/nobody/nothing.git/info/lfs/objects/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/vnd.git-lfs+json' },
+      body: JSON.stringify({ operation: 'download', objects: [] }),
+    })
+
+    expect(response.status).toBe(404)
+  }, 60_000)
+})
+
+/**
+ * The real `git lfs` client, against the real server.
+ *
+ * Everything above drives the HTTP surface the way a client is *expected* to.
+ * This drives it the way one actually does - discovering the endpoint from the
+ * clone URL, negotiating a batch, uploading, and verifying - which is the
+ * difference between a server that answers what we think a client asks and one
+ * a client is happy with.
+ *
+ * Skips itself loudly without the client, the same way the file skips without a
+ * database.
+ */
+describe('the git lfs client, end to end', () => {
+  let lfsAvailable = false
+
+  beforeAll(async () => {
+    if (!available)
+      return
+
+    // Opt-in, because spawning the client is what has to be survivable rather
+    // than what is being tested. It is a Go binary, and on a host whose swap is
+    // exhausted the kernel kills the process group rather than the allocation -
+    // taking the whole run down and reporting nothing, which is not a failing
+    // test.
+    if (process.env.REVIEWOS_LFS_CLIENT_TESTS !== '1') {
+      console.warn('[e2e] git lfs client cases skipped: set REVIEWOS_LFS_CLIENT_TESTS=1 to run them')
+
+      return
+    }
+
+    const probe = Bun.spawn(['git-lfs', 'version'], { stdout: 'pipe', stderr: 'pipe' })
+    lfsAvailable = (await probe.exited) === 0
+
+    if (!lfsAvailable)
+      console.warn('[e2e] skipping the git lfs cases: no git-lfs on PATH')
+  }, 60_000)
+
+  test('pushes an object, which lands in this repository\'s store', async () => {
+    if (!available || !lfsAvailable)
+      return
+
+    const work = join(created.temp, 'lfs-work')
+    mkdirSync(work, { recursive: true })
+
+    const authenticated = `http://x:${created.token}@127.0.0.1:${port}/${created.handle}/${created.name}.git`
+
+    await git(work, 'init', '--initial-branch=main')
+    await git(work, 'lfs', 'install', '--local')
+    await git(work, 'lfs', 'track', '*.bin')
+
+    // Random, so nothing compresses it into something small enough that the
+    // test would pass without any of this working.
+    const payload = new Uint8Array(64 * 1024)
+    crypto.getRandomValues(payload)
+    writeFileSync(join(work, 'large.bin'), payload)
+
+    const hasher = new Bun.CryptoHasher('sha256')
+    hasher.update(payload)
+    const expectedOid = hasher.digest('hex')
+
+    await git(work, 'add', '.gitattributes', 'large.bin')
+    await git(work, 'commit', '-m', 'a large file')
+
+    // The endpoint is discovered from the clone URL, which is the path a real
+    // client takes and the one worth testing.
+    const pushed = await git(work, '-c', 'credential.helper=', 'push', authenticated, 'main')
+    expect(pushed.ok, pushed.stderr).toBe(true)
+
+    // In the store, under the id the client computed independently of us.
+    const { storeFor } = await import('../../app/Actions/Git/lfs')
+    const stored = await storeFor(created.handle, created.name).lookup(expectedOid)
+
+    expect(stored).toEqual({ oid: expectedOid, size: payload.byteLength })
+
+    // And the commit holds a pointer rather than the bytes: that is the whole
+    // point, and it is what a fresh clone will read.
+    const committed = await git(work, 'show', 'HEAD:large.bin')
+    expect(committed.stdout).toContain('version https://git-lfs.github.com/spec/v1')
+    expect(committed.stdout).toContain(`oid sha256:${expectedOid}`)
+  }, 180_000)
+
+  test('clones it back, and the bytes are the bytes', async () => {
+    if (!available || !lfsAvailable)
+      return
+
+    const into = join(created.temp, 'lfs-clone')
+    const authenticated = `http://x:${created.token}@127.0.0.1:${port}/${created.handle}/${created.name}.git`
+
+    const cloned = await git(created.temp, '-c', 'credential.helper=', 'clone', '--quiet', authenticated, into)
+    expect(cloned.ok, cloned.stderr).toBe(true)
+
+    const original = await Bun.file(join(created.temp, 'lfs-work', 'large.bin')).arrayBuffer()
+    const round = await Bun.file(join(into, 'large.bin')).arrayBuffer()
+
+    expect(round.byteLength).toBe(original.byteLength)
+    expect(Bun.SHA256.hash(round, 'hex')).toBe(Bun.SHA256.hash(original, 'hex'))
+  }, 180_000)
+})

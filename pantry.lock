@@ -82,6 +82,11 @@
       "version": "0.26.2",
       "source": "pantry"
     },
+    "git-lfs@3.7.1": {
+      "name": "git-lfs",
+      "version": "3.7.1",
+      "source": "pantry"
+    },
     "git-scm.org@2.53.0": {
       "name": "git-scm.org",
       "version": "2.53.0",

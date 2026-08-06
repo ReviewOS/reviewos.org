@@ -11,6 +11,8 @@ import { decidePush, rulesFor } from '../app/Actions/Git/protection'
 import { parseRefUpdates } from '../app/Actions/Git/push'
 import { isAncestor } from '../app/Actions/Mirror/fetch'
 import { gitService, parseGitUrl } from '../app/Actions/Git/storage'
+import { handleRequest as handleLfsRequest } from 'ts-git-lfs'
+import { actorFrom, DatabaseLockStore, endpointFor, storeFor } from '../app/Actions/Git/lfs'
 
 /**
  * The git wire protocol, at the root.
@@ -440,3 +442,112 @@ function streamService(request: any, path: string, service: 'upload-pack' | 'rec
     },
   })
 }
+
+/**
+ * Git LFS.
+ *
+ * `git lfs` asks `/owner/repo.git/info/lfs/objects/batch`, under the same
+ * prefix as the wire protocol and for the same reason - it is discovered from
+ * the clone URL rather than configured.
+ *
+ * The protocol is `ts-git-lfs`. Everything below is the three things it will
+ * not decide for a host: where the objects live, who may read and write them,
+ * and where locks are kept. Permissions come from `mayUseService`, the same
+ * function the wire protocol asks, because LFS is a way of reading a
+ * repository's contents like any other and a second opinion about that is a
+ * bug waiting for the two to disagree.
+ */
+/**
+ * One handler for every LFS endpoint.
+ *
+ * `ts-git-lfs` works out which endpoint this is from the URL, so the routes
+ * below only exist to tell this router which paths to send here. They are
+ * listed explicitly rather than matched with a wildcard: the set is small and
+ * fixed, and a wildcard under a repository path would swallow anything added
+ * beside it later.
+ */
+async function lfs(request: any): Promise<Response> {
+  const url = new URL(request.url)
+  const parsed = parseGitUrl(url.pathname.replace(/\/info\/lfs(\/.*)?$/, ''))
+
+  if (!parsed)
+    return new Response('Not found', { status: 404 })
+
+  const repository = await findRepositoryByPath(parsed.owner, parsed.name)
+  if (!repository)
+    return new Response('Not found', { status: 404 })
+
+  const token = await tokenFromBasicAuth(request.headers?.get?.('authorization') ?? null)
+  const userId = token?.userId ?? null
+
+  // Read and write are asked separately, and answered by the same rule the wire
+  // protocol uses: fetching an object is a read, uploading one is a write. A
+  // second opinion about permissions is a bug waiting for the two to disagree.
+  const mayRead = await mayUseService(repository, userId, 'upload-pack', token)
+  const mayWrite = await mayUseService(repository, userId, 'receive-pack', token)
+
+  if (!mayRead) {
+    // The same reasoning as the wire protocol: a private repository answers 404
+    // rather than 401, because a 401 confirms it exists.
+    if (userId === null && repository.visibility === 'public') {
+      return new Response('Authentication required', {
+        status: 401,
+        headers: { 'WWW-Authenticate': 'Basic realm="Git LFS"' },
+      })
+    }
+
+    return new Response('Not found', { status: repository.visibility === 'public' ? 403 : 404 })
+  }
+
+  const user = userId === null
+    ? null
+    : await db.selectFrom('users').selectAll().where('id', '=', userId).executeTakeFirst()
+
+  const response = await handleLfsRequest(request, {
+    objects: storeFor(parsed.owner, parsed.name),
+    locks: new DatabaseLockStore(Number(repository.id)),
+    endpoint: endpointFor(request, parsed.owner, parsed.name),
+    authorize: () => ({ actor: actorFrom(user, mayWrite), read: mayRead, write: mayWrite }),
+  })
+
+  if (!response)
+    return new Response('Not found', { status: 404 })
+
+  // A client that has not authenticated and is refused must be told to
+  // authenticate, not told no. `git lfs` tries anonymously first - it cannot
+  // know whether a public repository needs a credential to push to - and it
+  // treats 403 as final: the push fails with "you may not write to this
+  // repository" without ever sending the credential it was holding. 401 with a
+  // challenge is what makes it try again.
+  //
+  // Found by running the real client. Every test here sent credentials, so
+  // every test passed.
+  if (response.status === 403 && userId === null) {
+    return new Response('Authentication required', {
+      status: 401,
+      headers: { 'WWW-Authenticate': 'Basic realm="Git LFS"' },
+    })
+  }
+
+  return response
+}
+
+/**
+ * Git LFS.
+ *
+ * `git lfs` asks `/owner/repo.git/info/lfs/objects/batch`, under the same
+ * prefix as the wire protocol and for the same reason: it is discovered from
+ * the clone URL rather than configured.
+ *
+ * The protocol is `ts-git-lfs`. What lives here is the three things it will not
+ * decide for a host - where the objects live, who may read and write them, and
+ * where locks are kept.
+ */
+route.post('/{owner}/{repository}/info/lfs/objects/batch', lfs).skipCsrf()
+route.get('/{owner}/{repository}/info/lfs/objects/{oid}', lfs).skipCsrf()
+route.put('/{owner}/{repository}/info/lfs/objects/{oid}', lfs).skipCsrf()
+route.post('/{owner}/{repository}/info/lfs/verify', lfs).skipCsrf()
+route.post('/{owner}/{repository}/info/lfs/locks', lfs).skipCsrf()
+route.get('/{owner}/{repository}/info/lfs/locks', lfs).skipCsrf()
+route.post('/{owner}/{repository}/info/lfs/locks/verify', lfs).skipCsrf()
+route.post('/{owner}/{repository}/info/lfs/locks/{id}/unlock', lfs).skipCsrf()

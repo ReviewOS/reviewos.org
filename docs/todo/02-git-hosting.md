@@ -481,8 +481,30 @@ the one moment where rejecting is still possible.
 ## Later in this phase
 
 - [ ] SSH transport. It needs a separate daemon and key-based auth, so it lands after HTTPS works
-      end to end.
-- [ ] Git LFS
+      end to end. The protocol half is **[ts-ssh](https://github.com/stacksjs/ts-ssh)** - the wire
+      format, key formats, packet framing, key exchange and public key authentication - and the key
+      reading is wired in already: `app/Actions/Keys/ssh.ts` is 92 lines rather than 141, because
+      what is left there is this forge's policy (which types are allowed, how small an RSA key may
+      be, what to tell somebody who pasted a private key) rather than a second copy of a format that
+      has to stay right forever. What is still missing for a daemon is the encrypted transport:
+      ts-ssh negotiates the ciphers but does not yet apply them, and there is no connection layer
+- [x] Git LFS, through **[ts-git-lfs](https://github.com/stacksjs/ts-git-lfs)** - a package of its own,
+      because pointer files and the batch API are a specification anybody implementing LFS needs and
+      not something a forge should own. What is wired here is the three things it will not decide
+      for a host: where objects live (`storage/lfs/{owner}/{name}`, beside the bare repository and
+      never inside it, so an LFS object never appears in `git count-objects` and makes the size
+      accounting wrong), who may read and write (`mayUseService`, the same function the wire
+      protocol asks - a second opinion about permissions is a bug waiting for the two to disagree),
+      and where locks live (`repository_lfs_locks`, because a lock a deploy forgets is a lock
+      somebody was relying on)
+  - [x] **A real `git lfs` client found a bug eight passing tests did not.** An anonymous client is
+        refused with **401 and a challenge**, not 403. `git lfs` tries anonymously first - it cannot
+        know whether a public repository needs a credential to push to - and it treats 403 as final,
+        so the push failed with "you may not write to this repository" while the client was holding
+        a perfectly good token. Every test sent credentials, so every test passed
+  - [x] The client cases are behind `REVIEWOS_LFS_CLIENT_TESTS=1`. Spawning a Go binary is what has
+        to be survivable rather than what is being tested, and on a host whose swap is exhausted the
+        kernel kills the process group rather than the allocation
 - [ ] Commit signature verification against registered GPG keys. **Written and unit-tested, not
       wired up.** `app/Actions/Git/signature.ts` reads the signature off a commit object and decides
       which registered keys could have made it; `verify.ts` builds a throwaway keyring from those
