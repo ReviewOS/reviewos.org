@@ -17,6 +17,7 @@
 
 import { streamMergeBaseDiff } from '../../app/Actions/Git/diffStream'
 import { manifestToNdjson, streamManifest } from '../../app/Actions/Pull/manifest'
+import { poolStats } from '../../app/Actions/Browse/highlightPool'
 
 interface Run {
   firstRecordMs: number
@@ -26,6 +27,8 @@ interface Run {
   truncatedFrom: number | null
   ndjsonBytes: number
   peakHeapMb: number
+  /** What the highlight pool did: dispatched to a worker, cached, or done here. */
+  pool: ReturnType<typeof poolStats>
 }
 
 async function measure(repository: string, base: string, head: string, withRows: boolean): Promise<Run> {
@@ -79,6 +82,7 @@ async function measure(repository: string, base: string, head: string, withRows:
     truncatedFrom,
     ndjsonBytes,
     peakHeapMb: Math.round(peakHeap / 1024 / 1024),
+    pool: poolStats(),
   }
 }
 
@@ -123,4 +127,7 @@ console.log(JSON.stringify({
   firstRecordMs: median(results.map(run => run.firstRecordMs)),
   totalMs: median(results.map(run => run.totalMs)),
   peakHeapMb: median(results.map(run => run.peakHeapMb)),
+  // The last run's, not a median: these are cumulative counters, so the final
+  // reading is the whole session and a median of them means nothing.
+  pool: results[results.length - 1]!.pool,
 }, null, 2))

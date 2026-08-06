@@ -371,23 +371,92 @@ in the DOM.
 
 ## Highlighting: off the main thread
 
-- [ ] A worker pool that tokenizes files and diffs and posts back a syntax tree, with the pool size
-      derived from `navigator.hardwareConcurrency` and a sane cap
-- [ ] Per-instance task cancellation: scrolling past a file that has not been highlighted yet must
-      drop its queued work, not let it complete
-- [ ] An LRU cache of highlighted results keyed by file cache key **and theme**, so scrolling back up
-      and switching themes are both free
-- [ ] Plain-text fallback: over a tokenization ceiling (start at 100,000 characters) a file renders
+Worth stating before the list, because this is where the roadmap's plan meets the architecture
+decision made at the top of the file and comes off second.
+
+The plan is Pierre's, and Pierre's is right for Pierre: the **browser** tokenizes, because a static
+site with no backend has no other machine. Ours cannot be that. Phase 2 settled that the client does
+not download a highlighter, and the diff engine settled that the server renders rows to HTML - so by
+the time markup reaches a browser it is already coloured, and a browser-side pool would have nothing
+to do.
+
+The thread that actually needs relieving is the server's. `streamManifest` awaits highlighting per
+file, serially, on the event loop: while a large compare is being rendered, every other request on
+the process waits behind it. Same problem, one machine to the left, and the pool is the same answer
+applied there.
+
+- [x] A worker pool that tokenizes files and diffs and posts back a syntax tree, with the pool size
+      derived from `navigator.hardwareConcurrency` and a sane cap. It grows one worker at a time,
+      on demand, rather than opening the whole pool on the first request - each worker parses every
+      grammar as it starts, so opening eight of them to tokenize one file is a straight loss.
+- [x] Per-instance task cancellation: scrolling past a file that has not been highlighted yet must
+      drop its queued work, not let it complete. Best effort, and the protocol says so: a request a
+      worker has already started runs to completion, because the tokenizer is a tight loop with
+      nowhere to yield. The *reply* is dropped either way.
+- [x] An LRU cache of highlighted results keyed by content and language, so a layout switch - which
+      refetches every file's rows - re-tokenizes nothing. Keyed by content rather than by path, so it
+      is correct across branches, commits and forks with nothing to invalidate.
+- [x] Plain-text fallback: over a tokenization ceiling (100,000 characters) a file renders
       unhighlighted rather than blocking. The reader gets the diff; the colours are the optional part.
-- [ ] Lazy language resolution and lazy theme resolution, cached, with the set attached to the shared
-      highlighter only once
-- [ ] Priming: highlight the first screen before it is scrolled to, so the first paint is not plain
-      text that recolours a moment later
-- [ ] A worker stats subscription (pool state, queued, active, cache sizes) so the benchmark harness
+      In the library, so every consumer gives up at the same point rather than inventing its own
+      ceiling or - much more often - not having one.
+- [x] A worker stats subscription (pool state, queued, active, cache sizes) so the benchmark harness
       and a debug panel can tell "still working" from "idle"
-- [ ] **The server-side path stays.** The first screen is highlighted server-side and arrives as HTML;
-      the worker pool takes over from the second screen down. One token palette shared between them,
-      as phase 2 already requires, so the handover is invisible.
+- [x] **The server-side path stays.** Every row the browser receives is already coloured; the pool
+      moved the tokenizing off the *server's* event loop rather than onto the client's.
+- [ ] Lazy theme resolution, cached, with the set attached to the shared highlighter only once.
+      Lazy *language* resolution landed with the grammar catalog; themes have not.
+- [ ] Priming the first screen does not apply while the server renders the rows: the first screen
+      arrives coloured. It becomes real if the public front door ever renders somebody else's diff in
+      a browser.
+
+### What measuring it actually showed
+
+Against the 5,722 file compare, with the pool and the cache in place:
+
+| | |
+|---|---|
+| tokenized on a worker | 9 files |
+| tokenized in process, under the threshold | 969 |
+| **answered from the cache** | **854** |
+| workers started | **1** |
+
+Two findings, and the second is the more useful one.
+
+**The cache is the win.** 854 hits in a single pass, because a framework monorepo has hundreds of
+near-identical `package.json` files and every file is tokenized twice - once per side. A collision in
+the content key would render that file plain rather than wrong, because the tokens are verified
+against the line before they are used.
+
+**A serial pipeline cannot use a pool.** One worker started, because `streamManifest` awaits each
+file before beginning the next, so there is never more than one job in flight. The pool is correct
+and the concurrency is one. What it does buy even at one is the event loop: the server answers other
+requests while that worker runs, which it previously could not.
+
+- [ ] Getting real parallelism means a bounded look-ahead in `streamManifest`: start highlighting the
+      next few files while the current one is still being emitted. Deliberately not done yet, and the
+      reason is specific - the inline row budget is spent in file order, and with out-of-order
+      completion the truncation boundary becomes fuzzy. That boundary is what makes a large compare
+      work at all, so it is not a thing to make approximate in passing.
+
+### The bug that came with it
+
+Shipped in `ts-syntax-highlighter@0.2.10` and fixed in `0.2.11`, recorded because the failure mode
+was so unhelpful. The worker module ended with a guard that started the tokenizer when `self` looked
+like a worker scope:
+
+```ts
+if (typeof self !== 'undefined' && typeof self.addEventListener === 'function')
+  serveTokenizer(self)
+```
+
+True in a browser worker. Also true on Bun's and Node's **main** thread. So merely importing the
+package registered a message listener on the main thread, which kept its event loop alive - and
+every process that imported the library stopped exiting. Nothing threw and nothing logged; a
+benchmark that had been finishing in forty seconds simply never returned, which took a while to
+attribute to an import rather than to the code being measured.
+
+There is no auto-start now. A worker entry is two lines and says what it is.
 
 The highlighter itself is `ts-syntax-highlighter`, which is ours. It gets its own section, because
 "keep ours" is only the right answer if the gaps below close.

@@ -11,7 +11,8 @@
  * the file, and in a diff the whitespace is often the entire change.
  */
 
-import { createHighlighter } from 'ts-syntax-highlighter'
+import { createHighlighter, overTokenizeCeiling } from 'ts-syntax-highlighter'
+import { cachedTokens, cacheTokens, contentKey, highlightOnWorker } from './highlightPool'
 
 /** Token types the stylesheet knows about. Anything else renders as plain text. */
 export type TokenClass =
@@ -159,31 +160,72 @@ export async function highlightLines(lines: readonly string[], path: string): Pr
   if (!language)
     return plain()
 
+  // Over the ceiling the colours are given up rather than the file. A minified
+  // bundle is one line of a hundred thousand characters, of no interest to
+  // read, and quadratic in some grammars - and it is the shape that turns a
+  // page load into a stall.
+  if (overTokenizeCeiling(lines))
+    return plain()
+
+  const key = contentKey(lines, language)
+  const cached = cachedTokens(key)
+  if (cached !== undefined) {
+    // Re-verified rather than trusted, cheaply, because a cache hit is the one
+    // path where nothing else has looked at the tokens on the way past.
+    return cached.map((tokens, index) => verify(
+      tokens.map(token => ({ type: normalize(token.type), content: token.content })),
+      lines[index] ?? '',
+    ))
+  }
+
   try {
-    const instance = await highlighter()
-    const tokenized = instance.highlightFast(lines.join('\n'), language)
+    // A worker first, for anything big enough to be worth the hop. It answers
+    // null for everything it declines - too small, no workers, a worker that
+    // died - and every one of those means "do it here", which is why they are
+    // one answer rather than four branches.
+    const offThread = await highlightOnWorker(lines, language).tokens
+    const tokenized = offThread ?? inlineTokens(await highlighter(), lines, language)
 
     // A tokenizer that returns a different number of lines would silently
     // shift every comment anchor on the page, so the plain rendering is safer.
-    if (tokenized.length !== lines.length)
+    if (tokenized == null || tokenized.length !== lines.length)
       return plain()
 
-    return tokenized.map((line, index) => {
-      const tokens = line.tokens.map(token => ({
-        type: normalize(token.type),
-        content: token.content,
-      }))
+    const result = tokenized.map((tokens, index) => verify(
+      tokens.map(token => ({ type: normalize(token.type), content: token.content })),
+      lines[index] ?? '',
+    ))
 
-      // The contract this view relies on: the tokens are the line. If a
-      // highlighter ever breaks it, that line renders plain rather than wrong.
-      const rebuilt = tokens.map(token => token.content).join('')
+    cacheTokens(key, result)
 
-      return rebuilt === lines[index] ? tokens : [{ type: 'text' as const, content: lines[index]! }]
-    })
+    return result
   }
   catch {
     return plain()
   }
+}
+
+/**
+ * The contract this view relies on: the tokens are the line.
+ *
+ * Checked on the way out rather than trusted, because a highlighter that drops
+ * a space renders code the file does not contain - and in a diff the
+ * whitespace is often the entire change. A line that fails renders plain.
+ */
+function verify(tokens: HighlightedToken[], source: string): HighlightedToken[] {
+  return tokens.map(token => token.content).join('') === source
+    ? tokens
+    : [{ type: 'text' as const, content: source }]
+}
+
+/** Tokenize here, on this thread. The fallback for everything the pool declines. */
+function inlineTokens(
+  instance: Awaited<ReturnType<typeof createHighlighter>>,
+  lines: readonly string[],
+  language: string,
+): Array<Array<{ type: string, content: string }>> {
+  return instance.highlightFast(lines.join('\n'), language)
+    .map(line => line.tokens.map(token => ({ type: token.type, content: token.content })))
 }
 
 /** Highlight one line. Convenience for a blob view rendering incrementally. */

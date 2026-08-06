@@ -69,9 +69,9 @@
   "dependencies": {
     "@stacksjs/stx": "^0.2.151",
     "mermaid": "^11.16.1",
-    "pickier": "^0.1.45",
+    "pickier": "^0.1.48",
     "stacks": "^0.70.267",
-    "ts-syntax-highlighter": "^0.2.8"
+    "ts-syntax-highlighter": "^0.2.11"
   },
   "workspaces": [
     "storage/framework",
