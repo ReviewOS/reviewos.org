@@ -1,0 +1,12 @@
+tree 2e81171448eb9f2ee3821e3d447aa6b2fe3ddba1
+author Ada Lovelace <ada@example.com> 1786037781 -0700
+committer Ada Lovelace <ada@example.com> 1786037781 -0700
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ iHUEABYKAB0WIQQqi/E/bLqhzkdKw0lxkNGqJum0cgUCanTGFQAKCRBxkNGqJum0
+ coB0AQDtFFMbwJSIqVdfwwLsHYnDfOJ5FdxDfUY4V+phGQwgUgEA1g0Z5Zq/o9lS
+ CTiIzs0bygBwWhlmy8HckwCyRi5XyA8=
+ =kYkS
+ -----END PGP SIGNATURE-----
+
+Document the rounding rule

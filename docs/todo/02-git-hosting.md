@@ -473,7 +473,22 @@ the one moment where rejecting is still possible.
 - [ ] SSH transport. It needs a separate daemon and key-based auth, so it lands after HTTPS works
       end to end.
 - [ ] Git LFS
-- [ ] Commit signature verification against registered GPG keys
+- [ ] Commit signature verification against registered GPG keys. **Written and unit-tested, not
+      wired up.** `app/Actions/Git/signature.ts` reads the signature off a commit object and decides
+      which registered keys could have made it; `verify.ts` builds a throwaway keyring from those
+      keys and asks **git** to verify, rather than running gpg itself - the same rule as the rest of
+      this phase, and it also avoids owning the payload reconstruction, which is the one computation
+      here where being slightly wrong accuses somebody of forging a commit they wrote.
+      Two rules it will not bend on, both tested: a good signature by a key nobody registered is not
+      verified, and a good signature by a key that does not claim the commit's author address is not
+      verified either - anybody can sign a commit claiming to be somebody else.
+      What is missing is an environment to finish it in. gpg is not a declared dependency and could
+      not be made one here: **every gpg-family binary spawned anywhere under Bun is SIGKILLed and
+      takes the Bun process with it** (`node:child_process`, `Bun.spawn`, through `sh -c`, sandboxed
+      or not), while the same commands run normally from a shell - where a reconstructed payload did
+      verify `GOODSIG` against a real signature. Installing gnupg into the project's package tree
+      also broke unrelated tests, so that was reverted. Nothing calls this code until
+      `git verify-commit` can be run from a Bun process
 
 ## Browsing
 
