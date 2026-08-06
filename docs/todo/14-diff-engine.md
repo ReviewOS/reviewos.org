@@ -881,12 +881,19 @@ already used it.
 
 ## Theming
 
-- [ ] Light and dark theme pair, chosen independently, plus a system mode
-- [ ] Theme selection persists and is applied before first paint, with no flash of the default palette
-      and no tokenizing the first batch against the wrong colours
-- [ ] Switching theme re-colours from cache rather than re-tokenizing
-- [ ] The chrome around the diff (sidebar, header, dropdowns) derives its colours from the same theme,
-      so the page is one surface rather than a code pane pasted into an app
+- [x] Light and dark, chosen independently, plus a system mode - which is the default, so a reader
+      who has never chosen sees exactly what they saw before the choice existed.
+- [x] The choice persists and is applied **before first paint**, by three inline lines in the head.
+      That is the one thing on the page that cannot wait for a module to load: read it a frame late
+      and the reader watches a light page turn dark, which is worse than not offering the choice at
+      all. It reads the same key and writes the same attribute as `diffprefs.ts`, and if those two
+      ever disagree the page flashes - which is why it is three lines rather than an import.
+- [x] Switching theme re-colours without re-tokenizing anything, and that falls out of the
+      architecture rather than needing a cache: tokens are rendered as semantic classes and coloured
+      by CSS, so a theme is a stylesheet and switching one is a style recalculation.
+- [ ] The chrome derives its colours from an *imported* theme, so a page themed by somebody's VS Code
+      file is one surface. `themeChrome` in the library already yields the five values; nothing in the
+      app consumes them yet. The two schemes that ship are one surface already, by hand.
 - [x] Colour-vision-deficiency variants: a red-green (protanopia/deuteranopia) and a blue-yellow
       (tritanopia) pair, plus a high-contrast pair with no hue in it at all. Not a simulation of what
       those readers see - pairs chosen to stay distinguishable *for* them: blue against orange
@@ -894,7 +901,17 @@ already used it.
       men cannot reliably tell the conventional pair apart, and the shape cue - the `+`/`-` glyph or
       the edge bar - stays on by default whichever palette is chosen, because that is the part that
       makes a diff readable rather than merely tinted.
-- [ ] Diff add/remove colours are legible against every shipped theme, checked rather than assumed
+- [x] Diff add and remove colours are legible against every shipped palette, checked rather than
+      assumed - the values are read out of the stylesheet, so the test cannot pass while the page
+      uses different colours.
+
+  It caught the thing it was written for, immediately. **The colour-vision palettes were as
+  luminance-flat as the pair they replace.** Red and green differ almost entirely in hue, which is
+  precisely the channel those readers do not have - so my blue-against-orange and
+  teal-against-magenta, chosen by eye, differed by 1.5% in brightness and would have been a different
+  pair of colours and the same failure. They now differ by 18% and 26%, and there is a test asserting
+  the classic pair does *not*, so nobody improves it into something that makes the alternatives look
+  unnecessary.
 
 ## Merge conflicts
 

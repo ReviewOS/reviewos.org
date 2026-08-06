@@ -20,6 +20,11 @@ const repositoryName = String(params.repository)
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, __stxServeContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null
 
+// A page that renders "no such repository" under a 200 tells a crawler, a
+// cache and an uptime check that the page is fine. Only the render knows.
+if (!repoRow)
+  setResponseStatus(404)
+
 const diskPath = String(repoAccess?.diskPath ?? '')
 const defaultBranch = repoRow ? String(repoRow.default_branch ?? 'main') : 'main'
 

@@ -1,0 +1,135 @@
+<script server>
+/**
+ * The URL somebody clones with.
+ *
+ * Built from the host the page was served on rather than from configuration,
+ * because the two disagree exactly when it matters: behind a proxy, on a
+ * second domain, or on a port a developer picked. A clone URL that is right in
+ * production and wrong on the machine you are standing at is a clone URL
+ * nobody trusts, and the request already knows which host it arrived on.
+ *
+ * HTTPS only. SSH needs a daemon this instance does not run yet, and offering
+ * a URL that cannot connect is worse than offering one fewer.
+ */
+import { cloneUrlFor } from '../functions/repo'
+
+const ownerHandle = String(owner)
+const repositoryName = String(repository)
+
+// The rule lives in `app/Actions/Repo/cloneUrl.ts` and is tested there. What
+// this file knows is where a request is: the URL if the render was given one,
+// the Host header otherwise, and the configured URL only when neither exists.
+const cloneUrl = cloneUrlFor(__stxServeContext, ownerHandle, repositoryName, process.env.APP_URL)
+</script>
+
+<details class="clone-box">
+  <summary class="btn clone-summary">
+    <span class="i-hugeicons-source-code" aria-hidden="true"></span>
+    Clone
+  </summary>
+
+  <div class="clone-panel" x-data="{ url: '{{ cloneUrl }}' }">
+    <label class="clone-label" for="clone-url-{{ repositoryName }}">Clone with HTTPS</label>
+
+    {{--
+      Readonly rather than disabled: a disabled field cannot be selected, and
+      selecting the text by hand is the fallback for every browser that refuses
+      the clipboard, every page served over plain HTTP, and anybody who has
+      turned the permission off.
+    --}}
+    <div class="clone-row">
+      <input
+        id="clone-url-{{ repositoryName }}"
+        class="clone-input mono"
+        type="text"
+        readonly
+        spellcheck="false"
+        value="{{ cloneUrl }}"
+        aria-label="Clone URL">
+
+      <button
+        type="button"
+        class="btn clone-copy"
+        @click="copyCloneUrl(url)"
+        aria-label="Copy the clone URL">
+        <span class="i-hugeicons-copy-01" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <p class="clone-hint muted">
+      Push over the same URL. A password will not work: create a token under
+      <a href="/settings/tokens">access tokens</a> and use it in place of one.
+    </p>
+  </div>
+</details>
+
+<script client>
+import { useClipboard } from '@stacksjs/stx/composables'
+
+const clipboard = useClipboard()
+
+/**
+ * Copying is best effort. The clipboard is refused on an insecure origin and
+ * behind a permission prompt, and there is nothing useful to say when it is -
+ * the URL is on screen, selectable, and that is the path people who hit this
+ * take anyway.
+ */
+function copyCloneUrl(url) {
+  clipboard.copy(url).catch(() => {})
+}
+</script>
+
+<style>
+  .clone-box { position: relative; display: inline-block; }
+
+  .clone-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .clone-summary::-webkit-details-marker { display: none; }
+
+  .clone-panel {
+    position: absolute;
+    right: 0;
+    z-index: 20;
+    width: min(360px, calc(100vw - 32px));
+    margin-top: 6px;
+    padding: 14px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-panel, 12px);
+    box-shadow: 0 10px 30px rgb(0 0 0 / 12%);
+  }
+
+  .clone-label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+
+  .clone-row { display: flex; gap: 6px; }
+
+  .clone-input {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 9px;
+    font-size: 12.5px;
+    color: var(--text);
+    background: var(--bg-subtle, var(--bg));
+    border: 1px solid var(--line);
+    border-radius: var(--r-field, 10px);
+  }
+
+  .clone-copy { padding: 7px 9px; }
+
+  .clone-hint {
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+</style>

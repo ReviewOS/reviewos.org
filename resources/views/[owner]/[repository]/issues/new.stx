@@ -42,6 +42,11 @@ const search: Record<string, string> = useRoute().query ?? {}
 // every query below it silently reads as empty.
 const repositoryRow: any = await resolveRepository(ownerHandle, repositoryName)
 
+// A page that renders "no such repository" under a 200 tells a crawler, a
+// cache and an uptime check that the page is fine. Only the render knows.
+if (!repositoryRow)
+  setResponseStatus(404)
+
 const availableLabels: any[] = repositoryRow
   ? await db
       .selectFrom('repository_labels')

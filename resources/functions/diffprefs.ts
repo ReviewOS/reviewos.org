@@ -32,6 +32,16 @@ export type DiffIndicators = 'glyph' | 'bar' | 'none'
  */
 export type DiffPalette = 'classic' | 'deuteranopia' | 'tritanopia' | 'contrast'
 
+/**
+ * Light, dark, or whatever the system says.
+ *
+ * A document-level choice rather than a diff-level one - it colours the whole
+ * page - but it is stored with the rest because a reader's settings are one
+ * thing to them, and reading them from two places is how one of them gets
+ * forgotten.
+ */
+export type ColourScheme = 'system' | 'light' | 'dark'
+
 export interface DiffPreferences {
   layout: DiffLayout
   /**
@@ -41,6 +51,7 @@ export interface DiffPreferences {
    */
   indicators: DiffIndicators
   palette: DiffPalette
+  scheme: ColourScheme
   lineNumbers: boolean
   /**
    * The green and red wash behind changed lines.
@@ -57,6 +68,7 @@ export const DEFAULT_PREFERENCES: DiffPreferences = {
   layout: 'unified',
   indicators: 'glyph',
   palette: 'classic',
+  scheme: 'system',
   lineNumbers: true,
   changeBackground: true,
   wrap: false,
@@ -98,6 +110,10 @@ function isIndicators(value: unknown): value is DiffIndicators {
   return value === 'glyph' || value === 'bar' || value === 'none'
 }
 
+function isScheme(value: unknown): value is ColourScheme {
+  return value === 'system' || value === 'light' || value === 'dark'
+}
+
 function isPalette(value: unknown): value is DiffPalette {
   return value === 'classic' || value === 'deuteranopia' || value === 'tritanopia' || value === 'contrast'
 }
@@ -132,6 +148,7 @@ export function readPreferences(): DiffPreferences {
     layout: isLayout(stored.layout) ? stored.layout : (isLayout(legacy) ? legacy : DEFAULT_PREFERENCES.layout),
     indicators: isIndicators(stored.indicators) ? stored.indicators : DEFAULT_PREFERENCES.indicators,
     palette: isPalette(stored.palette) ? stored.palette : DEFAULT_PREFERENCES.palette,
+    scheme: isScheme(stored.scheme) ? stored.scheme : DEFAULT_PREFERENCES.scheme,
     lineNumbers: typeof stored.lineNumbers === 'boolean' ? stored.lineNumbers : DEFAULT_PREFERENCES.lineNumbers,
     changeBackground: typeof stored.changeBackground === 'boolean'
       ? stored.changeBackground
@@ -158,11 +175,28 @@ export function writePreferences(preferences: DiffPreferences): void {
  * once and is true of every row that ever appears under it.
  */
 export function applyPreferences(root: HTMLElement, preferences: DiffPreferences): void {
+  // The colour scheme is the page's, not the diff's, so it goes on the root
+  // element - which is also where the inline script in the layout sets it
+  // before first paint, and the two have to agree or the page flashes.
+  applyColourScheme(preferences.scheme)
+
   root.dataset.diffIndicators = preferences.indicators
   root.dataset.diffPalette = preferences.palette
   root.dataset.diffNumbers = preferences.lineNumbers ? 'on' : 'off'
   root.dataset.diffBackgrounds = preferences.changeBackground ? 'on' : 'off'
   root.dataset.diffWrap = preferences.wrap ? 'on' : 'off'
+}
+
+/**
+ * Put the colour scheme where the stylesheet can see it.
+ *
+ * The same attribute the layout's inline script writes. Everything else about
+ * a theme is CSS custom properties, which is what makes switching one free:
+ * the tokens are semantic classes, so re-colouring the page re-colours the code
+ * without tokenizing a single line again.
+ */
+export function applyColourScheme(scheme: ColourScheme): void {
+  document.documentElement.dataset.theme = scheme
 }
 
 /**
@@ -191,6 +225,11 @@ function assign(preferences: DiffPreferences, key: keyof DiffPreferences, value:
       if (!isPalette(value))
         return false
       preferences.palette = value
+      return true
+    case 'scheme':
+      if (!isScheme(value))
+        return false
+      preferences.scheme = value
       return true
     case 'lineNumbers':
     case 'changeBackground':

@@ -32,6 +32,11 @@ const mayEdit = Boolean(repoAccess?.can('repository:settings'))
 const mayDelete = Boolean(repoAccess?.can('repository:delete'))
 const mayTransfer = Boolean(repoAccess?.can('repository:transfer'))
 
+// The same answer a stranger gets, all the way down to the status. A 200 on
+// this page would tell a crawler the settings of every repository exist.
+if (!repoRow || !mayEdit)
+  setResponseStatus(404)
+
 const branches = repoRow && mayEdit ? await branchNames(String(repoAccess?.diskPath ?? '')) : []
 
 const topics: any[] = repoRow && mayEdit

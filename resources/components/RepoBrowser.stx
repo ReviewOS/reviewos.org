@@ -81,6 +81,13 @@ const blobMarkdownHtml = (blob?.ok && blob.text !== null && !blob.binary && !blo
   : ''
 
 const notFound = !repoRow
+
+// A page that renders "no such repository" under a 200 tells a crawler, a
+// cache and an uptime check that the page is fine. Only the render knows, so
+// only the render can say - a private repository answers the same way a
+// missing one does, which is the whole point of the check above.
+if (notFound)
+  setResponseStatus(404)
 const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedPath
 </script>
 
@@ -99,6 +106,10 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
             <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="/{{ ownerHandle }}/{{ repositoryName }}">{{ repositoryName }}</a>
           </h1>
           <span class="pill pill-{{ repoRow.visibility }}">{{ repoRow.visibility }}</span>
+          {{-- An empty repository has nothing to clone yet, but the URL is
+               what somebody pushes their first commit to, so it belongs here
+               most of all. --}}
+          <CloneUrlBox owner="{{ ownerHandle }}" repository="{{ repositoryName }}" />
         </div>
 
         @if (repoRow.description)

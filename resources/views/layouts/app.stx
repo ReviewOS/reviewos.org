@@ -11,6 +11,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title ?? 'ReviewOS' }}</title>
     <meta name="color-scheme" content="light dark">
+
+    {{--
+      The reader's colour scheme, applied before anything is painted.
+
+      Inline, in the head, and blocking on purpose. This is the one thing on the
+      page that cannot wait for a module to load: read it a frame late and the
+      reader watches a light page turn dark, which is worse than not offering
+      the choice. `system` is the default and is what the media queries below
+      answer to, so a reader who has never chosen sees exactly what they saw
+      before this existed.
+
+      It reads the same key `resources/functions/diffprefs.ts` writes, and sets
+      the same attribute it sets. If those two ever disagree, the page flashes -
+      which is the whole reason this is three lines rather than an import.
+    --}}
+    <script>
+      try {
+        var stored = JSON.parse(localStorage.getItem('reviewos:diff') || '{}')
+        var scheme = stored && stored.scheme
+        document.documentElement.dataset.theme = scheme === 'light' || scheme === 'dark' ? scheme : 'system'
+      }
+      catch (error) {
+        document.documentElement.dataset.theme = 'system'
+      }
+    </script>
     <meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0c1113" media="(prefers-color-scheme: dark)">
 
@@ -55,8 +80,9 @@
         --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
       }
 
+      /* The system's preference, when the reader has not chosen. */
       @media (prefers-color-scheme: dark) {
-        :root {
+        :root[data-theme='system'] {
           --bg: #0c1113;
           --surface: #121a1c;
           --surface-tint: #162023;
@@ -86,6 +112,38 @@
           --shadow: none;
         }
       }
+
+      /* The same palette, when they have. */
+      :root[data-theme='dark'] {
+          --bg: #0c1113;
+          --surface: #121a1c;
+          --surface-tint: #162023;
+          --line: #222e31;
+          --line-strong: #334247;
+          --text: #eef2f2;
+          --muted: #9aa9ac;
+          --accent: #4ec5c9;
+          --accent-quiet: #14292b;
+          --accent-text: #7fd8db;
+          --on-accent: #08201f;
+          --pill-text: #a7b5b8;
+
+          --ok: #55c48a;
+          --ok-bg: #15291f;
+          --bad: #f08585;
+          --bad-bg: #2a1717;
+          --warn: #e0b25f;
+          --warn-bg: #2a2113;
+
+          --add-bg: #12261b;
+          --add-line: #1f4530;
+          --del-bg: #2a1618;
+          --del-line: #4d2529;
+          --gutter: #101719;
+
+          --shadow: none;
+        }
+
 
       * { box-sizing: border-box; }
       html { -webkit-text-size-adjust: 100%; }
@@ -391,7 +449,17 @@
         .t-type { color: #ffa657; }
         .t-tag { color: #7ee787; }
         .t-attribute { color: #d2a8ff; }
-      }
+            }
+
+      /* The same palette, when they have. */
+      :root[data-theme='dark'] .t-keyword { color: #d2a8ff; }
+        :root[data-theme='dark'] .t-string { color: #7ee787; }
+        :root[data-theme='dark'] .t-numeric { color: #79c0ff; }
+        :root[data-theme='dark'] .t-function { color: #d2a8ff; }
+        :root[data-theme='dark'] .t-type { color: #ffa657; }
+        :root[data-theme='dark'] .t-tag { color: #7ee787; }
+        :root[data-theme='dark'] .t-attribute { color: #d2a8ff; }
+
 
       /* ---- The diff ----
 
@@ -600,12 +668,19 @@
 
       /* Red-green: blue against orange, which survives both protanopia and
          deuteranopia and is the pair every accessible chart palette reaches
-         for first. */
+         for first.
+
+         The two tints are deliberately further apart in *brightness* than the
+         classic pair, and that is the part that matters. Red and green differ
+         almost entirely in hue, which is exactly the channel these readers do
+         not have - so an alternative palette that also differed only in hue
+         would be a different pair of colours and the same failure. The first
+         version of this was precisely that, and a contrast test caught it. */
       [data-diff-palette='deuteranopia'] {
-        --add-bg: #e7f0fb;
-        --add-line: #b9d4f2;
-        --del-bg: #fdf0e2;
-        --del-line: #f4d3ab;
+        --add-bg: #c0d1e7;
+        --add-line: #93b3d8;
+        --del-bg: #f1e5d8;
+        --del-line: #e2c9a8;
         --ok: #10457f;
         --bad: #8a4b06;
       }
@@ -613,10 +688,10 @@
       /* Blue-yellow: teal against magenta, because blue and yellow are the
          pair tritanopia flattens. */
       [data-diff-palette='tritanopia'] {
-        --add-bg: #e2f3f1;
-        --add-line: #b3ded8;
-        --del-bg: #fbe9f3;
-        --del-line: #f0c2dc;
+        --add-bg: #bbd5d3;
+        --add-line: #8ec0bc;
+        --del-bg: #f2e4ec;
+        --del-line: #ddbdd0;
         --ok: #0d5852;
         --bad: #8c2062;
       }
@@ -635,17 +710,17 @@
 
       @media (prefers-color-scheme: dark) {
         [data-diff-palette='deuteranopia'] {
-          --add-bg: #10203a;
-          --add-line: #1e3c66;
-          --del-bg: #2e2110;
-          --del-line: #5b3f16;
+          --add-bg: #061222;
+          --add-line: #17365f;
+          --del-bg: #382206;
+          --del-line: #6b4410;
         }
 
         [data-diff-palette='tritanopia'] {
-          --add-bg: #0d2725;
-          --add-line: #16463f;
-          --del-bg: #2c1122;
-          --del-line: #5a2044;
+          --add-bg: #062a27;
+          --add-line: #12554e;
+          --del-bg: #26081a;
+          --del-line: #5a1339;
         }
 
         [data-diff-palette='contrast'] {
@@ -654,7 +729,30 @@
           --del-bg: #0c0c0c;
           --del-line: #9a9a9a;
         }
-      }
+            }
+
+      /* The same palette, when they have. */
+      :root[data-theme='dark'] [data-diff-palette='deuteranopia'] {
+          --add-bg: #10203a;
+          --add-line: #1e3c66;
+          --del-bg: #2e2110;
+          --del-line: #5b3f16;
+        }
+
+        :root[data-theme='dark'] [data-diff-palette='tritanopia'] {
+          --add-bg: #0d2725;
+          --add-line: #16463f;
+          --del-bg: #2c1122;
+          --del-line: #5a2044;
+        }
+
+        :root[data-theme='dark'] [data-diff-palette='contrast'] {
+          --add-bg: #1a1a1a;
+          --add-line: #f2f2f2;
+          --del-bg: #0c0c0c;
+          --del-line: #9a9a9a;
+        }
+
 
       /* The wash behind changed lines, off. The gutter edge stays, and so does
          whichever indicator is in force, so which side a line belongs to is
@@ -998,7 +1096,17 @@
         .t-type { color: #ffa657; }
         .t-tag { color: #7ee787; }
         .t-attribute { color: #d2a8ff; }
-      }
+            }
+
+      /* The same palette, when they have. */
+      :root[data-theme='dark'] .t-keyword { color: #d2a8ff; }
+        :root[data-theme='dark'] .t-string { color: #7ee787; }
+        :root[data-theme='dark'] .t-numeric { color: #79c0ff; }
+        :root[data-theme='dark'] .t-function { color: #d2a8ff; }
+        :root[data-theme='dark'] .t-type { color: #ffa657; }
+        :root[data-theme='dark'] .t-tag { color: #7ee787; }
+        :root[data-theme='dark'] .t-attribute { color: #d2a8ff; }
+
 
       .visually-hidden {
         position: absolute;

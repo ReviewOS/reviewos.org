@@ -33,3 +33,13 @@ export const findRepositoryByPath = findRepositoryByPathImpl
 import { repositoryForView as repositoryForViewImpl } from '../../app/Actions/Repo/forView'
 
 export const repositoryForView = repositoryForViewImpl
+
+/**
+ * The URL somebody clones with, from the request the page is answering.
+ *
+ * See `app/Actions/Repo/cloneUrl.ts` for why the request wins over
+ * configuration.
+ */
+import { cloneUrlFor as cloneUrlForImpl } from '../../app/Actions/Repo/cloneUrl'
+
+export const cloneUrlFor = cloneUrlForImpl

@@ -55,6 +55,11 @@ const issue: any = repoRow && Number.isFinite(number)
       .executeTakeFirst()
   : undefined
 
+// A missing issue is a missing page. Rendering "no such issue" under a 200
+// tells a crawler every number in the sequence exists.
+if (!issue)
+  setResponseStatus(404)
+
 /**
  * The author's name to show.
  *
