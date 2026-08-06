@@ -4,21 +4,23 @@
  * The fixture is a genuinely signed commit - made once by a throwaway ed25519
  * key whose public half is committed beside it - replayed into a fresh
  * repository with git plumbing. Replayed rather than re-created because
- * *making* a signature needs gpg, and gpg cannot be spawned from a Bun process
- * on this machine at all: every gpg-family binary invoked anywhere under bun
- * (`node:child_process`, `Bun.spawn`, through `sh -c`, sandboxed or not) is
- * SIGKILLed, and it takes the bun process with it. The same commands run
- * normally from a shell, where the reconstructed payload verifies `GOODSIG`.
+ * *making* a signature needs gpg, and gpg could not be run from this process on
+ * the machine these were written on: gpg allocates locked, unswappable secure
+ * memory, and on a host whose swap is exhausted the kernel kills the process
+ * group rather than the allocation. A shell survives it because a shell is
+ * small - the same commands verify `GOODSIG` there.
  *
  * The private key went with the temporary directory it was made in. What is
  * committed is a public key and a signature over the word "hello", which is
  * precisely as secret as it sounds.
  *
- * **The cases that reach gpg are opt-in** (`REVIEWOS_GPG_TESTS=1`), because a
- * killed process is not a failing test - it takes the whole run down and
- * reports nothing. Everything that can be decided without gpg runs always, and
- * that is most of the rules worth pinning: what counts as a candidate key, what
- * an unsigned commit reads as, and what an unreadable one does.
+ * **The cases that reach gpg are opt-in** (`REVIEWOS_GPG_TESTS=1`). Not a
+ * preference: a process killed by the kernel is not a failing test, it takes
+ * the whole run down and reports nothing, and there is no way to probe for
+ * "will this kill me" from inside the process it would kill. Everything that
+ * can be decided without gpg runs always, and that is most of the rules worth
+ * pinning - what counts as a candidate key, what an unsigned commit reads as,
+ * and what an unreadable key does.
  */
 
 import type { CommitVerification } from '../../app/Actions/Git/verify'

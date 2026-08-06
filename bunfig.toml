@@ -12,6 +12,20 @@ preload = [
 ]
 
 [test]
+# Look for tests where the tests are.
+#
+# Without this, `bun test` walks the whole project looking for test files -
+# including `pantry/`, which is a package tree of hundreds of thousands of
+# files. It follows the symlinks it finds there, and once a few hundred have
+# been opened the process runs out of file descriptors: the next `spawn` fails
+# with `EBADF`, and every test that shells out to git fails with it. The
+# reproduction is one directory of 800 symlinks anywhere under the project
+# root, and it does not need to be imported by anything.
+#
+# `bun run` is unaffected - it resolves modules rather than scanning for files -
+# which is why the application works while the suite does not.
+root = "tests"
+
 # Tests also get the env layer so encrypted .env values resolve during the
 # suite — match production boot semantics rather than papering over a
 # different decrypt path in test-only code.

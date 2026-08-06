@@ -20,6 +20,11 @@ export const config: PantryConfig = {
     // to 1.3.14. Raise this once a ts-pantry release includes the newer versions.
     bun: '^1.3.11',
     git: '^2.47.0',
+    // Commit signature verification. git can tell you a commit carries a
+    // signature without it, but not whether the signature is good - that is
+    // gpg's job, and the same reasoning as git applies: the binary does the
+    // cryptography rather than a reimplementation of OpenPGP in TypeScript.
+    'gnupg.org': '^2.4.0',
     // The database engine is swapped for the one DB_CONNECTION names when
     // `buddy setup` regenerates deps.yaml, so only one ever gets installed.
     sqlite: '^3.47.2',

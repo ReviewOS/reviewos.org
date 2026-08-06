@@ -69,14 +69,18 @@
     "curl.se/ca-certs@2026.3.19": {
       "name": "curl.se/ca-certs",
       "version": "2026.3.19",
-      "source": "pantry",
-      "resolved": "registry:curl.se/ca-certs@2026.3.19"
+      "source": "pantry"
     },
     "curl.se@8.17.0": {
       "name": "curl.se",
       "version": "8.17.0",
       "source": "pantry",
       "resolved": "registry:curl.se@8.17.0"
+    },
+    "freedesktop.org/p11-kit@0.26.2": {
+      "name": "freedesktop.org/p11-kit",
+      "version": "0.26.2",
+      "source": "pantry"
     },
     "git-scm.org@2.53.0": {
       "name": "git-scm.org",
@@ -87,8 +91,7 @@
     "gnome.org/libxml2@2.13.9": {
       "name": "gnome.org/libxml2",
       "version": "2.13.9",
-      "source": "pantry",
-      "resolved": "registry:gnome.org/libxml2@2.13.9"
+      "source": "pantry"
     },
     "gnome.org/libxslt@1.1.45": {
       "name": "gnome.org/libxslt",
@@ -96,17 +99,90 @@
       "source": "pantry",
       "resolved": "registry:gnome.org/libxslt@1.1.45"
     },
+    "gnu.org/gettext@0.21.1": {
+      "name": "gnu.org/gettext",
+      "version": "0.21.1",
+      "source": "pantry"
+    },
+    "gnu.org/gmp@6.3.0": {
+      "name": "gnu.org/gmp",
+      "version": "6.3.0",
+      "source": "pantry"
+    },
+    "gnu.org/libiconv@1.19.0": {
+      "name": "gnu.org/libiconv",
+      "version": "1.19.0",
+      "source": "pantry"
+    },
+    "gnu.org/libidn2@2.3.8": {
+      "name": "gnu.org/libidn2",
+      "version": "2.3.8",
+      "source": "pantry"
+    },
+    "gnu.org/libtasn1@4.21.0": {
+      "name": "gnu.org/libtasn1",
+      "version": "4.21.0",
+      "source": "pantry"
+    },
+    "gnu.org/libunistring@1.4.2": {
+      "name": "gnu.org/libunistring",
+      "version": "1.4.2",
+      "source": "pantry"
+    },
+    "gnu.org/nettle@3.10.2": {
+      "name": "gnu.org/nettle",
+      "version": "3.10.2",
+      "source": "pantry"
+    },
     "gnu.org/readline@8.3.0": {
       "name": "gnu.org/readline",
       "version": "8.3.0",
-      "source": "pantry",
-      "resolved": "registry:gnu.org/readline@8.3.0"
+      "source": "pantry"
+    },
+    "gnupg.org/libassuan@2.5.7": {
+      "name": "gnupg.org/libassuan",
+      "version": "2.5.7",
+      "source": "pantry"
+    },
+    "gnupg.org/libgcrypt@1.12.1": {
+      "name": "gnupg.org/libgcrypt",
+      "version": "1.12.1",
+      "source": "pantry"
+    },
+    "gnupg.org/libgpg-error@1.59.0": {
+      "name": "gnupg.org/libgpg-error",
+      "version": "1.59.0",
+      "source": "pantry"
+    },
+    "gnupg.org/libksba@1.6.8": {
+      "name": "gnupg.org/libksba",
+      "version": "1.6.8",
+      "source": "pantry"
+    },
+    "gnupg.org/npth@1.8.0": {
+      "name": "gnupg.org/npth",
+      "version": "1.8.0",
+      "source": "pantry"
+    },
+    "gnupg.org/pinentry@1.3.2": {
+      "name": "gnupg.org/pinentry",
+      "version": "1.3.2",
+      "source": "pantry"
+    },
+    "gnupg.org@2.4.8": {
+      "name": "gnupg.org",
+      "version": "2.4.8",
+      "source": "pantry"
+    },
+    "gnutls.org@3.8.12": {
+      "name": "gnutls.org",
+      "version": "3.8.12",
+      "source": "pantry"
     },
     "invisible-island.net/ncurses@6.6.0": {
       "name": "invisible-island.net/ncurses",
       "version": "6.6.0",
-      "source": "pantry",
-      "resolved": "registry:invisible-island.net/ncurses@6.6.0"
+      "source": "pantry"
     },
     "libexpat.github.io@2.7.5": {
       "name": "libexpat.github.io",
@@ -126,11 +202,15 @@
       "source": "pantry",
       "resolved": "registry:nghttp2.org@1.68.1"
     },
-    "openssl.org@3.6.1": {
+    "openldap.org@2.6.13": {
+      "name": "openldap.org",
+      "version": "2.6.13",
+      "source": "pantry"
+    },
+    "openssl.org@1.1.1w": {
       "name": "openssl.org",
-      "version": "3.6.1",
-      "source": "pantry",
-      "resolved": "registry:openssl.org@3.6.1"
+      "version": "1.1.1w",
+      "source": "pantry"
     },
     "perl.org@5.42.1": {
       "name": "perl.org",
@@ -144,11 +224,20 @@
       "source": "pantry",
       "resolved": "registry:postgresql.org@17.10"
     },
+    "sourceware.org/bzip2@1.0.8": {
+      "name": "sourceware.org/bzip2",
+      "version": "1.0.8",
+      "source": "pantry"
+    },
+    "sourceware.org/libffi@3.7.1": {
+      "name": "sourceware.org/libffi",
+      "version": "3.7.1",
+      "source": "pantry"
+    },
     "sqlite.org@3.53.4": {
       "name": "sqlite.org",
       "version": "3.53.4",
-      "source": "pantry",
-      "resolved": "registry:sqlite.org@3.53.4"
+      "source": "pantry"
     },
     "stacks@0.70.229": {
       "name": "stacks",
@@ -241,6 +330,16 @@
         "bun-query-builder": "^0.1.63"
       }
     },
+    "tukaani.org/xz@5.8.2": {
+      "name": "tukaani.org/xz",
+      "version": "5.8.2",
+      "source": "pantry"
+    },
+    "unbound.net@1.26.0": {
+      "name": "unbound.net",
+      "version": "1.26.0",
+      "source": "pantry"
+    },
     "unicode.org@73.2.0": {
       "name": "unicode.org",
       "version": "73.2.0",
@@ -250,8 +349,7 @@
     "zlib.net@1.3.2": {
       "name": "zlib.net",
       "version": "1.3.2",
-      "source": "pantry",
-      "resolved": "registry:zlib.net@1.3.2"
+      "source": "pantry"
     }
   }
 }

@@ -157,6 +157,16 @@ known to exactly one place.
       the length has already built the whole thing, and the first bytes arrive well before the last
       rather than everything landing at once at the end
 
+- [x] **`bun test` walked the whole project looking for test files**, `pantry/` included - a package
+      tree of hundreds of thousands of files. It follows the symlinks it finds, and once a few
+      hundred are open the process is out of file descriptors: the next `spawn` fails `EBADF`, and
+      every test that shells out to git fails with it. Thirty-five of them did, in code nothing had
+      touched. Reproduced down to **one directory of 800 symlinks anywhere under the project root**,
+      needing no import by anything, and fixed by `root = "tests"` in `bunfig.toml` - the tests are
+      in `tests/`, and a test runner has no business reading a dependency tree. `bun run` was never
+      affected, because it resolves modules rather than scanning for files, which is why the
+      application worked while the suite did not
+
 ## Receiving a push
 
 - [x] Post-receive hook posts ref updates back to the application. A hook rather than diffing the
@@ -482,13 +492,15 @@ the one moment where rejecting is still possible.
       Two rules it will not bend on, both tested: a good signature by a key nobody registered is not
       verified, and a good signature by a key that does not claim the commit's author address is not
       verified either - anybody can sign a commit claiming to be somebody else.
-      What is missing is an environment to finish it in. gpg is not a declared dependency and could
-      not be made one here: **every gpg-family binary spawned anywhere under Bun is SIGKILLed and
-      takes the Bun process with it** (`node:child_process`, `Bun.spawn`, through `sh -c`, sandboxed
-      or not), while the same commands run normally from a shell - where a reconstructed payload did
-      verify `GOODSIG` against a real signature. Installing gnupg into the project's package tree
-      also broke unrelated tests, so that was reverted. Nothing calls this code until
-      `git verify-commit` can be run from a Bun process
+      `gnupg.org` is a declared pantry dependency, beside `git`, for the same reason: the binary
+      does the cryptography rather than a reimplementation of OpenPGP in TypeScript.
+      What is missing is one run on a host with memory headroom. gpg allocates locked, unswappable
+      secure memory, and on a machine whose swap is exhausted the kernel kills the whole process
+      group rather than the allocation - a shell survives it because a shell is small, a Bun process
+      holding the framework does not. The verification itself is proven: the same keyring and
+      signature this code builds verify `GOODSIG` when gpg is run from a shell. The gpg-dependent
+      tests are behind `REVIEWOS_GPG_TESTS=1`, because a process the kernel kills reports nothing
+      and there is no way to probe for that from inside the process it would kill
 
 ## Browsing
 

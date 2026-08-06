@@ -7,15 +7,17 @@
  * slightly wrong: reconstructing the signed payload byte for byte, which git
  * already does correctly.
  *
- * **Not yet reachable from a route.** gpg is not a declared dependency, and on
- * the machine this was written on it could not be made one: every gpg-family
- * binary spawned anywhere under Bun is SIGKILLed and takes the Bun process
- * with it, and installing gnupg into the project's package tree broke
- * unrelated tests. The parsing and the rules below are tested and correct - a
- * commit's signature was verified `GOODSIG` against a reconstructed payload
- * from a shell - but nothing here has been exercised end to end from the
- * application, so nothing calls it. Wiring it into the commit view wants an
- * environment where `git verify-commit` runs from a Bun process first.
+ * **Not yet reachable from a route.** The verification itself is proven: the
+ * same keyring and signature this builds verify `GOODSIG` when gpg is run from
+ * a shell. What could not be exercised is running it from *this* process, and
+ * the reason turned out to be the machine rather than the code - gpg allocates
+ * locked, unswappable secure memory, and on a host whose swap is exhausted the
+ * kernel kills the whole process group rather than the allocation. A shell
+ * survives it because a shell is small; a Bun process holding the framework
+ * does not. It is intermittent in exactly the way memory pressure is.
+ *
+ * So nothing calls this yet. Wiring it into the commit view wants one run on a
+ * host with memory headroom to confirm end to end, not a change here.
  *
  * What is left here is the keyring: git verifies against whatever `GNUPGHOME`
  * holds, so each verification gets a temporary one containing only the keys
