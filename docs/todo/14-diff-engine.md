@@ -772,6 +772,32 @@ whole before the loop comes back round.
 - [ ] Line results are cached by (line text, language, incoming scope stack). A diff repeats context
       lines between hunks and between the two sides of a split view constantly.
 
+  **Measured, and deliberately not built.** The premise is true and the return is not. Over the
+  5,722 file compare, counting the way the renderer actually asks - a context line tokenized once
+  per side in split view - 720,946 lines go to the tokenizer and **56.5% of them are repeats**.
+
+  But a cache saves tokenizing work in proportion to *characters*, not lines, and only **29.4%** of
+  the characters repeat. The repeats skew short: blank lines alone are 22% of them. Introducing a
+  minimum line length trades hit rate for overhead, and the curve is flat where it matters:
+
+  | minimum line length | lookups | hit rate | tokenizing work saved |
+  |---|---|---|---|
+  | 0 | 720,946 | 56.5% | 29.4% |
+  | 8 | 534,458 | 41.6% | 27.9% |
+  | 24 | 370,435 | 29.0% | 20.6% |
+  | 64 | 110,274 | 15.2% | 6.6% |
+
+  So a threshold of 8 would keep nearly all the benefit. The reason to stop is one layer up:
+  tokenizing is not where the time goes. On the largest file in the corpus - 28,122 rows - parsing
+  is 11ms, **highlighting is 8ms**, rendering is 45ms and serializing is 40ms. Saving 28% of the 8ms
+  is 2ms in 104, and it would be bought with a cache keyed on the incoming scope stack in the hot
+  path of a 1,100 line tokenizer shared by other projects.
+
+  Worth revisiting only if rendering and serializing get fast enough that tokenizing is the
+  remaining cost, or if a language turns up whose grammar is far more expensive than TypeScript's.
+  The file-level content cache already built takes the large repeats (854 hits on this compare) at
+  none of that risk.
+
 ## The diff surface
 
 Everything a reader can turn on. DiffsHub exposes all of these; several we already have.
