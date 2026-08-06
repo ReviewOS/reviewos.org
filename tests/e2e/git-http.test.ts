@@ -418,3 +418,155 @@ describe('the JSON API, through the same server', () => {
     expect(response.status).toBe(404)
   }, 60_000)
 })
+
+/**
+ * A repository big enough that streaming is the difference between working and
+ * not.
+ *
+ * Every other test here would pass against a server that read the whole pack
+ * into memory and then wrote it: the seeded repository is three files. The
+ * failure that matters shows up on somebody's real repository, at a size where
+ * buffering means one clone holds hundreds of megabytes and ten concurrent
+ * clones take the process down - and it shows up in production, because a
+ * three-file fixture never asked the question.
+ *
+ * So this pushes and clones something in the megabytes, and checks the two
+ * things that separate streaming from buffering:
+ *
+ * - the response never declares a `Content-Length`, because a server that
+ *   knows the length has already built the whole thing
+ * - the first bytes arrive well before the last, rather than everything
+ *   landing at once at the end
+ *
+ * The content is random, so nothing delta-compresses it into a pack small
+ * enough to make the question moot.
+ */
+describe('a repository large enough that streaming matters', () => {
+  const FILES = 160
+  const BYTES_PER_FILE = 48 * 1024
+  const TOTAL = FILES * BYTES_PER_FILE
+
+  let headSha = ''
+  let bulkWork = ''
+
+  test('accepts a multi-megabyte push', async () => {
+    if (!available)
+      return
+
+    bulkWork = join(created.temp, 'bulk')
+    mkdirSync(bulkWork, { recursive: true })
+    await git(bulkWork, 'init', '--quiet')
+
+    for (let index = 0; index < FILES; index++) {
+      // getRandomValues caps at 64KB per call, which is why the file size is
+      // under it rather than for any reason to do with git.
+      const bytes = new Uint8Array(BYTES_PER_FILE)
+      crypto.getRandomValues(bytes)
+      writeFileSync(join(bulkWork, `blob-${index}.bin`), bytes)
+    }
+
+    await git(bulkWork, 'add', '.')
+    await git(bulkWork, 'commit', '--quiet', '-m', 'a repository worth streaming')
+
+    const pushed = await git(
+      bulkWork, '-c', 'credential.helper=', 'push', authenticatedUrl(), 'HEAD:refs/heads/bulk',
+    )
+    expect(pushed.ok, pushed.stderr).toBe(true)
+
+    headSha = await bare('rev-parse', 'refs/heads/bulk')
+    expect(headSha).toMatch(/^[0-9a-f]{40}$/)
+  }, 180_000)
+
+  /**
+   * Not "did it clone" but "is every byte the same". A pack that is truncated,
+   * or reassembled out of order, still produces a repository git will check
+   * out - `git fsck` is what notices, and comparing a file's bytes is what
+   * notices if fsck does not.
+   */
+  test('clones it back byte for byte', async () => {
+    if (!available || !headSha)
+      return
+
+    const into = join(created.temp, 'bulk-clone')
+    const cloned = await git(
+      created.temp, '-c', 'credential.helper=', 'clone', '--quiet',
+      '--single-branch', '--branch', 'bulk', cloneUrl(), into,
+    )
+    expect(cloned.ok, cloned.stderr).toBe(true)
+
+    const listed = (await git(into, 'ls-files')).stdout.trim().split('\n')
+    expect(listed.length).toBe(FILES)
+
+    const integrity = await git(into, 'fsck', '--no-progress')
+    expect(integrity.ok, integrity.stderr).toBe(true)
+
+    // One file compared in full. The tree sha already covers every byte of
+    // every file, but a mismatch there says only "something differs".
+    const sample = 'blob-99.bin'
+    const original = await Bun.file(join(bulkWork, sample)).arrayBuffer()
+    const round = await Bun.file(join(into, sample)).arrayBuffer()
+
+    expect(round.byteLength).toBe(original.byteLength)
+    expect(Bun.SHA256.hash(round, 'hex')).toBe(Bun.SHA256.hash(original, 'hex'))
+  }, 180_000)
+
+  /**
+   * The wire, read directly, because `git clone` cannot tell you *how* the
+   * bytes arrived.
+   *
+   * The request is the smallest real upload-pack negotiation there is: one
+   * `want`, a flush, and `done`. Each line is pkt-line framed - four hex
+   * digits of length, counting the four digits themselves.
+   */
+  test('streams the pack rather than building it in memory first', async () => {
+    if (!available || !headSha)
+      return
+
+    const want = `want ${headSha}\n`
+    const body = `${(want.length + 4).toString(16).padStart(4, '0')}${want}00000009done\n`
+
+    const started = performance.now()
+    const response = await fetch(`${cloneUrl()}/git-upload-pack`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-git-upload-pack-request' },
+      body,
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('application/x-git-upload-pack-result')
+
+    // A server that can state the length has already built the whole pack.
+    expect(response.headers.get('content-length')).toBeNull()
+
+    let bytes = 0
+    let chunks = 0
+    let firstChunkAt = 0
+    const reader = response.body!.getReader()
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done)
+        break
+
+      if (chunks === 0)
+        firstChunkAt = performance.now() - started
+
+      chunks++
+      bytes += value.byteLength
+    }
+
+    const finishedAt = performance.now() - started
+
+    // The pack really is the size that makes this worth asking about.
+    expect(bytes).toBeGreaterThan(TOTAL * 0.8)
+
+    // Arriving in pieces is what streaming is. One chunk carrying everything
+    // is what a buffered server produces.
+    expect(chunks).toBeGreaterThan(1)
+
+    // And the first piece arrives early rather than with the last. Generous
+    // on purpose: this is asking whether the first byte waited for the last,
+    // not how fast the machine is.
+    expect(firstChunkAt).toBeLessThan(finishedAt * 0.9 + 50)
+  }, 180_000)
+})

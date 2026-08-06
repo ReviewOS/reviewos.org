@@ -145,7 +145,17 @@ known to exactly one place.
       nobody can write; and the run's hooks go in a directory of its own, because installing into
       the shared one repoints every repository on the machine at a server that stops existing when
       the file finishes
-- [ ] A repository large enough that streaming matters, as a test rather than by inspection.
+- [x] A repository large enough that streaming matters, as a test rather than by inspection. Every
+      other test in that file would pass against a server that read the whole pack into memory and
+      then wrote it, because the fixture is three files; the failure that matters appears on
+      somebody's real repository, where buffering means one clone holds hundreds of megabytes and
+      ten concurrent clones take the process down. So it pushes and clones ~7.5 MB of random
+      content - random so nothing delta-compresses the question away - checks it comes back byte
+      for byte through `fsck` and a full file comparison, and then reads the wire directly, because
+      `git clone` cannot say *how* the bytes arrived. Two things separate streaming from buffering
+      and both are asserted: the response declares no `Content-Length`, since a server that knows
+      the length has already built the whole thing, and the first bytes arrive well before the last
+      rather than everything landing at once at the end
 
 ## Receiving a push
 
