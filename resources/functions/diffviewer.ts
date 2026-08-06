@@ -453,6 +453,21 @@ export interface DiffViewerOptions {
   /** Called after every applied frame, for a caller keeping a file tree in step. */
   onVisibleChange?: (start: number, end: number) => void
   /**
+   * Called for each mounted file during the frame's measuring pass.
+   *
+   * A seam for a caller that needs a measurement of its own, and it exists so
+   * that caller does not have to take one *outside* the pass. Every synchronous
+   * layout read outside the batched pass forces the browser to flush the writes
+   * that came before it, which is exactly the interleaving the pass is arranged
+   * to avoid - so a caller reading a height on its own, at what looks like a
+   * harmless moment, is a scroll that stutters for reasons nothing in its own
+   * code explains.
+   *
+   * Read here, act later. Anything written from this callback is a write in the
+   * middle of the read pass and defeats the point of both.
+   */
+  onMeasure?: (index: number, host: HTMLElement) => void
+  /**
    * Called at the end of every applied frame.
    *
    * For state the caller paints onto rows rather than into them: a row that
@@ -604,7 +619,7 @@ export interface ViewerStats {
 }
 
 export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
-  const { scroller, content, renderFile, releaseFile, onVisibleChange, afterRender } = options
+  const { scroller, content, renderFile, releaseFile, onVisibleChange, afterRender, onMeasure } = options
 
   const entries: DiffFileEntry[] = []
   const geometry: ViewportFile[] = []
@@ -703,6 +718,8 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
         geometry[index]!.measured = measured
         remeasured = true
       }
+
+      onMeasure?.(index, host)
     }
 
     if (remeasured) {
@@ -1220,8 +1237,14 @@ export function mountDiffFiles(): DiffViewer | null {
           // Everything but wrapping is a repaint of markup that is already
           // there. Wrapping changes how tall every line is, so what the viewer
           // measured is now wrong for every mounted file.
-          if (changed === 'wrap')
+          if (changed === 'wrap') {
+            // Including what a windowed file's rows measure, which is the whole
+            // reason that figure exists. Dropped rather than adjusted: the next
+            // frame measures it again, and a stale height here would size the
+            // spacers and choose the window off the previous wrap setting.
+            rowHeights.clear()
             viewer.remeasureAll()
+          }
         },
       })
     : readPreferences()
@@ -1262,6 +1285,30 @@ export function mountDiffFiles(): DiffViewer | null {
     layout: 'unified' | 'split'
     pending: RowWindow | null
   }>()
+
+  /**
+   * What a row of a windowed file actually measures, once one has been seen.
+   *
+   * The metric line height is the estimate every windowed file starts on, and
+   * it is right for the common case: one row, one line. With word wrap on it is
+   * wrong by however many lines a row wrapped to, and the error is not confined
+   * to an inexact scrollbar. The same number decides *which* rows to fetch, so
+   * an estimate that says rows are half their real height reports twice as many
+   * on screen as there are and centres the next window below where the reader
+   * is - which costs them the rows they were reading, not just a scrollbar that
+   * lies a little.
+   *
+   * So both uses take the same number, and it becomes a measurement as soon as
+   * there is one. Measured from the rows themselves with the spacers subtracted
+   * out, which is what keeps this from feeding back on itself: the spacers are
+   * sized *from* this figure, so a figure derived from them would chase its own
+   * tail every frame.
+   */
+  const rowHeights = new Map<number, number>()
+
+  function rowHeightFor(index: number): number {
+    return rowHeights.get(index) ?? DEFAULT_HEIGHT_METRICS.lineHeight
+  }
 
   /** How many rows a file has in the layout being shown. */
   function rowCount(file: DiffFileEntry): number {
@@ -1312,6 +1359,33 @@ export function mountDiffFiles(): DiffViewer | null {
     // The sidebar follows the diff rather than the other way round, so the row
     // highlighted is the file the reader is actually looking at.
     onVisibleChange: start => fileList?.setCurrent(start),
+    /**
+     * What a row of this file really measures, taken while reads are batched.
+     *
+     * Only the rows in hand are measured: the spacers are subtracted out
+     * because they are sized from the answer, and measuring them back into it
+     * would make the figure chase itself. Reads only - what it learns is used
+     * on a later frame.
+     */
+    onMeasure(index, host) {
+      const file = viewer.files()[index]
+      const held = windows.get(index)?.held
+      if (file == null || held == null || !windowed(file))
+        return
+
+      const rows = held.to - held.from
+      const body = host.querySelector<HTMLElement>('.diff-table tbody')
+      if (rows <= 0 || body == null)
+        return
+
+      let spacing = 0
+      for (const spacer of body.querySelectorAll<HTMLElement>(':scope > .row-spacer'))
+        spacing += spacer.offsetHeight
+
+      const height = body.offsetHeight - spacing
+      if (height > 0)
+        rowHeights.set(index, height / rows)
+    },
     renderFile(file, host) {
       // Folded up: the header and nothing else. No rows are asked for, because
       // the reader has not asked to see any, and a diff where every collapsed
@@ -1360,7 +1434,7 @@ export function mountDiffFiles(): DiffViewer | null {
     const total = rowCount(file)
     const state = windows.get(file.index)
     const held = state != null && state.layout === layout ? state.held : null
-    const rowHeight = DEFAULT_HEIGHT_METRICS.lineHeight
+    const rowHeight = rowHeightFor(file.index)
     const columns = layout === 'split' ? 4 : 3
     const { above, below } = held == null
       ? { above: 0, below: total * rowHeight }
@@ -1403,7 +1477,7 @@ export function mountDiffFiles(): DiffViewer | null {
       // The rows start under the header.
       fileTop: position + DEFAULT_HEIGHT_METRICS.headerHeight,
       totalRows: total,
-      rowHeight: DEFAULT_HEIGHT_METRICS.lineHeight,
+      rowHeight: rowHeightFor(index),
     })
 
     const state = windows.get(index)
@@ -2235,6 +2309,9 @@ export function mountDiffFiles(): DiffViewer | null {
     // asking. Only the markup has to be fetched again.
     asked.clear()
     wanted.clear()
+    // A split row and a unified row of the same content wrap differently, so
+    // what was measured in one layout is not a measurement of the other.
+    rowHeights.clear()
     viewer.setLayout(layout)
   })
 

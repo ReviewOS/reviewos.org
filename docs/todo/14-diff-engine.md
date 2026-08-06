@@ -375,9 +375,29 @@ in the DOM.
   on every frame, and it is fetched while the reader is still a margin from its edge rather than
   after they have run out of rows.
 
-- [ ] Windowing sizes its spacers from the metric line height, so a windowed file with word wrap on
+- [x] Windowing sizes its spacers from the metric line height, so a windowed file with word wrap on
       has an approximate scrollbar. Everything mounted is measured as usual; it is only the rows
-      standing in for themselves that are assumed to be one line tall.
+      standing in for themselves that are assumed to be one line tall. The arithmetic holds
+      regardless of what the rows do: the spacers plus the held rows come to exactly the file's row
+      count times the line height, wherever the window sits, so the scrollbar means the same thing
+      at every scroll position.
+- [x] And *choosing* the window no longer shares that assumption, which mattered more than the
+      scrollbar did. `visibleRows` divides pixel offsets by a row height, so with wrap on - where a
+      row can be two or three lines tall - the one-line metric reported twice as many rows on screen
+      as there were and centred every fetch below where the reader actually was. An inexact
+      scrollbar costs a little; that costs the reader the rows they were reading.
+
+      Both uses take the same number now, and it becomes a measurement as soon as there is one:
+      measured from the held rows with the spacers subtracted out, since the spacers are sized *from*
+      the answer and a figure derived from them would chase its own tail every frame. Dropped rather
+      than adjusted when wrap or the layout changes, because a stale height is worse than an honest
+      estimate.
+
+      The measurement is taken through a new `onMeasure` hook rather than by the caller reading a
+      height when it needs one. Every synchronous layout read outside the batched pass forces the
+      browser to flush the writes before it, so a read at what looks like a harmless moment is a
+      stutter with no local cause - the pass exists precisely to make that impossible, and a caller
+      reaching around it would have undone it quietly.
 - [x] Batched read/write render passes: all measurement, then all mutation, never interleaved. Every
       synchronous layout read outside that pass is a bug and should be findable by name.
 - [x] `contain: strict` on the scroll container and `contain: layout paint style` on each file, so

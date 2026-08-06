@@ -53,6 +53,45 @@ describe('visibleRows', () => {
   test('a nonsense row height is empty rather than infinite', () => {
     expect(visibleRows({ ...base, scrollTop: 0, rowHeight: 0 })).toEqual({ from: 0, to: 0 })
   })
+
+  /**
+   * Why the caller measures instead of assuming.
+   *
+   * With word wrap on, a row can be two or three lines tall. Passing the
+   * one-line metric anyway does not merely make the scrollbar inexact - it
+   * reports twice as many rows on screen as there are, and every window chosen
+   * from that lands below where the reader actually is. The fix is entirely in
+   * which number is passed, so this is what pins that the number matters.
+   */
+  test('a taller row means fewer rows visible, not the same rows further down', () => {
+    const oneLine = visibleRows({ ...base, scrollTop: 1000, rowHeight: 20 })
+    const wrapped = visibleRows({ ...base, scrollTop: 1000, rowHeight: 40 })
+
+    expect(oneLine.to - oneLine.from).toBe(40)
+    expect(wrapped.to - wrapped.from).toBe(20)
+  })
+
+  /**
+   * And the two uses of that number have to agree. The spacer above the window
+   * is `from * rowHeight` tall, so a reader scrolled to the bottom of it is
+   * looking at row `from` - which only holds if the row height that sized the
+   * spacer is the row height that reads it back.
+   */
+  test('the row at the foot of the spacer above is the row the spacer stands in for', () => {
+    for (const rowHeight of [20, 44, 61.5]) {
+      const held = { from: 600, to: 1200 }
+      const { above } = spacers(held, base.totalRows, rowHeight)
+
+      const at = visibleRows({
+        ...base,
+        rowHeight,
+        viewportHeight: 0,
+        scrollTop: base.fileTop + above,
+      })
+
+      expect(at.from).toBe(held.from)
+    }
+  })
 })
 
 describe('windowFor', () => {
