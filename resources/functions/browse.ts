@@ -173,3 +173,15 @@ export function relativeTime(iso: string, now: Date = new Date()): string {
   // Past a year, the year is the useful fact.
   return then.toISOString().slice(0, 10)
 }
+
+/**
+ * Telling a ref from a path when the URL cannot.
+ *
+ * `/tree/{ref}/{path}` is ambiguous whenever a branch name contains a slash,
+ * which is what branch names normally look like. See
+ * `app/Actions/Browse/splitRef.ts`.
+ */
+import { joinRefAndPath as joinRefAndPathImpl, splitRefAndPath as splitRefAndPathImpl } from '../../app/Actions/Browse/splitRef'
+
+export const splitRefAndPath = splitRefAndPathImpl
+export const joinRefAndPath = joinRefAndPathImpl

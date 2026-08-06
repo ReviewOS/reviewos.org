@@ -303,15 +303,38 @@ the one moment where rejecting is still possible.
 ## Views
 
 - [x] `resources/views/[owner]/[repository]/index.stx` - tree and README, through `RepoBrowser`
-- [ ] The clone box on the repository page
-- [ ] **`/{owner}/{repository}` renders correctly and answers 404.** Not a content bug: the body is
-      byte-for-byte identical to `/{owner}/{repository}/index`, which answers 200. It is the
-      `index`-stripped form of a dynamic route resolving somewhere that does not carry the status
-      through, in `bun-plugin-stx`. Every deeper page (`/commits/{ref}`, `/branches`, `/tags`,
-      `/releases`, `/settings`) answers 200, so it is specific to the two routes whose file is
-      `index.stx` inside a dynamic directory. Worth fixing before anything crawls this
+- [x] The clone box on the repository page, built from the host the page arrived on rather than
+      from configuration. The two disagree exactly when it matters - behind a proxy, on a second
+      domain, on a port a developer picked, or on an instance whose operator never set `APP_URL` -
+      and a clone URL that is right in production and wrong on the machine you are standing at is a
+      clone URL nobody trusts. The rule is in `app/Actions/Repo/cloneUrl.ts`, so it is tested rather
+      than written into a template
+- [x] **Every page that says "not found" now answers 404.** The status was declared in the source
+      with `definePageMeta({ status })`, read before anything runs, which is no use to a page that
+      is only sometimes an error page: a repository, an issue or a settings page cannot know whether
+      the thing exists until it has looked. Every one of them rendered "no such repository" under a
+      200, which tells a crawler, a cache and an uptime check that the page is fine. `stx` gained
+      `setResponseStatus()` (0.2.155) and the render cache now carries the status with the HTML, so
+      a cached not-found page does not go back to 200 on its second request
+- [x] **A trailing slash 404'd on pages that plainly exist.** `/{owner}/{repository}/` looked for
+      `{owner}/{repository}//index.stx` and matched no dynamic route either. Fixed in stx 0.2.155;
+      it is the same page
+- [x] **Every issue page was broken, and looked like a missing issue.** The server script referred
+      to `ownerHandle` and declared `owner`, so it threw on its first line, stx fell back to static
+      extraction, and every variable rendered undefined - which lands on the "no such issue" branch.
+      Silent by design, and indistinguishable from an issue number nobody has used. One name for one
+      thing is the fix; `STX_DEBUG=1` is how to see it
 - [x] `.../tree/[...path].stx` and `.../commits/[ref]/index.stx` (a blob is the same route as a
       tree: the path either is a directory or it is not, which is one round trip rather than two)
+- [x] **A branch with a slash in its name went to the wrong ref.** `/tree/{ref}/{path}` is ambiguous
+      by construction: `fix/rounding/src` is a branch called `fix/rounding` holding `src`, or a
+      branch called `fix` holding `rounding/src`, and nothing in the URL says which. Splitting on
+      the first slash sent every `fix/`, `feat/` and `release/` branch - which is what branch names
+      normally look like - to a ref that does not exist, git resolved nothing, and the page fell
+      back to the default branch: the reader got other files under the name they clicked, with no
+      error and no empty page. `splitRefAndPath` resolves it against the repository's actual refs,
+      longest match first, and `joinRefAndPath` builds the links, so reading a URL and writing one
+      cannot disagree
 - [x] `.../commit/[sha].stx` - one commit, its message, its parents and the files it changed with
       counts. The file list only, no patch: a commit touching four hundred files would otherwise
       render the whole diff into one page, and the review screen is where a diff belongs. A merge

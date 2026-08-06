@@ -20,7 +20,7 @@ import { pressed, subjectKey, summarize, summarizeAll } from '../../../../functi
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 import { viewerFromCookies } from '../../../../functions/identity'
 
-const owner = String(params.owner)
+const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
 const number = Number(params.number)
 
@@ -198,13 +198,13 @@ const pickerHref = (target: string) => `?react=${encodeURIComponent(target)}#rea
 // Rendered here rather than in the template: every body on this page resolves
 // `#12` against the same repository, and a component could not import the
 // renderer anyway.
-const markdownContext = { owner, repository: repositoryName }
+const markdownContext = { owner: ownerHandle, repository: repositoryName }
 
 // Ticking a box posts a form, because the page has no client-side JavaScript
 // and stx directives cannot reach inside already-rendered HTML. A locked
 // conversation gets no forms at all: the action refuses them anyway, and
 // offering a control that will be turned down is worse than not offering it.
-const taskFields = { owner, repo: repositoryName, number: issue?.number ?? 0 }
+const taskFields = { owner: ownerHandle, repo: repositoryName, number: issue?.number ?? 0 }
 const taskAction = '/api/repos/issues/tasks'
 const bodyTaskForm = issue && !issue.locked
   ? { action: taskAction, fields: taskFields }
@@ -212,7 +212,7 @@ const bodyTaskForm = issue && !issue.locked
 
 const reactionAction = '/api/repos/issues/reactions'
 const reactionFields = [
-  { name: 'owner', value: owner },
+  { name: 'owner', value: ownerHandle },
   { name: 'repo', value: repositoryName },
   { name: 'number', value: issue?.number ?? 0 },
 ]
@@ -290,7 +290,7 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
       <div class="panel" style="padding: 32px; text-align: center;">
         <h1 style="font-size: 20px;">No such issue</h1>
         <p class="muted" style="margin-top: 6px;">
-          {{ owner }}/{{ repositoryName }} has no issue numbered {{ params.number }}.
+          {{ ownerHandle }}/{{ repositoryName }} has no issue numbered {{ params.number }}.
         </p>
       </div>
     @else
@@ -337,7 +337,7 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
                  into and this is the whole upload flow. --}}
             <form class="panel issue-reply" method="post" action="/api/repos/issues/comments" enctype="multipart/form-data">
               <CsrfField />
-              <input type="hidden" name="owner" value="{{ owner }}">
+              <input type="hidden" name="owner" value="{{ ownerHandle }}">
               <input type="hidden" name="repo" value="{{ repositoryName }}">
               <input type="hidden" name="number" value="{{ issue.number }}">
               <label class="visually-hidden" for="issue-comment">Comment on this issue</label>

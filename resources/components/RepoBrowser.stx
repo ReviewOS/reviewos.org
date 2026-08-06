@@ -11,14 +11,13 @@
  * files costs the browser nothing.
  */
 import { repositoryForView } from '../functions/repo'
-import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, lastCommit, listTree, readBlob, shortSha, sortEntries, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
+import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, shortSha, sortEntries, splitRefAndPath, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
 
 // Props arrive as attribute strings, so everything is normalised here rather
 // than at each use site.
 const ownerHandle = String(owner)
 const repositoryName = String(repository)
-const requestedPath = String(path ?? '').replace(/^\/+|\/+$/g, '')
 
 // The owner is a user or an organization, and both live in their own table, so
 // the handle is looked up in each. Resolving the owner first is what stops
@@ -34,7 +33,17 @@ const repoRow: any = repoAccess?.repository ?? null
 // the server's working directory instead - which found nothing and rendered
 // this page's empty branch on repositories that were full.
 const diskPath = String(repoAccess?.diskPath ?? '')
-const ref = String(refName || (repoRow ? (repoRow.default_branch ?? 'HEAD') : 'HEAD'))
+
+// The refs, read before anything uses one, because the URL cannot be split
+// without them. `/tree/fix/rounding/src` is a branch called `fix/rounding`
+// holding `src`, or a branch called `fix` holding `rounding/src`, and only the
+// ref list says which - see `app/Actions/Browse/splitRef.ts`.
+const branches = repoRow ? await branchNames(diskPath) : []
+const allTags = repoRow ? await tagNames(diskPath) : []
+
+const addressed = splitRefAndPath(joinRefAndPath(String(refName ?? ''), String(path ?? '')), [...branches, ...allTags])
+const requestedPath = addressed.path
+const ref = String(addressed.ref || (repoRow ? (repoRow.default_branch ?? 'HEAD') : 'HEAD'))
 
 // Try the path as a directory. When git says it is not one, it is a file, and
 // that is the ordinary way to tell them apart without a second round trip.
@@ -64,10 +73,11 @@ const highlighted = sourceLines.length > 0 ? await highlightLines(sourceLines, r
 const language = sourceLines.length > 0 ? languageFor(requestedPath) : null
 
 const head = repoRow ? await lastCommit(diskPath, ref, requestedPath) : null
-const branches = repoRow ? await branchNames(diskPath) : []
-// Tags are capped: a repository with a release per week has hundreds, and a
-// picker that lists them all is a scroll, not a chooser.
-const tags = repoRow ? (await tagNames(diskPath)).slice(0, 30) : []
+// Tags are capped for the picker: a repository with a release per week has
+// hundreds, and a picker that lists them all is a scroll, not a chooser. The
+// split above sees all of them, because a tag missing from that list is a tag
+// whose URL resolves to the wrong thing.
+const tags = allTags.slice(0, 30)
 
 // Rendered here rather than in the template. The `@markdown` directive runs
 // before interpolation, so wrapping `{!! readme.text !!}` in it markdown-renders
@@ -128,7 +138,7 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
                 @foreach (branches as branch)
                   <li>
                     <a class="branch-item {{ branch === ref ? 'is-current' : '' }}"
-                       href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ branch }}/{{ requestedPath }}">{{ branch }}</a>
+                       href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ joinRefAndPath(branch, requestedPath) }}">{{ branch }}</a>
                   </li>
                 @endforeach
                 @if (tags.length > 0)
@@ -136,7 +146,7 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
                   @foreach (tags as tag)
                     <li>
                       <a class="branch-item {{ tag === ref ? 'is-current' : '' }}"
-                         href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ tag }}/{{ requestedPath }}">{{ tag }}</a>
+                         href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ joinRefAndPath(tag, requestedPath) }}">{{ tag }}</a>
                     </li>
                   @endforeach
                 @endif
@@ -165,7 +175,7 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
             @if (crumb.current)
               <span class="crumb crumb-current">{{ crumb.name }}</span>
             @else
-              <a class="crumb" href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ ref }}/{{ crumb.path }}">{{ crumb.name }}</a>
+              <a class="crumb" href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ joinRefAndPath(ref, crumb.path) }}">{{ crumb.name }}</a>
             @endif
             @if (!crumb.current)
               <span class="crumb-sep" aria-hidden="true">/</span>
@@ -195,7 +205,7 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
                       <span class="tree-name">{{ entry.name }}</span>
                       <span class="muted mono tree-size">{{ shortSha(entry.sha) }}</span>
                     @else
-                      <a class="tree-name" href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ ref }}/{{ childPath(requestedPath, entry.name) }}">{{ entry.name }}</a>
+                      <a class="tree-name" href="/{{ ownerHandle }}/{{ repositoryName }}/tree/{{ joinRefAndPath(ref, childPath(requestedPath, entry.name)) }}">{{ entry.name }}</a>
                       <span class="muted tree-size">{{ formatSize(entry.size) }}</span>
                     @endif
                   </li>
