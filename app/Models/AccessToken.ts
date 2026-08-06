@@ -36,7 +36,16 @@ export default defineModel({
     useSeeder: { count: 10 },
   },
 
-  belongsTo: ['User'],
+  // `organization_id` is a foreign key and was not declared as one. A token
+  // scoped to an organization is meaningless once the organization is gone, and
+  // a token row that outlives its scope is a credential nothing revokes.
+  belongsTo: [
+    'User',
+    { model: 'Organization', foreignKey: 'organization_id', onDelete: 'cascade' },
+    // A revocation outlives the admin who performed it. What matters is that
+    // the token is revoked, not who is still on the team.
+    { model: 'User', foreignKey: 'revoked_by_id', relationName: 'revokedBy', onDelete: 'set null' },
+  ],
   hasMany: ['AccessTokenPermission'],
 
   attributes: {

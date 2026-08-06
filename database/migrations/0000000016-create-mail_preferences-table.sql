@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "mail_preferences" (
   "id" BIGSERIAL PRIMARY KEY,
-  "mailbox" text not null,
+  "mailbox" varchar(320) not null,
   "account_name" varchar(255) not null default 'Stacks',
   "signature" text,
   "display_density" "mail_preferences_display_density_type" not null default 'default',

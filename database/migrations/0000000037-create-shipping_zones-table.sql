@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS "shipping_zones" (
   "id" BIGSERIAL PRIMARY KEY,
   "name" varchar(100) not null,
   "countries" text,
-  "regions" text,
+  "regions" varchar(500),
   "postal_codes" text,
   "status" "shipping_zones_status_type" not null,
   "shipping_method_id" bigint REFERENCES "shipping_methods"("id"),

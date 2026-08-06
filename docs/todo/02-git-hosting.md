@@ -316,12 +316,31 @@ the one moment where rejecting is still possible.
         only for the pivot table of a many-to-many - so the relation every one of these fifteen
         columns comes from had nowhere to say it. Now on `BaseRelation`, documented in
         `stacks-models`
-  - [x] One hand-written migration alongside the generated ones
-        (`0000000123-drop-superseded-repository-fkeys.sql`): the constraints this database was
-        created with predate the declaration and had to go, and `releases` needed it *first* rather
-        than merely alongside, because its existing constraint already had the name the new one
-        wanted. `IF EXISTS` throughout, so a database created after the models declared their
-        cascade sees a no-op rather than an error
+  - [x] **No hand-written migration in the end.** One was needed at first, to drop the constraints
+        this database was created with before the cascade was declared - and needing it was the
+        signal that the *models* were wrong rather than the generator. `buddy migrate:regenerate`
+        rebuilt the whole corpus from the models (107 files from 104 models, replacing 139), which
+        put every constraint inline on its `CREATE TABLE` and left the repair nothing to do. There
+        is no real data yet, so replaying from scratch cost nothing
+  - [x] **Nine foreign keys existed only as attributes.** Two were found by the framework's own
+        audit once the corpus came from the models (`issues.milestone_id`,
+        `access_tokens.organization_id`); reading the emitted DDL for `_id` columns with no
+        `REFERENCES` found seven more, all of them a role rather than an owner:
+        `issues.closed_by_id`, `pull_requests.merged_by_id`, `pull_requests.stack_parent_id`,
+        `review_threads.resolved_by_id`, `access_tokens.revoked_by_id`,
+        `pull_request_reviewers.requested_by_id`, and `repositories.parent_id`. None had a
+        constraint, so a row could point at a user, milestone or repository that no longer existed.
+        All declared now with the action each actually wants: `cascade` where the row is
+        meaningless without its parent, `set null` everywhere else - an issue outlives whoever
+        closed it, a thread stays resolved when that account is gone, and **a fork detaches from a
+        deleted upstream rather than going with it**, which is what `purge.ts` does by hand today.
+        The rest of the bare `_id` columns are external identifiers (`provider_id`,
+        `transaction_id`) or the `_id` half of a polymorphic pair, and correctly carry no constraint
+  - [x] `tests/unit/migrations-from-models.test.ts` keeps it that way. It refuses a file the
+        generator would not have named, refuses hand-written commentary in the corpus (explain it
+        in the model, where it survives a regeneration), and checks every relation that declares an
+        `onDelete` reaches a real constraint - a model that says the database will clean up while
+        the database does nothing is worse than saying nothing at all
   - [x] Verified against the real database: fifteen constraints, all `CASCADE`, none duplicated,
         and a bare `DELETE FROM repositories` - no ordering, no purge, nothing the application
         knows about - takes its labels, topics, issues and stars with it. That statement failed

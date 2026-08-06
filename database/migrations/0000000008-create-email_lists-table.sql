@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS "email_lists" (
   "id" BIGSERIAL PRIMARY KEY,
   "name" varchar(100) not null,
   "slug" varchar(120),
-  "description" text,
+  "description" varchar(500),
   "subscriber_count" integer default 0,
   "active_count" integer default 0,
   "unsubscribed_count" integer default 0,

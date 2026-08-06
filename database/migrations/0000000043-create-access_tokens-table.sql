@@ -1,16 +1,16 @@
 CREATE TABLE IF NOT EXISTS "access_tokens" (
   "id" BIGSERIAL PRIMARY KEY,
-  "user_id" integer not null REFERENCES "users"("id"),
+  "user_id" bigint not null REFERENCES "users"("id"),
   "name" varchar(100) not null,
   "prefix" varchar(32) not null,
   "token_hash" varchar(64) not null,
   "selection" "access_tokens_selection_type" default 'selected',
-  "organization_id" integer,
+  "organization_id" bigint REFERENCES "organizations"("id") ON DELETE CASCADE,
   "expires_at" varchar(255) not null,
   "last_used_at" varchar(255),
   "last_used_ip" varchar(45),
   "revoked_at" varchar(255),
-  "revoked_by_id" integer,
+  "revoked_by_id" bigint REFERENCES "users"("id") ON DELETE SET NULL,
   "created_at" timestamp not null default CURRENT_TIMESTAMP,
   "updated_at" timestamp
 );

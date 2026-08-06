@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS "access_token_repositories" (
   "id" BIGSERIAL PRIMARY KEY,
-  "access_token_id" integer not null REFERENCES "access_tokens"("id"),
-  "repository_id" integer not null REFERENCES "repositories"("id"),
+  "access_token_id" bigint not null REFERENCES "access_tokens"("id"),
+  "repository_id" bigint not null REFERENCES "repositories"("id") ON DELETE CASCADE,
   "created_at" timestamp not null default CURRENT_TIMESTAMP,
   "updated_at" timestamp
 );

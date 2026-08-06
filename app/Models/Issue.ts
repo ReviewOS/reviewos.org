@@ -32,7 +32,19 @@ export default defineModel({
     useSeeder: { count: 30 },
   },
 
-  belongsTo: [{ model: 'Repository', onDelete: 'cascade' }, { model: 'User', foreignKey: 'author_id' }],
+  // `milestone_id` is a foreign key and was not declared as one, so no
+  // constraint was generated for it and nothing stopped an issue pointing at a
+  // milestone that had been deleted. `set null` rather than cascade: deleting a
+  // milestone means the issues in it no longer have one, not that the issues go
+  // with it.
+  belongsTo: [
+    { model: 'Repository', onDelete: 'cascade' },
+    { model: 'User', foreignKey: 'author_id' },
+    { model: 'Milestone', foreignKey: 'milestone_id', onDelete: 'set null' },
+    // Who closed it is worth keeping and not worth keeping a row alive for:
+    // the issue outlives the account, and the field goes blank.
+    { model: 'User', foreignKey: 'closed_by_id', relationName: 'closedBy', onDelete: 'set null' },
+  ],
 
   attributes: {
     repository_id: {

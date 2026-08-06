@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "campaigns" (
   "text" varchar(255),
   "from_name" varchar(100),
   "from_address" varchar(255),
-  "email_list_id" integer REFERENCES "email_lists"("id"),
+  "email_list_id" bigint REFERENCES "email_lists"("id"),
   "scheduled_at" timestamp,
   "sent_at" timestamp,
   "audience_size" integer default 0,

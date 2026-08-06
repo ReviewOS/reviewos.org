@@ -30,7 +30,11 @@ export default defineModel({
     useSeeder: { count: 30 },
   },
 
-  belongsTo: ['PullRequest'],
+  belongsTo: [
+    'PullRequest',
+    // A thread stays resolved when the account that resolved it is gone.
+    { model: 'User', foreignKey: 'resolved_by_id', relationName: 'resolvedBy', onDelete: 'set null' },
+  ],
 
   attributes: {
     pull_request_id: {

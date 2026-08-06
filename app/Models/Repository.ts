@@ -42,6 +42,16 @@ export default defineModel({
     useSeeder: { count: 8 },
   },
 
+  // A fork points at what it was forked from, and forks outlive their parent:
+  // deleting a repository detaches its forks rather than taking them with it.
+  // `app/Actions/Repo/purge.ts` does exactly this by hand today, which is the
+  // application doing what the column can say for itself.
+  //
+  // Note this is the one relation here that is *not* declared for the sake of a
+  // cascade - it is declared so a fork cannot point at a repository that is
+  // gone, which nothing prevented before.
+  belongsTo: [{ model: 'Repository', foreignKey: 'parent_id', relationName: 'parent', onDelete: 'set null' }],
+
   attributes: {
     owner_type: {
       order: 1,

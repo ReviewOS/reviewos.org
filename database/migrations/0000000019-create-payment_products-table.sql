@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "payment_products" (
   "id" BIGSERIAL PRIMARY KEY,
-  "name" text not null,
+  "name" varchar(512) not null,
   "description" varchar(255),
   "key" varchar(255) not null,
   "unit_price" integer not null,

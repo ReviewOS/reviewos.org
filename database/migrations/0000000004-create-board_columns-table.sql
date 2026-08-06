@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "board_columns" (
   "id" BIGSERIAL PRIMARY KEY,
-  "board_id" integer not null REFERENCES "boards"("id"),
+  "board_id" bigint not null REFERENCES "boards"("id"),
   "name" varchar(80) not null,
   "position" integer,
   "card_limit" integer,

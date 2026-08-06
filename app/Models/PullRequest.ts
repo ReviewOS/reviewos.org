@@ -39,7 +39,17 @@ export default defineModel({
     useSeeder: { count: 20 },
   },
 
-  belongsTo: [{ model: 'Repository', onDelete: 'cascade' }, { model: 'User', foreignKey: 'author_id' }],
+  belongsTo: [
+    { model: 'Repository', onDelete: 'cascade' },
+    { model: 'User', foreignKey: 'author_id' },
+    // Who merged it, kept as long as the account is. The merge itself is in
+    // the git history either way.
+    { model: 'User', foreignKey: 'merged_by_id', relationName: 'mergedBy', onDelete: 'set null' },
+    // A stack is pull requests that merge in order. Removing one does not
+    // remove what was stacked on it - it un-stacks it, which is the same thing
+    // the application does by hand today.
+    { model: 'PullRequest', foreignKey: 'stack_parent_id', relationName: 'stackParent', onDelete: 'set null' },
+  ],
 
   attributes: {
     repository_id: {

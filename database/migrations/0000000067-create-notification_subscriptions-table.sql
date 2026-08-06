@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS "notification_subscriptions" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "user_id" bigint not null REFERENCES "users"("id"),
+  "subject_type" "notification_subscriptions_subject_type_type",
+  "subject_id" integer not null,
+  "reason" "notification_subscriptions_reason_type",
+  "unsubscribed" boolean default false,
+  "created_at" timestamp not null default CURRENT_TIMESTAMP,
+  "updated_at" timestamp
+);
+CREATE INDEX IF NOT EXISTS "notification_subscriptions_subject_index" ON "notification_subscriptions" ("subject_type", "subject_id");
+CREATE INDEX IF NOT EXISTS "notification_subscriptions_user_index" ON "notification_subscriptions" ("user_id");

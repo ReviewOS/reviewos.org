@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "teams" (
   "id" BIGSERIAL PRIMARY KEY,
-  "organization_id" integer not null REFERENCES "organizations"("id"),
+  "organization_id" bigint not null REFERENCES "organizations"("id"),
   "name" varchar(100) not null,
   "slug" varchar(100) not null,
   "description" text,

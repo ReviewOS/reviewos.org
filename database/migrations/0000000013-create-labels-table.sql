@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "labels" (
   "id" BIGSERIAL PRIMARY KEY,
-  "board_id" integer not null REFERENCES "boards"("id"),
+  "board_id" bigint not null REFERENCES "boards"("id"),
   "name" varchar(60) not null,
   "color" varchar(40),
   "created_at" timestamp not null default CURRENT_TIMESTAMP,

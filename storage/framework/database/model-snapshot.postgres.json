@@ -69,11 +69,16 @@
           },
           {
             "name": "organization_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "references": {
+              "table": "organizations",
+              "column": "id",
+              "onDelete": "cascade"
+            }
           },
           {
             "name": "expires_at",
@@ -110,11 +115,16 @@
           },
           {
             "name": "revoked_by_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "set null"
+            }
           },
           {
             "name": "created_at",
@@ -275,7 +285,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -527,6 +538,270 @@
         "indexes": [
           {
             "name": "analytics_events_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "attachments",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "key",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "uploader_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
+          },
+          {
+            "name": "filename",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "content_type",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 100
+          },
+          {
+            "name": "byte_size",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "attachments_key_index",
+            "columns": [
+              "key"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "attachments_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "attachments_key_unique",
+            "columns": [
+              "key"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "attachments_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "audit_events",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "action",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 80
+          },
+          {
+            "name": "subject_type",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "subject_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "actor_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
+          },
+          {
+            "name": "external_actor",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
+          },
+          {
+            "name": "reason",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "detail",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "ip_address",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 45
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "audit_events_subject_index",
+            "columns": [
+              "subject_type",
+              "subject_id",
+              "created_at"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "audit_events_actor_index",
+            "columns": [
+              "actor_id",
+              "created_at"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "audit_events_uuid_unique",
             "columns": [
               "uuid"
             ],
@@ -1892,7 +2167,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -3664,7 +3940,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -3742,19 +4019,29 @@
           },
           {
             "name": "closed_by_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "set null"
+            }
           },
           {
             "name": "milestone_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "references": {
+              "table": "milestones",
+              "column": "id",
+              "onDelete": "set null"
+            }
           },
           {
             "name": "locked",
@@ -5095,7 +5382,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -7401,7 +7689,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -7523,7 +7812,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -7642,11 +7932,16 @@
           },
           {
             "name": "merged_by_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "set null"
+            }
           },
           {
             "name": "draft",
@@ -7676,11 +7971,16 @@
           },
           {
             "name": "stack_parent_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "references": {
+              "table": "pull_requests",
+              "column": "id",
+              "onDelete": "set null"
+            }
           },
           {
             "name": "additions",
@@ -7996,11 +8296,16 @@
           },
           {
             "name": "requested_by_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "set null"
+            }
           },
           {
             "name": "from_code_owners",
@@ -8290,6 +8595,125 @@
         ]
       },
       {
+        "table": "reactions",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "subject_type",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "issue",
+            "enumValues": [
+              "issue",
+              "issue_comment",
+              "review_comment"
+            ],
+            "enumTypeName": "reactions_subject_type_type"
+          },
+          {
+            "name": "subject_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "user_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
+          },
+          {
+            "name": "content",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "enumValues": [
+              "+1",
+              "-1",
+              "laugh",
+              "hooray",
+              "confused",
+              "heart",
+              "rocket",
+              "eyes"
+            ],
+            "enumTypeName": "reactions_content_type"
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "reactions_subject_index",
+            "columns": [
+              "subject_type",
+              "subject_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "reactions_one_per_person_index",
+            "columns": [
+              "subject_type",
+              "subject_id",
+              "user_id",
+              "content"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "reactions_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
         "table": "receipts",
         "columns": [
           {
@@ -8433,6 +8857,15 @@
             "hasDefault": false
           },
           {
+            "name": "version",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 50
+          },
+          {
             "name": "type",
             "type": "string",
             "isPrimaryKey": false,
@@ -8474,31 +8907,6 @@
             "maxLength": 255
           },
           {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "uuid",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": true,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
             "name": "repository_id",
             "type": "bigint",
             "isPrimaryKey": false,
@@ -8507,7 +8915,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -8567,23 +8976,32 @@
             "hasDefault": false
           },
           {
-            "name": "version",
-            "type": "string",
+            "name": "created_at",
+            "type": "datetime",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 50
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
-          {
-            "name": "releases_uuid_unique",
-            "columns": [
-              "uuid"
-            ],
-            "type": "unique"
-          },
           {
             "name": "releases_repo_tag_index",
             "columns": [
@@ -8599,6 +9017,120 @@
               "published_at"
             ],
             "type": "index"
+          },
+          {
+            "name": "releases_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "release_assets",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "release_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "releases",
+              "column": "id"
+            }
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "storage_path",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 500
+          },
+          {
+            "name": "content_type",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "application/octet-stream",
+            "maxLength": 160
+          },
+          {
+            "name": "size_bytes",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "checksum",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "download_count",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "release_assets_release_name_index",
+            "columns": [
+              "release_id",
+              "name"
+            ],
+            "type": "unique"
           }
         ]
       },
@@ -8622,7 +9154,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -8777,11 +9310,16 @@
           },
           {
             "name": "parent_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "set null"
+            }
           },
           {
             "name": "is_archived",
@@ -8926,7 +9464,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -9233,6 +9772,75 @@
               "uuid"
             ],
             "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "repo_topics",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "topic",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 50
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "repo_topics_repo_topic_index",
+            "columns": [
+              "repository_id",
+              "topic"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "repo_topics_topic_index",
+            "columns": [
+              "topic"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -9730,11 +10338,16 @@
           },
           {
             "name": "resolved_by_id",
-            "type": "integer",
+            "type": "bigint",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
-            "hasDefault": false
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "set null"
+            }
           },
           {
             "name": "outdated",
@@ -10388,7 +11001,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -11972,7 +12586,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -12051,7 +12666,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -12512,568 +13128,10 @@
             "type": "unique"
           }
         ]
-      },
-      {
-        "table": "reactions",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "subject_type",
-            "type": "enum",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": true,
-            "defaultValue": "issue",
-            "enumValues": [
-              "issue",
-              "issue_comment",
-              "review_comment"
-            ],
-            "enumTypeName": "reactions_subject_type_type"
-          },
-          {
-            "name": "subject_id",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "user_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "users",
-              "column": "id"
-            }
-          },
-          {
-            "name": "content",
-            "type": "enum",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "enumValues": [
-              "+1",
-              "-1",
-              "laugh",
-              "hooray",
-              "confused",
-              "heart",
-              "rocket",
-              "eyes"
-            ],
-            "enumTypeName": "reactions_content_type"
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "uuid",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": true,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "reactions_subject_index",
-            "columns": [
-              "subject_type",
-              "subject_id"
-            ],
-            "type": "index"
-          },
-          {
-            "name": "reactions_one_per_person_index",
-            "columns": [
-              "subject_type",
-              "subject_id",
-              "user_id",
-              "content"
-            ],
-            "type": "unique"
-          },
-          {
-            "name": "reactions_uuid_unique",
-            "columns": [
-              "uuid"
-            ],
-            "type": "unique"
-          }
-        ]
-      },
-      {
-        "table": "attachments",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "key",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": true,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 64
-          },
-          {
-            "name": "repository_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "repositories",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "uploader_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "references": {
-              "table": "users",
-              "column": "id"
-            }
-          },
-          {
-            "name": "filename",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 255
-          },
-          {
-            "name": "content_type",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 100
-          },
-          {
-            "name": "byte_size",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "uuid",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": true,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "attachments_key_index",
-            "columns": [
-              "key"
-            ],
-            "type": "unique"
-          },
-          {
-            "name": "attachments_repository_index",
-            "columns": [
-              "repository_id"
-            ],
-            "type": "index"
-          },
-          {
-            "name": "attachments_key_unique",
-            "columns": [
-              "key"
-            ],
-            "type": "unique"
-          },
-          {
-            "name": "attachments_uuid_unique",
-            "columns": [
-              "uuid"
-            ],
-            "type": "unique"
-          }
-        ]
-      },
-      {
-        "table": "audit_events",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "action",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 80
-          },
-          {
-            "name": "subject_type",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 40
-          },
-          {
-            "name": "subject_id",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "actor_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "references": {
-              "table": "users",
-              "column": "id"
-            }
-          },
-          {
-            "name": "external_actor",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 120
-          },
-          {
-            "name": "reason",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "detail",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "ip_address",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 45
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "uuid",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": true,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "audit_events_subject_index",
-            "columns": [
-              "subject_type",
-              "subject_id",
-              "created_at"
-            ],
-            "type": "index"
-          },
-          {
-            "name": "audit_events_actor_index",
-            "columns": [
-              "actor_id",
-              "created_at"
-            ],
-            "type": "index"
-          },
-          {
-            "name": "audit_events_uuid_unique",
-            "columns": [
-              "uuid"
-            ],
-            "type": "unique"
-          }
-        ]
-      },
-      {
-        "table": "repo_topics",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "repository_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "repositories",
-              "column": "id"
-            }
-          },
-          {
-            "name": "topic",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 50
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "repo_topics_repo_topic_index",
-            "columns": [
-              "repository_id",
-              "topic"
-            ],
-            "type": "unique"
-          },
-          {
-            "name": "repo_topics_topic_index",
-            "columns": [
-              "topic"
-            ],
-            "type": "index"
-          }
-        ]
-      },
-      {
-        "table": "release_assets",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "release_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "releases",
-              "column": "id"
-            }
-          },
-          {
-            "name": "name",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 255
-          },
-          {
-            "name": "storage_path",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 500
-          },
-          {
-            "name": "content_type",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": true,
-            "defaultValue": "application/octet-stream",
-            "maxLength": 160
-          },
-          {
-            "name": "size_bytes",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": true,
-            "defaultValue": 0
-          },
-          {
-            "name": "checksum",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 64
-          },
-          {
-            "name": "download_count",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": true,
-            "defaultValue": 0
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "release_assets_release_name_index",
-            "columns": [
-              "release_id",
-              "name"
-            ],
-            "type": "unique"
-          }
-        ]
       }
     ]
   },
-  "hash": "3fe43ada39ce94ed873843349ca384e9c7a32b2b0d203049f7fa616ed414080c",
+  "hash": "2c6ee39fa8f65f210143746e39ce7c8d514881733462cb3ebf2fd6ee24a92a11",
   "dialect": "postgres",
-  "updatedAt": "2026-08-06T06:13:22.687Z"
+  "updatedAt": "2026-08-06T08:06:25.755Z"
 }

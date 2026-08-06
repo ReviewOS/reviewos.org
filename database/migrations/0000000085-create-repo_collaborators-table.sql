@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS "repo_collaborators" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "repository_id" bigint not null REFERENCES "repositories"("id") ON DELETE CASCADE,
+  "user_id" bigint not null REFERENCES "users"("id"),
+  "permission" "repo_collaborators_permission_type" default 'read',
+  "created_at" timestamp not null default CURRENT_TIMESTAMP,
+  "updated_at" timestamp
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "repo_collaborators_repo_user_index" ON "repo_collaborators" ("repository_id", "user_id");

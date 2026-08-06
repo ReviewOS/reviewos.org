@@ -22,7 +22,11 @@ export default defineModel({
     useSeeder: { count: 20 },
   },
 
-  belongsTo: ['PullRequest', { model: 'User', foreignKey: 'reviewer_id' }],
+  belongsTo: [
+    'PullRequest',
+    { model: 'User', foreignKey: 'reviewer_id' },
+    { model: 'User', foreignKey: 'requested_by_id', relationName: 'requestedBy', onDelete: 'set null' },
+  ],
 
   attributes: {
     pull_request_id: {
