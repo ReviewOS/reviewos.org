@@ -102,8 +102,13 @@ export default new Action({
     // size of what was asked for. The budget exists to stop a whole diff being
     // rendered eagerly, which is not what this is.
     const encoder = new TextEncoder()
+    // Matches the manifest endpoint, so a benchmark run is stubbed on both
+    // halves. Rows fetched with highlighting on while the manifest was stubbed
+    // would make one mode out of two.
+    const highlight = String(request.get('highlight') ?? '') !== 'off'
+
     const records = manifestToNdjson(streamManifest(diff, {
-      rows: { layout, budgetBytes: Number.POSITIVE_INFINITY, range: range ?? undefined },
+      rows: { layout, budgetBytes: Number.POSITIVE_INFINITY, range: range ?? undefined, highlight },
     }))
 
     const body = new ReadableStream<Uint8Array>({

@@ -285,6 +285,36 @@ describe('highlightDiffFile', () => {
     }
   })
 
+  /**
+   * The benchmark harness's stubbed mode. The point of it is that the *markup*
+   * differs in exactly one way - no classes on the spans - so a layout or paint
+   * measurement taken in it is comparable to one taken with highlighting on.
+   * A stub that dropped a line, merged two, or changed the row count would make
+   * the two modes measure different pages.
+   */
+  test('stubbed out, every line is one plain token and still exactly the line', async () => {
+    const file = fileOf(uneven)
+    const coloured = await highlightDiffFile(file)
+    const plain = await highlightDiffFile(file, { highlight: false })
+
+    expect(Object.keys(plain).sort()).toEqual(Object.keys(coloured).sort())
+
+    for (const hunk of file.hunks) {
+      for (const line of hunk.lines) {
+        const rendered = plain[tokenKey(line)]!
+
+        expect(rendered).toEqual([{ type: 'text', content: line.content }])
+        expect(rendered.map(token => token.content).join('')).toBe(line.content)
+      }
+    }
+  })
+
+  test('stubbing is off unless asked for, so nobody gets an uncoloured diff by default', async () => {
+    const file = fileOf(uneven)
+
+    expect(await highlightDiffFile(file, {})).toEqual(await highlightDiffFile(file))
+  })
+
   test('highlights each side as its own document', async () => {
     const raw = `diff --git a/old.py b/new.ts
 rename from old.py

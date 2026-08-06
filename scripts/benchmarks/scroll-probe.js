@@ -161,9 +161,16 @@
         marksReused++
     }
 
-    // A forced collection before the second reading, where the browser allows
-    // it. Without one, "memory settled back" is indistinguishable from "the
-    // collector has not run yet", which is the claim nobody can make honestly.
+    // Three readings, not two, and the middle one is the one that separates the
+    // two explanations of the same number.
+    //
+    // Heap after a full scroll but *before* collecting says what the scroll
+    // actually retained. Heap after collecting says what it retained that the
+    // collector cannot reclaim. A run that only reports the second cannot tell
+    // a leak from a collector that has not got round to it yet, and a run that
+    // only reports the first calls every uncollected byte a leak.
+    const heapScrolled = heapBytes()
+
     const collected = typeof globalThis.gc === 'function'
     if (collected) {
       globalThis.gc()
@@ -225,12 +232,17 @@
         recycling: marked === 0 ? 'nothing was mounted to mark' : marksReused > 0 ? 'working' : 'NOT OBSERVED',
       },
       heapCollectedBeforeReading: collected,
-      heapMb: heapBefore == null || heapAfter == null
+      heapMb: heapBefore == null || heapScrolled == null || heapAfter == null
         ? null
         : {
-            before: Math.round(heapBefore / 1024 / 1024),
-            after: Math.round(heapAfter / 1024 / 1024),
-            grew: Math.round((heapAfter - heapBefore) / 1024 / 1024),
+            afterLoad: Math.round(heapBefore / 1024 / 1024),
+            afterScroll: Math.round(heapScrolled / 1024 / 1024),
+            afterCollection: Math.round(heapAfter / 1024 / 1024),
+            // What the scroll left behind that survived a collection. This is
+            // the number the "memory settles back where it started" claim is
+            // about; the rest is the collector's schedule, not ours.
+            retained: Math.round((heapAfter - heapBefore) / 1024 / 1024),
+            reclaimed: collected ? Math.round((heapScrolled - heapAfter) / 1024 / 1024) : null,
           },
     }
   }

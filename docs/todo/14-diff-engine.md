@@ -1048,15 +1048,25 @@ repository.
       least three kept runs, alternating base and test so machine drift does not land on one side
 - [x] An analysis script summarizing `UpdateLayoutTree`, `Layout`, and the paint/composite group per
       run, with average, median, min and max
-- [ ] Two modes: highlighting stubbed out (for CSS and layout work, where token spans are noise) and
+- [x] Two modes: highlighting stubbed out (for CSS and layout work, where token spans are noise) and
       full production (for anything else). Never mix modes or browser headedness within a comparison.
+      `?highlight=off` on both the manifest and the rows endpoint - both, because rows fetched
+      coloured while the manifest was stubbed is one mode out of two. Every line becomes one plain
+      token, which is the path a file over the tokenize ceiling already takes, so the markup differs
+      in exactly one way: the spans carry no classes. Pinned by a test that the row count, the keys
+      and the text are identical between the modes, since a stub that dropped or merged a line would
+      have the two modes measuring different pages.
 - [ ] A fixed corpus of test diffs committed or hosted: a 15 file pull request, a 5k line diff, a 30k
       line diff, and the Linux `v6.0...v7.0` compare. Host the large ones ourselves rather than
       hammering GitHub, which is what Pierre does for their demo links.
 - [x] Results recorded per change with the sha, route, viewport, mode, and run count, so "this got
       slower" is answerable
-- [ ] A memory profile alongside the scroll trace: heap after load, after a full scroll, and after a
-      forced GC
+- [x] A memory profile alongside the scroll trace: heap after load, after a full scroll, and after a
+      forced GC. Three readings rather than two, and the middle one is what separates the two
+      explanations of the same number: heap after scrolling says what the scroll retained, heap after
+      collecting says what it retained that cannot be reclaimed. Reporting only the second cannot
+      tell a leak from a collector that has not run; reporting only the first calls every
+      uncollected byte a leak.
 
 ## Tests
 

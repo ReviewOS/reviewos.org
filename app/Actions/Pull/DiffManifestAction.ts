@@ -71,8 +71,18 @@ export default new Action({
       renderBody: body => renderMarkdownHighlighted(body, { owner, repository: repository.name }),
     })
 
+    // The benchmark harness's stubbed mode, and nothing else asks for it. Layout
+    // and paint are what a CSS change is measured on, and a token span per word
+    // is a large and variable share of both - so a measurement taken with
+    // highlighting on is partly a measurement of the tokenizer's opinion of the
+    // fixture. Safe to expose: the worst a caller can do with it is read an
+    // uncoloured diff.
+    const highlight = String(request.get('highlight') ?? '') !== 'off'
+
     const encoder = new TextEncoder()
-    const records = manifestToNdjson(streamManifest(diff, { rows: { layout, threads, skipCollapsed: true } }))
+    const records = manifestToNdjson(streamManifest(diff, {
+      rows: { layout, threads, skipCollapsed: true, highlight },
+    }))
 
     const body = new ReadableStream<Uint8Array>({
       async pull(controller) {

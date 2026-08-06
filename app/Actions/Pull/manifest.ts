@@ -283,6 +283,17 @@ export interface ManifestOptions {
      * renderer does not know what they are.
      */
     threads?: readonly StoredThread[]
+    /**
+     * Render every line as one plain token, for the benchmark harness.
+     *
+     * The stubbed half of its two modes. Layout and paint are what a CSS change
+     * is measured on, and a token span per word is a large and variable share
+     * of both - so leaving highlighting on while measuring one means measuring
+     * the tokenizer's opinion of the fixture along with the change. Off by
+     * default, and never a reader-facing setting: an unhighlighted diff is a
+     * worse diff, it is only a cleaner measurement.
+     */
+    highlight?: boolean
   }
 }
 
@@ -404,7 +415,7 @@ export async function* streamManifest(
     // Started, not awaited. This is the whole change: the next file's record is
     // parsed and sent while this one is still being tokenized, and several
     // files are tokenized at once.
-    inFlight.push({ at, file, tokens: highlightDiffFile(file) })
+    inFlight.push({ at, file, tokens: highlightDiffFile(file, { highlight: rowOptions.highlight }) })
 
     yield* drain(false)
   }

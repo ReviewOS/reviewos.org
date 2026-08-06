@@ -43,8 +43,19 @@ export function tokenKey(line: Pick<DiffLine, 'origin' | 'oldLine' | 'newLine'>)
  * comment from restarting at every hunk. The gaps between hunks are still gaps,
  * so a construct opened in one of them is not known about; that is the
  * documented limit of highlighting a patch rather than a file.
+ *
+ * `highlight: false` renders every line as one plain token instead, which is
+ * the benchmark harness's stubbed mode. Layout and paint work is the thing
+ * being measured there, and a token span per word is a large, variable share of
+ * both - so leaving highlighting on while measuring a CSS change means
+ * measuring the tokenizer's opinion of the fixture as much as the change. It
+ * takes the same path a file over the tokenize ceiling already takes, so the
+ * markup differs in exactly one way: the spans have no classes.
  */
-export async function highlightDiffFile(file: DiffFile): Promise<DiffTokenMap> {
+export async function highlightDiffFile(
+  file: DiffFile,
+  options: { highlight?: boolean } = {},
+): Promise<DiffTokenMap> {
   const left: string[] = []
   const leftKeys: string[] = []
   const right: string[] = []
@@ -63,10 +74,15 @@ export async function highlightDiffFile(file: DiffFile): Promise<DiffTokenMap> {
     }
   }
 
-  const [leftTokens, rightTokens] = await Promise.all([
-    highlightLines(left, file.previousPath ?? file.path),
-    highlightLines(right, file.path),
-  ])
+  const plain = (lines: readonly string[]): DiffToken[][] =>
+    lines.map(line => [{ type: 'text' as const, content: line }])
+
+  const [leftTokens, rightTokens] = options.highlight === false
+    ? [plain(left), plain(right)]
+    : await Promise.all([
+        highlightLines(left, file.previousPath ?? file.path),
+        highlightLines(right, file.path),
+      ])
 
   const map: DiffTokenMap = {}
   leftKeys.forEach((key, index) => { map[key] = leftTokens[index] ?? [] })
