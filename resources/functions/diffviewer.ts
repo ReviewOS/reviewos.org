@@ -42,7 +42,7 @@ import { applyPreferences, type DiffPreferences, readPreferences, wirePreference
 // `shell.ts` exists: `rows.ts` reaches the highlighter, and the browser must
 // never download forty eight grammars to draw a file header.
 import { renderDiffShell } from '../../app/Actions/Pull/shell'
-import { filterFiles, readViewed, writeViewed } from './filelist'
+import { filterFiles, readDraft, readViewed, writeDraft, writeViewed } from './filelist'
 
 /**
  * How many hosts to keep for reuse.
@@ -1513,23 +1513,66 @@ export function mountDiffFiles(): DiffViewer | null {
    */
   let draft: { anchor: LineAnchor, text: string, busy: boolean } | null = null
 
+  /** Where a half-written comment is kept between visits. */
+  const draftScope = manifestUrl
+
+  /** Remember the draft as it is typed, so a reload does not cost the words. */
+  function rememberDraft(): void {
+    writeDraft(draftScope, draft == null
+      ? null
+      : { ...draft.anchor, text: draft.text })
+  }
+
+  /**
+   * Put back a comment somebody started writing and did not send.
+   *
+   * Only once the file list is known, because the draft names a path and a
+   * path means nothing until the manifest has said which files exist. A draft
+   * for a file that is not in this diff any more - the branch moved under it -
+   * is dropped rather than re-opened somewhere arbitrary.
+   */
+  function restoreDraft(): void {
+    if (draft != null)
+      return
+
+    const stored = readDraft(draftScope)
+    if (stored == null || stored.text.trim() === '')
+      return
+
+    if (!viewer.files().some(file => file.path === stored.path)) {
+      writeDraft(draftScope, null)
+      return
+    }
+
+    openDraft({ path: stored.path, side: stored.side, from: stored.from, to: stored.to }, stored.text)
+  }
+
   /** Open a draft on a line or a range, replacing whatever was open. */
-  function openDraft(anchor: LineAnchor): void {
-    draft = { anchor, text: '', busy: false }
+  function openDraft(anchor: LineAnchor, text = ''): void {
+    draft = { anchor, text, busy: false }
+    rememberDraft()
     selection = anchor
     writeSelectionToUrl()
     paintSelection()
     paintDraft()
 
-    // Focused after the row exists. Without the frame the element being asked
-    // to take focus is the one that is about to be replaced.
+    // Painted and focused on the next frame as well as now. Now covers the
+    // ordinary case, where the reader clicked a line that is plainly on
+    // screen; the frame covers a draft being *restored* from storage, where
+    // the file it belongs to has not been mounted yet and there is nothing to
+    // insert the row after. Without it a restored draft was held in memory,
+    // correctly, and never appeared - because after the stream ends nothing
+    // schedules another frame and `afterRender` is where the painting happens.
     requestAnimationFrame(() => {
+      paintDraft()
       region.querySelector<HTMLTextAreaElement>('.draft-input')?.focus()
     })
   }
 
   function closeDraft(): void {
     draft = null
+    writeDraft(draftScope, null)
+
     for (const row of region.querySelectorAll('.draft-row'))
       row.remove()
   }
@@ -1587,7 +1630,10 @@ export function mountDiffFiles(): DiffViewer | null {
 
     const input = draftRow.querySelector<HTMLTextAreaElement>('.draft-input')!
     input.value = current.text
-    input.addEventListener('input', () => { current.text = input.value })
+    input.addEventListener('input', () => {
+      current.text = input.value
+      rememberDraft()
+    })
 
     draftRow.querySelector('.draft-cancel')?.addEventListener('click', () => closeDraft())
     draftRow.querySelector('form')?.addEventListener('submit', (event) => {
@@ -1850,6 +1896,9 @@ export function mountDiffFiles(): DiffViewer | null {
           const offset = row.getBoundingClientRect().top - host.getBoundingClientRect().top
           viewer.scrollToFile(index, { offset, alignment: 'center' })
           paintSelection()
+          // The file this was looking for is now mounted, which is exactly what
+          // a restored draft was waiting for.
+          paintDraft()
           return
         }
 
@@ -2210,8 +2259,10 @@ export function mountDiffFiles(): DiffViewer | null {
     },
     onEnd(summary) {
       // Reached once the whole list is known, which is the earliest a link to a
-      // file near the end can be honoured.
+      // file near the end can be honoured - and the earliest a draft can be put
+      // back on the line it was written against.
       refreshFileList(true)
+      restoreDraft()
       void revealSelection()
       const counts = `${summary.files} files, +${summary.additions} -${summary.deletions}`
       say(truncatedFrom == null ? counts : `${counts} (rendered to file ${truncatedFrom})`, 'done')

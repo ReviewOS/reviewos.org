@@ -576,9 +576,14 @@ comment nesting wrong, and the failure is silent and ugly: half a file rendered 
       must equal the input line exactly.** `app/Actions/Browse/highlight.ts` already states this as
       the one property everything depends on, and in a diff a dropped space can be the entire change.
       That property deserves a test in the library, not a comment in the consumer.
-- [ ] Work through the 17 `.todo()` edge cases in the library's `TODO.md`. The variable-highlighting
-      set (bash, php, powershell, scss, dockerfile) is the highest value: those five languages are
-      thick with `$VAR`, and they are common in real pull requests.
+- [x] The variable-highlighting set (bash, php, powershell, scss, dockerfile) - the highest-value
+      five of the library's `TODO.md` cases, because those languages are thick with `$VAR` and they
+      are common in real pull requests. Every one of them tokenized it as plain text, so a shell
+      script, a Blade template and a stylesheet of variables all rendered with the one thing a reader
+      scans for uncoloured. Gated on the language, because `$` is a legal identifier character in
+      JavaScript and TypeScript and `$foo` there is a name rather than a reference.
+- [ ] The remaining `.todo()` cases in the library's `TODO.md`: markdown inline links and fenced
+      code, rust lifetimes and macros, C# attributes, yaml keys.
 - [x] Languages a forge sees constantly and should be checked for coverage: `.stx`, `.blade.php`,
       `Dockerfile` variants, `.tf`, `.proto`, `.sql`, `.toml`, `.env`, and `.patch` itself. Every one
       of those had a grammar in the library already and none of them was mapped, so they rendered
@@ -705,8 +710,17 @@ threads, which is where our version has to be better rather than equal.
       works on the server-rendered page too, which runs no JavaScript at all.
 - [x] Outdated threads render on the line they were written against, marked, rather than being
       dropped (phase 4 already anchors them; this is the rendering half)
-- [ ] Draft reviews survive reload and machine change (phase 4 owns the persistence; this owns
-      restoring them into the right rows)
+- [x] Draft reviews survive a reload, restored onto the line they were written against rather than
+      just as text somewhere. Every field is checked on the way out of storage, because a draft put
+      back on the wrong line is a comment about code it is not about, and a draft whose file is no
+      longer in the diff is dropped rather than re-opened somewhere arbitrary.
+
+  Finding it working took a second attempt, and the reason is worth keeping: the draft was restored
+  into memory correctly and never appeared. After the stream ends nothing schedules another frame,
+  and the painting happens in `afterRender` - so a draft restored at that moment was waiting for a
+  frame that was never going to come.
+- [ ] Draft reviews survive a *machine* change, which means the server rather than local storage.
+      Phase 4 owns that persistence; this owns putting them back in the right rows.
 - [x] Annotation rows are part of the pooling story: they must recycle too, or a heavily-commented
       diff leaks. They are inside the file's markup, so they are released with it; the draft row is
       the one exception and it is re-created from held text on the way back.

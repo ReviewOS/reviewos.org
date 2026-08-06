@@ -7,7 +7,7 @@
  */
 
 import { afterEach, describe, expect, test } from 'bun:test'
-import { filterFiles, matchesQuery, readViewed, viewedKey, writeViewed } from '../../resources/functions/filelist'
+import { filterFiles, matchesQuery, readDraft, readViewed, viewedKey, writeDraft, writeViewed } from '../../resources/functions/filelist'
 
 const paths = [
   'app/Actions/Pull/rows.ts',
@@ -132,5 +132,87 @@ describe('the viewed set', () => {
     store.set(viewedKey('pull/1'), '["a.ts", 42, null]')
 
     expect([...readViewed('pull/1')]).toEqual(['a.ts'])
+  })
+})
+
+/**
+ * A comment somebody started writing and has not sent.
+ *
+ * A review is not one sitting: somebody writes half a comment, goes to look at
+ * the issue it refers to, and comes back. Losing the words to that navigation
+ * is the most annoying thing a review interface can do, because it is entirely
+ * avoidable and it is always the sentence that took longest to write.
+ */
+describe('the stored draft', () => {
+  const store = new Map<string, string>()
+
+  function withStorage(): void {
+    ;(globalThis as { window?: unknown }).window = {
+      localStorage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => { store.set(key, value) },
+        removeItem: (key: string) => { store.delete(key) },
+        clear: () => store.clear(),
+        key: () => null,
+        length: 0,
+      },
+    }
+  }
+
+  const draft = { path: 'src/a.ts', side: 'right' as const, from: 10, to: 12, text: 'This should be a guard clause.' }
+
+  afterEach(() => {
+    store.clear()
+    delete (globalThis as { window?: unknown }).window
+  })
+
+  test('reads back the line it was written against, not just the words', () => {
+    withStorage()
+    writeDraft('pull/1', draft)
+
+    expect(readDraft('pull/1')).toEqual(draft)
+  })
+
+  test('is scoped per pull request, like the viewed set', () => {
+    withStorage()
+    writeDraft('pull/1', draft)
+
+    expect(readDraft('pull/2')).toBeNull()
+  })
+
+  /** An empty draft is not a draft; keeping one would restore an empty box. */
+  test('writing an empty draft clears it rather than storing nothing', () => {
+    withStorage()
+    writeDraft('pull/1', draft)
+    writeDraft('pull/1', { ...draft, text: '   ' })
+
+    expect(readDraft('pull/1')).toBeNull()
+  })
+
+  test('null clears it too', () => {
+    withStorage()
+    writeDraft('pull/1', draft)
+    writeDraft('pull/1', null)
+
+    expect(readDraft('pull/1')).toBeNull()
+  })
+
+  /**
+   * Every field is checked on the way out, because this was written by a
+   * version of the code that may not be this one - and a draft restored onto
+   * the wrong line is a comment about code it is not about.
+   */
+  test('a stored draft missing a field is dropped rather than half-restored', () => {
+    withStorage()
+
+    for (const bad of ['{}', '{"path":"a.ts"}', '{"path":"a.ts","side":"up","from":1,"to":1,"text":"x"}', '"a string"', 'not json']) {
+      store.set('reviewos:draft:pull/1', bad)
+      expect(readDraft('pull/1')).toBeNull()
+    }
+  })
+
+  test('a browser with no storage reads as no draft rather than throwing', () => {
+    expect(readDraft('pull/1')).toBeNull()
+    expect(() => writeDraft('pull/1', draft)).not.toThrow()
   })
 })

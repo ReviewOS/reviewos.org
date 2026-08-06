@@ -93,3 +93,67 @@ export function writeViewed(scope: string, paths: ReadonlySet<string>): void {
     // Not being remembered is not a reason to stop.
   }
 }
+
+/**
+ * A comment somebody started writing and has not sent.
+ *
+ * Kept where the viewed set is kept, and for the same reason: a review is not
+ * one sitting. Somebody writes half a comment, goes to look at the issue it
+ * refers to, and comes back - and losing the words to a navigation is the
+ * single most annoying thing a review interface can do, because it is entirely
+ * avoidable and it is always the sentence that took the longest to write.
+ *
+ * One per pull request. The viewer only allows one draft open at a time, so
+ * there is never a second to keep.
+ */
+export interface StoredDraft {
+  path: string
+  side: 'left' | 'right'
+  from: number
+  to: number
+  text: string
+}
+
+function draftKey(scope: string): string {
+  return `reviewos:draft:${scope}`
+}
+
+export function readDraft(scope: string): StoredDraft | null {
+  try {
+    const raw = window.localStorage.getItem(draftKey(scope))
+    if (raw == null)
+      return null
+
+    const parsed: unknown = JSON.parse(raw)
+    if (parsed === null || typeof parsed !== 'object')
+      return null
+
+    const draft = parsed as Record<string, unknown>
+    const side = draft.side === 'left' || draft.side === 'right' ? draft.side : null
+
+    // Every field checked, because this was written by a version of this code
+    // that may not be this one, and a draft restored onto the wrong line would
+    // be a comment about code it is not about.
+    if (typeof draft.path !== 'string' || side == null || typeof draft.text !== 'string')
+      return null
+    if (!Number.isFinite(draft.from) || !Number.isFinite(draft.to))
+      return null
+
+    return { path: draft.path, side, from: Number(draft.from), to: Number(draft.to), text: draft.text }
+  }
+  catch {
+    return null
+  }
+}
+
+export function writeDraft(scope: string, draft: StoredDraft | null): void {
+  try {
+    if (draft == null || draft.text.trim() === '')
+      window.localStorage.removeItem(draftKey(scope))
+    else
+      window.localStorage.setItem(draftKey(scope), JSON.stringify(draft))
+  }
+  catch {
+    // Not being remembered is not a reason to stop.
+  }
+}
