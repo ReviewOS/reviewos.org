@@ -196,25 +196,48 @@ describe('manifestToNdjson', () => {
 })
 
 describe('inline rows', () => {
-  test('rows follow their file record, in order', async () => {
+  /**
+   * Rows come out in file order, and they come out *after* the records - both
+   * of which are properties rather than an interleaving to assert literally.
+   *
+   * The exact interleaving used to be `file, rows, file, rows`, because each
+   * file was highlighted before the next was parsed. It is now several records
+   * and then their rows, because the highlighting of a few files runs at once
+   * while the records stream ahead of it. That is the point of the look-ahead,
+   * and pinning the old sequence would have been pinning the serial pipeline.
+   */
+  test('every file gets a record, and every one of them gets its rows', async () => {
     const records = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified' } })
 
-    expect(records.map(record => record.t)).toEqual(['file', 'rows', 'file', 'rows', 'end'])
-    expect(records[1]).toMatchObject({ t: 'rows', i: 0, layout: 'unified' })
-    expect(records[3]).toMatchObject({ t: 'rows', i: 1, layout: 'unified' })
+    expect(records.filter(record => record.t === 'file').map(record => record.i)).toEqual([0, 1])
+    expect(records.filter(record => record.t === 'rows').map(record => record.i)).toEqual([0, 1])
+    expect(records[records.length - 1]).toMatchObject({ t: 'end' })
+  })
+
+  test('a file\'s rows never arrive before its record', async () => {
+    const records = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified' } })
+    const seen = new Set<number>()
+
+    for (const record of records) {
+      if (record.t === 'file')
+        seen.add(record.i)
+      else if (record.t === 'rows')
+        expect(seen.has(record.i)).toBe(true)
+    }
   })
 
   test('the markup is the file, ready to mount', async () => {
-    const [, rows] = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified' } })
+    const records = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified' } })
+    const rows = records.find(record => record.t === 'rows') as { html: string }
 
-    expect((rows as { html: string }).html).toContain('one.ts')
-    expect((rows as { html: string }).html).toContain('<table')
+    expect(rows.html).toContain('one.ts')
+    expect(rows.html).toContain('<table')
   })
 
   test('split rows are asked for and delivered as split', async () => {
-    const [, rows] = await collect(fakeSource(TWO_FILES), { rows: { layout: 'split' } })
+    const records = await collect(fakeSource(TWO_FILES), { rows: { layout: 'split' } })
 
-    expect(rows).toMatchObject({ layout: 'split' })
+    expect(records.find(record => record.t === 'rows')).toMatchObject({ layout: 'split' })
   })
 
   test('no rows at all unless they are asked for', async () => {
@@ -223,11 +246,17 @@ describe('inline rows', () => {
     expect(records.some(record => record.t === 'rows')).toBe(false)
   })
 
+  /**
+   * The truncation names the file the budget actually ran out on, and that is
+   * why the look-ahead reorders the *tokenizing* and not the emission: the
+   * budget is spent in file order, so the boundary is exact even though
+   * several files were being highlighted at once when it was reached.
+   */
   test('rows stop at the budget and say where they stopped', async () => {
     const records = await collect(fakeSource(TWO_FILES), { rows: { layout: 'unified', budgetBytes: 1 } })
 
-    expect(records.map(record => record.t)).toEqual(['file', 'rows-truncated', 'file', 'end'])
-    expect(records[1]).toEqual({ t: 'rows-truncated', from: 0 })
+    expect(records.filter(record => record.t === 'rows')).toHaveLength(0)
+    expect(records.find(record => record.t === 'rows-truncated')).toEqual({ t: 'rows-truncated', from: 0 })
   })
 
   test('past the budget the file records keep flowing, so the scrollbar stays right', async () => {

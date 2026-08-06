@@ -18,6 +18,7 @@
  */
 
 import type { DiffFile, FileStatus } from './diff'
+import type { DiffTokenMap } from './rows'
 import type { RowCounts } from './metrics'
 import type { StoredThread } from './loadThreads'
 import { isGenerated, parseDiffFile } from './diff'
@@ -36,6 +37,15 @@ import { threadSlotFor } from './threads'
  * line regeneration that happens to sort first alphabetically.
  */
 export const COLLAPSE_ABOVE_CHANGED_LINES = 500
+
+/**
+ * How many files may be tokenized at once, ahead of what is being emitted.
+ *
+ * Enough to keep a pool of workers busy, and small enough that a truncated
+ * diff throws away only a file or two of work. It also bounds how much of the
+ * patch is retained: a file in flight holds the chunk it was cut from.
+ */
+export const LOOK_AHEAD = 4
 
 export interface ManifestFile {
   t: 'file'
@@ -255,6 +265,72 @@ export async function* streamManifest(
   let spent = 0
   let truncatedAt: number | null = null
 
+  /**
+   * Files whose highlighting has been started and whose rows have not been
+   * emitted yet.
+   *
+   * This is the look-ahead, and it is the only reason the highlight pool has
+   * anything to be a pool *of*. Awaiting each file before beginning the next
+   * means one job is ever in flight, so a pool of eight workers runs one - and
+   * the wall clock is the sum of every file's tokenizing however many cores the
+   * machine has.
+   *
+   * What is *not* reordered is the emission. Records come out in file order,
+   * which is what keeps the inline row budget honest: it is spent in order, so
+   * `rows-truncated` names the file it actually stopped at rather than
+   * whichever file happened to finish first. The cost of that is a file or two
+   * highlighted past the truncation point and thrown away, which is bounded by
+   * the look-ahead and is a much better trade than a fuzzy boundary.
+   */
+  const inFlight: Array<{ at: number, file: DiffFile, tokens: Promise<DiffTokenMap> }> = []
+
+  /** Turn one file whose tokens are ready into its rows record. */
+  const rowsFor = async function* (entry: typeof inFlight[number]): AsyncGenerator<ManifestRecord> {
+    const tokens = await entry.tokens
+
+    // Reached when an earlier file spent the last of the budget while this one
+    // was being tokenized. The work is thrown away, which is the price of
+    // looking ahead, and the boundary stays exactly where it belongs.
+    if (truncatedAt !== null || !rowOptions)
+      return
+
+    const html = renderDiffFile(entry.file, {
+      layout: rowOptions.layout,
+      expandable: true,
+      commentable: true,
+      range: rowOptions.range,
+      // Always the open form. Whether a file is *shown* folded is the client's
+      // decision and it can change at any moment, so markup rendered folded
+      // would have to be thrown away the instant the reader clicked. A file
+      // that arrives folded is handled by not sending rows for it at all,
+      // above; anything that reaches here is rows somebody wants.
+      tokens,
+      threadsAt: rowOptions.threads
+        ? threadSlotFor(anchorThreadsToFile(rowOptions.threads, entry.file), entry.file.path)
+        : undefined,
+    })
+
+    spent += html.length
+    if (spent > budget) {
+      truncatedAt = entry.at
+      yield { t: 'rows-truncated', from: entry.at }
+      return
+    }
+
+    yield { t: 'rows', i: entry.at, layout: rowOptions.layout, html }
+  }
+
+  /** Emit the rows of everything past the look-ahead, oldest first. */
+  const drain = async function* (all: boolean): AsyncGenerator<ManifestRecord> {
+    while (inFlight.length > (all ? 0 : LOOK_AHEAD)) {
+      const entry = inFlight.shift()
+      if (entry == null)
+        return
+
+      yield* rowsFor(entry)
+    }
+  }
+
   const emit = async function* (fileText: string): AsyncGenerator<ManifestRecord> {
     // Not detached: the record is serialized and dropped on the next line, so
     // it never outlives the text it was cut from and copying would be pure
@@ -282,35 +358,12 @@ export async function* streamManifest(
     if (record.collapsed && rowOptions.skipCollapsed)
       return
 
-    // Highlighting is the expensive half, so it stops at the budget rather than
-    // at the end of the diff. Past that point the file records keep flowing at
-    // full speed, which is what keeps the scrollbar correct on a compare nobody
-    // could render inline.
-    const tokens = await highlightDiffFile(file)
-    const html = renderDiffFile(file, {
-      layout: rowOptions.layout,
-      expandable: true,
-      commentable: true,
-      range: rowOptions.range,
-      // Always the open form. Whether a file is *shown* folded is the client's
-      // decision and it can change at any moment, so markup rendered folded
-      // would have to be thrown away the instant the reader clicked. A file
-      // that arrives folded is handled by not sending rows for it at all,
-      // above; anything that reaches here is rows somebody wants.
-      tokens,
-      threadsAt: rowOptions.threads
-        ? threadSlotFor(anchorThreadsToFile(rowOptions.threads, file), file.path)
-        : undefined,
-    })
+    // Started, not awaited. This is the whole change: the next file's record is
+    // parsed and sent while this one is still being tokenized, and several
+    // files are tokenized at once.
+    inFlight.push({ at, file, tokens: highlightDiffFile(file) })
 
-    spent += html.length
-    if (spent > budget) {
-      truncatedAt = at
-      yield { t: 'rows-truncated', from: at }
-      return
-    }
-
-    yield { t: 'rows', i: at, layout: rowOptions.layout, html }
+    yield* drain(false)
   }
 
   try {
@@ -327,6 +380,9 @@ export async function* streamManifest(
 
     for (const fileText of splitter.finish().files)
       yield* emit(fileText)
+
+    // Everything still in the look-ahead, in file order.
+    yield* drain(true)
   }
   finally {
     releaseDetachBuffer()

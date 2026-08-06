@@ -467,11 +467,39 @@ file before beginning the next, so there is never more than one job in flight. T
 and the concurrency is one. What it does buy even at one is the event loop: the server answers other
 requests while that worker runs, which it previously could not.
 
-- [ ] Getting real parallelism means a bounded look-ahead in `streamManifest`: start highlighting the
-      next few files while the current one is still being emitted. Deliberately not done yet, and the
-      reason is specific - the inline row budget is spent in file order, and with out-of-order
-      completion the truncation boundary becomes fuzzy. That boundary is what makes a large compare
-      work at all, so it is not a thing to make approximate in passing.
+- [x] A bounded look-ahead in `streamManifest`: the next few files are highlighted while the current
+      one is still being emitted, so the pool has something to be a pool *of*.
+
+  What is **not** reordered is the emission. Records come out in file order, which is what keeps the
+  inline row budget honest - it is spent in order, so `rows-truncated` names the file it actually
+  stopped at rather than whichever file happened to finish first. That was the objection to doing
+  this at all, and separating the two answers it: reorder the tokenizing, not the output. The cost is
+  a file or two highlighted past the truncation point and thrown away, bounded by the look-ahead.
+
+  It also changed the record *interleaving*, from `file, rows, file, rows` to several records and
+  then their rows - which is strictly better, because the file list now streams ahead of the
+  highlighting instead of waiting behind it. Two tests were pinning that old sequence; they were
+  pinning the serial pipeline, and they assert the invariants now instead.
+
+### What the measurement could and could not settle
+
+Against the 5,722 file compare, three runs each:
+
+| | serial | with look-ahead |
+|---|---|---|
+| workers engaged | 1 | **3** |
+| total | 745ms, 1147ms | 783ms, 801ms, 808ms |
+
+The honest reading: **the noise floor on this machine is larger than the difference.** The serial runs
+spread over 400ms, so no claim about which is faster survives contact with that. What the numbers do
+support is that the look-ahead is markedly more *consistent* - a 25ms spread against 402ms - which is
+what moving the work off the event loop should look like when the machine is busy.
+
+The benefit that matters most is one this harness structurally cannot see: it measures one stream in
+isolation, and the point of not blocking the event loop is what happens to the *other* requests.
+
+- [ ] A benchmark that loads the server while a large compare streams, which is the only way to
+      measure the thing the pool was actually built for.
 
 ### The bug that came with it
 
