@@ -1,0 +1,128 @@
+<script server>
+/**
+ * The review queue: what is waiting on you, and what you are waiting on.
+ *
+ * A repository list as a landing page is a file browser's idea of a home
+ * screen. The question somebody opens a forge to answer is "what needs me", and
+ * every forge makes them assemble it out of notification email.
+ *
+ * Rendered entirely on the server, with no client script at all. A queue is a
+ * list of links; it does not need a runtime, and a page that reads its own
+ * state out of the database on every load can never show a stale count.
+ *
+ * The order is `orderQueue`, and every row says why it is where it is. A queue
+ * that cannot explain its own order is one people route around.
+ */
+import { reviewQueue, waitingReason } from '../../app/Actions/Pull/queue'
+import { viewerFromCookies } from '../functions/identity'
+
+/**
+ * The request, when there is one, without naming a binding that may not exist.
+ *
+ * stx declares `__stxServeContext` on the path that serves a request and on no
+ * other, and an *undeclared* identifier is a ReferenceError - which optional
+ * chaining does not save, because `x?.y` throws on `x` before the chain is
+ * reached. It throws inside the server script's IIFE, so it takes every other
+ * variable in this file down with it and the page renders its empty branch as
+ * though there were genuinely nothing waiting.
+ */
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+
+const viewer = await viewerFromCookies(serveContext?.cookies)
+
+// Signing in is the whole precondition: a queue is per person and there is no
+// such thing as an anonymous one.
+if (!viewer)
+  setResponseStatus(401)
+
+// Read once and passed to every reason, so two rows on one page cannot
+// disagree about what time it is.
+const now = Date.now()
+
+const queue = viewer
+  ? await reviewQueue(viewer.id, now)
+  : { waitingOnYou: [], waitingOnOthers: [] }
+
+const title = viewer
+  ? (queue.waitingOnYou.length > 0 ? `${queue.waitingOnYou.length} waiting on you` : 'Nothing waiting on you')
+  : 'Reviews'
+
+/** Rows shaped for the template, so the template holds no logic. */
+function rowsFor(entries) {
+  return entries.map(entry => ({
+    href: `/${entry.owner}/${entry.repository}/pull/${entry.number}/files`,
+    where: `${entry.owner}/${entry.repository}`,
+    number: entry.number,
+    title: entry.title,
+    author: entry.authorHandle,
+    reason: waitingReason(entry, now),
+    // Built here rather than as a ternary in the template: an attribute is a
+    // string, and shaping belongs in the script.
+    rowClass: entry.draft ? 'queue-row is-draft' : 'queue-row',
+  }))
+}
+
+const yours = rowsFor(queue.waitingOnYou)
+const theirs = rowsFor(queue.waitingOnOthers)
+</script>
+
+@layout('app')
+
+@section('title', title)
+
+@section('content')
+  <main class="queue">
+    <header class="queue-head">
+      <h1>Reviews</h1>
+      <p class="muted">Ordered by how long it has been waiting and how blocked the author is.</p>
+    </header>
+
+    @if (!viewer)
+      <p class="muted queue-empty">
+        <a href="/login">Sign in</a> to see what is waiting on you.
+      </p>
+    @else
+      <section class="queue-section" aria-labelledby="waiting-on-you">
+        <h2 id="waiting-on-you">Waiting on you</h2>
+
+        @if (yours.length === 0)
+          <p class="muted queue-empty">Nothing is waiting on you.</p>
+        @else
+          <ul class="queue-list">
+            @foreach (yours as row)
+              <li class="{{ row.rowClass }}">
+                <a class="queue-link" href="{{ row.href }}">
+                  <span class="mono queue-where">{{ row.where }}</span>
+                  <span class="mono queue-number">#{{ row.number }}</span>
+                  <span class="queue-title">{{ row.title }}</span>
+                </a>
+                <span class="muted queue-meta">{{ row.author }} · {{ row.reason }}</span>
+              </li>
+            @endforeach
+          </ul>
+        @endif
+      </section>
+
+      <section class="queue-section" aria-labelledby="waiting-on-others">
+        <h2 id="waiting-on-others">Waiting on somebody else</h2>
+
+        @if (theirs.length === 0)
+          <p class="muted queue-empty">None of your pull requests are waiting on a review.</p>
+        @else
+          <ul class="queue-list">
+            @foreach (theirs as row)
+              <li class="{{ row.rowClass }}">
+                <a class="queue-link" href="{{ row.href }}">
+                  <span class="mono queue-where">{{ row.where }}</span>
+                  <span class="mono queue-number">#{{ row.number }}</span>
+                  <span class="queue-title">{{ row.title }}</span>
+                </a>
+                <span class="muted queue-meta">{{ row.reason }}</span>
+              </li>
+            @endforeach
+          </ul>
+        @endif
+      </section>
+    @endif
+  </main>
+@endsection

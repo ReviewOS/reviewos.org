@@ -208,9 +208,32 @@ this is where the claim is either true or marketing.
       have.
 - [ ] Commit-by-commit review for branches whose history was written to be read, rather than forcing
       every change through one squashed view
-- [ ] **The review queue is the home screen.** What is waiting on you, ordered by how long it has
-      been waiting and how blocked the author is, plus what you are waiting on. A repository list as
-      a landing page is a file browser's idea of a home screen.
+- [x] **The review queue is the home screen.** `/reviews`: what is waiting on you and what you are
+      waiting on, ordered by how long it has been waiting and how blocked the author is. First in the
+      navigation, because it is the question somebody opens a forge to answer.
+
+  Rendered entirely on the server with no client script. A queue is a list of links; it does not need
+  a runtime, and a page that reads its own state on every load can never show a stale count.
+
+  The ordering is the feature, so it is a pure function over values and it is written down. Age,
+  weighted three ways and no more, because every extra term is another thing a reader cannot hold in
+  their head when the order surprises them: a **draft sorts below everything** whatever its age,
+  since somebody who has not marked their work ready has not asked; **being the only reviewer counts
+  double**, because nobody else can unblock it; and **an approval already in halves it**, because the
+  pull request can move without you.
+
+  Every row says why it is where it is - `2d, only you`, `5h, 3 asked` - because a queue that cannot
+  explain its own order is one people route around and go back to reading email. Ties break on the
+  pull request's own number, so two reloads a second apart produce the same list.
+
+  The two halves are two queries rather than one clever union: "who was asked and has not answered"
+  and "whose pull requests have an unanswered request" are genuinely different questions, and one
+  statement for both is how one of them silently stops being right. `tests/e2e/review-queue.test.ts`
+  covers the rule most likely to be got wrong - the reviewer row is *kept* when a review lands, so a
+  read that forgets `responded_at IS NULL` shows a queue that never empties.
+
+- [ ] A count on the navigation item, so the answer is visible without opening the page. Needs a
+      cheap count query rather than the full queue, and a decision about how stale it may be.
 - [ ] Suggested reviewers from who actually changed these lines, weighted by recency, not only from
       `CODEOWNERS`. Include current review load, so the suggestion does not always name the same
       person.
@@ -229,8 +252,19 @@ this is where the claim is either true or marketing.
       away would be the failure this exists to prevent.
 - [ ] Keyboard-first: next file, next thread, next unresolved, approve, request changes, submit,
       all without the mouse, and a command palette for everything else
-- [ ] Tests: a force-push mid-review keeps the incremental diff correct, and classification does not
-      hide a logic change inside a rename
+- [x] Tests: a force-push mid-review keeps the incremental diff correct, and classification does not
+      hide a logic change inside a rename. Both are the assertion that would fail on a plausible
+      wrong implementation, which is why they are the two written down here.
+
+  `tests/e2e/since-last-look.test.ts` builds a repository, moves the base under the branch, rebases,
+  force-pushes, and asserts the file whose proposal did not move is *not* put back in front of the
+  reader. Every commit sha on the branch is different by then, so an implementation comparing two
+  tips names the whole branch and fails.
+
+  `tests/unit/classify.test.ts` puts one real edit among a run of renames and asserts the hunk
+  classifies as logic, not as a rename. That is the one failure this feature can cause: a folded
+  hunk is a promise that nothing in it needs reading, and it is made inside a diff the reviewer has
+  been told is safe to skim.
 
 ## Views
 
