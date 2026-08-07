@@ -199,10 +199,24 @@ them without also watching a chat channel, and that nobody has to mute the produ
   for. Push is not wired up and fails saying so rather than recording a send that did not happen.
 - [ ] Unsubscribe links that work without logging in, and are scoped to one thread
 - [x] Do not notify someone about their own action
-- [ ] `settings/notifications.stx`
+- [x] `settings/notifications.stx`
 
-  `resources/views/notifications.stx` is built. Settings waits on the delivery preferences above,
-  because a settings page that shows switches nothing reads is worse than no settings page.
+  The preference grid and the quiet hours on one screen, because they are one decision from the
+  reader's side: what reaches me, and when is it allowed to. Splitting them across two pages is how
+  somebody turns off email meaning to set quiet hours.
+
+  Every cell is answered, including the ones nobody has a row for, and the defaults are labelled as
+  defaults. A settings screen that renders unset as "off" is how somebody turns something on that
+  was already on and concludes the switches do nothing - and a stored value that merely equals
+  today's default would freeze it, so choosing the default deletes the row rather than writing one.
+
+  One cell at a time, so a page left open in another tab cannot overwrite a change with values it
+  read five minutes ago. Events are shown in words rather than wire names: nobody scanning a
+  settings page should have to translate `review:requested`.
+
+  Tested by asking the pages, not the functions. stx renders a page with every variable undefined
+  when a server script throws, so a blank grid and an empty inbox both look like "nothing has
+  happened yet" - the assertions are on content only a script that ran could produce.
 
 ## Quiet hours and muting
 

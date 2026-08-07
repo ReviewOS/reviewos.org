@@ -1,9 +1,9 @@
 {{-- The shell every page inside the product uses.
 
-     Separate from the marketing page on purpose: that page argues, this one
-     gets out of the way. Same tokens, denser scale, and the accent is reserved
-     for one thing per screen so review state (green, red, amber) reads as
-     state rather than decoration. --}}
+    Separate from the marketing page on purpose: that page argues, this one
+    gets out of the way. Same tokens, denser scale, and the accent is reserved
+    for one thing per screen so review state (green, red, amber) reads as
+    state rather than decoration. --}}
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -67,7 +67,7 @@
         --warn-bg: #fdf1dc;
 
         /* Diff surfaces, tinted enough to read at a glance and light enough
-           that syntax colours still carry. */
+          that syntax colours still carry. */
         --add-bg: #e6f5ec;
         --add-line: #bfe4cd;
         --del-bg: #fdeaea;
@@ -216,7 +216,7 @@
       .mono { font-family: var(--mono); font-size: 0.875em; }
 
       /* A control that sits in a line of running text rather than in a row of
-         its own, so it matches the type around it instead of towering over it. */
+        its own, so it matches the type around it instead of towering over it. */
       .btn-small {
         height: 24px;
         padding: 0 8px;
@@ -300,10 +300,10 @@
 
       /* Rendered user markdown: READMEs, issue bodies, comments, reviews.
 
-         In the layout rather than in any one component, because the same HTML
-         comes out of the same renderer everywhere, and a README that looks like
-         one thing in the file browser and another in a pull request is a bug
-         nobody would think to look for. */
+        In the layout rather than in any one component, because the same HTML
+        comes out of the same renderer everywhere, and a README that looks like
+        one thing in the file browser and another in a pull request is a bug
+        nobody would think to look for. */
       .markdown { line-height: 1.65; overflow-wrap: break-word; }
       .markdown > :first-child { margin-top: 0; }
       .markdown > :last-child { margin-bottom: 0; }
@@ -326,8 +326,8 @@
       }
 
       /* The reset strips list markers site-wide, which is right for navigation
-         and wrong here: in prose a bullet is the only thing telling a reader
-         these lines are a list. */
+        and wrong here: in prose a bullet is the only thing telling a reader
+        these lines are a list. */
       .markdown ul { padding-left: 24px; list-style: disc; }
       .markdown ol { padding-left: 24px; list-style: decimal; }
       .markdown li { margin: 4px 0; }
@@ -335,10 +335,10 @@
 
       /* A mermaid fence, before and after it is drawn.
 
-         Before, it is the definition in a monospace box, which is exactly what
-         a fence looked like before diagrams existed and is the state a reader
-         is left in if the script never arrives. After, the box is gone and the
-         SVG stands on its own. */
+        Before, it is the definition in a monospace box, which is exactly what
+        a fence looked like before diagrams existed and is the state a reader
+        is left in if the script never arrives. After, the box is gone and the
+        SVG stands on its own. */
       .markdown pre.mermaid {
         padding: 14px 16px;
         overflow-x: auto;
@@ -364,9 +364,9 @@
       .markdown li.task-item input { margin-right: 7px; vertical-align: middle; }
 
       /* A tickable item is a one-button form, because the page runs no
-         client-side JavaScript and a checkbox cannot submit on its own. The
-         button is drawn as the checkbox rather than sitting next to one, so
-         there is exactly one thing to click. */
+        client-side JavaScript and a checkbox cannot submit on its own. The
+        button is drawn as the checkbox rather than sitting next to one, so
+        there is exactly one thing to click. */
       .markdown .task-form { display: inline; }
       .markdown .task-box {
         width: 13px;
@@ -384,7 +384,7 @@
         border-color: var(--fg);
         background: var(--fg);
         /* The tick, drawn rather than shipped as an icon: it has to sit inside
-           13 pixels and match the border radius above. */
+          13 pixels and match the border radius above. */
         background-image: linear-gradient(45deg, transparent 44%, var(--bg) 44%, var(--bg) 56%, transparent 56%),
                           linear-gradient(-45deg, transparent 44%, var(--bg) 44%, var(--bg) 56%, transparent 56%);
         background-size: 8px 2px, 5px 2px;
@@ -424,12 +424,12 @@
       .markdown a { color: var(--accent-text); }
 
       /* Syntax colours, shared by the diff and the file view.
-         Deliberately low-saturation: in a diff they sit on top of green and red
-         backgrounds, and a vivid palette turns a reviewed line into a fruit
-         salad. Hue carries the meaning, not intensity.
+        Deliberately low-saturation: in a diff they sit on top of green and red
+        backgrounds, and a vivid palette turns a reviewed line into a fruit
+        salad. Hue carries the meaning, not intensity.
 
-         They live in the layout rather than in either component so the two
-         cannot drift into disagreeing about what a keyword looks like. */
+        They live in the layout rather than in either component so the two
+        cannot drift into disagreeing about what a keyword looks like. */
       .t-keyword { color: #8250df; }
       .t-string { color: #0a6640; }
       .t-comment { color: var(--muted); font-style: italic; }
@@ -463,20 +463,20 @@
 
       /* ---- The diff ----
 
-         Shared by the two things that produce diff markup: `DiffView.stx` for
-         the first screen, and `app/Actions/Pull/rows.ts` for every row streamed
-         into the virtualized list. Kept here rather than in either one so they
-         cannot disagree about what a diff looks like. */
+        Shared by the two things that produce diff markup: `DiffView.stx` for
+        the first screen, and `app/Actions/Pull/rows.ts` for every row streamed
+        into the virtualized list. Kept here rather than in either one so they
+        cannot disagree about what a diff looks like. */
       /* `clip` rather than `hidden`, and the difference matters: `hidden` makes
-         the panel a scroll container, and a scroll container between a sticky
-         element and the real scroller is the one thing that stops sticky
-         working at all. The file header sat here doing nothing for exactly that
-         reason. `clip` clips the same way and scrolls nothing. */
+        the panel a scroll container, and a scroll container between a sticky
+        element and the real scroller is the one thing that stops sticky
+        working at all. The file header sat here doing nothing for exactly that
+        reason. `clip` clips the same way and scrolls nothing. */
       .diff-file { overflow: clip; margin-bottom: 16px; }
 
       /* A folded file on a page with no script. The summary *is* the fold
-         control, so the marker takes the place of the button the streamed
-         viewer draws, and it points the same way. */
+        control, so the marker takes the place of the button the streamed
+        viewer draws, and it points the same way. */
       details.diff-file > summary { cursor: pointer; list-style: none; }
       details.diff-file > summary::-webkit-details-marker { display: none; }
 
@@ -522,8 +522,8 @@
       .diff-path { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
 
       /* The review queue. A list of links and nothing else: the page runs no
-         script, and every row carries its own reason so the order never has to
-         be taken on trust. */
+        script, and every row carries its own reason so the order never has to
+        be taken on trust. */
       .queue { max-width: 900px; margin: 0 auto; padding: 32px 0 64px; }
       .queue-head h1 { margin: 0 0 4px; font-size: 22px; }
       .queue-head p { margin: 0 0 28px; font-size: 14px; }
@@ -545,7 +545,7 @@
       .queue-row:hover { border-color: var(--line-strong); }
 
       /* A draft is at the bottom of the order and looks like it. Dimmed rather
-         than hidden: it is still somebody's work and still worth finding. */
+        than hidden: it is still somebody's work and still worth finding. */
       .queue-row.is-draft { opacity: 0.6; }
 
       .queue-link {
@@ -565,8 +565,8 @@
       .queue-meta { flex-shrink: 0; font-size: 12px; }
 
       /* The inbox. Built on the queue's row so the two read as the same
-         product: a list of links, no script, every row carrying its own
-         reason. */
+        product: a list of links, no script, every row carrying its own
+        reason. */
       .inbox { max-width: 900px; margin: 0 auto; padding: 32px 0 64px; }
       .inbox-head h1 { margin: 0 0 4px; font-size: 22px; }
       .inbox-head p { margin: 0 0 20px; font-size: 14px; }
@@ -590,8 +590,8 @@
       .inbox-chip:hover { border-color: var(--line-strong); color: var(--text); }
 
       /* An active filter inverts rather than tinting. A chip that is only a
-         shade different from its neighbours is a filter people forget is on,
-         and then the empty inbox reads as "nothing happened". */
+        shade different from its neighbours is a filter people forget is on,
+        and then the empty inbox reads as "nothing happened". */
       .inbox-chip.is-on { background: var(--text); border-color: var(--text); color: var(--bg); }
       .inbox-chip.is-clear { border-style: dashed; }
       .inbox-chip-count { font-variant-numeric: tabular-nums; font-weight: 600; }
@@ -624,12 +624,12 @@
       .inbox-row:hover { border-color: var(--line-strong); }
 
       /* Read is dimmed, not hidden. Somebody looking for the thing they read an
-         hour ago is the second most common visit an inbox gets, and a list that
-         drops rows on read makes that trip impossible. */
+        hour ago is the second most common visit an inbox gets, and a list that
+        drops rows on read makes that trip impossible. */
       .inbox-row.is-read { opacity: 0.55; }
 
       /* The unread marker is the left edge rather than a dot, so it reads down
-         a column of forty rows without the eye having to find it on each one. */
+        a column of forty rows without the eye having to find it on each one. */
       .inbox-row:not(.is-read) { border-left: 2px solid var(--text); }
 
       .inbox-link {
@@ -650,8 +650,8 @@
       .inbox-mark { flex-shrink: 0; margin: 0; }
 
       /* Quiet until the row is hovered. Forty of these at full strength turn
-         the list into a column of buttons, and the row itself is the thing
-         people came to click. */
+        the list into a column of buttons, and the row itself is the thing
+        people came to click. */
       .inbox-mark-button {
         padding: 1px 6px;
         border: 1px solid transparent;
@@ -668,12 +668,68 @@
       .inbox-mark-button:focus { opacity: 1; border-color: var(--line-strong); }
       .inbox-row.is-read .inbox-mark-button { display: none; }
 
+      /* Notification settings. A list of rows rather than a table: the event is
+        a sentence, and a table would set it in a column narrow enough to wrap
+        every one of them. */
+      .prefs-list { margin: 0; padding: 0; list-style: none; }
+
+      .prefs-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 16px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .prefs-row:last-child { border-bottom: 0; }
+      .prefs-event { flex: 1 1 240px; min-width: 0; font-size: 14px; }
+      .prefs-inbox { flex-shrink: 0; font-size: 12px; }
+      .prefs-control { display: flex; align-items: center; gap: 6px; margin: 0; }
+      .prefs-label { font-size: 12px; text-transform: capitalize; }
+
+      .prefs-select {
+        padding: 3px 6px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+        font-size: 12px;
+      }
+
+      /* Says the value is what ships rather than what somebody chose. Without
+        it a settings page cannot distinguish "I picked this" from "nobody has
+        touched it", and the two mean different things when the default moves. */
+      .prefs-note { font-size: 11px; font-style: italic; }
+
+      .prefs-save {
+        padding: 2px 8px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .prefs-save:hover { border-color: var(--line-strong); color: var(--text); }
+
+      .prefs-explainer { margin: -4px 0 12px; font-size: 13px; }
+      .prefs-schedule { padding: 16px; }
+      .prefs-days { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 14px; padding: 0; border: 0; }
+      .prefs-day { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
+      .prefs-window { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+      .prefs-time { width: 120px; }
+      .prefs-tz { width: 200px; }
+
       .diff-status { text-transform: capitalize; }
 
       /* Deliberately quiet. This badge is a reason, not a warning: the file is
-         folded and the reviewer is being told why, so it should read the way a
-         footnote reads. Loud enough to notice while scrolling past, quiet
-         enough that a diff of ninety renamed files is not ninety alarms. */
+        folded and the reviewer is being told why, so it should read the way a
+        footnote reads. Loud enough to notice while scrolling past, quiet
+        enough that a diff of ninety renamed files is not ninety alarms. */
       .diff-mechanical {
         border: 1px dashed var(--line-strong);
         background: transparent;
@@ -682,14 +738,14 @@
       }
 
       /* The same claim in the sidebar, where the reviewer decides what to open.
-         Dimmed rather than struck through: struck through means viewed, and
-         two states that look alike is worse than one that is easy to miss. */
+        Dimmed rather than struck through: struck through means viewed, and
+        two states that look alike is worse than one that is easy to miss. */
       .file-row.is-mechanical .file-name { color: var(--muted); }
 
       /* On the hunk separator, for a file that is half formatting and half
-         logic. That file gets no badge of its own - the honest summary of it is
-         the diff - so this is the only place a reviewer is told which half is
-         which, and it sits on the row their eye already stops at. */
+        logic. That file gets no badge of its own - the honest summary of it is
+        the diff - so this is the only place a reviewer is told which half is
+        which, and it sits on the row their eye already stops at. */
       .hunk-mechanical {
         margin-left: 8px;
         padding: 1px 6px;
@@ -710,35 +766,35 @@
       .diff-note { padding: 14px 16px; font-size: 14px; }
 
       /* Standing in for the rows of a very large file that are not in the
-         document. Sized in pixels by the viewer, so the scrollbar means the
-         whole file rather than the part of it currently mounted. */
+        document. Sized in pixels by the viewer, so the scrollbar means the
+        whole file rather than the part of it currently mounted. */
       .row-spacer td { padding: 0; border: 0; }
 
       /* The table scrolls inside itself. A long line must never push the page
-         sideways, because then every other file scrolls with it. */
+        sideways, because then every other file scrolls with it. */
       .diff-body { overflow-x: auto; }
       .diff-body.is-collapsed { display: none; }
 
       /* The header stays while its own file scrolls past.
 
-         Sticky within the file rather than within the list, which is what the
-         `contain: paint` on each mounted host gives for free: the header of the
-         file being read is pinned, and it leaves with its file rather than
-         stacking up with every header above it. */
+        Sticky within the file rather than within the list, which is what the
+        `contain: paint` on each mounted host gives for free: the header of the
+        file being read is pinned, and it leaves with its file rather than
+        stacking up with every header above it. */
       .diff-file .diff-head {
         position: sticky;
         z-index: 2;
         top: 0;
         background: var(--surface);
         /* Queried below to tell "pinned" from "sitting where it belongs". A
-           scroll listener would answer the same question at sixty times the
-           cost, and get it wrong during momentum scrolling. */
+          scroll listener would answer the same question at sixty times the
+          cost, and get it wrong during momentum scrolling. */
         container-type: scroll-state;
       }
 
       /* Only while actually stuck, so a file at rest has no shadow under its
-         header. Browsers without scroll-state queries simply never match, and
-         the header is still sticky - which is the part that matters. */
+        header. Browsers without scroll-state queries simply never match, and
+        the header is still sticky - which is the part that matters. */
       @container scroll-state(stuck: top) {
         .diff-head::after {
           position: absolute;
@@ -760,19 +816,19 @@
       }
 
       /* Split: the two code columns are scrolled together, by being in one
-         scrolling box rather than by two of them being kept in step.
+        scrolling box rather than by two of them being kept in step.
 
-         A pair of scrollers synchronised by script is the obvious reading of
-         "scroll-synced", and it is the wrong one here: it costs a scroll
-         listener per file, it drifts by a pixel under momentum scrolling, and
-         it has nothing to say about what happens while a row is being
-         recycled. One scroller cannot drift from itself.
+        A pair of scrollers synchronised by script is the obvious reading of
+        "scroll-synced", and it is the wrong one here: it costs a scroll
+        listener per file, it drifts by a pixel under momentum scrolling, and
+        it has nothing to say about what happens while a row is being
+        recycled. One scroller cannot drift from itself.
 
-         The two columns must be the same width for that to be worth anything,
-         and equal width is what `table-layout: fixed` promises - but it also
-         freezes the columns at the width of the first row, which clipped every
-         long line and left the two halves overlapping. So the columns are
-         sized from content and the *minimum* width is what keeps them even. */
+        The two columns must be the same width for that to be worth anything,
+        and equal width is what `table-layout: fixed` promises - but it also
+        freezes the columns at the width of the first row, which clipped every
+        long line and left the two halves overlapping. So the columns are
+        sized from content and the *minimum* width is what keeps them even. */
       .diff-table[data-columns='4'] .code { min-width: 44%; }
       .diff-table[data-columns='4'] .gutter { width: 1px; white-space: nowrap; }
 
@@ -799,8 +855,8 @@
       .marker { display: inline-block; width: 1ch; color: var(--muted); }
 
       /* A line that ends the file without a newline. Dim, because it is a
-         property of the line rather than part of it, and present, because
-         adding a trailing newline is otherwise a change nobody can see. */
+        property of the line rather than part of it, and present, because
+        adding a trailing newline is otherwise a change nobody can see. */
       .no-newline { margin-left: 6px; color: var(--muted); opacity: 0.7; }
 
       .line-added { background: var(--add-bg); }
@@ -810,16 +866,16 @@
 
       /* What the reader has asked a diff to look like.
 
-         All of it is attributes on an ancestor and selectors here, which is
-         the point: a row is created and destroyed as the list scrolls, so a
-         setting applied per row would have to be re-applied on every mount.
-         Applied to the container it is true of every row that ever appears
-         under it, and switching one costs a style recalculation rather than a
-         refetch. */
+        All of it is attributes on an ancestor and selectors here, which is
+        the point: a row is created and destroyed as the list scrolls, so a
+        setting applied per row would have to be re-applied on every mount.
+        Applied to the container it is true of every row that ever appears
+        under it, and switching one costs a style recalculation rather than a
+        refetch. */
 
       /* A coloured edge instead of the +/- column. Reads better beside syntax
-         colours, because a glyph in the text flow competes with the code and
-         an edge does not. */
+        colours, because a glyph in the text flow competes with the code and
+        an edge does not. */
       [data-diff-indicators='bar'] .marker { visibility: hidden; }
       [data-diff-indicators='bar'] .line-added .code,
       [data-diff-indicators='bar'] .has-added .code:last-child {
@@ -831,27 +887,27 @@
       }
 
       /* Nothing but the background. Only offered alongside the background,
-         and the pair of them off is prevented in the panel rather than here. */
+        and the pair of them off is prevented in the panel rather than here. */
       [data-diff-indicators='none'] .marker { visibility: hidden; }
 
       /* Colour pairs that survive colour vision deficiency.
 
-         Not a simulation of what those readers see - pairs chosen to stay
-         distinguishable *for* them. Roughly one in twelve men cannot reliably
-         tell the red from the green, and a diff whose only cue is that pair is
-         failing them completely. The glyph and the bar carry the same
-         information in shape, which is why they stay on by default. */
+        Not a simulation of what those readers see - pairs chosen to stay
+        distinguishable *for* them. Roughly one in twelve men cannot reliably
+        tell the red from the green, and a diff whose only cue is that pair is
+        failing them completely. The glyph and the bar carry the same
+        information in shape, which is why they stay on by default. */
 
       /* Red-green: blue against orange, which survives both protanopia and
-         deuteranopia and is the pair every accessible chart palette reaches
-         for first.
+        deuteranopia and is the pair every accessible chart palette reaches
+        for first.
 
-         The two tints are deliberately further apart in *brightness* than the
-         classic pair, and that is the part that matters. Red and green differ
-         almost entirely in hue, which is exactly the channel these readers do
-         not have - so an alternative palette that also differed only in hue
-         would be a different pair of colours and the same failure. The first
-         version of this was precisely that, and a contrast test caught it. */
+        The two tints are deliberately further apart in *brightness* than the
+        classic pair, and that is the part that matters. Red and green differ
+        almost entirely in hue, which is exactly the channel these readers do
+        not have - so an alternative palette that also differed only in hue
+        would be a different pair of colours and the same failure. The first
+        version of this was precisely that, and a contrast test caught it. */
       [data-diff-palette='deuteranopia'] {
         --add-bg: #c0d1e7;
         --add-line: #93b3d8;
@@ -862,7 +918,7 @@
       }
 
       /* Blue-yellow: teal against magenta, because blue and yellow are the
-         pair tritanopia flattens. */
+        pair tritanopia flattens. */
       [data-diff-palette='tritanopia'] {
         --add-bg: #bbd5d3;
         --add-line: #8ec0bc;
@@ -873,7 +929,7 @@
       }
 
       /* Neither hue nor tint: a heavy edge and a near-neutral wash, for a
-         reader who wants contrast rather than colour. */
+        reader who wants contrast rather than colour. */
       [data-diff-palette='contrast'] {
         --add-bg: #f4f4f4;
         --add-line: #111111;
@@ -931,35 +987,35 @@
 
 
       /* The wash behind changed lines, off. The gutter edge stays, and so does
-         whichever indicator is in force, so which side a line belongs to is
-         still legible without it. */
+        whichever indicator is in force, so which side a line belongs to is
+        still legible without it. */
       [data-diff-backgrounds='off'] .line-added,
       [data-diff-backgrounds='off'] .line-removed { background: transparent; }
 
       [data-diff-numbers='off'] .gutter.num { display: none; }
 
       /* Wrapping. `anywhere` rather than `break-word` because a minified line
-         has no break opportunities at all and `break-word` would leave it
-         overflowing exactly as before. */
+        has no break opportunities at all and `break-word` would leave it
+        overflowing exactly as before. */
       [data-diff-wrap='on'] .code { white-space: pre-wrap; overflow-wrap: anywhere; }
       [data-diff-wrap='on'] .diff-body { overflow-x: hidden; }
 
       /* What changed within a line.
 
-         A wash behind the characters that differ, rather than a colour on
-         them: the syntax colour is already carrying meaning, and a second
-         foreground colour on top would fight it. Strong enough to find at a
-         glance on top of the line's own add or remove tint, and weak enough
-         that a line where most of it is marked still reads as code. */
+        A wash behind the characters that differ, rather than a colour on
+        them: the syntax colour is already carrying meaning, and a second
+        foreground colour on top would fight it. Strong enough to find at a
+        glance on top of the line's own add or remove tint, and weak enough
+        that a line where most of it is marked still reads as code. */
       .line-removed .w { background: var(--del-line); border-radius: 2px; }
       .line-added .w { background: var(--add-line); border-radius: 2px; }
       .has-removed .w { background: var(--del-line); border-radius: 2px; }
       .has-added .w { background: var(--add-line); border-radius: 2px; }
 
       /* Asking for the lines a hunk left out. Sits inside the hunk header,
-         which is where the gap it fills is. */
+        which is where the gap it fills is. */
       /* A line number is the handle for selecting the line and the link to it,
-         so it looks like neither until it is reached for. */
+        so it looks like neither until it is reached for. */
       .line-anchor {
         display: block;
         color: inherit;
@@ -969,12 +1025,12 @@
       .gutter.num:hover { background: var(--line); cursor: pointer; }
 
       /* The selected lines. A left edge rather than a wash, so it survives on
-         top of the add and remove tints without becoming a third colour. */
+        top of the add and remove tints without becoming a third colour. */
       tr.is-selected .gutter.num { box-shadow: inset 2px 0 0 var(--accent); }
       tr.is-selected .code { background: var(--accent-quiet); }
 
       /* The list of files beside a diff. Windowed, so the rows are absolutely
-         positioned inside a sizer standing in for the whole list. */
+        positioned inside a sizer standing in for the whole list. */
       .file-list-head {
         display: flex;
         align-items: center;
@@ -988,7 +1044,7 @@
       .file-list-count { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
       /* The count gives up its space to the filter rather than being clipped
-         to `100 files, 1 vie…`, which is worse than not being there. */
+        to `100 files, 1 vie…`, which is worse than not being there. */
       .file-list-head:has(.file-list-search:not([hidden])) .file-list-count { display: none; }
 
       .file-list-search-toggle {
@@ -1009,8 +1065,8 @@
       .file-list-search-toggle[aria-expanded='true'] { color: var(--accent); }
 
       /* Takes the whole row when it is open, and no space at all when it is
-         not. A filter is worth a row of vertical space on a four thousand file
-         compare and not on a fifteen file pull request. */
+        not. A filter is worth a row of vertical space on a four thousand file
+        compare and not on a fifteen file pull request. */
       .file-list-search {
         flex: 1;
         min-width: 0;
@@ -1025,11 +1081,11 @@
       }
 
       /* "Since I last looked". Above the list rather than inside the header
-         row, because it is a statement about the whole list and it only exists
-         on a return visit - a control that appears and disappears inside a row
-         would reflow the header every time. Pressed state is carried by
-         aria-pressed, which is what a screen reader reads and what the style
-         keys off, so the two cannot disagree. */
+        row, because it is a statement about the whole list and it only exists
+        on a return visit - a control that appears and disappears inside a row
+        would reflow the header every time. Pressed state is carried by
+        aria-pressed, which is what a screen reader reads and what the style
+        keys off, so the two cannot disagree. */
       .file-list-since {
         display: block;
         width: 100%;
@@ -1091,23 +1147,23 @@
       .file-row.is-current { background: var(--accent-quiet); }
 
       /* A file the reader has finished with. Dimmed rather than removed: they
-         may want to go back to it, and a list that shortens as you work is a
-         list you cannot find your place in. */
+        may want to go back to it, and a list that shortens as you work is a
+        list you cannot find your place in. */
       .file-row.is-viewed .file-open { opacity: 0.5; }
       .file-row.is-viewed .file-name { text-decoration: line-through; }
 
       .file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
       /* The directory dimmed and the filename bright, which is what a reader
-         scans to tell two files called index.ts apart. `direction: rtl` keeps
-         the filename visible when the path is too long, and the span below puts
-         the text back the right way round. */
+        scans to tell two files called index.ts apart. `direction: rtl` keeps
+        the filename visible when the path is too long, and the span below puts
+        the text back the right way round. */
       .file-name > * { direction: ltr; unicode-bidi: embed; }
       .file-dir { color: var(--muted); }
 
       .file-counts { display: inline-flex; gap: 5px; font-size: 11px; }
 
       /* A dot rather than a word: the status of forty files reads at a glance
-         as colour and not at all as text. */
+        as colour and not at all as text. */
       .file-status { width: 6px; height: 6px; border-radius: 50%; flex: none; }
       .file-status-added { background: var(--ok); }
       .file-status-deleted { background: var(--bad); }
@@ -1137,11 +1193,11 @@
       .hunk-expand:hover { border-color: var(--accent); color: var(--accent); }
       .hunk-expand[data-busy='true'] { opacity: 0.5; cursor: progress; }
       /* How much is behind the control. Says four lines or four hundred, which
-         is the judgement a reviewer is making when they look at it. */
+        is the judgement a reviewer is making when they look at it. */
       .hunk-skipped { font-size: 11px; font-variant-numeric: tabular-nums; }
 
       /* The display panel. A details element rather than a menu widget: it
-         opens, it closes, it is keyboard reachable, and it needed no code. */
+        opens, it closes, it is keyboard reachable, and it needed no code. */
       .diff-settings { position: relative; }
       .diff-settings > summary {
         display: inline-flex;
@@ -1184,9 +1240,9 @@
       .hunk-label { padding: 4px 12px; color: var(--muted); font-size: 12px; }
 
       /* A changed line the coverage report says no test executes. An amber
-         inset edge plus a spelled-out flag, so the claim survives every
-         palette and background setting - and absence of data renders
-         nothing, never "covered". */
+        inset edge plus a spelled-out flag, so the claim survives every
+        palette and background setting - and absence of data renders
+        nothing, never "covered". */
       .line.is-uncovered > .code, td.code.is-uncovered {
         box-shadow: inset 3px 0 0 var(--warn, #b8860b);
       }
@@ -1202,8 +1258,8 @@
       }
 
       /* A mechanical hunk, folded. The summary is the whole hunk until it is
-         opened, so it carries the label and the count out loud - a reviewer
-         silently shown less has been lied to about what they approved. */
+        opened, so it carries the label and the count out loud - a reviewer
+        silently shown less has been lied to about what they approved. */
       .hunk-fold { border-top: 1px solid var(--line); }
 
       .hunk-fold-summary {
@@ -1237,9 +1293,9 @@
       .thread-cell { padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--line); }
 
       /* A conflicted file. Two versions of the same lines, and the reader is
-         being asked for an answer rather than an opinion - so the sides are
-         tinted like a diff's, and the labels git wrote are shown, because they
-         are the only thing saying which side is which. */
+        being asked for an answer rather than an opinion - so the sides are
+        tinted like a diff's, and the labels git wrote are shown, because they
+        are the only thing saying which side is which. */
       .conflict-head td { padding: 4px 12px; font-size: 12px; }
       .conflict-head-ours td { background: var(--del-bg); color: var(--bad); }
       .conflict-head-base td { background: var(--surface-tint); color: var(--muted); }
@@ -1254,10 +1310,10 @@
 
       /* Starting a comment on a line.
 
-         Sits inside the number gutter and appears on hover or on keyboard
-         focus, so a diff at rest is code and line numbers rather than a column
-         of buttons. Absolutely positioned so it does not widen the gutter when
-         it appears and shift every line of the file sideways. */
+        Sits inside the number gutter and appears on hover or on keyboard
+        focus, so a diff at rest is code and line numbers rather than a column
+        of buttons. Absolutely positioned so it does not widen the gutter when
+        it appears and shift every line of the file sideways. */
       .gutter.num { position: relative; }
 
       .line-comment {
@@ -1283,7 +1339,7 @@
       .line-comment:focus-visible { display: block; }
 
       /* The comment being written. A row in the diff rather than a modal, so
-         the code it is about stays on screen while it is written. */
+        the code it is about stays on screen while it is written. */
       .draft { display: flex; flex-direction: column; gap: 8px; }
       .draft-input {
         width: 100%;
@@ -1314,7 +1370,7 @@
       details.thread > .thread-comments, details.thread > .thread-reply { margin-top: 10px; }
 
       /* What a reader can do with the lines they have selected. Beside the
-         selection rather than in a menu somewhere else on the page. */
+        selection rather than in a menu somewhere else on the page. */
       .selection-surface {
         position: absolute;
         z-index: 5;
@@ -1333,8 +1389,8 @@
       .selection-surface[data-copied='false'] { border-color: var(--bad); }
 
       /* Syntax colours. Deliberately low-saturation: they sit on top of the green
-         and red diff backgrounds, and a vivid palette turns a reviewed line into a
-         fruit salad. Hue carries the meaning, not intensity. */
+        and red diff backgrounds, and a vivid palette turns a reviewed line into a
+        fruit salad. Hue carries the meaning, not intensity. */
       .t-keyword { color: #8250df; }
       .t-string { color: #0a6640; }
       .t-comment { color: var(--muted); font-style: italic; }
@@ -1377,9 +1433,9 @@
 
       /* ---- Review threads ----
 
-         Shared by `ReviewThread.stx` on the conversation page and by
-         `app/Actions/Pull/threads.ts` for every thread streamed into the review
-         screen, for the same reason the diff styles are here. */
+        Shared by `ReviewThread.stx` on the conversation page and by
+        `app/Actions/Pull/threads.ts` for every thread streamed into the review
+        screen, for the same reason the diff styles are here. */
       .thread {
         border: 1px solid var(--line);
         border-radius: var(--r-panel);
@@ -1454,14 +1510,14 @@
         </a>
         <nav style="display: flex; gap: 14px; font-size: 14px;" aria-label="Main">
           {{-- First, because it is the question somebody opens a forge to
-               answer. Explore is for finding somebody else's work; this is for
-               finding your own. The count is a component rather than this
-               layout's first server script, and the why is written in it. --}}
+              answer. Explore is for finding somebody else's work; this is for
+              finding your own. The count is a component rather than this
+              layout's first server script, and the why is written in it. --}}
           <a class="muted" style="text-decoration: none;" href="/reviews">Reviews<ReviewQueueBadge /></a>
           {{-- Second, and deliberately not first. Reviews is what needs the
-               reader; the inbox is what happened to them, and a product that
-               leads with the inbox teaches people to work from notifications
-               rather than from their queue. --}}
+              reader; the inbox is what happened to them, and a product that
+              leads with the inbox teaches people to work from notifications
+              rather than from their queue. --}}
           <a class="muted" style="text-decoration: none;" href="/notifications">Inbox<InboxBadge /></a>
           <a class="muted" style="text-decoration: none;" href="/explore">Explore</a>
           <a class="muted" style="text-decoration: none;" href="/dashboard">Dashboard</a>
@@ -1476,22 +1532,22 @@
 
     {{-- Drawing the mermaid fences, and the only script in the product.
 
-         Every other interaction here is a form or a link, and that is a
-         deliberate property: an issue page with two hundred comments should
-         arrive as a page. A diagram is the one thing that cannot follow the
-         rule, because mermaid is a layout engine and there is no server-side
-         form of it short of running a browser per page view.
+        Every other interaction here is a form or a link, and that is a
+        deliberate property: an issue page with two hundred comments should
+        arrive as a page. A diagram is the one thing that cannot follow the
+        rule, because mermaid is a layout engine and there is no server-side
+        form of it short of running a browser per page view.
 
-         So it is contained. Nothing loads unless the page already has a
-         diagram on it; the import is dynamic, so a page without one costs
-         nothing; the bundle is served from here rather than from a CDN, so a
-         forge with no route out still works and a reader of an issue is not
-         announced to a third party; and every failure leaves the definition
-         on screen, which is what a fence showed before this existed.
+        So it is contained. Nothing loads unless the page already has a
+        diagram on it; the import is dynamic, so a page without one costs
+        nothing; the bundle is served from here rather than from a CDN, so a
+        forge with no route out still works and a reader of an issue is not
+        announced to a third party; and every failure leaves the definition
+        on screen, which is what a fence showed before this existed.
 
-         `strict` is not the default and matters: diagram text is written by
-         whoever opened the issue, and the looser levels let a label carry
-         markup and a node carry a click handler. --}}
+        `strict` is not the default and matters: diagram text is written by
+        whoever opened the issue, and the looser levels let a label carry
+        markup and a node carry a click handler. --}}
     <script type="module">
       const diagrams = document.querySelectorAll('pre.mermaid')
 

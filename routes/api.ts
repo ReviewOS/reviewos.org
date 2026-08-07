@@ -53,6 +53,11 @@ route.post('/user/notifications/mutes', 'Actions/Notification/MuteAction').middl
 route.get('/user/notifications', 'Actions/Notification/ListNotificationsAction').middleware('auth')
 route.post('/user/notifications/read', 'Actions/Notification/MarkReadAction').middleware('auth')
 
+// One cell of the preference grid. One at a time rather than a whole-grid
+// submit, so a page left open in another tab cannot overwrite a change with
+// values it read five minutes ago.
+route.post('/user/notifications/preferences', 'Actions/Notification/UpdatePreferenceAction').middleware('auth')
+
 // Repositories. Settings is one endpoint for every field, because a rename
 // moves a directory and the row and the directory have to end up agreeing;
 // splitting it up is how that ends up implemented twice. Delete, transfer and

@@ -1,0 +1,241 @@
+<script server>
+/**
+ * When and how this account hears from the product.
+ *
+ * Two questions on one screen, because they are one decision from the reader's
+ * side: what reaches me, and when is it allowed to. Splitting them into two
+ * pages is how somebody turns off email meaning to set quiet hours.
+ *
+ * **The grid shows what would actually happen, not what is stored.** Most cells
+ * have no row behind them, and rendering unset as "off" is how somebody turns
+ * something on that was already on and concludes the switches do nothing. Every
+ * cell is answered from `preferenceGrid`, and the ones nobody has chosen say so.
+ *
+ * Every control is a form. The page runs no client script, so it works with
+ * JavaScript off and it cannot show a switch in a position the database does
+ * not agree with - it reads the grid on every load.
+ */
+import { PREFERENCE_EVENTS, preferenceGrid } from '../../../app/Actions/Notification/preferences'
+import { formatDays, parseDays } from '../../../app/Actions/Notification/clock'
+import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
+
+/**
+ * The request, from whichever pipeline served this page.
+ *
+ * Both spellings guarded with `typeof`, because each identifier is *undeclared*
+ * on the other path and an undeclared identifier is a ReferenceError that
+ * optional chaining does not save. It would throw inside the server script's
+ * IIFE and take every variable here with it, so a signed-in reader would get
+ * the signed-out branch and think auth was broken.
+ */
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+
+// A settings page for nobody is not a 404 - the page exists, and saying so is
+// how somebody knows to sign in rather than that they mistyped the URL.
+if (!viewer)
+  setResponseStatus(401)
+
+const stored = viewer
+  ? await db
+      .selectFrom('notification_event_preferences')
+      .select(['event', 'channel', 'delivery'])
+      .where('user_id', '=', viewer.id)
+      .execute()
+  : []
+
+const schedule = viewer
+  ? await db
+      .selectFrom('notification_schedules')
+      .select(['days', 'starts_at', 'ends_at', 'timezone'])
+      .where('user_id', '=', viewer.id)
+      .executeTakeFirst()
+  : undefined
+
+const cells = preferenceGrid(stored.map(row => ({
+  event: String(row.event),
+  channel: String(row.channel),
+  delivery: String(row.delivery),
+})))
+
+/**
+ * What each event is, in the words somebody would use.
+ *
+ * The wire name is `review:requested`; nobody scanning a settings page should
+ * have to translate that. The order is the one in `PREFERENCE_EVENTS`, which
+ * puts the things you are blocked on first.
+ */
+const EVENT_LABELS = {
+  'review:requested': 'Somebody asks for your review',
+  'review:submitted': 'Somebody reviews your pull request',
+  'pr:opened': 'A pull request is opened',
+  'pr:merged': 'A pull request is merged',
+  'pr:closed': 'A pull request is closed without merging',
+  'issue:opened': 'An issue is opened',
+  'issue:closed': 'An issue is closed',
+  'comment:created': 'Somebody comments',
+  'release:published': 'A release is published',
+}
+
+/** Rows shaped for the template, so the template holds no logic. */
+const rows = PREFERENCE_EVENTS.map((event) => {
+  const forEvent = cells.filter(cell => cell.event === event)
+
+  return {
+    event,
+    label: EVENT_LABELS[event] ?? event,
+    // The inbox column is a word rather than a control. A disabled select that
+    // can never change is furniture people try to click.
+    inbox: forEvent.find(cell => cell.channel === 'in_app')?.delivery ?? 'immediate',
+    channels: forEvent
+      .filter(cell => cell.channel !== 'in_app')
+      .map(cell => ({
+        channel: cell.channel,
+        delivery: cell.delivery,
+        isDefault: cell.isDefault,
+        // Built here rather than as a ternary in the template: shaping belongs
+        // in the script, and an attribute is a string.
+        offSelected: cell.delivery === 'off' ? 'selected' : '',
+        immediateSelected: cell.delivery === 'immediate' ? 'selected' : '',
+        digestSelected: cell.delivery === 'digest' ? 'selected' : '',
+        note: cell.isDefault ? 'default' : '',
+      })),
+  }
+})
+
+const days = formatDays(parseDays(String(schedule?.days ?? '1,2,3,4,5')))
+const startsAt = clockOf(Number(schedule?.starts_at ?? 540))
+const endsAt = clockOf(Number(schedule?.ends_at ?? 1080))
+const timezone = String(schedule?.timezone ?? 'UTC')
+
+/** Minutes from local midnight, as an `<input type="time">` wants them. */
+function clockOf(minutes) {
+  const safe = Number.isFinite(minutes) ? Math.max(0, Math.min(1439, minutes)) : 0
+
+  return `${String(Math.floor(safe / 60)).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`
+}
+
+const dayBoxes = [
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+  { value: 0, label: 'Sun' },
+].map(day => ({
+  ...day,
+  checked: days.split(',').includes(String(day.value)) ? 'checked' : '',
+}))
+</script>
+
+@layout('app')
+
+@section('title', 'Notification settings')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!viewer)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">Sign in to change how you are notified</h1>
+        <p class="muted" style="margin-top: 6px;">
+          <a href="/login">Sign in</a> to set what reaches you, and when.
+        </p>
+      </div>
+    @else
+      <header class="keys-head">
+        <h1 class="keys-title">Notifications</h1>
+        <p class="muted">
+          What reaches you, and when it is allowed to. The inbox always has everything - these
+          settings are about what interrupts you.
+        </p>
+      </header>
+
+      <section class="keys-section">
+        <h2 class="keys-heading">What you hear about</h2>
+
+        <ul class="panel prefs-list">
+          @foreach (rows as row)
+            <li class="prefs-row">
+              <span class="prefs-event">{{ row.label }}</span>
+
+              <span class="muted prefs-inbox" title="The inbox is the record and cannot be turned off">
+                Inbox: {{ row.inbox }}
+              </span>
+
+              @foreach (row.channels as cell)
+                <form class="prefs-control" method="post" action="/api/user/notifications/preferences">
+                  <CsrfField />
+                  <input type="hidden" name="event" value="{{ row.event }}">
+                  <input type="hidden" name="channel" value="{{ cell.channel }}">
+
+                  <label class="muted prefs-label" for="{{ row.event }}-{{ cell.channel }}">
+                    {{ cell.channel }}
+                  </label>
+
+                  {{--
+                    A select rather than three radios, because the three answers
+                    are exclusive and a row of nine radios per event is a wall.
+                    Submitting on change would need script; the button is one
+                    click and works with none.
+                  --}}
+                  <select id="{{ row.event }}-{{ cell.channel }}" class="prefs-select" name="delivery">
+                    <option value="off" {{ cell.offSelected }}>Off</option>
+                    <option value="immediate" {{ cell.immediateSelected }}>Immediately</option>
+                    <option value="digest" {{ cell.digestSelected }}>In a digest</option>
+                  </select>
+
+                  @if (cell.note)
+                    <span class="muted prefs-note">{{ cell.note }}</span>
+                  @endif
+
+                  <button type="submit" class="prefs-save">Save</button>
+                </form>
+              @endforeach
+            </li>
+          @endforeach
+        </ul>
+      </section>
+
+      <section class="keys-section">
+        <h2 class="keys-heading">When you can be interrupted</h2>
+        <p class="muted prefs-explainer">
+          Outside these hours, email and push wait rather than being dropped, and arrive together
+          when the window opens. The inbox is never held.
+        </p>
+
+        <form class="panel prefs-schedule" method="post" action="/api/user/notifications/schedule">
+          <CsrfField />
+          <input type="hidden" name="_method" value="PUT">
+
+          <fieldset class="prefs-days">
+            <legend class="muted prefs-label">Days</legend>
+            @foreach (dayBoxes as day)
+              <label class="prefs-day">
+                <input type="checkbox" name="days" value="{{ day.value }}" {{ day.checked }}>
+                {{ day.label }}
+              </label>
+            @endforeach
+          </fieldset>
+
+          <div class="prefs-window">
+            <label class="muted prefs-label" for="starts-at">From</label>
+            <input id="starts-at" class="key-input prefs-time" type="time" name="starts_at" value="{{ startsAt }}">
+
+            <label class="muted prefs-label" for="ends-at">Until</label>
+            <input id="ends-at" class="key-input prefs-time" type="time" name="ends_at" value="{{ endsAt }}">
+
+            <label class="muted prefs-label" for="timezone">Timezone</label>
+            <input id="timezone" class="key-input mono prefs-tz" type="text" name="timezone" value="{{ timezone }}" placeholder="Europe/Berlin">
+          </div>
+
+          <div class="key-actions">
+            <button type="submit" class="btn btn-primary">Save hours</button>
+          </div>
+        </form>
+      </section>
+    @endif
+  </div>
+@endsection
