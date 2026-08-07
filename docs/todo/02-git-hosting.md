@@ -494,6 +494,13 @@ the one moment where rejecting is still possible.
       is the package: the handshake in order, curve25519, AES-GCM and AES-CTR with
       encrypt-then-MAC, channels and their windows, and strict key exchange, which closes Terrapin.
 
+      Rekeying matters more here than it looks. RFC 4253 asks for new keys after an hour or a
+      gigabyte, which a clone of any large repository passes, and OpenSSH renegotiates on its own
+      schedule whether or not a server is ready - one that is not leaves the client stuck at
+      `rekeying in progress` and unable to send another byte. A clone survives that by accident
+      because the client is only receiving; **a push does not**, which is the transport this forge
+      cares about most. It is implemented and tested against the real client now
+
       Two things the wiring had to get right and one it had to fix. The command parser is not a
       shell - no expansion, no globbing, and nothing but the two services, because somebody with a
       valid key sends that string. `--stateless-rpc` is the HTTP framing and must not be passed
