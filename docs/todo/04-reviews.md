@@ -453,8 +453,18 @@ this is where the claim is either true or marketing.
   `tests/e2e/merge-settings.test.ts`, which sends the form's bodies byte for byte and reads the
   row back, because it is exactly the kind of fact a router upgrade changes without anything else
   failing.
-- [ ] Reviewer load and staleness visible to maintainers: which requests have gone unanswered, and
+- [x] Reviewer load and staleness visible to maintainers: which requests have gone unanswered, and
       by whom, as information rather than as a leaderboard
+
+  A "Waiting on reviewers" panel on the pull request list, for readers with `repository:settings`.
+  "Not a leaderboard" is enforced by the ordering: rows come oldest-wait first, because the request
+  that has waited longest is the one to go and ask about, and ordering by count would rank people -
+  a table that reads as "who is slowest" gets routed around, and then nobody looks at it at all.
+  Each row is a phrase in the queue's own age words (`2 waiting, oldest 3d`; `agePhrase` is shared
+  so the two surfaces cannot describe the same wait two ways), the reading rules are the queue's
+  and the badge's (`responded_at IS NULL`, open, not draft), and an empty panel renders nothing
+  rather than announcing that nothing is stuck. `tests/e2e/reviewer-load.test.ts` holds the
+  ordering, the exclusions, the phrase, and the gate.
 - [ ] **Coverage in the diff.** If CI uploads a coverage report, mark changed lines that no test
       executes. This changes the question a reviewer asks from "does this look right" to "what
       happens when this is wrong", which is the more useful question.

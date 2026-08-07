@@ -12,10 +12,42 @@
  * and every `?state=closed` link on the page answered with the open ones.
  * Nothing failed loudly, because an empty filter is a valid filter.
  */
+import { repositoryForView } from '../../../../functions/repo'
+import { cookieJarFromHeader } from '../../../../functions/identity'
+import { loadPhrase, reviewerLoadFor } from '../../../../../app/Actions/Pull/reviewerLoad'
+
 const search: Record<string, string> = useRoute().query ?? {}
 
 const filterState = String(search.state ?? '')
 const pageNumberParam = String(search.page ?? '')
+
+/*
+ * Reviewer load, for the people who can do something about it.
+ *
+ * Gated on `repository:settings` - the maintain rung's everyday ability -
+ * because the panel is operations information about other people's queues,
+ * which is a different thing from reading the code. Cookies come from
+ * whichever pipeline served this page; see the conversation page for why both
+ * spellings exist.
+ */
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const access = await repositoryForView(
+  String(params.owner),
+  String(params.repository),
+  serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie),
+)
+
+const showLoad = Boolean(access?.viewer && access.can('repository:settings'))
+const loadRows = showLoad && access
+  ? await reviewerLoadFor(Number(access.repository.id))
+  : []
+
+const loadLines = loadRows.map(row => ({
+  handle: row.handle,
+  phrase: loadPhrase(row, Date.now()),
+}))
 </script>
 
 @layout('app')
@@ -28,4 +60,41 @@ const pageNumberParam = String(search.page ?? '')
     filterState="{{ filterState }}"
     pageNumberParam="{{ pageNumberParam }}"
   />
+
+  {{-- Who this repository is waiting on, oldest wait first - the request
+       that has waited longest is the one to go and ask about. Ordering by
+       count would make it a leaderboard, and a leaderboard gets routed
+       around. Rendered only when there is something to say: an empty panel
+       would be the page saying "nothing is stuck" to somebody who did not
+       ask. --}}
+  @if (loadLines.length > 0)
+    <div class="shell" style="padding-bottom: 48px;">
+      <section class="panel reviewer-load">
+        <h2 class="load-heading">Waiting on reviewers</h2>
+        <ul class="load-list">
+          @foreach (loadLines as line)
+            <li class="load-row">
+              <a class="mono" href="/{{ line.handle }}">{{ line.handle }}</a>
+              <span class="muted">{{ line.phrase }}</span>
+            </li>
+          @endforeach
+        </ul>
+      </section>
+    </div>
+  @endif
 @endsection
+
+<style>
+  .reviewer-load { max-width: 900px; margin: 0 auto; padding: 15px 17px; }
+
+  .load-heading {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .load-list { margin-top: 9px; display: flex; flex-direction: column; gap: 7px; }
+  .load-row { display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; }
+</style>

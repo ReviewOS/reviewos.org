@@ -94,12 +94,7 @@ export function waitingReason(entry: QueueEntry, now: number): string {
   if (entry.draft)
     return 'draft, not asking yet'
 
-  const hours = hoursWaiting(entry, now)
-  const age = hours < 1
-    ? 'just now'
-    : hours < 24
-      ? `${Math.floor(hours)}h`
-      : `${Math.floor(hours / 24)}d`
+  const age = agePhrase(hoursWaiting(entry, now))
 
   if (entry.approvals > 0)
     return `${age}, already approved by somebody`
@@ -108,6 +103,20 @@ export function waitingReason(entry: QueueEntry, now: number): string {
     return `${age}, only you`
 
   return `${age}, ${entry.outstandingReviewers} asked`
+}
+
+/**
+ * An age in hours, as the queue words one.
+ *
+ * Exported because the reviewer-load panel says ages too, and two spellings of
+ * "how long has this waited" would read as two different measurements.
+ */
+export function agePhrase(hours: number): string {
+  return hours < 1
+    ? 'just now'
+    : hours < 24
+      ? `${Math.floor(hours)}h`
+      : `${Math.floor(hours / 24)}d`
 }
 
 /**
