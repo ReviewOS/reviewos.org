@@ -46,6 +46,9 @@ route.post('/repos/deploy-keys', 'Actions/Keys/ManageDeployKeyAction').middlewar
 route.get('/user/tokens', 'Actions/Tokens/ListTokensAction').middleware('auth')
 route.post('/user/tokens', 'Actions/Tokens/CreateTokenAction').middleware('auth')
 route.delete('/user/tokens', 'Actions/Tokens/RevokeTokenAction').middleware('auth')
+// And over POST, for the same reason the key removals are: `settings/tokens.stx`
+// revokes with a form, and a form cannot send DELETE.
+route.post('/user/tokens/revoke', 'Actions/Tokens/RevokeTokenAction').middleware('auth')
 
 // When notifications may interrupt, and what has been muted. Both are here
 // rather than under a repository because they are decisions about a person.

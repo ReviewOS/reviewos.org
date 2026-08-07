@@ -536,3 +536,100 @@ describe('an archived repository', () => {
     expect(await mayUseService(repository, created.collaboratorId, 'receive-pack', result.token)).toBe(false)
   })
 })
+
+describe('the tokens settings page reads', () => {
+  test('describes what a token can do in the words of the checks', async () => {
+    if (!available)
+      return
+
+    const { tokensFor } = await import('../../app/Actions/Tokens/load')
+    const listings = await tokensFor(created.collaboratorId)
+
+    // Three were issued in setup, and all three are listed - including any that
+    // have been revoked. Hiding a revoked token would mean somebody who just
+    // revoked one could not see that it happened.
+    expect(listings.length).toBe(3)
+
+    const readOnly = listings.find(listing => listing.name === 'read only')
+    expect(readOnly).toBeDefined()
+
+    // The point of the page: a sentence, not `contents: read`.
+    expect(readOnly!.abilities).toEqual(['Clone and read code'])
+    expect(readOnly!.masked).not.toContain(readSecret.split('_')[2])
+
+    const live = listings.find(listing => listing.name === 'live')
+    expect(live!.abilities).toEqual(['Push code, and merge pull requests'])
+  })
+
+  test('names the repositories a token reaches rather than counting them', async () => {
+    if (!available)
+      return
+
+    const { tokensFor } = await import('../../app/Actions/Tokens/load')
+    const listings = await tokensFor(created.collaboratorId)
+    const live = listings.find(listing => listing.name === 'live')!
+
+    expect(live.repositories).toEqual([created.repositoryName])
+    expect(live.reach).toBe('1 repository')
+  })
+
+  test('a token whose repositories are all gone says so', async () => {
+    if (!available)
+      return
+
+    const { tokensFor } = await import('../../app/Actions/Tokens/load')
+
+    // The scoping rows cascade with the repository, so a token can end up
+    // reaching nothing at all. Rendered as a count that would read "0
+    // repositories", which looks like a display bug rather than the fact it is.
+    await db
+      .deleteFrom('access_token_repositories')
+      .where('access_token_id', '=', created.otherTokenId)
+      .execute()
+
+    const listing = (await tokensFor(created.collaboratorId)).find(entry => entry.name === 'other')!
+
+    expect(listing.repositories).toEqual([])
+    expect(listing.reach).toContain('has been deleted')
+  })
+
+  test('an unused token is visible as unused', async () => {
+    if (!available)
+      return
+
+    const { tokensFor } = await import('../../app/Actions/Tokens/load')
+    const { recordTokenUse } = await import('../../app/Actions/Tokens/authenticate')
+
+    const before = (await tokensFor(created.collaboratorId)).find(entry => entry.name === 'live')!
+    expect(before.neverUsed).toBe(true)
+    expect(before.lastUsedAt).toBeNull()
+
+    await recordTokenUse(created.tokenId, '203.0.113.7')
+
+    const after = (await tokensFor(created.collaboratorId)).find(entry => entry.name === 'live')!
+
+    expect(after.neverUsed).toBe(false)
+    expect(after.lastUsedAt).not.toBeNull()
+    // Where it was used from, which is how somebody spots a token still live on
+    // a machine they decommissioned.
+    expect(after.lastUsedIp).toBe('203.0.113.7')
+  })
+
+  test('offers only repositories this account can actually scope to', async () => {
+    if (!available)
+      return
+
+    const { scopableRepositories } = await import('../../app/Actions/Tokens/load')
+    const offered = await scopableRepositories(created.collaboratorId)
+    const names = offered.map(entry => entry.name)
+
+    // A collaborator on both, and the owner of neither. Offering a repository
+    // the endpoint would silently drop is how somebody ends up holding a token
+    // that reaches nothing.
+    expect(names).toContain(created.repositoryName)
+    expect(names).toContain(created.otherRepositoryName)
+
+    const strangers = await scopableRepositories(created.ownerId)
+    expect(strangers.map(entry => entry.name)).toContain(created.repositoryName)
+  })
+})

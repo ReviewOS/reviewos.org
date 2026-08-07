@@ -11,7 +11,7 @@
  * and `gpg.ts`, and writing is the four actions behind `/api/user/keys` and
  * `/api/user/gpg-keys`. This lays it out.
  */
-import { viewerFromCookies } from '../../functions/identity'
+import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
 import { hasExpired, keysFor } from '../../functions/repo'
 import { relativeTime } from '../../functions/browse'
 
@@ -27,7 +27,14 @@ import { relativeTime } from '../../functions/browse'
  */
 const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
 
-const viewer = await viewerFromCookies(serveContext?.cookies)
+// The other spelling of the same thing. `route.serve()` mounts views itself and
+// names the request differently, so reading only `__stxServeContext` showed
+// this page's signed-out branch to somebody who was signed in - on the boot the
+// e2e suite and a production server both use. `settings/notifications.stx` had
+// already found this; this page had not.
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
 const keys = viewer ? await keysFor(viewer.id) : { ssh: [], gpg: [] }
 
 // A settings page for nobody is not a 404 - the page exists, and saying so is

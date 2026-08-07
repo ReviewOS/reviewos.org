@@ -82,3 +82,14 @@ export const hasExpired = hasExpiredImpl
 import { deployKeysFor as deployKeysForImpl } from '../../app/Actions/Keys/load'
 
 export const deployKeysFor = deployKeysForImpl
+
+/**
+ * The tokens an account holds, described rather than listed.
+ *
+ * See `app/Actions/Tokens/load.ts` for why the page gets sentences and the API
+ * gets scope strings.
+ */
+import { scopableRepositories as scopableRepositoriesImpl, tokensFor as tokensForImpl } from '../../app/Actions/Tokens/load'
+
+export const tokensFor = tokensForImpl
+export const scopableRepositories = scopableRepositoriesImpl

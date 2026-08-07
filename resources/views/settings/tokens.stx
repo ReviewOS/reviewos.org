@@ -1,0 +1,406 @@
+<script server>
+/**
+ * The tokens an account holds, and what each of them can actually do.
+ *
+ * Until this existed a token could only be issued by hand against
+ * `/api/user/tokens`, which meant that in practice nobody issued a scoped one:
+ * the path of least resistance was a token with everything on it, and the
+ * account holding it had no way to see that later.
+ *
+ * The list is the important half. Reading is `app/Actions/Tokens/load.ts`,
+ * which turns a grant into the sentence the permission check would use, so a
+ * row says "Push code, and merge pull requests" rather than `contents: write`.
+ * A list of scope strings is a list nobody prunes.
+ *
+ * Writing goes to the same three endpoints an API client uses. The form posts
+ * one field per scope rather than an array, for the reason set out in
+ * `CreateTokenAction`.
+ */
+import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
+import { scopableRepositories, tokensFor } from '../../functions/repo'
+import { relativeTime } from '../../functions/browse'
+
+// stx declares `__stxServeContext` only on the path that serves a request, and
+// an undeclared identifier is a ReferenceError that optional chaining does not
+// save - it throws on the way to the chain, inside this script's IIFE, taking
+// every variable below it with it. The page then renders its signed-out branch
+// as though nobody were there.
+//
+// Both spellings, because the two pipelines that render this page name the
+// request differently and each identifier is *undeclared* on the other path.
+// Reading only `__stxServeContext` is why this page showed the signed-out
+// branch to a signed-in reader under `route.serve()`, which is the boot the
+// e2e suite and a production server both use.
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+const tokens = viewer ? await tokensFor(viewer.id) : []
+const repositories = viewer ? await scopableRepositories(viewer.id) : []
+
+// A settings page for nobody is not a 404. The page exists, and saying so is
+// how somebody knows to sign in rather than that they mistyped the URL.
+//
+// Guarded for the same reason `__stxServeContext` is, and it is the same bug
+// twice: `setResponseStatus` is provided by stx's `serve`, and a host that
+// mounts views itself - which is what `route.serve()` does, and what the e2e
+// suite and a production boot both use - provides nothing. Calling it there is
+// a ReferenceError inside this script's IIFE, which takes every variable below
+// it down and renders the signed-out branch to somebody who is signed in, with
+// a 200 and nothing in the log.
+//
+// stx is growing a no-op default for exactly this, which will cover the ten
+// other views in this repository that call it unguarded. This line does not
+// wait for that release.
+if (!viewer && typeof setResponseStatus === 'function')
+  setResponseStatus(401)
+
+// The scopes the form offers, with the sentence each level buys. Repository
+// scopes only: an organization scope on a token belonging to a person is a
+// decision that belongs on the organization's own screen, where the reader can
+// see who else it affects.
+const scopes = [
+  { key: 'contents', label: 'Code', write: 'Push, and merge pull requests', read: 'Clone and read' },
+  { key: 'issues', label: 'Issues', write: 'Open, comment, label and close', read: 'Read only' },
+  { key: 'pull_requests', label: 'Pull requests', write: 'Open, review, and dismiss reviews', read: 'Read only' },
+  { key: 'checks', label: 'Checks', write: 'Report results and coverage', read: 'Read results' },
+  { key: 'webhooks', label: 'Webhooks', write: 'Add, change and remove', read: 'Read configuration' },
+  { key: 'administration', label: 'Administration', write: 'Settings and branch protection', read: 'Read settings' },
+]
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!viewer)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">Sign in to manage your tokens</h1>
+        <p class="muted" style="margin-top: 6px;">
+          <a href="/login">Sign in</a> to issue an access token for a script, a CI job, or a client.
+        </p>
+      </div>
+    @else
+      <header class="tok-head">
+        <h1 class="tok-title">Access tokens</h1>
+        <p class="muted">
+          A token stands in for you where a password cannot go: a script, a CI job, a client on a
+          machine you do not sit at. Give each one the smallest set of permissions that does its job,
+          and a name that says which machine it went to.
+        </p>
+      </header>
+
+      <section class="tok-section" x-data="{ issuing: false }">
+        <div class="tok-section-head">
+          <h2 class="tok-heading">Your tokens</h2>
+          <button
+            type="button"
+            class="btn"
+            @click="issuing = !issuing"
+            :aria-expanded="issuing ? 'true' : 'false'">Issue a token</button>
+        </div>
+
+        <form class="tok-form" method="post" action="/api/user/tokens" x-show="issuing" x-cloak>
+          <CsrfField />
+
+          <label class="tok-label" for="token-name">Name</label>
+          <input
+            id="token-name"
+            class="tok-input"
+            type="text"
+            name="name"
+            required
+            maxlength="100"
+            placeholder="CI on the build server">
+          <p class="tok-hint muted">
+            This is what you will have to recognise it by in a year. "deploy" tells you nothing;
+            "release job, GitHub Actions" tells you where to go and turn it off.
+          </p>
+
+          <fieldset class="tok-fieldset">
+            <legend class="tok-legend">Permissions</legend>
+            <p class="tok-hint muted">
+              A token can never do more than you can. These are a ceiling on your own access, so a
+              write grant on a repository you only read is still read.
+            </p>
+
+            @foreach (scopes as scope)
+              <div class="tok-scope">
+                <label class="tok-scope-name" for="scope-{{ scope.key }}">{{ scope.label }}</label>
+                <select id="scope-{{ scope.key }}" class="tok-select" name="scope_{{ scope.key }}">
+                  <option value="none">No access</option>
+                  <option value="read">Read: {{ scope.read }}</option>
+                  <option value="write">Write: {{ scope.write }}</option>
+                </select>
+              </div>
+            @endforeach
+          </fieldset>
+
+          <fieldset class="tok-fieldset">
+            <legend class="tok-legend">Repositories</legend>
+
+            @if (repositories.length === 0)
+              <p class="tok-hint muted">
+                You have no repositories to scope a token to yet. Create one first, or the token will
+                have nothing to reach.
+              </p>
+            @else
+              {{--
+                A comma-separated list rather than a checkbox per repository:
+                repeated form fields arrive as one value or as a list depending
+                on the parser, and a settings page should not be betting on
+                which. `CreateTokenAction` accepts both shapes, and drops any id
+                the account cannot reach.
+
+                The select is `multiple`, so this is still a list to click, and
+                the hidden field is what gets posted.
+              --}}
+              <div x-data="{ chosen: [] }">
+                <select
+                  class="tok-repos"
+                  multiple
+                  size="6"
+                  aria-label="Repositories this token may reach"
+                  @change="chosen = Array.from($event.target.selectedOptions).map(option => option.value)">
+                  @foreach (repositories as repository)
+                    <option value="{{ repository.id }}">{{ repository.name }}</option>
+                  @endforeach
+                </select>
+
+                <input type="hidden" name="selection" value="selected">
+                <input type="hidden" name="repository_ids" :value="chosen.join(',')">
+
+                <p class="tok-hint muted" x-show="chosen.length === 0">
+                  Nothing selected yet. A token scoped to no repository is refused rather than issued
+                  as one that reaches everything.
+                </p>
+              </div>
+            @endif
+          </fieldset>
+
+          <label class="tok-label" for="token-expiry">Expires</label>
+          <input id="token-expiry" class="tok-input" type="date" name="expires_at">
+          <p class="tok-hint muted">
+            Ninety days if you leave this empty, and a year is the most any token gets. A token that
+            never expires is one nobody ever revisits.
+          </p>
+
+          <div class="tok-actions">
+            <button type="submit" class="btn btn-primary">Issue token</button>
+          </div>
+
+          <p class="tok-warning">
+            The token is shown once, in the response, and never again. Copy it before you close the
+            page: there is no way to read it back, which is the same reason a leak of this database
+            does not leak your tokens.
+          </p>
+        </form>
+
+        @if (tokens.length === 0)
+          <div class="tok-empty panel">
+            <p class="muted">No tokens yet. Issue one when a script or a CI job needs to act as you.</p>
+          </div>
+        @else
+          <ul class="tok-list panel">
+            @foreach (tokens as token)
+              <li class="tok-row">
+                <div class="tok-main">
+                  <div class="tok-row-head">
+                    <span class="tok-name">{{ token.name }}</span>
+                    <span class="tok-masked mono muted">{{ token.masked }}</span>
+
+                    @if (token.state === 'revoked')
+                      <span class="tok-state tok-state-off">Revoked</span>
+                    @elseif (token.state === 'expired')
+                      <span class="tok-state tok-state-off">Expired</span>
+                    @endif
+                  </div>
+
+                  {{--
+                    What it can do, in the words the permission checks use. This
+                    is the part that decides whether somebody revokes it.
+                  --}}
+                  <ul class="tok-abilities">
+                    @foreach (token.abilities as ability)
+                      <li>{{ ability }}</li>
+                    @endforeach
+                  </ul>
+
+                  <p class="tok-reach muted">{{ token.reach }}</p>
+
+                  @if (token.repositories.length > 0)
+                    <p class="tok-repolist mono muted">{{ token.repositories.join(', ') }}</p>
+                  @endif
+
+                  <p class="tok-meta muted">
+                    @if (token.createdAt)
+                      created {{ relativeTime(token.createdAt) }} &middot;
+                    @endif
+
+                    {{--
+                      Never used is worth saying out loud, and where it was last
+                      used from is worth saying next to it: those two facts are
+                      how somebody spots a token that is still live on a machine
+                      they decommissioned.
+                    --}}
+                    @if (token.neverUsed)
+                      never used
+                    @else
+                      last used {{ relativeTime(token.lastUsedAt) }}{{ token.lastUsedIp ? ` from ${token.lastUsedIp}` : '' }}
+                    @endif
+
+                    @if (token.expiresAt && token.state === 'active')
+                      &middot; expires {{ relativeTime(token.expiresAt) }}
+                    @endif
+                  </p>
+                </div>
+
+                @if (token.state === 'active')
+                  <form method="post" action="/api/user/tokens/revoke" class="tok-revoke">
+                    <CsrfField />
+                    <input type="hidden" name="id" value="{{ token.id }}">
+                    <button type="submit" class="btn btn-quiet">Revoke</button>
+                  </form>
+                @endif
+              </li>
+            @endforeach
+          </ul>
+        @endif
+      </section>
+    @endif
+  </div>
+@endsection
+
+<style>
+  .tok-head { margin-bottom: 26px; max-width: 62ch; }
+  .tok-title { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+
+  .tok-section { margin-bottom: 34px; }
+
+  .tok-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .tok-heading { font-size: 16px; font-weight: 600; }
+
+  .tok-form {
+    padding: 16px;
+    margin-bottom: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-panel, 14px);
+  }
+
+  .tok-label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+
+  .tok-input,
+  .tok-select,
+  .tok-repos {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-control, 10px);
+  }
+
+  .tok-input { margin-bottom: 6px; }
+  .tok-hint { font-size: 12px; line-height: 1.5; margin-bottom: 14px; }
+
+  .tok-fieldset {
+    padding: 14px;
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-control, 10px);
+  }
+
+  .tok-legend { padding: 0 6px; font-size: 12.5px; font-weight: 500; }
+
+  .tok-scope {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .tok-scope-name { font-size: 13px; }
+  .tok-select { padding: 6px 8px; }
+
+  @media (max-width: 560px) {
+    .tok-scope { grid-template-columns: 1fr; gap: 4px; }
+  }
+
+  .tok-actions { display: flex; justify-content: flex-end; }
+
+  .tok-warning {
+    margin-top: 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--warn);
+  }
+
+  .tok-empty { padding: 26px; text-align: center; }
+  .tok-list { overflow: hidden; }
+
+  .tok-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .tok-row:last-child { border-bottom: 0; }
+
+  .tok-main { flex: 1; min-width: 0; }
+
+  .tok-row-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .tok-name { font-weight: 500; }
+  .tok-masked { font-size: 12px; }
+
+  .tok-state {
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 999px;
+  }
+
+  .tok-state-off {
+    color: var(--muted);
+    border: 1px solid var(--line);
+  }
+
+  .tok-abilities {
+    margin: 0 0 6px;
+    padding-left: 18px;
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
+
+  .tok-reach,
+  .tok-repolist,
+  .tok-meta { font-size: 12px; line-height: 1.6; }
+
+  .tok-repolist { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .tok-revoke { flex: none; }
+</style>

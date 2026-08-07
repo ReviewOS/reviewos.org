@@ -110,9 +110,9 @@ So the rule for this codebase, and it is a rule rather than a preference:
 
 The half of this nobody builds, and the half that decides whether an instance is safe two years in.
 
-- [ ] `settings/tokens.stx` lists tokens with what each one can actually do, in the same words as
+- [x] `settings/tokens.stx` lists tokens with what each one can actually do, in the same words as
       the permission checks, not as a scope string the reader has to decode
-- [ ] Last used, from where, and against which repositories, so an unused token is visible as unused
+- [x] Last used, from where, and against which repositories, so an unused token is visible as unused
 - [ ] Expiry warnings by email before a token dies, because a token that expires silently in CI at
       2am teaches people to set no expiry at all
 - [ ] Organization owners can list every token with access to their repositories, and revoke one.

@@ -1,6 +1,6 @@
 import type { ResourceSelection } from '../../TokenScopes'
 import { Action } from '@stacksjs/actions'
-import { normalizeGrants, resolveExpiry } from '../../TokenScopes'
+import { normalizeGrants, ORGANIZATION_SCOPES, REPOSITORY_SCOPES, resolveExpiry } from '../../TokenScopes'
 import { currentUser } from '../Identity/lookup'
 import { generateToken } from './secret'
 
@@ -33,8 +33,7 @@ export default new Action({
     if (!(SELECTIONS as readonly string[]).includes(selection))
       return response.json({ error: 'A selection is all, organization, or selected' }, 422)
 
-    const requested = request.get('permissions')
-    const grants = normalizeGrants(Array.isArray(requested) ? requested : [])
+    const grants = normalizeGrants(readPermissions(request))
 
     if (grants.length === 0)
       return response.json({ error: 'A token with no permissions can do nothing' }, 422)
@@ -72,7 +71,7 @@ export default new Action({
     }
 
     const repositoryIds = selection === 'selected'
-      ? await readableRepositories(request.get('repository_ids'), user.id)
+      ? await readableRepositories(readRepositoryIds(request), user.id)
       : []
 
     if (selection === 'selected' && repositoryIds.length === 0)
@@ -124,6 +123,64 @@ export default new Action({
     }, 201)
   },
 })
+
+/**
+ * The grants asked for, however they were asked for.
+ *
+ * A JSON client sends `permissions: [{ scope, level }]`, which is the shape the
+ * API documents and the shape `normalizeGrants` wants. A browser form cannot
+ * send that: an HTML form posts flat pairs, and a repeated field name arrives
+ * as one value or as a list depending on the body parser, which is not
+ * something a settings page should be betting on.
+ *
+ * So the form sends one field per scope - `scope_contents=write` - which is
+ * flat, unambiguous, and reads correctly in a request log. Unknown scopes and
+ * levels are left to `normalizeGrants` to drop, exactly as they are for a JSON
+ * client, so there is one place that decides what a valid grant is.
+ *
+ * The alternative was a second endpoint for the browser, which would have meant
+ * two implementations of issuing a token and one of them getting a fix.
+ */
+function readPermissions(request: any): { scope: string, level: string }[] {
+  const requested = request.get('permissions')
+  if (Array.isArray(requested))
+    return requested
+
+  const grants: { scope: string, level: string }[] = []
+
+  for (const scope of [...REPOSITORY_SCOPES, ...ORGANIZATION_SCOPES]) {
+    const level = request.get(`scope_${scope}`)
+    if (!level)
+      continue
+
+    const value = String(level)
+    // The form's "no access" option, which is how somebody turns a scope off
+    // rather than by leaving a field out and hoping.
+    if (value === 'none')
+      continue
+
+    grants.push({ scope, level: value })
+  }
+
+  return grants
+}
+
+/**
+ * The repository ids asked for, from either shape.
+ *
+ * A form sends `repository_ids=3,7`, because checkboxes have the same repeated
+ * name problem and a comma-separated list survives every parser.
+ */
+function readRepositoryIds(request: any): unknown[] {
+  const requested = request.get('repository_ids')
+  if (Array.isArray(requested))
+    return requested
+
+  if (requested === null || requested === undefined || requested === '')
+    return []
+
+  return String(requested).split(',').map(part => part.trim()).filter(Boolean)
+}
 
 /**
  * The requested repositories, filtered to the ones this user can actually read.
