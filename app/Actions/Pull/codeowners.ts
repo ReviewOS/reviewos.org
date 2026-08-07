@@ -17,11 +17,14 @@
  * write that deliberately: specific rules at the top, a fallback at the bottom
  * is *wrong* here, and the fallback has to come first.
  *
- * ## What is deliberately not supported
+ * ## What resolves, and what does not
  *
- * Teams (`@org/team`) parse and are carried through as owners, because dropping
- * them would silently ask fewer people than the file says. Resolving one to its
- * members is the caller's job and phase 1's model.
+ * Teams (`@org/team`) parse, carry through as owners, and `resolveOwners`
+ * turns one into its members through phase 1's model - an organization's
+ * handle, a team's slug within it, and the people on it. A team the forge has
+ * never heard of resolves to nobody, exactly like a handle that matches no
+ * user: the file is checked in and can name anyone, and a stale line in it is
+ * not a reason to refuse a pull request.
  *
  * Email addresses are accepted as owners and will simply match no local user,
  * which is the honest outcome: the file says to ask somebody this forge has
@@ -226,4 +229,76 @@ export function ownersForPaths(rules: readonly OwnerRule[], paths: readonly stri
   }
 
   return owners
+}
+
+/** A person an owner line resolved to. */
+export interface ResolvedOwner {
+  id: number
+  handle: string
+}
+
+/**
+ * The people a list of owners names, teams expanded to their members.
+ *
+ * Resolved one owner at a time, in the order `ownersForPaths` produced - the
+ * list reads as the diff does, and a team's members arrive where the team was
+ * written. A `CODEOWNERS` list is a handful of lines, so a query per line
+ * costs nothing worth a cleverer statement.
+ *
+ * Deduplicated by user: somebody named directly *and* through a team is one
+ * person asked once, at their first mention. Anything that resolves to nobody
+ * - an unknown handle, an email, a team from another forge's org - contributes
+ * nothing rather than failing, for the reason the file header gives.
+ */
+export async function resolveOwners(named: readonly string[]): Promise<ResolvedOwner[]> {
+  const seen = new Set<number>()
+  const people: ResolvedOwner[] = []
+
+  const add = (row: { id: unknown, handle: unknown }): void => {
+    const id = Number(row.id)
+    if (seen.has(id))
+      return
+
+    seen.add(id)
+    people.push({ id, handle: String(row.handle) })
+  }
+
+  for (const owner of named) {
+    if (owner.includes('/')) {
+      // `org/team`, split at the first slash: an organization's handle cannot
+      // contain one, so everything after it is the team's slug.
+      const cut = owner.indexOf('/')
+      const orgHandle = owner.slice(0, cut).toLowerCase()
+      const teamSlug = owner.slice(cut + 1).toLowerCase()
+
+      if (orgHandle === '' || teamSlug === '')
+        continue
+
+      const members: any[] = await db
+        .selectFrom('team_members')
+        .innerJoin('teams', 'teams.id', '=', 'team_members.team_id')
+        .innerJoin('organizations', 'organizations.id', '=', 'teams.organization_id')
+        .innerJoin('users', 'users.id', '=', 'team_members.user_id')
+        .select(['users.id as id', 'users.handle as handle'])
+        .where('organizations.handle', '=', orgHandle)
+        .where('teams.slug', '=', teamSlug)
+        .execute()
+
+      for (const member of members)
+        add(member)
+
+      continue
+    }
+
+    const person: any = await db
+      .selectFrom('users')
+      .select(['id', 'handle'])
+      .where('handle', '=', owner.toLowerCase())
+      .executeTakeFirst()
+
+    if (person)
+      add(person)
+  }
+
+  return people
 }

@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { isSafeRef, mergeBase, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { allocateNumber, authorizeRepository } from '../Repo/authorize'
-import { codeownersFor, ownersForPaths } from './codeowners'
+import { codeownersFor, ownersForPaths, resolveOwners } from './codeowners'
 
 /**
  * Open a pull request.
@@ -145,12 +145,15 @@ async function revision(path: string, ref: string): Promise<string | null> {
  *
  * The author is never asked to review their own change. Being named as an owner
  * of a file you are changing is the normal case, not an exception, so filtering
- * it out is most of what this does in practice.
+ * it out is most of what this does in practice - including when the naming is
+ * indirect, through a team the author is on.
  *
- * A handle naming nobody here - a team, an email address, somebody who has left
- * - is skipped rather than failing the request. The file is checked in and can
- * name anyone; refusing to open a pull request because of a stale line in it
- * would make an unrelated problem look like the forge being broken.
+ * A name resolving to nobody here - an unknown handle, an email address, a
+ * team this forge has never heard of - is skipped rather than failing the
+ * request. The file is checked in and can name anyone; refusing to open a pull
+ * request because of a stale line in it would make an unrelated problem look
+ * like the forge being broken. A team that *is* known resolves to its members,
+ * each asked as themselves: `resolveOwners` in `codeowners.ts`.
  *
  * Never throws. This runs *after* the pull request exists, so an error here
  * would report a failure for something that succeeded.
@@ -175,25 +178,21 @@ async function requestCodeOwners(options: {
     if (named.length === 0)
       return []
 
-    const users: any[] = await db
-      .selectFrom('users')
-      .select(['id', 'handle'])
-      .where('handle', 'in', named.map(one => one.toLowerCase()))
-      .execute()
+    const people = await resolveOwners(named)
 
     const asked: string[] = []
-    for (const row of users) {
-      if (Number(row.id) === options.authorId)
+    for (const person of people) {
+      if (person.id === options.authorId)
         continue
 
       await db.insertInto('pull_request_reviewers').values({
         pull_request_id: options.pullRequestId,
         reviewer_type: 'user',
-        reviewer_id: Number(row.id),
+        reviewer_id: person.id,
         from_code_owners: true,
       }).execute()
 
-      asked.push(String(row.handle))
+      asked.push(person.handle)
     }
 
     return asked

@@ -19,6 +19,11 @@ const created = {
   authorId: 0,
   ownerId: 0,
   otherId: 0,
+  memberId: 0,
+  memberHandle: '',
+  orgId: 0,
+  orgHandle: '',
+  teamId: 0,
   repositoryId: 0,
   handle: '',
   ownerHandle: '',
@@ -132,6 +137,34 @@ beforeAll(async () => {
     created.otherId = other.id
     created.otherHandle = other.handle
 
+    // An organization with a team on it, holding one fresh member and the
+    // author. The team is what the file names; the people are who get asked.
+    const member = await make('com')
+    created.memberId = member.id
+    created.memberHandle = member.handle
+
+    created.orgHandle = unique('coorg')
+    const org: any = await (globalThis as any).db
+      .insertInto('organizations')
+      .values({ handle: created.orgHandle, name: 'Codeowners Org' })
+      .returning(['id'])
+      .executeTakeFirst()
+    created.orgId = Number(org?.id)
+
+    const team: any = await (globalThis as any).db
+      .insertInto('teams')
+      .values({ organization_id: created.orgId, name: 'Reviewers', slug: 'reviewers' })
+      .returning(['id'])
+      .executeTakeFirst()
+    created.teamId = Number(team?.id)
+
+    for (const userId of [created.memberId, created.authorId]) {
+      await (globalThis as any).db
+        .insertInto('team_members')
+        .values({ team_id: created.teamId, user_id: userId, role: 'member' })
+        .execute()
+    }
+
     created.name = unique('repo')
     const resolvedPath = repositoryPath(created.handle, created.name)
     created.diskPath = resolvedPath.path!
@@ -161,8 +194,10 @@ beforeAll(async () => {
 
     mkdirSync(join(work, 'docs'))
     mkdirSync(join(work, 'src'))
+    mkdirSync(join(work, 'team'))
     writeFileSync(join(work, 'docs', 'guide.md'), '# Guide\n')
     writeFileSync(join(work, 'src', 'app.ts'), 'export const app = 1\n')
+    writeFileSync(join(work, 'team', 'notes.ts'), 'export const notes = 1\n')
     writeFileSync(join(work, 'README.md'), '# Read me\n')
 
     // The author owns the source; somebody else owns the docs. That split is
@@ -179,6 +214,7 @@ beforeAll(async () => {
       `*.md @acme/writers @nobody-${unique('x')}`,
       `src/ @${created.handle}`,
       `docs/ @${created.ownerHandle}`,
+      `team/ @${created.orgHandle}/reviewers`,
       '',
     ].join('\n'))
 
@@ -191,6 +227,7 @@ beforeAll(async () => {
       ['touch-docs', join('docs', 'guide.md'), '# Guide, revised\n'],
       ['touch-src', join('src', 'app.ts'), 'export const app = 2\n'],
       ['touch-readme', 'README.md', '# Read me, revised\n'],
+      ['touch-team', join('team', 'notes.ts'), 'export const notes = 2\n'],
     ]
 
     for (const [branch, file, contents] of branches) {
@@ -224,7 +261,15 @@ afterAll(async () => {
     if (created.repositoryId)
       await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute()
 
-    for (const id of [created.authorId, created.ownerId, created.otherId].filter(Boolean))
+    if (created.teamId) {
+      await db.deleteFrom('team_members').where('team_id', '=', created.teamId).execute()
+      await db.deleteFrom('teams').where('id', '=', created.teamId).execute()
+    }
+
+    if (created.orgId)
+      await db.deleteFrom('organizations').where('id', '=', created.orgId).execute()
+
+    for (const id of [created.authorId, created.ownerId, created.otherId, created.memberId].filter(Boolean))
       await db.deleteFrom('users').where('id', '=', id).execute()
   }
   finally {
@@ -283,6 +328,21 @@ describe('CODEOWNERS on open', () => {
    * request, which would make a stale line in a text file look like the forge
    * being broken.
    */
+  /**
+   * A team is the file naming a group, and the group is people. The author is
+   * on this team, and is still not asked: being named indirectly is still
+   * being named, and a request in your own queue for your own change is wrong
+   * however it got there.
+   */
+  test('a team resolves to its members, minus the author', async () => {
+    if (!available)
+      return
+
+    const { asked } = await open('touch-team', 'Change the team notes')
+
+    expect(asked).toEqual([created.memberHandle])
+  })
+
   test('a name that matches nobody here is skipped, not an error', async () => {
     if (!available)
       return

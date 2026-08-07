@@ -149,9 +149,17 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
   because refusing to open a pull request over a stale line in a checked-in text file would make an
   unrelated problem look like the forge being broken.
 
-- [ ] Resolve a team (`@org/team`) to its members. Teams parse and are carried through as owners
+- [x] Resolve a team (`@org/team`) to its members. Teams parse and are carried through as owners
       rather than dropped, so the file is read faithfully; turning one into people is phase 1's
       model.
+
+  `resolveOwners` in `codeowners.ts`: the organization by handle, the team by slug within it, the
+  members through `team_members`. Resolved in file order so a team's members arrive where the team
+  was written, and deduplicated by user - somebody named directly and through a team is one person
+  asked once. A team the forge has never heard of resolves to nobody, exactly like an unknown
+  handle. The author is excluded even when the naming is indirect: being on the team does not put a
+  request for your own change in your own queue, and the e2e's team deliberately includes the
+  author to hold that.
 
 ## Merging
 
