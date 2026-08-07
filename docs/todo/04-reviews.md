@@ -251,7 +251,20 @@ this is where the claim is either true or marketing.
       reader is already typing into wins over one arriving from elsewhere, because taking their words
       away would be the failure this exists to prevent.
 - [ ] Keyboard-first: next file, next thread, next unresolved, approve, request changes, submit,
-      all without the mouse, and a command palette for everything else
+      all without the mouse, and a command palette for everything else.
+
+  Navigation is done. `j` and `k` walk the files, `n` and `p` the threads, `N` and `P` the threads
+  still unresolved, and `/` opens the filter. The keys are the ones every forge has trained people
+  on, so nobody has to learn ours, and they are ignored while the reader is typing - `n` in a reply
+  box is the letter n.
+
+  Unresolved is a separate pair rather than a mode because a second round of review is mostly "what
+  did I ask for that has not been answered", and walking every thread to find them means reading
+  every one somebody already resolved.
+
+  What is left is the verdict: approve, request changes and submit have no keys because the files
+  page has no form to submit them from - that surface has to exist before a shortcut can reach it.
+  A command palette waits on there being enough commands to be worth searching.
 - [x] Tests: a force-push mid-review keeps the incremental diff correct, and classification does not
       hide a logic change inside a rename. Both are the assertion that would fail on a plausible
       wrong implementation, which is why they are the two written down here.

@@ -2425,7 +2425,8 @@ export function mountDiffFiles(): DiffViewer | null {
    *
    * A reviewer with eleven pull requests waiting does not want to aim at a
    * scrollbar. The keys are the ones every forge has trained people on, so
-   * nobody has to learn ours: `j` and `k` for files, `n` and `p` for threads.
+   * nobody has to learn ours: `j` and `k` for files, `n` and `p` for threads,
+   * and `N` and `P` for the threads still unresolved.
    *
    * Ignored while the reader is typing. A reply box is a text field, and `j`
    * in one means the letter j.
@@ -2454,6 +2455,18 @@ export function mountDiffFiles(): DiffViewer | null {
       case 'p':
         event.preventDefault()
         goToThread(-1)
+        break
+      // The same two keys with shift, for the conversations still open. A
+      // second round of review is mostly "what did I ask for that has not been
+      // answered", and walking every thread to find them means reading every
+      // one somebody already resolved.
+      case 'N':
+        event.preventDefault()
+        goToThread(1, true)
+        break
+      case 'P':
+        event.preventDefault()
+        goToThread(-1, true)
         break
       case '/':
         // The key every list on the internet uses for its filter. Worth
@@ -2500,8 +2513,12 @@ export function mountDiffFiles(): DiffViewer | null {
    * mounted scrolls, which mounts more, so holding the key still walks the
    * whole review.
    */
-  function goToThread(direction: 1 | -1): void {
-    const threads = [...region.querySelectorAll<HTMLElement>('.thread')]
+  function goToThread(direction: 1 | -1, unresolvedOnly = false): void {
+    // A resolved thread folds down to one line and is rendered with
+    // `is-resolved` on it, so "the conversations still open" is a selector
+    // rather than a second pass over the data.
+    const selector = unresolvedOnly ? '.thread:not(.is-resolved)' : '.thread'
+    const threads = [...region.querySelectorAll<HTMLElement>(selector)]
     if (threads.length === 0)
       return
 
