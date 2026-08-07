@@ -200,3 +200,8 @@ export const refLinks = refLinksImpl
 import { commitRows as commitRowsImpl } from '../../app/Actions/Browse/rows'
 
 export const commitRows = commitRowsImpl
+
+/** A commit signature, shaped for `SignatureBadge`. */
+import { signatureBadge as signatureBadgeImpl } from '../../app/Actions/Browse/rows'
+
+export const signatureBadge = signatureBadgeImpl

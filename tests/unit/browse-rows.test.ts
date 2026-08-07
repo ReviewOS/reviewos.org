@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { commitRows, refLinks, treeRows } from '../../app/Actions/Browse/rows'
+import { commitRows, refLinks, signatureBadge, treeRows } from '../../app/Actions/Browse/rows'
 
 /**
  * What a directory listing and a ref picker look like once the rules are
@@ -132,5 +132,71 @@ describe('commitRows', () => {
 
   it('has an answer for a repository with no commits', () => {
     expect(commitRows([], BASE, relativeTime, shortSha)).toEqual([])
+  })
+})
+
+/**
+ * What a reader is told about a signature.
+ *
+ * These are claims about a person, not formatting, which is why they are pinned
+ * here rather than left in a template. "Invalid" says a signature did not check
+ * out; "Unverified" says this server has nothing to check it against. Only one
+ * of those is an accusation, and swapping them would put it on every commit
+ * signed with a key nobody happened to register.
+ */
+describe('signatureBadge', () => {
+  it('says nothing about an unsigned commit', () => {
+    // Most commits. A mark on nearly every row is a mark people learn to
+    // ignore, and it is the same mark that has to mean something on the day a
+    // signature really is bad.
+    expect(signatureBadge('unsigned').show).toBe(false)
+  })
+
+  it('names the signer when one is known', () => {
+    const badge = signatureBadge('verified', 'Ada Lovelace')
+
+    expect(badge.show).toBe(true)
+    expect(badge.label).toBe('Verified')
+    expect(badge.tone).toBe('good')
+    expect(badge.detail).toContain('Ada Lovelace')
+  })
+
+  it('still says verified when the signer has no name on record', () => {
+    const badge = signatureBadge('verified', null)
+
+    expect(badge.label).toBe('Verified')
+    expect(badge.detail).not.toContain('null')
+  })
+
+  it('accuses only when the signature actually failed', () => {
+    expect(signatureBadge('invalid').label).toBe('Invalid')
+    expect(signatureBadge('invalid').tone).toBe('bad')
+  })
+
+  it.each(['unknown_key', 'unavailable'] as const)('does not accuse on %s', (status) => {
+    // A key nobody registered may be perfectly good, and a missing gpg says
+    // nothing at all about who wrote the commit. Both are "we do not know".
+    const badge = signatureBadge(status)
+
+    expect(badge.label).toBe('Unverified')
+    expect(badge.tone).not.toBe('bad')
+    expect(badge.tone).not.toBe('good')
+  })
+
+  it('distinguishes the two unverified cases in the detail, not the label', () => {
+    // The label is what people scan and both mean the same thing to a reader.
+    // The reason they differ matters to whoever is debugging it.
+    expect(signatureBadge('unknown_key').detail).toContain('nobody here has registered')
+    expect(signatureBadge('unavailable').detail).toContain('could not check')
+  })
+
+  it('gives every drawn badge a word and an icon, not just a colour', () => {
+    for (const status of ['verified', 'invalid', 'unknown_key', 'unavailable'] as const) {
+      const badge = signatureBadge(status)
+
+      expect(badge.label.length).toBeGreaterThan(0)
+      expect(badge.icon.length).toBeGreaterThan(0)
+      expect(badge.detail.length).toBeGreaterThan(0)
+    }
   })
 })

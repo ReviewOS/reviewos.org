@@ -11,6 +11,8 @@
  */
 
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 export interface GitResult {
   ok: boolean
@@ -64,6 +66,56 @@ export function isFullSha(value: string): boolean {
 }
 
 /**
+ * The `PATH` a git child process gets.
+ *
+ * `deps.yaml` declares the binaries this application runs - git, and gnupg for
+ * signature verification - and pantry installs them into `<project>/pantry`,
+ * with `pantry/.bin` holding the symlinks. A shell picks that up on `cd`,
+ * through pantry's hook. **Nothing else does.** A systemd unit, a Docker
+ * `CMD`, a launchd job, a `bun test` run - none of them have been anywhere, so
+ * none of them see it.
+ *
+ * The symptom is not an error. `git verify-commit` answers `cannot run gpg: No
+ * such file or directory`, which this reads as `unavailable`, which the
+ * interface reports as "this server could not check the signature" - on a
+ * machine where the dependency is installed, declared, and sitting on disk.
+ * Every signature reads as unverified and nothing anywhere says why.
+ *
+ * So the path is put back here rather than left to the environment: the process
+ * should not have to have been started from the right directory to find the
+ * binaries the project declares.
+ *
+ * **Appended, not prepended,** and that is a deliberate retreat from the
+ * obvious version. Putting it first makes the declared git win over the host's,
+ * which sounds better and is a much larger change than the one this is for -
+ * and it broke three of the wire-protocol tests, in a way not yet run down.
+ * Appending fills a gap rather than taking a decision away: whatever the host
+ * already resolves keeps resolving exactly as it did, and a binary it does not
+ * have at all - gpg, here - is found in the project instead of not at all.
+ */
+export function dependencyPath(root = process.cwd()): string | null {
+  const bin = resolve(root, 'pantry/.bin')
+
+  return existsSync(bin) ? bin : null
+}
+
+/** The environment every git child gets: no prompts, no host config, our binaries. */
+export function gitEnvironment(extra: Record<string, string> = {}): Record<string, string> {
+  const bin = dependencyPath()
+  const path = bin ? `${process.env.PATH ?? ''}:${bin}` : process.env.PATH
+
+  return {
+    ...process.env as Record<string, string>,
+    ...(path ? { PATH: path } : {}),
+    ...extra,
+    // Never let a repository's own config change how we read it, and never let
+    // git prompt: a hung credential prompt would hold the request open.
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_CONFIG_NOSYSTEM: '1',
+  }
+}
+
+/**
  * Run git in a repository and collect its output.
  *
  * For anything whose output can be large (a packfile, an archive) use
@@ -78,16 +130,7 @@ export async function runGit(repositoryPath: string, args: string[], options: {
   const { input, timeoutMs = 30_000, env = {} } = options
 
   return await new Promise<GitResult>((resolvePromise) => {
-    const child = spawn('git', ['--git-dir', repositoryPath, ...args], {
-      env: {
-        ...process.env,
-        ...env,
-        // Never let a repository's own config change how we read it, and never
-        // let git prompt: a hung credential prompt would hold the request open.
-        GIT_TERMINAL_PROMPT: '0',
-        GIT_CONFIG_NOSYSTEM: '1',
-      },
-    })
+    const child = spawn('git', ['--git-dir', repositoryPath, ...args], { env: gitEnvironment(env) })
 
     let stdout = ''
     let stderr = ''
@@ -134,21 +177,14 @@ export async function runGit(repositoryPath: string, args: string[], options: {
  * a clone of a large repository never sits in memory.
  */
 export function spawnGit(repositoryPath: string, args: string[], env: Record<string, string> = {}) {
-  return spawn('git', ['--git-dir', repositoryPath, ...args], {
-    env: {
-      ...process.env,
-      ...env,
-      GIT_TERMINAL_PROMPT: '0',
-      GIT_CONFIG_NOSYSTEM: '1',
-    },
-  })
+  return spawn('git', ['--git-dir', repositoryPath, ...args], { env: gitEnvironment(env) })
 }
 
 /** Create a bare repository. */
 export async function initBare(repositoryPath: string, defaultBranch = 'main'): Promise<GitResult> {
   return await new Promise<GitResult>((resolvePromise) => {
     const child = spawn('git', ['init', '--bare', `--initial-branch=${defaultBranch}`, repositoryPath], {
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      env: gitEnvironment(),
     })
 
     let stderr = ''
@@ -174,13 +210,7 @@ export async function initBare(repositoryPath: string, defaultBranch = 'main'): 
  */
 export async function cloneBare(from: string, to: string): Promise<GitResult> {
   return await new Promise<GitResult>((resolvePromise) => {
-    const child = spawn('git', ['clone', '--bare', '--local', from, to], {
-      env: {
-        ...process.env,
-        GIT_TERMINAL_PROMPT: '0',
-        GIT_CONFIG_NOSYSTEM: '1',
-      },
-    })
+    const child = spawn('git', ['clone', '--bare', '--local', from, to], { env: gitEnvironment() })
 
     let stderr = ''
     child.stderr.on('data', chunk => stderr += chunk)

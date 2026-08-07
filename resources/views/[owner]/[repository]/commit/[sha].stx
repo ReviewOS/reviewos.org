@@ -10,8 +10,8 @@
  * `app/Actions/Browse/load`, shaping is `resources/functions/browse`, and this
  * lays it out.
  */
-import { repositoryForView } from '../../../../functions/repo'
-import { commitDetail, relativeTime, shortSha } from '../../../../functions/browse'
+import { repositoryForView, verifySignature } from '../../../../functions/repo'
+import { commitDetail, relativeTime, shortSha, signatureBadge } from '../../../../functions/browse'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
@@ -48,6 +48,13 @@ const commit = repoRow ? await commitDetail(String(repoAccess?.diskPath ?? ''), 
 
 const base = `/${ownerHandle}/${repositoryName}`
 const files = commit?.files ?? []
+
+// One commit, one gpg process. Affordable here and not in a list of thirty,
+// which is why the history has no badge - see `app/Actions/Git/signatures.ts`.
+// Never throws: a page that renders a commit must not fail because a key is
+// malformed or gpg is missing, and both of those are `unavailable`.
+const signed = commit ? await verifySignature(String(repoAccess?.diskPath ?? ''), commit.sha) : null
+const signature = signatureBadge(signed?.verification.status ?? 'unsigned', signed?.signer?.name ?? null)
 </script>
 
 @layout('app')
@@ -83,6 +90,7 @@ const files = commit?.files ?? []
 
         <div class="commit-by">
           <span>{{ commit.authorName }}</span>
+          <SignatureBadge :badge="signature" />
           <span class="muted">authored {{ relativeTime(commit.authoredAt) }}</span>
           @if (commit.committerName !== commit.authorName)
             <span class="muted">&middot; {{ commit.committerName }} committed {{ relativeTime(commit.committedAt) }}</span>

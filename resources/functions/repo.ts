@@ -57,3 +57,13 @@ import { GITIGNORES as GITIGNORES_IMPL, LICENSES as LICENSES_IMPL } from '../../
 
 export const LICENSES = LICENSES_IMPL
 export const GITIGNORES = GITIGNORES_IMPL
+
+/**
+ * Whether a commit's signature checked out, and who signed it.
+ *
+ * The database half of `app/Actions/Git/verify.ts`, which is deliberately free
+ * of one so its rules can be tested against a fixture repository.
+ */
+import { verifySignature as verifySignatureImpl } from '../../app/Actions/Git/signatures'
+
+export const verifySignature = verifySignatureImpl

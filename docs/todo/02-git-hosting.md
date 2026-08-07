@@ -530,8 +530,8 @@ the one moment where rejecting is still possible.
   - [x] The client cases are behind `REVIEWOS_LFS_CLIENT_TESTS=1`. Spawning a Go binary is what has
         to be survivable rather than what is being tested, and on a host whose swap is exhausted the
         kernel kills the process group rather than the allocation
-- [ ] Commit signature verification against registered GPG keys. **Written and unit-tested, not
-      wired up.** `app/Actions/Git/signature.ts` reads the signature off a commit object and decides
+- [x] Commit signature verification against registered GPG keys, on the commit page.
+      `app/Actions/Git/signature.ts` reads the signature off a commit object and decides
       which registered keys could have made it; `verify.ts` builds a throwaway keyring from those
       keys and asks **git** to verify, rather than running gpg itself - the same rule as the rest of
       this phase, and it also avoids owning the payload reconstruction, which is the one computation
@@ -568,6 +568,30 @@ the one moment where rejecting is still possible.
       absence of a binary, and that reason is untouched by having one: a process killed by the OOM
       killer takes the whole run down and reports nothing, and it cannot be probed for from inside
       the process it would kill. Opting in is a judgement about the host, which CI should make
+  - [x] Wired up. `app/Actions/Git/signatures.ts` is the database half - the keys come out of
+        `gpg_keys`, the signer is resolved to a person - and `signatureBadge` in
+        `app/Actions/Browse/rows.ts` decides what a reader is told, because that is a judgement
+        rather than a formatting step. **Unverified and invalid are different claims and only one
+        of them accuses somebody**: a key nobody registered may be perfectly good, so it reads as
+        "we do not know" rather than "we know this is wrong". An unsigned commit gets no badge at
+        all - most commits are unsigned, and a mark on nearly every row is a mark people learn to
+        ignore, which is the same mark that has to mean something on the day a signature is bad
+  - [x] On the commit page and not on the history. One commit is one gpg process, which is fine for
+        a page and is not fine for a list of thirty. The list wants the answer stored rather than
+        recomputed, and storing it wants a `commits` table that does not exist yet - so a slow list
+        was the alternative, and nobody waits four seconds to read a subject line
+  - [x] **Found the last thing standing between the tests passing and the feature working.** `git`
+        finds `gpg` on `PATH`, and pantry's shell hook only puts `<project>/pantry/.bin` there when
+        a shell `cd`s into the project. A server process has not been anywhere: a systemd unit, a
+        Docker `CMD`, a `bun test` run all start without it. So every signature on a correctly
+        configured instance would read "this server could not check the signature", with the binary
+        installed, declared, and sitting on disk. `gitEnvironment` in `app/Actions/Git/git.ts` puts
+        it back for every git child. **Appended rather than prepended**, which is a deliberate
+        retreat: putting it first makes the project's git win over the host's, which sounds tidier
+        and broke three wire-protocol tests. Appending fills a gap rather than taking a decision
+        away
+  - [x] `tests/unit/git-environment.test.ts` pins the order, because "the host's PATH comes first"
+        is exactly the kind of thing somebody tidies back
       explicitly rather than inherit
 
 ## Browsing

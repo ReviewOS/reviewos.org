@@ -33,7 +33,7 @@ import { dirname, resolve } from 'node:path'
 import { db } from '@stacksjs/database'
 import { fingerprintOf, generateHostKey, parsePrivateKey, parsePublicKey, serve } from '@stacksjs/ts-ssh'
 import { diskPathFor, findRepositoryByPath, mayUseService } from './access'
-import { serviceArgs } from './git'
+import { gitEnvironment, serviceArgs } from './git'
 import { repositoryPath } from './storage'
 
 /** Where the host key lives, unless configured otherwise. */
@@ -300,15 +300,15 @@ async function runGitCommand(command: Command, report: (error: unknown) => void)
   // round of the protocol. Over SSH the process talks for the life of the
   // channel, which is the mode git was written for.
   const child = spawn('git', serviceArgs(path, parsed.service, { stateless: false }), {
-    env: {
-      ...process.env,
-      GIT_TERMINAL_PROMPT: '0',
-      GIT_CONFIG_NOSYSTEM: '1',
+    // The same environment every other git child gets, so a push over SSH runs
+    // the same declared binaries as one over HTTPS, plus the one thing only
+    // this transport knows.
+    env: gitEnvironment({
       // Read by the pre-receive hook, so a push over SSH is attributed to the
       // person who made it. Over HTTPS that comes from the Authorization
       // header; here there is no header and the key is the identity.
       REVIEWOS_ACTOR_ID: userId === null ? '' : String(userId),
-    },
+    }),
   })
 
   command.onData(data => child.stdin.write(data))

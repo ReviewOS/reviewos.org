@@ -140,3 +140,88 @@ export function commitRows(
     }
   })
 }
+
+/** A signature, as one badge. */
+export interface SignatureBadge {
+  /** Whether to draw anything at all. */
+  show: boolean
+  label: string
+  /** Which of the three appearances: good, uncertain, or bad. */
+  tone: 'good' | 'quiet' | 'bad'
+  /** The sentence on hover, and the one a screen reader gets. */
+  detail: string
+  icon: string
+}
+
+/**
+ * What a reader is told about a commit signature.
+ *
+ * Four things are worth being careful about here, and three of them are about
+ * not overclaiming.
+ *
+ * **An unsigned commit gets no badge.** Most commits are unsigned, and marking
+ * them would put a warning on nearly every row of every repository - which
+ * teaches people to ignore it, and it is the same warning that has to mean
+ * something on the day a signature really is bad.
+ *
+ * **`unknown_key` is not a failure.** The signature may be perfectly good; this
+ * server has nothing to check it against. Saying "unverified" rather than
+ * "invalid" is the difference between "we do not know" and "we know it is
+ * wrong", and only one of those is an accusation.
+ *
+ * **`unavailable` is about this server, not the commit.** gpg missing or a
+ * keyring that could not be written says nothing about who wrote the commit,
+ * so it reads as a shrug rather than as a verdict.
+ *
+ * **`verified` means one specific thing**: the signature is good, *and* the key
+ * belongs to somebody here, *and* that key claims the address the commit says
+ * wrote it. Anything less is one of the two above.
+ */
+export function signatureBadge(
+  status: 'unsigned' | 'verified' | 'unknown_key' | 'invalid' | 'unavailable',
+  signerName?: string | null,
+): SignatureBadge {
+  switch (status) {
+    case 'verified':
+      return {
+        show: true,
+        label: 'Verified',
+        tone: 'good',
+        detail: signerName
+          ? `Signed by a key registered to ${signerName}, matching the address on the commit.`
+          : 'Signed by a registered key matching the address on the commit.',
+        icon: 'i-hugeicons-checkmark-badge-01',
+      }
+
+    case 'invalid':
+      return {
+        show: true,
+        label: 'Invalid',
+        tone: 'bad',
+        detail: 'This commit carries a signature and the signature does not check out.',
+        icon: 'i-hugeicons-alert-02',
+      }
+
+    case 'unknown_key':
+      return {
+        show: true,
+        label: 'Unverified',
+        tone: 'quiet',
+        detail: 'This commit is signed by a key nobody here has registered, so there is nothing to check it against.',
+        icon: 'i-hugeicons-help-circle',
+      }
+
+    case 'unavailable':
+      return {
+        show: true,
+        label: 'Unverified',
+        tone: 'quiet',
+        detail: 'This commit is signed, and this server could not check the signature.',
+        icon: 'i-hugeicons-help-circle',
+      }
+
+    default:
+      // Unsigned. Most commits, and not worth a mark.
+      return { show: false, label: '', tone: 'quiet', detail: '', icon: '' }
+  }
+}
