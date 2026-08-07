@@ -18,6 +18,10 @@ let available = false
 let db: any = null
 let sweepPolymorphic: (id: number) => Promise<{ ok: boolean, removed: Array<{ table: string, rows: number }>, error?: string }>
 const made: number[] = []
+// The user everything here is owned by. Created per run rather than assumed:
+// `reactions.user_id` and `notification_subscriptions.user_id` are real foreign
+// keys, and a freshly migrated database has no user 1 to point them at.
+let userId = 0
 
 beforeAll(async () => {
   try {
@@ -26,6 +30,12 @@ beforeAll(async () => {
 
     db = (globalThis as any).db
     await db.selectFrom('repositories').select(['id']).limit(1).execute()
+
+    const handle = `del${Math.floor(Math.random() * 1e9)}`
+    const user = await db.insertInto('users')
+      .values({ name: 'Delete Tester', email: `${handle}@example.com`, handle, password: 'x' })
+      .returning(['id']).executeTakeFirst()
+    userId = Number(user.id)
 
     ;({ sweepPolymorphic } = await import('../../app/Actions/Repo/polymorphic'))
     available = true
@@ -41,6 +51,9 @@ afterAll(async () => {
 
   for (const id of made)
     await db.deleteFrom('repositories').where('id', '=', id).execute()
+
+  if (userId)
+    await db.deleteFrom('users').where('id', '=', userId).execute()
 })
 
 /** A repository with one of everything that hangs off it, polymorphic or not. */
@@ -50,7 +63,7 @@ async function seedRepository(): Promise<{ id: number, issueId: number, commentI
   const repository = await db.insertInto('repositories')
     .values({
       owner_type: 'user',
-      owner_id: 1,
+      owner_id: userId,
       name,
       description: '',
       visibility: 'public',
@@ -73,11 +86,11 @@ async function seedRepository(): Promise<{ id: number, issueId: number, commentI
   const commentId = Number(comment.id)
 
   await db.insertInto('reactions')
-    .values({ subject_type: 'issue_comment', subject_id: commentId, content: '+1', user_id: 1 }).execute()
+    .values({ subject_type: 'issue_comment', subject_id: commentId, content: '+1', user_id: userId }).execute()
   await db.insertInto('timeline_entries')
     .values({ subject_type: 'issue', subject_id: issueId, kind: 'closed' }).execute()
   await db.insertInto('notification_subscriptions')
-    .values({ subject_type: 'repository', subject_id: id, user_id: 1, reason: 'watching' }).execute()
+    .values({ subject_type: 'repository', subject_id: id, user_id: userId, reason: 'watching' }).execute()
   await db.insertInto('repository_labels')
     .values({ repository_id: id, name: 'bug', color: '#f00', description: '', is_default: true }).execute()
 
