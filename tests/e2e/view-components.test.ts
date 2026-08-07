@@ -11,24 +11,19 @@
 // `tests/helpers/server.ts` configures the directories now, and this is what
 // says so if that stops happening.
 //
-// **One limitation survives, and it is why this asserts what it asserts** - but
-// it is fixed upstream and waiting on a release, not open. A component used
-// *directly in a view* renders here. A component nested inside another
-// component, inside an `@if` branch, does not: rendering stops at the nested
-// tag with no error anywhere and the page comes back truncated. That is why
-// `resources/views/[owner]/[repository]/index.stx` - one line, `<RepoBrowser/>`
-// - loses everything after the clone box.
+// A component *nested inside another component* used to be the other half of
+// this, and it now works, so the repository page is asserted whole below. It
+// took a fix in stx and it is worth knowing why, because the failure looked
+// like this project's.
 //
-// The cause is not this project's. A template directive is text and so is the
-// body of a script tag, and stx's conditional scanner read both the same way.
-// stx injects its own signals runtime, the runtime has `'@else-if'` in it
-// because that is an attribute it supports, and the scanner matched the real
-// `@if` against that token - swallowing everything between and splicing the
-// rest of the document into the middle of a JavaScript string. Fixed in stx by
-// masking `<script>` elements for the duration of the pass
-// (`conditionals-script-masking.test.ts` there). This app consumes the
-// published `@stacksjs/stx`, so the repository-page assertions here can be
-// tightened once that release lands.
+// A template directive is text and so is the body of a script tag, and stx's
+// conditional scanner read both the same way. stx injects its own signals
+// runtime, the runtime has `'@else-if'` in it because that is an attribute it
+// supports, and the scanner matched the real `@if` against that token -
+// swallowing everything between and splicing the rest of the document into the
+// middle of a JavaScript string. The page still answered 200, missing
+// everything from the component to the end of the conditional. Fixed by masking
+// `<script>` elements for the duration of the pass, in stx 0.2.156.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdirSync, rmSync } from 'node:fs'
@@ -149,6 +144,46 @@ describe('a view served by the test router', () => {
     // never searched - and the branches view uses it directly.
     expect(branchesPage).toContain('repo-tabs')
     expect(branchesPage).toContain('Pull requests')
+  })
+
+  test('renders a component nested inside another component', () => {
+    if (!available)
+      return
+
+    // The repository view is one line, `<RepoBrowser/>`, and `RepoBrowser`
+    // contains `<RepoTabs/>` inside an `@else` branch. Everything from the
+    // clone box onwards used to vanish, with no error and a 200.
+    expect(repositoryPage).toContain('repo-tabs')
+    expect(repositoryPage).toContain('Pull requests')
+    expect(repositoryPage).toContain('This repository is empty')
+  })
+
+  test('does not quote a component\'s interpolated state twice', () => {
+    if (!available)
+      return
+
+    // `CloneUrlBox` builds its `x-data` from a server value:
+    // `x-data="{ https: '{{ cloneUrl }}' }"`. stx before 0.2.156 spliced an
+    // interpolation inside a string literal as `JSON.stringify(value)`, so the
+    // runtime scope held `'"https://…"'` - quoted by the template and again by
+    // the encoder. Nothing threw; the copy button just copied a URL with two
+    // quote characters in it.
+    const scope = /data-stx-xdata="([^"]*)"/.exec(repositoryPage)?.[1] ?? ''
+
+    expect(scope).toContain('https://')
+    expect(scope).not.toContain('&quot;https')
+    expect(repositoryPage).not.toMatch(/initScope\(scopeEl, "\{[^"]*\\"http/)
+  })
+
+  test('closes the page it opened', () => {
+    if (!available)
+      return
+
+    // The tell that separated "a component is missing" from "the render stopped
+    // partway": a truncated page has no closing tags, because nothing after the
+    // component ever ran.
+    expect(repositoryPage).toContain('</main>')
+    expect(repositoryPage.trimEnd()).toEndWith('</html>')
   })
 
   test('runs a component server script and interpolates its output', () => {
