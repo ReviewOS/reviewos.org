@@ -588,7 +588,17 @@ this is where the claim is either true or marketing.
   fetches `?tab=files`, and `pull-tabs.test.ts` holds the cost model - the conversation tab must
   NOT carry diff rows - as well as the content of each tab.
 - [x] `.../pull/[number]/files.stx` - the review screen, and the most important screen in the product
-- [ ] `.../compare/[...refs].stx`
+- [x] `.../compare/[...refs].stx`
+
+  `a...b` is the merge-base compare - what `b` proposes, the diff a pull request would show - and
+  `a..b` is tip to tip, kept apart and labelled out loud with the honest way out one click away,
+  because diffing against the tip is the most common way review UIs mislead and the two texts look
+  identical. One name compares against the default branch. The diff renders through the review
+  screen's own renderer, so a compare and the pull request it becomes cannot look different, and
+  the page carries the open-a-pull-request form (merge-base mode, signed-in, `pull:open`) - the
+  address the push pipeline's stack offers point at, with a stacked base opening a stacked pull
+  request through open-time detection. The e2e is built on a history where the two modes genuinely
+  differ, which is the roadmap's own lesson about tests.
 - [x] Components: `ReviewPanel`, `PullRequestHeader`, `MergeBox`, `StackIndicator`,
       `FileTreeSidebar`. `DiffView` and `ReviewThread` were components and are not any more: the
       same markup is needed by the streamed review screen, and a component cannot be called from a

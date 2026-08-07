@@ -340,6 +340,38 @@ export async function compareRefs(repositoryPath: string, base: string, head: st
   }
 }
 
+/**
+ * The unified diff between two refs, as text, in either compare mode.
+ *
+ * Merge-base mode is the three-dot form - what the head is proposing, the
+ * diff a pull request renders. Direct is tip to tip, and the page saying so
+ * is the caller's job: the text alone looks identical, which is exactly the
+ * problem with it.
+ */
+export async function compareDiffText(
+  repositoryPath: string,
+  base: string,
+  head: string,
+  mode: 'merge-base' | 'direct',
+): Promise<string> {
+  if (!isSafeRevision(base) || !isSafeRevision(head))
+    return ''
+
+  const range = mode === 'merge-base' ? `${base}...${head}` : `${base}..${head}`
+
+  const result = await runGit(repositoryPath, [
+    'diff',
+    '--unified=3',
+    '--find-renames',
+    '--find-copies',
+    '--no-color',
+    '--no-ext-diff',
+    range,
+  ], { timeoutMs: 60_000 })
+
+  return result.ok ? result.stdout : ''
+}
+
 /** How many lines of one file may be blamed in a single request. */
 export const MAX_BLAME_LINES = 5000
 

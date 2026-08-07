@@ -109,7 +109,8 @@ export function shortSha(sha: string): string {
  * exists at all: the template gets one import and no logic.
  */
 import type { TreeEntry as TreeEntryImpl } from '../../app/Actions/Browse/parse'
-import { branchNames as branchNamesImpl, commitDetail as commitDetailImpl, commitHistory as commitHistoryImpl, compareRefs as compareRefsImpl, lastCommit as lastCommitImpl, listTree as listTreeImpl, MAX_BLOB_BYTES as MAX_BLOB_BYTES_IMPL, readBlob as readBlobImpl, tagNames as tagNamesImpl } from '../../app/Actions/Browse/load'
+import { branchNames as branchNamesImpl, commitDetail as commitDetailImpl, commitHistory as commitHistoryImpl, compareDiffText as compareDiffTextImpl, compareRefs as compareRefsImpl, lastCommit as lastCommitImpl, listTree as listTreeImpl, MAX_BLOB_BYTES as MAX_BLOB_BYTES_IMPL, readBlob as readBlobImpl, tagNames as tagNamesImpl } from '../../app/Actions/Browse/load'
+import { parseCompareRefs as parseCompareRefsImpl } from '../../app/Actions/Browse/compare'
 import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
 // The list helpers. Every import in this file has to sit in this one block:
 // an `import` further down, after the `export const` re-bindings, is not
@@ -128,6 +129,12 @@ export const tagNames = tagNamesImpl
 export const commitHistory = commitHistoryImpl
 export const commitDetail = commitDetailImpl
 export const compareRefs = compareRefsImpl
+
+/** The compare URL's two refs and which question, parsed. */
+export const parseCompareRefs = parseCompareRefsImpl
+
+/** The unified diff between two refs, in either compare mode. */
+export const compareDiffText = compareDiffTextImpl
 export const highlightLines = highlightLinesImpl
 export const languageFor = languageForImpl
 export const MAX_BLOB_BYTES = MAX_BLOB_BYTES_IMPL

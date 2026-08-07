@@ -1,0 +1,184 @@
+<script server>
+/**
+ * Compare two refs, and open a pull request from the answer.
+ *
+ * `a...b` is the merge-base compare - what `b` is proposing, the diff a pull
+ * request would show. `a..b` is tip to tip, which includes every commit other
+ * people landed on `a` in between; the roadmap calls diffing against the tip
+ * the most common way review UIs mislead, so the mode is said out loud
+ * rather than treated as punctuation. One name compares against the default
+ * branch. This page is also where the push pipeline's stack offers point.
+ */
+import { repositoryForView, repositoryPath } from '../../../../functions/repo'
+import { cookieJarFromHeader } from '../../../../functions/identity'
+import { compareDiffText, compareRefs, parseCompareRefs } from '../../../../functions/browse'
+import { parseDiff, renderDiffFile, highlightDiffFile } from '../../../../functions/review'
+
+const owner = String(params.owner)
+const repositoryName = String(params.repository)
+const refsRaw = String(params.refs ?? '')
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+const viewerCookies = serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie)
+
+const access = await repositoryForView(owner, repositoryName, viewerCookies)
+const repoRow: any = access?.repository ?? null
+
+const request = repoRow ? parseCompareRefs(refsRaw, String(repoRow.default_branch ?? 'main')) : null
+
+const onDisk = repositoryPath(owner, repositoryName)
+
+const comparison = repoRow && request && onDisk.ok && onDisk.path
+  ? await compareRefs(onDisk.path, request.base, request.head)
+  : null
+
+/*
+ * The diff itself, rendered with the review screen's own renderer, so a
+ * compare and the pull request it becomes cannot look different. Direct mode
+ * diffs tip to tip on purpose - that being different from the merge-base
+ * answer is the whole reason the mode is labelled.
+ */
+const raw = comparison?.ok && request && onDisk.ok && onDisk.path
+  ? await compareDiffText(onDisk.path, request.base, request.head, request.mode)
+  : ''
+
+const files = parseDiff(raw)
+
+const diffHtml: string[] = []
+for (const file of files) {
+  diffHtml.push(renderDiffFile(file, {
+    expandable: true,
+    tokens: await highlightDiffFile(file),
+    collapsed: false,
+  }))
+}
+
+/*
+ * Opening a pull request from here: merge-base mode only - a pull request IS
+ * the three-dot compare - for a signed-in reader who may open one. The base
+ * may be another topic branch, which is how a stack's second layer is opened
+ * and what the push pipeline's offer links to.
+ */
+const mayOpen = Boolean(
+  access?.viewer
+  && access.can('pull:open')
+  && request
+  && request.mode === 'merge-base'
+  && comparison?.ok
+  && files.length > 0,
+)
+
+const title = repoRow && request
+  ? `Comparing ${request.base}...${request.head} · ${owner}/${repositoryName}`
+  : 'Compare'
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repoRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+      </div>
+    @endif
+
+    @if (repoRow && !request)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">Nothing to compare</h1>
+        <p class="muted" style="margin-top: 6px;">
+          Name two refs as <span class="mono">base...head</span>, or one branch to compare
+          against <span class="mono">{{ repoRow.default_branch }}</span>.
+        </p>
+      </div>
+    @endif
+
+    @if (repoRow && request && (!comparison || !comparison.ok))
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">These refs cannot be compared</h1>
+        <p class="muted" style="margin-top: 6px;">{{ comparison?.error ?? 'One of them does not exist.' }}</p>
+      </div>
+    @endif
+
+    @if (repoRow && request && comparison && comparison.ok)
+      <header class="pr-head">
+        <h1 class="pr-title" style="font-size: 21px;">
+          Comparing <span class="mono">{{ request.base }}</span>
+          {{ request.mode === 'merge-base' ? '...' : '..' }}<span class="mono">{{ request.head }}</span>
+        </h1>
+
+        {{-- The mode, out loud. The two texts look identical, which is
+             exactly the problem with the second one. --}}
+        @if (request.mode === 'merge-base')
+          <p class="muted" style="margin-top: 6px;">
+            From where the histories parted: what
+            <span class="mono">{{ request.head }}</span> is proposing, the diff a pull request
+            would show. {{ comparison.ahead }} ahead, {{ comparison.behind }} behind.
+          </p>
+        @endif
+        @if (request.mode === 'direct')
+          <p class="muted" style="margin-top: 6px;">
+            Tip to tip: this includes every commit that landed on
+            <span class="mono">{{ request.base }}</span> in the meantime, not only what
+            <span class="mono">{{ request.head }}</span> proposes.
+            <a href="/{{ owner }}/{{ repositoryName }}/compare/{{ request.base }}...{{ request.head }}">
+              Compare from the merge base instead.</a>
+          </p>
+        @endif
+      </header>
+
+      @if (mayOpen)
+        <section class="panel" style="padding: 15px 17px; margin-bottom: 16px;">
+          <h2 class="side-heading">Open a pull request</h2>
+          <form method="post" action="/api/repos/pulls" class="compare-open">
+            <CsrfField />
+            <input type="hidden" name="owner" value="{{ owner }}">
+            <input type="hidden" name="repo" value="{{ repositoryName }}">
+            <input type="hidden" name="base" value="{{ request.base }}">
+            <input type="hidden" name="head" value="{{ request.head }}">
+            <input class="input" name="title" placeholder="What this change does" required>
+            <button type="submit" class="btn btn-primary">Open pull request</button>
+          </form>
+          <p class="hint muted" style="margin-top: 8px;">
+            A base that is another open pull request's branch opens this as part of its stack.
+          </p>
+        </section>
+      @endif
+
+      @if (comparison.commits.length > 0)
+        <section class="panel" style="padding: 15px 17px; margin-bottom: 16px;">
+          <h2 class="side-heading">Commits</h2>
+          <ul class="pr-commits" style="margin-top: 9px;">
+            @foreach (comparison.commits as commit)
+              <li class="pr-commit">
+                <a class="mono" href="/{{ owner }}/{{ repositoryName }}/commit/{{ commit.sha }}">{{ commit.sha.slice(0, 10) }}</a>
+                <span class="pr-commit-subject">{{ commit.subject }}</span>
+                <span class="muted">{{ commit.authorName }}</span>
+              </li>
+            @endforeach
+          </ul>
+        </section>
+      @endif
+
+      @if (files.length === 0)
+        <p class="muted" style="padding: 24px 0;">
+          There is nothing to compare: the refs point at the same tree.
+        </p>
+      @endif
+
+      @foreach (diffHtml as html)
+        {!! html !!}
+      @endforeach
+    @endif
+  </div>
+@endsection
+
+<style>
+  .compare-open { display: flex; gap: 8px; margin-top: 10px; }
+  .compare-open .input { flex: 1; }
+
+  .pr-commits { display: flex; flex-direction: column; gap: 8px; }
+  .pr-commit { display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; }
+  .pr-commit-subject { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
