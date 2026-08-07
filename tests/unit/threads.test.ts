@@ -172,12 +172,57 @@ describe('anchorThreads', () => {
     expect(placed).toMatchObject({ outdated: false, path: 'a.ts' })
   })
 
-  test('a thread on a line that is gone becomes outdated rather than disappearing', () => {
+  /**
+   * A comment on a line the author removed is not outdated. The removed line is
+   * *shown* in this diff, on the left, which is exactly where the comment about
+   * it belongs - "why did you delete this" is one of the most ordinary things a
+   * reviewer says.
+   *
+   * This test used to assert the opposite, because anchoring mapped the line
+   * through the diff as though it were an old-side position being carried
+   * forward. See the note on `placeThread`.
+   */
+  test('a thread on a line the author removed sits on that line, on the left', () => {
     // Line 2 on the left was `const b = 2`, which this diff removes.
     const [placed] = anchorThreads([stored({ line: 2, side: 'left', originalLine: 2 })], files)
 
-    expect(placed!.outdated).toBe(true)
+    expect(placed!.outdated).toBe(false)
     expect(placed!.line).toBe(2)
+  })
+
+  /**
+   * The case that was wrong for every review ever left on this product, and the
+   * reason none of the tests above caught it: they all use context lines or the
+   * left side. Commenting on the code being *proposed* is the most ordinary
+   * thing a reviewer does, and it was reported outdated the moment it happened.
+   */
+  test('a thread on an added line is current, not a relic', () => {
+    const added = parseDiff(`diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1,2 +1,2 @@
+ const a = 1
+-const b = 2
++const b = 3
+`)
+    const [placed] = anchorThreads([stored({ path: 'a.ts', line: 2, side: 'right', originalLine: 2 })], added)
+
+    expect(placed!.outdated).toBe(false)
+    expect(placed!.line).toBe(2)
+  })
+
+  test('a thread on a file this diff deletes has nowhere to go and says so', () => {
+    const deleted = parseDiff(`diff --git a/a.ts b/a.ts
+deleted file mode 100644
+--- a/a.ts
++++ /dev/null
+@@ -1,2 +0,0 @@
+-const a = 1
+-const b = 2
+`)
+    const [placed] = anchorThreads([stored({ path: 'a.ts', line: 2, side: 'right', originalLine: 2 })], deleted)
+
+    expect(placed!.outdated).toBe(true)
   })
 
   test('a file this diff does not touch leaves its threads where they were', () => {

@@ -15,7 +15,7 @@
 
 import type { DiffFile } from './diff'
 import type { ReviewThreadView, ThreadComment } from './threads'
-import { reanchor } from './anchoring'
+import { placeThread } from './anchoring'
 
 /**
  * A thread as it is stored, before it has been placed on a current line.
@@ -119,7 +119,10 @@ export function anchorThreads(
   files: readonly DiffFile[],
 ): ReviewThreadView[] {
   return threads.map((thread) => {
-    const outcome = reanchor({ path: thread.path, line: thread.line, side: thread.side }, files)
+    // `placeThread`, not `reanchor`: this is the diff on screen, and a thread's
+    // line is already a position in it. See the note on `placeThread` for what
+    // mapping it instead did to every comment on an added line.
+    const outcome = placeThread({ path: thread.path, line: thread.line, side: thread.side }, files)
 
     return {
       id: thread.id,

@@ -49,8 +49,10 @@ they are somebody's problem.
 - [x] Word-level highlighting inside changed lines
 - [x] Whitespace-only changes hidden behind a toggle
 - [x] Generated files (lockfiles, `.gitattributes` `linguist-generated`) collapsed by default
-- [ ] Tests against real-world shapes: a moved file, a 5,000 line diff, a file with no trailing
-      newline, mixed line endings
+- [x] Tests against real-world shapes: a moved file, a 5,000 line diff, a file with no trailing
+      newline, mixed line endings. All four in `tests/unit/diff-shapes.test.ts`, alongside a quoted
+      path, a path containing a newline, and a path containing a quote. The same box is ticked in
+      [phase 14](./14-diff-engine.md) and satisfied by the same file.
 
 ## Comment anchoring
 
@@ -62,7 +64,28 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
       dropping it.
 - [x] A thread on a line that a later commit restores becomes current again
 - [x] Threads survive a force-push, which is the common case for a rebased branch
-- [ ] Tests: rebase, amend, force-push, file rename, and the line moving within a file
+- [x] Tests: rebase, amend, force-push, file rename, and the line moving within a file.
+      `tests/e2e/thread-anchoring.test.ts` puts a thread on a line and then rebases and force-pushes
+      for real; rename and line-movement are unit tests on `reanchor`.
+
+  **Writing it found that every review comment on an added line was marked outdated the moment it
+  was left.** Anchoring called `reanchor`, which maps a line *from the old side of a diff to the new
+  side* - the right operation for tracking a thread from the commit it was written against to the
+  current head, and the wrong one for the diff on screen, where a thread's line is already a
+  position. A right-side line is a line of the head; mapping it as an old-side line lands on
+  whatever occupies that number in the base, and for an added line there is nothing there at all.
+
+  Commenting on the code being proposed is the most ordinary thing a reviewer does. Every one of
+  those comments rendered as a relic of a version that never existed, and no test caught it because
+  every existing anchoring test used a context line or the left side. `placeThread` is the correct
+  operation and `reanchor` is left alone, because it is right about what it does.
+
+- [ ] Track a thread through the diff from the head it was written against to the current head, so a
+      rebase that shifts a line carries the comment with it. `reanchor` is that operation and is
+      already correct; what is missing is handing it the right diff, which means one
+      `git diff <original_commit_sha>..<head_sha>` per distinct original sha, resolved once in
+      `loadReviewThreads` before the stream opens rather than per file. The end-to-end test above
+      asserts today's behaviour and names this as the gap.
 
 ## Reviews
 
@@ -342,7 +365,10 @@ this is where the claim is either true or marketing.
       string. Both now come from `app/Actions/Pull/rows.ts` and `threads.ts`, which is one renderer
       rather than two that drift.
 - [x] Keyboard navigation through files and threads, and submitting a review without the mouse
-- [ ] The diff renders on the server; the browser gets HTML, not a diff library and a JSON payload
+- [x] The diff renders on the server; the browser gets HTML, not a diff library and a JSON payload.
+      The architecture of [phase 14](./14-diff-engine.md), defended on the marketing site, and held
+      to by `tests/e2e/review-page.test.ts`, which fetches the page with nothing to run a script and
+      asserts the rows, the syntax tokens and the review threads are in the markup.
 
 ## Stacked pull requests
 

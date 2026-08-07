@@ -36,6 +36,56 @@ export type AnchorOutcome =
  * current head. A file absent from that diff did not change, so the line is
  * where it was.
  */
+/**
+ * Where a thread sits in the diff currently being shown.
+ *
+ * Not the same operation as `reanchor`, and confusing the two cost every review
+ * comment on new code its place. `reanchor` maps a line **from the old side of
+ * a diff to the new side**, which is what tracking a thread from the commit it
+ * was written against to the current head requires. This is the diff from the
+ * base to the head - the one on screen - and a thread's line is already a
+ * position in it: a right-side line is a line of the head, a left-side line is
+ * a line of the base. Neither needs mapping, and mapping a right-side line as
+ * though it were an old-side one lands on whatever happens to occupy that
+ * number in the base.
+ *
+ * What that did: a thread on an added line was reported **outdated the moment
+ * it was created**, because the old side of the diff has nothing at that
+ * number - the line is new. Commenting on the code being proposed is the most
+ * ordinary thing a reviewer does, and every one of those comments rendered as a
+ * relic of some earlier version that never existed.
+ *
+ * So a thread is outdated here only when there is genuinely nowhere to put it:
+ * the file was deleted, or it is binary. A line the author has since removed is
+ * *shown* in this diff, on the left, which is exactly where the comment about
+ * it belongs.
+ *
+ * Outdatedness that comes from the head *moving* is a different question, and
+ * one this function is not given enough to answer - see `reanchor`, and the
+ * roadmap item about tracking through intervening diffs.
+ */
+export function placeThread(anchor: Anchor, files: readonly DiffFile[]): AnchorOutcome {
+  const file = files.find(candidate => candidate.path === anchor.path || candidate.previousPath === anchor.path)
+
+  // Not in this diff, so this file did not change between base and head. The
+  // thread is on a line nobody touched and stays exactly where it is.
+  if (!file)
+    return { status: 'unchanged', anchor }
+
+  if (file.status === 'deleted')
+    return { status: 'outdated', anchor }
+
+  const path = file.previousPath === anchor.path ? file.path : anchor.path
+
+  // Nothing to sit on. A comment on a line of a binary file has no line.
+  if (file.binary)
+    return { status: 'outdated', anchor: { ...anchor, path } }
+
+  return path === anchor.path
+    ? { status: 'unchanged', anchor }
+    : { status: 'moved', anchor: { ...anchor, path } }
+}
+
 export function reanchor(anchor: Anchor, files: readonly DiffFile[]): AnchorOutcome {
   const file = files.find(candidate => candidate.path === anchor.path || candidate.previousPath === anchor.path)
 
