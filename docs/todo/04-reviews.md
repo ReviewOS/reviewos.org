@@ -411,9 +411,20 @@ this is where the claim is either true or marketing.
   and the markup are one computation (`defaultFoldsFor`) in every consumer.
   `tests/unit/hunk-folds.test.ts` holds the three-way agreement, the thread exclusion, and that a
   file with nothing to fold renders exactly as before.
-- [ ] A block that moved between two *files* reads as a delete and an add. Detecting that needs the
+- [x] A block that moved between two *files* reads as a delete and an add. Detecting that needs the
       whole diff in view rather than one file, which the streaming manifest deliberately does not
       have.
+
+  `crossmoves.ts`: the same run reduction `movedRuns` already does, accumulated across files
+  instead of within one - `changedRuns` is the shared walk, so the two detectors cannot disagree
+  about what a block is. Stricter than the within-file rule on purpose (five lines, exact trimmed
+  equality, exactly one departure and one arrival in different files), because the matching space
+  is the whole diff and every language's brace runs collide; anything cloned, duplicated, or
+  edited by one line claims nothing, and the refusal cases are most of the test file. Each end
+  gets a sentence on its hunk separator - `moved to b.ts`, `moved from a.ts` - on the
+  conversation page, which is the one place the whole diff is in hand. The streamed screen does
+  not run the whole-diff pass yet: its manifest never holds the whole patch, and a streaming
+  ledger of run digests is the shape of that extension when it is wanted.
 - [x] Commit-by-commit review for branches whose history was written to be read, rather than forcing
       every change through one squashed view
 

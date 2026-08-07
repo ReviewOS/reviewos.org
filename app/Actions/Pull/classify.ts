@@ -201,35 +201,48 @@ function movedKey(content: string): string {
  * run somewhere else is not obviously a move, and answering "moved" for it
  * would hide two lines nobody has read.
  */
+/**
+ * Every changed run of one origin in a file, as (key, hunk, length).
+ *
+ * The one definition of a run - trimmed lines, joined, minimum length - so
+ * within-file and cross-file detection cannot disagree about what a block is.
+ */
+export function changedRuns(
+  file: DiffFile,
+  origin: 'removed' | 'added',
+): Array<{ key: string, hunk: number, lines: number }> {
+  const runs: Array<{ key: string, hunk: number, lines: number }> = []
+
+  for (const [index, hunk] of file.hunks.entries()) {
+    let run: string[] = []
+
+    const close = () => {
+      if (run.length >= MOVED_RUN_MINIMUM)
+        runs.push({ key: run.join('\n'), hunk: index, lines: run.length })
+      run = []
+    }
+
+    for (const line of hunk.lines) {
+      if (line.origin === origin)
+        run.push(movedKey(line.content))
+      else
+        close()
+    }
+
+    close()
+  }
+
+  return runs
+}
+
 export function movedRuns(file: DiffFile): { removed: Set<string>, added: Set<string> } {
   const removedRuns = new Map<string, number>()
   const addedRuns = new Map<string, number>()
 
-  const collect = (into: Map<string, number>, origin: 'removed' | 'added') => {
-    for (const hunk of file.hunks) {
-      let run: string[] = []
-
-      const close = () => {
-        if (run.length >= MOVED_RUN_MINIMUM) {
-          const key = run.join('\n')
-          into.set(key, (into.get(key) ?? 0) + 1)
-        }
-        run = []
-      }
-
-      for (const line of hunk.lines) {
-        if (line.origin === origin)
-          run.push(movedKey(line.content))
-        else
-          close()
-      }
-
-      close()
-    }
-  }
-
-  collect(removedRuns, 'removed')
-  collect(addedRuns, 'added')
+  for (const run of changedRuns(file, 'removed'))
+    removedRuns.set(run.key, (removedRuns.get(run.key) ?? 0) + 1)
+  for (const run of changedRuns(file, 'added'))
+    addedRuns.set(run.key, (addedRuns.get(run.key) ?? 0) + 1)
 
   const moved = new Set<string>()
   for (const [key, count] of removedRuns) {

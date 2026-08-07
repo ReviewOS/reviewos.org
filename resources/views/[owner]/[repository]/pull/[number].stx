@@ -13,7 +13,7 @@
 import { repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
-import { approvalsSatisfied, commitDiff, commitsOnBranch, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists } from '../../../../functions/review'
+import { approvalsSatisfied, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, moveNotes, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists } from '../../../../functions/review'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
@@ -150,6 +150,15 @@ const files = parseDiff(raw)
 const totals = diffTotals(files)
 
 /*
+ * Blocks that moved between files, found over the whole diff - which this
+ * page is the one place to hold. Each end of a move gets a sentence on its
+ * hunk separator: the same lines, named on both ends, instead of a hundred
+ * deletions here and a hundred additions there.
+ */
+const crossMoves = crossFileMoves(files)
+const crossNotes = moveNotes(crossMoves)
+
+/*
  * Syntax highlighting, per file, keyed by side and line number.
  *
  * Done here rather than in the component so each file is tokenized once for
@@ -206,6 +215,7 @@ if (tab === 'files' && !commitMode) {
       // what it hides. The renderer only applies it where the classifier is
       // confident; everything else renders exactly as before.
       hunkFolds: 'details',
+      hunkNotes: crossNotes.get(files.indexOf(file)),
       threadsAt: threadSlotFor(fileThreads, file.path),
     })
   }

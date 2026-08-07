@@ -169,6 +169,12 @@ export interface RenderRowsOptions {
    */
   hunkKinds?: HunkKind[]
   /**
+   * A sentence for a hunk's separator, keyed by hunk index - `moved to
+   * b.ts`, `moved from a.ts`. Whole-diff knowledge the caller computed;
+   * this module only says it where the reader's eye already stops.
+   */
+  hunkNotes?: ReadonlyMap<number, string>
+  /**
    * Hunks rendered as their separator and nothing else.
    *
    * The numeric fold, for the streamed screen: a folded hunk's lines never
@@ -356,6 +362,7 @@ function hunkHeadRow(
   gap?: { from: number, to: number, size: number },
   kind?: HunkKind,
   folded?: { hunk: number, hidden: number },
+  note?: string,
 ): string {
   const range = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`
   const heading = hunk.heading ? ` <span class="muted">${escapeHtml(hunk.heading)}</span>` : ''
@@ -376,9 +383,15 @@ function hunkHeadRow(
     ? ` <button type="button" class="hunk-unfold" data-hunk="${folded.hunk}">${folded.hidden} hidden ${folded.hidden === 1 ? 'line' : 'lines'}</button>`
     : ''
 
+  // Whole-diff knowledge, said where the eye stops: a block that left for
+  // another file, or arrived from one, named on both ends.
+  const crossNote = note
+    ? ` <span class="hunk-mechanical">${escapeHtml(note)}</span>`
+    : ''
+
   const label = `<td class="hunk-label mono" colspan="${layout === 'split' ? 4 : 1}">`
     + expandControl(gap, oldOffsetAt(hunk))
-    + `${escapeHtml(range)}${heading}${mechanical}${foldNote}</td>`
+    + `${escapeHtml(range)}${heading}${mechanical}${crossNote}${foldNote}</td>`
 
   // In split the header spans the whole width. Sat in the last column, as it
   // did, it reads as a heading for the right-hand side rather than for the hunk
@@ -462,6 +475,7 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
         gaps?.get(index),
         options.hunkKinds?.[index],
         folded ? { hunk: index, hidden: hunkBodyRows(hunk).unified } : undefined,
+        options.hunkNotes?.get(index),
       ))
     }
 
@@ -530,6 +544,7 @@ function renderSplit(file: DiffFile, options: RenderRowsOptions): string {
         gaps?.get(index),
         options.hunkKinds?.[index],
         folded ? { hunk: index, hidden: hunkBodyRows(hunk).split } : undefined,
+        options.hunkNotes?.get(index),
       ))
     }
 

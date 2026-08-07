@@ -133,6 +133,7 @@ import { highlightDiffFile as highlightDiffFileImpl, renderDiffFile as renderDif
 import { anchorThreads as anchorThreadsImpl, loadReviewThreads as loadReviewThreadsImpl } from '../../app/Actions/Pull/loadThreads'
 import { threadSlotFor as threadSlotForImpl } from '../../app/Actions/Pull/threads'
 import { branchExists as branchExistsImpl } from '../../app/Actions/Pull/restore'
+import { crossFileMoves as crossFileMovesImpl, moveNotes as moveNotesImpl } from '../../app/Actions/Pull/crossmoves'
 import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
 import { blockedBy as blockedByImpl, buildStack as buildStackImpl, orphanMessage as orphanMessageImpl, orphanReason as orphanReasonImpl, stackSummary as stackSummaryImpl } from './stack'
 import { refreshMergeability as refreshMergeabilityImpl } from '../../app/Actions/Pull/refresh-mergeability'
@@ -183,3 +184,7 @@ export const threadSlotFor = threadSlotForImpl
 
 /** Whether a branch is still in the repository, for offering to restore one. */
 export const branchExists = branchExistsImpl
+
+/** Blocks that moved between files, found over the whole diff. */
+export const crossFileMoves = crossFileMovesImpl
+export const moveNotes = moveNotesImpl
