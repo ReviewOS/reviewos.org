@@ -91,6 +91,18 @@ const contextUrl = `/api/repos/pulls/diff/context?${diffQuery}`
  * not.
  */
 const commentUrl = `/api/repos/pulls/comments?${diffQuery}`
+
+/**
+ * Where the reader's own progress through this pull request lives.
+ *
+ * Read once on load and written as they tick a file or type into a draft, so a
+ * review begun on one machine can be finished on another. The browser keeps its
+ * own copy in local storage regardless: these are what make it durable, not
+ * what make it work.
+ */
+const reviewStateUrl = `/api/repos/pulls/review-state?${diffQuery}`
+const viewedUrl = `/api/repos/pulls/review-state/viewed?${diffQuery}`
+const draftUrl = `/api/repos/pulls/review-state/draft?${diffQuery}`
 </script>
 
 @layout('app')
@@ -201,6 +213,9 @@ const commentUrl = `/api/repos/pulls/comments?${diffQuery}`
         data-rows-url="{{ rowsUrl }}"
         data-context-url="{{ contextUrl }}"
         data-comment-url="{{ commentUrl }}"
+        data-state-url="{{ reviewStateUrl }}"
+        data-viewed-url="{{ viewedUrl }}"
+        data-draft-url="{{ draftUrl }}"
       >
         {{--
           The list is filled in by `mountDiffFiles` from the manifest, which is

@@ -18,7 +18,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (22/57) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (115/117) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
-| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (49/85) |
+| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (51/86) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | In progress (21/51) |
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (1/20) |
 | [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress (21/45) |
@@ -28,7 +28,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Started (1/44) |
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Not started (0/30) |
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | In progress (24/44) |
-| [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (132/168) |
+| [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (134/169) |
 
 Phase 14 was written after reading Pierre's [DiffsHub](https://diffshub.com) and the Apache 2.0
 packages behind it. It is the only phase with a named competitor, because the diff surface is the one
@@ -60,6 +60,28 @@ state, which is indistinguishable from there being nothing to show.
 That is how the issue-template chooser, the milestone state filter, and the `?state=` filter on both
 list views all shipped ticked and none of them ever ran. `STX_DEBUG=1` prints the real cause; it is
 worth running the dev server with it on.
+
+## A signed-in browser is not a signed-in test client
+
+Two bugs, found by opening a page in a browser with a session rather than by running anything, and
+both with the same shape: the code worked for everybody who could not use the feature and failed for
+everybody who could. Written up in [phase 14](./14-diff-engine.md); the general lesson is the point
+here.
+
+**A `fetch` carries no CSRF token.** The router checks a double-submit token on every non-safe
+method, and `CsrfField.stx` puts one in every form. A `fetch` sends neither the header nor the field
+unless told to, so a write from a script is refused with 403 - *but only for a reader with a
+session*, because a browser with no cookie has nothing to mismatch. It passes signed out.
+
+**`currentUser` never looked at a cookie.** It resolved `request.user()` and a bearer token, and a
+browser sends neither: a page signs somebody in with a cookie and a `fetch` from it carries only
+that. So every endpoint outside the auth middleware saw a stranger, and answered a signed-in reader
+as though nobody were there, with a 200.
+
+What they have in common is the credential. **Every test in this repository authenticates with a
+token, and a token works whether or not either bug is present.** A suite that only ever holds a
+bearer cannot see a class of failure that only exists for cookie holders, which is every human being
+using the product. Ask what the *browser* sends, not what the client library can be made to send.
 
 ## Ask which one, not whether it worked
 

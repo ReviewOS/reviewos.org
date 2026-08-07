@@ -86,7 +86,13 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
       rather than deleted, so the thread still reads in order, and the request it answered is
       reopened because a dismissal is a way of asking for another look.
 - [x] Suggested changes: a suggestion block in a comment that the author can commit in one click
-- [ ] Review a single file at a time, with per-file viewed state that persists across visits
+- [x] Per-file viewed state that persists across visits, and across machines. `ReviewedFile` is one
+      row per reviewer per file per pull request, read once on load and written as boxes are ticked;
+      ticking one folds the file away on the way back too, which is the half that makes it worth
+      remembering. Local storage stays in front of it, so a signed-out reader keeps their place and a
+      failed request costs nothing. See [phase 14](./14-diff-engine.md#the-file-tree).
+- [ ] Review a single file at a time: a mode that shows one file and moves to the next, rather than
+      one long scroll with the read ones folded
 - [ ] `CODEOWNERS` parsing, and automatic review requests from it
 
 ## Merging
@@ -158,8 +164,12 @@ this is where the claim is either true or marketing.
       happens when this is wrong", which is the more useful question.
 - [ ] Blame on context lines: why this line is here, linking the pull request that introduced it,
       without leaving the diff
-- [ ] Review drafts survive leaving the page, closing the browser, and coming back on another
-      machine. A lost half-written review is the reason reviews get sent as one line.
+- [x] Review drafts survive leaving the page, closing the browser, and coming back on another
+      machine. A lost half-written review is the reason reviews get sent as one line. `ReviewDraft`
+      holds one per reviewer per pull request, with the path, the side and the range beside the body
+      - a draft restored without its anchor is a comment about code it is not about. A draft the
+      reader is already typing into wins over one arriving from elsewhere, because taking their words
+      away would be the failure this exists to prevent.
 - [ ] Keyboard-first: next file, next thread, next unresolved, approve, request changes, submit,
       all without the mouse, and a command palette for everything else
 - [ ] Tests: a force-push mid-review keeps the incremental diff correct, and classification does not

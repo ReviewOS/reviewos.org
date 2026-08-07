@@ -50,7 +50,10 @@ import {
   visibleRows,
   windowFor,
 } from '../../app/Actions/Pull/window'
-import { filterFiles, readDraft, readViewed, writeDraft, writeViewed } from './filelist'
+import type { ReviewStore } from './reviewstate'
+import { writeHeaders } from './csrf'
+import { filterFiles } from './filelist'
+import { createReviewStore } from './reviewstate'
 
 /**
  * How many hosts to keep for reuse.
@@ -108,10 +111,12 @@ export function createFileList(options: {
   /**
    * Where the viewed set is remembered, which is one pull request.
    *
-   * Passed in rather than read from the URL here, because this function knows
-   * about files and not about how a pull request is addressed.
+   * Passed in rather than built here, because this function knows about files
+   * and not about how a pull request is addressed or where a reader's progress
+   * is kept. Absent on a page with nowhere to keep it, and then the ticks last
+   * as long as the page does.
    */
-  scope?: string
+  store?: ReviewStore | null
   /** Called when a file is ticked or unticked, so the diff can fold it away. */
   onViewedChange?: (path: string, viewed: boolean) => void
 }): {
@@ -123,7 +128,7 @@ export function createFileList(options: {
   focusSearch: () => void
   destroy: () => void
 } {
-  const { host, onSelect, scope, onViewedChange } = options
+  const { host, onSelect, store, onViewedChange } = options
 
   const header = document.createElement('div')
   const viewport = document.createElement('div')
@@ -155,8 +160,10 @@ export function createFileList(options: {
   let shown: number[] = []
   let current = -1
   let frame: number | null = null
-  // Mutated, never replaced: the list holds a reference to it.
-  const viewed = scope == null ? new Set<string>() : readViewed(scope)
+  // Mutated, never replaced: the list holds a reference to it, and so does the
+  // store, which is what lets the server's answer land in it without either
+  // side handing the other a new Set.
+  const viewed: ReadonlySet<string> = store?.viewed ?? new Set<string>()
 
   const schedule = () => {
     if (frame == null)
@@ -230,18 +237,20 @@ export function createFileList(options: {
     if (box == null || file == null)
       return
 
-    if (box.checked)
-      viewed.add(file.path)
-    else
-      viewed.delete(file.path)
-
-    if (scope != null)
-      writeViewed(scope, viewed)
+    store?.setViewed(file.path, box.checked)
 
     onViewedChange?.(file.path, box.checked)
     schedule()
   }
   viewport.addEventListener('change', onChange)
+
+  // The server's answer arriving after the page has already painted from local
+  // storage. Repainting is enough: the set it paints from is the one the store
+  // just filled in, and the boxes are rendered from it on every frame.
+  store?.subscribe((what) => {
+    if (what === 'viewed')
+      schedule()
+  })
 
   /**
    * The filter opens only when it is asked for.
@@ -1224,6 +1233,25 @@ export function mountDiffFiles(): DiffViewer | null {
   const contextUrl = root.dataset.contextUrl
   const commentUrl = root.dataset.commentUrl
 
+  /**
+   * Where the reader's progress through this pull request is kept.
+   *
+   * Local storage first and always, so a tick survives a reload pressed a
+   * moment later; the server behind it, so it survives a different machine.
+   * Scoped by the manifest url, which already names the repository and the
+   * number and is the same for every reader of this page.
+   *
+   * A page that did not render the endpoints - an older template, or a surface
+   * that shows a diff without a pull request behind it - gets a local-only
+   * store rather than a second code path.
+   */
+  const reviewStore = createReviewStore({
+    scope: manifestUrl,
+    endpoints: root.dataset.stateUrl && root.dataset.viewedUrl && root.dataset.draftUrl
+      ? { state: root.dataset.stateUrl, viewed: root.dataset.viewedUrl, draft: root.dataset.draftUrl }
+      : null,
+  })
+
   // The reader's own choices win over the page's defaults, which is what the
   // server rendered the first batch of rows in. Applied to the root before
   // anything mounts, so the first file to appear is already shaped the way the
@@ -1787,14 +1815,9 @@ export function mountDiffFiles(): DiffViewer | null {
    */
   let draft: { anchor: LineAnchor, text: string, busy: boolean } | null = null
 
-  /** Where a half-written comment is kept between visits. */
-  const draftScope = manifestUrl
-
   /** Remember the draft as it is typed, so a reload does not cost the words. */
   function rememberDraft(): void {
-    writeDraft(draftScope, draft == null
-      ? null
-      : { ...draft.anchor, text: draft.text })
+    reviewStore.setDraft(draft == null ? null : { ...draft.anchor, text: draft.text })
   }
 
   /**
@@ -1809,12 +1832,12 @@ export function mountDiffFiles(): DiffViewer | null {
     if (draft != null)
       return
 
-    const stored = readDraft(draftScope)
+    const stored = reviewStore.draft()
     if (stored == null || stored.text.trim() === '')
       return
 
     if (!viewer.files().some(file => file.path === stored.path)) {
-      writeDraft(draftScope, null)
+      reviewStore.setDraft(null)
       return
     }
 
@@ -1845,7 +1868,7 @@ export function mountDiffFiles(): DiffViewer | null {
 
   function closeDraft(): void {
     draft = null
-    writeDraft(draftScope, null)
+    reviewStore.setDraft(null)
 
     for (const row of region.querySelectorAll('.draft-row'))
       row.remove()
@@ -1948,9 +1971,14 @@ export function mountDiffFiles(): DiffViewer | null {
       if (current.anchor.from !== current.anchor.to)
         form.set('start_line', String(current.anchor.from))
 
+      // `writeHeaders` rather than a bare content type, because the router
+      // checks a CSRF token on every non-safe method and a `fetch` carries
+      // neither the header nor the `_token` field a form would. Without it
+      // this post is answered 403 before it reaches the action - and only for
+      // a reader who is signed in, which is everyone who can actually comment.
       const response = await fetch(commentUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: writeHeaders(),
         body: form,
       })
 
@@ -2449,10 +2477,7 @@ export function mountDiffFiles(): DiffViewer | null {
   const fileList = listHost
     ? createFileList({
         host: listHost,
-        // One pull request's worth of viewed files. The manifest url already
-        // names the repository and the number, and it is the same for every
-        // reader of this page, which is exactly the scope wanted.
-        scope: manifestUrl,
+        store: reviewStore,
         onSelect: (index) => {
           const file = viewer.files()[index]
           if (file?.collapsed)
@@ -2508,6 +2533,49 @@ export function mountDiffFiles(): DiffViewer | null {
     fileList?.setFiles(files)
   }
 
+  /**
+   * Fold away everything the reader has already finished with.
+   *
+   * Ticking a file folds it, and a tick that is remembered across visits but
+   * does not fold on the way back only remembers half of what it was for: the
+   * reader returns to two hundred open files with a column of ticks beside
+   * them, and has to fold them again by hand.
+   *
+   * Folded, and only folded. Unfolding everything that is *not* ticked would
+   * open the large files the viewer collapsed on purpose, so this only ever
+   * closes.
+   */
+  function applyViewedFolds(): void {
+    viewer.files().forEach((file, position) => {
+      if (reviewStore.viewed.has(file.path))
+        viewer.setCollapsed(position, true)
+    })
+  }
+
+  /**
+   * The server's answer landing on top of what this machine remembered.
+   *
+   * Asked for alongside the stream rather than before it, because the diff is
+   * what the reader came for and a round trip for their progress must not delay
+   * a single row of it. Usually it lands while files are still arriving, and
+   * what has arrived is what gets folded; `onEnd` folds the rest.
+   */
+  reviewStore.subscribe((what) => {
+    if (what === 'viewed') {
+      applyViewedFolds()
+      return
+    }
+
+    // A draft the reader has already started typing into is theirs and stays
+    // put - `restoreDraft` returns immediately when one is open. Losing words
+    // to a version of the same draft from another machine would be the exact
+    // failure this feature exists to prevent, and their next keystroke sends
+    // what is on screen back to the server anyway.
+    restoreDraft()
+  })
+
+  void reviewStore.load()
+
   void streamDiffManifest(manifestUrl, {
     onFiles(files) {
       viewer.addFiles(files)
@@ -2539,6 +2607,7 @@ export function mountDiffFiles(): DiffViewer | null {
       // file near the end can be honoured - and the earliest a draft can be put
       // back on the line it was written against.
       refreshFileList(true)
+      applyViewedFolds()
       restoreDraft()
       void revealSelection()
       const counts = `${summary.files} files, +${summary.additions} -${summary.deletions}`

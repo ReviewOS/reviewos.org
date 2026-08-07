@@ -102,6 +102,40 @@ a bug and should say so.
 - [ ] Pick up the stx fix here when it releases, and drop the fourteen local guards. They are
       correct and they are noise once the binding is always declared.
 
+### The fourth and fifth: a signed-in browser is not a signed-in client
+
+Both found by opening the page in a browser with a session, which no test in this repository does,
+and both had the same effect: the feature worked perfectly for anybody who could not use it, and
+failed for everybody who could.
+
+**A `fetch` carries no CSRF token.** The router checks a double-submit token on every non-safe
+method: an `x-csrf-token` header, or a `_token` body field, against the `X-CSRF-Token` cookie.
+`CsrfField.stx` puts it in every form, which is most of the product. A `fetch` sends neither unless
+it is told to, so a write from a script is answered `403 CSRF token mismatch` before it reaches an
+action - **but only for a reader who is signed in**, because a browser with no session has no cookie
+to mismatch. Signed out it passes. So it passes every anonymous test, passes a click-through by
+anybody not logged in, and fails for exactly the people the write is for.
+
+This was already true of the diff viewer's comment post, which has been unable to post a comment
+from the streamed view for as long as it has existed. `writeHeaders` in `resources/functions/csrf.ts`
+is now the only way either of them sends a write.
+
+**`currentUser` never looked at a cookie.** A page signs somebody in with a cookie - that is what
+`viewerFromCookies` reads on every rendered page - and a `fetch` from that page sends it
+automatically and sends no `Authorization` header at all. `currentUser` resolved `request.user()` and
+a bearer token and nothing else, so every endpoint outside the auth middleware saw a stranger.
+
+The review-state endpoint therefore answered `signed_in: false` to a reader whose cookie was on the
+request, which would have made this whole section a no-op in a browser while every test passed: the
+progress is stored, the read comes back empty, and the answer is 200 throughout. It is the same
+absent-identity bug the bearer resolution was added for, one credential along, and the tests missed
+it for the same reason - they reach for a token, and a token works whether or not the bug is there.
+
+Safe on writes because the router's CSRF check is global. The exception is `routes/git.ts`, where the
+wire protocol and LFS call `.skipCsrf()` - a git client has no token to double-submit - and those
+authenticate through `tokenFromBasicAuth` and never reach `currentUser`. Anything added there that
+wants a *user* has to keep that true, or a browser cookie becomes a push.
+
 ## The decision that comes first
 
 - [x] **Decide: adopt `@pierre/diffs` or build the engine in-house.** Everything below is written for
@@ -949,8 +983,26 @@ threads, which is where our version has to be better rather than equal.
   into memory correctly and never appeared. After the stream ends nothing schedules another frame,
   and the painting happens in `afterRender` - so a draft restored at that moment was waiting for a
   frame that was never going to come.
-- [ ] Draft reviews survive a *machine* change, which means the server rather than local storage.
-      Phase 4 owns that persistence; this owns putting them back in the right rows.
+- [x] Draft reviews survive a *machine* change, which means the server rather than local storage.
+      `ReviewDraft` holds one per reviewer per pull request - which is what the viewer has, since it
+      only ever opens one - with the path, the side and the range beside the body, because a draft
+      restored without its anchor is a comment about code it is not about.
+
+  Local storage stays, and stays first. It is synchronous, it is available before the first frame,
+  and it is the only copy a signed-out reader has; the server is what makes it durable, not what
+  makes it work. So every write lands locally and *then* goes out, because a reload pressed half a
+  second later beats any request, and a failed request costs the reader nothing they had before the
+  endpoint existed.
+
+  The server wins on load rather than the two being merged. A union looks kinder and is wrong:
+  unticking a file on one machine would see it come back from the other machine's stale cache, and a
+  viewed mark that returns from the dead is worse than one that never persisted. A `signed_in: false`
+  answer is the one case that changes nothing - a session that lapsed between the page rendering and
+  the request going out must not wipe a review in progress.
+
+  A draft the reader has already started typing into is theirs and stays put. Losing words to a
+  version of the same draft from another machine would be the exact failure this prevents, and their
+  next keystroke sends what is on screen back anyway.
 - [x] Annotation rows are part of the pooling story: they must recycle too, or a heavily-commented
       diff leaks. They are inside the file's markup, so they are released with it; the draft row is
       the one exception and it is re-created from held text on the way back.
@@ -1022,8 +1074,23 @@ already used it.
       file away, which is the point of ticking it: the next unread file moves up to where the reader
       is looking. Kept per pull request rather than per path - a key of just the path would tick a
       file on every other pull request that touches it, which looks exactly like the feature working.
-- [ ] Viewed state on the server rather than in local storage, so it follows a reviewer between
-      machines. Phase 4 owns that; this is the interface half.
+- [x] Viewed state on the server rather than in local storage, so it follows a reviewer between
+      machines. `ReviewedFile` is one row per reviewer per file per pull request, upserted so the
+      same pull request open in two tabs cannot collide on the unique index.
+
+  The interface half turned out to be one line short of finished already: a tick that is remembered
+  across visits but does not *fold* on the way back only remembers half of what it was for. The
+  reader returns to two hundred open files with a column of ticks beside them. Folded, and only
+  folded - unfolding everything the server did not name would open the large files the viewer
+  collapsed on purpose.
+
+  `head_sha` is stored and deliberately not acted on. The obvious use - call the tick stale when the
+  head has moved - is wrong as stated, because the head is one sha for the whole pull request, so any
+  push would unmark every file including the ones it did not touch. Doing it properly means asking
+  git whether *this file* changed between the two shas, which is the incremental diff in phase 4.
+
+- [ ] Show a tick as stale when that file changed since it was read. Needs the per-file question
+      above, and `head_sha` is already on the row for it.
 - [x] A mobile presentation: an overlay rather than a column
 
 ## Theming

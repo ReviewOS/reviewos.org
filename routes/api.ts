@@ -180,6 +180,15 @@ route.get('/repos/pulls/diff/conflicts', 'Actions/Pull/DiffConflictsAction')
 // it can partially succeed, and the caller needs to know how far it got.
 route.post('/repos/pulls/merge-stack', 'Actions/Pull/MergeStackAction').middleware('auth')
 
+// Where a reviewer got to: which files they have finished with, and the comment
+// they were halfway through writing. Read without `auth` middleware, because a
+// signed-out reader gets an empty answer rather than a refusal and the page
+// carries on with local storage; written with it, because there is no such
+// thing as anonymous progress to record.
+route.get('/repos/pulls/review-state', 'Actions/Pull/ReviewStateAction')
+route.put('/repos/pulls/review-state/viewed', 'Actions/Pull/MarkFileViewedAction').middleware('auth')
+route.put('/repos/pulls/review-state/draft', 'Actions/Pull/SaveReviewDraftAction').middleware('auth')
+
 // Mirrors. The webhook is deliberately unauthenticated at the route level: an
 // upstream forge has no session here, and the request is verified instead by
 // its signature against the mirror's own secret inside the action.

@@ -13247,10 +13247,214 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "review_drafts",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "pull_request_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "pull_requests",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "author_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "path",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "side",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "right",
+            "enumValues": [
+              "left",
+              "right"
+            ],
+            "enumTypeName": "review_drafts_side_type"
+          },
+          {
+            "name": "from_line",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "to_line",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "body",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "review_drafts_pr_author_index",
+            "columns": [
+              "pull_request_id",
+              "author_id"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "reviewed_files",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "pull_request_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "pull_requests",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "reviewer_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "path",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "head_sha",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "reviewed_files_pr_user_path_index",
+            "columns": [
+              "pull_request_id",
+              "reviewer_id",
+              "path"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "reviewed_files_pr_user_index",
+            "columns": [
+              "pull_request_id",
+              "reviewer_id"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "99e3a6c2f6768f9cd5d736d35de6e5dc07103443fc64bbabb630a1023ca968da",
+  "hash": "28a57af62d73bfe25c82a56b43bac5bf4d23474b69ce9ec3881bd28e164cbd28",
   "dialect": "postgres",
-  "updatedAt": "2026-08-06T20:38:13.312Z"
+  "updatedAt": "2026-08-07T02:50:05.716Z"
 }

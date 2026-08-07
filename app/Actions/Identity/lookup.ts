@@ -107,7 +107,9 @@ export async function resolveRepository(owner: string, name: string): Promise<an
  */
 export async function currentUser(request: any): Promise<{ id: number, handle: string, is_admin: boolean } | null> {
   const user = await request.user?.()
-  const id = Number(user?.id ?? 0) || await frameworkTokenUserId(request)
+  const id = Number(user?.id ?? 0)
+    || await frameworkTokenUserId(request)
+    || await cookieUserId(request)
 
   if (!id)
     return null
@@ -156,6 +158,52 @@ async function frameworkTokenUserId(request: any): Promise<number> {
   catch {
     return 0
   }
+}
+
+/**
+ * The user behind a session cookie, for routes with no auth middleware.
+ *
+ * The same gap the bearer resolution above closes, for the credential a
+ * *browser* actually holds. A page signs somebody in with a cookie - that is
+ * what `viewerFromCookies` reads on every rendered page - and a `fetch` from
+ * that page sends it automatically and sends no `Authorization` header at all.
+ * So an endpoint outside the auth middleware saw a stranger, and answered every
+ * signed-in reader as though nobody were there.
+ *
+ * Found on the review-state endpoint, which reported `signed_in: false` to a
+ * reader whose cookie was right there on the request, so their progress would
+ * never have been read back on any machine. It reads as an empty database and
+ * is really an absent identity.
+ *
+ * Safe on writes because CSRF is not this function's job and never was: the
+ * router checks a double-submit token on every non-safe method, so a cookie
+ * arriving on a cross-site request cannot be spent here.
+ *
+ * The exception worth knowing about is `routes/git.ts`, where the wire protocol
+ * and the LFS endpoints call `.skipCsrf()` - a git client has no token to
+ * double-submit. Those authenticate through `tokenFromBasicAuth` and never
+ * reach this function, which is what keeps a browser cookie from being spent on
+ * a push. Anything added there that wants a *user* has to keep that true.
+ */
+async function cookieUserId(request: any): Promise<number> {
+  const header = String(
+    request.headers?.get?.('cookie') ?? request.header?.('cookie') ?? '',
+  )
+
+  if (!header)
+    return 0
+
+  const jar: Record<string, string> = {}
+  for (const part of header.split(';')) {
+    const cut = part.indexOf('=')
+    if (cut < 0)
+      continue
+
+    jar[part.slice(0, cut).trim()] = decodeURIComponent(part.slice(cut + 1).trim())
+  }
+
+  const found = await viewerFromCookies(jar)
+  return found?.id ?? 0
 }
 
 /**
