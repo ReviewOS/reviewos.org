@@ -590,8 +590,32 @@ in July 2026. Both agree on the mechanics, so this follows them rather than inve
       an stx attribute as itself (it stringifies, so the list is passed as JSON and parsed in the
       component), and an attribute arrives as a string, so the current id is coerced before it is
       compared with numbers.
-- [ ] Automatic rebase of higher layers when a lower one lands, beyond retargeting
-- [ ] Merge queue support for stacks
+- [x] Automatic rebase of higher layers when a lower one lands, beyond retargeting
+
+  Retargeting moves a child's base; restacking (`restack.ts`) moves its *branch*: the child's own
+  commits - the range from the parent's old head, which excludes everything the parent landed -
+  replayed onto the merge result, and the child's ref moved there guarded by its old head, so a
+  push mid-restack wins and the restack refuses rather than discards. A replay that cannot apply
+  leaves the branch alone: a conflict is the one case where a human has to decide what the change
+  means now. Squash is the strategy that makes this matter - the parent's original commits never
+  reach the base, and an unrestacked child re-shows the parent's work in its own diff forever.
+
+  Two latent bugs surfaced on the way. Retargeting changed `base_branch` and left `base_sha` at the
+  parent's old head, and `performMerge` guards its update-ref on the row's `base_sha` - so merging
+  *any* retargeted child was refused as "the base moved", because it had, at retarget time, and
+  nothing had said so. Both retarget sites now move the sha with the branch. And
+  `findRepositoryByPath` never carried the merge-settings columns (written up under auto-merge).
+
+- [x] Merge queue support for stacks
+
+  The queue falls out of composition rather than existing as a thing: arming stack members is
+  enqueueing them. An armed child is blocked by its unmerged parent (the merge action's own rule);
+  the parent landing retargets, restacks, and attempts the child, whose own arm fires the moment
+  its requirements hold - so an approved, armed stack lands bottom-up in order with nobody pressing
+  merge, and a member that is not ready simply holds its layer and everything above it.
+  `tests/e2e/stack-restack.test.ts` holds the whole arc: the armed child waiting behind the parent,
+  the approval cascade landing both in order, the child's branch genuinely rebased before it
+  merged, and its commit on the base exactly once.
 
 ## Known issues
 

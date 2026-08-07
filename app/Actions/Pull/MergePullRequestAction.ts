@@ -270,11 +270,77 @@ export default new Action({
     )
 
     for (const move of moves) {
+      // A child adopting the merged parent's base also adopts the sha the
+      // base now points at. The row's base_sha is what the eventual merge
+      // guards its update-ref on; left at the parent's old head, every merge
+      // of a retargeted child would be refused as "the base moved" - because
+      // it had, at retarget time, and nothing had said so.
+      const adoptedBase = move.baseBranch === String(pullRequest.base_branch)
+
       await db
         .updateTable('pull_requests')
-        .set({ base_branch: move.baseBranch, stack_parent_id: move.stackParentId })
+        .set({
+          base_branch: move.baseBranch,
+          stack_parent_id: move.stackParentId,
+          ...(adoptedBase ? { base_sha: merged.sha, mergeable_state: 'unknown' } : {}),
+        })
         .where('id', '=', move.id)
         .execute()
+    }
+
+    // Retargeting moved the children's bases; restacking moves their
+    // branches, so a child of a squashed parent stops showing the parent's
+    // work in its own diff. Only the children the retarget itself moved -
+    // one somebody pointed elsewhere by hand keeps their branch untouched -
+    // and a conflict or a race leaves the branch alone. Each rebased child
+    // gets its row brought current and an auto-merge attempt, which is what
+    // makes an armed stack land in order: the layer above becomes ready the
+    // moment the layer below lands. Never fails the merge that already
+    // happened.
+    const restacked: Array<{ id: number, outcome: string }> = []
+    try {
+      const { restackChild } = await import('./restack')
+      const { attemptAutoMerge } = await import('./autoMerge')
+      const retargeted = new Set(
+        moves.filter(move => move.baseBranch === String(pullRequest.base_branch)).map(move => move.id),
+      )
+
+      for (const child of children) {
+        if (!retargeted.has(Number(child.id)))
+          continue
+
+        const row: any = await db
+          .selectFrom('pull_requests')
+          .select(['id', 'head_branch', 'head_sha'])
+          .where('id', '=', Number(child.id))
+          .executeTakeFirst()
+
+        if (!row)
+          continue
+
+        const outcome = await restackChild({
+          diskPath: resolved.path!,
+          child: { id: Number(row.id), headBranch: String(row.head_branch), headSha: String(row.head_sha) },
+          parentOldHead: String(pullRequest.head_sha),
+          baseBranch: String(pullRequest.base_branch),
+        })
+
+        restacked.push({ id: outcome.pullRequestId, outcome: outcome.outcome })
+
+        if (outcome.outcome === 'rebased' && outcome.newHead) {
+          await db
+            .updateTable('pull_requests')
+            .set({ head_sha: outcome.newHead, mergeable_state: 'unknown' })
+            .where('id', '=', Number(row.id))
+            .execute()
+
+          await attemptAutoMerge(Number(row.id))
+        }
+      }
+    }
+    catch {
+      // The merge landed; a child left unrestacked is the pre-restack world,
+      // which every stack survived until now.
     }
 
     // Issues the description says this closes. Done after the merge landed,
@@ -294,6 +360,7 @@ export default new Action({
       strategy,
       merge_commit_sha: merged.sha,
       retargeted: moves.map(move => move.id),
+      restacked,
       deleted_branch: deletedBranch,
       closed,
     })

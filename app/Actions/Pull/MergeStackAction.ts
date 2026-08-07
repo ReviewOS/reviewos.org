@@ -164,9 +164,17 @@ export default new Action({
       )
 
       for (const move of moves) {
+        // Same rule as the single merge: a child adopting the landed base
+        // adopts its sha, or the eventual merge is refused as "base moved".
+        const adoptedBase = move.baseBranch === String(current.base_branch)
+
         await db
           .updateTable('pull_requests')
-          .set({ base_branch: move.baseBranch, stack_parent_id: move.stackParentId })
+          .set({
+            base_branch: move.baseBranch,
+            stack_parent_id: move.stackParentId,
+            ...(adoptedBase ? { base_sha: result.sha, mergeable_state: 'unknown' } : {}),
+          })
           .where('id', '=', move.id)
           .execute()
       }
