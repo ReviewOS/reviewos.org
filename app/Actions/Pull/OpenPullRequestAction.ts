@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { isSafeRef, mergeBase, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { allocateNumber, authorizeRepository } from '../Repo/authorize'
+import { codeownersFor, ownersForPaths } from './codeowners'
 
 /**
  * Open a pull request.
@@ -107,6 +108,14 @@ export default new Action({
       .returning(['id'])
       .executeTakeFirst()
 
+    const requested = await requestCodeOwners({
+      diskPath: resolved.path!,
+      pullRequestId: Number(created?.id),
+      baseSha,
+      headSha,
+      authorId: user.id,
+    })
+
     return response.json({
       id: Number(created?.id),
       number,
@@ -115,6 +124,7 @@ export default new Action({
       base: { branch: base, sha: baseSha },
       stacked_on: parent ? Number(parent.id) : null,
       state: 'open',
+      review_requests: requested,
     }, 201)
   },
 })
@@ -124,4 +134,78 @@ async function revision(path: string, ref: string): Promise<string | null> {
   const result = await runGit(path, ['rev-parse', '--verify', `refs/heads/${ref}`])
 
   return result.ok ? result.stdout.trim() : null
+}
+
+/**
+ * Ask whoever `CODEOWNERS` names for the files this pull request touches.
+ *
+ * Read from the base rather than the head: a pull request that adds itself to
+ * `CODEOWNERS` would otherwise choose its own reviewers, which is a way to be
+ * approved by nobody.
+ *
+ * The author is never asked to review their own change. Being named as an owner
+ * of a file you are changing is the normal case, not an exception, so filtering
+ * it out is most of what this does in practice.
+ *
+ * A handle naming nobody here - a team, an email address, somebody who has left
+ * - is skipped rather than failing the request. The file is checked in and can
+ * name anyone; refusing to open a pull request because of a stale line in it
+ * would make an unrelated problem look like the forge being broken.
+ *
+ * Never throws. This runs *after* the pull request exists, so an error here
+ * would report a failure for something that succeeded.
+ */
+async function requestCodeOwners(options: {
+  diskPath: string
+  pullRequestId: number
+  baseSha: string
+  headSha: string
+  authorId: number
+}): Promise<string[]> {
+  if (!options.pullRequestId)
+    return []
+
+  try {
+    const rules = await codeownersFor(options.diskPath, options.baseSha)
+    if (rules.length === 0)
+      return []
+
+    const changed = await changedPaths(options.diskPath, options.baseSha, options.headSha)
+    const named = ownersForPaths(rules, changed)
+    if (named.length === 0)
+      return []
+
+    const users: any[] = await db
+      .selectFrom('users')
+      .select(['id', 'handle'])
+      .where('handle', 'in', named.map(one => one.toLowerCase()))
+      .execute()
+
+    const asked: string[] = []
+    for (const row of users) {
+      if (Number(row.id) === options.authorId)
+        continue
+
+      await db.insertInto('pull_request_reviewers').values({
+        pull_request_id: options.pullRequestId,
+        reviewer_type: 'user',
+        reviewer_id: Number(row.id),
+        from_code_owners: true,
+      }).execute()
+
+      asked.push(String(row.handle))
+    }
+
+    return asked
+  }
+  catch {
+    return []
+  }
+}
+
+/** The paths a branch changes against its base, three dots. */
+async function changedPaths(diskPath: string, baseSha: string, headSha: string): Promise<string[]> {
+  const result = await runGit(diskPath, ['diff', '--name-only', `${baseSha}...${headSha}`])
+
+  return result.ok ? result.stdout.split('\n').map(line => line.trim()).filter(Boolean) : []
 }

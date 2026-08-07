@@ -127,7 +127,31 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
       failed request costs nothing. See [phase 14](./14-diff-engine.md#the-file-tree).
 - [ ] Review a single file at a time: a mode that shows one file and moves to the next, rather than
       one long scroll with the read ones folded
-- [ ] `CODEOWNERS` parsing, and automatic review requests from it
+- [x] `CODEOWNERS` parsing, and automatic review requests from it. Read from the **base**, not the
+      head: a pull request that adds itself to `CODEOWNERS` would otherwise choose its own reviewers,
+      which is a way to be approved by nobody.
+
+  GitHub's rules exactly, rather than improved on. A `CODEOWNERS` file is almost always copied in
+  from somewhere else, so reading it differently is not a design choice - it is assigning the wrong
+  people quietly. The three that a homegrown matcher gets wrong: **the last matching rule wins**, not
+  the first and not all of them; a pattern with no slash matches at **any depth**, so `*.ts` is not
+  top-level only; and `*` does not cross a slash while `**` does, which is why GitHub documents
+  `/docs/*` as covering a directory's files and not its subdirectories.
+
+  Writing the end-to-end fixture, I put the catch-all `*.md` at the bottom and it took `docs/guide.md`
+  away from the docs owner - the exact mistake the unit tests warn about, made while writing the test
+  for it. That is the argument for reading the rule exactly rather than the way it feels like it
+  should work, and the fixture now says so where it orders the lines.
+
+  The author is never asked to review their own change, which is most of what this does in practice:
+  being named as the owner of a file you are changing is the normal case. A name matching nobody here
+  - a team, an email address, somebody who has left - is skipped rather than failing the request,
+  because refusing to open a pull request over a stale line in a checked-in text file would make an
+  unrelated problem look like the forge being broken.
+
+- [ ] Resolve a team (`@org/team`) to its members. Teams parse and are carried through as owners
+      rather than dropped, so the file is read faithfully; turning one into people is phase 1's
+      model.
 
 ## Merging
 
