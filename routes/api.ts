@@ -180,6 +180,9 @@ route.get('/repos/pulls/diff/rows', 'Actions/Pull/DiffRowsAction')
 // The lines between two hunks. Read from the blob at the head commit, because
 // the patch does not contain them: not containing them is what makes them a gap.
 route.get('/repos/pulls/diff/context', 'Actions/Pull/DiffContextAction')
+// The interdiff: what changed in one file since the reader last looked, at
+// line level, as the diff of the two patch texts.
+route.get('/repos/pulls/diff/interdiff', 'Actions/Pull/DiffInterdiffAction')
 
 // The files that conflict, both versions in each. Read out of the tree that
 // `git merge-tree` already wrote, so no working tree is checked out to answer.

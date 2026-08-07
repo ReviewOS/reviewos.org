@@ -169,6 +169,14 @@ export interface RenderRowsOptions {
    */
   hunkKinds?: HunkKind[]
   /**
+   * Render line numbers as text rather than anchors.
+   *
+   * For rows whose numbers are not positions in the file - an interdiff's
+   * rows are positions in a patch text - where an anchor would be a link to
+   * the wrong line and a dead comment target.
+   */
+  anchors?: boolean
+  /**
    * A sentence for a hunk's separator, keyed by hunk index - `moved to
    * b.ts`, `moved from a.ts`. Whole-diff knowledge the caller computed;
    * this module only says it where the reader's eye already stops.
@@ -312,9 +320,12 @@ export function pairInlineChanges(
  * JavaScript at all. Clicking it is intercepted for the range behaviour; middle
  * clicking and copying still do what a link does.
  */
-function gutter(path: string, side: 'left' | 'right', line: number | null, commentable = false): string {
+function gutter(path: string, side: 'left' | 'right', line: number | null, commentable = false, anchors = true): string {
   if (line == null)
     return `<td class="gutter num"></td>`
+
+  if (!anchors)
+    return `<td class="gutter num" data-line="${line}" data-side="${side}">${line}</td>`
 
   const fragment = formatLineAnchor({ path, side, from: line, to: line })
 
@@ -493,8 +504,8 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
       // every line would start a dozen columns in.
       rows.push(
         `<tr class="line line-${line.origin}">`
-        + gutter(file.path, 'left', line.oldLine, options.commentable)
-        + gutter(file.path, 'right', line.newLine, options.commentable)
+        + gutter(file.path, 'left', line.oldLine, options.commentable, options.anchors !== false)
+        + gutter(file.path, 'right', line.newLine, options.commentable, options.anchors !== false)
         + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}</td>`
         + `</tr>`,
       )
@@ -519,7 +530,7 @@ function splitCell(line: DiffLine | null, side: 'old' | 'new', options: RenderRo
 
   const number = side === 'old' ? line.oldLine : line.newLine
 
-  return gutter(options.path ?? '', side === 'old' ? 'left' : 'right', number, options.commentable)
+  return gutter(options.path ?? '', side === 'old' ? 'left' : 'right', number, options.commentable, options.anchors !== false)
     + `<td class="code mono" data-side="${side}"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}</td>`
 }
 

@@ -364,9 +364,24 @@ this is where the claim is either true or marketing.
   reviews submitted up to eight hours after it, for as many hours as the server sits east of
   Greenwich. The time is bound as a parameter now, and worth checking for anywhere else raw SQL
   writes a clock.
-- [ ] A line-level interdiff for a file that did change, rather than sending the reader back to its
+- [x] A line-level interdiff for a file that did change, rather than sending the reader back to its
       whole diff. `git range-diff` is the shape of the answer; rendering a diff of diffs in a viewer
       built for file diffs is the open question.
+
+  `git range-diff` turned out to be the shape of a different answer: it pairs *commits*, calls one
+  `=` unchanged even when its hunks moved - contradicting `patchSignature`'s rule that hunk
+  movement is a thing to re-read - and answers per commit, not per file. What is diffed instead is
+  the two three-dot patch texts themselves, normalized exactly as the fingerprints normalize
+  (`index ` lines dropped, one shared rule), compared with `git diff --no-index` - whose exit 1
+  means "different", the answer, not an error - and rendered by the row renderer every diff
+  already uses: outer +/- for what the round changed, the inner patch's markers riding as content,
+  no tokens (highlighting patch text as the file's language would be wrong) and no anchors (these
+  numbers are positions in a patch, and a link would point at the wrong line). It surfaces on the
+  streamed screen as a per-file "what changed since you looked" on exactly the files the
+  since-last-look answer named, inserted beside the file's table - never inside it, because the
+  row numbering the windows live on must not move. The e2e amends and force-pushes so every sha
+  differs, and holds the assertion a naive implementation fails: the file whose proposal did not
+  move answers "unchanged" instead of repeating itself.
 - [x] **Separate the mechanical from the meaningful.** Each hunk is classified as formatting only, a
       symbol renamed throughout, a block that moved unchanged, or logic. A file whose every hunk is
       mechanical *for the same reason* arrives folded with that reason on its header and in the

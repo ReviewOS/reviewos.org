@@ -1312,6 +1312,15 @@ export function mountDiffFiles(): DiffViewer | null {
   const contextUrl = root.dataset.contextUrl
   const commentUrl = root.dataset.commentUrl
   const sinceUrl = root.dataset.sinceUrl
+  const interdiffUrl = root.dataset.interdiffUrl
+
+  /**
+   * Paths whose proposal changed since the reader last looked, once known.
+   * The interdiff button is painted onto exactly these files' headers -
+   * painted, not baked in, because hosts are recycled and re-rendered from
+   * cached markup.
+   */
+  let sinceChanged: Set<string> | null = null
 
   /**
    * Where the reader's progress through this pull request is kept.
@@ -1503,6 +1512,7 @@ export function mountDiffFiles(): DiffViewer | null {
       paintSelection()
       paintDraft()
       paintSelectionSurface()
+      paintInterdiffOffers()
 
       // A windowed file needs a different window as the reader moves through
       // it, and moving through it does not mount or unmount anything - so the
@@ -1862,6 +1872,13 @@ export function mountDiffFiles(): DiffViewer | null {
     if (unfold) {
       event.preventDefault()
       openFold(Number(index), Number(unfold.dataset.hunk))
+      return
+    }
+
+    const interdiff = target?.closest<HTMLElement>('.diff-interdiff-btn')
+    if (interdiff) {
+      event.preventDefault()
+      void openInterdiff(Number(index), interdiff)
       return
     }
 
@@ -2968,6 +2985,99 @@ export function mountDiffFiles(): DiffViewer | null {
    * Asked for after the manifest, not before: it costs two diffs on the server
    * and the reader has not finished looking at the first screen yet.
    */
+  /**
+   * The way into one file's interdiff, painted onto its header.
+   *
+   * Painted on every render pass rather than baked into the markup, because
+   * hosts are recycled - the same reason selection and drafts repaint. Only
+   * on files the since-last-look answer named: an interdiff of an unchanged
+   * file is an empty page with extra steps.
+   */
+  function paintInterdiffOffers(): void {
+    if (!sinceChanged || !interdiffUrl)
+      return
+
+    for (const host of region.querySelectorAll<HTMLElement>('.diff-file-host')) {
+      const index = Number(host.dataset.fileIndex)
+      const file = viewer.files()[index]
+      if (!file || !sinceChanged.has(file.path))
+        continue
+
+      const head = host.querySelector<HTMLElement>('.diff-head')
+      if (!head || head.querySelector('.diff-interdiff-btn'))
+        continue
+
+      const control = document.createElement('button')
+      control.type = 'button'
+      control.className = 'btn btn-small diff-interdiff-btn'
+      control.textContent = 'What changed since you looked'
+      head.append(control)
+    }
+  }
+
+  /**
+   * Fetch and show one file's interdiff, between its header and its rows.
+   *
+   * Inserted beside the file's own table, never inside it: the row numbering
+   * the windows live on must not move. The height genuinely changed, so the
+   * file is remeasured in place.
+   */
+  async function openInterdiff(index: number, control: HTMLElement): Promise<void> {
+    const file = viewer.files()[index]
+    if (!file || !interdiffUrl)
+      return
+
+    const host = region.querySelector<HTMLElement>(`.diff-file-host[data-file-index="${index}"]`)
+    const head = host?.querySelector<HTMLElement>('.diff-head')
+    if (!host || !head)
+      return
+
+    const existing = host.querySelector<HTMLElement>('.diff-interdiff')
+    if (existing) {
+      existing.remove()
+      viewer.remeasure(index)
+      return
+    }
+
+    control.textContent = 'Comparing…'
+
+    try {
+      const answer = await fetch(`${interdiffUrl}&path=${encodeURIComponent(file.path)}`, {
+        headers: { Accept: 'application/json' },
+      })
+      if (!answer.ok)
+        throw new Error(await answer.text())
+
+      const body: any = await answer.json()
+
+      const panel = document.createElement('div')
+      panel.className = 'diff-interdiff'
+
+      if (body?.unchanged) {
+        const note = document.createElement('p')
+        note.className = 'muted'
+        note.textContent = 'The proposal for this file has not moved since you looked.'
+        panel.append(note)
+      }
+      else {
+        const intro = document.createElement('p')
+        intro.className = 'muted'
+        intro.textContent = 'Outer markers are this round’s change; the inner +/- ride from the patch itself.'
+        panel.append(intro)
+        panel.insertAdjacentHTML('beforeend', String(body?.html ?? ''))
+      }
+
+      head.insertAdjacentElement('afterend', panel)
+      viewer.remeasure(index)
+    }
+    catch {
+      // Nothing to offer is the same outcome as not being able to ask.
+    }
+    finally {
+      control.textContent = 'What changed since you looked'
+    }
+  }
+
   async function offerSinceLastLook(): Promise<void> {
     // Read here rather than captured, for the same reason `region` and `view`
     // are captured above: the guard at the top of `mountDiffFiles` does not
@@ -3008,6 +3118,7 @@ export function mountDiffFiles(): DiffViewer | null {
       return
 
     const changed = new Set(paths)
+    sinceChanged = changed
     const control = document.createElement('button')
     control.type = 'button'
     control.className = 'file-list-since'

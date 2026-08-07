@@ -150,6 +150,9 @@ const draftUrl = `/api/repos/pulls/review-state/draft?${diffQuery}`
  * diffs and nobody is waiting on it: the reader is looking at the first screen.
  */
 const sinceUrl = `/api/repos/pulls/review-state/since?${diffQuery}`
+
+/** Where one file's interdiff is asked for, when the reader wants it. */
+const interdiffUrl = `/api/repos/pulls/diff/interdiff?${diffQuery}`
 </script>
 
 @layout('app')
@@ -286,6 +289,7 @@ const sinceUrl = `/api/repos/pulls/review-state/since?${diffQuery}`
         data-viewed-url="{{ viewedUrl }}"
         data-draft-url="{{ draftUrl }}"
         data-since-url="{{ sinceUrl }}"
+        data-interdiff-url="{{ interdiffUrl }}"
       >
         {{--
           The list is filled in by `mountDiffFiles` from the manifest, which is
@@ -326,6 +330,16 @@ mountDiffFiles()
 
 <style>
   .verdict-drawer { position: relative; margin-bottom: 10px; }
+
+  .diff-interdiff {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-tint);
+    overflow-x: auto;
+  }
+
+  .diff-interdiff > p { margin-bottom: 8px; font-size: 12.5px; }
+  .diff-interdiff-btn { margin-left: auto; }
 
   .verdict-summary {
     display: inline-flex;
