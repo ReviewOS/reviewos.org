@@ -341,7 +341,7 @@ this is where the claim is either true or marketing.
   covers the rule most likely to be got wrong - the reviewer row is *kept* when a review lands, so a
   read that forgets `responded_at IS NULL` shows a queue that never empties.
 
-- [ ] A count on the navigation item, so the answer is visible without opening the page.
+- [x] A count on the navigation item, so the answer is visible without opening the page.
 
   The query is cheap - one indexed `COUNT` - and the decision it needs is not about staleness, it is
   about where it runs. The badge belongs in `layouts/app.stx`, which has no `<script server>` and is
@@ -349,6 +349,17 @@ this is where the claim is either true or marketing.
   variable undefined and says nothing, so putting the first one into the shared layout means one
   mistake blanks the whole application rather than one screen. Worth doing, worth doing deliberately,
   and worth a guard that cannot throw.
+
+  The answer to "where it runs" is: not in the layout at all. `ReviewQueueBadge.stx` is a component,
+  so the layout carries one tag and no script, and everything the component does sits inside a guard
+  that cannot throw - any failure renders no badge, which is what a signed-out reader gets on
+  purpose. The count is `outstandingRequestCount` in `queue.ts`, beside the queries it must agree
+  with and reading `responded_at IS NULL` the same way; it counts the waiting-on-you half only, and
+  excludes drafts, deliberately diverging from the list - the queue can say "not asking yet" beside
+  a draft, and a badge has no room for the sentence. Zero renders nothing rather than a `0`: a zero
+  on the navigation is the forge saying "nothing needs you" every second of the day, and silence
+  says it better. `tests/e2e/review-queue-badge.test.ts` asks the rendered page, not the function,
+  for each kind of reader.
 - [x] Suggested reviewers from who actually changed these lines, weighted by recency, not only from
       `CODEOWNERS`. Include current review load, so the suggestion does not always name the same
       person.

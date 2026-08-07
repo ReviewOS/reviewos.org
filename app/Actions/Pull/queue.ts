@@ -157,6 +157,39 @@ export async function reviewQueue(userId: number, now: number): Promise<{
 }
 
 /**
+ * How many pull requests are genuinely waiting on one person.
+ *
+ * The number on the navigation item, so it lives beside the queries it must
+ * agree with. It counts the "waiting on you" half only - the other half is
+ * waiting on somebody else, which is not a number to interrupt anybody with -
+ * and it excludes drafts, deliberately diverging from the list: the queue
+ * *shows* a draft with "not asking yet" beside it, and a badge has no room for
+ * that sentence, so a draft in the count would read as a request that does not
+ * exist.
+ *
+ * The same `responded_at IS NULL` rule as `queueRows`, for the same reason: a
+ * count that forgets it never reaches zero.
+ */
+export async function outstandingRequestCount(userId: number): Promise<number> {
+  if (!Number.isInteger(userId) || userId <= 0)
+    return 0
+
+  const rows: any = await db.unsafe(
+    `SELECT COUNT(DISTINCT "p"."id") AS "waiting"
+     FROM "pull_request_reviewers" "r"
+     JOIN "pull_requests" "p" ON "p"."id" = "r"."pull_request_id"
+     WHERE "r"."reviewer_id" = $1
+       AND "r"."responded_at" IS NULL
+       AND "p"."state" = 'open'
+       AND NOT "p"."draft"`,
+    [userId],
+  ).execute()
+
+  const first = Array.isArray(rows) ? rows[0] : undefined
+  return Number(first?.waiting ?? 0)
+}
+
+/**
  * The rows behind one half of the queue.
  *
  * Written out rather than built, because the shape is a three way join with two

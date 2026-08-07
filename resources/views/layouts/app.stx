@@ -1300,8 +1300,9 @@
         <nav style="display: flex; gap: 14px; font-size: 14px;" aria-label="Main">
           {{-- First, because it is the question somebody opens a forge to
                answer. Explore is for finding somebody else's work; this is for
-               finding your own. --}}
-          <a class="muted" style="text-decoration: none;" href="/reviews">Reviews</a>
+               finding your own. The count is a component rather than this
+               layout's first server script, and the why is written in it. --}}
+          <a class="muted" style="text-decoration: none;" href="/reviews">Reviews<ReviewQueueBadge /></a>
           <a class="muted" style="text-decoration: none;" href="/explore">Explore</a>
           <a class="muted" style="text-decoration: none;" href="/dashboard">Dashboard</a>
           <a class="muted" style="text-decoration: none;" href="/docs">Docs</a>

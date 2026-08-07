@@ -1,0 +1,60 @@
+<script server>
+/**
+ * How many pull requests are waiting on the reader, on the navigation item.
+ *
+ * The roadmap's warning about this badge is the reason it is a component: the
+ * shared layout has no server script, and the first one somebody adds to it is
+ * one mistake away from blanking every page in the product - an stx server
+ * script that throws renders its page with every variable undefined and says
+ * nothing. So the layout carries a tag, the script lives here, and everything
+ * it does sits inside a guard that cannot throw: any failure - no reader, no
+ * database, a query gone wrong - renders no badge, which is exactly what a
+ * signed-out reader gets on purpose.
+ *
+ * The count is `outstandingRequestCount`, which lives beside the queue's own
+ * queries so the two read `responded_at IS NULL` the same way. Zero renders
+ * nothing: a `0` on the navigation is the forge saying "nothing needs you"
+ * every second of the day, and silence says that better.
+ */
+import { outstandingRequestCount } from '../../app/Actions/Pull/queue'
+import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
+
+// Both serving pipelines, guarded: the frontend server provides
+// `__stxServeContext` with cookies parsed, a route.serve() boot provides raw
+// headers, and either identifier is undeclared on the other path.
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+let waiting = 0
+try {
+  const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+  waiting = viewer ? await outstandingRequestCount(viewer.id) : 0
+}
+catch {
+  waiting = 0
+}
+
+// Two digits is a number somebody can act on; three is a backlog, and the
+// badge's job is done by saying "many".
+const shown = waiting > 99 ? '99+' : String(waiting)
+</script>
+
+@if (waiting > 0)
+  <span class="nav-count" aria-label="{{ waiting }} waiting on you">{{ shown }}</span>
+@endif
+
+<style>
+  .nav-count {
+    display: inline-block;
+    margin-left: 5px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    vertical-align: 1px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
+</style>
