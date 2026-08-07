@@ -173,9 +173,17 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
 - [x] Conflicts reported with the conflicting files named, not just a boolean. git already says
       which they are, so withholding them sends somebody to their terminal to rediscover what we
       know.
-- [ ] Computed in the background rather than on page load. It is computed in the view for now; the
+- [x] Computed in the background rather than on page load. It is computed in the view for now; the
       cache makes that one merge per pair of commits rather than one per visit, but it still means
       the first visitor after a push waits for it. This needs the queue (phase 5 prerequisites).
+
+  It needed less queue than it thought: the push is the moment the cached answer goes stale, and
+  the push already runs `ProcessPushJob`. The job's cheap half marked the state unknown; it now
+  also recomputes, after the head shas are brought current, so the answer lands keyed to the new
+  head and the page's own call finds the cache warm. Nothing about the view changed - a job
+  failure costs only the head start, and the view recomputes on demand exactly as before.
+  `tests/e2e/background-mergeability.test.ts` pushes, runs the job, and asserts the row already
+  holds `clean` keyed to the new head.
 - [x] Merge strategies: merge commit, squash, rebase. Each configurable per repository, with a
       default. Three boolean columns rather than a parsed list, because a list can be malformed and
       a malformed merge setting is a branch rule that quietly stops applying - `required_checks` on

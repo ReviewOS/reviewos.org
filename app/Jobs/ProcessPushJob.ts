@@ -53,6 +53,9 @@ export default new Job({
     const sizeKb = await recordSize(Number(repository.id), gitDir)
     const defaultBranch = await settleDefaultBranch(repository, updates, gitDir)
     const refreshed = await refreshPullRequests(Number(repository.id), branches)
+    // After the head shas are current, so the recompute reads what this push
+    // left rather than what the last one did.
+    const precomputed = owner ? await precomputeMergeability(repository, owner, branches) : 0
     const commits = await collectCommits(gitDir, branches)
     const closed = owner ? await actOnCommitMessages(repository, owner, commits) : []
 
@@ -82,6 +85,7 @@ export default new Job({
       commits: commits.length,
       closedIssues: closed,
       pullRequestsRefreshed: refreshed,
+      mergeabilityPrecomputed: precomputed,
       sizeKb,
     }
   },
@@ -184,6 +188,62 @@ async function refreshPullRequests(repositoryId: number, branches: RefUpdate[]):
   }
 
   return refreshed
+}
+
+/**
+ * Compute mergeability now, so the first visitor after this push does not.
+ *
+ * The view already computes and caches this on demand; what moves here is only
+ * *when* the cost is paid. The push is the moment the cached answer went
+ * stale, nobody is waiting on this job, and the cache keys on the two shas -
+ * so the page's own call finds the answer current and renders instantly. A
+ * failure here costs nothing but that head start: the view recomputes on
+ * demand exactly as before.
+ */
+async function precomputeMergeability(repository: any, owner: string, branches: RefUpdate[]): Promise<number> {
+  const moved = branches
+    .filter(update => update.change !== 'deleted')
+    .map(update => update.name)
+
+  if (moved.length === 0)
+    return 0
+
+  let computed = 0
+
+  for (const branch of moved) {
+    try {
+      const rows: any[] = await db
+        .selectFrom('pull_requests')
+        .select(['id', 'base_sha', 'head_sha', 'mergeable_state', 'mergeable_base_sha', 'mergeable_head_sha', 'mergeable_conflicts'])
+        .where('repository_id', '=', Number(repository.id))
+        .where('head_branch', '=', branch)
+        .where('state', '=', 'open')
+        .execute()
+
+      for (const row of rows) {
+        const { refreshMergeability } = await import('../Actions/Pull/refresh-mergeability')
+
+        const answer = await refreshMergeability(owner, String(repository.name), {
+          id: Number(row.id),
+          base_sha: String(row.base_sha),
+          head_sha: String(row.head_sha),
+          mergeable_state: row.mergeable_state,
+          mergeable_base_sha: row.mergeable_base_sha,
+          mergeable_head_sha: row.mergeable_head_sha,
+          mergeable_conflicts: row.mergeable_conflicts,
+        })
+
+        if (answer.recomputed)
+          computed += 1
+      }
+    }
+    catch {
+      // Same rule as everywhere else in this job: one branch failing does not
+      // cost the others their processing, and the view recomputes on demand.
+    }
+  }
+
+  return computed
 }
 
 export interface PushedCommit {
