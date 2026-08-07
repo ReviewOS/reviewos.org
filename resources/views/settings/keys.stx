@@ -59,8 +59,8 @@ if (!viewer)
         `addingSsh` and `addingGpg` rather than `adding` twice, and that is not
         style. Two elements carrying an identical `x-data` were given the same
         scope id by stx and shared one set of signals, so opening one form
-        opened the other. Fixed upstream, and distinct names read better and do
-        not wait on the release.
+        opened the other. Fixed in stx 0.2.156, and distinct names read better
+        anyway - a page should not depend on that fix to behave.
 
         `'true' : 'false'` rather than the bare boolean: a binding whose value
         is `false` renders the attribute empty, and `aria-expanded=""` tells a

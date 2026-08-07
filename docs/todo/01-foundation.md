@@ -156,8 +156,8 @@ The half of this nobody builds, and the half that decides whether an instance is
 - [x] **Clicking it found an stx bug.** Both sections carried `x-data="{ adding: false }"`, and stx
       assigned scope ids by matching the state expression, so two elements with identical state
       shared one scope: opening the SSH form opened the GPG one, and only the first was ever
-      initialised. Fixed upstream by assigning positionally; the names here are distinct anyway, so
-      the page does not wait on the release
+      initialised. Fixed upstream by assigning positionally, released in stx 0.2.156; the names
+      here are distinct anyway, so the page never depended on that fix
 - [ ] Deploy keys: a key scoped to one repository, read-only by default, for the case where a token
       is the wrong shape
 

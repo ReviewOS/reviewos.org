@@ -8,8 +8,9 @@
 // under a 200. Nothing failed. Every view test asserting on component output
 // would have read as "the feature is missing" rather than "the harness is".
 //
-// `tests/helpers/server.ts` configures the directories now, and this is what
-// says so if that stops happening.
+// `configureViewDirectories` in `@stacksjs/router` fills the directories in
+// now, as of 0.70.308, and this is what says so if that stops happening. A
+// local stand-in in `tests/setup.ts` did the job until that shipped.
 //
 // A component *nested inside another component* used to be the other half of
 // this, and it now works, so the repository page is asserted whole below. It
@@ -28,7 +29,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdirSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { serveForTest, viewDirectories } from '../helpers/server'
+import { serveForTest } from '../helpers/server'
 
 const created = { userId: 0, repositoryId: 0, handle: '', name: '', diskPath: '' }
 
@@ -196,26 +197,5 @@ describe('a view served by the test router', () => {
     // just that the file was found and pasted in.
     expect(repositoryPage).toContain('clone-panel')
     expect(repositoryPage).toContain(`/${created.handle}/${created.name}.git`)
-  })
-})
-
-describe('viewDirectories', () => {
-  test('finds the directory the components are actually in', () => {
-    // Not `resources/views/components`, which is what bun-router falls back to
-    // and what this project has never used.
-    expect(viewDirectories().componentsDir).toBe(resolve('resources/components'))
-  })
-
-  test('names only directories that exist', () => {
-    const directories = viewDirectories()
-
-    // A search path that cannot match is not harmless: it hides which directory
-    // is really missing when something does not resolve.
-    for (const value of Object.values(directories)) {
-      if (value !== undefined)
-        expect(Bun.file(`${value}/.`).name).toBeTruthy()
-    }
-
-    expect(directories.viewsPath).toBe(resolve('resources/views'))
   })
 })
