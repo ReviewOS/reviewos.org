@@ -67,3 +67,13 @@ export const GITIGNORES = GITIGNORES_IMPL
 import { verifySignature as verifySignatureImpl } from '../../app/Actions/Git/signatures'
 
 export const verifySignature = verifySignatureImpl
+
+/**
+ * The keys an account has registered, shaped for the settings page.
+ *
+ * See `app/Actions/Keys/load.ts` for why the public key body is not among them.
+ */
+import { hasExpired as hasExpiredImpl, keysFor as keysForImpl } from '../../app/Actions/Keys/load'
+
+export const keysFor = keysForImpl
+export const hasExpired = hasExpiredImpl

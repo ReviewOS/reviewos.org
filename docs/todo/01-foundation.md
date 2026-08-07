@@ -134,14 +134,32 @@ The half of this nobody builds, and the half that decides whether an instance is
 
 ## Keys
 
-- [ ] `app/Models/SshKey.ts`: `user_id`, `title`, `key_type`, `public_key`, `fingerprint`,
+- [x] `app/Models/SshKey.ts`: `user_id`, `title`, `key_type`, `public_key`, `fingerprint`,
       `last_used_at`. Fingerprint unique across all users.
-- [ ] Reject keys that are too weak, and duplicate keys already registered to another account
+- [x] Reject keys that are too weak, and duplicate keys already registered to another account.
+      `app/Actions/Keys/ssh.ts` holds the policy - which types, how small an RSA key may be, and
+      what to tell somebody who pasted a private key - and `ts-ssh` reads the format
+- [x] `app/Models/GpgKey.ts` for commit signature verification (verification itself is phase 2)
+- [x] Reading a pasted GPG key, in `app/Actions/Keys/gpg.ts`. **gpg reads it, this does not** - the
+      same rule the signature work follows, and it runs against a throwaway `GNUPGHOME` every time
+      because `show-only` does not import but gpg still writes a trustdb wherever it is pointed.
+      What is left is policy: a key with no address on it is refused, because the address is what
+      ties a signature to a commit's author and storing one only produces "Unverified" later with
+      no explanation; expired and revoked keys likewise; a private key is refused by name
+- [x] `app/Actions/Keys/` - list, create, revoke, for both kinds
+- [x] `resources/views/settings/keys.stx`, which the clone box and the commit page both link to and
+      which until now did not exist. Nobody could clone over SSH or earn a verified badge, because
+      there was nowhere to register the key that makes either work
+- [x] The public key body is never sent to the page. It is public, so nothing leaks by it - but six
+      keys listed in full is unreadable, and the fingerprint is what a person compares against what
+      `ssh-keygen -l` prints
+- [x] **Clicking it found an stx bug.** Both sections carried `x-data="{ adding: false }"`, and stx
+      assigned scope ids by matching the state expression, so two elements with identical state
+      shared one scope: opening the SSH form opened the GPG one, and only the first was ever
+      initialised. Fixed upstream by assigning positionally; the names here are distinct anyway, so
+      the page does not wait on the release
 - [ ] Deploy keys: a key scoped to one repository, read-only by default, for the case where a token
       is the wrong shape
-- [ ] `app/Models/GpgKey.ts` for commit signature verification (verification itself is phase 2)
-- [ ] `app/Actions/Keys/` - list, create, revoke
-- [ ] `resources/views/settings/keys.stx`
 
 ## Activity
 

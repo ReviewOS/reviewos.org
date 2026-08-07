@@ -22,8 +22,18 @@ route.post('/orgs/members', 'Actions/Org/InviteMemberAction').middleware('auth')
 route.put('/orgs/members/role', 'Actions/Org/ChangeMemberRoleAction').middleware('auth')
 route.delete('/orgs/members', 'Actions/Org/RemoveMemberAction').middleware('auth')
 
-// Keys the caller pushes with.
+// Keys the caller pushes with, and signs with. Both are listed by the settings
+// page rather than by an endpoint: it reads them server-side, so a list route
+// would exist only to be a second way to get the same rows wrong.
 route.post('/user/keys', 'Actions/Keys/AddSshKeyAction').middleware('auth')
+route.delete('/user/keys', 'Actions/Keys/DeleteSshKeyAction').middleware('auth')
+route.post('/user/gpg-keys', 'Actions/Keys/AddGpgKeyAction').middleware('auth')
+route.delete('/user/gpg-keys', 'Actions/Keys/DeleteGpgKeyAction').middleware('auth')
+
+// The same two removals over POST, because an HTML form cannot send DELETE and
+// every write on the settings page goes through one.
+route.post('/user/keys/delete', 'Actions/Keys/DeleteSshKeyAction').middleware('auth')
+route.post('/user/gpg-keys/delete', 'Actions/Keys/DeleteGpgKeyAction').middleware('auth')
 
 // Access tokens. Fine-grained is the only kind: every capability the product
 // has maps to a scope in `app/TokenScopes.ts`, enforced by a test, so there is

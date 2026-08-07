@@ -1,0 +1,305 @@
+<script server>
+/**
+ * The keys an account pushes with, and signs with.
+ *
+ * Both on one screen, because they are the same decision from a reader's side
+ * ("what of mine does this forge trust?") even though they do different jobs.
+ * The clone box and the commit page both link here, and until this existed
+ * both linked at nothing.
+ *
+ * Reading is `app/Actions/Keys/load.ts`, policy is `app/Actions/Keys/ssh.ts`
+ * and `gpg.ts`, and writing is the four actions behind `/api/user/keys` and
+ * `/api/user/gpg-keys`. This lays it out.
+ */
+import { viewerFromCookies } from '../../functions/identity'
+import { hasExpired, keysFor } from '../../functions/repo'
+import { relativeTime } from '../../functions/browse'
+
+/**
+ * The request, when there is one, without naming a binding that may not exist.
+ *
+ * stx declares `__stxServeContext` on the path that serves a request and on no
+ * other, and an *undeclared* identifier is a ReferenceError - which optional
+ * chaining does not save, because `x?.y` throws on `x` before the chain is
+ * reached. It throws inside the server script's IIFE, so it takes every other
+ * variable in this file down with it and the page renders its signed-out
+ * branch as though nobody were there.
+ */
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+
+const viewer = await viewerFromCookies(serveContext?.cookies)
+const keys = viewer ? await keysFor(viewer.id) : { ssh: [], gpg: [] }
+
+// A settings page for nobody is not a 404 - the page exists, and saying so is
+// how somebody knows to sign in rather than that they mistyped the URL.
+if (!viewer)
+  setResponseStatus(401)
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!viewer)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">Sign in to manage your keys</h1>
+        <p class="muted" style="margin-top: 6px;">
+          <a href="/login">Sign in</a> to add an SSH key for pushing, or a GPG key for signing.
+        </p>
+      </div>
+    @else
+      <header class="keys-head">
+        <h1 class="keys-title">Keys</h1>
+        <p class="muted">
+          An SSH key is what you push with. A GPG key is what marks your commits as verified.
+        </p>
+      </header>
+
+      {{--
+        `addingSsh` and `addingGpg` rather than `adding` twice, and that is not
+        style. Two elements carrying an identical `x-data` were given the same
+        scope id by stx and shared one set of signals, so opening one form
+        opened the other. Fixed upstream, and distinct names read better and do
+        not wait on the release.
+
+        `'true' : 'false'` rather than the bare boolean: a binding whose value
+        is `false` renders the attribute empty, and `aria-expanded=""` tells a
+        screen reader nothing.
+      --}}
+      <section class="keys-section" x-data="{ addingSsh: false }">
+        <div class="keys-section-head">
+          <h2 class="keys-heading">SSH keys</h2>
+          <button
+            type="button"
+            class="btn"
+            @click="addingSsh = !addingSsh"
+            :aria-expanded="addingSsh ? 'true' : 'false'">Add a key</button>
+        </div>
+
+        <form class="key-form" method="post" action="/api/user/keys" x-show="addingSsh" x-cloak>
+          <CsrfField />
+          <label class="key-label" for="ssh-title">Title</label>
+          <input id="ssh-title" class="key-input" type="text" name="title" placeholder="Work laptop" maxlength="100">
+
+          <label class="key-label" for="ssh-key">Key</label>
+          {{--
+            The public half, and the placeholder says which file it is in. The
+            single most common way this goes wrong is somebody pasting the
+            private key, and `parseSshPublicKey` refuses that by name rather
+            than with a parse error.
+          --}}
+          <textarea
+            id="ssh-key"
+            class="key-input mono"
+            name="key"
+            rows="4"
+            required
+            spellcheck="false"
+            placeholder="ssh-ed25519 AAAA… (the contents of ~/.ssh/id_ed25519.pub)"></textarea>
+
+          <div class="key-actions">
+            <button type="submit" class="btn btn-primary">Add SSH key</button>
+          </div>
+        </form>
+
+        @if (keys.ssh.length === 0)
+          <div class="panel keys-empty">
+            <p class="muted">No SSH keys yet. Add one and you can clone and push over SSH.</p>
+          </div>
+        @else
+          <ul class="panel keys-list">
+            @foreach (keys.ssh as key)
+              <li class="key-row">
+                <span class="i-hugeicons-key-01 key-icon" aria-hidden="true"></span>
+
+                <div class="key-main">
+                  <span class="key-name">{{ key.title }}</span>
+                  <span class="mono muted key-fingerprint">{{ key.fingerprint }}</span>
+                  <span class="muted key-meta">
+                    {{ key.type }}
+                    @if (key.addedAt)
+                      &middot; added {{ relativeTime(key.addedAt) }}
+                    @endif
+                    {{--
+                      Never used is worth saying out loud. It is how somebody
+                      spots the key they added on a machine they no longer have.
+                    --}}
+                    &middot; {{ key.lastUsedAt ? `last used ${relativeTime(key.lastUsedAt)}` : 'never used' }}
+                  </span>
+                </div>
+
+                <form method="post" action="/api/user/keys/delete" class="key-remove">
+                  <CsrfField />
+                  <input type="hidden" name="id" value="{{ key.id }}">
+                  <button type="submit" class="btn btn-quiet">Remove</button>
+                </form>
+              </li>
+            @endforeach
+          </ul>
+        @endif
+      </section>
+
+      <section class="keys-section" x-data="{ addingGpg: false }">
+        <div class="keys-section-head">
+          <h2 class="keys-heading">GPG keys</h2>
+          <button
+            type="button"
+            class="btn"
+            @click="addingGpg = !addingGpg"
+            :aria-expanded="addingGpg ? 'true' : 'false'">Add a key</button>
+        </div>
+
+        <form class="key-form" method="post" action="/api/user/gpg-keys" x-show="addingGpg" x-cloak>
+          <CsrfField />
+          <label class="key-label" for="gpg-key">Key</label>
+          <textarea
+            id="gpg-key"
+            class="key-input mono"
+            name="key"
+            rows="6"
+            required
+            spellcheck="false"
+            placeholder="-----BEGIN PGP PUBLIC KEY BLOCK----- (gpg --armor --export &lt;key id&gt;)"></textarea>
+
+          <p class="muted key-hint">
+            A commit is verified when its signature is good <em>and</em> the key claims the address
+            the commit was authored with. A key with no address on it can never verify anything, so
+            it is refused rather than stored.
+          </p>
+
+          <div class="key-actions">
+            <button type="submit" class="btn btn-primary">Add GPG key</button>
+          </div>
+        </form>
+
+        @if (keys.gpg.length === 0)
+          <div class="panel keys-empty">
+            <p class="muted">No GPG keys yet. Add one and your signed commits will show as verified.</p>
+          </div>
+        @else
+          <ul class="panel keys-list">
+            @foreach (keys.gpg as key)
+              <li class="key-row">
+                <span class="i-hugeicons-checkmark-badge-01 key-icon" aria-hidden="true"></span>
+
+                <div class="key-main">
+                  <span class="mono key-name">{{ key.keyId }}</span>
+                  <span class="muted key-fingerprint">{{ key.emails.join(', ') }}</span>
+                  <span class="muted key-meta">
+                    @if (key.addedAt)
+                      added {{ relativeTime(key.addedAt) }}
+                    @endif
+                    @if (key.expiresAt)
+                      &middot; {{ hasExpired(key.expiresAt) ? 'expired' : `expires ${relativeTime(key.expiresAt)}` }}
+                    @else
+                      &middot; no expiry
+                    @endif
+                  </span>
+                </div>
+
+                @if (hasExpired(key.expiresAt))
+                  {{--
+                    An expired key verifies nothing, and the row would otherwise
+                    look exactly like one that does.
+                  --}}
+                  <span class="key-expired">Expired</span>
+                @endif
+
+                <form method="post" action="/api/user/gpg-keys/delete" class="key-remove">
+                  <CsrfField />
+                  <input type="hidden" name="id" value="{{ key.id }}">
+                  <button type="submit" class="btn btn-quiet">Remove</button>
+                </form>
+              </li>
+            @endforeach
+          </ul>
+        @endif
+      </section>
+    @endif
+  </div>
+@endsection
+
+<style>
+  .keys-head { margin-bottom: 26px; }
+  .keys-title { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+
+  .keys-section { margin-bottom: 34px; }
+
+  .keys-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .keys-heading { font-size: 16px; font-weight: 600; }
+
+  .key-form {
+    padding: 16px;
+    margin-bottom: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-panel, 14px);
+  }
+
+  .key-label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+
+  .key-input {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-control, 10px);
+  }
+
+  .key-hint { font-size: 12px; line-height: 1.5; margin-bottom: 14px; }
+  .key-actions { display: flex; justify-content: flex-end; }
+
+  .keys-empty { padding: 26px; text-align: center; }
+  .keys-list { overflow: hidden; }
+
+  .key-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .key-row:last-child { border-bottom: 0; }
+
+  .key-icon { color: var(--muted); flex: none; }
+  .key-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .key-name { font-weight: 500; }
+
+  .key-fingerprint,
+  .key-meta {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .key-expired {
+    flex: none;
+    padding: 2px 8px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--warn);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn);
+    border-radius: 999px;
+  }
+
+  .key-remove { flex: none; }
+</style>
