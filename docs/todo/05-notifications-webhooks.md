@@ -54,23 +54,56 @@ them without also watching a chat channel, and that nobody has to mute the produ
   that throws for large payloads and works for small ones: it passes every test written with a short
   one.
 
-  Still open, and the reason this box is not ticked:
+  Still open, because **the database queue driver cannot reserve a job**, and the cause is a
+  dependency defect this repository cannot fix from inside itself.
 
-  - **A worker does not drain the queue.** With the schema corrected and `QUEUE_DRIVER=database`, a
-    dispatched job lands in `jobs` correctly, `buddy queue:work` starts, reports "Processing queues:
-    true" and "Listening for jobs...", and never reserves it. `attempts` stays 0 and `reserved_at`
-    stays null. No error now that the sweep is fixed, and `QUEUE_LOG_LEVEL=debug` adds nothing. What
-    has been ruled out: the column types, the driver (set in `.env`, not only in the environment),
-    the queue name, and the job being unknown to the worker (the same happens with `Inspire`, which
-    is in `app/Jobs/`).
-  - **`queue_circuit_state` does not exist.** The worker says so and disables the circuit breaker,
-    which is graceful and is *not* the cause above. No framework migration creates it; it needs one
-    here.
-  - **`.env` has `QUEUE_DRIVER=sync`**, so every `dispatch()` in the product runs inline, inside the
-    request that triggered it. That is a reasonable development default and it is the wrong one for
-    this phase: retries, backoff, held notifications and digests are all meaningless under it, and a
-    slow SMTP server becomes a slow page. Left as `sync` deliberately until a worker can drain,
-    because switching it now would stop jobs running at all rather than running in the wrong place.
+  `@stacksjs/queue` reserves with an optimistic lock, which is the right shape - claim the row only
+  if it is still unclaimed, so two workers cannot take the same job:
+
+  ```js
+  db.updateTable('jobs')
+    .set({ reserved_at: now, attempts: (row.attempts || 0) + 1 })
+    .where('id', '=', row.id)
+    .whereNull('reserved_at')
+    .executeTakeFirst()
+  ```
+
+  **`whereNull` does not exist on the update builder.** It exists on the select builder, which is
+  why it reads as correct and why `reviewLoad` in `app/Actions/Pull/suggest.ts` uses it happily.
+  Checked directly: on a select, `whereNull` and `whereNotNull` are both functions; on an update,
+  both are `undefined`. So every reserve throws `TypeError: ....whereNull is not a function`.
+
+  It is invisible because the processor's loop swallows it whole:
+
+  ```js
+  try { z = await z5(K, $) } catch { continue }
+  ```
+
+  No logging, no failed job, no retry - the worker polls forever, reserves nothing, and reports
+  "Listening for jobs..." once a second. `QUEUE_LOG_LEVEL=debug` adds nothing, because nothing is
+  logged to raise the level of. A job dispatched to the database driver sits in the table until
+  somebody looks.
+
+  The fix is upstream, in one of two places: `bun-query-builder` gains `whereNull`/`whereNotNull` on
+  the update builder, or `@stacksjs/queue` writes that predicate a way the builder supports. The
+  second `catch` is worth fixing either way - a reserve that fails silently is how this stayed
+  hidden through every "the jobs table exists" check.
+
+  Two smaller things found on the way, neither of them the cause:
+
+  - **`--queue` never reaches the worker.** `buddy queue:work` advertises `-q, --queue [queue]`, and
+    the worker action parses its own argv with a splitter that only understands `--key=value`. A
+    space-separated `--queue default` becomes the string `"true"`, so the worker polls a queue named
+    `true`. The log line says so - "Processing queues: true" - and reads exactly like a boolean
+    status message. Running the action directly with `--queue=default` prints the real name.
+  - **`queue_circuit_state` does not exist.** The worker says so and disables the circuit breaker.
+    Graceful, and not the cause. No framework migration creates it.
+
+  `.env` stays on `QUEUE_DRIVER=sync`, deliberately. Every `dispatch()` in the product therefore runs
+  inline, inside the request that triggered it, which makes retries, backoff, held notifications and
+  digests meaningless and turns a slow SMTP server into a slow page. It is still the right setting
+  until the reserve works, because `database` would mean jobs stop running at all rather than
+  running in the wrong place.
 
 ## Events
 

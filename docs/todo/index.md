@@ -184,6 +184,21 @@ avoid: it emits `"responded_at" is $2` and Postgres answers `syntax error at or 
 `whereNull` and `whereNotNull`, which render it properly - `MirrorMetadataSyncJob` has a note about
 the second and it is the same answer for both.
 
+**`whereNull` does not exist on the *update* builder.** Which is the fifth, and the most expensive
+so far: it is why the database queue driver has never reserved a job. `@stacksjs/queue` claims a row
+with `.updateTable('jobs').set(...).where('id','=',id).whereNull('reserved_at')`, an optimistic lock
+that is exactly the right shape, and the method is simply not there - present on selects, absent on
+updates, so it reads as correct everywhere it is written. Every reserve throws a `TypeError` into a
+bare `catch { continue }` and the worker polls forever reporting "Listening for jobs...". Written up
+in [phase 5](./05-notifications-webhooks.md).
+
+The lesson generalises past this builder. **Four of these five are silent, and the difference is
+never the defect - it is who is catching.** The empty `SET` and the `IN`-on-a-write surfaced as
+Postgres errors that something swallowed; `is null` announced itself only because the one call site
+happened to sit outside a `try`; and this one is inside a `catch` with no logging at all, which is
+why "the jobs table exists" was true for months while nothing in it ever ran. When a query builder
+is involved, check the SQL *and* check what happens to the exception.
+
 This one announced itself, and only by luck. The call was outside a `try`; inside one - which is
 where three of the four above were found - it would have returned an empty result and the feature
 built on it would have quietly done nothing. That is the pattern, across all four: **the builder
