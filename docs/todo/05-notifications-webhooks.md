@@ -5,10 +5,72 @@ them without also watching a chat channel, and that nobody has to mute the produ
 
 ## Prerequisites
 
-- [ ] Resolve the missing `notifications.user_id` and `notification_deliveries.user_id` foreign keys
+- [x] Resolve the missing `notifications.user_id` and `notification_deliveries.user_id` foreign keys
       left over from bootstrap. Those tables come from the framework guarantee path rather than the
       model corpus, so the declared relations are not enforced.
+
+  Fixed in the **models**, which is the whole point and was not my first attempt. I wrote a
+  hand-written migration first; `tests/unit/migrations-from-models.test.ts` refused it, and it was
+  right to. `migrate:regenerate` rebuilds the corpus from the models, so a hand-written file is a
+  rule the models do not know about that the next regeneration silently deletes - which for a
+  foreign key means the constraint quietly stops existing. That test's own comment says it was
+  written after exactly this mistake, and names two other columns where a relation had been written
+  as a plain attribute.
+
+  `notification_deliveries` was a third. Its `userId` is declared in the framework default as a
+  plain numeric attribute with no `belongsTo` at all, so nothing generated a constraint and nothing
+  stopped a row pointing at a deleted account. `notifications` did declare `belongsTo: ['User']`,
+  but the table is created by the framework's guarantee path rather than from the corpus, so the
+  declaration reached no SQL. Both are overridden under `app/Models/`, which is the supported
+  resolution order and puts them in the corpus; the generator then emits the constraints itself.
+
+  `notification_deliveries.user_id` was also `integer` against a `bigint` `users.id`. Postgres
+  compares the two happily, so a foreign key between them is accepted and the mismatch stays
+  invisible until an id passes two billion.
+
+  The two differ on delete on purpose: `notifications` cascades, because an inbox entry for an
+  account that no longer exists is unreachable; `notification_deliveries` sets null, because it is a
+  log of what was actually sent and it carries the recipient address independently of the account.
+  Deleting a user should unlink that record, not erase the evidence that mail went out.
+
 - [ ] Resolve the missing `jobs` table so the queue works. Everything here is queue-driven.
+
+  The table exists now, and two of its columns described something other than what the queue stores.
+  Both are fixed, through an `app/Models/Job.ts` override rather than a patch to
+  `node_modules` - the framework default is at
+  `storage/framework/defaults/app/Models/Job.ts` and `app/` wins, which is the supported mechanism
+  and survives an install.
+
+  **`reserved_at` was `schema.date()`.** The queue writes a unix timestamp and its reservation sweep
+  asks `reserved_at <= $1` with an integer, so Postgres answered `operator does not exist: date <=
+  integer` **on every tick**. Nothing was ever reserved, so nothing was ever processed, and the
+  failure was one log line inside the worker's loop - a job dispatched to the database driver sat in
+  the table forever while the worker cheerfully reported "Listening for jobs..." once a second. It is
+  the same kind of value as `available_at`, which is correctly a number three lines above it.
+
+  **`payload` had no `max`, so it generated `varchar(255)`.** A payload is JSON - job name,
+  arguments, options - and the trivial two-field probe used to find the bug above was already eighty
+  characters. Postgres refuses an over-length varchar rather than truncating, so this is a dispatch
+  that throws for large payloads and works for small ones: it passes every test written with a short
+  one.
+
+  Still open, and the reason this box is not ticked:
+
+  - **A worker does not drain the queue.** With the schema corrected and `QUEUE_DRIVER=database`, a
+    dispatched job lands in `jobs` correctly, `buddy queue:work` starts, reports "Processing queues:
+    true" and "Listening for jobs...", and never reserves it. `attempts` stays 0 and `reserved_at`
+    stays null. No error now that the sweep is fixed, and `QUEUE_LOG_LEVEL=debug` adds nothing. What
+    has been ruled out: the column types, the driver (set in `.env`, not only in the environment),
+    the queue name, and the job being unknown to the worker (the same happens with `Inspire`, which
+    is in `app/Jobs/`).
+  - **`queue_circuit_state` does not exist.** The worker says so and disables the circuit breaker,
+    which is graceful and is *not* the cause above. No framework migration creates it; it needs one
+    here.
+  - **`.env` has `QUEUE_DRIVER=sync`**, so every `dispatch()` in the product runs inline, inside the
+    request that triggered it. That is a reasonable development default and it is the wrong one for
+    this phase: retries, backoff, held notifications and digests are all meaningless under it, and a
+    slow SMTP server becomes a slow page. Left as `sync` deliberately until a worker can drain,
+    because switching it now would stop jobs running at all rather than running in the wrong place.
 
 ## Events
 

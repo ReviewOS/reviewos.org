@@ -4403,7 +4403,7 @@
           },
           {
             "name": "payload",
-            "type": "string",
+            "type": "text",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": false,
@@ -4427,7 +4427,7 @@
           },
           {
             "name": "reserved_at",
-            "type": "date",
+            "type": "integer",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -5498,7 +5498,8 @@
             "hasDefault": false,
             "references": {
               "table": "users",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -5557,7 +5558,8 @@
             "hasDefault": false,
             "references": {
               "table": "users",
-              "column": "id"
+              "column": "id",
+              "onDelete": "set null"
             }
           },
           {
@@ -13702,7 +13704,7 @@
       }
     ]
   },
-  "hash": "955e1a6339efdcc5a6920ac6e6f62e3a858f6beae17a3acddcb2308d9b69d093",
+  "hash": "76190fe0024ea9170fad5c09c086d2bd1ce33e185f0f0a4c120c34ed16d15026",
   "dialect": "postgres",
-  "updatedAt": "2026-08-07T15:18:42.230Z"
+  "updatedAt": "2026-08-07T17:35:33.594Z"
 }
