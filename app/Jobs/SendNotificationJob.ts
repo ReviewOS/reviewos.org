@@ -2,6 +2,7 @@ import type { Channel } from '../Actions/Notification/delivery'
 import { Job } from '@stacksjs/queue'
 import { deliveryFor } from '../Actions/Notification/settings'
 import { deliveryPreference } from '../Actions/Notification/preferences'
+import { UNSUBSCRIBE_TTL } from '../Actions/Notification/unsubscribe'
 
 /**
  * Send one notification on one interrupting channel.
@@ -130,7 +131,7 @@ export default new Job({
 async function send(
   channel: Channel,
   user: { email?: string, handle?: string },
-  payload: { title: string, url: string },
+  payload: { title: string, url: string, subjects?: Array<{ type: string, id: number }> },
 ): Promise<{ ok: boolean, recipient: string, error?: string }> {
   if (channel === 'push')
     return { ok: false, recipient: String(user.handle ?? ''), error: 'push is not wired up yet' }
@@ -141,7 +142,25 @@ async function send(
     return { ok: false, recipient: '', error: 'no address on file' }
 
   try {
-    const { mail } = await import('@stacksjs/email')
+    const { buildListUnsubscribeHeaders, buildUnsubscribeUrl, mail } = await import('@stacksjs/email')
+
+    /*
+     * One tap to make it stop, scoped to this thread.
+     *
+     * The first subject is the thread; the repository behind it is deliberately
+     * not what the link unsubscribes from. Somebody pressing Unsubscribe in an
+     * email about a pull request means that pull request, and reading it as the
+     * whole repository is the interpretation that loses people permanently.
+     *
+     * Both the footer link and the RFC 8058 header, carrying the same scope, so
+     * Gmail's native button and the link at the bottom do the same thing. If
+     * they differed, the button - which is what most people press - would be
+     * the one doing something the reader did not ask for.
+     */
+    const thread = payload.subjects?.[0]
+    const scope = thread ? `${thread.type}:${thread.id}` : undefined
+    const options = { scope, routePrefix: '/unsubscribe' }
+    const unsubscribe = scope ? buildUnsubscribeUrl(address, UNSUBSCRIBE_TTL, options) : ''
 
     const result: any = await mail.send({
       to: address,
@@ -150,7 +169,10 @@ async function send(
       // notification is one sentence and a link, and an HTML template that
       // renders as a wall of table markup in a text client is a worse version
       // of this.
-      text: `${payload.title}\n\n${absolute(payload.url)}\n`,
+      text: unsubscribe
+        ? `${payload.title}\n\n${absolute(payload.url)}\n\n--\nStop emails about this one: ${unsubscribe}\n`
+        : `${payload.title}\n\n${absolute(payload.url)}\n`,
+      ...(unsubscribe ? { headers: buildListUnsubscribeHeaders(address, UNSUBSCRIBE_TTL, options) } : {}),
     })
 
     // It *resolves* with `{ success: false }` on a refused connection rather

@@ -58,6 +58,7 @@ route.post('/user/notifications/read', 'Actions/Notification/MarkReadAction').mi
 // values it read five minutes ago.
 route.post('/user/notifications/preferences', 'Actions/Notification/UpdatePreferenceAction').middleware('auth')
 
+
 // Repositories. Settings is one endpoint for every field, because a rename
 // moves a directory and the row and the directory have to end up agreeing;
 // splitting it up is how that ends up implemented twice. Delete, transfer and

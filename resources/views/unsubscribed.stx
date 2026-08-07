@@ -1,0 +1,31 @@
+<script server>
+/**
+ * What somebody sees after the button worked.
+ *
+ * Its own page rather than a flash message, because the reader arrived from an
+ * email with no session and there is nowhere to flash a message to. It also has
+ * to say what is *still* true - people who unsubscribe from a thread often
+ * think they have turned everything off, and finding out later by missing a
+ * review request is how they stop trusting the product rather than the setting.
+ */
+</script>
+
+@layout('app')
+
+@section('title', 'Unsubscribed')
+
+@section('content')
+  <div class="shell" style="padding-top: 60px; padding-bottom: 80px;">
+    <div class="panel unsub-card">
+      <h1 class="unsub-title">Done. No more email about that one.</h1>
+      <p class="muted unsub-line">
+        It is still in your inbox here, and commenting on it will not sign you back up - an explicit
+        unsubscribe wins over anything that would otherwise resubscribe you.
+      </p>
+      <p class="muted unsub-line">
+        <a href="/settings/notifications">Notification settings</a> is where the per-event switches
+        and the quiet hours live.
+      </p>
+    </div>
+  </div>
+@endsection

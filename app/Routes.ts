@@ -20,6 +20,10 @@ export type { RouteDefinition, RouteRegistry } from '@stacksjs/router'
 export default {
   api: 'api',
   attachments: { path: 'attachments', prefix: '' },
+  // Unsubscribing, at the root: the URL goes into an email and into a
+  // List-Unsubscribe header, both read by machines that will not follow a
+  // redirect from /api to anywhere.
+  notifications: { path: 'notifications', prefix: '' },
   // Registers nothing; configures the renderer. See the file for why it must
   // load with the routes rather than in any one server's boot script.
   views: { path: 'views', prefix: '' },

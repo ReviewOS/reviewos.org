@@ -197,7 +197,32 @@ them without also watching a chat channel, and that nobody has to mute the produ
   Retried only for what retrying can fix. A deleted recipient returns rather than throwing, so it is
   one quiet no-op instead of three. A refused connection throws, which is what `tries: 3` exists
   for. Push is not wired up and fails saying so rather than recording a send that did not happen.
-- [ ] Unsubscribe links that work without logging in, and are scoped to one thread
+- [x] Unsubscribe links that work without logging in, and are scoped to one thread
+
+  Somebody reading a notification at 23:00 on their phone should be one tap from making it stop.
+  Requiring a sign-in first is how people give up and add a mail rule instead - and a mail rule is
+  invisible to this product forever, so a reviewer everybody is waiting on becomes unreachable and
+  nothing here knows why.
+
+  **The link does not unsubscribe anybody.** Mail security scanners and link previewers fetch every
+  URL in a message before a human sees it, so a link that acted on being opened would unsubscribe
+  people who never read the email, and they would never learn why the notifications stopped. The GET
+  renders a page with a button; the button posts to the same URL, which is also what RFC 8058's
+  one-click flow posts to, so Gmail's native button and the footer link do the same thing.
+
+  The scope is signed into the token rather than carried beside it. `@stacksjs/email` 0.70.304 takes
+  an optional scope for exactly this - a scope in a query string is one anybody can edit, and
+  editing it from "this pull request" to "everything" is a one-character attack on somebody else's
+  settings. The subscription is marked unsubscribed rather than deleted, so a later comment cannot
+  quietly resubscribe somebody who asked to stop; and a row is written even when none existed,
+  because a mention reaches somebody who was never subscribed.
+
+  **`skipCsrf` is required on that route, and is not a weakening.** Gmail's one-click post is
+  cross-origin with no cookie and no way to carry a token, so the default check refuses it - which
+  would break the button most people press, in production, with nothing failing anywhere a developer
+  looks. CSRF protection exists to stop a third party spending a victim's *ambient* credential, and
+  this route has none: the signed token is the whole authorization, and anybody holding it can
+  already unsubscribe by opening the link.
 - [x] Do not notify someone about their own action
 - [x] `settings/notifications.stx`
 

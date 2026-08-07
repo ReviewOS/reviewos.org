@@ -724,6 +724,13 @@
       .prefs-time { width: 120px; }
       .prefs-tz { width: 200px; }
 
+      /* The unsubscribe page. Reached from an email with no session, so it is
+        one card and one button and nothing else to decide. */
+      .unsub-card { max-width: 520px; margin: 0 auto; padding: 28px; text-align: center; }
+      .unsub-title { margin: 0 0 10px; font-size: 20px; }
+      .unsub-line { margin: 0 0 8px; font-size: 14px; }
+      .unsub-form { margin: 18px 0; }
+
       .diff-status { text-transform: capitalize; }
 
       /* Deliberately quiet. This badge is a reason, not a warning: the file is

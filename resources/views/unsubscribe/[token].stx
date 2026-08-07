@@ -1,0 +1,87 @@
+<script server>
+/**
+ * The page an emailed unsubscribe link opens.
+ *
+ * **It does not unsubscribe anybody.** Mail security scanners and link
+ * previewers fetch every URL in a message before a human sees it, so a link
+ * that acted on being opened would unsubscribe people who never read the email
+ * - and they would never find out why the notifications stopped. This page
+ * shows a button, and the button posts to the same URL.
+ *
+ * That is the same reason RFC 8058 specifies a POST for one-click, so Gmail's
+ * native button and this page do the same thing by the same route.
+ *
+ * No session. Somebody reading a notification at 23:00 on their phone should be
+ * one tap from making it stop; requiring a sign-in first is how people give up
+ * and add a mail rule instead, which is invisible to this product forever.
+ */
+import { Buffer } from 'node:buffer'
+import { describeScope, parseScope } from '../../../app/Actions/Notification/unsubscribe'
+
+const token = String(params.token ?? '')
+
+/**
+ * Read, not verified.
+ *
+ * The signature is checked by the endpoint, where it decides something. Here it
+ * only picks which noun the sentence uses, and a page that verified would have
+ * to explain a bad signature to somebody who can do nothing about it. A
+ * malformed token falls through to the generic wording and the button still
+ * posts, so the endpoint gives the real answer.
+ */
+let scope = null
+try {
+  const payload = token.split('.')[0]
+  const claims = payload ? JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) : {}
+  scope = parseScope(typeof claims.scope === 'string' ? claims.scope : null)
+}
+catch {
+  scope = null
+}
+
+const what = describeScope(scope)
+const action = `/unsubscribe/${token}`
+const usable = Boolean(token)
+</script>
+
+@layout('app')
+
+@section('title', 'Unsubscribe')
+
+@section('content')
+  <div class="shell" style="padding-top: 60px; padding-bottom: 80px;">
+    <div class="panel unsub-card">
+      @if (!usable)
+        <h1 class="unsub-title">That link is missing its token</h1>
+        <p class="muted unsub-line">
+          Open the link from the email again, or change what reaches you in
+          <a href="/settings/notifications">notification settings</a>.
+        </p>
+      @else
+        <h1 class="unsub-title">Stop emails about {{ what }}?</h1>
+        <p class="muted unsub-line">
+          You will still see it in your inbox here, and you can follow it again at any time. This
+          only stops the email.
+        </p>
+
+        {{--
+          No `<CsrfField />`, deliberately. The route carries `skipCsrf`,
+          because Gmail's one-click post is cross-origin with no cookie and no
+          way to carry a token - and a field nothing checks is worse than none:
+          the next reader assumes there is a check here.
+
+          The signed token in the path is the whole authorization, and anybody
+          holding it can already unsubscribe by opening this page.
+        --}}
+        <form method="post" action="{{ action }}" class="unsub-form">
+          <button type="submit" class="btn btn-primary">Unsubscribe</button>
+        </form>
+
+        <p class="muted unsub-line">
+          Wanted something narrower? <a href="/settings/notifications">Notification settings</a> has
+          the per-event switches and the quiet hours.
+        </p>
+      @endif
+    </div>
+  </div>
+@endsection
