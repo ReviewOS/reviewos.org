@@ -245,10 +245,16 @@ route.post(GATE_ENDPOINT, async (request: any) => {
   if (bypass.allowed) {
     const token = await tokenFromBasicAuth(request.headers?.get?.('authorization') ?? null)
 
+    // Over HTTPS the pusher is whoever the Authorization header names. Over SSH
+    // there is no header: the identity came from a key, and the daemon put it
+    // in the hook's environment. Without this an SSH bypass is recorded against
+    // nobody, which is the one thing the audit trail exists to prevent.
+    const actorId = token?.userId ?? (payload?.actorId ? Number(payload.actorId) : null)
+
     await recordAudit({
       action: 'push.protection.bypassed',
       subject: { type: 'repository', id: Number(repository.id) },
-      actorId: token?.userId ?? null,
+      actorId: Number.isFinite(actorId as number) ? actorId : null,
       reason: bypass.reason,
       detail: {
         refs: protection.map(one => one.ref),

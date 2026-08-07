@@ -92,6 +92,11 @@ storage/attachments/
 # deployment except the one it was written from.
 storage/git-hooks/
 
+# The SSH daemon's host key. A private key, and one per instance: it is what
+# clients pin, so committing one would publish the private half of the identity
+# every deployment of this forge then claims to have.
+storage/ssh/
+
 # Pre-relocation names of the three directories above. stx and ts-cloud each
 # take their state directory from config now (`stateDir` in config/ui.ts and
 # config/cloud.ts), so nothing is left in the project root - but a checkout that

@@ -16,7 +16,7 @@
  * `AddSshKeyAction` does the database work.
  */
 
-import { parseAuthorizedKey } from 'ts-ssh'
+import { parseAuthorizedKey } from '@stacksjs/ts-ssh'
 
 /** Key types accepted for push authentication. */
 export const ACCEPTED_KEY_TYPES = ['ssh-ed25519', 'ecdsa-sha2-nistp256', 'ssh-rsa'] as const
@@ -91,7 +91,7 @@ export function parseSshPublicKey(raw: string): SshKeyParse {
  * already passes and what the column holds. The digest itself is `ts-ssh`'s.
  */
 export async function fingerprintOf(body: string): Promise<string> {
-  const { fingerprintOf: fingerprint } = await import('ts-ssh')
+  const { fingerprintOf: fingerprint } = await import('@stacksjs/ts-ssh')
   const bytes = Uint8Array.from(atob(body), char => char.charCodeAt(0))
 
   return fingerprint(bytes)

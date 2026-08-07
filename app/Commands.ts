@@ -32,4 +32,5 @@ export default {
   'mirror:add': 'MirrorAdd',
   'git:hooks': 'GitHooks',
   'git:scan': 'GitScan',
+  'git:ssh': 'GitSsh',
 } satisfies CommandRegistry

@@ -480,17 +480,32 @@ the one moment where rejecting is still possible.
 
 ## Later in this phase
 
-- [ ] SSH transport. It needs a separate daemon and key-based auth, so it lands after HTTPS works
-      end to end. The protocol half is **[ts-ssh](https://github.com/stacksjs/ts-ssh)** - the wire
-      format, key formats, packet framing, key exchange and public key authentication - and the key
-      reading is wired in already: `app/Actions/Keys/ssh.ts` is 92 lines rather than 141, because
-      what is left there is this forge's policy (which types are allowed, how small an RSA key may
-      be, what to tell somebody who pasted a private key) rather than a second copy of a format that
-      has to stay right forever. The transport exists now too: AES-GCM and AES-CTR with
-      encrypt-then-MAC, a byte stream buffered into packets with the sequence numbers both MACs
-      depend on, and channels with their window accounting. What is left before a daemon is the
-      driver that sequences the handshake against a socket and a host key - every piece it needs is
-      there, in order, but nothing yet puts them in order
+- [x] SSH transport, through **[ts-ssh](https://github.com/stacksjs/ts-ssh)**. `./buddy git:ssh`
+      serves `git clone`, `git fetch` and `git push` over a key, on port 2222 by default because
+      binding 22 needs root and a forge that asks to be run as root gets run as root. The host key
+      is created on first start and never regenerated: one that changes between restarts makes
+      every client that ever connected print the warning about a changed fingerprint, which is the
+      warning that is supposed to mean something.
+
+      What is in `app/Actions/Git/ssh.ts` is only what a protocol library must not decide for a
+      forge - which key is whose (`ssh_keys`, by fingerprint), what a command string means, and
+      whether it is allowed (`mayUseService`, the same function the HTTP routes ask, because a
+      second opinion about permissions is two answers waiting to disagree). Everything below that
+      is the package: the handshake in order, curve25519, AES-GCM and AES-CTR with
+      encrypt-then-MAC, channels and their windows, and strict key exchange, which closes Terrapin.
+
+      Two things the wiring had to get right and one it had to fix. The command parser is not a
+      shell - no expansion, no globbing, and nothing but the two services, because somebody with a
+      valid key sends that string. `--stateless-rpc` is the HTTP framing and must not be passed
+      here, or the client hangs waiting for a round nobody will send. And a push over SSH now
+      carries the pusher into the hooks through `REVIEWOS_ACTOR_ID`: over HTTPS that comes from the
+      Authorization header, and without it a bypass over SSH was recorded against nobody, which is
+      the one thing the audit trail exists to prevent
+
+      `tests/e2e/git-ssh.test.ts` runs the real git and ssh clients at it: the clone names the file
+      it expects, because a transport that serves the wrong repository looks perfect from the
+      client's side. A stranger's registered key can read the public repository and cannot push to
+      it, cannot see the private one, and an unregistered key cannot connect at all
 - [x] Git LFS, through **[ts-git-lfs](https://github.com/stacksjs/ts-git-lfs)** - a package of its own,
       because pointer files and the batch API are a specification anybody implementing LFS needs and
       not something a forge should own. What is wired here is the three things it will not decide

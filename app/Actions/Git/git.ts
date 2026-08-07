@@ -242,9 +242,14 @@ export async function isEmpty(repositoryPath: string): Promise<boolean> {
 export function serviceArgs(
   repositoryPath: string,
   service: 'upload-pack' | 'receive-pack',
-  options: { advertiseRefs?: boolean } = {},
+  options: { advertiseRefs?: boolean, stateless?: boolean } = {},
 ): string[] {
-  const args = [service, '--stateless-rpc']
+  // `--stateless-rpc` is the HTTP framing, where each request carries one round
+  // of the protocol and the process exits. Over SSH the process talks for the
+  // life of the channel, which is the mode git was written for - and passing
+  // the flag there produces a client that hangs waiting for a second round
+  // nobody is going to send.
+  const args = options.stateless === false ? [service] : [service, '--stateless-rpc']
 
   if (options.advertiseRefs)
     args.push('--advertise-refs')

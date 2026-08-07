@@ -243,6 +243,12 @@ try {
       // git passes them one variable per option, and only when the repository
       // has \`receive.advertisePushOptions\` on - which \`buddy git:hooks\` sets.
       pushOptions,
+      // Who is pushing, over a transport that has no Authorization header to
+      // read it from. The SSH daemon sets this when it spawns receive-pack, and
+      // it is trusted for exactly the same reason the rest of this body is: the
+      // request carries the hook secret, so it came from a hook this instance
+      // wrote and started.
+      actorId: process.env.REVIEWOS_ACTOR_ID || null,
     }),
     // Longer than a branch rule needs, because this one reads the patch of
     // every commit in the push.
