@@ -1313,6 +1313,7 @@ export function mountDiffFiles(): DiffViewer | null {
   const commentUrl = root.dataset.commentUrl
   const sinceUrl = root.dataset.sinceUrl
   const interdiffUrl = root.dataset.interdiffUrl
+  const blameUrl = root.dataset.blameUrl
 
   /**
    * Paths whose proposal changed since the reader last looked, once known.
@@ -2218,6 +2219,7 @@ export function mountDiffFiles(): DiffViewer | null {
     element.innerHTML = `<button type="button" class="btn btn-small" data-surface="comment">Comment</button>`
       + `<button type="button" class="btn btn-small" data-surface="link">Copy link</button>`
       + `<button type="button" class="btn btn-small" data-surface="lines">Copy lines</button>`
+      + (blameUrl ? `<button type="button" class="btn btn-small" data-surface="why">Why this line?</button>` : '')
 
     element.addEventListener('click', (event) => {
       const action = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-surface]')?.dataset.surface
@@ -2228,6 +2230,8 @@ export function mountDiffFiles(): DiffViewer | null {
         openDraft(selection)
       else if (action === 'link')
         void copyText(new URL(formatLineAnchor(selection), window.location.href).href, element)
+      else if (action === 'why')
+        void explainLine(selection)
       else
         void copyText(selectedText(selection), element)
     })
@@ -2235,6 +2239,77 @@ export function mountDiffFiles(): DiffViewer | null {
     region.appendChild(element)
     surface = element
     return element
+  }
+
+  /**
+   * Why this line is here: one blame, at the moment of curiosity.
+   *
+   * A context line's left-side number indexes the merge base, which is what
+   * the endpoint blames. Right-side selections on added lines have no
+   * "before" to blame; the endpoint answers 422 and the note says so.
+   */
+  async function explainLine(anchor: LineAnchor): Promise<void> {
+    if (!blameUrl)
+      return
+
+    const host = region.querySelector<HTMLElement>(`.diff-file-host[data-path="${cssEscape(anchor.path)}"]`)
+    const cell = host?.querySelector<HTMLElement>(`.gutter.num[data-line="${anchor.from}"][data-side="${anchor.side}"]`)
+    const row = cell?.closest('tr')
+    if (!host || !row)
+      return
+
+    // The old-side number: the left cell of this row. A pure addition has
+    // none, and the endpoint's refusal becomes the honest note.
+    const leftCell = row.querySelector<HTMLElement>('.gutter.num[data-side="left"]')
+    const oldLine = Number(leftCell?.dataset.line ?? 0)
+
+    const existing = row.nextElementSibling
+    if (existing?.classList.contains('blame-row')) {
+      existing.remove()
+      return
+    }
+
+    const note = document.createElement('tr')
+    note.className = 'blame-row'
+    const cellCount = row.querySelectorAll('td').length
+    const target = document.createElement('td')
+    target.colSpan = cellCount
+    target.className = 'blame-cell muted'
+    target.textContent = 'Asking git…'
+    note.append(target)
+    row.insertAdjacentElement('afterend', note)
+
+    try {
+      const query = new URLSearchParams({ path: anchor.path, line: String(oldLine) })
+      const answer = await fetch(`${blameUrl}&${query}`, { headers: { Accept: 'application/json' } })
+      const body: any = await answer.json().catch(() => null)
+
+      if (!answer.ok || !body?.sha) {
+        target.textContent = oldLine > 0
+          ? 'git could not say why this line is here.'
+          : 'This line is new in this pull request.'
+        return
+      }
+
+      target.textContent = ''
+
+      const sha = document.createElement('span')
+      sha.className = 'mono'
+      sha.textContent = String(body.sha).slice(0, 10)
+      target.append(sha, document.createTextNode(` ${body.summary} — ${body.author}`))
+
+      if (body.pullRequest) {
+        target.append(document.createTextNode(' · '))
+        const link = document.createElement('a')
+        const prPath = window.location.pathname.replace(/\/pull\/\d+.*$/, `/pull/${body.pullRequest.number}`)
+        link.href = prPath
+        link.textContent = `#${body.pullRequest.number} ${body.pullRequest.title}`
+        target.append(link)
+      }
+    }
+    catch {
+      target.textContent = 'git could not say why this line is here.'
+    }
   }
 
   /** The code of the selected lines, as text, from what is rendered. */

@@ -153,6 +153,9 @@ const sinceUrl = `/api/repos/pulls/review-state/since?${diffQuery}`
 
 /** Where one file's interdiff is asked for, when the reader wants it. */
 const interdiffUrl = `/api/repos/pulls/diff/interdiff?${diffQuery}`
+
+/** Why one context line is here: a single-line blame, when a reader asks. */
+const blameUrl = `/api/repos/pulls/diff/blame?${diffQuery}`
 </script>
 
 @layout('app')
@@ -290,6 +293,7 @@ const interdiffUrl = `/api/repos/pulls/diff/interdiff?${diffQuery}`
         data-draft-url="{{ draftUrl }}"
         data-since-url="{{ sinceUrl }}"
         data-interdiff-url="{{ interdiffUrl }}"
+        data-blame-url="{{ blameUrl }}"
       >
         {{--
           The list is filled in by `mountDiffFiles` from the manifest, which is
@@ -339,6 +343,13 @@ mountDiffFiles()
   }
 
   .diff-interdiff > p { margin-bottom: 8px; font-size: 12.5px; }
+
+  .blame-cell {
+    padding: 6px 12px;
+    font-size: 12.5px;
+    background: var(--surface-tint);
+    border-top: 1px solid var(--line);
+  }
   .diff-interdiff-btn { margin-left: auto; }
 
   .verdict-summary {

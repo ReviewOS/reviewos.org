@@ -588,8 +588,20 @@ this is where the claim is either true or marketing.
   honesty rule is most of what the tests hold: no report, a corrupt row, a skipped file all render
   nothing - a marker that defaults to "covered" would be the diff lying about the one thing this
   exists to say.
-- [ ] Blame on context lines: why this line is here, linking the pull request that introduced it,
+- [x] Blame on context lines: why this line is here, linking the pull request that introduced it,
       without leaving the diff
+
+  One line, when a reader asks - blame walks history per line, and a file of it on render is the
+  slowest thing a review screen can do, so the cost is paid at the moment of curiosity, the
+  suggested-reviewers deferral again. The line is blamed at the *merge base*, because that is what
+  a context line's left-side number indexes - both diff paths compare three-dot, and a tip-side
+  blame would name commits the pull request never showed. The blame-to-pull-request join is two
+  honest steps and a stated limit: a squash or rebase tip matches a merged pull request's own
+  columns; a commit that rode in behind a merge is found by the first merge on its ancestry path;
+  a rebase-merged middle commit matches nothing and the answer is the commit alone - true, and
+  better than a guess (a `pull_request_commits` table written at merge time is the eventual fix).
+  Surfaced as "Why this line?" on the streamed screen's selection surface, answered inline under
+  the row. The conversation page keeps its script-free diff and no blame affordance, on purpose.
 - [x] Review drafts survive leaving the page, closing the browser, and coming back on another
       machine. A lost half-written review is the reason reviews get sent as one line. `ReviewDraft`
       holds one per reviewer per pull request, with the path, the side and the range beside the body
