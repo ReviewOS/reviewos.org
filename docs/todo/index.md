@@ -83,6 +83,27 @@ token, and a token works whether or not either bug is present.** A suite that on
 bearer cannot see a class of failure that only exists for cookie holders, which is every human being
 using the product. Ask what the *browser* sends, not what the client library can be made to send.
 
+## The tests all used the cases where the wrong answer is right
+
+Every review comment left on an added line was marked outdated the moment it was written, for as
+long as review threads have existed here. Commenting on the code being *proposed* is the most
+ordinary thing a reviewer does.
+
+The cause was two functions that look interchangeable and are not. `reanchor` maps a line from the
+old side of a diff to the new side, and its own doc comment says which diff it wants: the one from
+the commit a thread was written against to the current head. It was being handed the base-to-head
+diff instead - the one on screen, where a thread's line is already a position rather than something
+to map. Written up in [phase 4](./04-reviews.md).
+
+What kept it hidden is worth more than the bug. There were four tests on the anchoring path and all
+four passed, because **every one of them used a context line or the left side** - the two cases
+where mapping a new-side number through an old-side mapping happens to give the right answer. The
+one case that mattered, and the one every real review is made of, was the one nobody wrote.
+
+So: when a function takes "a diff" and there is more than one diff it could mean, the tests have to
+include the case where the two answers differ. A test suite made of the inputs where two
+implementations agree cannot tell you which one you have.
+
 ## Ask which one, not whether it worked
 
 The worst bug found so far passed every check anybody would think to run.
