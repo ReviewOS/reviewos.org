@@ -39,12 +39,30 @@ export function matchesQuery(path: string, query: string): boolean {
  * diff, and a filtered list that renumbered its rows would scroll to the wrong
  * file the moment somebody typed anything.
  */
-export function filterFiles(files: readonly { path: string }[], query: string): number[] {
+export function filterFiles(
+  files: readonly { path: string }[],
+  query: string,
+  /**
+   * A second, non-textual filter: only these paths, whatever the search says.
+   *
+   * This is what "since I last looked" narrows the list with. It composes with
+   * the search rather than replacing it - a reviewer who has restricted the
+   * list to eleven files and then types into the box means "of those eleven",
+   * and a filter that quietly dropped the restriction would hand them back the
+   * three hundred they were trying to escape.
+   */
+  restrict?: ReadonlySet<string> | null,
+): number[] {
   const trimmed = query.trim()
   const indexes: number[] = []
 
   for (let index = 0; index < files.length; index++) {
-    if (trimmed === '' || matchesQuery(files[index]!.path, trimmed))
+    const path = files[index]!.path
+
+    if (restrict != null && !restrict.has(path))
+      continue
+
+    if (trimmed === '' || matchesQuery(path, trimmed))
       indexes.push(index)
   }
 

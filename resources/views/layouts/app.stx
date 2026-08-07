@@ -848,6 +848,37 @@
         font-size: 12px;
       }
 
+      /* "Since I last looked". Above the list rather than inside the header
+         row, because it is a statement about the whole list and it only exists
+         on a return visit - a control that appears and disappears inside a row
+         would reflow the header every time. Pressed state is carried by
+         aria-pressed, which is what a screen reader reads and what the style
+         keys off, so the two cannot disagree. */
+      .file-list-since {
+        display: block;
+        width: 100%;
+        padding: 6px 10px;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 12px;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .file-list-since:hover { background: var(--surface-tint); color: var(--text); }
+
+      .file-list-since[aria-pressed='true'] {
+        background: var(--surface-tint);
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      /* The list gives up a row to it, so the viewport gives one up too. */
+      .diff-files:has(.file-list-since) .file-list-viewport { height: calc(100% - 63px); }
+
       .file-list-viewport { height: calc(100% - 34px); overflow-y: auto; overscroll-behavior: contain; }
       .file-list-sizer { position: relative; }
       .file-list-rows { position: absolute; top: 0; right: 0; left: 0; }

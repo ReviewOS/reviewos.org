@@ -126,6 +126,14 @@ export function createFileList(options: {
   viewed: () => ReadonlySet<string>
   /** Open the search field and put the cursor in it. */
   focusSearch: () => void
+  /**
+   * Show only these paths, or null for all of them.
+   *
+   * Composes with the search rather than replacing it, and leaves the positions
+   * alone: a restricted list still addresses the diff by the number the diff
+   * uses, so selecting a file still scrolls to the right one.
+   */
+  setRestriction: (paths: ReadonlySet<string> | null, label?: string) => void
   destroy: () => void
 } {
   const { host, onSelect, store, onViewedChange } = options
@@ -160,6 +168,9 @@ export function createFileList(options: {
   let shown: number[] = []
   let current = -1
   let frame: number | null = null
+  /** Set while the list is narrowed to a subset, null when it shows everything. */
+  let restriction: ReadonlySet<string> | null = null
+  let restrictionLabel = ''
   // Mutated, never replaced: the list holds a reference to it, and so does the
   // store, which is what lets the server's answer land in it without either
   // side handing the other a new Set.
@@ -171,7 +182,7 @@ export function createFileList(options: {
   }
 
   function refilter(): void {
-    shown = filterFiles(files, search.value)
+    shown = filterFiles(files, search.value, restriction)
   }
 
   /** How many files the reader has left to read, said plainly. */
@@ -179,9 +190,19 @@ export function createFileList(options: {
     const read = files.filter(file => viewed.has(file.path)).length
     const filtered = shown.length !== files.length ? `${shown.length} of ` : ''
 
-    count.textContent = read === 0
+    const base = read === 0
       ? `${filtered}${files.length} files`
       : `${filtered}${files.length} files, ${read} viewed`
+
+    // The reason a list is short has to be visible, or a reviewer with eleven
+    // files in front of them concludes the pull request is eleven files and
+    // approves it. `2 of 3` says it is narrowed; the label says by what, and is
+    // only worth the room when nothing else on screen does - the "since you
+    // looked" control sits directly above the list in its pressed state and
+    // says so already, so it passes none and this stays one line.
+    count.textContent = restriction != null && restrictionLabel
+      ? `${base} · ${restrictionLabel}`
+      : base
   }
 
   function paint(): void {
@@ -309,6 +330,13 @@ export function createFileList(options: {
     },
     viewed: () => viewed,
     focusSearch: () => toggleSearch(true),
+    setRestriction(paths, label = '') {
+      restriction = paths
+      restrictionLabel = label
+      refilter()
+      viewport.scrollTop = 0
+      schedule()
+    },
     destroy() {
       if (frame != null)
         cancelAnimationFrame(frame)
@@ -1232,6 +1260,7 @@ export function mountDiffFiles(): DiffViewer | null {
   const rowsUrl = root.dataset.rowsUrl
   const contextUrl = root.dataset.contextUrl
   const commentUrl = root.dataset.commentUrl
+  const sinceUrl = root.dataset.sinceUrl
 
   /**
    * Where the reader's progress through this pull request is kept.
@@ -2576,6 +2605,71 @@ export function mountDiffFiles(): DiffViewer | null {
 
   void reviewStore.load()
 
+  /**
+   * "Since I last looked", offered only when there is something to offer.
+   *
+   * The control is not rendered until the server has said this reader has read
+   * this pull request before *and* that something has moved since. A toggle
+   * that is always there is a toggle that answers "nothing changed" on a first
+   * visit, which reads as a broken feature rather than as an honest answer.
+   *
+   * Asked for after the manifest, not before: it costs two diffs on the server
+   * and the reader has not finished looking at the first screen yet.
+   */
+  async function offerSinceLastLook(): Promise<void> {
+    // Read here rather than captured, for the same reason `region` and `view`
+    // are captured above: the guard at the top of `mountDiffFiles` does not
+    // narrow inside a closure, and asserting reads as though these could be
+    // null when they cannot.
+    const url = sinceUrl
+    if (!url || !fileList || !listHost)
+      return
+
+    let answer: {
+      looked?: boolean
+      unreadable?: boolean
+      changed?: string[]
+      added?: string[]
+      removed?: string[]
+    } | null = null
+
+    try {
+      const response = await fetch(url, { headers: { Accept: 'application/json' } })
+      if (!response.ok)
+        return
+
+      answer = await response.json()
+    }
+    catch {
+      // Nothing to offer is the same outcome as not being able to ask.
+      return
+    }
+
+    if (!answer?.looked || answer.unreadable)
+      return
+
+    // `removed` is deliberately left out. Those paths are not in this diff any
+    // more, so restricting to them would produce an empty list; they belong in
+    // a sentence, not in a filter.
+    const paths = [...(answer.changed ?? []), ...(answer.added ?? [])]
+    if (paths.length === 0)
+      return
+
+    const changed = new Set(paths)
+    const control = document.createElement('button')
+    control.type = 'button'
+    control.className = 'file-list-since'
+    control.setAttribute('aria-pressed', 'false')
+    control.textContent = `${paths.length} changed since you looked`
+    listHost.insertBefore(control, listHost.firstChild)
+
+    control.addEventListener('click', () => {
+      const on = control.getAttribute('aria-pressed') !== 'true'
+      control.setAttribute('aria-pressed', on ? 'true' : 'false')
+      fileList.setRestriction(on ? changed : null)
+    })
+  }
+
   void streamDiffManifest(manifestUrl, {
     onFiles(files) {
       viewer.addFiles(files)
@@ -2610,6 +2704,7 @@ export function mountDiffFiles(): DiffViewer | null {
       applyViewedFolds()
       restoreDraft()
       void revealSelection()
+      void offerSinceLastLook()
       const counts = `${summary.files} files, +${summary.additions} -${summary.deletions}`
       say(truncatedFrom == null ? counts : `${counts} (rendered to file ${truncatedFrom})`, 'done')
     },

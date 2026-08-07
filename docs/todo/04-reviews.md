@@ -140,10 +140,38 @@ them waiting and forty minutes, which is the actual condition of the job and the
 treats as a first-class problem. If ReviewOS is going to claim the review is the primary object,
 this is where the claim is either true or marketing.
 
-- [ ] **Since I last looked.** A per-reviewer incremental diff: what changed between the commit you
-      last reviewed and the head, not a commit range you have to assemble yourself. The re-anchoring
-      work above is what makes this survive a force-push, which is the case that matters, because a
-      rebased branch is where GitHub's version gives up and shows you the whole diff again.
+- [x] **Since I last looked.** A per-reviewer incremental diff: what changed between the commit you
+      last reviewed and the head, not a commit range you have to assemble yourself.
+
+  Answered as a *list of files*, not a diff. The reviewer already has the diff on screen; what they
+  are missing is which of its three hundred files their earlier conclusion no longer covers. So the
+  endpoint returns paths and the sidebar filters what is already there, which also means no second
+  copy of the patch crosses the wire.
+
+  `git diff lastSeen head` is the obvious implementation and it is wrong twice over. Two tips
+  compared directly carry every commit that landed on the base in between, so a reviewer who looked
+  on Monday is shown a hundred files somebody else changed on Tuesday; and after a force-push the two
+  tips share no history at all, so the answer is the whole branch. That is where GitHub gives up.
+
+  What is compared instead is each head against **its own merge base** - the three-dot diff the pull
+  request is already rendered from - and then the two patches, file by file. The same patch for a
+  path means the proposal for that file has not moved, whatever happened underneath it. This is
+  rebase-proof by construction rather than by special-casing: a rebase moves both merge bases, and a
+  file the rebase did not touch produces the same patch byte for byte and drops out. A file the
+  rebase *did* touch is named, which is correct - the change now applies to different surrounding
+  code, and whether it still makes sense is a question only the reviewer can answer.
+
+  A digest per path is held, never a patch, so this keeps the rule the rest of the diff engine is
+  built on. `tests/e2e/since-last-look.test.ts` builds a repository, moves the base under the branch,
+  rebases, force-pushes, and asserts the unmoved file is *not* put back in front of the reader -
+  which is the only assertion in it that a naive implementation would fail.
+
+- [ ] Advance "last looked" explicitly, so a reviewer can say they have caught up without submitting
+      a verdict. It is currently the later of their last review and their last viewed-file mark,
+      which is right for the common case and has no way to say "I have read this round".
+- [ ] A line-level interdiff for a file that did change, rather than sending the reader back to its
+      whole diff. `git range-diff` is the shape of the answer; rendering a diff of diffs in a viewer
+      built for file diffs is the open question.
 - [ ] **Separate the mechanical from the meaningful.** Classify each hunk: a pure rename, a
       formatting-only change, a mass find-and-replace, a moved block, real logic. Collapse the first
       four by default and say how many were collapsed. A 4,000 line diff is usually 200 lines of

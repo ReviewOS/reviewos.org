@@ -103,6 +103,14 @@ const commentUrl = `/api/repos/pulls/comments?${diffQuery}`
 const reviewStateUrl = `/api/repos/pulls/review-state?${diffQuery}`
 const viewedUrl = `/api/repos/pulls/review-state/viewed?${diffQuery}`
 const draftUrl = `/api/repos/pulls/review-state/draft?${diffQuery}`
+
+/**
+ * Which files have moved since this reader last read this pull request.
+ *
+ * Asked for after the file list has arrived, because it costs the server two
+ * diffs and nobody is waiting on it: the reader is looking at the first screen.
+ */
+const sinceUrl = `/api/repos/pulls/review-state/since?${diffQuery}`
 </script>
 
 @layout('app')
@@ -216,6 +224,7 @@ const draftUrl = `/api/repos/pulls/review-state/draft?${diffQuery}`
         data-state-url="{{ reviewStateUrl }}"
         data-viewed-url="{{ viewedUrl }}"
         data-draft-url="{{ draftUrl }}"
+        data-since-url="{{ sinceUrl }}"
       >
         {{--
           The list is filled in by `mountDiffFiles` from the manifest, which is

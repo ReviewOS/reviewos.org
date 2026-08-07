@@ -186,6 +186,11 @@ route.post('/repos/pulls/merge-stack', 'Actions/Pull/MergeStackAction').middlewa
 // carries on with local storage; written with it, because there is no such
 // thing as anonymous progress to record.
 route.get('/repos/pulls/review-state', 'Actions/Pull/ReviewStateAction')
+
+// Which files changed since this reader last read this pull request. Paths
+// rather than a diff: the viewer already holds the diff, and what it is missing
+// is which of its files an earlier conclusion no longer covers.
+route.get('/repos/pulls/review-state/since', 'Actions/Pull/SinceLastLookAction')
 route.put('/repos/pulls/review-state/viewed', 'Actions/Pull/MarkFileViewedAction').middleware('auth')
 route.put('/repos/pulls/review-state/draft', 'Actions/Pull/SaveReviewDraftAction').middleware('auth')
 
