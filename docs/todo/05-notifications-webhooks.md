@@ -148,10 +148,55 @@ them without also watching a chat channel, and that nobody has to mute the produ
   the whole array to a single placeholder on updates and deletes, so marking a filtered set read was
   not expressible; fixed in bun-query-builder 0.2.24 along with `deleteFrom` interpolating an
   unchecked operator into its statement text.
-- [ ] Per-user delivery preferences by event type and channel, with a real digest option rather than
+- [x] Per-user delivery preferences by event type and channel, with a real digest option rather than
       only all-or-nothing
+
+  `app/Actions/Notification/preferences.ts` holds the rules and
+  `app/Models/NotificationEventPreference.ts` the rows. Three states, not a checkbox: `off`,
+  `immediate`, `digest`. Collapsing digest into "on" is how somebody who wanted less mail ends up
+  turning the channel off entirely, and then being unreachable for the review everybody is waiting
+  on - which is the exact failure this phase exists to prevent.
+
+  **The defaults matter more than the switches**, because most people never open a settings page.
+  They are asymmetric on purpose: email is immediate for what is *addressed* to you (a review
+  request, a verdict on your own work) and a digest for what you merely watch. Otherwise following a
+  busy repository is indistinguishable from subscribing to a mailing list. The inbox is always
+  immediate and cannot be turned off - it is the record. Push is off until somebody asks, which is
+  what makes it worth having.
+
+  A stored value nobody recognises falls back to the shipped default rather than to `off`. Wrong and
+  talking costs somebody a notification they did not want; wrong and silent costs them a review they
+  never heard about.
+
+  The table is `notification_event_preferences`, not `notification_preferences`. The framework
+  guarantees the latter outside the model corpus, shaped `(user_id, channel, category, enabled)`,
+  and a boolean cannot express digest. Worth knowing generally: a generated
+  `CREATE TABLE IF NOT EXISTS` against a name the guarantee path already claimed does nothing at
+  all, silently, and the first sign is a query for a column that is not there. Stacks 0.70.303 now
+  warns when that happens, and `app/Models/NotificationPreference.ts` declares the framework's table
+  so the generator stops proposing to drop it as an orphan.
 - [x] Batching: ten comments in five minutes is one email, not ten
-- [ ] `app/Jobs/SendNotificationJob.ts` on the `notifications` queue, with retries and backoff
+- [x] `app/Jobs/SendNotificationJob.ts` on the `notifications` queue, with retries and backoff
+
+  Email and push only. The inbox is written inline by the listener, because it is one insert per
+  recipient and it is the channel that has to work when nothing else does - a reader who opens the
+  product should see what happened whether or not mail is configured, a worker is running, or the
+  network is up.
+
+  **The decision is made in the job, not by the caller.** Preferences, quiet hours, mutes and
+  do-not-disturb all move between the moment something happens and the moment a worker picks the job
+  up, and the answer that matters is the one true when the message would actually arrive. Deciding
+  in advance is how mail goes out at 03:00 that was correct at 22:00.
+
+  Every outcome is written to `notification_deliveries`, including the ones that did not send.
+  "Held until 09:00" and "the recipient turned email off" are what somebody needs when they ask why
+  they did not hear about something, and a log of successes cannot answer either. `skipped` was
+  added to the framework's four statuses for this: a deliberate choice does not belong in the same
+  column as a refused mail server.
+
+  Retried only for what retrying can fix. A deleted recipient returns rather than throwing, so it is
+  one quiet no-op instead of three. A refused connection throws, which is what `tries: 3` exists
+  for. Push is not wired up and fails saying so rather than recording a send that did not happen.
 - [ ] Unsubscribe links that work without logging in, and are scoped to one thread
 - [x] Do not notify someone about their own action
 - [ ] `settings/notifications.stx`

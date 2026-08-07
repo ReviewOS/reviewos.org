@@ -73,12 +73,22 @@ export default defineModel({
       },
     },
 
+    /**
+     * `skipped` is added to the framework's four.
+     *
+     * "The recipient turned this channel off" and "this repository is muted"
+     * are neither failures nor pending: recording them as `failed` would put
+     * a deliberate choice in the same column as a refused mail server, and
+     * recording them as `pending` would claim something is still going to
+     * happen. Somebody asking why they did not hear about a merge deserves the
+     * actual answer, and this is the row that has it.
+     */
     status: {
       required: true,
       fillable: true,
       default: 'pending',
       validation: {
-        rule: schema.enum(['pending', 'sent', 'delivered', 'failed']),
+        rule: schema.enum(['pending', 'sent', 'delivered', 'failed', 'skipped']),
       },
     },
 

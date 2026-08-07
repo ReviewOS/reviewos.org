@@ -60,6 +60,15 @@ export default {
       if (recipients.length === 0)
         return
 
+      // Everything the widest mute has to be able to reach: this thread, and
+      // the repository it lives in. Both travel with the job rather than being
+      // re-derived, because by the time a worker picks it up the pull request
+      // may have been merged and the row it would have looked at is gone.
+      const subjects = [
+        { type: payload.subjectType as any, id: Number(payload.subjectId) },
+        ...(payload.repositoryId ? [{ type: 'repository' as const, id: Number(payload.repositoryId) }] : []),
+      ]
+
       for (const recipient of recipients) {
         await db.insertInto('notifications').values({
           user_id: recipient.userId,
@@ -75,6 +84,23 @@ export default {
             number: payload.number ?? null,
           }),
         }).execute()
+
+        // The interrupting channels, queued. Whether either actually sends is
+        // decided in the job, when it runs, rather than here - preferences,
+        // quiet hours and mutes all move between the moment something happens
+        // and the moment a worker picks it up, and the answer that matters is
+        // the one true when the message would arrive. Deciding now is how mail
+        // goes out at 03:00 that was correct at 22:00.
+        for (const channel of ['email', 'push'] as const) {
+          await queueDelivery({
+            userId: recipient.userId,
+            event,
+            channel,
+            title: notification.title,
+            url: notification.url,
+            subjects,
+          })
+        }
       }
     }
     catch (error) {
@@ -84,4 +110,27 @@ export default {
       console.error('[notify] could not record notifications:', error)
     }
   },
+}
+
+/**
+ * Queue one interrupting delivery.
+ *
+ * Isolated so a queue that cannot accept a job does not cost somebody the inbox
+ * row that was already written. The inbox is the record; email and push are
+ * best effort on top of it, and a broken worker must not be able to turn the
+ * record into nothing.
+ *
+ * Imported lazily for the same reason `emit.ts` is: this listener runs inside
+ * the action that caused the event, and pulling the queue's module graph in at
+ * import time would put it on the critical path of every write in the product.
+ */
+async function queueDelivery(payload: Record<string, unknown>): Promise<void> {
+  try {
+    const SendNotificationJob = (await import('../Jobs/SendNotificationJob')).default
+
+    await SendNotificationJob.dispatch(payload as any)
+  }
+  catch (error) {
+    console.error('[notify] could not queue a delivery:', error)
+  }
 }
