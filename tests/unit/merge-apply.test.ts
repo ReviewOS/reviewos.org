@@ -325,3 +325,104 @@ describe('performMerge, refusals', () => {
     expect(await sha('refs/heads/main')).toBe(moved)
   })
 })
+
+/**
+ * Two pull requests merging at once. The update-ref guard is the whole
+ * concurrency story, and until here it was only ever tested one merge at a
+ * time - the raced case is the one the roadmap said was missing.
+ *
+ * The race is real: performMerge shells out, so the contenders are separate
+ * git processes serialized by the ref lock on disk, not by anything in this
+ * process. What must hold is not who wins - either may - but that exactly one
+ * does, and that the loser changed nothing.
+ */
+describe('performMerge, raced', () => {
+  /** A second branch off main, so the two merges are not the same merge. */
+  async function secondBranch(): Promise<string> {
+    git(work, 'checkout', 'main')
+    git(work, 'checkout', '-b', 'feature2')
+    Bun.write(join(work, 'c.txt'), 'c\n')
+    git(work, 'add', '.')
+    git(work, 'commit', '-m', 'add c')
+    git(work, 'push', 'origin', 'feature2')
+
+    return await sha('refs/heads/feature2')
+  }
+
+  test('two merges from the same observed base: exactly one lands', async () => {
+    const baseSha = await sha('refs/heads/main')
+    const featureSha = await sha('refs/heads/feature')
+    const feature2Sha = await secondBranch()
+
+    // Both hold the same observed base, as two requests that both passed the
+    // rules would. A squash against a rebase, so both strategies' paths to
+    // update-ref are in the race.
+    const [first, second] = await Promise.all([
+      performMerge(bare, {
+        strategy: 'squash',
+        base: 'main',
+        baseSha,
+        headSha: featureSha,
+        subject: 'Squash feature',
+        body: '',
+        ...author,
+      }),
+      performMerge(bare, {
+        strategy: 'rebase',
+        base: 'main',
+        baseSha,
+        headSha: feature2Sha,
+        subject: 'Rebase feature2',
+        body: '',
+        ...author,
+      }),
+    ])
+
+    const winners = [first, second].filter(result => result.ok)
+    expect(winners.length).toBe(1)
+
+    // The ref is exactly where the winner put it - the loser moved nothing.
+    expect(await sha('refs/heads/main')).toBe((winners[0] as { ok: true, sha: string }).sha)
+  })
+
+  test('the loser is refused for the right reason, and takes nothing with it', async () => {
+    const baseSha = await sha('refs/heads/main')
+    const featureSha = await sha('refs/heads/feature')
+    const feature2Sha = await secondBranch()
+
+    const first = await performMerge(bare, {
+      strategy: 'squash',
+      base: 'main',
+      baseSha,
+      headSha: featureSha,
+      subject: 'Squash feature',
+      body: '',
+      ...author,
+    })
+
+    expect(first.ok).toBe(true)
+
+    // The second request checked its rules against the same base, and the
+    // base has moved: the merge that would clobber the first one is refused.
+    const second = await performMerge(bare, {
+      strategy: 'rebase',
+      base: 'main',
+      baseSha,
+      headSha: feature2Sha,
+      subject: 'Rebase feature2',
+      body: '',
+      ...author,
+    })
+
+    expect(second.ok).toBe(false)
+    if (!second.ok)
+      expect(second.error).toContain('moved')
+
+    // The winner's merge is the tip, and the loser's branch content is not in
+    // the tree - a refusal that had already written something would be worse
+    // than a clobber, because nothing would ever notice it.
+    expect(await sha('refs/heads/main')).toBe((first as { ok: true, sha: string }).sha)
+    const files = (await runGit(bare, ['ls-tree', '--name-only', 'refs/heads/main'])).stdout.trim().split('\n')
+    expect(files).not.toContain('c.txt')
+  })
+})

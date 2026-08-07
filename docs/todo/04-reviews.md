@@ -206,9 +206,16 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
       they are still working from.
 - [ ] Offer to restore a deleted head branch. The sha is on the merged pull request, so this is a
       button and a ref write; what it needs is somewhere to put the button.
-- [ ] Tests: every strategy, every protection rule, and a race where two pull requests merge at once.
+- [x] Tests: every strategy, every protection rule, and a race where two pull requests merge at once.
       The strategies and the rules are covered in `tests/unit/merge.test.ts` and
       `tests/unit/merge-apply.test.ts`; the race is not, and it is the one that needs two processes.
+
+  The race is in `merge-apply.test.ts` now, and it genuinely is two processes: `performMerge`
+  shells out, so the contenders are git processes serialized by the ref lock on disk, not by
+  anything in the test's runtime. Two merges race from the same observed base - a squash against a
+  rebase, so both strategies' paths to `update-ref` are in it - and what is held is not who wins,
+  because either may, but that exactly one does, that the ref is exactly where the winner put it,
+  and that the loser was refused for the stated reason with nothing written.
 
 ## Stacked pull requests
 
