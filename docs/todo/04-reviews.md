@@ -374,11 +374,36 @@ this is where the claim is either true or marketing.
   History is read on the **base**. The head's recent commits are the ones being reviewed, and
   counting them would suggest the author of the change as the reviewer of it.
 
-- [ ] Show the suggestions somewhere. The endpoint exists and nothing calls it, which is a feature
+- [x] Show the suggestions somewhere. The endpoint exists and nothing calls it, which is a feature
       with no interface. It is an endpoint rather than something the conversation page computes
       inline on purpose: it costs a `git log` over the changed paths, and paying that on every render
       of every pull request page to fill a panel most readers will not use is the wrong default.
       Fetched when the reviewer list is opened is the shape it wants.
+
+  A `<details>` panel in the conversation page's sidebar (`SuggestedReviewers.stx`), above the
+  Reviews panel: who should look, above who has looked. The `<details>` opens and closes with no
+  script; the one script it carries notices the first open - and only the first - and fetches, so
+  the `git log` is spent when a reader asks and never at render. Each name carries its reason
+  verbatim, and nothing submits anything: a suggestion, never a request, exactly as the item above
+  says. Offered to signed-in readers with `pull:review` on open pull requests - an anonymous reader
+  cannot ask anybody, and a suggestion on a merged pull request is dead weight. The endpoint answers
+  anonymous readers of public repositories more loosely than that gate implies, which is worth a
+  look of its own someday.
+
+  `tests/e2e/suggested-reviewers-panel.test.ts` pins the surface the in-process test cannot: the
+  endpoint answering a fetch whose only credential is a cookie, and the rendered page carrying the
+  panel and its URL but none of the answer - the cost deferred, asserted in markup. Getting it to
+  pass surfaced that a page rendered through `route.serve()`'s file routing has no
+  `__stxServeContext`, only raw headers, so every view read its readers as strangers there:
+  `cookieJarFromHeader` is the shared parse, this page asks whichever pipeline answered, and the
+  same fallback is owed to every other view that reads `serveContext?.cookies`.
+
+  And one to know before writing the next client script: stx's client bridge seeds any identifier a
+  client script shares with the server scope into the page as a `var`. This page's server scope has
+  a `headers` binding holding the request headers, so the panel's first draft - an innocent
+  `fetch(url, { headers: { Accept: ... } })` - serialized the reader's session cookie into the HTML.
+  The word `headers` in a *client* script is enough. The test now asserts the token is not in the
+  page, whatever the next mechanism would be.
 
 - [ ] A settings screen for the merge strategies. The columns exist and `MergePullRequestAction`
       honours them, so a repository can be configured through the API and not through the interface.

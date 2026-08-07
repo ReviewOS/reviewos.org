@@ -11,6 +11,7 @@
  * where forges get slow, and it is slowest exactly when the review matters.
  */
 import { repositoryForView, repositoryPath } from '../../../../functions/repo'
+import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
 import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor } from '../../../../functions/review'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
@@ -42,7 +43,19 @@ const markdownContext = { owner, repository: repositoryName }
  */
 const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
 
-const access = await repositoryForView(owner, repositoryName, serveContext?.cookies)
+/*
+ * Two pipelines serve this page and they disagree about what a request looks
+ * like. The frontend server hands views `__stxServeContext` with the cookies
+ * already parsed; a `route.serve()` boot - production, the e2e suite - hands
+ * them the raw headers instead and no serve context at all. Ask whichever
+ * arrived: a page that only reads the jar renders every reader on the other
+ * pipeline as a stranger, which is how `currentUser` never looking at a
+ * cookie shipped, and this is the same lesson one layer up.
+ */
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+const viewerCookies = serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie)
+
+const access = await repositoryForView(owner, repositoryName, viewerCookies)
 const repoRow: any = access?.repository ?? null
 
 const pullRequest = repoRow
@@ -143,9 +156,11 @@ for (const file of files) {
   diffHtmlByPath[file.path] = renderDiffFile(file, {
     expandable: true,
     tokens: await highlightDiffFile(file),
-    // `fold` rather than the streamed viewer's `fetch`: this page runs no
-    // client script, so nothing is going to ask for the rows of a folded file
-    // and a header on its own would be a file nobody can ever read.
+    // `fold` rather than the streamed viewer's `fetch`: the diff on this page
+    // runs no client script, so nothing is going to ask for the rows of a
+    // folded file and a header on its own would be a file nobody can ever
+    // read. The one script the page carries belongs to the suggested-reviewers
+    // panel and touches nothing in the diff.
     collapsed: startsCollapsed(file) ? 'fold' : false,
     threadsAt: threadSlotFor(fileThreads, file.path),
   })
@@ -298,6 +313,25 @@ const stackReadiness = stack.map((entry: any) => ({
 
 const stackBlocker = currentMember ? blockedBy(stack, currentMember.id, stackReadiness) : null
 
+/*
+ * The suggested-reviewers panel is offered, not filled: the endpoint behind it
+ * costs a `git log` over the changed paths, so the page hands the component a
+ * URL and the component asks only when the reader opens it. Built here because
+ * the page knows how a pull request is addressed and the component should not.
+ *
+ * Offered to signed-in readers who may review, on open pull requests only: an
+ * anonymous reader cannot ask anybody for a review, and a suggestion on a
+ * merged or closed pull request is dead weight. The endpoint answers public
+ * repositories more loosely than this gate implies - keying the gate on
+ * `can('pull:review')` keeps the two aligned if that ability's rung ever moves.
+ *
+ * Nothing here can throw: both lines only string-format values already loaded,
+ * and in this file that property is load-bearing - a server script that throws
+ * renders the page as not found.
+ */
+const suggestUrl = `/api/repos/pulls/suggested-reviewers?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repositoryName)}&number=${number}`
+const offerSuggestions = Boolean(pullRequest && pullRequest.state === 'open' && access?.viewer && access.can('pull:review'))
+
 const title = pullRequest
   ? `${pullRequest.title} by ${authorName ?? 'someone'} · ${owner}/${repositoryName} #${number}`
   : 'Pull request not found'
@@ -440,6 +474,12 @@ const statePill = pullRequest
               </button>
             @endif
           </section>
+
+          {{-- Who should look, above who has looked. Hidden rather than empty
+               for readers who cannot ask anybody: see the gate in the script. --}}
+          @if (offerSuggestions)
+            <SuggestedReviewers url="{{ suggestUrl }}" />
+          @endif
 
           <section class="panel side-panel">
             <h2 class="side-heading">Reviews</h2>

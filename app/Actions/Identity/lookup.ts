@@ -193,17 +193,36 @@ async function cookieUserId(request: any): Promise<number> {
   if (!header)
     return 0
 
+  const found = await viewerFromCookies(cookieJarFromHeader(header))
+  return found?.id ?? 0
+}
+
+/**
+ * A `Cookie` header, parsed into the record `viewerFromCookies` reads.
+ *
+ * Exported for the pages served without a parsed cookie jar: the frontend
+ * server hands views `__stxServeContext.cookies` ready-made, but a page
+ * rendered through `route.serve()`'s file routing gets the raw headers and
+ * nothing else, and a view that only asks for the jar renders every reader
+ * there as a stranger.
+ */
+export function cookieJarFromHeader(header: unknown): Record<string, string> {
   const jar: Record<string, string> = {}
-  for (const part of header.split(';')) {
+
+  for (const part of String(header ?? '').split(';')) {
     const cut = part.indexOf('=')
     if (cut < 0)
       continue
 
-    jar[part.slice(0, cut).trim()] = decodeURIComponent(part.slice(cut + 1).trim())
+    try {
+      jar[part.slice(0, cut).trim()] = decodeURIComponent(part.slice(cut + 1).trim())
+    }
+    catch {
+      // A malformed escape in one cookie is not a reason to drop the others.
+    }
   }
 
-  const found = await viewerFromCookies(jar)
-  return found?.id ?? 0
+  return jar
 }
 
 /**

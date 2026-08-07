@@ -1,0 +1,150 @@
+<script server>
+/**
+ * Who might usefully look at this pull request, fetched when somebody asks.
+ *
+ * The endpoint behind this costs a `git log` over the changed paths, and the
+ * roadmap's whole reason for it being an endpoint is that the cost is not paid
+ * on every render of a page most readers scroll straight past. So the panel
+ * ships closed with nothing in it, and the first open - and only the first -
+ * asks. A `<details>` does the opening and closing with no script at all; the
+ * script's one job is to notice the first open and fetch.
+ *
+ * A suggestion, never a request. Nothing here submits anything: `CODEOWNERS`
+ * requests automatically because a file in the repository said to, and this is
+ * the forge having an opinion, which is offered rather than acted on. Each name
+ * carries its reason verbatim - "3 commits here, last 5d ago, 2 waiting on
+ * them" - because a name nobody can account for is one people either click
+ * without thinking or ignore.
+ *
+ * Props: url, the suggested-reviewers endpoint with owner, repo and number
+ * already in it. Built by the page, so this component does not know how a pull
+ * request is addressed.
+ */
+const fetchUrl = String(url ?? '')
+</script>
+
+<details class="panel side-panel suggest-box" data-suggested-reviewers data-url="{{ fetchUrl }}">
+  <summary class="side-heading suggest-summary">Suggested reviewers</summary>
+
+  {{--
+    The sentence is the closed state, the no-JavaScript state, and the loading
+    state's starting point, all three. A reader with scripts off who opens the
+    panel gets an honest sentence rather than a spinner that never stops.
+  --}}
+  <p class="muted side-empty" data-suggest-status>Who has worked on these files.</p>
+  <ul class="suggest-list" data-suggest-list hidden></ul>
+</details>
+
+<script type="module">
+  const box = document.querySelector('[data-suggested-reviewers]')
+
+  if (box) {
+    const status = box.querySelector('[data-suggest-status]')
+    const list = box.querySelector('[data-suggest-list]')
+    let asked = false
+
+    box.addEventListener('toggle', async () => {
+      // Only the first open fetches. The answer does not change while the page
+      // is up, and the git log behind it is not free.
+      if (!box.open || asked)
+        return
+
+      asked = true
+      status.textContent = 'Looking through the history…'
+
+      try {
+        // A bare fetch, no options, and that is load-bearing: stx's client
+        // bridge seeds any identifier a client script shares with the server
+        // scope into the page, and this page's server scope has a `headers`
+        // binding holding the request headers - cookie included. Writing
+        // `{ headers: ... }` here serialized the reader's session token into
+        // the HTML. The endpoint answers JSON without being asked.
+        const answer = await fetch(box.dataset.url)
+        if (!answer.ok)
+          throw new Error(String(answer.status))
+
+        const body = await answer.json()
+        const suggestions = Array.isArray(body?.suggestions) ? body.suggestions : []
+
+        if (suggestions.length === 0) {
+          status.textContent = 'Nobody else has history in these files.'
+          return
+        }
+
+        // textContent throughout: a handle is user-chosen text, and building
+        // markup out of one would hand every user a script slot in every
+        // sidebar that suggests them.
+        for (const suggestion of suggestions) {
+          const item = document.createElement('li')
+          item.className = 'suggest-item'
+
+          const who = document.createElement('a')
+          who.className = 'mono suggest-handle'
+          who.href = `/${suggestion.handle}`
+          who.textContent = suggestion.handle
+
+          const why = document.createElement('span')
+          why.className = 'muted suggest-reason'
+          why.textContent = suggestion.reason
+
+          item.append(who, why)
+          list.append(item)
+        }
+
+        status.hidden = true
+        list.hidden = false
+      }
+      catch {
+        // Nothing to offer is the same outcome as not being able to ask.
+        status.textContent = 'Suggestions are unavailable.'
+      }
+    })
+  }
+</script>
+
+<style>
+  .suggest-summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .suggest-summary::-webkit-details-marker { display: none; }
+
+  {{--
+    A drawn marker rather than the native one: the native triangle renders at
+    text size beside a 12px uppercase heading and dwarfs it.
+  --}}
+  .suggest-summary::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid var(--muted);
+    border-bottom: 1.5px solid var(--muted);
+    transform: rotate(-45deg);
+    transition: transform 120ms ease;
+    flex: none;
+  }
+
+  .suggest-box[open] .suggest-summary::before { transform: rotate(45deg); }
+
+  .suggest-list {
+    margin-top: 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .suggest-item {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 13.5px;
+  }
+
+  .suggest-handle { width: fit-content; }
+
+  .suggest-reason { font-size: 12.5px; }
+</style>
