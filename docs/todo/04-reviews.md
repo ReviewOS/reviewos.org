@@ -205,8 +205,29 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
 - [x] Commit message templates for squash and merge, editable at merge time. The caller's words win
       over the template: somebody editing a squash message is writing the only commit message that
       change will ever have, and a template that overrode it would make the field a lie.
-- [ ] Auto-merge: merge as soon as requirements are met. Needs the queue, because "as soon as" means
+- [x] Auto-merge: merge as soon as requirements are met. Needs the queue, because "as soon as" means
       something has to notice a check reporting or an approval landing (phase 5 prerequisites).
+
+  "As soon as" turned out to mean "at the next event that could have satisfied the requirements",
+  which is exactly when the requirements change - so there is nothing to poll and no queue to wait
+  for. Arming stores the strategy and who asked on the pull request, and `attemptAutoMerge` runs as
+  a tail on every such event: a review landing, a thread resolving, a push arriving (head or base),
+  mergeability refreshing. When the checks API lands (phase 9), its report action calls the same
+  function.
+
+  The attempt *is* `MergePullRequestAction`, invoked as the arming user with a synthesized request:
+  that action owns every rule, and a second path through merging would be a second place for one to
+  quietly stop being right. A refused attempt is an ordinary outcome and the arm stays armed; two
+  events attempting at once both end in the guarded `update-ref`, so exactly one lands. Arming with
+  a strategy the repository disallows is refused at arm time - an arm that can never fire is a
+  promise the product knows it will break. Arming a pull request whose requirements are already met
+  merges it now.
+
+  Building it found a real one: `findRepositoryByPath` never selected the merge-settings columns,
+  so `allowedStrategies`, `defaultStrategy` and `delete_branch_on_merge` all read `undefined` in
+  the merge action - permissive by the written-before-the-columns rule - and the per-repository
+  strategy restrictions and delete-on-merge were configurable and silently inert. The columns ride
+  the row now, and the auto-merge e2e holds the refusal.
 - [x] Delete the head branch on merge, optionally. Off by default, because deleting somebody's
       branch is not recoverable through the interface and a repository that starts doing it because
       a default changed is one that lost work nobody asked it to lose. Refused while any other open

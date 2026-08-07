@@ -60,6 +60,13 @@ export default new Action({
       { force: Boolean(request.get('force')) },
     )
 
+    // A recompute that came back clean may be the last requirement. Does
+    // nothing unless somebody armed auto-merge, and never throws.
+    if (result.state === 'clean') {
+      const { attemptAutoMerge } = await import('./autoMerge')
+      await attemptAutoMerge(Number(pullRequest.id))
+    }
+
     return response.json({
       number,
       state: result.state,

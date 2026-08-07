@@ -26,6 +26,18 @@ export interface GitRepositoryRow {
   description: string
   /** The repository this one was forked from, when it was. */
   parent_id: number | null
+  /**
+   * The merge settings, carried because everything that merges reads its
+   * repository through here. They were once left off this row, and the merge
+   * action read `undefined` for all of them - which `allowedStrategies` and
+   * `deleteOnMerge` treat as permissive, so the per-repository strategy
+   * restrictions and delete-on-merge were configurable and silently inert.
+   */
+  allow_merge_commit: boolean | null
+  allow_squash_merge: boolean | null
+  allow_rebase_merge: boolean | null
+  default_merge_strategy: string | null
+  delete_branch_on_merge: boolean | null
 }
 
 /** Look up a repository by the owner handle and name in a git URL. */
@@ -56,6 +68,11 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
       'disk_path',
       'description',
       'parent_id',
+      'allow_merge_commit',
+      'allow_squash_merge',
+      'allow_rebase_merge',
+      'default_merge_strategy',
+      'delete_branch_on_merge',
     ])
     .where('owner_type', '=', ownerType)
     .where('owner_id', '=', ownerId)
@@ -76,6 +93,13 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
     disk_path: String(repository.disk_path),
     description: repository.description ? String(repository.description) : '',
     parent_id: repository.parent_id === null || repository.parent_id === undefined ? null : Number(repository.parent_id),
+    // Nulls pass through: a row written before the columns existed reads as
+    // allowing everything, and `allowedStrategies` knows that rule.
+    allow_merge_commit: repository.allow_merge_commit ?? null,
+    allow_squash_merge: repository.allow_squash_merge ?? null,
+    allow_rebase_merge: repository.allow_rebase_merge ?? null,
+    default_merge_strategy: repository.default_merge_strategy ? String(repository.default_merge_strategy) : null,
+    delete_branch_on_merge: repository.delete_branch_on_merge ?? null,
   }
 }
 

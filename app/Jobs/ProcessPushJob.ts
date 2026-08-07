@@ -56,6 +56,15 @@ export default new Job({
     // After the head shas are current, so the recompute reads what this push
     // left rather than what the last one did.
     const precomputed = owner ? await precomputeMergeability(repository, owner, branches) : 0
+
+    // A push can be the last requirement: the conflict fixed on a head, or a
+    // base moving under a pull request whose rules just became satisfiable.
+    // Does nothing unless somebody armed auto-merge, and never throws.
+    const { attemptAutoMergeOnBranches } = await import('../Actions/Pull/autoMerge')
+    const autoMerged = await attemptAutoMergeOnBranches(
+      Number(repository.id),
+      branches.filter(update => update.change !== 'deleted').map(update => update.name),
+    )
     const commits = await collectCommits(gitDir, branches)
     const closed = owner ? await actOnCommitMessages(repository, owner, commits) : []
 
@@ -86,6 +95,7 @@ export default new Job({
       closedIssues: closed,
       pullRequestsRefreshed: refreshed,
       mergeabilityPrecomputed: precomputed,
+      autoMerged,
       sizeKb,
     }
   },

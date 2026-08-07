@@ -79,6 +79,11 @@ export default new Action({
       .where('reviewer_id', '=', user.id)
       .execute()
 
+    // An approval may be the last requirement. attemptAutoMerge never throws
+    // and does nothing unless somebody armed it.
+    const { attemptAutoMerge } = await import('./autoMerge')
+    await attemptAutoMerge(Number(pullRequest.id))
+
     return response.json({
       id: reviewId,
       state,

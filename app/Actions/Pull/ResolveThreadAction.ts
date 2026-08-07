@@ -30,6 +30,7 @@ export default new Action({
       .select([
         'review_threads.id as id',
         'review_threads.resolved as resolved',
+        'review_threads.pull_request_id as pull_request_id',
         'pull_requests.author_id as pull_author_id',
         'pull_requests.repository_id as repository_id',
       ])
@@ -62,6 +63,13 @@ export default new Action({
       })
       .where('id', '=', threadId)
       .execute()
+
+    // Resolving the last thread may be the last requirement. Does nothing
+    // unless somebody armed auto-merge, and never throws.
+    if (resolved) {
+      const { attemptAutoMerge } = await import('./autoMerge')
+      await attemptAutoMerge(Number(thread.pull_request_id))
+    }
 
     return response.json({ thread_id: threadId, resolved })
   },

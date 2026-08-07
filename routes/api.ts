@@ -158,6 +158,10 @@ route.post('/repos/pulls/mergeability', 'Actions/Pull/RefreshMergeabilityAction'
 // "I have read this round": advance last-looked without submitting a verdict.
 route.post('/repos/pulls/last-look', 'Actions/Pull/AdvanceLastLookAction').middleware('auth')
 route.post('/repos/pulls/merge', 'Actions/Pull/MergePullRequestAction').middleware('auth')
+// Auto-merge: armed with a strategy, fired by whichever event satisfies the
+// requirements. Arming when they are already met merges now.
+route.post('/repos/pulls/auto-merge', 'Actions/Pull/EnableAutoMergeAction').middleware('auth')
+route.post('/repos/pulls/auto-merge/disarm', 'Actions/Pull/DisableAutoMergeAction').middleware('auth')
 // The branch a merge deleted, put back. A guarded create: it refuses rather
 // than overwrite a branch that has since reappeared under the old name.
 route.post('/repos/pulls/restore-branch', 'Actions/Pull/RestoreHeadBranchAction').middleware('auth')

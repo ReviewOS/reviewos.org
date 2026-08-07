@@ -336,6 +336,17 @@ const viewerMayReview = Boolean(pullRequest && pullRequest.state === 'open' && a
 const offerSuggestions = viewerMayReview
 
 /*
+ * Auto-merge, in the merge box. Armed is a fact about the pull request shown
+ * to everybody; the arm and disarm forms are for people who could press the
+ * merge button themselves, because arming is scheduling exactly that press.
+ */
+const autoMergeArmed = pullRequest?.auto_merge_strategy ? String(pullRequest.auto_merge_strategy) : null
+const autoMergeArmedBy = pullRequest?.auto_merge_by_id
+  ? await db.selectFrom('users').select(['handle']).where('id', '=', Number(pullRequest.auto_merge_by_id)).executeTakeFirst()
+  : undefined
+const viewerMayMerge = Boolean(pullRequest && pullRequest.state === 'open' && access?.viewer && access.can('pull:merge'))
+
+/*
  * Offer to put a deleted head branch back, on merged pull requests only.
  * `branchExists` is one rev-parse and never throws, and it only runs for the
  * merged case, so the open pull request - the page's hot path - pays nothing.
@@ -494,6 +505,42 @@ const statePill = pullRequest
               <button type="button" class="btn merge-button" aria-disabled="true" disabled>
                 Merge pull request
               </button>
+
+              {{-- Auto-merge, offered exactly when merging is blocked: arming
+                   a green pull request is the merge button with extra steps.
+                   The endpoint merges immediately if requirements are already
+                   met, so a stale page cannot arm what should just merge. --}}
+              @if (autoMergeArmed)
+                <p class="muted side-note">
+                  Auto-merge is armed ({{ autoMergeArmed }}){{ autoMergeArmedBy?.handle ? ` by ${autoMergeArmedBy.handle}` : '' }}.
+                  It merges the moment everything above is satisfied.
+                </p>
+                @if (viewerMayMerge)
+                  <form method="post" action="/api/repos/pulls/auto-merge/disarm">
+                    <CsrfField />
+                    <input type="hidden" name="owner" value="{{ owner }}">
+                    <input type="hidden" name="repo" value="{{ repositoryName }}">
+                    <input type="hidden" name="number" value="{{ number }}">
+                    <button type="submit" class="btn merge-button">Disarm auto-merge</button>
+                  </form>
+                @endif
+              @else
+                @if (viewerMayMerge)
+                  <form method="post" action="/api/repos/pulls/auto-merge">
+                    <CsrfField />
+                    <input type="hidden" name="owner" value="{{ owner }}">
+                    <input type="hidden" name="repo" value="{{ repositoryName }}">
+                    <input type="hidden" name="number" value="{{ number }}">
+                    <label class="visually-hidden" for="auto-strategy">Auto-merge strategy</label>
+                    <select id="auto-strategy" name="strategy" class="select">
+                      <option value="merge">Create a merge commit</option>
+                      <option value="squash">Squash and merge</option>
+                      <option value="rebase">Rebase and merge</option>
+                    </select>
+                    <button type="submit" class="btn merge-button">Enable auto-merge</button>
+                  </form>
+                @endif
+              @endif
             @endif
           </section>
 

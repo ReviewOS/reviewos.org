@@ -8084,6 +8084,33 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "auto_merge_strategy",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "enumValues": [
+              "merge",
+              "squash",
+              "rebase"
+            ],
+            "enumTypeName": "pull_requests_auto_merge_strategy_type"
+          },
+          {
+            "name": "auto_merge_by_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "set null"
+            }
           }
         ],
         "indexes": [
@@ -13580,7 +13607,7 @@
       }
     ]
   },
-  "hash": "97c35d13cc6864860f15bde7f4448da139ef62711d71139e65c67aee15254eed",
+  "hash": "4c5d535306a0b57f8ad537d11f7bbb34883ad8f03a08d617711f84d6f3661bd7",
   "dialect": "postgres",
-  "updatedAt": "2026-08-07T13:51:00.480Z"
+  "updatedAt": "2026-08-07T14:03:25.257Z"
 }

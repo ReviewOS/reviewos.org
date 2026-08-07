@@ -45,6 +45,9 @@ export default defineModel({
     // Who merged it, kept as long as the account is. The merge itself is in
     // the git history either way.
     { model: 'User', foreignKey: 'merged_by_id', relationName: 'mergedBy', onDelete: 'set null' },
+    // Who armed auto-merge. Losing the account disarms it, which is right:
+    // a merge on behalf of nobody is a merge nobody authorized.
+    { model: 'User', foreignKey: 'auto_merge_by_id', relationName: 'autoMergeBy', onDelete: 'set null' },
     // A stack is pull requests that merge in order. Removing one does not
     // remove what was stacked on it - it un-stacks it, which is the same thing
     // the application does by hand today.
@@ -277,6 +280,32 @@ export default defineModel({
       order: 26,
       fillable: true,
       validation: { rule: schema.string().max(120) },
+      factory: () => null,
+    },
+
+    /**
+     * The strategy auto-merge is armed with, or null when it is not armed.
+     *
+     * One column carrying both facts, because they cannot disagree: there is
+     * no such thing as armed-without-a-strategy, and a boolean beside a
+     * strategy column would invent that state for every reader to handle.
+     */
+    auto_merge_strategy: {
+      order: 27,
+      fillable: true,
+      validation: { rule: schema.enum(['merge', 'squash', 'rebase']) },
+      factory: () => null,
+    },
+
+    /**
+     * Who armed it. The merge, when it happens, is this person pressing the
+     * button at the moment the requirements are met - their permissions are
+     * checked then, and merged_by_id records them.
+     */
+    auto_merge_by_id: {
+      order: 28,
+      fillable: true,
+      validation: { rule: schema.number() },
       factory: () => null,
     },
   },
