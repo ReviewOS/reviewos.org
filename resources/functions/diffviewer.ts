@@ -2475,8 +2475,195 @@ export function mountDiffFiles(): DiffViewer | null {
         event.preventDefault()
         fileList?.focusSearch()
         break
+      case 'v':
+        // The verdict. Opens the drawer the page rendered - a key can only
+        // press a control that exists, which is why the drawer had to come
+        // first.
+        event.preventDefault()
+        openVerdict()
+        break
       default:
         break
+    }
+  })
+
+  /** Open the verdict drawer and put the caret where the words go. */
+  function openVerdict(state?: string): void {
+    const drawer = document.querySelector<HTMLDetailsElement>('[data-verdict-drawer]')
+    if (!drawer)
+      return
+
+    drawer.open = true
+
+    if (state) {
+      const radio = drawer.querySelector<HTMLInputElement>(`input[name="state"][value="${state}"]`)
+      if (radio)
+        radio.checked = true
+    }
+
+    drawer.querySelector<HTMLTextAreaElement>('.verdict-body')?.focus()
+  }
+
+  // Submitting without leaving the textarea. Scoped to the form on purpose:
+  // this is the one listener that fires while the reader is typing, and it
+  // must fire nowhere else.
+  document.querySelector<HTMLFormElement>('[data-verdict-form]')?.addEventListener('keydown', (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault()
+      ;(event.currentTarget as HTMLFormElement).requestSubmit()
+    }
+  })
+
+  /*
+   * The command palette: everything above, findable by name. A static
+   * registry rather than anything clever - each entry is a label and one of
+   * the handlers that already exist, and the palette's whole job is matching
+   * a few words to one of them.
+   */
+  interface PaletteCommand {
+    label: string
+    hint: string
+    run: () => void
+  }
+
+  const conversationUrl = window.location.pathname.replace(/\/files\/?$/, '')
+
+  const paletteCommands: PaletteCommand[] = [
+    { label: 'Next file', hint: 'j', run: () => goToFile(currentFile() + 1) },
+    { label: 'Previous file', hint: 'k', run: () => goToFile(currentFile() - 1) },
+    { label: 'Next thread', hint: 'n', run: () => goToThread(1) },
+    { label: 'Previous thread', hint: 'p', run: () => goToThread(-1) },
+    { label: 'Next unresolved thread', hint: 'N', run: () => goToThread(1, true) },
+    { label: 'Previous unresolved thread', hint: 'P', run: () => goToThread(-1, true) },
+    { label: 'Find a file', hint: '/', run: () => fileList?.focusSearch() },
+    { label: 'Approve', hint: 'v', run: () => openVerdict('approved') },
+    { label: 'Request changes', hint: 'v', run: () => openVerdict('changes_requested') },
+    { label: 'Comment', hint: 'v', run: () => openVerdict('commented') },
+    { label: 'Go to conversation', hint: '', run: () => window.location.assign(conversationUrl) },
+    { label: 'Go to commits', hint: '', run: () => window.location.assign(`${conversationUrl}?tab=commits`) },
+    { label: 'Go to checks', hint: '', run: () => window.location.assign(`${conversationUrl}?tab=checks`) },
+  ]
+
+  let paletteOpen: HTMLElement | null = null
+
+  function closePalette(): void {
+    paletteOpen?.remove()
+    paletteOpen = null
+  }
+
+  function openPalette(): void {
+    if (paletteOpen)
+      return
+
+    const overlay = document.createElement('div')
+    overlay.className = 'palette-overlay'
+
+    const panel = document.createElement('div')
+    panel.className = 'palette'
+    panel.setAttribute('role', 'dialog')
+    panel.setAttribute('aria-label', 'Commands')
+
+    const input = document.createElement('input')
+    input.className = 'palette-input'
+    input.placeholder = 'Type a command'
+    input.setAttribute('aria-label', 'Filter commands')
+
+    const list = document.createElement('div')
+    list.className = 'palette-list'
+    list.setAttribute('role', 'listbox')
+
+    panel.append(input, list)
+    overlay.append(panel)
+
+    let matches: PaletteCommand[] = paletteCommands
+    let selected = 0
+
+    const paint = (): void => {
+      list.textContent = ''
+
+      if (matches.length === 0) {
+        const empty = document.createElement('p')
+        empty.className = 'palette-empty muted'
+        empty.textContent = 'Nothing matches.'
+        list.append(empty)
+        return
+      }
+
+      matches.forEach((command, index) => {
+        const item = document.createElement('div')
+        item.className = 'palette-item'
+        item.setAttribute('role', 'option')
+        item.setAttribute('aria-selected', index === selected ? 'true' : 'false')
+
+        const label = document.createElement('span')
+        label.textContent = command.label
+
+        const hint = document.createElement('span')
+        hint.className = 'muted mono'
+        hint.textContent = command.hint
+
+        item.append(label, hint)
+        item.addEventListener('click', () => {
+          closePalette()
+          command.run()
+        })
+
+        list.append(item)
+      })
+
+      list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+    }
+
+    input.addEventListener('input', () => {
+      const needle = input.value.trim().toLowerCase()
+      matches = needle
+        ? paletteCommands.filter(command => command.label.toLowerCase().includes(needle))
+        : paletteCommands
+      selected = 0
+      paint()
+    })
+
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        selected = Math.min(selected + 1, matches.length - 1)
+        paint()
+      }
+      else if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        selected = Math.max(selected - 1, 0)
+        paint()
+      }
+      else if (event.key === 'Enter') {
+        event.preventDefault()
+        const command = matches[selected]
+        closePalette()
+        command?.run()
+      }
+      else if (event.key === 'Escape') {
+        event.preventDefault()
+        closePalette()
+      }
+    })
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay)
+        closePalette()
+    })
+
+    document.body.append(overlay)
+    paletteOpen = overlay
+    paint()
+    input.focus()
+  }
+
+  // Cmd+K / Ctrl+K, the spelling every launcher has trained. Registered
+  // separately from the main switch because it must also fire while typing -
+  // reaching the palette from a reply box is the point of having one.
+  window.addEventListener('keydown', (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault()
+      openPalette()
     }
   })
 

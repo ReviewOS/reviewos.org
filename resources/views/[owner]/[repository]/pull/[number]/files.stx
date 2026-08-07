@@ -13,6 +13,7 @@
  * server has already started.
  */
 import { repositoryForView } from '../../../../../functions/repo'
+import { cookieJarFromHeader } from '../../../../../functions/identity'
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
 const number = Number(params.number)
@@ -36,7 +37,13 @@ const number = Number(params.number)
  */
 const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
 
-const access = await repositoryForView(owner, repositoryName, serveContext?.cookies)
+// Both serving pipelines, the cookie lesson: the frontend hands views a
+// parsed jar, route.serve() hands them raw headers, and a page that only
+// asks one renders every reader on the other as a stranger.
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+const viewerCookies = serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie)
+
+const access = await repositoryForView(owner, repositoryName, viewerCookies)
 const repoRow: any = access?.repository ?? null
 
 const pullRequest: any = repoRow
@@ -47,6 +54,38 @@ const pullRequest: any = repoRow
       .where('number', '=', number)
       .executeTakeFirst()
   : undefined
+
+/*
+ * The verdict surface. The roadmap's keyboard-first item names this as its
+ * missing prerequisite: keys can only press controls that exist, and this
+ * screen had nowhere to approve from. The same ReviewPanel as the
+ * conversation sidebar, in a drawer the `v` key opens.
+ */
+const reviews = pullRequest
+  ? await db
+      .selectFrom('pull_request_reviews')
+      .select(['state', 'commit_sha'])
+      .where('pull_request_id', '=', Number(pullRequest.id))
+      .orderBy('id', 'asc')
+      .execute()
+  : []
+
+const protection = repoRow && pullRequest
+  ? await db
+      .selectFrom('protected_branches')
+      .select(['required_approvals'])
+      .where('repository_id', '=', Number(repoRow.id))
+      .where('pattern', '=', pullRequest.base_branch)
+      .executeTakeFirst()
+  : undefined
+
+const reviewSummaries = reviews.map((review: any) => ({
+  state: String(review.state),
+  stale: pullRequest ? review.commit_sha !== pullRequest.head_sha : false,
+}))
+
+const approvalsIn = reviewSummaries.filter((review: any) => review.state === 'approved' && !review.stale).length
+const viewerMayReview = Boolean(pullRequest && pullRequest.state === 'open' && access?.viewer && access.can('pull:review'))
 
 const title = pullRequest
   ? `Files changed · ${pullRequest.title} · ${owner}/${repositoryName} #${number}`
@@ -203,8 +242,30 @@ const sinceUrl = `/api/repos/pulls/review-state/since?${diffQuery}`
 
       <nav class="tabs" aria-label="Pull request sections">
         <a class="tab" href="/{{ owner }}/{{ repositoryName }}/pull/{{ number }}">Conversation</a>
+        <a class="tab" href="/{{ owner }}/{{ repositoryName }}/pull/{{ number }}?tab=commits">Commits</a>
+        <a class="tab" href="/{{ owner }}/{{ repositoryName }}/pull/{{ number }}?tab=checks">Checks</a>
         <a class="tab" aria-current="page" href="/{{ owner }}/{{ repositoryName }}/pull/{{ number }}/files">Files changed</a>
       </nav>
+
+      {{-- The verdict, in a drawer the `v` key opens. A details element, so
+           it also opens with nothing to run it; the keyboard and the palette
+           only make the opening faster. --}}
+      @if (viewerMayReview)
+        <details class="verdict-drawer" data-verdict-drawer>
+          <summary class="btn verdict-summary">Submit a review</summary>
+          <div class="verdict-drawer-panel">
+            <ReviewPanel
+              owner="{{ owner }}"
+              repository="{{ repositoryName }}"
+              number="{{ number }}"
+              reviewsJson="{{ JSON.stringify(reviewSummaries) }}"
+              approvals="{{ approvalsIn }}"
+              required="{{ protection?.required_approvals ?? 0 }}"
+              mayReview="1"
+            />
+          </div>
+        </details>
+      @endif
 
       {{--
         The scroll region is sized by the page rather than by its contents: it
@@ -264,6 +325,71 @@ mountDiffFiles()
 </script>
 
 <style>
+  .verdict-drawer { position: relative; margin-bottom: 10px; }
+
+  .verdict-summary {
+    display: inline-flex;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .verdict-summary::-webkit-details-marker { display: none; }
+
+  .verdict-drawer-panel {
+    position: absolute;
+    right: 0;
+    z-index: 30;
+    width: min(380px, calc(100vw - 32px));
+    margin-top: 6px;
+  }
+
+  {{-- The command palette, painted by the viewer module. --}}
+  .palette-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 12vh;
+    background: rgb(0 0 0 / 32%);
+  }
+
+  .palette {
+    width: min(560px, calc(100vw - 32px));
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-panel, 12px);
+    box-shadow: 0 18px 50px rgb(0 0 0 / 25%);
+    overflow: hidden;
+  }
+
+  .palette-input {
+    width: 100%;
+    padding: 12px 14px;
+    font: inherit;
+    font-size: 14.5px;
+    color: var(--text);
+    background: var(--bg);
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    outline: none;
+  }
+
+  .palette-list { max-height: 320px; overflow-y: auto; }
+
+  .palette-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 14px;
+    font-size: 13.5px;
+    cursor: pointer;
+  }
+
+  .palette-item[aria-selected='true'] { background: var(--surface); }
+  .palette-empty { padding: 14px; font-size: 13.5px; }
+
   .files-shell { display: flex; flex-direction: column; min-height: 0; padding-top: 22px; }
 
   .files-head { padding-bottom: 12px; }

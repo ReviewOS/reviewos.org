@@ -546,8 +546,17 @@ this is where the claim is either true or marketing.
       - a draft restored without its anchor is a comment about code it is not about. A draft the
       reader is already typing into wins over one arriving from elsewhere, because taking their words
       away would be the failure this exists to prevent.
-- [ ] Keyboard-first: next file, next thread, next unresolved, approve, request changes, submit,
+- [x] Keyboard-first: next file, next thread, next unresolved, approve, request changes, submit,
       all without the mouse, and a command palette for everything else.
+
+  The missing half was a verdict surface on the files screen - keys can only press controls that
+  exist - so the screen grew a drawer carrying the same `ReviewPanel` as the conversation sidebar,
+  gated the same way. `v` opens it and puts the caret where the words go; Cmd/Ctrl+Enter submits
+  from inside the textarea, the one listener that deliberately fires while typing, scoped to the
+  form so it fires nowhere else. Cmd/Ctrl+K is the palette: a static registry of the handlers that
+  already exist - files, threads, unresolved, the verdict with a state preselected, the other tabs
+  - filtered by a few typed words, arrows and enter, built with textContent throughout. It fires
+  while typing too, because reaching the palette from a reply box is the point of having one.
 
   Navigation is done. `j` and `k` walk the files, `n` and `p` the threads, `N` and `P` the threads
   still unresolved, and `/` opens the filter. The keys are the ones every forge has trained people
