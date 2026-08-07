@@ -428,10 +428,9 @@ async function closeReferenced(
     if (open.length === 0)
       return []
 
-    // Through `updateWhereIn` rather than the query builder's own `in`, which
-    // renders `WHERE "id" in $1` on an update and fails - so merging a pull
-    // request had never closed anything it said it closed. See
-    // `app/Actions/Support/rows.ts`.
+    // Through `updateWhereIn` for the chunking: a pull request can close as
+    // many issues as its description names, and no call site should have to
+    // remember a driver's parameter ceiling. See `app/Actions/Support/rows.ts`.
     await updateWhereIn('issues', 'id', open.map(row => Number(row.id)), {
       state: 'closed',
       state_reason: 'completed',

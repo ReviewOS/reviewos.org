@@ -19,7 +19,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (120/121) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (95/95) |
-| [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | In progress (25/51) |
+| [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | In progress (26/51) |
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (1/20) |
 | [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress (21/45) |
 | [08 - Migration](./08-migration.md) | Importing from GitHub and other forges | Not started (0/16) |
@@ -175,9 +175,17 @@ milestone had never done anything, and neither had closing an issue by merging a
 What makes this one nastier than the last is that the *same call, spelled the same way, works* - as
 long as it is a read. The pattern looks proven by a dozen working call sites, and it is, for reads.
 
-`deleteWhereIn` and `updateWhereIn` in `app/Actions/Support/rows.ts` are the workaround, in one
-place so it is worked around once rather than remembered. They go away when the builder renders
-`IN` on writes.
+**Fixed at the source in bun-query-builder 0.2.24**, on both the three-argument and array forms of
+`where`, on updates and deletes, numbering placeholders after whatever `SET` already bound. The same
+release stops `deleteFrom` splicing an unchecked operator into its statement text - `updateTable`
+had always asserted against the allowed set and its sibling had not, which is an injection point in
+the one statement that cannot be walked back.
+
+`deleteWhereIn` and `updateWhereIn` in `app/Actions/Support/rows.ts` were the workaround and now go
+through the builder like everything else. They still exist, for two reasons that are not defects:
+they chunk at `IN_CHUNK` so no call site has to remember a driver's parameter ceiling, and
+`deleteWhereIn` returns rows actually deleted via `RETURNING` rather than the number of ids it was
+asked about.
 
 **`.where(column, 'is', null)` binds the null.** The fourth of the family, and the cheapest to
 avoid: it emits `"responded_at" is $2` and Postgres answers `syntax error at or near "$2"`. Use
@@ -191,6 +199,11 @@ that is exactly the right shape, and the method is simply not there - present on
 updates, so it reads as correct everywhere it is written. Every reserve throws a `TypeError` into a
 bare `catch { continue }` and the worker polls forever reporting "Listening for jobs...". Written up
 in [phase 5](./05-notifications-webhooks.md).
+
+**Fixed at the source in bun-query-builder 0.2.23**, on updates and deletes, rendering the predicate
+rather than parameterising it and continuing an existing `WHERE` with `AND`. `@stacksjs/queue` also
+no longer swallows a failed reserve: it logs, rate-limited, so the next one announces itself. Both
+released and pulled in; the database driver reserves and runs.
 
 The lesson generalises past this builder. **Four of these five are silent, and the difference is
 never the defect - it is who is catching.** The empty `SET` and the `IN`-on-a-write surfaced as
