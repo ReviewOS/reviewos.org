@@ -172,8 +172,18 @@ try {
     signal: AbortSignal.timeout(5000),
   })
 
-  if (!response.ok)
+  if (!response.ok) {
     console.error(\`push recorded on disk, but the forge answered \${response.status}\`)
+  }
+  else {
+    // Anything the forge noticed about this push - a stack it spotted, a
+    // suggestion to act on - arrives as sentences, printed where git relays
+    // them to the pusher. Stderr on purpose: git forwards a hook's stderr as
+    // "remote:" lines, and stdout is not shown for post-receive.
+    const report = await response.json().catch(() => null)
+    for (const line of Array.isArray(report?.messages) ? report.messages : [])
+      console.error(String(line))
+  }
 }
 catch (error) {
   console.error(\`push recorded on disk, but the forge could not be reached: \${error}\`)

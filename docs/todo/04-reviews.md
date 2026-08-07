@@ -287,10 +287,19 @@ memory.
       contiguous from the bottom by definition - merging the third without the second would take the
       second's commits with it - so `MergeStackAction` lands the longest ready run and reports how
       far it got. A partial land is a correct outcome, not a failure.
-- [ ] Detect a stack from branch topology *on push*, before a pull request exists, and offer it.
+- [x] Detect a stack from branch topology *on push*, before a pull request exists, and offer it.
       Detection at open time is done and is most of the value; this is the half that would let
       somebody push three branches and be offered the stack rather than opening three pull requests
       in the right order.
+
+  The offer arrives where the pusher is guaranteed to be looking: the post-receive hook now prints
+  whatever `messages` the report endpoint answers, and git relays them as `remote:` lines. The
+  endpoint notices synchronously - a few ancestor checks against open pull request heads and the
+  push's own sibling branches, nearest tip winning so a grandparent is not named as a parent - and
+  a branch that already has a pull request is left alone, because it has already chosen. An offer,
+  never an action: opening pull requests uninvited would cross the suggestion-versus-request line
+  with a whole workflow. The offered link is the compare page's address, which is the next item's
+  job to answer.
 - [x] Tests: a three-deep stack, merging out of order, and a parent closed without merging. All
       three in `tests/unit/stack.test.ts` - "the top being ready does not let it jump the queue" is
       the out-of-order case, and "a closed parent orphans its child" is the third.

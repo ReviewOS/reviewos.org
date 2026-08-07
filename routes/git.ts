@@ -385,7 +385,46 @@ route.post(HOOK_ENDPOINT, async (request: any) => {
   const { default: ProcessPushJob } = await import('../app/Jobs/ProcessPushJob')
   await ProcessPushJob.dispatch({ gitDir, updates })
 
-  return new Response(JSON.stringify({ ok: true, updates: updates.length }), {
+  // Noticed synchronously, because this response is the one moment the
+  // pusher is guaranteed to be looking: the hook prints these lines and git
+  // relays them to the terminal. Cheap - a few ancestor checks - and never
+  // the reason a push report fails.
+  let messages: string[] = []
+  try {
+    const repository: any = await repositoryByGitDir(gitDir)
+    if (repository) {
+      const openRows: any[] = await db
+        .selectFrom('pull_requests')
+        .select(['head_branch', 'head_sha'])
+        .where('repository_id', '=', Number(repository.id))
+        .where('state', '=', 'open')
+        .execute()
+
+      const ownerTable = repository.owner_type === 'organization' ? 'organizations' : 'users'
+      const ownerRow: any = await db
+        .selectFrom(ownerTable)
+        .select(['handle'])
+        .where('id', '=', Number(repository.owner_id))
+        .executeTakeFirst()
+
+      if (ownerRow?.handle) {
+        const { stackOffersForPush } = await import('../app/Actions/Pull/stackDetect')
+        messages = await stackOffersForPush({
+          gitDir,
+          ownerHandle: String(ownerRow.handle),
+          repositoryName: String(repository.name),
+          defaultBranch: String(repository.default_branch ?? 'main'),
+          updates,
+          openHeads: new Map(openRows.map(row => [String(row.head_branch), String(row.head_sha)])),
+        })
+      }
+    }
+  }
+  catch {
+    // An offer is a nicety; the push report is the job.
+  }
+
+  return new Response(JSON.stringify({ ok: true, updates: updates.length, messages }), {
     headers: { 'Content-Type': 'application/json' },
   })
 }).skipCsrf()
