@@ -440,8 +440,19 @@ this is where the claim is either true or marketing.
   The word `headers` in a *client* script is enough. The test now asserts the token is not in the
   page, whatever the next mechanism would be.
 
-- [ ] A settings screen for the merge strategies. The columns exist and `MergePullRequestAction`
+- [x] A settings screen for the merge strategies. The columns exist and `MergePullRequestAction`
       honours them, so a repository can be configured through the API and not through the interface.
+
+  The claim about the API was optimistic: `decideSettings` did not read the merge columns either,
+  so they are part of the settings rule now - every-strategy-off is a configuration and a default
+  the booleans disallow is stored rather than swapped, both quoted from the model. The screen is a
+  "Merging" card on the settings page: three strategy checkboxes, the default, and delete-on-merge.
+  Each checkbox is preceded by a hidden same-named `false` field because the router keeps the last
+  value of a repeated key - without it an unticked box sends nothing, and nothing means "leave it
+  alone", a form that could never turn a strategy off. That mechanical fact is pinned by
+  `tests/e2e/merge-settings.test.ts`, which sends the form's bodies byte for byte and reads the
+  row back, because it is exactly the kind of fact a router upgrade changes without anything else
+  failing.
 - [ ] Reviewer load and staleness visible to maintainers: which requests have gone unanswered, and
       by whom, as information rather than as a leaderboard
 - [ ] **Coverage in the diff.** If CI uploads a coverage report, mark changed lines that no test

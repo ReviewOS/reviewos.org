@@ -76,6 +76,40 @@ describe('decideSettings', () => {
   test('refuses a request that would change nothing', () => {
     expect(decideSettings(current, {})).toMatchObject({ ok: false, status: 422 })
   })
+
+  /**
+   * The merge strategies. Turning every one of them off is allowed - it means
+   * nothing merges through the interface - and a default the booleans disallow
+   * is tolerated at rest, because the merge action refuses it at merge time
+   * rather than substituting a strategy nobody chose. Both rules are the
+   * model's; this holds the decision to them.
+   */
+  test('takes the merge strategy flags, including all of them off', () => {
+    expect(decideSettings(current, { allow_merge_commit: false, allow_squash_merge: false, allow_rebase_merge: false }))
+      .toMatchObject({ changes: { allow_merge_commit: false, allow_squash_merge: false, allow_rebase_merge: false } })
+
+    expect(decideSettings(current, { delete_branch_on_merge: true }))
+      .toMatchObject({ changes: { delete_branch_on_merge: true } })
+  })
+
+  test('takes a default strategy it knows and refuses one it does not', () => {
+    expect(decideSettings(current, { default_merge_strategy: 'squash' }))
+      .toMatchObject({ changes: { default_merge_strategy: 'squash' } })
+
+    expect(decideSettings(current, { default_merge_strategy: 'Rebase' }))
+      .toMatchObject({ changes: { default_merge_strategy: 'rebase' } })
+
+    expect(decideSettings(current, { default_merge_strategy: 'octopus' }))
+      .toMatchObject({ ok: false, status: 422 })
+  })
+
+  test('a default the booleans disallow is stored, not swapped', () => {
+    const decision = decideSettings(current, { allow_squash_merge: false, default_merge_strategy: 'squash' })
+
+    expect(decision).toMatchObject({
+      changes: { allow_squash_merge: false, default_merge_strategy: 'squash' },
+    })
+  })
 })
 
 /**

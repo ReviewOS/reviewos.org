@@ -144,6 +144,80 @@ const fullName = `${ownerHandle}/${repositoryName}`
       </section>
 
       <section class="panel card">
+        <h2 class="card-title">Merging</h2>
+
+        {{--
+          Each checkbox is preceded by a hidden field with the same name and
+          the value false, and the order is load-bearing: the router keeps the
+          last value it sees for a repeated key, so a ticked box sends
+          false-then-true and reads true, an unticked one sends only false.
+          Without the hidden field an unticked box sends nothing, and nothing
+          means "leave it alone" - a form that could never turn a strategy off.
+        --}}
+        <form class="grid" method="post" action="/api/repos/settings">
+          <CsrfField />
+          <input type="hidden" name="owner" value="{{ ownerHandle }}">
+          <input type="hidden" name="repo" value="{{ repositoryName }}">
+
+          <label class="merge-choice">
+            <input type="hidden" name="allow_merge_commit" value="false">
+            <input type="checkbox" name="allow_merge_commit" value="true" {{ repoRow.allow_merge_commit ? 'checked' : '' }}>
+            <span>
+              <strong>Merge commit</strong>
+              <span class="hint muted">Keeps both histories, joined by a commit with two parents.</span>
+            </span>
+          </label>
+
+          <label class="merge-choice">
+            <input type="hidden" name="allow_squash_merge" value="false">
+            <input type="checkbox" name="allow_squash_merge" value="true" {{ repoRow.allow_squash_merge ? 'checked' : '' }}>
+            <span>
+              <strong>Squash and merge</strong>
+              <span class="hint muted">One commit on the base, whatever the branch looked like.</span>
+            </span>
+          </label>
+
+          <label class="merge-choice">
+            <input type="hidden" name="allow_rebase_merge" value="false">
+            <input type="checkbox" name="allow_rebase_merge" value="true" {{ repoRow.allow_rebase_merge ? 'checked' : '' }}>
+            <span>
+              <strong>Rebase and merge</strong>
+              <span class="hint muted">Every commit replayed onto the base, no merge commit.</span>
+            </span>
+          </label>
+
+          <label class="field">
+            <span class="label">Default strategy</span>
+            <select class="input" name="default_merge_strategy">
+              <option value="merge" {{ repoRow.default_merge_strategy === 'merge' ? 'selected' : '' }}>Merge commit</option>
+              <option value="squash" {{ repoRow.default_merge_strategy === 'squash' ? 'selected' : '' }}>Squash and merge</option>
+              <option value="rebase" {{ repoRow.default_merge_strategy === 'rebase' ? 'selected' : '' }}>Rebase and merge</option>
+            </select>
+            <span class="hint muted">
+              What the merge button offers first. A default the boxes above disallow is refused at
+              merge time rather than swapped for something nobody chose.
+            </span>
+          </label>
+
+          <label class="merge-choice">
+            <input type="hidden" name="delete_branch_on_merge" value="false">
+            <input type="checkbox" name="delete_branch_on_merge" value="true" {{ repoRow.delete_branch_on_merge ? 'checked' : '' }}>
+            <span>
+              <strong>Delete the head branch after merging</strong>
+              <span class="hint muted">
+                Skipped while another open pull request is built on the branch. A deleted branch
+                can be restored from its merged pull request.
+              </span>
+            </span>
+          </label>
+
+          <div class="actions">
+            <button class="btn btn-primary" type="submit">Save</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel card">
         <h2 class="card-title">Topics</h2>
 
         <form class="grid" method="post" action="/api/repos/topics">
@@ -288,6 +362,16 @@ const fullName = `${ownerHandle}/${repositoryName}`
   .row-text .muted { font-size: 12.5px; line-height: 1.45; }
 
   .inline { display: flex; gap: 8px; align-items: center; }
+
+  .merge-choice {
+    display: flex;
+    gap: 10px;
+    align-items: start;
+    cursor: pointer;
+  }
+
+  .merge-choice input[type='checkbox'] { margin-top: 3px; flex: none; }
+  .merge-choice span { display: grid; gap: 2px; font-size: 13.5px; }
 
   .btn-danger { border-color: var(--del, #b3261e); color: var(--del, #b3261e); }
   .btn-danger:hover { background: var(--del, #b3261e); color: #fff; }

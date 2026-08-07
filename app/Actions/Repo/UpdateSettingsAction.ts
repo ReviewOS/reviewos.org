@@ -40,6 +40,11 @@ export default new Action({
       default_branch: request.get('default_branch'),
       is_archived: readFlag(request.get('is_archived')),
       is_template: readFlag(request.get('is_template')),
+      allow_merge_commit: readFlag(request.get('allow_merge_commit')),
+      allow_squash_merge: readFlag(request.get('allow_squash_merge')),
+      allow_rebase_merge: readFlag(request.get('allow_rebase_merge')),
+      delete_branch_on_merge: readFlag(request.get('delete_branch_on_merge')),
+      default_merge_strategy: request.get('default_merge_strategy'),
     })
 
     if (!decision.ok)

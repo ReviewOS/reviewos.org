@@ -19,7 +19,14 @@ export interface SettingsPatch {
   default_branch?: string
   is_archived?: boolean
   is_template?: boolean
+  allow_merge_commit?: boolean
+  allow_squash_merge?: boolean
+  allow_rebase_merge?: boolean
+  delete_branch_on_merge?: boolean
+  default_merge_strategy?: string
 }
+
+export const MERGE_STRATEGIES = ['merge', 'squash', 'rebase'] as const
 
 export type SettingsRejection =
   | { ok: false, error: string, status: number }
@@ -107,6 +114,28 @@ export function decideSettings(
 
   if (patch.is_template !== undefined)
     changes.is_template = Boolean(patch.is_template)
+
+  /*
+   * The merge strategies: three booleans, the branch-deletion flag, and a
+   * default. Turning every strategy off is allowed and means nothing merges
+   * through the interface, and a default the booleans disallow is tolerated at
+   * rest too - the merge action refuses it at merge time rather than
+   * substituting, because substituting is how somebody squashes a branch they
+   * meant to rebase. Both rules are the model's, quoted rather than invented.
+   */
+  for (const flag of ['allow_merge_commit', 'allow_squash_merge', 'allow_rebase_merge', 'delete_branch_on_merge'] as const) {
+    if (patch[flag] !== undefined)
+      changes[flag] = Boolean(patch[flag])
+  }
+
+  if (patch.default_merge_strategy !== undefined) {
+    const strategy = String(patch.default_merge_strategy).trim().toLowerCase()
+
+    if (!(MERGE_STRATEGIES as readonly string[]).includes(strategy))
+      return { ok: false, error: 'No such merge strategy', status: 422 }
+
+    changes.default_merge_strategy = strategy
+  }
 
   if (Object.keys(changes).length === 0)
     return { ok: false, error: 'Nothing to change', status: 422 }
