@@ -129,7 +129,7 @@ The half of this nobody builds, and the half that decides whether an instance is
       before any query, the cleartext prefix authenticates nothing on its own, a revoked token
       reports revoked even after it would have expired, and a grant cannot widen what its owner can
       do
-- [ ] Tests against the database rather than the rules: a revoked token stops working on the very
+- [x] Tests against the database rather than the rules: a revoked token stops working on the very
       next request, and losing repository access revokes the token's reach into it
 
 ## Keys
