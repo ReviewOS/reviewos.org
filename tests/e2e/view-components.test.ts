@@ -11,21 +11,24 @@
 // `tests/helpers/server.ts` configures the directories now, and this is what
 // says so if that stops happening.
 //
-// **One limitation survives, and it is why this asserts what it asserts.** A
-// component used *directly in a view* renders. A component nested inside
-// another component does not: rendering stops at the nested tag, with no error
-// anywhere, and the page is returned truncated - no `</main>`, no closing
-// layout. `resources/views/[owner]/[repository]/index.stx` is one line,
-// `<RepoBrowser …/>`, and `RepoBrowser` contains `<RepoTabs …/>`, so the
-// repository page stops after the clone box.
+// **One limitation survives, and it is why this asserts what it asserts** - but
+// it is fixed upstream and waiting on a release, not open. A component used
+// *directly in a view* renders here. A component nested inside another
+// component, inside an `@if` branch, does not: rendering stops at the nested
+// tag with no error anywhere and the page comes back truncated. That is why
+// `resources/views/[owner]/[repository]/index.stx` - one line, `<RepoBrowser/>`
+// - loses everything after the clone box.
 //
-// That is a second bug and it is not this project's: bun-router's
-// `renderStxFile` is a partial reimplementation of stx's render pipeline
-// (`processDirectives` alone), which also leaves `{{ title }}` unresolved in
-// the layout. The dev and production servers are unaffected - they go through
-// `bun-plugin-stx`'s own `serve()`, which is the complete pipeline. Until that
-// is fixed upstream, a full-page assertion through `route.serve()` is only safe
-// for components a view uses directly.
+// The cause is not this project's. A template directive is text and so is the
+// body of a script tag, and stx's conditional scanner read both the same way.
+// stx injects its own signals runtime, the runtime has `'@else-if'` in it
+// because that is an attribute it supports, and the scanner matched the real
+// `@if` against that token - swallowing everything between and splicing the
+// rest of the document into the middle of a JavaScript string. Fixed in stx by
+// masking `<script>` elements for the duration of the pass
+// (`conditionals-script-masking.test.ts` there). This app consumes the
+// published `@stacksjs/stx`, so the repository-page assertions here can be
+// tightened once that release lands.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdirSync, rmSync } from 'node:fs'
