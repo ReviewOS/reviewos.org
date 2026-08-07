@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'bun:test'
-import { cloneUrl, cloneUrlFor, originFor } from '../../app/Actions/Repo/cloneUrl'
+import {
+  cloneUrl,
+  cloneUrlFor,
+  DEFAULT_SSH_CLONE_PORT,
+  originFor,
+  sshCloneUrl,
+  sshCloneUrlFor,
+  sshEndpointFrom,
+} from '../../app/Actions/Repo/cloneUrl'
 
 /**
  * The URL somebody clones with.
@@ -77,5 +85,74 @@ describe('cloneUrlFor', () => {
   it('is still a URL when the page was rendered with no request behind it', () => {
     expect(cloneUrlFor(null, 'anna', 'checkout', 'https://code.example.com'))
       .toBe('https://code.example.com/anna/checkout.git')
+  })
+})
+
+/**
+ * SSH, which is offered only when somebody has said it answers.
+ *
+ * The failure this guards against is not a wrong URL - it is a URL that looks
+ * right and connects to nothing. Somebody copies it, waits for a timeout, and
+ * concludes the forge is broken rather than that a feature is off.
+ */
+describe('sshEndpointFrom', () => {
+  it('is nothing at all when neither host nor port is set', () => {
+    expect(sshEndpointFrom({})).toBeNull()
+    expect(sshEndpointFrom({ SSH_CLONE_HOST: '', SSH_PORT: '  ' })).toBeNull()
+  })
+
+  it('takes the host from the request when only a port is configured', () => {
+    // The daemon runs beside the application, and an operator who set the port
+    // has usually not thought about the hostname.
+    expect(sshEndpointFrom({ SSH_PORT: '2222' }, { url: 'https://code.example.com/anna/checkout' }))
+      .toEqual({ host: 'code.example.com', port: 2222, user: 'git' })
+  })
+
+  it('prefers a configured host, which is how a separate SSH hostname works', () => {
+    expect(sshEndpointFrom({ SSH_CLONE_HOST: 'ssh.example.com', SSH_PORT: '22' }, { host: 'code.example.com' }))
+      .toEqual({ host: 'ssh.example.com', port: 22, user: 'git' })
+  })
+
+  it('defaults the port to the one buddy git:ssh binds', () => {
+    expect(sshEndpointFrom({ SSH_CLONE_HOST: 'ssh.example.com' })?.port).toBe(DEFAULT_SSH_CLONE_PORT)
+  })
+
+  it('refuses a port that is not one', () => {
+    expect(sshEndpointFrom({ SSH_PORT: 'no' })).toBeNull()
+    expect(sshEndpointFrom({ SSH_PORT: '0' })).toBeNull()
+    expect(sshEndpointFrom({ SSH_PORT: '70000' })).toBeNull()
+  })
+
+  it('lets the account be changed, though the identity is still the key', () => {
+    expect(sshEndpointFrom({ SSH_PORT: '22', SSH_CLONE_USER: 'code' })?.user).toBe('code')
+  })
+})
+
+describe('sshCloneUrl', () => {
+  it('uses the short form on port 22, which is what everybody recognises', () => {
+    expect(sshCloneUrl({ host: 'code.example.com', port: 22, user: 'git' }, 'anna', 'checkout'))
+      .toBe('git@code.example.com:anna/checkout.git')
+  })
+
+  /**
+   * The short form has nowhere to put a port: the colon is already the path
+   * separator, so `git@host:2222/anna/checkout.git` asks for the repository
+   * `2222/anna/checkout.git`. That is a confusing way to fail, and it is the
+   * form a forge on a non-standard port gets wrong.
+   */
+  it('uses the ssh:// form on any other port', () => {
+    expect(sshCloneUrl({ host: 'code.example.com', port: 2222, user: 'git' }, 'anna', 'checkout'))
+      .toBe('ssh://git@code.example.com:2222/anna/checkout.git')
+  })
+})
+
+describe('sshCloneUrlFor', () => {
+  it('is null when the daemon is not configured, so the box hides the option', () => {
+    expect(sshCloneUrlFor({ host: 'code.example.com' }, 'anna', 'checkout', {})).toBeNull()
+  })
+
+  it('is a URL when it is', () => {
+    expect(sshCloneUrlFor({ url: 'http://127.0.0.1:3012/x' }, 'anna', 'checkout', { SSH_PORT: '2222' }))
+      .toBe('ssh://git@127.0.0.1:2222/anna/checkout.git')
   })
 })

@@ -41,8 +41,12 @@ export const repositoryForView = repositoryForViewImpl
  * configuration.
  */
 import { cloneUrlFor as cloneUrlForImpl } from '../../app/Actions/Repo/cloneUrl'
+import { sshCloneUrlFor as sshCloneUrlForImpl } from '../../app/Actions/Repo/cloneUrl'
 
 export const cloneUrlFor = cloneUrlForImpl
+
+/** Null when no SSH daemon is configured, which is how the box knows to hide it. */
+export const sshCloneUrlFor = sshCloneUrlForImpl
 
 /**
  * What a new repository can be started with: a licence, and an ignore file.

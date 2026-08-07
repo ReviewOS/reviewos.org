@@ -8,10 +8,12 @@
  * production and wrong on the machine you are standing at is a clone URL
  * nobody trusts, and the request already knows which host it arrived on.
  *
- * HTTPS only. SSH needs a daemon this instance does not run yet, and offering
- * a URL that cannot connect is worse than offering one fewer.
+ * SSH appears only when an operator has said where the daemon answers, never
+ * because the code for it exists. A clone URL that cannot connect is worse than
+ * one fewer: somebody copies it, waits for a timeout, and concludes the forge
+ * is broken rather than that a feature is off.
  */
-import { cloneUrlFor } from '../functions/repo'
+import { cloneUrlFor, sshCloneUrlFor } from '../functions/repo'
 
 const ownerHandle = String(owner)
 const repositoryName = String(repository)
@@ -36,6 +38,26 @@ const repositoryName = String(repository)
 const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
 
 const cloneUrl = cloneUrlFor(serveContext, ownerHandle, repositoryName, process.env.APP_URL)
+const sshUrl = sshCloneUrlFor(serveContext, ownerHandle, repositoryName, process.env)
+
+// Interpolated into an attribute, where `null` would arrive as the four
+// characters `null` rather than as nothing. The `@if` below hides the button
+// either way, but a state object holding the string "null" is the kind of thing
+// that is true for months and then surfaces somewhere else.
+const sshValue = sshUrl ?? ''
+
+// Both go into `x-data` through `{!! !!}` rather than `{{ }}`, and that is not
+// a style choice. `{{ }}` inside a string literal is spliced as
+// `JSON.stringify(value)` by the published stx, so `'{{ url }}'` reaches the
+// runtime scope as `'"https://…"'` - quoted by the template and quoted again by
+// the encoder. Nothing throws: the page renders, the binding updates, and the
+// copy button copies a URL with two quote characters in it. That is fixed
+// upstream in stx (`substituteExpressionsInExpr` splices raw inside a literal
+// now) and this can go back to `{{ }}` once the release lands.
+//
+// `{!! !!}` does not escape, which is safe for exactly these two values: an
+// owner and a repository name are restricted to `isSafeSegment`, and the origin
+// comes from a URL's authority, which cannot contain a quote.
 </script>
 
 <details class="clone-box">
@@ -44,8 +66,31 @@ const cloneUrl = cloneUrlFor(serveContext, ownerHandle, repositoryName, process.
     Clone
   </summary>
 
-  <div class="clone-panel" x-data="{ url: '{{ cloneUrl }}' }">
-    <label class="clone-label" for="clone-url-{{ repositoryName }}">Clone with HTTPS</label>
+  <div class="clone-panel" x-data="{ https: '{!! cloneUrl !!}', ssh: '{!! sshValue !!}', scheme: 'https' }">
+    @if (sshUrl)
+      {{--
+        Two buttons rather than a select: there are two of them, they fit, and a
+        select needs a click to find out what the other option even is.
+      --}}
+      <div class="clone-schemes" role="group" aria-label="Clone protocol">
+        <button
+          type="button"
+          class="clone-scheme"
+          :class="{ 'is-on': scheme === 'https' }"
+          :aria-pressed="scheme === 'https'"
+          @click="scheme = 'https'">HTTPS</button>
+        <button
+          type="button"
+          class="clone-scheme"
+          :class="{ 'is-on': scheme === 'ssh' }"
+          :aria-pressed="scheme === 'ssh'"
+          @click="scheme = 'ssh'">SSH</button>
+      </div>
+    @endif
+
+    <label class="clone-label" for="clone-url-{{ repositoryName }}">
+      Clone with <span x-text="scheme === 'ssh' ? 'SSH' : 'HTTPS'">HTTPS</span>
+    </label>
 
     {{--
       Readonly rather than disabled: a disabled field cannot be selected, and
@@ -60,22 +105,36 @@ const cloneUrl = cloneUrlFor(serveContext, ownerHandle, repositoryName, process.
         type="text"
         readonly
         spellcheck="false"
+        :value="scheme === 'ssh' ? ssh : https"
         value="{{ cloneUrl }}"
         aria-label="Clone URL">
 
       <button
         type="button"
         class="btn clone-copy"
-        @click="copyCloneUrl(url)"
+        @click="copyCloneUrl(scheme === 'ssh' ? ssh : https)"
         aria-label="Copy the clone URL">
         <span class="i-hugeicons-copy-01" aria-hidden="true"></span>
       </button>
     </div>
 
-    <p class="clone-hint muted">
-      Push over the same URL. A password will not work: create a token under
-      <a href="/settings/tokens">access tokens</a> and use it in place of one.
-    </p>
+    {{--
+      One hint covering both, rather than one per scheme behind an `x-show`.
+      The toggle above needs JavaScript by its nature; the sentence explaining
+      how to authenticate does not, and a reader with scripts off would
+      otherwise see both hints at once or neither.
+    --}}
+    @if (sshUrl)
+      <p class="clone-hint muted">
+        HTTPS pushes with an <a href="/settings/tokens">access token</a> in place of a
+        password. SSH uses a key you have added under <a href="/settings/keys">SSH keys</a>.
+      </p>
+    @else
+      <p class="clone-hint muted">
+        Push over the same URL. A password will not work: create a token under
+        <a href="/settings/tokens">access tokens</a> and use it in place of one.
+      </p>
+    @endif
   </div>
 </details>
 
@@ -148,4 +207,42 @@ function copyCloneUrl(url) {
     font-size: 12px;
     line-height: 1.45;
   }
+
+  {{--
+    `--surface` and `--bg`, both of which the theme defines. The obvious pair
+    was `--bg-subtle` over `--bg`, and `--bg-subtle` does not exist here: the
+    fallback made the track and the selected pill the same colour, so the only
+    thing marking the selection was the text weight. A selected state you have
+    to squint at is one nobody sees.
+  --}}
+  .clone-schemes {
+    display: inline-flex;
+    margin-bottom: 10px;
+    padding: 2px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-control, 10px);
+  }
+
+  .clone-scheme {
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted, var(--text));
+    background: none;
+    border: 0;
+    border-radius: calc(var(--r-control, 10px) - 3px);
+    cursor: pointer;
+    transition: color 120ms ease, background-color 120ms ease;
+  }
+
+  .clone-scheme:hover { color: var(--text); }
+
+  .clone-scheme.is-on {
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    padding: 3px 11px;
+  }
+
 </style>
