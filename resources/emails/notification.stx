@@ -1,0 +1,62 @@
+<script server>
+/*
+ * One notification, as an email.
+ *
+ * **The subject line is the product.** It is the only part most people read,
+ * and it decides whether they open the message or archive it - so it is the
+ * whole sentence, not a category. "chris requested your review on acme/api#12"
+ * makes the trip; "New notification from ReviewOS" makes people add a filter.
+ * That sentence is built in `app/Notifications/definitions.ts` and arrives here
+ * already written, so the wording lives in one place and the mail and the inbox
+ * cannot disagree about what happened.
+ *
+ * The body is deliberately close to empty. A notification is one sentence, one
+ * link, and the reason it reached you. Everything a forge is tempted to add -
+ * the diff, the comment thread, avatars - is a reason to stay in the mail
+ * client rather than open the review, and the review screen is the product.
+ *
+ * The reason line at the foot is not decoration. It is what somebody acts on
+ * when the mail is unwanted, and it sits next to the link that stops it.
+ */
+const title = props.title || 'Something happened'
+const url = props.url || '#'
+const repository = props.repository || ''
+const reason = props.reason || 'you are subscribed'
+const unsubscribe = props.unsubscribe || ''
+const appName = props.appName || 'ReviewOS'
+const accent = props.accent || '#0f6d72'
+const action = props.action || 'Open it'
+</script>
+
+<EmailLayout title="{{ title }}">
+  <EmailText size="heading">{{ title }}</EmailText>
+
+  @if (repository)
+    <EmailText size="sm" color="#6b7280">{{ repository }}</EmailText>
+  @endif
+
+  {{-- One button, going to the screen that answers the question the
+       notification raised. A second call to action is a second decision, and
+       the reader already made the only one that matters by opening this. --}}
+  <EmailButton href="{{ url }}" bg="{{ accent }}">{{ action }}</EmailButton>
+
+  <EmailDivider />
+
+  <EmailText size="sm" color="#6b7280" spacing="0">
+    You are getting this because {{ reason }}.
+  </EmailText>
+
+  @if (unsubscribe)
+    <EmailText size="sm" color="#6b7280" spacing="0">
+      <a href="{{ unsubscribe }}" style="color:#6b7280;">Stop emails about this one</a>
+    </EmailText>
+  @endif
+
+  <template #footer>
+    <tr>
+      <td style="padding:20px 40px;text-align:center;color:#9ca3af;font-size:12px;">
+        {{ appName }}
+      </td>
+    </tr>
+  </template>
+</EmailLayout>

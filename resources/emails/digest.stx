@@ -1,0 +1,59 @@
+<script server>
+/*
+ * Several notifications about one thread, as one email.
+ *
+ * The whole reason a digest exists is that ten comments on one pull request is
+ * one thing to go and read. So this is a list of sentences and a single link,
+ * and it never becomes a per-item layout with its own buttons: a digest whose
+ * items each have a call to action is ten emails in a trench coat, and the
+ * reader is back to deciding ten times.
+ *
+ * The subject names the newest and counts the rest, because a subject reading
+ * "5 notifications" is one nobody opens and one every filter treats the same.
+ */
+const title = props.title || 'Activity'
+const url = props.url || '#'
+const repository = props.repository || ''
+const lines = props.lines || []
+const unsubscribe = props.unsubscribe || ''
+const appName = props.appName || 'ReviewOS'
+const accent = props.accent || '#0f6d72'
+</script>
+
+<EmailLayout title="{{ title }}">
+  <EmailText size="heading">{{ title }}</EmailText>
+
+  @if (repository)
+    <EmailText size="sm" color="#6b7280">{{ repository }}</EmailText>
+  @endif
+
+  <ul style="margin:0;padding:0 0 0 20px;color:#4b5563;font-size:14px;">
+    @foreach (lines as line)
+      <li style="margin-bottom:8px;">{{ line }}</li>
+    @endforeach
+  </ul>
+
+  {{-- One link, to the thread all of these are about. That is what makes this
+       a digest rather than a bundle. --}}
+  <EmailButton href="{{ url }}" bg="{{ accent }}">Open the thread</EmailButton>
+
+  <EmailDivider />
+
+  <EmailText size="sm" color="#6b7280" spacing="0">
+    These were held until your notification window opened.
+  </EmailText>
+
+  @if (unsubscribe)
+    <EmailText size="sm" color="#6b7280" spacing="0">
+      <a href="{{ unsubscribe }}" style="color:#6b7280;">Stop emails about this one</a>
+    </EmailText>
+  @endif
+
+  <template #footer>
+    <tr>
+      <td style="padding:20px 40px;text-align:center;color:#9ca3af;font-size:12px;">
+        {{ appName }}
+      </td>
+    </tr>
+  </template>
+</EmailLayout>

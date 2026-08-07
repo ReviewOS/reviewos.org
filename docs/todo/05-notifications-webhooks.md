@@ -117,9 +117,39 @@ them without also watching a chat channel, and that nobody has to mute the produ
       `unsubscribed`
 - [x] Subscription is implicit: opening, commenting on, or being assigned to something subscribes
       you, and the reason is recorded so the notification can say why you got it
-- [ ] `app/Notifications/ReviewRequested.ts`, `ReviewSubmitted.ts`, `PrMerged.ts`, `IssueOpened.ts`,
-      `IssueCommented.ts`, `Mentioned.ts`, `NewRelease.ts`, `Welcome.ts`
-- [ ] Email templates as `resources/emails/*.stx`
+- [x] One notification definition per event. **Built as a table rather than as eight classes**, and
+      the difference is deliberate.
+
+  This line originally asked for `ReviewRequested.ts`, `ReviewSubmitted.ts`, `PrMerged.ts` and five
+  more. Writing them showed what they would actually contain: each one is a sentence, a URL, and a
+  list of subscription reasons that may receive it. Everything else - who is subscribed, dropping
+  the actor, honouring an unsubscribe, choosing a channel, holding for quiet hours - is identical
+  across all nine and lives in one listener.
+
+  Eight files of three fields each would put the nine sentences where they can never be read against
+  each other, and the sentence *is* the product: "somebody reviewed your pull request" makes the
+  reader open it to find out whether they are blocked, and "your pull request was updated" does not.
+  They are in `app/Notifications/definitions.ts`, side by side, which is how you notice that one of
+  them is vaguer than the rest.
+
+  `Welcome.ts` is not among them and should not be: it is not a domain event, it has no subject and
+  no subscribers, and the framework already ships `SendWelcomeEmail`.
+- [x] Email templates as `resources/emails/*.stx`
+
+  `notification.stx` and `digest.stx`, resolved ahead of the framework defaults by `template()`.
+  Two, not nine: the nine differ by one sentence, and that sentence is already written by the time
+  it reaches a template.
+
+  **Both halves are always sent.** A text part is not a fallback nobody sees - it is what a screen
+  reader, a terminal client and every spam filter reads, and an HTML-only notification scores worse
+  and is unreadable in exactly the clients on-call people use.
+
+  The body is close to empty on purpose. A notification is one sentence, one link, and the reason it
+  reached you. Everything a forge is tempted to add - the diff, the thread, avatars - is a reason to
+  stay in the mail client rather than open the review, and the review screen is the product.
+
+  A template that fails to render costs a plainer email, never the notification: the text part is
+  complete on its own, so `render` returns an empty string rather than throwing.
 - [x] In-app inbox: unread state, mark read, mark all read, filter by reason
 
   `resources/views/notifications.stx`, rendered entirely on the server with no client script, for

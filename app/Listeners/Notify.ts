@@ -1,6 +1,7 @@
 import type { EventSubject, NotificationEvent } from '../Notifications/definitions'
 import { describe } from '../Notifications/definitions'
 import { recipientsFor } from '../Notifications/recipients'
+import { reasonText } from '../Actions/Notification/recipients'
 
 /**
  * Turn a domain event into inbox entries.
@@ -98,6 +99,11 @@ export default {
             channel,
             title: notification.title,
             url: notification.url,
+            repository: `${payload.owner}/${payload.repository}`,
+            // Per recipient, not per event: two people can be getting the same
+            // notification for different reasons, and the line at the foot of
+            // the email is what they act on when it is unwanted.
+            reason: reasonText(recipient.reason as any),
             subjects,
           })
         }

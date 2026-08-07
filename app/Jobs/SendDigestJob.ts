@@ -142,6 +142,27 @@ export default new Job({
   },
 })
 
+/**
+ * The HTML half, or an empty string.
+ *
+ * Never throws. A template that will not render must not cost somebody the
+ * digest: the text part is complete on its own, so a failure here means a
+ * plainer email rather than a batch left pending forever.
+ */
+async function render(name: string, variables: Record<string, any>): Promise<string> {
+  try {
+    const { template } = await import('@stacksjs/email')
+    const { html } = await template(name, { variables: variables as any })
+
+    return String(html ?? '')
+  }
+  catch (error) {
+    console.error(`[digest] could not render ${name}:`, error)
+
+    return ''
+  }
+}
+
 /** Whether a row falls inside the batch's own span. */
 function withinBatch(row: any, batch: { from: number, to: number }, fallback: number): boolean {
   const at = Date.parse(String(row.created_at ?? '')) || fallback
@@ -168,12 +189,15 @@ async function deliver(address: string, url: string, titles: readonly string[]):
     // rather than throwing. Awaiting it and assuming success is how a digest
     // marks its rows sent after sending nothing, which loses every notification
     // in the batch - the exact opposite of holding rather than dropping.
+    // Both halves, always. The text part is what a screen reader, a terminal
+    // client and every spam filter reads, and an HTML-only message scores worse
+    // and is unreadable in exactly the clients on-call people use.
+    const html = await render('digest', { title: subject, url, lines: titles })
+
     const result: any = await mail.send({
       to: address,
       subject,
-      // Plain text until `resources/emails/*.stx` exists. A digest is a list of
-      // sentences and one link; an HTML template that renders as table markup
-      // in a text client is a worse version of this.
+      ...(html ? { html } : {}),
       text: `${titles.map(title => `- ${title}`).join('\n')}\n\n${url}\n`,
     })
 

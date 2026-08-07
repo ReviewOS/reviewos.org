@@ -42,6 +42,10 @@ export default new Job({
     channel: Channel
     title: string
     url: string
+    /** `owner/name`, for the line under the headline. */
+    repository?: string
+    /** Why this recipient is getting it, in the second person. */
+    reason?: string
     /** The subject and everything it sits inside, so the widest mute wins. */
     subjects?: Array<{ type: 'repository' | 'organization' | 'issue' | 'pull_request', id: number }>
   }) {
@@ -131,7 +135,7 @@ export default new Job({
 async function send(
   channel: Channel,
   user: { email?: string, handle?: string },
-  payload: { title: string, url: string, subjects?: Array<{ type: string, id: number }> },
+  payload: { title: string, url: string, repository?: string, reason?: string, subjects?: Array<{ type: string, id: number }> },
 ): Promise<{ ok: boolean, recipient: string, error?: string }> {
   if (channel === 'push')
     return { ok: false, recipient: String(user.handle ?? ''), error: 'push is not wired up yet' }
@@ -162,16 +166,29 @@ async function send(
     const options = { scope, routePrefix: '/unsubscribe' }
     const unsubscribe = scope ? buildUnsubscribeUrl(address, UNSUBSCRIBE_TTL, options) : ''
 
+    // Both halves, always. A text part is not a fallback nobody sees: it is
+    // what a screen reader, a terminal client, and every spam filter reads, and
+    // an HTML-only notification scores worse and is unreadable in exactly the
+    // clients used by the people most likely to be on call.
+    const link = absolute(payload.url)
+
+    const rendered = await render('notification', {
+      title: payload.title,
+      url: link,
+      repository: payload.repository ?? '',
+      reason: payload.reason ?? 'you are subscribed',
+      unsubscribe,
+    })
+
     const result: any = await mail.send({
       to: address,
+      // The whole sentence, not a category. It is the only part most people
+      // read, and it decides whether they open the message or filter it.
       subject: payload.title,
-      // Plain text, deliberately, until `resources/emails/*.stx` exists. A
-      // notification is one sentence and a link, and an HTML template that
-      // renders as a wall of table markup in a text client is a worse version
-      // of this.
+      ...(rendered ? { html: rendered } : {}),
       text: unsubscribe
-        ? `${payload.title}\n\n${absolute(payload.url)}\n\n--\nStop emails about this one: ${unsubscribe}\n`
-        : `${payload.title}\n\n${absolute(payload.url)}\n`,
+        ? `${payload.title}\n\n${link}\n\n--\nStop emails about this one: ${unsubscribe}\n`
+        : `${payload.title}\n\n${link}\n`,
       ...(unsubscribe ? { headers: buildListUnsubscribeHeaders(address, UNSUBSCRIBE_TTL, options) } : {}),
     })
 
@@ -187,6 +204,27 @@ async function send(
   }
   catch (error) {
     return { ok: false, recipient: address, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/**
+ * The HTML half, or an empty string.
+ *
+ * Never throws. A template that will not render must not cost somebody the
+ * notification: the text part is complete on its own, so a failure here means a
+ * plainer email rather than no email, and that trade is not close.
+ */
+async function render(name: string, variables: Record<string, any>): Promise<string> {
+  try {
+    const { template } = await import('@stacksjs/email')
+    const { html } = await template(name, { variables: variables as any })
+
+    return String(html ?? '')
+  }
+  catch (error) {
+    console.error(`[notification] could not render ${name}:`, error)
+
+    return ''
   }
 }
 
