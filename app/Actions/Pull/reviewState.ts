@@ -93,9 +93,9 @@ export async function setFileViewed(
 
   await db.unsafe(
     `INSERT INTO "reviewed_files" ("pull_request_id", "reviewer_id", "path", "head_sha", "created_at", "updated_at")
-     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-     ON CONFLICT ("pull_request_id", "reviewer_id", "path")
-     DO UPDATE SET "head_sha" = EXCLUDED."head_sha", "updated_at" = CURRENT_TIMESTAMP`,
+    VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT ("pull_request_id", "reviewer_id", "path")
+    DO UPDATE SET "head_sha" = EXCLUDED."head_sha", "updated_at" = CURRENT_TIMESTAMP`,
     [pullRequestId, reviewerId, path, headSha],
   ).execute()
 }
@@ -134,10 +134,10 @@ export async function saveDraft(pullRequestId: number, authorId: number, draft: 
   // first. See the model: the viewer only ever has one open.
   await db.unsafe(
     `INSERT INTO "review_drafts" ("pull_request_id", "author_id", "path", "side", "from_line", "to_line", "body", "created_at", "updated_at")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-     ON CONFLICT ("pull_request_id", "author_id")
-     DO UPDATE SET "path" = EXCLUDED."path", "side" = EXCLUDED."side", "from_line" = EXCLUDED."from_line",
-                   "to_line" = EXCLUDED."to_line", "body" = EXCLUDED."body", "updated_at" = CURRENT_TIMESTAMP`,
+    VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT ("pull_request_id", "author_id")
+    DO UPDATE SET "path" = EXCLUDED."path", "side" = EXCLUDED."side", "from_line" = EXCLUDED."from_line",
+                  "to_line" = EXCLUDED."to_line", "body" = EXCLUDED."body", "updated_at" = CURRENT_TIMESTAMP`,
     [pullRequestId, authorId, draft.path, draft.side, draft.from, draft.to, draft.text],
   ).execute()
 }

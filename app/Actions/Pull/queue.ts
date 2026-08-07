@@ -185,12 +185,12 @@ export async function outstandingRequestCount(userId: number): Promise<number> {
 
   const rows: any = await db.unsafe(
     `SELECT COUNT(DISTINCT "p"."id") AS "waiting"
-     FROM "pull_request_reviewers" "r"
-     JOIN "pull_requests" "p" ON "p"."id" = "r"."pull_request_id"
-     WHERE "r"."reviewer_id" = $1
-       AND "r"."responded_at" IS NULL
-       AND "p"."state" = 'open'
-       AND NOT "p"."draft"`,
+    FROM "pull_request_reviewers" "r"
+    JOIN "pull_requests" "p" ON "p"."id" = "r"."pull_request_id"
+    WHERE "r"."reviewer_id" = $1
+      AND "r"."responded_at" IS NULL
+      AND "p"."state" = 'open'
+      AND NOT "p"."draft"`,
     [userId],
   ).execute()
 
@@ -221,27 +221,27 @@ async function queueRows(scope: { reviewerId?: number, authorId?: number }): Pro
 
   const rows: any = await db.unsafe(
     `SELECT DISTINCT ON ("p"."id")
-       "p"."id" AS "pull_request_id",
-       "p"."number" AS "number",
-       "p"."title" AS "title",
-       "p"."draft" AS "draft",
-       "r"."created_at" AS "waiting_since",
-       "repo"."name" AS "repository",
-       "owner"."handle" AS "owner",
-       "author"."handle" AS "author_handle",
-       (SELECT COUNT(*) FROM "pull_request_reviewers" "o"
+      "p"."id" AS "pull_request_id",
+      "p"."number" AS "number",
+      "p"."title" AS "title",
+      "p"."draft" AS "draft",
+      "r"."created_at" AS "waiting_since",
+      "repo"."name" AS "repository",
+      "owner"."handle" AS "owner",
+      "author"."handle" AS "author_handle",
+      (SELECT COUNT(*) FROM "pull_request_reviewers" "o"
           WHERE "o"."pull_request_id" = "p"."id" AND "o"."responded_at" IS NULL) AS "outstanding",
-       (SELECT COUNT(*) FROM "pull_request_reviews" "v"
+      (SELECT COUNT(*) FROM "pull_request_reviews" "v"
           WHERE "v"."pull_request_id" = "p"."id" AND "v"."state" = 'approved') AS "approvals"
-     FROM "pull_request_reviewers" "r"
-     JOIN "pull_requests" "p" ON "p"."id" = "r"."pull_request_id"
-     JOIN "repositories" "repo" ON "repo"."id" = "p"."repository_id"
-     LEFT JOIN "users" "owner" ON "owner"."id" = "repo"."owner_id" AND "repo"."owner_type" = 'user'
-     LEFT JOIN "users" "author" ON "author"."id" = "p"."author_id"
-     WHERE ${predicate}
-       AND "r"."responded_at" IS NULL
-       AND "p"."state" = 'open'
-     ORDER BY "p"."id", "r"."created_at" ASC`,
+    FROM "pull_request_reviewers" "r"
+    JOIN "pull_requests" "p" ON "p"."id" = "r"."pull_request_id"
+    JOIN "repositories" "repo" ON "repo"."id" = "p"."repository_id"
+    LEFT JOIN "users" "owner" ON "owner"."id" = "repo"."owner_id" AND "repo"."owner_type" = 'user'
+    LEFT JOIN "users" "author" ON "author"."id" = "p"."author_id"
+    WHERE ${predicate}
+      AND "r"."responded_at" IS NULL
+      AND "p"."state" = 'open'
+    ORDER BY "p"."id", "r"."created_at" ASC`,
     [id],
   ).execute()
 

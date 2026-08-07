@@ -64,9 +64,9 @@ export default new Action({
     // as many hours as the server sits east of Greenwich.
     await db.unsafe(
       `INSERT INTO "review_checkpoints" ("pull_request_id", "reviewer_id", "head_sha", "created_at", "updated_at")
-       VALUES ($1, $2, $3, $4, $4)
-       ON CONFLICT ("pull_request_id", "reviewer_id")
-       DO UPDATE SET "head_sha" = EXCLUDED."head_sha", "updated_at" = EXCLUDED."updated_at"`,
+      VALUES ($1, $2, $3, $4, $4)
+      ON CONFLICT ("pull_request_id", "reviewer_id")
+      DO UPDATE SET "head_sha" = EXCLUDED."head_sha", "updated_at" = EXCLUDED."updated_at"`,
       [Number(pullRequest.id), Number(user.id), head, new Date().toISOString()],
     ).execute()
 

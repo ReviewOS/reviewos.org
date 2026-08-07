@@ -30,18 +30,18 @@ export async function reviewerLoadFor(repositoryId: number): Promise<ReviewerLoa
 
   const rows: any = await db.unsafe(
     `SELECT
-       "u"."handle" AS "handle",
-       COUNT(DISTINCT "p"."id") AS "waiting",
-       MIN("r"."created_at") AS "oldest"
-     FROM "pull_request_reviewers" "r"
-     JOIN "pull_requests" "p" ON "p"."id" = "r"."pull_request_id"
-     JOIN "users" "u" ON "u"."id" = "r"."reviewer_id"
-     WHERE "p"."repository_id" = $1
-       AND "r"."responded_at" IS NULL
-       AND "p"."state" = 'open'
-       AND NOT "p"."draft"
-     GROUP BY "u"."handle"
-     ORDER BY MIN("r"."created_at") ASC, "u"."handle" ASC`,
+      "u"."handle" AS "handle",
+      COUNT(DISTINCT "p"."id") AS "waiting",
+      MIN("r"."created_at") AS "oldest"
+    FROM "pull_request_reviewers" "r"
+    JOIN "pull_requests" "p" ON "p"."id" = "r"."pull_request_id"
+    JOIN "users" "u" ON "u"."id" = "r"."reviewer_id"
+    WHERE "p"."repository_id" = $1
+      AND "r"."responded_at" IS NULL
+      AND "p"."state" = 'open'
+      AND NOT "p"."draft"
+    GROUP BY "u"."handle"
+    ORDER BY MIN("r"."created_at") ASC, "u"."handle" ASC`,
     [repositoryId],
   ).execute()
 
