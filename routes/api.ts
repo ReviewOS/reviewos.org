@@ -35,6 +35,11 @@ route.delete('/user/gpg-keys', 'Actions/Keys/DeleteGpgKeyAction').middleware('au
 route.post('/user/keys/delete', 'Actions/Keys/DeleteSshKeyAction').middleware('auth')
 route.post('/user/gpg-keys/delete', 'Actions/Keys/DeleteGpgKeyAction').middleware('auth')
 
+// A key that reaches one repository rather than one person, for a machine.
+// Behind the same gate as renaming or deleting the repository, because standing
+// access to it is not a smaller thing than either.
+route.post('/repos/deploy-keys', 'Actions/Keys/ManageDeployKeyAction').middleware('auth')
+
 // Access tokens. Fine-grained is the only kind: every capability the product
 // has maps to a scope in `app/TokenScopes.ts`, enforced by a test, so there is
 // never a reason to reach for something broader.

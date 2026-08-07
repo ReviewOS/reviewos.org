@@ -77,3 +77,8 @@ import { hasExpired as hasExpiredImpl, keysFor as keysForImpl } from '../../app/
 
 export const keysFor = keysForImpl
 export const hasExpired = hasExpiredImpl
+
+/** A repository's deploy keys, for its settings page. */
+import { deployKeysFor as deployKeysForImpl } from '../../app/Actions/Keys/load'
+
+export const deployKeysFor = deployKeysForImpl

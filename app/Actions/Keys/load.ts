@@ -99,3 +99,42 @@ function iso(value: unknown): string | null {
 
   return Number.isNaN(when.getTime()) ? null : when.toISOString()
 }
+
+export interface RegisteredDeployKey {
+  id: number
+  title: string
+  type: string
+  fingerprint: string
+  canWrite: boolean
+  lastUsedAt: string | null
+  addedAt: string | null
+}
+
+/**
+ * One repository's deploy keys, newest first.
+ *
+ * Same rule as the account keys: the public key body never reaches the page.
+ * The fingerprint is what somebody compares against what `ssh-keygen -l` prints
+ * on the machine that is supposed to be holding it.
+ */
+export async function deployKeysFor(repositoryId: number): Promise<RegisteredDeployKey[]> {
+  if (!Number.isInteger(repositoryId) || repositoryId <= 0)
+    return []
+
+  const rows = await db
+    .selectFrom('deploy_keys')
+    .select(['id', 'title', 'key_type', 'fingerprint', 'can_write', 'last_used_at', 'created_at'])
+    .where('repository_id', '=', repositoryId)
+    .orderBy('id', 'desc')
+    .execute()
+
+  return rows.map((row: any) => ({
+    id: Number(row.id),
+    title: String(row.title ?? 'Deploy key'),
+    type: String(row.key_type ?? ''),
+    fingerprint: String(row.fingerprint ?? ''),
+    canWrite: Boolean(row.can_write),
+    lastUsedAt: iso(row.last_used_at),
+    addedAt: iso(row.created_at),
+  }))
+}

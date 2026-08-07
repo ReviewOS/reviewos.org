@@ -32,6 +32,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { dirname, resolve } from 'node:path'
 import { db } from '@stacksjs/database'
 import { fingerprintOf, generateHostKey, parsePrivateKey, parsePublicKey, serve } from '@stacksjs/ts-ssh'
+import { deployKeyFor, deployKeyMay, markDeployKeyUsed } from '../Keys/deploy'
 import { diskPathFor, findRepositoryByPath, mayUseService } from './access'
 import { gitEnvironment, serviceArgs } from './git'
 import { repositoryPath } from './storage'
@@ -194,6 +195,35 @@ export async function userForKey(blob: Uint8Array): Promise<number | null> {
 }
 
 /**
+ * Who is connecting: a person, or one repository's own key.
+ *
+ * Two kinds and the difference runs all the way through. A person's key gets
+ * whatever that person may reach, intersected with nothing; a deploy key
+ * reaches exactly one repository and, by default, only to read it.
+ *
+ * The fingerprint is the only thing on the wire to go on, which is why
+ * `readDeployKey` refuses a fingerprint either table already holds: if one
+ * matched both, this function's answer would depend on which query ran first.
+ */
+export type SshIdentity
+  = | { kind: 'user', userId: number }
+    | { kind: 'deploy', key: { id: number, repositoryId: number, canWrite: boolean } }
+
+export async function identifyKey(blob: Uint8Array): Promise<SshIdentity | null> {
+  const key = parsePublicKey(blob)
+  if (!key)
+    return null
+
+  const userId = await userForKey(blob)
+  if (userId !== null)
+    return { kind: 'user', userId }
+
+  const deploy = await deployKeyFor(fingerprintOf(blob))
+
+  return deploy ? { kind: 'deploy', key: deploy } : null
+}
+
+/**
  * The host key, read from disk or created on first start.
  *
  * Created rather than demanded, because an instance that will not start until
@@ -249,8 +279,10 @@ export function startSshServer(options: SshServerOptions = {}): Server {
     // The key is checked here only for *existence*: what it may do is a
     // question about a repository, and no repository has been named yet. A
     // client that authenticates and then asks for something it may not have
-    // gets refused at the command, with a message it can act on.
-    authenticate: async ({ blob }) => (await userForKey(blob)) !== null,
+    // gets refused at the command, with a message it can act on. A deploy key
+    // authenticates the same way and is scoped when the command names a
+    // repository.
+    authenticate: async ({ blob }) => (await identifyKey(blob)) !== null,
 
     onCommand: command => runGitCommand(command, report),
   })
@@ -275,18 +307,33 @@ async function runGitCommand(command: Command, report: (error: unknown) => void)
 
   // From the key that authenticated, not from the name the client connected as.
   // Everybody connects as `git@`; the key is the only thing they had to prove.
-  const userId = await userForKey(command.keyBlob)
+  const identity = await identifyKey(command.keyBlob)
   const repository = await findRepositoryByPath(parsed.owner, parsed.name)
 
-  // The same answer for a repository that does not exist and one this account
-  // may not see. Anything else turns a 'not found' into a directory of private
+  const userId = identity?.kind === 'user' ? identity.userId : null
+
+  // A deploy key answers for itself: it reaches one repository, and only to
+  // read it unless somebody said otherwise. `mayUseService` is about what an
+  // *account* may do and has no account to ask about here, so asking it would
+  // fall through to the anonymous answer - which for a public repository is
+  // "yes, read", and would quietly make every deploy key a key to every public
+  // repository on the instance.
+  const allowed = identity?.kind === 'deploy'
+    ? Boolean(repository) && deployKeyMay(identity.key, Number(repository.id), parsed.service)
+    : Boolean(repository) && await mayUseService(repository, userId, parsed.service)
+
+  // The same answer for a repository that does not exist and one this key may
+  // not see. Anything else turns a 'not found' into a directory of private
   // repository names.
-  if (!repository || !(await mayUseService(repository, userId, parsed.service))) {
+  if (!repository || !allowed) {
     return refuse(
       `Repository not found: ${parsed.owner}/${parsed.name}\n`
       + 'It may not exist, or your key may not have access to it.',
     )
   }
+
+  if (identity?.kind === 'deploy')
+    void markDeployKeyUsed(identity.key.id)
 
   // Resolved from the owner and name, not from `disk_path` on the row. That
   // column holds a path relative to the repository root, so resolving it

@@ -158,8 +158,32 @@ The half of this nobody builds, and the half that decides whether an instance is
       shared one scope: opening the SSH form opened the GPG one, and only the first was ever
       initialised. Fixed upstream by assigning positionally, released in stx 0.2.156; the names
       here are distinct anyway, so the page never depended on that fix
-- [ ] Deploy keys: a key scoped to one repository, read-only by default, for the case where a token
-      is the wrong shape
+- [x] Deploy keys: a key scoped to one repository, read-only by default, for the case where a token
+      is the wrong shape. `app/Models/DeployKey.ts` has no `user_id` on purpose - a deploy key
+      authenticates as the *repository's*, so there is no account to intersect with and nothing to
+      inherit. The row cascades with the repository rather than the application remembering to
+      remove it
+- [x] **One fingerprint, one identity.** The SSH transport picks who is connecting from the
+      fingerprint alone - there is nothing else on the wire - so a fingerprint matching both an
+      account key and a deploy key would make "who pushed this" depend on which query ran first.
+      A key already registered to an account is refused, and so is one already deployed elsewhere;
+      the database enforces uniqueness within `deploy_keys` and `app/Actions/Keys/deploy.ts`
+      enforces the half that spans two tables. Both refusals name the fix, because it is one
+      `ssh-keygen` away
+- [x] `identifyKey` in `app/Actions/Git/ssh.ts` returns a person or a repository's key, and the
+      authorisation branches on which. **A deploy key must not go through `mayUseService`**: that
+      function answers what an *account* may do, has no account here, and would fall through to the
+      anonymous answer - which for a public repository is "yes, read", quietly making every deploy
+      key a key to every public repository on the instance. `tests/e2e/git-ssh.test.ts` clones the
+      private repository with a deploy key and is refused the public one, which is the assertion
+      that would have caught it
+- [x] Read-only is the default and holds: a read-only key is refused `receive-pack`, one granted
+      write pushes, and neither reaches another repository. Checked by breaking `deployKeyMay` and
+      watching both cases fail
+- [x] `last_used_at`, written without being awaited and never allowed to fail a clone. The only way
+      to tell a key doing a job from one added for a machine that no longer exists
+- [x] On the repository's settings page, behind `repository:settings` - the same gate as renaming or
+      deleting it, because standing access to a repository is not a smaller thing than either
 
 ## Activity
 

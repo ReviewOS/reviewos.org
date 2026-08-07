@@ -16,8 +16,8 @@
  * survives a misdirected click, a stale tab, or a script pointed at the wrong
  * repository, and none of those are things a permission check can catch.
  */
-import { repositoryForView } from '../../../functions/repo'
-import { branchNames } from '../../../functions/browse'
+import { deployKeysFor, repositoryForView } from '../../../functions/repo'
+import { branchNames, relativeTime } from '../../../functions/browse'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
@@ -54,6 +54,9 @@ if (!repoRow || !mayEdit)
   setResponseStatus(404)
 
 const branches = repoRow && mayEdit ? await branchNames(String(repoAccess?.diskPath ?? '')) : []
+
+// A repository's own keys, for the machines that clone it.
+const deployKeys = repoRow ? await deployKeysFor(Number(repoRow.id)) : []
 
 const topics: any[] = repoRow && mayEdit
   ? await db
@@ -240,6 +243,85 @@ const fullName = `${ownerHandle}/${repositoryName}`
         </form>
       </section>
 
+      <section class="card panel">
+        <h2 class="card-title">Deploy keys</h2>
+
+        {{--
+          A key that reaches this repository and nothing else, for a machine.
+          A personal key would give a build server everything its owner can
+          reach, and a token belongs to a person - it expires on their schedule
+          and dies with their account.
+        --}}
+        <p class="card-note muted">
+          For a CI runner or a server that needs to clone this repository. Read-only unless you
+          say otherwise, because a key that can push is a key that can rewrite history from a
+          machine nobody is watching.
+        </p>
+
+        <form class="grid" method="post" action="/api/repos/deploy-keys">
+          <CsrfField />
+          <input type="hidden" name="owner" value="{{ ownerHandle }}">
+          <input type="hidden" name="repo" value="{{ repositoryName }}">
+          <input type="hidden" name="operation" value="create">
+
+          <label class="field">
+            <span class="label">Title</span>
+            <input class="input" name="title" placeholder="CI runner" maxlength="100">
+          </label>
+
+          <label class="field">
+            <span class="label">Key</span>
+            <textarea
+              class="input mono"
+              name="key"
+              rows="3"
+              required
+              spellcheck="false"
+              placeholder="ssh-ed25519 AAAA… (a key of its own: ssh-keygen -t ed25519 -f deploy_key)"></textarea>
+            <span class="hint muted">
+              Generate one for this repository rather than reusing a key. A key already registered
+              to an account, or already a deploy key elsewhere, is refused - one key means one
+              identity, and the transport has only the fingerprint to go on.
+            </span>
+          </label>
+
+          <label class="check">
+            <input type="checkbox" name="can_write" value="1">
+            <span>Allow this key to push</span>
+          </label>
+
+          <div class="actions">
+            <button class="btn" type="submit">Add deploy key</button>
+          </div>
+        </form>
+
+        @if (deployKeys.length > 0)
+          <ul class="deploy-list">
+            @foreach (deployKeys as key)
+              <li class="deploy-row">
+                <div class="deploy-main">
+                  <span class="deploy-name">{{ key.title }}</span>
+                  <span class="deploy-fingerprint mono muted">{{ key.fingerprint }}</span>
+                  <span class="deploy-meta muted">
+                    {{ key.canWrite ? 'read and write' : 'read-only' }}
+                    &middot; {{ key.lastUsedAt ? `last used ${relativeTime(key.lastUsedAt)}` : 'never used' }}
+                  </span>
+                </div>
+
+                <form class="inline" method="post" action="/api/repos/deploy-keys">
+                  <CsrfField />
+                  <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                  <input type="hidden" name="repo" value="{{ repositoryName }}">
+                  <input type="hidden" name="operation" value="delete">
+                  <input type="hidden" name="id" value="{{ key.id }}">
+                  <button class="btn" type="submit">Remove</button>
+                </form>
+              </li>
+            @endforeach
+          </ul>
+        @endif
+      </section>
+
       <section class="card danger panel">
         <h2 class="card-title">Danger zone</h2>
 
@@ -314,6 +396,32 @@ const fullName = `${ownerHandle}/${repositoryName}`
 @endsection
 
 <style>
+  .card-note { font-size: 12.5px; line-height: 1.5; margin-bottom: 14px; }
+
+  .deploy-list { margin-top: 16px; border-top: 1px solid var(--line); }
+
+  .deploy-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .deploy-row:last-child { border-bottom: 0; }
+  .deploy-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .deploy-name { font-weight: 500; }
+
+  .deploy-fingerprint,
+  .deploy-meta {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
   .card { padding: 18px 20px; margin-top: 16px; }
   .card-title { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
 

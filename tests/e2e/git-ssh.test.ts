@@ -30,6 +30,8 @@ const created = {
   privateName: '',
   diskPath: '',
   privatePath: '',
+  deployKeyId: 0,
+  writableDeployKeyId: 0,
   temp: '',
 }
 
@@ -38,6 +40,9 @@ let available = false
 let server: { stop: () => void } | null = null
 let clientKey = ''
 let strangerKey = ''
+/** A key belonging to the private repository, not to anybody. */
+let deployKey = ''
+let deployKeyWritable = ''
 
 function unique(prefix: string): string {
   return `${prefix}${Buffer.from(crypto.getRandomValues(new Uint8Array(5))).toString('hex')}`
@@ -198,6 +203,49 @@ beforeAll(async () => {
 
     created.privateId = Number(secret?.id)
 
+    // A deploy key on the *private* repository, so "it can read this one" and
+    // "it cannot read the public one" are both meaningful. Read-only, which is
+    // the default and the case worth pinning.
+    const machine = generateHostKey('runner@test')
+    deployKey = join(created.temp, 'id_deploy')
+    writeFileSync(deployKey, machine.openssh)
+    chmodSync(deployKey, 0o600)
+
+    const writableMachine = generateHostKey('deployer@test')
+    deployKeyWritable = join(created.temp, 'id_deploy_rw')
+    writeFileSync(deployKeyWritable, writableMachine.openssh)
+    chmodSync(deployKeyWritable, 0o600)
+
+    const readOnly: any = await (globalThis as any).db
+      .insertInto('deploy_keys')
+      .values({
+        repository_id: created.privateId,
+        title: 'CI runner',
+        key_type: 'ssh-ed25519',
+        public_key: machine.publicLine.trim(),
+        fingerprint: fingerprintOf(machine.key.publicKey),
+        can_write: false,
+      })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    created.deployKeyId = Number(readOnly?.id)
+
+    const writable: any = await (globalThis as any).db
+      .insertInto('deploy_keys')
+      .values({
+        repository_id: created.privateId,
+        title: 'Deployer',
+        key_type: 'ssh-ed25519',
+        public_key: writableMachine.publicLine.trim(),
+        fingerprint: fingerprintOf(writableMachine.key.publicKey),
+        can_write: true,
+      })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    created.writableDeployKeyId = Number(writable?.id)
+
     mkdirSync(resolve(created.diskPath, '..'), { recursive: true })
     await initBare(created.diskPath, 'main')
     await initBare(created.privatePath, 'main')
@@ -349,6 +397,80 @@ describe('git over ssh', () => {
 
     // Readable and not writable: the read succeeded above, and this must not.
     expect(pushed.ok).toBe(false)
+  }, 60_000)
+
+  test('lets a deploy key read the repository it belongs to', async () => {
+    if (!available)
+      return
+
+    // The private repository, which nothing else in this file can read without
+    // being the owner. A machine with this key can.
+    const into = join(created.temp, 'clone-deploy')
+    const result = await git(created.temp, deployKey, 'clone', urlFor(created.privateName), into)
+
+    expect(result.ok).toBe(true)
+    expect((await git(into, deployKey, 'ls-files')).stdout.trim()).toBe('private.txt')
+  }, 60_000)
+
+  test('will not let a deploy key read a different repository', async () => {
+    if (!available)
+      return
+
+    // The whole point of the scope, and the failure that would be invisible:
+    // the public repository is readable by *anybody*, so a deploy key falling
+    // through to the anonymous answer would clone it happily and nothing would
+    // look wrong until somebody noticed one key opening every repository.
+    const result = await git(created.temp, deployKey, 'clone', urlFor(created.name), join(created.temp, 'clone-deploy-other'))
+
+    expect(result.ok).toBe(false)
+    expect(result.stderr).toContain('Repository not found')
+  }, 60_000)
+
+  test('will not let a read-only deploy key push', async () => {
+    if (!available)
+      return
+
+    const work = join(created.temp, 'push-deploy')
+    expect((await git(created.temp, deployKey, 'clone', urlFor(created.privateName), work)).ok).toBe(true)
+
+    writeFileSync(join(work, 'from-ci.txt'), 'no\n')
+    await git(work, deployKey, 'add', '.')
+    await git(work, deployKey, 'commit', '-m', 'should not land')
+
+    // Read-only is the default, and a default that does not hold is not one.
+    expect((await git(work, deployKey, 'push', 'origin', 'main')).ok).toBe(false)
+  }, 60_000)
+
+  test('lets a deploy key push when it was granted write', async () => {
+    if (!available)
+      return
+
+    const work = join(created.temp, 'push-deploy-rw')
+    expect((await git(created.temp, deployKeyWritable, 'clone', urlFor(created.privateName), work)).ok).toBe(true)
+
+    writeFileSync(join(work, 'from-deployer.txt'), 'yes\n')
+    await git(work, deployKeyWritable, 'add', '.')
+    await git(work, deployKeyWritable, 'commit', '-m', 'landed from a deploy key')
+
+    expect((await git(work, deployKeyWritable, 'push', 'origin', 'main')).ok).toBe(true)
+
+    const onDisk = await git(created.temp, deployKeyWritable, '--git-dir', created.privatePath, 'log', '-1', '--format=%s')
+    expect(onDisk.stdout.trim()).toBe('landed from a deploy key')
+  }, 60_000)
+
+  test('records that a deploy key was used', async () => {
+    if (!available)
+      return
+
+    // The only way to tell a key doing a job from one added for a machine that
+    // no longer exists. Written after the clones above.
+    const row: any = await (globalThis as any).db
+      .selectFrom('deploy_keys')
+      .select(['last_used_at'])
+      .where('id', '=', created.deployKeyId)
+      .executeTakeFirst()
+
+    expect(row?.last_used_at).toBeTruthy()
   }, 60_000)
 
   test('refuses a shell', async () => {
