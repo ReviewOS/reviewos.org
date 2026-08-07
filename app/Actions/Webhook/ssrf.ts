@@ -49,6 +49,40 @@ export const ALLOWED_SCHEMES = ['http:', 'https:'] as const
  */
 export const BLOCKED_PORTS = [22, 23, 25, 445, 3306, 5432, 6379, 9200, 11211, 27017] as const
 
+/**
+ * Hosts the operator has vouched for, from `WEBHOOK_ALLOWED_HOSTS`.
+ *
+ * Empty by default, and read from the environment rather than from a webhook
+ * row - the point of this file is that a webhook URL is *not* trusted, so a
+ * per-webhook override would be the same as no policy at all. The environment
+ * belongs to whoever runs the server, and they are the only person entitled to
+ * say that `ci.internal` is a real destination rather than an attack.
+ *
+ * That is a real need on a self-hosted forge. A CI runner on the same LAN is
+ * the ordinary case, and a policy with no way to express it is one operators
+ * work around by turning the whole check off.
+ *
+ * Matched on the host as written, including the port when one is given, so
+ * `127.0.0.1:9000` allows one service and not every port on the machine.
+ */
+export function allowedHosts(): string[] {
+  return String(Bun.env.WEBHOOK_ALLOWED_HOSTS ?? '')
+    .split(',')
+    .map(entry => entry.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+/** Whether the operator named this host, with or without its port. */
+export function isAllowedHost(hostname: string, port?: number | string | null): boolean {
+  const hosts = allowedHosts()
+  if (hosts.length === 0)
+    return false
+
+  const host = String(hostname).replace(/\.$/, '').toLowerCase()
+
+  return hosts.includes(host) || (port ? hosts.includes(`${host}:${port}`) : false)
+}
+
 /** Check the URL itself, before any DNS lookup. */
 export function inspectUrl(raw: string): UrlVerdict {
   let url: URL
@@ -74,10 +108,19 @@ export function inspectUrl(raw: string): UrlVerdict {
   // blocklist, which is exactly how a blocklist is bypassed.
   const hostname = url.hostname.replace(/\.$/, '').toLowerCase()
 
+  const port = url.port ? Number(url.port) : (url.protocol === 'https:' ? 443 : 80)
+
+  // The operator's own list, checked before the blocks rather than after: it
+  // exists precisely to name things the blocks would otherwise refuse, and a
+  // list consulted afterwards could only ever allow what was allowed anyway.
+  // The port is part of the match, so naming one service does not open every
+  // port on that machine.
+  if (isAllowedHost(hostname, url.port || port))
+    return { allowed: true }
+
   if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local'))
     return { allowed: false, reason: 'loopback', message: 'That host is on this machine' }
 
-  const port = url.port ? Number(url.port) : (url.protocol === 'https:' ? 443 : 80)
   if ((BLOCKED_PORTS as readonly number[]).includes(port))
     return { allowed: false, reason: 'port', message: `Port ${port} is not a webhook endpoint` }
 
@@ -98,8 +141,16 @@ export function inspectUrl(raw: string): UrlVerdict {
  * This is the check that actually protects anything: the hostname above can be
  * anything at all, and only the address says where the packet goes.
  */
-export function inspectAddress(address: string): UrlVerdict {
+export function inspectAddress(address: string, port?: number | string | null): UrlVerdict {
   const normalized = address.trim().toLowerCase().replace(/^\[|\]$/g, '')
+
+  // The operator named this address, so the ranges below do not apply to it.
+  // Checked here as well as in the URL because the caller resolves the hostname
+  // and re-checks what DNS returned: an allowance covering only the name would
+  // refuse the very address it was written to permit, and a self-hosted
+  // operator would conclude the setting does nothing.
+  if (isAllowedHost(normalized, port))
+    return { allowed: true }
 
   if (normalized.includes(':'))
     return inspectIpv6(normalized)

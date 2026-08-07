@@ -352,8 +352,33 @@ to prefer it to a badge nobody is looking at.
 - [ ] Payload shapes documented and stable. People build against these, so breaking one is a real
       cost.
 - [x] HMAC SHA-256 signature header, computed over the exact bytes sent
-- [ ] `app/Jobs/DeliverWebhookJob.ts` on the `webhooks` queue: timeout, retries with exponential
+- [x] `app/Jobs/DeliverWebhookJob.ts` on the `webhooks` queue: timeout, retries with exponential
       backoff, and automatic deactivation after sustained failure
+
+  One attempt per job, re-queued with `retryDelayMs`. Retrying inside the handler would hold a
+  worker for the whole backoff - an hour at the ceiling - and lose the schedule entirely on a
+  restart. Re-queueing makes the delay the queue's problem, which is what a queue is for.
+
+  **The SSRF policy is applied three times, not once**: the configured URL, the address it resolves
+  to, and every redirect. Checking only the URL is the version that gets exploited, because DNS is
+  under the configurer's control and a receiver answering `302 -> http://169.254.169.254/` is one
+  line to write. Redirects are followed by hand rather than by `fetch` for the same reason: a
+  followed redirect is a second request to an address nobody checked.
+
+  Whether a *delivery* gives up and whether the *webhook* is switched off are separate questions
+  with separate rules. One delivery running out of attempts is normal; a webhook that has not
+  succeeded in days is an endpoint nobody owns any more, and continuing to call it is a slow
+  outbound attack on somebody's server.
+
+  `WEBHOOK_ALLOWED_HOSTS` is new, empty by default, and read from the environment rather than from a
+  webhook row - the premise of `ssrf.ts` is that a webhook URL is not trusted, so a per-webhook
+  override would be the same as no policy. A CI runner on the same LAN is the ordinary reason a
+  self-hosted operator needs it, and a policy with no way to express that is one people work around
+  by turning the whole check off. The port is part of the match, so naming one service does not open
+  every port on that machine.
+
+  The signature is redacted in the delivery log. It is reproducible from the payload and the secret,
+  so storing it buys nothing and a log full of valid signatures is a log worth stealing.
 - [ ] Delivery log in the interface, with redelivery
 - [ ] Ping event on creation so a user can verify the endpoint immediately
 - [x] **SSRF protection.** A webhook URL is attacker-controlled and the request originates from the
