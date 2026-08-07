@@ -7,17 +7,25 @@
  * slightly wrong: reconstructing the signed payload byte for byte, which git
  * already does correctly.
  *
- * **Not yet reachable from a route.** The verification itself is proven: the
- * same keyring and signature this builds verify `GOODSIG` when gpg is run from
- * a shell. What could not be exercised is running it from *this* process, and
- * the reason turned out to be the machine rather than the code - gpg allocates
- * locked, unswappable secure memory, and on a host whose swap is exhausted the
- * kernel kills the whole process group rather than the allocation. A shell
- * survives it because a shell is small; a Bun process holding the framework
- * does not. It is intermittent in exactly the way memory pressure is.
+ * **Not yet reachable from a route,** and the reason is smaller than it looked.
+ * This was written down as memory pressure - gpg allocates locked, unswappable
+ * secure memory, and a host whose swap is exhausted has the kernel kill the
+ * process group rather than the allocation. That did happen. It is not what is
+ * happening now.
  *
- * So nothing calls this yet. Wiring it into the commit view wants one run on a
- * host with memory headroom to confirm end to end, not a change here.
+ * Run today on a machine with headroom, `git verify-commit` answers
+ * `error: cannot run gpg: No such file or directory`, because there is no gpg
+ * on this machine at all. `gnupg.org` is declared in `deps.yaml`, and
+ * `pantry install gnupg.org` reports `✓ 28 packages installed` and leaves
+ * `pantry list` showing none, no binary on `PATH`, and no `gnupg.org` directory
+ * anywhere under the pantry root. The installed pantry is 0.11.12 against a
+ * 0.11.18 checkout, so it may already be fixed upstream.
+ *
+ * Worth stating plainly because the wrong diagnosis is the expensive part: a
+ * blocker recorded as "the kernel kills us" reads as unfixable and gets left
+ * alone, and one recorded as "the dependency did not install" gets tried again.
+ * The verification itself is still proven - the same keyring and signature this
+ * builds verify `GOODSIG` when gpg is run from a shell that has one.
  *
  * What is left here is the keyring: git verifies against whatever `GNUPGHOME`
  * holds, so each verification gets a temporary one containing only the keys

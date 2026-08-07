@@ -534,13 +534,19 @@ the one moment where rejecting is still possible.
       verified either - anybody can sign a commit claiming to be somebody else.
       `gnupg.org` is a declared pantry dependency, beside `git`, for the same reason: the binary
       does the cryptography rather than a reimplementation of OpenPGP in TypeScript.
-      What is missing is one run on a host with memory headroom. gpg allocates locked, unswappable
-      secure memory, and on a machine whose swap is exhausted the kernel kills the whole process
-      group rather than the allocation - a shell survives it because a shell is small, a Bun process
-      holding the framework does not. The verification itself is proven: the same keyring and
-      signature this code builds verify `GOODSIG` when gpg is run from a shell. The gpg-dependent
-      tests are behind `REVIEWOS_GPG_TESTS=1`, because a process the kernel kills reports nothing
-      and there is no way to probe for that from inside the process it would kill
+      What is missing is smaller than it was written down as. This said the blocker was memory
+      pressure - gpg allocates locked, unswappable secure memory, and on a machine whose swap is
+      exhausted the kernel kills the whole process group rather than the allocation. That did
+      happen. Run again with headroom, the process is not killed and `git verify-commit` answers
+      `error: cannot run gpg: No such file or directory`: **there is no gpg on this machine.**
+      `gnupg.org` is in `deps.yaml`, and `pantry install gnupg.org` reports twenty-eight packages
+      installed while `pantry list` shows none, nothing lands on `PATH`, and no `gnupg.org`
+      directory appears under the pantry root. The installed pantry is 0.11.12 against a 0.11.18
+      checkout, so it may already be fixed there.
+      The wrong diagnosis was the expensive part: a blocker recorded as "the kernel kills us" reads
+      as unfixable and gets left alone. The verification itself is still proven - the same keyring
+      and signature this code builds verify `GOODSIG` when gpg is run from a shell that has one.
+      The gpg-dependent tests stay behind `REVIEWOS_GPG_TESTS=1` until there is a gpg to run
 
 ## Browsing
 
