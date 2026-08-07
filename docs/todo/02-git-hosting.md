@@ -486,8 +486,11 @@ the one moment where rejecting is still possible.
       reading is wired in already: `app/Actions/Keys/ssh.ts` is 92 lines rather than 141, because
       what is left there is this forge's policy (which types are allowed, how small an RSA key may
       be, what to tell somebody who pasted a private key) rather than a second copy of a format that
-      has to stay right forever. What is still missing for a daemon is the encrypted transport:
-      ts-ssh negotiates the ciphers but does not yet apply them, and there is no connection layer
+      has to stay right forever. The transport exists now too: AES-GCM and AES-CTR with
+      encrypt-then-MAC, a byte stream buffered into packets with the sequence numbers both MACs
+      depend on, and channels with their window accounting. What is left before a daemon is the
+      driver that sequences the handshake against a socket and a host key - every piece it needs is
+      there, in order, but nothing yet puts them in order
 - [x] Git LFS, through **[ts-git-lfs](https://github.com/stacksjs/ts-git-lfs)** - a package of its own,
       because pointer files and the batch API are a specification anybody implementing LFS needs and
       not something a forge should own. What is wired here is the three things it will not decide
