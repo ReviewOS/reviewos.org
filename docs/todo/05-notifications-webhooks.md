@@ -120,14 +120,44 @@ them without also watching a chat channel, and that nobody has to mute the produ
 - [ ] `app/Notifications/ReviewRequested.ts`, `ReviewSubmitted.ts`, `PrMerged.ts`, `IssueOpened.ts`,
       `IssueCommented.ts`, `Mentioned.ts`, `NewRelease.ts`, `Welcome.ts`
 - [ ] Email templates as `resources/emails/*.stx`
-- [ ] In-app inbox: unread state, mark read, mark all read, filter by reason
+- [x] In-app inbox: unread state, mark read, mark all read, filter by reason
+
+  `resources/views/notifications.stx`, rendered entirely on the server with no client script, for
+  the reason the review queue is: an inbox is a list of links, and a page that reads its own state
+  on every load can never show a count that disagrees with itself.
+
+  Three decisions the box does not contain:
+
+  - **Repeats collapse by destination.** Six comments on one pull request are six rows and one trip,
+    so they render as one line and a count. The newest supplies the sentence, because that describes
+    the state the reader is about to find: "approved" over "review requested" matters, because the
+    older line would send somebody to do work already done. A group counts as unread if anything in
+    it is, or hiding one unread row behind five read ones would lose exactly the notification worth
+    keeping.
+  - **Mark all read is scoped to the filter on screen.** It cannot be undone, and clearing four
+    hundred rows meaning to clear six is the single most destructive thing an inbox can do by
+    accident. The button says what it will do rather than leaving the reader to infer it from which
+    chips are lit.
+  - **Read is dimmed, not hidden.** Finding the thing you read an hour ago is the second most common
+    visit an inbox gets, and a list that drops rows on read makes that trip impossible.
+
+  Two defects fell out of building it. `notifications.data` was `varchar(255)` in the framework's
+  model, which a real notification exceeds between a title, a URL and a repository name - and
+  Postgres refuses an over-length varchar rather than truncating, so the row was lost at insert on
+  the one channel that has to work when the others do not. And `where(column, 'in', values)` bound
+  the whole array to a single placeholder on updates and deletes, so marking a filtered set read was
+  not expressible; fixed in bun-query-builder 0.2.24 along with `deleteFrom` interpolating an
+  unchecked operator into its statement text.
 - [ ] Per-user delivery preferences by event type and channel, with a real digest option rather than
       only all-or-nothing
 - [x] Batching: ten comments in five minutes is one email, not ten
 - [ ] `app/Jobs/SendNotificationJob.ts` on the `notifications` queue, with retries and backoff
 - [ ] Unsubscribe links that work without logging in, and are scoped to one thread
 - [x] Do not notify someone about their own action
-- [ ] `resources/views/notifications.stx`, `settings/notifications.stx`
+- [ ] `settings/notifications.stx`
+
+  `resources/views/notifications.stx` is built. Settings waits on the delivery preferences above,
+  because a settings page that shows switches nothing reads is worse than no settings page.
 
 ## Quiet hours and muting
 

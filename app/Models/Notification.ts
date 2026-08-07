@@ -50,9 +50,20 @@ export default defineModel({
       ]),
     },
 
+    /**
+     * JSON: the sentence, where it points, why it arrived, and the repository
+     * it came from. `text` rather than the framework default's `varchar(255)`,
+     * which a real notification exceeds routinely - a title, a URL and a
+     * repository name are past 255 between them before anything is unusual, and
+     * Postgres refuses an over-length varchar rather than truncating it. The
+     * inbox is the channel that has to work when nothing else does, so the
+     * failure mode here is the worst one available: the notification is lost at
+     * insert, and the person it was about never learns there was one.
+     */
     data: {
       required: true,
       fillable: true,
+      type: 'text',
       validation: {
         rule: schema.string(),
       },

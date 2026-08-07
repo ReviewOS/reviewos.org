@@ -1,0 +1,206 @@
+<script server>
+/**
+ * The inbox: what happened while you were not looking.
+ *
+ * Rendered entirely on the server, with no client script, for the reason the
+ * review queue is: an inbox is a list of links, and a page that reads its own
+ * state on every load can never show a count that disagrees with itself. Every
+ * control on it is a form or a link, so it works with JavaScript off and it
+ * cannot get into a state where the interface believes something the database
+ * does not.
+ *
+ * **Every row says why it arrived.** That line is the difference between an
+ * inbox people read and one they mute: "your review was requested" is
+ * actionable and "you watch this repository" is skippable, and without the
+ * distinction the reader has to open both to find out. The reason travels on
+ * the notification row itself rather than being joined back to a subscription,
+ * so unsubscribing later cannot rewrite the history of why something arrived.
+ *
+ * The filters are links rather than a form. A filtered inbox is a URL somebody
+ * can bookmark, send to themselves, or leave open in a tab, and a select
+ * element is none of those.
+ */
+import { REASONS, reasonLabel, shortAge } from '../../app/Actions/Notification/inbox'
+import { loadInbox } from '../../app/Actions/Notification/read'
+import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
+
+/**
+ * The request, from whichever pipeline served this page.
+ *
+ * Both spellings are guarded with `typeof` because each identifier is
+ * *undeclared* on the other path, and an undeclared identifier is a
+ * ReferenceError that optional chaining does not save: `x?.y` throws on `x`
+ * before the chain is reached. It would throw inside the server script's IIFE
+ * and take every variable in this file down with it, so the page would render
+ * its signed-out branch to a signed-in reader and look like a bug in auth.
+ */
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+
+// An inbox is per person, so there is no such thing as an anonymous one.
+if (!viewer)
+  setResponseStatus(401)
+
+const search: Record<string, string> = useRoute().query ?? {}
+
+const filterReason = String(search.reason ?? '')
+const filterRepository = String(search.repository ?? '')
+const unreadOnly = String(search.unread ?? '') === 'true'
+
+const inbox = viewer
+  ? await loadInbox(viewer.id, { reason: filterReason, repository: filterRepository, unreadOnly })
+  : { entries: [], unread: 0, repositories: [], truncated: false }
+
+// Read once and passed to every row, so two rows on one page cannot disagree
+// about what time it is.
+const now = Date.now()
+
+/** A query string that keeps the other filters. Filters compose or they lie. */
+function link(changes) {
+  const next = { reason: filterReason, repository: filterRepository, unread: unreadOnly ? 'true' : '', ...changes }
+  const pairs = Object.entries(next).filter(([, value]) => value)
+
+  return pairs.length === 0 ? '/notifications' : `/notifications?${pairs.map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`).join('&')}`
+}
+
+/** Rows shaped for the template, so the template holds no logic. */
+const rows = inbox.entries.map(entry => ({
+  id: entry.id,
+  href: entry.url,
+  title: entry.title,
+  where: entry.repository,
+  number: entry.number ? `#${entry.number}` : '',
+  reason: entry.reasonLabel,
+  age: shortAge(entry.createdAt, now),
+  // "and 4 more" rather than a badge: six comments on one pull request are one
+  // trip, and the count is what says whether the conversation moved on.
+  more: entry.count > 1 ? `+${entry.count - 1} more` : '',
+  rowClass: entry.read ? 'inbox-row is-read' : 'inbox-row',
+}))
+
+const reasonFilters = REASONS.map(reason => ({
+  reason,
+  label: reasonLabel(reason),
+  href: link({ reason: filterReason === reason ? '' : reason }),
+  linkClass: filterReason === reason ? 'inbox-chip is-on' : 'inbox-chip',
+}))
+
+const repositoryFilters = inbox.repositories.map(entry => ({
+  label: entry.repository,
+  count: entry.unread > 0 ? String(entry.unread) : '',
+  href: link({ repository: filterRepository === entry.repository ? '' : entry.repository }),
+  linkClass: filterRepository === entry.repository ? 'inbox-chip is-on' : 'inbox-chip',
+}))
+
+const unreadHref = link({ unread: unreadOnly ? '' : 'true' })
+const unreadClass = unreadOnly ? 'inbox-chip is-on' : 'inbox-chip'
+const clearHref = '/notifications'
+const filtered = Boolean(filterReason || filterRepository || unreadOnly)
+
+const title = inbox.unread > 0 ? `${inbox.unread} unread` : 'Inbox'
+
+// What "mark all read" would actually do, said out loud. It cannot be undone,
+// and a button whose scope the reader has to infer from which chips are lit is
+// how somebody clears four hundred rows meaning to clear six.
+const markAllLabel = filterRepository
+  ? `Mark ${filterRepository} read`
+  : filterReason
+    ? `Mark ${reasonLabel(filterReason)} read`
+    : 'Mark all read'
+
+const emptyLine = filtered
+  ? 'Nothing here matches those filters.'
+  : 'Nothing waiting. You are up to date.'
+</script>
+
+@layout('app')
+
+@section('title', title)
+
+@section('content')
+  <main class="inbox">
+    <header class="inbox-head">
+      <h1>Inbox</h1>
+      <p class="muted">Everything that happened to something you are subscribed to, and why you heard about it.</p>
+    </header>
+
+    @if (!viewer)
+      <p class="inbox-empty muted">
+        <a href="/login">Sign in</a> to see your notifications.
+      </p>
+    @else
+      <div class="inbox-filters">
+        <a class="{{ unreadClass }}" href="{{ unreadHref }}">Unread</a>
+
+        @foreach (reasonFilters as chip)
+          <a class="{{ chip.linkClass }}" href="{{ chip.href }}">{{ chip.label }}</a>
+        @endforeach
+
+        @if (filtered)
+          <a class="inbox-chip is-clear" href="{{ clearHref }}">Clear</a>
+        @endif
+      </div>
+
+      @if (repositoryFilters.length > 0)
+        <div class="inbox-filters">
+          @foreach (repositoryFilters as chip)
+            <a class="{{ chip.linkClass }}" href="{{ chip.href }}">
+              <span class="mono">{{ chip.label }}</span>
+              @if (chip.count)
+                <span class="inbox-chip-count">{{ chip.count }}</span>
+              @endif
+            </a>
+          @endforeach
+        </div>
+      @endif
+
+      @if (rows.length === 0)
+        <p class="inbox-empty muted">{{ emptyLine }}</p>
+      @else
+        <form class="inbox-bulk" method="post" action="/api/user/notifications/read">
+          <CsrfField />
+          <input type="hidden" name="mark_all" value="true">
+          <input type="hidden" name="reason" value="{{ filterReason }}">
+          <input type="hidden" name="repository" value="{{ filterRepository }}">
+          <button type="submit" class="inbox-bulk-button">{{ markAllLabel }}</button>
+        </form>
+
+        <ul class="inbox-list">
+          @foreach (rows as row)
+            <li class="{{ row.rowClass }}">
+              <a class="inbox-link" href="{{ row.href }}">
+                @if (row.where)
+                  <span class="inbox-where mono">{{ row.where }}</span>
+                @endif
+                @if (row.number)
+                  <span class="inbox-number mono">{{ row.number }}</span>
+                @endif
+                <span class="inbox-title">{{ row.title }}</span>
+              </a>
+              <span class="inbox-meta muted">
+                {{ row.reason }}
+                @if (row.more)
+                  · {{ row.more }}
+                @endif
+                · {{ row.age }}
+              </span>
+              <form class="inbox-mark" method="post" action="/api/user/notifications/read">
+                <CsrfField />
+                <input type="hidden" name="ids" value="{{ row.id }}">
+                <button type="submit" class="inbox-mark-button" aria-label="Mark read">Read</button>
+              </form>
+            </li>
+          @endforeach
+        </ul>
+
+        @if (inbox.truncated)
+          <p class="inbox-empty muted">
+            Showing the most recent 500. Filter by repository or reason to reach the rest.
+          </p>
+        @endif
+      @endif
+    @endif
+  </main>
+@endsection

@@ -1,0 +1,41 @@
+<script server>
+/**
+ * How many unread notifications, on the navigation item.
+ *
+ * A component rather than a script in the shared layout, for the reason written
+ * at length in `ReviewQueueBadge.stx`: an stx server script that throws renders
+ * its page with every variable undefined and says nothing, so the first script
+ * added to the layout is one mistake away from blanking the whole product.
+ * Everything here sits inside a guard that cannot throw, and any failure - no
+ * reader, no database, a query gone wrong - renders no badge, which is exactly
+ * what a signed-out reader gets on purpose.
+ *
+ * `unreadFor` is one `COUNT` rather than `loadInbox().unread`, because this
+ * renders on every page in the product and reading five hundred rows to display
+ * one integer is a cost that only becomes visible once the product is worth
+ * using.
+ *
+ * Zero renders nothing. A `0` on the navigation is the forge saying "nothing
+ * for you" every second of the day, and silence says it better.
+ */
+import { unreadFor } from '../../app/Actions/Notification/read'
+import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+let unread = 0
+try {
+  const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+  unread = viewer ? await unreadFor(viewer.id) : 0
+}
+catch {
+  unread = 0
+}
+
+const shown = unread > 99 ? '99+' : String(unread)
+</script>
+
+@if (unread > 0)
+  <span class="nav-count" aria-label="{{ unread }} unread notifications">{{ shown }}</span>
+@endif

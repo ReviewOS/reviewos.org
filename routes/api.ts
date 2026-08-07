@@ -47,6 +47,12 @@ route.delete('/user/tokens', 'Actions/Tokens/RevokeTokenAction').middleware('aut
 route.put('/user/notifications/schedule', 'Actions/Notification/UpdateScheduleAction').middleware('auth')
 route.post('/user/notifications/mutes', 'Actions/Notification/MuteAction').middleware('auth')
 
+// The inbox itself. POST for marking read rather than PUT, because the page is
+// a form and an HTML form can only GET or POST - and the page is the reason
+// this endpoint exists at all.
+route.get('/user/notifications', 'Actions/Notification/ListNotificationsAction').middleware('auth')
+route.post('/user/notifications/read', 'Actions/Notification/MarkReadAction').middleware('auth')
+
 // Repositories. Settings is one endpoint for every field, because a rename
 // moves a directory and the row and the directory have to end up agreeing;
 // splitting it up is how that ends up implemented twice. Delete, transfer and

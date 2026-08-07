@@ -564,6 +564,110 @@
       .queue-link:hover .queue-title { text-decoration: underline; }
       .queue-meta { flex-shrink: 0; font-size: 12px; }
 
+      /* The inbox. Built on the queue's row so the two read as the same
+         product: a list of links, no script, every row carrying its own
+         reason. */
+      .inbox { max-width: 900px; margin: 0 auto; padding: 32px 0 64px; }
+      .inbox-head h1 { margin: 0 0 4px; font-size: 22px; }
+      .inbox-head p { margin: 0 0 20px; font-size: 14px; }
+      .inbox-empty { margin: 0; font-size: 14px; }
+      .inbox-list { margin: 0; padding: 0; list-style: none; }
+
+      .inbox-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+
+      .inbox-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 9px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 12px;
+        text-decoration: none;
+      }
+
+      .inbox-chip:hover { border-color: var(--line-strong); color: var(--text); }
+
+      /* An active filter inverts rather than tinting. A chip that is only a
+         shade different from its neighbours is a filter people forget is on,
+         and then the empty inbox reads as "nothing happened". */
+      .inbox-chip.is-on { background: var(--text); border-color: var(--text); color: var(--bg); }
+      .inbox-chip.is-clear { border-style: dashed; }
+      .inbox-chip-count { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+      .inbox-bulk { margin: 0 0 10px; }
+
+      .inbox-bulk-button {
+        padding: 3px 9px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .inbox-bulk-button:hover { border-color: var(--line-strong); color: var(--text); }
+
+      .inbox-row {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        margin-bottom: 6px;
+      }
+
+      .inbox-row:hover { border-color: var(--line-strong); }
+
+      /* Read is dimmed, not hidden. Somebody looking for the thing they read an
+         hour ago is the second most common visit an inbox gets, and a list that
+         drops rows on read makes that trip impossible. */
+      .inbox-row.is-read { opacity: 0.55; }
+
+      /* The unread marker is the left edge rather than a dot, so it reads down
+         a column of forty rows without the eye having to find it on each one. */
+      .inbox-row:not(.is-read) { border-left: 2px solid var(--text); }
+
+      .inbox-link {
+        display: flex;
+        flex: 1;
+        align-items: baseline;
+        gap: 10px;
+        min-width: 0;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .inbox-where { flex-shrink: 0; color: var(--muted); font-size: 12px; }
+      .inbox-number { flex-shrink: 0; color: var(--muted); font-size: 12px; }
+      .inbox-title { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+      .inbox-link:hover .inbox-title { text-decoration: underline; }
+      .inbox-meta { flex-shrink: 0; font-size: 12px; }
+      .inbox-mark { flex-shrink: 0; margin: 0; }
+
+      /* Quiet until the row is hovered. Forty of these at full strength turn
+         the list into a column of buttons, and the row itself is the thing
+         people came to click. */
+      .inbox-mark-button {
+        padding: 1px 6px;
+        border: 1px solid transparent;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 11px;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .inbox-row:hover .inbox-mark-button { opacity: 1; border-color: var(--line); }
+      .inbox-mark-button:focus { opacity: 1; border-color: var(--line-strong); }
+      .inbox-row.is-read .inbox-mark-button { display: none; }
+
       .diff-status { text-transform: capitalize; }
 
       /* Deliberately quiet. This badge is a reason, not a warning: the file is
@@ -1354,6 +1458,11 @@
                finding your own. The count is a component rather than this
                layout's first server script, and the why is written in it. --}}
           <a class="muted" style="text-decoration: none;" href="/reviews">Reviews<ReviewQueueBadge /></a>
+          {{-- Second, and deliberately not first. Reviews is what needs the
+               reader; the inbox is what happened to them, and a product that
+               leads with the inbox teaches people to work from notifications
+               rather than from their queue. --}}
+          <a class="muted" style="text-decoration: none;" href="/notifications">Inbox<InboxBadge /></a>
           <a class="muted" style="text-decoration: none;" href="/explore">Explore</a>
           <a class="muted" style="text-decoration: none;" href="/dashboard">Dashboard</a>
           <a class="muted" style="text-decoration: none;" href="/docs">Docs</a>
