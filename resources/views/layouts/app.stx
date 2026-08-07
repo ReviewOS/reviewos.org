@@ -538,6 +538,19 @@
          Dimmed rather than struck through: struck through means viewed, and
          two states that look alike is worse than one that is easy to miss. */
       .file-row.is-mechanical .file-name { color: var(--muted); }
+
+      /* On the hunk separator, for a file that is half formatting and half
+         logic. That file gets no badge of its own - the honest summary of it is
+         the diff - so this is the only place a reviewer is told which half is
+         which, and it sits on the row their eye already stops at. */
+      .hunk-mechanical {
+        margin-left: 8px;
+        padding: 1px 6px;
+        border: 1px dashed var(--line-strong);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 11px;
+      }
       .pill-added { background: var(--ok-bg); color: var(--ok); }
       .pill-deleted { background: var(--bad-bg); color: var(--bad); }
       .pill-modified { background: var(--surface); color: var(--pill-text); }

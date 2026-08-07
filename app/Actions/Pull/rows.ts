@@ -20,8 +20,9 @@ import { highlightLines } from '../Browse/highlight'
 import { gapsIn, oldOffsetAt } from './expand'
 import { inlineChangedRanges, worthComparing } from './inline'
 import { formatLineAnchor } from './lineLink'
+import type { HunkKind } from './classify'
 import { classifyFile } from './classify'
-import { escapeHtml, renderDiffHeadContents, renderDiffHeader, renderDiffShell } from './shell'
+import { escapeHtml, mechanicalLabel, renderDiffHeadContents, renderDiffHeader, renderDiffShell } from './shell'
 
 export interface DiffToken {
   type: string
@@ -158,6 +159,14 @@ export interface RenderRowsOptions {
    * boundary.
    */
   range?: { from: number, to: number }
+  /**
+   * What each hunk is, in order, when it is worth saying.
+   *
+   * Supplied by `renderDiffFile` rather than computed here, so one render pays
+   * for one classification. Absent means say nothing, which is what a file with
+   * a badge of its own already does.
+   */
+  hunkKinds?: HunkKind[]
 }
 
 /** The tokens for one line, falling back to its raw content. */
@@ -330,12 +339,27 @@ function hunkHeadRow(
   hunk: DiffHunk,
   layout: 'unified' | 'split',
   gap?: { from: number, to: number, size: number },
+  kind?: HunkKind,
 ): string {
   const range = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`
   const heading = hunk.heading ? ` <span class="muted">${escapeHtml(hunk.heading)}</span>` : ''
+
+  // On the separator, which is the row a reader's eye already stops at on the
+  // way into a hunk. A file that is half formatting and half logic gets no
+  // badge of its own - the honest summary of it is the diff - so this is the
+  // only place the reviewer can be told which half is which.
+  //
+  // A label rather than a fold. Folding a hunk would change how many rows the
+  // file renders as, and that number is the same in three places by design:
+  // what `countRows` counts, what this emits, and what the client asks for. A
+  // fold is the next step and it is a change to all three at once.
+  const mechanical = kind && kind !== 'logic'
+    ? ` <span class="hunk-mechanical">${escapeHtml(mechanicalLabel(kind))}</span>`
+    : ''
+
   const label = `<td class="hunk-label mono" colspan="${layout === 'split' ? 4 : 1}">`
     + expandControl(gap, oldOffsetAt(hunk))
-    + `${escapeHtml(range)}${heading}</td>`
+    + `${escapeHtml(range)}${heading}${mechanical}</td>`
 
   // In split the header spans the whole width. Sat in the last column, as it
   // did, it reads as a heading for the right-hand side rather than for the hunk
@@ -411,7 +435,7 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
 
   for (const [index, hunk] of file.hunks.entries()) {
     if (rows.next())
-      rows.push(hunkHeadRow(hunk, 'unified', gaps?.get(index)))
+      rows.push(hunkHeadRow(hunk, 'unified', gaps?.get(index), options.hunkKinds?.[index]))
 
     for (const line of hunk.lines) {
       if (!rows.next())
@@ -465,7 +489,7 @@ function renderSplit(file: DiffFile, options: RenderRowsOptions): string {
 
   for (const [index, hunk] of file.hunks.entries()) {
     if (rows.next())
-      rows.push(hunkHeadRow(hunk, 'split', gaps?.get(index)))
+      rows.push(hunkHeadRow(hunk, 'split', gaps?.get(index), options.hunkKinds?.[index]))
 
     let removed: DiffLine[] = []
     let added: DiffLine[] = []
@@ -615,17 +639,27 @@ export function renderDiffNote(file: DiffFile): string {
 export function renderDiffFile(file: DiffFile, options: RenderRowsOptions = {}): string {
   const collapsed = options.collapsed === true ? 'fetch' : options.collapsed
 
-  // The same badge the manifest sends the browser, computed the same way, so
-  // the two pages cannot disagree about whether a file needs reading.
-  const headed = file.hunks.length > 0
-    ? { ...file, mechanical: classifyFile(file).reason }
-    : file
+  // Classified once per render and used twice: the file's badge, which is the
+  // same one the manifest sends the browser, and the label on each hunk's
+  // separator. Once, because walking the hunks is not free and a windowed
+  // fetch of five hundred rows out of twenty thousand would otherwise pay for
+  // the whole file twice.
+  const classification = file.hunks.length > 0 ? classifyFile(file) : null
+  const headed = classification ? { ...file, mechanical: classification.reason } : file
 
   if (collapsed === 'fetch')
     return renderDiffShell(headed, { collapsed: true })
 
   const columns = options.layout === 'split' ? 4 : 3
-  const body = renderDiffRows(file, options)
+  const body = renderDiffRows(file, {
+    ...options,
+    // Only where the file has no single reason of its own. A file already
+    // badged "formatting only" would repeat itself on every separator inside
+    // it, which is noise rather than information.
+    hunkKinds: classification && classification.reason === null
+      ? classification.hunks.map(one => one.kind)
+      : undefined,
+  })
   const contents = body === ''
     ? renderDiffNote(file)
     : `<table class="diff-table" data-columns="${columns}">`

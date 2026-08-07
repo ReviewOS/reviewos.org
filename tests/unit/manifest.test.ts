@@ -157,6 +157,57 @@ rename to new.ts
    * not a mechanical file, and folding it would hide the only line anybody
    * needed to read behind a badge saying it was safe to skip.
    */
+  /**
+   * The file that stays open is the one that needs the labels. It has no badge
+   * of its own, so the separator is the only place a reviewer is told which of
+   * its hunks they can skim - and it is the row their eye already stops at on
+   * the way into one.
+   */
+  test('a mixed file labels the mechanical hunk on its separator, and not the other', () => {
+    const mixed = parseDiff(`diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1,2 +1,2 @@
+-  const a = 1
++    const a = 1
+@@ -10,1 +10,1 @@
+-const limit = 1
++const limit = 2
+`)[0]!
+
+    const html = renderDiffFile(mixed)
+    const heads = html.split('hunk-head').length - 1
+
+    expect(heads).toBe(2)
+    expect(html).toContain('formatting only')
+    // One label, on one of the two separators. The logic hunk says nothing,
+    // because "this one is real code" is not information.
+    expect(html.split('hunk-mechanical').length - 1).toBe(1)
+  })
+
+  /**
+   * A file already badged "formatting only" would repeat itself on every
+   * separator inside it. That is noise, and noise is how a reader learns to
+   * stop reading badges.
+   */
+  test('a file with a badge of its own does not repeat it on every hunk', () => {
+    const formatting = parseDiff(`diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1,1 +1,1 @@
+-  const a = 1
++    const a = 1
+@@ -10,1 +10,1 @@
+-  const b = 2
++    const b = 2
+`)[0]!
+
+    const html = renderDiffFile(formatting)
+
+    expect(html).toContain('formatting only')
+    expect(html).not.toContain('hunk-mechanical')
+  })
+
   test('a file that is only partly mechanical stays open and claims nothing', () => {
     const mixed = parseDiff(`diff --git a/a.ts b/a.ts
 --- a/a.ts

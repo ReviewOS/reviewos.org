@@ -193,9 +193,16 @@ this is where the claim is either true or marketing.
   A file that is only *partly* mechanical stays open and claims nothing. Folding it would hide the
   one line anybody needed to read behind a badge saying it was safe to skip.
 
-- [ ] Classify at the *hunk* level in the interface, not only the file level. The classifier already
-      answers per hunk; what is missing is folding the mechanical hunks inside a file that also
-      contains logic, which needs a fold control per hunk rather than per file.
+  A file that is *half* formatting and half logic gets no badge of its own, so each mechanical hunk
+  is labelled on its own separator instead - the row a reader's eye already stops at on the way into
+  a hunk. Only there: a file already badged "formatting only" would repeat itself on every separator
+  inside it, and noise is how a reader learns to stop reading badges.
+
+- [ ] *Fold* the mechanical hunks, rather than only labelling them. Folding changes how many rows a
+      file renders as, and that number is the same in three places by design - what `countRows`
+      counts, what `renderDiffRows` emits, and what the client asks for by index. A fold is a change
+      to all three at once plus a re-measure when the reader opens one, which is why the label
+      shipped first.
 - [ ] A block that moved between two *files* reads as a delete and an add. Detecting that needs the
       whole diff in view rather than one file, which the streaming manifest deliberately does not
       have.
