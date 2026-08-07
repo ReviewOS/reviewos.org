@@ -22,9 +22,9 @@ import type { DiffFile, FileStatus } from './diff'
 import type { DiffTokenMap } from './rows'
 import type { RowCounts } from './metrics'
 import type { StoredThread } from './loadThreads'
-import { classifyFile } from './classify'
+import { classifyFile, foldedHunkIndexes } from './classify'
 import { isGenerated, parseDiffFile } from './diff'
-import { countRows } from './metrics'
+import { countRows, hunkBodyRows } from './metrics'
 import { createPatchSplitter, releaseDetachBuffer } from './patch'
 import { highlightDiffFile, renderDiffFile } from './rows'
 import { anchorThreadsToFile } from './loadThreads'
@@ -122,6 +122,57 @@ export interface ManifestFile {
    * folded file with no reason has been asked to trust something nobody stated.
    */
   mechanical?: HunkKind
+  /**
+   * The hunks folded by default, and the rows each one hides.
+   *
+   * Present only on mixed files with something to fold, so the common file
+   * costs nothing. `rows` above is the *effective* count - what actually
+   * renders with these folds closed - so the client's geometry needs no
+   * arithmetic on arrival and unfolding *adds* the hunk's rows.
+   */
+  folds?: Array<{ hunk: number, rows: RowCounts }>
+}
+
+/**
+ * The default fold set for one file, threads considered.
+ *
+ * The one computation the file record, the inline rows, and the rows endpoint
+ * all share - the numbering the virtual scroller lives on is arithmetic over
+ * exactly this set, and three call sites with three opinions would make a
+ * file appear to scroll past itself. A hunk carrying a review thread never
+ * folds, because a hidden conversation is a conversation lost.
+ */
+export function defaultFoldsFor(
+  file: DiffFile,
+  threads?: readonly StoredThread[],
+): { folded: Set<number>, folds: Array<{ hunk: number, rows: RowCounts }> } {
+  if (file.binary || file.hunks.length === 0)
+    return { folded: new Set(), folds: [] }
+
+  const classification = classifyFile(file)
+
+  const threadBearing = new Set<number>()
+  for (const thread of threads ?? []) {
+    if (thread.path !== file.path)
+      continue
+
+    file.hunks.forEach((hunk, index) => {
+      const inNew = thread.side === 'right'
+        && thread.line >= hunk.newStart && thread.line < hunk.newStart + hunk.newLines
+      const inOld = thread.side === 'left'
+        && thread.line >= hunk.oldStart && thread.line < hunk.oldStart + hunk.oldLines
+
+      if (inNew || inOld)
+        threadBearing.add(index)
+    })
+  }
+
+  const folded = foldedHunkIndexes(classification, threadBearing)
+
+  return {
+    folded,
+    folds: [...folded].sort((a, b) => a - b).map(hunk => ({ hunk, rows: hunkBodyRows(file.hunks[hunk]!) })),
+  }
 }
 
 export interface ManifestRows {
@@ -205,12 +256,18 @@ export function startsCollapsed(file: {
 }
 
 /** One file's record. Pure, so the collapse policy is testable on its own. */
-export function manifestFile(file: DiffFile, index: number): ManifestFile {
+export function manifestFile(
+  file: DiffFile,
+  index: number,
+  foldInfo?: ReturnType<typeof defaultFoldsFor>,
+): ManifestFile {
   // A file with a single mechanical reason folds on arrival and says why. A
   // file that is *partly* mechanical does not: the honest summary of it is the
   // diff, and folding it would be a claim nobody can check without opening it.
   const classification = file.hunks.length > 0 ? classifyFile(file) : null
   const mechanical = classification?.reason ?? undefined
+
+  const folds = foldInfo ?? defaultFoldsFor(file)
 
   return {
     t: 'file',
@@ -222,9 +279,12 @@ export function manifestFile(file: DiffFile, index: number): ManifestFile {
     additions: file.additions,
     deletions: file.deletions,
     hunks: file.hunks.length,
-    rows: countRows(file),
+    // The effective count: what renders with the default folds closed, so the
+    // client's geometry needs no arithmetic on arrival.
+    rows: countRows(file, folds.folded),
     collapsed: startsCollapsed(file) || mechanical !== undefined,
     ...(mechanical ? { mechanical } : {}),
+    ...(folds.folds.length > 0 ? { folds: folds.folds } : {}),
   }
 }
 
@@ -292,6 +352,14 @@ export interface ManifestOptions {
      */
     range?: { from: number, to: number }
     /**
+     * Default-folded hunks the reader has opened, for a single named file.
+     *
+     * The rows endpoint's half of unfolding: the render applies the default
+     * fold set minus these, so the markup and the counts the client added
+     * back stay the same arithmetic.
+     */
+    openHunks?: ReadonlySet<number>
+    /**
      * Review threads to place under the lines they were written about.
      *
      * As stored: each is anchored against its own file as that file goes past,
@@ -353,7 +421,7 @@ export async function* streamManifest(
    * highlighted past the truncation point and thrown away, which is bounded by
    * the look-ahead and is a much better trade than a fuzzy boundary.
    */
-  const inFlight: Array<{ at: number, file: DiffFile, tokens: Promise<DiffTokenMap> }> = []
+  const inFlight: Array<{ at: number, file: DiffFile, folded: Set<number>, tokens: Promise<DiffTokenMap> }> = []
 
   /** Turn one file whose tokens are ready into its rows record. */
   const rowsFor = async function* (entry: typeof inFlight[number]): AsyncGenerator<ManifestRecord> {
@@ -365,11 +433,19 @@ export async function* streamManifest(
     if (truncatedAt !== null || !rowOptions)
       return
 
+    // The same fold set the file record was counted with, minus whatever the
+    // caller opened. One computation, three consumers - the drift between
+    // them would be whole hunks of numbering.
+    const foldedHunks = new Set(entry.folded)
+    for (const opened of rowOptions.openHunks ?? [])
+      foldedHunks.delete(opened)
+
     const html = renderDiffFile(entry.file, {
       layout: rowOptions.layout,
       expandable: true,
       commentable: true,
       range: rowOptions.range,
+      foldedHunks,
       // Always the open form. Whether a file is *shown* folded is the client's
       // decision and it can change at any moment, so markup rendered folded
       // would have to be thrown away the instant the reader clicked. A file
@@ -414,7 +490,8 @@ export async function* streamManifest(
     additions += file.additions
     deletions += file.deletions
 
-    const record = manifestFile(file, at)
+    const foldInfo = defaultFoldsFor(file, rowOptions?.threads)
+    const record = manifestFile(file, at, foldInfo)
     yield record
 
     if (!rowOptions || truncatedAt !== null)
@@ -432,7 +509,7 @@ export async function* streamManifest(
     // Started, not awaited. This is the whole change: the next file's record is
     // parsed and sent while this one is still being tokenized, and several
     // files are tokenized at once.
-    inFlight.push({ at, file, tokens: highlightDiffFile(file, { highlight: rowOptions.highlight }) })
+    inFlight.push({ at, file, folded: foldInfo.folded, tokens: highlightDiffFile(file, { highlight: rowOptions.highlight }) })
 
     yield* drain(false)
   }

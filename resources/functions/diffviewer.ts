@@ -84,6 +84,7 @@ function toFileEntry(record: Record<string, unknown>): DiffFileEntry {
     rows: record.rows as DiffFileEntry['rows'],
     collapsed: Boolean(record.collapsed),
     ...(typeof record.mechanical === 'string' ? { mechanical: record.mechanical } : {}),
+    ...(Array.isArray(record.folds) ? { folds: record.folds as DiffFileEntry['folds'] } : {}),
   }
 }
 
@@ -490,6 +491,11 @@ export interface DiffFileEntry {
    * a request to trust something nobody said out loud.
    */
   mechanical?: string
+  /**
+   * The hunks folded by default, and the rows each hides. The manifest's
+   * `rows` above is the effective (folded) count; unfolding adds these back.
+   */
+  folds?: Array<{ hunk: number, rows: RowCounts }>
 }
 
 export interface DiffViewerOptions {
@@ -540,6 +546,12 @@ export interface DiffViewer {
   addFiles: (files: readonly DiffFileEntry[]) => void
   setLayout: (layout: 'unified' | 'split') => void
   setCollapsed: (index: number, collapsed: boolean) => void
+  /**
+   * Replace a file's row counts, because a fold opened and the file is
+   * genuinely taller now. The same invalidation dance as setCollapsed: what
+   * was measured was the other state.
+   */
+  setRows: (index: number, rows: RowCounts) => void
   /**
    * Render a mounted file again.
    *
@@ -996,6 +1008,23 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       schedule()
     },
 
+    setRows(index, rows) {
+      const entry = entries[index]
+      if (!entry)
+        return
+
+      anchorNow()
+      entry.rows = rows
+      geometry[index]!.rows = rows
+      // What it measured was the shorter file.
+      geometry[index]!.measured = undefined
+
+      if (hosts.has(index))
+        release(index)
+
+      schedule()
+    },
+
     collapseAll(collapsed) {
       anchorNow()
 
@@ -1404,6 +1433,52 @@ export function mountDiffFiles(): DiffViewer | null {
   // viewer ask again on every frame the file stays on screen.
   const wanted = new Set<number>()
   const asked = new Set<number>()
+
+  /**
+   * Default-folded hunks the reader has opened, per file. Joined into every
+   * rows request for the file, so the server renders and this side counts
+   * over the same fold set - the drift between them would be whole hunks of
+   * numbering.
+   */
+  const openFolds = new Map<number, Set<number>>()
+
+  /** The `open` query value for one file, or null when nothing is open. */
+  function openParam(index: number): string | null {
+    const opened = openFolds.get(index)
+    return opened && opened.size > 0 ? [...opened].sort((a, b) => a - b).join(',') : null
+  }
+
+  /**
+   * Open one default-folded hunk: the file is genuinely taller now, its
+   * cached markup describes the shorter file, and the next fetch has to say
+   * which hunks the reader opened.
+   */
+  function openFold(index: number, hunk: number): void {
+    const file = viewer.files()[index]
+    const fold = file?.folds?.find(entry => entry.hunk === hunk)
+    if (!file || !fold)
+      return
+
+    const opened = openFolds.get(index) ?? new Set<number>()
+    if (opened.has(hunk))
+      return
+
+    opened.add(hunk)
+    openFolds.set(index, opened)
+
+    viewer.setRows(index, {
+      unified: file.rows.unified + fold.rows.unified,
+      split: file.rows.split + fold.rows.split,
+    })
+
+    // The markup in hand is the folded file; the windows and measurements
+    // are its geometry. All of it describes a file that no longer exists.
+    markup.delete(index)
+    windows.delete(index)
+    asked.delete(index)
+    wanted.add(index)
+    scheduleRowFetch()
+  }
   let fetchTimer: number | null = null
   /**
    * The lines the reader has selected, which is also what the URL says.
@@ -1595,6 +1670,12 @@ export function mountDiffFiles(): DiffViewer | null {
         to: String(wanted.to),
       })
 
+      // The reader's opened folds ride along, so the window's numbering is
+      // over the same rows this side is counting.
+      const opened = openParam(index)
+      if (opened != null)
+        query.set('open', opened)
+
       const response = await fetch(`${rowsUrl}&${query}`, { headers: { Accept: 'application/x-ndjson' } })
       if (!response.ok)
         throw new Error(await response.text())
@@ -1619,6 +1700,35 @@ export function mountDiffFiles(): DiffViewer | null {
       const state = windows.get(index)
       if (state != null)
         windows.set(index, { ...state, pending: null })
+    }
+  }
+
+  /** Fetch one file whole, with its opened folds named. */
+  async function fetchOpenedFile(index: number, path: string): Promise<void> {
+    if (rowsUrl == null)
+      return
+
+    try {
+      const requested = layout
+      const query = new URLSearchParams({ path, layout: requested })
+
+      const opened = openParam(index)
+      if (opened != null)
+        query.set('open', opened)
+
+      const response = await fetch(`${rowsUrl}&${query}`, { headers: { Accept: 'application/x-ndjson' } })
+      if (!response.ok)
+        throw new Error(await response.text())
+
+      for await (const record of readNdjson<Record<string, unknown>>(response)) {
+        if (record.t === 'rows' && requested === layout) {
+          markup.set(index, { html: String(record.html), layout: requested })
+          viewer.refresh(index)
+        }
+      }
+    }
+    catch {
+      asked.delete(index)
     }
   }
 
@@ -1660,6 +1770,15 @@ export function mountDiffFiles(): DiffViewer | null {
       const file = files[index]
       if (!file)
         continue
+
+      // A file with opened folds needs its own request: `open` names hunks
+      // within one file, and a batch would apply one file's openings to all.
+      if (openParam(index) != null) {
+        asked.add(index)
+        void fetchOpenedFile(index, file.path)
+        continue
+      }
+
       asked.add(index)
       query.append('path', file.path)
     }
@@ -1736,6 +1855,13 @@ export function mountDiffFiles(): DiffViewer | null {
     if (expand) {
       event.preventDefault()
       void expandGap(Number(index), expand)
+      return
+    }
+
+    const unfold = target?.closest<HTMLElement>('.hunk-unfold')
+    if (unfold) {
+      event.preventDefault()
+      openFold(Number(index), Number(unfold.dataset.hunk))
       return
     }
 

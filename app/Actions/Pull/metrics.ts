@@ -14,7 +14,7 @@
  * Pure over parsed metadata, so the awkward shapes are testable without a DOM.
  */
 
-import type { DiffFile } from './diff'
+import type { DiffFile, DiffHunk } from './diff'
 
 export interface RowCounts {
   /**
@@ -45,7 +45,7 @@ const NOTE_ROWS = 1
  * time and asking the server again for the other number would be a round trip
  * to learn something already in hand.
  */
-export function countRows(file: DiffFile): RowCounts {
+export function countRows(file: DiffFile, folded?: ReadonlySet<number>): RowCounts {
   // A binary file, a pure mode change, and a rename with no content change all
   // render as a single explanatory row in either layout.
   if (file.binary || file.hunks.length === 0)
@@ -54,39 +54,61 @@ export function countRows(file: DiffFile): RowCounts {
   let unified = 0
   let split = 0
 
-  for (const hunk of file.hunks) {
+  for (const [index, hunk] of file.hunks.entries()) {
     unified += 1
     split += 1
 
-    // Removals and additions pair up across the two columns, so a change block
-    // is as tall as its taller side. Counted over a maximal run of non-context
-    // lines, which is what git emits and what the renderer pairs.
-    let removed = 0
-    let added = 0
+    // A folded hunk is its separator and nothing else: the hidden rows do
+    // not exist in the numbering, which is what keeps the virtual scroller's
+    // arithmetic honest when a manifest says a hunk is folded.
+    if (folded?.has(index))
+      continue
 
-    const flush = () => {
-      split += Math.max(removed, added)
-      removed = 0
-      added = 0
-    }
-
-    for (const line of hunk.lines) {
-      unified += 1
-
-      if (line.origin === 'context') {
-        flush()
-        split += 1
-      }
-      else if (line.origin === 'removed') {
-        removed += 1
-      }
-      else {
-        added += 1
-      }
-    }
-
-    flush()
+    const body = hunkBodyRows(hunk)
+    unified += body.unified
+    split += body.split
   }
+
+  return { unified, split }
+}
+
+/**
+ * The rows a hunk's body contributes, in both layouts - the rows a fold
+ * hides. Kept beside `countRows` and used by it, so the subtraction the
+ * client does can never disagree with the total the server counted.
+ */
+export function hunkBodyRows(hunk: DiffHunk): RowCounts {
+  let unified = 0
+  let split = 0
+
+  // Removals and additions pair up across the two columns, so a change block
+  // is as tall as its taller side. Counted over a maximal run of non-context
+  // lines, which is what git emits and what the renderer pairs.
+  let removed = 0
+  let added = 0
+
+  const flush = () => {
+    split += Math.max(removed, added)
+    removed = 0
+    added = 0
+  }
+
+  for (const line of hunk.lines) {
+    unified += 1
+
+    if (line.origin === 'context') {
+      flush()
+      split += 1
+    }
+    else if (line.origin === 'removed') {
+      removed += 1
+    }
+    else {
+      added += 1
+    }
+  }
+
+  flush()
 
   return { unified, split }
 }

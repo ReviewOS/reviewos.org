@@ -1079,6 +1079,39 @@
       .hunk-head td { background: var(--surface-tint); border-top: 1px solid var(--line); }
       .hunk-label { padding: 4px 12px; color: var(--muted); font-size: 12px; }
 
+      /* A mechanical hunk, folded. The summary is the whole hunk until it is
+         opened, so it carries the label and the count out loud - a reviewer
+         silently shown less has been lied to about what they approved. */
+      .hunk-fold { border-top: 1px solid var(--line); }
+
+      .hunk-fold-summary {
+        padding: 4px 12px;
+        color: var(--muted);
+        font-size: 12px;
+        background: var(--surface-tint);
+        cursor: pointer;
+        list-style: none;
+      }
+
+      .hunk-fold-summary::-webkit-details-marker { display: none; }
+      .hunk-fold-summary::before { content: '\25B8  '; }
+      .hunk-fold[open] > .hunk-fold-summary::before { content: '\25BE  '; }
+
+      /* The streamed screen's unfold affordance, on the separator row. */
+      .hunk-unfold {
+        margin-left: 8px;
+        padding: 0 6px;
+        font: inherit;
+        font-size: 11.5px;
+        color: var(--muted);
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        cursor: pointer;
+      }
+
+      .hunk-unfold:hover { color: var(--text); }
+
       .thread-cell { padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--line); }
 
       /* A conflicted file. Two versions of the same lines, and the reader is

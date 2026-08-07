@@ -393,11 +393,24 @@ this is where the claim is either true or marketing.
   a hunk. Only there: a file already badged "formatting only" would repeat itself on every separator
   inside it, and noise is how a reader learns to stop reading badges.
 
-- [ ] *Fold* the mechanical hunks, rather than only labelling them. Folding changes how many rows a
+- [x] *Fold* the mechanical hunks, rather than only labelling them. Folding changes how many rows a
       file renders as, and that number is the same in three places by design - what `countRows`
       counts, what `renderDiffRows` emits, and what the client asks for by index. A fold is a change
       to all three at once plus a re-measure when the reader opens one, which is why the label
       shipped first.
+
+  Both screens, two mechanisms, one arithmetic. The policy is `foldedHunkIndexes`: mechanical
+  hunks of mixed files only - single-reason files fold whole and already did - and a hunk carrying
+  a review thread never folds, because a hidden conversation is a conversation lost. On the
+  no-script page each folded hunk is a closed `<details>` whose summary says the reason and the
+  count (never inside a table, where browsers silently foster-parent it out - so folded files
+  render as per-hunk segments). On the streamed screen the fold is numeric: the manifest's `rows`
+  are the *effective* counts, `folds` carries what each hidden hunk would add back, and unfolding
+  adds rows, drops the file's cached markup and windows, and refetches with the opened hunks named
+  - the rows endpoint applies the same default set minus `open`, threads included, so the counts
+  and the markup are one computation (`defaultFoldsFor`) in every consumer.
+  `tests/unit/hunk-folds.test.ts` holds the three-way agreement, the thread exclusion, and that a
+  file with nothing to fold renders exactly as before.
 - [ ] A block that moved between two *files* reads as a delete and an add. Detecting that needs the
       whole diff in view rather than one file, which the streaming manifest deliberately does not
       have.

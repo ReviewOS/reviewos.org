@@ -35,6 +35,22 @@ export const MAX_ROW_PATHS = 40
  */
 export const MAX_ROW_WINDOW = 5_000
 
+/** The default-folded hunks a request wants open, or null when none named. */
+function readOpenHunks(request: any): Set<number> | null {
+  const raw = request.get('open')
+  if (raw === undefined || raw === null || String(raw) === '')
+    return null
+
+  const opened = new Set<number>()
+  for (const part of String(raw).split(',')) {
+    const index = Number(part)
+    if (Number.isInteger(index) && index >= 0)
+      opened.add(index)
+  }
+
+  return opened.size > 0 ? opened : null
+}
+
 /** The row window a request asks for, or null for the whole file. */
 function readRange(request: any): { from: number, to: number } | null {
   const raw = request.get('from')
@@ -73,7 +89,7 @@ export default new Action({
 
     const pullRequest = await db
       .selectFrom('pull_requests')
-      .select(['base_sha', 'head_sha'])
+      .select(['id', 'base_sha', 'head_sha'])
       .where('repository_id', '=', repository.id)
       .where('number', '=', number)
       .executeTakeFirst()
@@ -94,6 +110,26 @@ export default new Action({
     const range = readRange(request)
     if (range != null && paths.length !== 1)
       return response.json({ error: 'A row range needs exactly one path' }, 422)
+
+    // Default-folded hunks the reader has opened. One path only, like a
+    // range: an open set is a set within *a* file.
+    const openHunks = readOpenHunks(request)
+    if (openHunks != null && paths.length !== 1)
+      return response.json({ error: 'Opened hunks need exactly one path' }, 422)
+
+    // The same threads the manifest renders with, for the same reason the
+    // manifest loads them: the fold policy never folds a conversation, and
+    // this endpoint re-rendering with a different fold set than the manifest
+    // counted would shift the numbering by whole hunks.
+    const { loadReviewThreads } = await import('./loadThreads')
+    const { renderMarkdownHighlighted } = await import('../Markdown/render')
+    const threads = await loadReviewThreads({
+      pullRequestId: Number(pullRequest?.id ?? 0),
+      renderBody: (body: string) => renderMarkdownHighlighted(body, { owner, repository: repository.name }),
+      // Carried onto the head the same way the manifest carries them, so the
+      // two endpoints hold one opinion about where every thread sits.
+      trackTo: { diskPath: path, headSha: String(pullRequest?.head_sha ?? '') },
+    })
     const diff = streamMergeBaseDiff(path, String(pullRequest.base_sha), String(pullRequest.head_sha), { paths })
     if (!diff)
       return response.json({ error: 'This pull request has no usable revisions' }, 422)
@@ -108,7 +144,14 @@ export default new Action({
     const highlight = String(request.get('highlight') ?? '') !== 'off'
 
     const records = manifestToNdjson(streamManifest(diff, {
-      rows: { layout, budgetBytes: Number.POSITIVE_INFINITY, range: range ?? undefined, highlight },
+      rows: {
+        layout,
+        budgetBytes: Number.POSITIVE_INFINITY,
+        range: range ?? undefined,
+        highlight,
+        threads,
+        openHunks: openHunks ?? undefined,
+      },
     }))
 
     const body = new ReadableStream<Uint8Array>({

@@ -202,6 +202,10 @@ if (tab === 'files' && !commitMode) {
       // panel and touches nothing in the diff. A single file is never folded:
       // the reader asked for this one by name.
       collapsed: fileMode ? false : (startsCollapsed(file) ? 'fold' : false),
+      // Mechanical hunks of mixed files fold as closed details, each saying
+      // what it hides. The renderer only applies it where the classifier is
+      // confident; everything else renders exactly as before.
+      hunkFolds: 'details',
       threadsAt: threadSlotFor(fileThreads, file.path),
     })
   }

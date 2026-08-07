@@ -330,6 +330,42 @@ export interface FileClassification {
  * reading, and `allMechanical` is true with no reason attached beyond the
  * status the header already shows.
  */
+/**
+ * Which hunks fold by default.
+ *
+ * Mixed files only - `reason === null` - because a file that is mechanical
+ * for one reason folds whole, at the file level, and already does. Inside a
+ * mixed file, every hunk the classifier is confident about folds; anything
+ * `logic` stays open, and a hunk carrying a review thread stays open whatever
+ * it is, because a conversation is never mechanical.
+ *
+ * One function, shared by the manifest, the renderer, and the rows endpoint,
+ * so three callers cannot hold three opinions about what is folded - the
+ * numbering the virtual scroller lives on is arithmetic over exactly this
+ * set.
+ */
+export function foldedHunkIndexes(
+  classification: FileClassification,
+  threadBearingHunks?: ReadonlySet<number>,
+): Set<number> {
+  const folded = new Set<number>()
+
+  if (classification.reason !== null)
+    return folded
+
+  classification.hunks.forEach((hunk, index) => {
+    if (hunk.kind === 'logic')
+      return
+
+    if (threadBearingHunks?.has(index))
+      return
+
+    folded.add(index)
+  })
+
+  return folded
+}
+
 export function classifyFile(file: DiffFile): FileClassification {
   const moved = movedRuns(file).removed
   const hunks = file.hunks.map(hunk => classifyHunk(hunk, moved))

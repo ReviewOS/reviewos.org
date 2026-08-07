@@ -21,7 +21,8 @@ import { gapsIn, oldOffsetAt } from './expand'
 import { inlineChangedRanges, worthComparing } from './inline'
 import { formatLineAnchor } from './lineLink'
 import type { HunkKind } from './classify'
-import { classifyFile } from './classify'
+import { classifyFile, foldedHunkIndexes } from './classify'
+import { hunkBodyRows } from './metrics'
 import { escapeHtml, mechanicalLabel, renderDiffHeadContents, renderDiffHeader, renderDiffShell } from './shell'
 
 export interface DiffToken {
@@ -167,6 +168,20 @@ export interface RenderRowsOptions {
    * a badge of its own already does.
    */
   hunkKinds?: HunkKind[]
+  /**
+   * Hunks rendered as their separator and nothing else.
+   *
+   * The numeric fold, for the streamed screen: a folded hunk's lines never
+   * advance the row numbering, so the count the client subtracts and the rows
+   * this emits are the same arithmetic. The separator says how many lines it
+   * hides and carries the unfold affordance.
+   */
+  foldedHunks?: ReadonlySet<number>
+  /**
+   * Fold mechanical hunks as closed `<details>`, for the page with no
+   * script. `renderDiffFile` sets it for mixed files; nothing else should.
+   */
+  hunkFolds?: 'details'
 }
 
 /** The tokens for one line, falling back to its raw content. */
@@ -340,6 +355,7 @@ function hunkHeadRow(
   layout: 'unified' | 'split',
   gap?: { from: number, to: number, size: number },
   kind?: HunkKind,
+  folded?: { hunk: number, hidden: number },
 ): string {
   const range = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`
   const heading = hunk.heading ? ` <span class="muted">${escapeHtml(hunk.heading)}</span>` : ''
@@ -349,17 +365,20 @@ function hunkHeadRow(
   // badge of its own - the honest summary of it is the diff - so this is the
   // only place the reviewer can be told which half is which.
   //
-  // A label rather than a fold. Folding a hunk would change how many rows the
-  // file renders as, and that number is the same in three places by design:
-  // what `countRows` counts, what this emits, and what the client asks for. A
-  // fold is the next step and it is a change to all three at once.
+  // When the hunk is folded, the separator is also the whole hunk, and it has
+  // to say so out loud: a reviewer silently shown less has been lied to about
+  // the size of what they approved, so the count and the way in ride the row.
   const mechanical = kind && kind !== 'logic'
     ? ` <span class="hunk-mechanical">${escapeHtml(mechanicalLabel(kind))}</span>`
     : ''
 
+  const foldNote = folded
+    ? ` <button type="button" class="hunk-unfold" data-hunk="${folded.hunk}">${folded.hidden} hidden ${folded.hidden === 1 ? 'line' : 'lines'}</button>`
+    : ''
+
   const label = `<td class="hunk-label mono" colspan="${layout === 'split' ? 4 : 1}">`
     + expandControl(gap, oldOffsetAt(hunk))
-    + `${escapeHtml(range)}${heading}${mechanical}</td>`
+    + `${escapeHtml(range)}${heading}${mechanical}${foldNote}</td>`
 
   // In split the header spans the whole width. Sat in the last column, as it
   // did, it reads as a heading for the right-hand side rather than for the hunk
@@ -434,8 +453,22 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
   const gaps = options.expandable ? gapsByHunk(file) : undefined
 
   for (const [index, hunk] of file.hunks.entries()) {
-    if (rows.next())
-      rows.push(hunkHeadRow(hunk, 'unified', gaps?.get(index), options.hunkKinds?.[index]))
+    const folded = options.foldedHunks?.has(index)
+
+    if (rows.next()) {
+      rows.push(hunkHeadRow(
+        hunk,
+        'unified',
+        gaps?.get(index),
+        options.hunkKinds?.[index],
+        folded ? { hunk: index, hidden: hunkBodyRows(hunk).unified } : undefined,
+      ))
+    }
+
+    // A folded hunk is its separator and nothing else, and its lines never
+    // advance the numbering - the same arithmetic countRows does.
+    if (folded)
+      continue
 
     for (const line of hunk.lines) {
       if (!rows.next())
@@ -488,8 +521,21 @@ function renderSplit(file: DiffFile, options: RenderRowsOptions): string {
   const gaps = options.expandable ? gapsByHunk(file) : undefined
 
   for (const [index, hunk] of file.hunks.entries()) {
-    if (rows.next())
-      rows.push(hunkHeadRow(hunk, 'split', gaps?.get(index), options.hunkKinds?.[index]))
+    const folded = options.foldedHunks?.has(index)
+
+    if (rows.next()) {
+      rows.push(hunkHeadRow(
+        hunk,
+        'split',
+        gaps?.get(index),
+        options.hunkKinds?.[index],
+        folded ? { hunk: index, hidden: hunkBodyRows(hunk).split } : undefined,
+      ))
+    }
+
+    // The separator is the whole hunk; see renderUnified.
+    if (folded)
+      continue
 
     let removed: DiffLine[] = []
     let added: DiffLine[] = []
@@ -651,20 +697,90 @@ export function renderDiffFile(file: DiffFile, options: RenderRowsOptions = {}):
     return renderDiffShell(headed, { collapsed: true })
 
   const columns = options.layout === 'split' ? 4 : 3
-  const body = renderDiffRows(file, {
-    ...options,
-    // Only where the file has no single reason of its own. A file already
-    // badged "formatting only" would repeat itself on every separator inside
-    // it, which is noise rather than information.
-    hunkKinds: classification && classification.reason === null
-      ? classification.hunks.map(one => one.kind)
-      : undefined,
-  })
-  const contents = body === ''
-    ? renderDiffNote(file)
-    : `<table class="diff-table" data-columns="${columns}">`
+  const hunkKinds = classification && classification.reason === null
+    ? classification.hunks.map(one => one.kind)
+    : undefined
+
+  /*
+   * The no-script fold: mechanical hunks of a mixed file, each a closed
+   * `<details>` with the separator as its summary. A `<details>` is invalid
+   * inside a table - browsers foster-parent it out and the table breaks
+   * silently - so a file with folds renders as segments: consecutive open
+   * hunks share a table, each folded hunk gets its own inside the details.
+   * Files with nothing to fold keep the single-table markup exactly.
+   *
+   * Nothing is ever removed: the rows are in the page, closed, and the
+   * summary says what it hides - a reviewer silently shown less has been
+   * lied to about the size of what they approved.
+   */
+  const detailFolds = options.hunkFolds === 'details' && classification
+    ? foldedHunkIndexes(classification)
+    : new Set<number>()
+
+  let contents: string
+
+  if (detailFolds.size > 0) {
+    const table = (rows: string): string =>
+      `<table class="diff-table" data-columns="${columns}">`
       + `<caption class="visually-hidden">Changes to ${escapeHtml(file.path)}</caption>`
-      + `<tbody>${body}</tbody></table>`
+      + `<tbody>${rows}</tbody></table>`
+
+    // Per-hunk render. Context expansion is off in this shape: the gaps are
+    // computed per file and would be wrong per segment, and a control that
+    // fetches the wrong lines is worse than no control.
+    const hunkRows = (index: number): string => renderDiffRows(
+      { ...file, hunks: [file.hunks[index]!] },
+      { ...options, expandable: false, hunkKinds: hunkKinds ? [hunkKinds[index]!] : undefined },
+    )
+
+    const segments: string[] = []
+    let open: string[] = []
+
+    const flushOpen = (): void => {
+      if (open.length > 0) {
+        segments.push(table(open.join('')))
+        open = []
+      }
+    }
+
+    for (const index of file.hunks.keys()) {
+      if (!detailFolds.has(index)) {
+        open.push(hunkRows(index))
+        continue
+      }
+
+      flushOpen()
+
+      const kind = hunkKinds?.[index]
+      const hidden = hunkBodyRows(file.hunks[index]!)[options.layout === 'split' ? 'split' : 'unified']
+      const label = kind && kind !== 'logic' ? mechanicalLabel(kind) : 'mechanical'
+
+      segments.push(
+        `<details class="hunk-fold">`
+        + `<summary class="hunk-fold-summary mono">${escapeHtml(label)} · ${hidden} hidden ${hidden === 1 ? 'line' : 'lines'}</summary>`
+        + table(hunkRows(index))
+        + `</details>`,
+      )
+    }
+
+    flushOpen()
+    contents = segments.join('')
+  }
+  else {
+    const body = renderDiffRows(file, {
+      ...options,
+      // Only where the file has no single reason of its own. A file already
+      // badged "formatting only" would repeat itself on every separator inside
+      // it, which is noise rather than information.
+      hunkKinds,
+    })
+
+    contents = body === ''
+      ? renderDiffNote(file)
+      : `<table class="diff-table" data-columns="${columns}">`
+        + `<caption class="visually-hidden">Changes to ${escapeHtml(file.path)}</caption>`
+        + `<tbody>${body}</tbody></table>`
+  }
 
   // Folded, with everything in it. A `<details>` opens with no script at all,
   // which is the requirement: the page this is for runs none, and a fold that
