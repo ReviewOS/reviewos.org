@@ -80,12 +80,23 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
   every existing anchoring test used a context line or the left side. `placeThread` is the correct
   operation and `reanchor` is left alone, because it is right about what it does.
 
-- [ ] Track a thread through the diff from the head it was written against to the current head, so a
-      rebase that shifts a line carries the comment with it. `reanchor` is that operation and is
-      already correct; what is missing is handing it the right diff, which means one
-      `git diff <original_commit_sha>..<head_sha>` per distinct original sha, resolved once in
-      `loadReviewThreads` before the stream opens rather than per file. The end-to-end test above
-      asserts today's behaviour and names this as the gap.
+- [x] Track a thread through the diff from the head it was written against to the current head, so a
+      rebase that shifts a line carries the comment with it. `reanchor` was always the right
+      operation and had never been handed the diff its own doc comment asks for; `loadReviewThreads`
+      now resolves it.
+
+  **Two dots, not three.** Three would silently do nothing after a rebase: the merge base of the old
+  head and the new one moves with the rebase, so the intervening change vanishes from the answer and
+  every thread reports itself unmoved. That is the same one-character mistake as the base-to-head
+  diff, with the opposite sign, which is why `streamCommitRangeDiff` says so where it is defined.
+
+  Grouped by `original_commit_sha`, so a pull request with forty threads from three rounds of review
+  costs three `git diff` calls rather than forty, resolved once before the stream opens rather than
+  per file. Threads already on the current head cost none, which is most of them.
+
+  A sha that has been garbage collected after a force-push cannot be diffed, and that is not fatal:
+  the thread stays where it was stored. A review that vanishes because git could not answer a
+  question about it is worse than one that is a line out.
 
 ## Reviews
 

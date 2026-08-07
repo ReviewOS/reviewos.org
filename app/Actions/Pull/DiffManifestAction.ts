@@ -69,6 +69,11 @@ export default new Action({
     const threads = await loadReviewThreads({
       pullRequestId: Number(pullRequest.id),
       renderBody: body => renderMarkdownHighlighted(body, { owner, repository: repository.name }),
+      // Carried onto this head before the stream opens, so a thread written
+      // against a head that has since been rebased away lands on the line it
+      // is about rather than the number it used to have. One `git diff` per
+      // round of review, paid once here rather than per file.
+      trackTo: { diskPath: path, headSha: String(pullRequest.head_sha) },
     })
 
     // The benchmark harness's stubbed mode, and nothing else asks for it. Layout

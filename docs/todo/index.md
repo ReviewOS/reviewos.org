@@ -18,7 +18,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (22/57) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (120/121) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
-| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (68/92) |
+| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (69/92) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | In progress (21/51) |
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (1/20) |
 | [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress (21/45) |
@@ -103,6 +103,15 @@ one case that mattered, and the one every real review is made of, was the one no
 So: when a function takes "a diff" and there is more than one diff it could mean, the tests have to
 include the case where the two answers differ. A test suite made of the inputs where two
 implementations agree cannot tell you which one you have.
+
+There are now three diffs in play and each one answers a different question, which is worth naming
+because the wrong choice is silent every time:
+
+| | |
+|---|---|
+| `base...head` | what this branch is proposing. The diff on screen. |
+| `original_commit_sha..head` | what happened to the code since a thread was written. Two dots: a rebase moves the merge base, so three would report that nothing changed. |
+| each head against its own merge base, compared | what moved since a reviewer last looked. See "since I last looked" in [phase 4](./04-reviews.md). |
 
 ## Ask which one, not whether it worked
 

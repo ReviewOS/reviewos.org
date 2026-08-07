@@ -98,7 +98,11 @@ async function anchorNow(): Promise<{ line: number | null, outdated: boolean } |
   if (!file)
     return null
 
-  const threads = await loadReviewThreads({ pullRequestId: created.pullRequestId, renderBody: body => body })
+  const threads = await loadReviewThreads({
+    pullRequestId: created.pullRequestId,
+    renderBody: body => body,
+    trackTo: { diskPath: created.diskPath, headSha: String(row.head_sha) },
+  })
   const anchored = anchorThreadsToFile(threads, file)
 
   return anchored.length === 0
@@ -307,22 +311,18 @@ describe('a thread on a branch that moves', () => {
   })
 
   /**
-   * The case with teeth, and the one still open.
+   * The case with teeth.
    *
    * The base moves and inserts a line above the change, the branch is rebased
    * onto it, and every commit sha is different. The line the thread is about is
-   * now line 3. Anchoring against the base-to-head diff cannot know that: a
-   * right-side line is a position in the head, and telling that it *used to be*
-   * a different position needs the diff from the head the thread was written
-   * against to the current one, which is what `reanchor` is for and what
-   * nothing yet hands it.
+   * now line 3, and a comment left on line 2 would be a reviewer's words
+   * attached to code they never read.
    *
-   * So this asserts what is true today rather than what should be, and says so.
-   * The thread is intact, is not falsely outdated, and is one line above where
-   * it belongs. Left as a passing test with the gap written down rather than a
-   * failing one, because a red suite teaches people to ignore red.
+   * Getting this right needs the diff from the head the thread was written
+   * against to the current one - two dots, not three, because a rebase moves
+   * the merge base and three dots would report that nothing happened.
    */
-  test('a rebase leaves the thread where it was, which is the open gap', async () => {
+  test('a rebase that pushes the line down carries the thread with it', async () => {
     if (!available)
       return
 
@@ -345,8 +345,7 @@ describe('a thread on a branch that moves', () => {
 
     await refreshHead()
 
-    // Where it belongs is line 3. Where it is, is line 2.
-    expect(await anchorNow()).toEqual({ line: 2, outdated: false })
+    expect(await anchorNow()).toEqual({ line: 3, outdated: false })
   })
 
   /**

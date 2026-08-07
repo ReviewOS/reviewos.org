@@ -69,6 +69,31 @@ export function streamMergeBaseDiff(
   return streamDiffArgs(repositoryPath, [`${base}...${head}`], options)
 }
 
+/**
+ * What changed between two commits, both dots.
+ *
+ * The opposite choice to `streamMergeBaseDiff`, and for the opposite reason.
+ * Three dots answers "what is this branch proposing", which is what a reviewer
+ * reads. Two dots answers "what is different between these two commits", which
+ * is what you need to carry something *from* one *to* the other - a review
+ * thread written against an old head, tracked onto the current one.
+ *
+ * Using three dots for that would silently do nothing after a rebase, because
+ * the merge base of the old head and the new one moves with the rebase and the
+ * intervening change disappears from the answer.
+ */
+export function streamCommitRangeDiff(
+  repositoryPath: string,
+  from: string,
+  to: string,
+  options: DiffStreamOptions = {},
+): DiffStreamResult | null {
+  if (!isSafeRevision(from) || !isSafeRevision(to))
+    return null
+
+  return streamDiffArgs(repositoryPath, [from, to], options)
+}
+
 /** The diff a single commit introduced. */
 export function streamCommitDiff(
   repositoryPath: string,
