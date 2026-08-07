@@ -81,27 +81,24 @@ export async function performMerge(path: string, input: MergeInput): Promise<Mer
  * entirely on objects, with no index and no checkout. Anything else would mean
  * checking out a copy of the repository on every merge.
  *
- * It is asked to print the ref update rather than apply it, so the ref still
- * moves through the same guarded `update-ref` as the other strategies. Some git
- * versions apply the update themselves by default, which would skip that guard
- * and let a merge overwrite a push that arrived a moment earlier.
+ * `--advance` names the branch the commits are for, and replay only ever
+ * *prints* the ref update - it never applies one - so the ref still moves
+ * through the same guarded `update-ref` as the other strategies. The commits
+ * are built on the branch's current tip; when that tip is no longer the
+ * baseSha the rules were checked against, the guard below refuses, which is
+ * the same answer the other strategies give to a push that arrived mid-merge.
  */
 async function performRebase(
   path: string,
   input: MergeInput,
   env: Record<string, string>,
 ): Promise<MergeResult> {
-  const range = [
-    `--onto=${input.baseSha}`,
-    `--ref=refs/heads/${input.base}`,
+  const replayed = await runGit(path, [
+    'replay',
+    '--advance',
+    `refs/heads/${input.base}`,
     `${input.baseSha}..${input.headSha}`,
-  ]
-
-  let replayed = await runGit(path, ['replay', '--ref-action=print', ...range], { env })
-
-  // Older git has no --ref-action because printing was all it ever did.
-  if (!replayed.ok && /unknown option|unrecognized/i.test(replayed.stderr))
-    replayed = await runGit(path, ['replay', ...range], { env })
+  ], { env })
 
   if (!replayed.ok)
     return { ok: false, error: replayed.stderr.trim() || 'the branch could not be replayed onto the base' }
