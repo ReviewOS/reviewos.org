@@ -341,8 +341,14 @@ this is where the claim is either true or marketing.
   covers the rule most likely to be got wrong - the reviewer row is *kept* when a review lands, so a
   read that forgets `responded_at IS NULL` shows a queue that never empties.
 
-- [ ] A count on the navigation item, so the answer is visible without opening the page. Needs a
-      cheap count query rather than the full queue, and a decision about how stale it may be.
+- [ ] A count on the navigation item, so the answer is visible without opening the page.
+
+  The query is cheap - one indexed `COUNT` - and the decision it needs is not about staleness, it is
+  about where it runs. The badge belongs in `layouts/app.stx`, which has no `<script server>` and is
+  used by every page in the product; an stx server script that throws renders its page with every
+  variable undefined and says nothing, so putting the first one into the shared layout means one
+  mistake blanks the whole application rather than one screen. Worth doing, worth doing deliberately,
+  and worth a guard that cannot throw.
 - [x] Suggested reviewers from who actually changed these lines, weighted by recency, not only from
       `CODEOWNERS`. Include current review load, so the suggestion does not always name the same
       person.
@@ -367,6 +373,15 @@ this is where the claim is either true or marketing.
 
   History is read on the **base**. The head's recent commits are the ones being reviewed, and
   counting them would suggest the author of the change as the reviewer of it.
+
+- [ ] Show the suggestions somewhere. The endpoint exists and nothing calls it, which is a feature
+      with no interface. It is an endpoint rather than something the conversation page computes
+      inline on purpose: it costs a `git log` over the changed paths, and paying that on every render
+      of every pull request page to fill a panel most readers will not use is the wrong default.
+      Fetched when the reviewer list is opened is the shape it wants.
+
+- [ ] A settings screen for the merge strategies. The columns exist and `MergePullRequestAction`
+      honours them, so a repository can be configured through the API and not through the interface.
 - [ ] Reviewer load and staleness visible to maintainers: which requests have gone unanswered, and
       by whom, as information rather than as a leaderboard
 - [ ] **Coverage in the diff.** If CI uploads a coverage report, mark changed lines that no test
