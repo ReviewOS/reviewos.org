@@ -1,0 +1,56 @@
+<script server>
+/**
+ * A list of things that happened, as sentences.
+ *
+ * Takes rows already shaped by `app/Actions/Feed/read.ts` rather than querying:
+ * a profile page and a dashboard show the same rows and differ only in which
+ * ones, and a component that fetched its own would have to know which page it
+ * is on.
+ *
+ * **Bound with `:rows`, not `rows="{{ }}"`.** The interpolation form is string
+ * interpolation into an attribute, so an array arrives comma-joined and
+ * `@foreach` reports "is not iterable" into an HTML comment nobody reads. The
+ * binding form passes the value.
+ *
+ * Every line is a full sentence with the link on the target rather than on the
+ * whole row. A row-wide link makes the actor's handle unclickable, and going to
+ * somebody's profile from a feed entry is the second most common thing anybody
+ * does here.
+ */
+const rows = props.rows ?? []
+
+// Whether to name the actor. A profile page has already said whose feed this
+// is, and repeating the handle twenty times is noise; a dashboard mixes people
+// and would be unreadable without it.
+const showActor = props.showActor !== false
+const empty = props.empty ?? 'Nothing yet.'
+</script>
+
+@if (rows.length === 0)
+  <p class="feed-empty muted">{{ empty }}</p>
+@else
+  <ul class="feed">
+    @foreach (rows as row)
+      <li class="feed-row">
+        @if (showActor)
+          <a class="feed-actor" href="/{{ row.actorHandle }}">{{ row.actorHandle }}</a>
+        @endif
+
+        <span class="feed-phrase">{{ row.phrase }}</span>
+        <a class="feed-target mono" href="{{ row.url }}">{{ row.target }}</a>
+
+        {{--
+          The title, when there is one, and dimmed. It is what tells somebody
+          whether to click, and it is also the part that can be three hundred
+          characters - so it truncates rather than wrapping the row to four
+          lines and breaking the scan.
+        --}}
+        @if (row.title)
+          <span class="feed-title muted">{{ row.title }}</span>
+        @endif
+
+        <span class="feed-when muted">{{ row.when }}</span>
+      </li>
+    @endforeach
+  </ul>
+@endif

@@ -70,7 +70,7 @@
     "@stacksjs/actions": "^0.70.308",
     "@stacksjs/database": "^0.70.308",
     "@stacksjs/queue": "^0.70.308",
-    "@stacksjs/stx": "^0.2.156",
+    "@stacksjs/stx": "0.2.157",
     "bun-query-builder": "^0.2.25",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.48",
@@ -94,8 +94,8 @@
     "better-dx": "^0.2.17"
   },
   "overrides": {
-    "@stacksjs/stx": "0.2.156",
-    "stx-router": "0.2.151",
-    "bun-plugin-stx": "0.2.156"
+    "@stacksjs/stx": "0.2.157",
+    "stx-router": "0.2.157",
+    "bun-plugin-stx": "0.2.157"
   }
 }

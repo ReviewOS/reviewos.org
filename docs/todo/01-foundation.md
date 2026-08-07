@@ -17,7 +17,23 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
 - [ ] `app/Actions/Auth/RegisterAction.ts`, `LoginAction.ts`, `LogoutAction.ts`, `MeAction.ts`
 - [ ] `app/Actions/Profile/UpdateProfileAction.ts`, `UpdateAvatarAction.ts`
 - [ ] Email verification, and password reset using the framework's token table
-- [ ] `resources/views/[owner]/index.stx` - profile: repositories, activity, contribution summary
+- [x] `resources/views/[owner]/index.stx` - profile: repositories, activity, contribution summary
+
+  **Fourteen links in this product already pointed here and there was no page.** Every commit
+  author, every issue author, every reviewer - all of them rendered `/{handle}` and all of them
+  404'd. That is the whole reason this came ahead of anything prettier.
+
+  One route for two kinds of owner, because a repository's URL does not distinguish them either:
+  `acme/api` is the same shape whoever owns it, and a product where you must know which before you
+  can link to somebody is one where people link to nothing.
+
+  The contribution summary is three counts, not a year of coloured squares. A grid rewards showing
+  up daily rather than doing anything, and on a self-hosted forge for one team it is mostly empty
+  boxes.
+
+  Private repositories and private activity show only to the owner. There is deliberately no middle
+  case where a collaborator sees a colleague's private activity: a profile whose contents depend on
+  a permission graph has a disclosure for its first bug.
 - [ ] `resources/views/settings/profile.stx`
 - [ ] Tests: handle uniqueness, reserved handles, registration, login, session expiry
 
@@ -187,10 +203,65 @@ The half of this nobody builds, and the half that decides whether an instance is
 
 ## Activity
 
-- [ ] `app/Models/ActivityEvent.ts`: `actor_id`, `verb`, polymorphic subject, `repository_id`,
+- [x] `app/Models/ActivityEvent.ts`: `actor_id`, `verb`, polymorphic subject, `repository_id`,
       `organization_id`, `is_public`, `created_at`
-- [ ] Written by listeners on domain events rather than inline at each call site
-- [ ] Composite index on `(actor_id, created_at)` and `(repository_id, created_at)`; the feed query
+
+  Distinct from a notification, and the difference is who it is for. A notification is addressed -
+  it exists because *you* should know. An event is a matter of record: it exists because it
+  happened, and who may read it is decided at query time. Conflating them is why forges end up with
+  feeds that read like somebody else's inbox.
+
+  **`is_public` is written, not derived.** Deriving it would mean a repository going private
+  retroactively erases its history from the people who were there, and a repository going *public*
+  retroactively exposes activity from when it was not. Only one of those is ever noticed.
+
+  `repository_id` and `organization_id` are denormalized beside the polymorphic subject, because
+  the feed asks "what happened in the repositories I watch" and answering through the subject would
+  need a union across every subject table on every page load.
+- [x] Written by listeners on domain events rather than inline at each call site
+
+  `RecordActivity`, the third listener on the same nine events beside `Notify` and
+  `DispatchWebhooks`. Separate for the reason those two are separate from each other: they answer
+  different questions and fail differently, and the record is the one that should survive the other
+  two being misconfigured.
+
+  `review:requested` is deliberately not among its events. Asking somebody for a review is a
+  message to that person, and a feed listing it reports who is behind on what to anybody who
+  scrolls.
+- [x] Composite index on `(actor_id, created_at)` and `(repository_id, created_at)`; the feed query
       is the one that will hurt first at scale
-- [ ] `app/Actions/Feed/DashboardFeedAction.ts` - what the people and repositories you watch did
-- [ ] `resources/components/ActivityFeed.stx`
+
+  Both end on `created_at`, which is the part that matters. An index on `actor_id` alone lets
+  Postgres find the rows and then sort them - on a prolific account, reading every event they ever
+  produced to return twenty. Ending on the ordered column turns that into a range scan that stops.
+
+  Both feeds are keyset paginated rather than offset paginated for the same reason: `OFFSET 2000`
+  reads and discards two thousand rows to return twenty, and a feed is the one page people actually
+  page through.
+- [x] `app/Actions/Feed/DashboardFeedAction.ts` - what the repositories you watch did
+
+  `all`, not every row in `watches`. `participating` means "tell me about threads I am in", which
+  the inbox already does, and `ignore` is an explicit no - treating either as watching fills a
+  dashboard with the repositories somebody deliberately turned down.
+
+  **A watch row outlives access.** Somebody watches a private repository as a collaborator, is
+  removed from it, and the row stays - nothing deletes it and nothing should, because access is
+  often restored. So the watched set is filtered through `permissionOn` before the feed query, once
+  per request rather than per row, and through the same resolver the git wire uses. A second
+  implementation of "may this person read this" is how a feed ends up more generous than the
+  repository page.
+
+  A reader watching nothing gets their own activity rather than an empty page. "Following people" is
+  deliberately not a thing here, and a feed built on a relationship the product does not have is a
+  feed that is always empty.
+- [x] `resources/components/ActivityFeed.stx`
+
+  The third rendering of the same nine events, and deliberately separate from the other two. A
+  notification says "chris requested your review" - second person, because it is addressed to you. A
+  webhook payload is a contract another program parses. A feed says "chris opened acme/api#12" -
+  third person, about somebody else. Merging them makes the notification's "your" a lie the moment
+  a bystander reads it.
+
+  A row naming a verb this version does not know renders as nothing rather than as an error. A feed
+  that refused to load because one row named a verb a later deploy removed is one a single revert
+  can take down.

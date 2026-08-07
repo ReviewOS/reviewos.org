@@ -6329,10 +6329,143 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "activity_events",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "actor_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "verb",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "subject_type",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "subject_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "organization_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "is_public",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "detail",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "activity_events_actor_index",
+            "columns": [
+              "actor_id",
+              "created_at"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "activity_events_repository_index",
+            "columns": [
+              "repository_id",
+              "created_at"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "activity_events_subject_index",
+            "columns": [
+              "subject_type",
+              "subject_id"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "1b72aa4d7d7d7a267a07e42e2f37794077b6ace643ed9b9289b813a62c9b9e4c",
+  "hash": "3ea4174c8f8e211989ff94baf67e4d918ba4bf3cb90ac6ee80b7bbd681a5bc27",
   "dialect": "postgres",
-  "updatedAt": "2026-08-07T22:45:34.776Z"
+  "updatedAt": "2026-08-07T23:04:40.667Z"
 }

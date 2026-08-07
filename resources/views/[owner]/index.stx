@@ -1,0 +1,247 @@
+<script server>
+/**
+ * Somebody's profile: who they are, what they own, and what they have done.
+ *
+ * **Fourteen links in this product already pointed here and there was no page.**
+ * Every commit author, every issue author, every reviewer on a pull request -
+ * all of them rendered `/{handle}` and all of them 404'd. That is the whole
+ * reason this exists ahead of anything prettier.
+ *
+ * One route for two kinds of owner. `/{handle}` is a user or an organization,
+ * because a repository's URL does not distinguish them either - `acme/api` is
+ * the same shape whoever owns it, and a product where you have to know which
+ * before you can link to somebody is one where people link to nothing.
+ *
+ * Rendered entirely on the server. A profile is a list of links.
+ */
+import { profileFeed, withHandles } from '../../../app/Actions/Feed/read'
+import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
+import { relativeTime } from '../../functions/browse'
+import { setStatus } from '../../functions/http'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+const handle = String(params.owner ?? '').toLowerCase()
+
+const account: any = handle
+  ? await db
+      .selectFrom('users')
+      .select(['id', 'handle', 'name', 'bio', 'avatar_url', 'location', 'website', 'created_at'])
+      .where('handle', '=', handle)
+      .executeTakeFirst()
+  : null
+
+const organization: any = account
+  ? null
+  : handle
+    ? await db
+        .selectFrom('organizations')
+        // `handle` is the URL segment; `name` is the display name and is
+        // nullable. Looking one up by `name` finds nothing for every
+        // organization that never set one.
+        .select(['id', 'handle', 'name', 'description', 'website', 'created_at'])
+        .where('handle', '=', handle)
+        .executeTakeFirst()
+    : null
+
+// A page that renders "no such account" under a 200 tells a crawler, a cache
+// and an uptime check that the page is fine. Only the render knows.
+if (!account && !organization)
+  setStatus(404)
+
+const isSelf = Boolean(viewer && account && Number(viewer.id) === Number(account.id))
+
+/*
+ * Their repositories, as this reader may see them.
+ *
+ * Public always; private only to the owner themselves. There is deliberately no
+ * middle case where a collaborator sees a private repository on somebody's
+ * profile: a profile whose contents depend on a permission graph is one whose
+ * first bug is a disclosure, and the repository is reachable from its own URL
+ * anyway.
+ */
+const ownerId = Number(account?.id ?? organization?.id ?? 0)
+const ownerType = account ? 'user' : 'organization'
+
+let repositories: any[] = []
+if (ownerId) {
+  let query = db
+    .selectFrom('repositories')
+    .select(['name', 'description', 'visibility', 'stars_count', 'updated_at'])
+    .where('owner_type', '=', ownerType)
+    .where('owner_id', '=', ownerId)
+
+  if (!isSelf)
+    query = query.where('visibility', '=', 'public')
+
+  repositories = await query.orderBy('updated_at', 'desc').limit(30).execute()
+}
+
+const now = new Date()
+
+const repoRows = repositories.map(row => ({
+  name: String(row.name),
+  href: `/${handle}/${row.name}`,
+  description: String(row.description ?? ''),
+  isPrivate: String(row.visibility) !== 'public',
+  stars: Number(row.stars_count ?? 0) || 0,
+  updated: row.updated_at ? relativeTime(new Date(String(row.updated_at)).toISOString(), now) : '',
+}))
+
+/*
+ * What they have done.
+ *
+ * Only a user has a feed. An organization does not act - its members do - and a
+ * feed on an organization page would be a list of other people's names under a
+ * heading that implies the organization did it.
+ */
+const feed = account
+  ? await withHandles(await profileFeed({
+      actorId: Number(account.id),
+      viewerId: viewer ? Number(viewer.id) : null,
+      limit: 15,
+    }))
+  : { entries: [], cursor: null }
+
+const feedRows = feed.entries.map(entry => ({
+  ...entry,
+  when: relativeTime(new Date(entry.at).toISOString(), now),
+}))
+
+/*
+ * The contribution summary: a count, not a grid of squares.
+ *
+ * A year of coloured squares is the thing people expect and it measures the
+ * wrong thing - it rewards showing up daily rather than doing anything, and on
+ * a self-hosted forge for one team it is a wall of empty boxes. Three counts
+ * that say what somebody actually did are more information in less space.
+ */
+const summary = account
+  ? await db
+      .selectFrom('activity_events')
+      .select(['verb'])
+      .where('actor_id', '=', Number(account.id))
+      .where(...(isSelf ? ['id', '>', 0] as const : ['is_public', '=', true] as const))
+      .limit(2000)
+      .execute()
+  : []
+
+const counts = {
+  pullRequests: summary.filter((row: any) => String(row.verb) === 'opened_pull_request').length,
+  reviews: summary.filter((row: any) => String(row.verb) === 'reviewed').length,
+  issues: summary.filter((row: any) => String(row.verb) === 'opened_issue').length,
+}
+
+const displayName = String(account?.name || organization?.name || handle)
+const bio = String(account?.bio ?? organization?.description ?? '')
+const joined = (account?.created_at ?? organization?.created_at)
+  ? new Date(String(account?.created_at ?? organization?.created_at)).toISOString().slice(0, 10)
+  : ''
+const website = String(account?.website ?? organization?.website ?? '')
+const location = String(account?.location ?? '')
+const isOrganization = Boolean(organization)
+const found = Boolean(account || organization)
+</script>
+
+@layout('app')
+
+@section('title', found ? `${displayName} (${handle})` : 'Not found')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!found)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">Not found</h1>
+        <p class="muted" style="margin-top: 6px;">There is no account called {{ handle }} here.</p>
+      </div>
+    @else
+      <div class="profile">
+        <aside class="profile-side">
+          <h1 class="profile-name">{{ displayName }}</h1>
+          <p class="mono muted profile-handle">{{ handle }}</p>
+
+          @if (bio)
+            <p class="profile-bio">{{ bio }}</p>
+          @endif
+
+          <ul class="profile-facts">
+            @if (isOrganization)
+              <li class="muted">An organization</li>
+            @endif
+            @if (location)
+              <li class="muted">{{ location }}</li>
+            @endif
+            @if (website)
+              <li><a href="{{ website }}" rel="nofollow noopener">{{ website }}</a></li>
+            @endif
+            @if (joined)
+              <li class="muted">Here since {{ joined }}</li>
+            @endif
+          </ul>
+
+          @if (!isOrganization)
+            {{--
+              Counts rather than a grid of squares. A year of coloured boxes
+              rewards showing up daily rather than doing anything, and on a
+              self-hosted forge for one team it is mostly empty.
+            --}}
+            <ul class="profile-counts">
+              <li><strong>{{ counts.pullRequests }}</strong> <span class="muted">pull requests opened</span></li>
+              <li><strong>{{ counts.reviews }}</strong> <span class="muted">reviews</span></li>
+              <li><strong>{{ counts.issues }}</strong> <span class="muted">issues opened</span></li>
+            </ul>
+          @endif
+
+          @if (isSelf)
+            <p class="profile-edit"><a href="/settings/profile">Edit your profile</a></p>
+          @endif
+        </aside>
+
+        <main class="profile-main">
+          <section class="profile-section">
+            <h2 class="keys-heading">Repositories</h2>
+
+            @if (repoRows.length === 0)
+              <p class="feed-empty muted">Nothing here yet.</p>
+            @else
+              <ul class="profile-repos">
+                @foreach (repoRows as repo)
+                  <li class="profile-repo">
+                    <a class="profile-repo-name" href="{{ repo.href }}">{{ repo.name }}</a>
+                    @if (repo.isPrivate)
+                      <span class="hook-state is-off">Private</span>
+                    @endif
+                    @if (repo.description)
+                      <span class="muted profile-repo-about">{{ repo.description }}</span>
+                    @endif
+                    <span class="muted profile-repo-meta">
+                      @if (repo.stars)
+                        {{ repo.stars }} stars &middot;
+                      @endif
+                      updated {{ repo.updated }}
+                    </span>
+                  </li>
+                @endforeach
+              </ul>
+            @endif
+          </section>
+
+          @if (!isOrganization)
+            <section class="profile-section">
+              <h2 class="keys-heading">Activity</h2>
+              {{--
+                `:rows`, not `rows="{{ }}"`. The interpolation form is string
+                interpolation into an attribute, so an array arrives
+                comma-joined and the loop reports "is not iterable" into an
+                HTML comment nobody reads.
+              --}}
+              <ActivityFeed :rows="feedRows" :showActor="false" empty="Nothing public yet." />
+            </section>
+          @endif
+        </main>
+      </div>
+    @endif
+  </div>
+@endsection

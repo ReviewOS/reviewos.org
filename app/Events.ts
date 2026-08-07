@@ -40,14 +40,21 @@ export default {
    * somebody's server is about signatures, timeouts and SSRF. Sharing a
    * listener would mean one failure could cost the other, and the inbox is the
    * channel that has to work when everything else does not.
+   *
+   * `RecordActivity` is a third, on the same reasoning. It is a record rather
+   * than a message, and it should survive the other two being misconfigured -
+   * a forge whose webhooks are broken should still be able to say what
+   * happened. `review:requested` is deliberately not among its events: asking
+   * somebody for a review is a message to that person, and a feed listing it
+   * reports who is behind on what to anybody who scrolls.
    */
-  'pr:opened': ['Notify', 'DispatchWebhooks'],
-  'pr:merged': ['Notify', 'DispatchWebhooks'],
-  'pr:closed': ['Notify', 'DispatchWebhooks'],
+  'pr:opened': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
+  'pr:merged': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
+  'pr:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'review:requested': ['Notify', 'DispatchWebhooks'],
-  'review:submitted': ['Notify', 'DispatchWebhooks'],
-  'issue:opened': ['Notify', 'DispatchWebhooks'],
-  'issue:closed': ['Notify', 'DispatchWebhooks'],
-  'comment:created': ['Notify', 'DispatchWebhooks'],
-  'release:published': ['Notify', 'DispatchWebhooks'],
+  'review:submitted': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
+  'issue:opened': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
+  'issue:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
+  'comment:created': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
+  'release:published': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
 } satisfies Events
