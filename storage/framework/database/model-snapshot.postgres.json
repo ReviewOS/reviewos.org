@@ -13604,10 +13604,105 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "coverage_files",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "path",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "uncovered_lines",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "covered_lines",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "coverage_files_repo_sha_path_index",
+            "columns": [
+              "repository_id",
+              "commit_sha",
+              "path"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "coverage_files_repo_sha_index",
+            "columns": [
+              "repository_id",
+              "commit_sha"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "4c5d535306a0b57f8ad537d11f7bbb34883ad8f03a08d617711f84d6f3661bd7",
+  "hash": "955e1a6339efdcc5a6920ac6e6f62e3a858f6beae17a3acddcb2308d9b69d093",
   "dialect": "postgres",
-  "updatedAt": "2026-08-07T14:03:25.257Z"
+  "updatedAt": "2026-08-07T15:18:42.230Z"
 }

@@ -54,6 +54,7 @@ describe('the permission surface is complete', () => {
       { scope: 'pull_requests' as const, level: 'admin' as const },
       { scope: 'webhooks' as const, level: 'admin' as const },
       { scope: 'administration' as const, level: 'admin' as const },
+      { scope: 'checks' as const, level: 'write' as const },
     ]
 
     for (const ability of Object.keys(REPOSITORY_ABILITIES) as Array<keyof typeof REPOSITORY_ABILITIES>)

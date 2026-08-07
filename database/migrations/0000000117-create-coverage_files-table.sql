@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS "coverage_files" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "repository_id" bigint not null REFERENCES "repositories"("id") ON DELETE CASCADE,
+  "commit_sha" varchar(40) not null,
+  "path" text not null,
+  "uncovered_lines" text,
+  "covered_lines" text,
+  "created_at" timestamp not null default CURRENT_TIMESTAMP,
+  "updated_at" timestamp
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "coverage_files_repo_sha_path_index" ON "coverage_files" ("repository_id", "commit_sha", "path");
+CREATE INDEX IF NOT EXISTS "coverage_files_repo_sha_index" ON "coverage_files" ("repository_id", "commit_sha");

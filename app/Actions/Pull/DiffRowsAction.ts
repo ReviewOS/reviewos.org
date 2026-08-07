@@ -143,6 +143,9 @@ export default new Action({
     // would make one mode out of two.
     const highlight = String(request.get('highlight') ?? '') !== 'off'
 
+    const { loadCoverage } = await import('../Checks/coverage')
+    const coverage = await loadCoverage(Number(repository.id), String(pullRequest?.head_sha ?? ''))
+
     const records = manifestToNdjson(streamManifest(diff, {
       rows: {
         layout,
@@ -151,6 +154,7 @@ export default new Action({
         highlight,
         threads,
         openHunks: openHunks ?? undefined,
+        coverage,
       },
     }))
 

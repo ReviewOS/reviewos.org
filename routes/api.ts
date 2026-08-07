@@ -183,6 +183,9 @@ route.get('/repos/pulls/diff/context', 'Actions/Pull/DiffContextAction')
 // The interdiff: what changed in one file since the reader last looked, at
 // line level, as the diff of the two patch texts.
 route.get('/repos/pulls/diff/interdiff', 'Actions/Pull/DiffInterdiffAction')
+// CI's coverage report, keyed to a commit like check runs are, so one report
+// serves every pull request whose head is that commit.
+route.post('/repos/coverage', 'Actions/Checks/UploadCoverageAction').middleware('auth')
 
 // The files that conflict, both versions in each. Read out of the tree that
 // `git merge-tree` already wrote, so no working tree is checked out to answer.

@@ -52,6 +52,10 @@ export const REPOSITORY_ABILITIES = {
   'pull:close': 'triage',
   'pull:request-review': 'triage',
   'repository:push': 'write',
+  // Reporting facts about a commit - a check, a coverage report - is a
+  // write, and phase 09 wants it separate from permission to push code: a
+  // reporter that can only report cannot also rewrite history.
+  'check:report': 'write',
   // Managing the label and milestone *sets* is a heavier power than applying
   // them: deleting a label strips it from every issue that carried it, and
   // deleting a milestone empties it. Applying one stays at triage above.

@@ -169,6 +169,13 @@ export interface RenderRowsOptions {
    */
   hunkKinds?: HunkKind[]
   /**
+   * Right-side line numbers the coverage report says are executable and
+   * executed by no test. Marked only on added lines: a changed line nobody
+   * tests is the one whose "what happens when this is wrong" has no answer.
+   * Absent means say nothing - no report must never render as "covered".
+   */
+  uncoveredLines?: ReadonlySet<number>
+  /**
    * Render line numbers as text rather than anchors.
    *
    * For rows whose numbers are not positions in the file - an interdiff's
@@ -502,11 +509,14 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
       // The code cell's content is emitted with no surrounding whitespace: it
       // is `white-space: pre`, so any indentation here would be printed and
       // every line would start a dozen columns in.
+      const uncovered = line.origin === 'added' && line.newLine != null
+        && options.uncoveredLines?.has(line.newLine) === true
+
       rows.push(
-        `<tr class="line line-${line.origin}">`
+        `<tr class="line line-${line.origin}${uncovered ? ' is-uncovered' : ''}">`
         + gutter(file.path, 'left', line.oldLine, options.commentable, options.anchors !== false)
         + gutter(file.path, 'right', line.newLine, options.commentable, options.anchors !== false)
-        + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}</td>`
+        + `<td class="code mono"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}${uncovered ? '<span class="coverage-flag" title="No test executes this line">untested</span>' : ''}</td>`
         + `</tr>`,
       )
 
@@ -530,8 +540,11 @@ function splitCell(line: DiffLine | null, side: 'old' | 'new', options: RenderRo
 
   const number = side === 'old' ? line.oldLine : line.newLine
 
+  const uncovered = side === 'new' && line.origin === 'added' && line.newLine != null
+    && options.uncoveredLines?.has(line.newLine) === true
+
   return gutter(options.path ?? '', side === 'old' ? 'left' : 'right', number, options.commentable, options.anchors !== false)
-    + `<td class="code mono" data-side="${side}"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}</td>`
+    + `<td class="code mono${uncovered ? ' is-uncovered' : ''}" data-side="${side}"><span class="marker" aria-hidden="true">${marker(line.origin)}</span>${renderTokens(line, options.tokens, options.marks?.get(line))}${noNewlineNote(line)}${uncovered ? '<span class="coverage-flag" title="No test executes this line">untested</span>' : ''}</td>`
 }
 
 /**

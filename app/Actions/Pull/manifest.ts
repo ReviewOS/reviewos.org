@@ -360,6 +360,11 @@ export interface ManifestOptions {
      */
     openHunks?: ReadonlySet<number>
     /**
+     * Uncovered lines per path, loaded once before the stream because the
+     * whole diff is never held - the threads rule, for coverage.
+     */
+    coverage?: ReadonlyMap<string, ReadonlySet<number>>
+    /**
      * Review threads to place under the lines they were written about.
      *
      * As stored: each is anchored against its own file as that file goes past,
@@ -446,6 +451,7 @@ export async function* streamManifest(
       commentable: true,
       range: rowOptions.range,
       foldedHunks,
+      uncoveredLines: rowOptions.coverage?.get(entry.file.path),
       // Always the open form. Whether a file is *shown* folded is the client's
       // decision and it can change at any moment, so markup rendered folded
       // would have to be thrown away the instant the reader clicked. A file

@@ -85,8 +85,11 @@ export default new Action({
     const highlight = String(request.get('highlight') ?? '') !== 'off'
 
     const encoder = new TextEncoder()
+    const { loadCoverage } = await import('../Checks/coverage')
+    const coverage = await loadCoverage(Number(repository.id), String(pullRequest?.head_sha ?? ''))
+
     const records = manifestToNdjson(streamManifest(diff, {
-      rows: { layout, threads, skipCollapsed: true, highlight },
+      rows: { layout, threads, skipCollapsed: true, highlight, coverage },
     }))
 
     const body = new ReadableStream<Uint8Array>({

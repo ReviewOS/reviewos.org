@@ -34,6 +34,9 @@ export const REPOSITORY_SCOPES = [
   'pull_requests',
   'webhooks',
   'administration',
+  // Reporting checks and coverage, separate from permission to push code -
+  // the fine-grained rule phase 09 names, honoured from the first reporter.
+  'checks',
 ] as const
 export type RepositoryScope = typeof REPOSITORY_SCOPES[number]
 
@@ -62,6 +65,7 @@ export const REPOSITORY_ABILITY_SCOPES = {
   'repository:read': { scope: 'contents', level: 'read' },
   'repository:push': { scope: 'contents', level: 'write' },
   'pull:merge': { scope: 'contents', level: 'write' },
+  'check:report': { scope: 'checks', level: 'write' },
 
   'issue:open': { scope: 'issues', level: 'write' },
   'issue:comment': { scope: 'issues', level: 'write' },

@@ -574,9 +574,20 @@ this is where the claim is either true or marketing.
   and the badge's (`responded_at IS NULL`, open, not draft), and an empty panel renders nothing
   rather than announcing that nothing is stuck. `tests/e2e/reviewer-load.test.ts` holds the
   ordering, the exclusions, the phrase, and the gate.
-- [ ] **Coverage in the diff.** If CI uploads a coverage report, mark changed lines that no test
+- [x] **Coverage in the diff.** If CI uploads a coverage report, mark changed lines that no test
       executes. This changes the question a reviewer asks from "does this look right" to "what
       happens when this is wrong", which is the more useful question.
+
+  The whole vertical: lcov in over `POST /api/repos/coverage` under a new `check:report` ability
+  and `checks` token scope - phase 09's "reporting is not pushing" rule, honoured from the first
+  reporter - keyed by commit like check runs, so one report serves every pull request at that head
+  and a force-push orphans it instead of mislabeling new code. An upload replaces whole: coverage
+  is a statement about one run, and merging two runs' opinions would produce a report no run made.
+  The mark lands only on added lines the report calls uncovered, on both screens through the one
+  renderer, spelled out ("untested") beside an amber edge so the claim survives every palette. The
+  honesty rule is most of what the tests hold: no report, a corrupt row, a skipped file all render
+  nothing - a marker that defaults to "covered" would be the diff lying about the one thing this
+  exists to say.
 - [ ] Blame on context lines: why this line is here, linking the pull request that introduced it,
       without leaving the diff
 - [x] Review drafts survive leaving the page, closing the browser, and coming back on another

@@ -1079,6 +1079,24 @@
       .hunk-head td { background: var(--surface-tint); border-top: 1px solid var(--line); }
       .hunk-label { padding: 4px 12px; color: var(--muted); font-size: 12px; }
 
+      /* A changed line the coverage report says no test executes. An amber
+         inset edge plus a spelled-out flag, so the claim survives every
+         palette and background setting - and absence of data renders
+         nothing, never "covered". */
+      .line.is-uncovered > .code, td.code.is-uncovered {
+        box-shadow: inset 3px 0 0 var(--warn, #b8860b);
+      }
+
+      .coverage-flag {
+        margin-left: 10px;
+        padding: 0 6px;
+        font-size: 10.5px;
+        color: var(--warn, #b8860b);
+        border: 1px solid var(--warn, #b8860b);
+        border-radius: 999px;
+        vertical-align: 1px;
+      }
+
       /* A mechanical hunk, folded. The summary is the whole hunk until it is
          opened, so it carries the label and the count out loud - a reviewer
          silently shown less has been lied to about what they approved. */
