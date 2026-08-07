@@ -143,7 +143,7 @@ async function send(
   try {
     const { mail } = await import('@stacksjs/email')
 
-    await mail.send({
+    const result: any = await mail.send({
       to: address,
       subject: payload.title,
       // Plain text, deliberately, until `resources/emails/*.stx` exists. A
@@ -152,6 +152,14 @@ async function send(
       // of this.
       text: `${payload.title}\n\n${absolute(payload.url)}\n`,
     })
+
+    // It *resolves* with `{ success: false }` on a refused connection rather
+    // than throwing. Awaiting it and assuming success is how a delivery log
+    // fills with rows claiming somebody was reached when the mail server was
+    // down the whole time, and it is the one thing that log exists to be
+    // trusted about.
+    if (result?.success === false)
+      return { ok: false, recipient: address, error: String(result?.message ?? 'the mail driver refused it') }
 
     return { ok: true, recipient: address }
   }

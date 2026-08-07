@@ -245,8 +245,28 @@ it arrives in the in-app inbox immediately, and the push and email leave when th
 - [x] Outside the window, push and email are held rather than dropped, with the time the window next
       opens computed alongside the decision (`deliveryDecision`, `minutesUntilOpen`). In-app is
       never held.
-- [ ] Held notifications are rolled into one digest when the window opens, rather than the backlog
-      arriving one at a time. The decision and the delivery time exist; the digest does not.
+- [x] Held notifications are rolled into one digest when the window opens, rather than the backlog
+      arriving one at a time.
+
+  `app/Jobs/SendDigestJob.ts`, on the scheduler every five minutes. A sweep rather than a timer
+  armed per notification: a timer has to survive a restart, and a sweep reads what is actually
+  pending, so a process that dies mid-digest loses nothing - the rows are still marked pending and
+  the next run picks them up.
+
+  One message per thread. Ten comments on one pull request are one email, grouped by where the
+  reader is being sent, which is the same rule the inbox collapses by. A gap longer than the window
+  closes a batch, so a conversation running all afternoon does not arrive as one enormous message at
+  the end of the day.
+
+  **A failed send leaves the rows pending.** That is the whole promise: held, never dropped. Marking
+  them sent would lose every notification in the batch, and the failure is not hypothetical -
+  `mail.send` *resolves* with `{ success: false }` on a refused connection rather than throwing, so
+  awaiting it and assuming success is how a delivery log fills with rows claiming somebody was
+  reached while the mail server was down. Both jobs check the result now.
+
+  The digest cannot break through quiet hours. It is not one of the nine events, so it has no
+  break-through entry to match, and a digest that ignored the window would defeat the setting it
+  exists to serve.
 - [x] A break-through list, per event type, for the things that genuinely cannot wait. Empty by
       default. It overrides the schedule but not an explicit mute, because muting is a decision
       about the subject and there is no hour at which somebody wants what they muted.
