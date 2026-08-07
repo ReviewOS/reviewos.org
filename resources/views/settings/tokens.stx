@@ -19,6 +19,7 @@
 import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
 import { scopableRepositories, tokensFor } from '../../functions/repo'
 import { relativeTime } from '../../functions/browse'
+import { setStatus } from '../../functions/http'
 
 // stx declares `__stxServeContext` only on the path that serves a request, and
 // an undeclared identifier is a ReferenceError that optional chaining does not
@@ -53,7 +54,7 @@ const repositories = viewer ? await scopableRepositories(viewer.id) : []
 // other views in this repository that call it unguarded. This line does not
 // wait for that release.
 if (!viewer && typeof setResponseStatus === 'function')
-  setResponseStatus(401)
+  setStatus(401)
 
 // The scopes the form offers, with the sentence each level buys. Repository
 // scopes only: an organization scope on a token belonging to a person is a
@@ -112,14 +113,14 @@ const scopes = [
             required
             maxlength="100"
             placeholder="CI on the build server">
-          <p class="tok-hint muted">
+          <p class="muted tok-hint">
             This is what you will have to recognise it by in a year. "deploy" tells you nothing;
             "release job, GitHub Actions" tells you where to go and turn it off.
           </p>
 
           <fieldset class="tok-fieldset">
             <legend class="tok-legend">Permissions</legend>
-            <p class="tok-hint muted">
+            <p class="muted tok-hint">
               A token can never do more than you can. These are a ceiling on your own access, so a
               write grant on a repository you only read is still read.
             </p>
@@ -140,7 +141,7 @@ const scopes = [
             <legend class="tok-legend">Repositories</legend>
 
             @if (repositories.length === 0)
-              <p class="tok-hint muted">
+              <p class="muted tok-hint">
                 You have no repositories to scope a token to yet. Create one first, or the token will
                 have nothing to reach.
               </p>
@@ -170,7 +171,7 @@ const scopes = [
                 <input type="hidden" name="selection" value="selected">
                 <input type="hidden" name="repository_ids" :value="chosen.join(',')">
 
-                <p class="tok-hint muted" x-show="chosen.length === 0">
+                <p class="muted tok-hint" x-show="chosen.length === 0">
                   Nothing selected yet. A token scoped to no repository is refused rather than issued
                   as one that reaches everything.
                 </p>
@@ -180,7 +181,7 @@ const scopes = [
 
           <label class="tok-label" for="token-expiry">Expires</label>
           <input id="token-expiry" class="tok-input" type="date" name="expires_at">
-          <p class="tok-hint muted">
+          <p class="muted tok-hint">
             Ninety days if you leave this empty, and a year is the most any token gets. A token that
             never expires is one nobody ever revisits.
           </p>
@@ -197,17 +198,17 @@ const scopes = [
         </form>
 
         @if (tokens.length === 0)
-          <div class="tok-empty panel">
+          <div class="panel tok-empty">
             <p class="muted">No tokens yet. Issue one when a script or a CI job needs to act as you.</p>
           </div>
         @else
-          <ul class="tok-list panel">
+          <ul class="panel tok-list">
             @foreach (tokens as token)
               <li class="tok-row">
                 <div class="tok-main">
                   <div class="tok-row-head">
                     <span class="tok-name">{{ token.name }}</span>
-                    <span class="tok-masked mono muted">{{ token.masked }}</span>
+                    <span class="mono muted tok-masked">{{ token.masked }}</span>
 
                     @if (token.state === 'revoked')
                       <span class="tok-state tok-state-off">Revoked</span>
@@ -226,13 +227,13 @@ const scopes = [
                     @endforeach
                   </ul>
 
-                  <p class="tok-reach muted">{{ token.reach }}</p>
+                  <p class="muted tok-reach">{{ token.reach }}</p>
 
                   @if (token.repositories.length > 0)
-                    <p class="tok-repolist mono muted">{{ token.repositories.join(', ') }}</p>
+                    <p class="mono muted tok-repolist">{{ token.repositories.join(', ') }}</p>
                   @endif
 
-                  <p class="tok-meta muted">
+                  <p class="muted tok-meta">
                     @if (token.createdAt)
                       created {{ relativeTime(token.createdAt) }} &middot;
                     @endif

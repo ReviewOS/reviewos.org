@@ -23,6 +23,7 @@ import { WEBHOOK_EVENTS } from '../../../../app/Webhooks/payloads'
 import { cookieJarFromHeader } from '../../../functions/identity'
 import { repositoryForView } from '../../../functions/repo'
 import { relativeTime } from '../../../functions/browse'
+import { setStatus } from '../../../functions/http'
 
 const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
@@ -36,7 +37,7 @@ const access = await repositoryForView(
 // A page that renders "no such repository" under a 200 tells a crawler, a cache
 // and an uptime check that the page is fine. Only the render knows.
 if (!access)
-  setResponseStatus(404)
+  setStatus(404)
 
 /*
  * `repository:settings`, and 404 rather than 403 for anybody else.
@@ -48,7 +49,7 @@ if (!access)
 const mayManage = Boolean(access?.viewer && access.can('repository:settings'))
 
 if (access && !mayManage)
-  setResponseStatus(404)
+  setStatus(404)
 
 const hooks: any[] = access && mayManage
   ? await db

@@ -12,6 +12,7 @@
  * so it counts.
  */
 import { resolveRepository } from '../../../functions/issues'
+import { setStatus } from '../../../functions/http'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
@@ -37,7 +38,7 @@ const repositoryRow: any = await resolveRepository(ownerHandle, repositoryName)
 // A page that renders "no such repository" under a 200 tells a crawler, a
 // cache and an uptime check that the page is fine. Only the render knows.
 if (!repositoryRow)
-  setResponseStatus(404)
+  setStatus(404)
 
 const milestoneRows: any[] = repositoryRow
   ? await db

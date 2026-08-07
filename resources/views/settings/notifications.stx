@@ -20,6 +20,7 @@ import { formatDays, parseDays } from '../../../app/Actions/Notification/clock'
 import { deliveryFor } from '../../../app/Actions/Notification/settings'
 import { vapidKeys } from '../../../app/Actions/Notification/vapid'
 import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
+import { setStatus } from '../../functions/http'
 
 /**
  * The request, from whichever pipeline served this page.
@@ -38,7 +39,7 @@ const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHea
 // A settings page for nobody is not a 404 - the page exists, and saying so is
 // how somebody knows to sign in rather than that they mistyped the URL.
 if (!viewer)
-  setResponseStatus(401)
+  setStatus(401)
 
 const stored = viewer
   ? await db

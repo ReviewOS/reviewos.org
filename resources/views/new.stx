@@ -15,6 +15,7 @@
  */
 import { ownersForCreate, viewerFromCookies } from '../functions/identity'
 import { GITIGNORES, LICENSES } from '../functions/repo'
+import { setStatus } from '../functions/http'
 
 /**
  * The request, when there is one, without naming a binding that may not exist.
@@ -37,7 +38,7 @@ const viewer = await viewerFromCookies(serveContext?.cookies)
 // Signing in is the whole precondition, so an anonymous reader gets a page
 // that says so rather than a form that cannot be submitted.
 if (!viewer)
-  setResponseStatus(401)
+  setStatus(401)
 
 const owners = viewer ? await ownersForCreate(viewer) : []
 

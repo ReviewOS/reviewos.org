@@ -19,6 +19,7 @@ import { entryIcon, entrySentence, issueStateLabel, issueStatePill, labelColor, 
 import { pressed, subjectKey, summarize, summarizeAll } from '../../../../functions/reactions'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 import { viewerFromCookies } from '../../../../functions/identity'
+import { setStatus } from '../../../../functions/http'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
@@ -74,7 +75,7 @@ const issue: any = repoRow && Number.isFinite(number)
 // A missing issue is a missing page. Rendering "no such issue" under a 200
 // tells a crawler every number in the sequence exists.
 if (!issue)
-  setResponseStatus(404)
+  setStatus(404)
 
 /**
  * The author's name to show.

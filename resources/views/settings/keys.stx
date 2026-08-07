@@ -14,6 +14,7 @@
 import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
 import { hasExpired, keysFor } from '../../functions/repo'
 import { relativeTime } from '../../functions/browse'
+import { setStatus } from '../../functions/http'
 
 /**
  * The request, when there is one, without naming a binding that may not exist.
@@ -40,7 +41,7 @@ const keys = viewer ? await keysFor(viewer.id) : { ssh: [], gpg: [] }
 // A settings page for nobody is not a 404 - the page exists, and saying so is
 // how somebody knows to sign in rather than that they mistyped the URL.
 if (!viewer)
-  setResponseStatus(401)
+  setStatus(401)
 </script>
 
 @layout('app')

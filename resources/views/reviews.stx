@@ -15,6 +15,7 @@
  */
 import { reviewQueue, waitingReason } from '../../app/Actions/Pull/queue'
 import { viewerFromCookies } from '../functions/identity'
+import { setStatus } from '../functions/http'
 
 /**
  * The request, when there is one, without naming a binding that may not exist.
@@ -33,7 +34,7 @@ const viewer = await viewerFromCookies(serveContext?.cookies)
 // Signing in is the whole precondition: a queue is per person and there is no
 // such thing as an anonymous one.
 if (!viewer)
-  setResponseStatus(401)
+  setStatus(401)
 
 // Read once and passed to every reason, so two rows on one page cannot
 // disagree about what time it is.

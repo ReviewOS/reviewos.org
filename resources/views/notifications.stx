@@ -23,6 +23,7 @@
 import { REASONS, reasonLabel, shortAge } from '../../app/Actions/Notification/inbox'
 import { loadInbox } from '../../app/Actions/Notification/read'
 import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
+import { setStatus } from '../functions/http'
 
 /**
  * The request, from whichever pipeline served this page.
@@ -41,7 +42,7 @@ const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHea
 
 // An inbox is per person, so there is no such thing as an anonymous one.
 if (!viewer)
-  setResponseStatus(401)
+  setStatus(401)
 
 const search: Record<string, string> = useRoute().query ?? {}
 

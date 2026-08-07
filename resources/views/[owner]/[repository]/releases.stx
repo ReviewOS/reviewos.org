@@ -15,6 +15,7 @@ import { repositoryForView } from '../../../functions/repo'
 import { relativeTime, shortSha } from '../../../functions/browse'
 import { latestRelease, sortReleases } from '../../../functions/releases'
 import { renderMarkdownHighlighted } from '../../../functions/markdown'
+import { setStatus } from '../../../functions/http'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
@@ -41,7 +42,7 @@ const repoRow: any = repoAccess?.repository ?? null
 // A page that renders "no such repository" under a 200 tells a crawler, a
 // cache and an uptime check that the page is fine. Only the render knows.
 if (!repoRow)
-  setResponseStatus(404)
+  setStatus(404)
 
 const maySeeDrafts = Boolean(repoAccess?.can('repository:settings'))
 
