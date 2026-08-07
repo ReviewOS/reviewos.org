@@ -717,6 +717,18 @@
       .prefs-save:hover { border-color: var(--line-strong); color: var(--text); }
 
       .prefs-explainer { margin: -4px 0 12px; font-size: 13px; }
+
+      /* The one line on this page somebody actually reads. Set apart, because
+        four rules interact behind it and the answer is not derivable from the
+        switches above without doing the interaction in your head. */
+      .prefs-now {
+        margin: 10px 0 0;
+        padding: 8px 12px;
+        border-left: 2px solid var(--accent);
+        background: var(--surface-tint);
+        border-radius: 0 8px 8px 0;
+        font-size: 13px;
+      }
       .prefs-schedule { padding: 16px; }
       .prefs-days { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 14px; padding: 0; border: 0; }
       .prefs-day { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }

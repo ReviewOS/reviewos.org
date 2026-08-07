@@ -311,11 +311,36 @@ it arrives in the in-app inbox immediately, and the push and email leave when th
       `recipients.ts`. Every channel asks the same question and gets the same answer.
 - [x] Tests for the awkward clock cases: a window that wraps past midnight, the morning after a
       schedule's last day, a Friday evening waiting until Monday, and a schedule with one day in it
-- [ ] `settings/notifications.stx` shows the schedule as a week grid, the active mutes with their
+- [x] `settings/notifications.stx` shows the schedule as a week grid, the active mutes with their
       expiry, and a plain sentence of what would happen to a review request right now
-- [ ] Tests: an event at 03:00 is held and arrives once at the window's open, a muted repository
+
+  The sentence is the most useful thing on the page, and it is answered by calling `deliveryFor` -
+  the same function delivery uses - rather than by re-deriving it from the switches. Four rules
+  interact here and nobody holds them in their head at once; the failure people report is always the
+  same shape, "I did not get told", and a page that cannot answer it sends them to support.
+
+  Every mute shows when it ends, and expired ones are not listed. A mute with no visible expiry is
+  one people forget they set, and then the product is quiet for a reason they cannot find - which
+  reads as notifications being broken rather than as a switch they threw in March. Listing an
+  expired one would have somebody unmuting something that is already sending.
+- [x] Tests: an event at 03:00 is held and arrives once at the window's open, a muted repository
       still lands in the inbox, a mute expires on its own, break-through ignores the schedule, and a
       user whose clocks changed over the weekend still gets the right window
+
+  `tests/e2e/quiet-hours.test.ts`, against real rows. The rules are unit tested as pure functions;
+  what that cannot cover is that `deliveryFor` reads a schedule, a mute and a do-not-disturb and
+  combines them, and every one of the four can be right on its own while the combination is wrong.
+
+  The load-bearing assertion is that **a muted thing still lands in the inbox**. If muting lost the
+  record nobody would use it, and they would turn notifications off instead - after which the
+  reviewer everybody is waiting on is unreachable by design, which is the exact failure this phase
+  exists to prevent. A mute also outranks break-through, because it is a decision about the subject
+  and there is no hour at which somebody wants what they muted; and the widest mute wins, so a
+  thread inside a muted repository is muted without having been named.
+
+  The timezone case is covered by `clock.ts`'s own tests, which is where a clock change belongs -
+  the schedule is stored as a local weekday and minute, so the conversion is the only thing a
+  daylight change can get wrong.
 
 ## Web push
 

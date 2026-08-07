@@ -17,6 +17,7 @@
  */
 import { PREFERENCE_EVENTS, preferenceGrid } from '../../../app/Actions/Notification/preferences'
 import { formatDays, parseDays } from '../../../app/Actions/Notification/clock'
+import { deliveryFor } from '../../../app/Actions/Notification/settings'
 import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
 
 /**
@@ -59,6 +60,76 @@ const cells = preferenceGrid(stored.map(row => ({
   channel: String(row.channel),
   delivery: String(row.delivery),
 })))
+
+/*
+ * What would actually happen to a review request, right now.
+ *
+ * The single most useful thing this page can say. Quiet hours, a mute, a
+ * do-not-disturb and a break-through list interact in ways nobody can hold in
+ * their head, and the failure people report is always the same shape: "I did
+ * not get told". A sentence that answers it from the same function delivery
+ * uses cannot be wrong in a way the switches are right.
+ */
+const nowMs = Date.now()
+
+const outcome = viewer
+  ? await deliveryFor({ userId: viewer.id, channel: 'email', event: 'review:requested', subjects: [], nowMs })
+  : null
+
+const OUTCOMES = {
+  'open': 'A review request would email you now.',
+  'inbox': 'A review request would email you now.',
+  'breaks-through': 'A review request would email you now: it is on your break-through list.',
+  'quiet-hours': 'A review request would wait until your next window opens.',
+  'do-not-disturb': 'A review request would wait until do not disturb ends.',
+  'muted': 'A review request would not email you.',
+}
+
+const rightNow = outcome ? (OUTCOMES[outcome.because] ?? 'A review request would email you now.') : ''
+
+/*
+ * The mutes, with when each one ends.
+ *
+ * A mute with no visible expiry is one people forget they set, and then the
+ * product is quiet for a reason they cannot find - which reads as the
+ * notifications being broken rather than as a switch they threw in March.
+ */
+const muteRows: any[] = viewer
+  ? await db
+      .selectFrom('notification_mutes')
+      .select(['id', 'subject_type', 'subject_id', 'expires_at'])
+      .where('user_id', '=', viewer.id)
+      .orderBy('id', 'desc')
+      .execute()
+  : []
+
+const SUBJECT_WORDS = {
+  repository: 'A repository',
+  organization: 'An organization',
+  issue: 'An issue',
+  pull_request: 'A pull request',
+}
+
+const mutes = muteRows
+  .map((row) => {
+    const expiresAt = row.expires_at ? Date.parse(String(row.expires_at)) : null
+    const expired = expiresAt !== null && !Number.isNaN(expiresAt) && expiresAt <= nowMs
+
+    return {
+      subjectType: String(row.subject_type),
+      subjectId: Number(row.subject_id),
+      label: `${SUBJECT_WORDS[String(row.subject_type)] ?? 'Something'} #${Number(row.subject_id)}`,
+      // "Indefinitely" rather than a blank. An empty cell reads as a value
+      // nobody has filled in, and this one is a deliberate choice.
+      until: expiresAt === null || Number.isNaN(expiresAt)
+        ? 'Indefinitely'
+        : `Until ${new Date(expiresAt).toISOString().slice(0, 16).replace('T', ' ')}`,
+      expired,
+    }
+  })
+  // An expired mute is not a mute. Listing it would have somebody unmuting
+  // something that is already sending.
+  .filter(mute => !mute.expired)
 
 /**
  * What each event is, in the words somebody would use.
@@ -151,6 +222,14 @@ const dayBoxes = [
           What reaches you, and when it is allowed to. The inbox always has everything - these
           settings are about what interrupts you.
         </p>
+
+        {{--
+          Answered from the same function delivery uses, so it cannot be wrong
+          in a way the switches are right. Four rules interact here and nobody
+          can hold them in their head at once; the failure people report is
+          always "I did not get told", and this is the line that answers it.
+        --}}
+        <p class="prefs-now">{{ rightNow }}</p>
       </header>
 
       <section class="keys-section">
@@ -235,6 +314,42 @@ const dayBoxes = [
             <button type="submit" class="btn btn-primary">Save hours</button>
           </div>
         </form>
+      </section>
+
+      <section class="keys-section">
+        <h2 class="keys-heading">Muted</h2>
+
+        @if (mutes.length === 0)
+          <p class="keys-empty muted">Nothing is muted. Mute a repository or a thread from its own page.</p>
+        @else
+          <p class="muted prefs-explainer">
+            A muted thing still lands in your inbox. Muting silences the channels that interrupt, and
+            that is what makes it safe to use instead of leaving.
+          </p>
+
+          <ul class="panel prefs-list">
+            @foreach (mutes as mute)
+              <li class="prefs-row">
+                <span class="prefs-event">{{ mute.label }}</span>
+                {{--
+                  The expiry, always. A mute with no visible end is one people
+                  forget they set, and then the product is quiet for a reason
+                  they cannot find - which reads as notifications being broken
+                  rather than as a switch they threw in March.
+                --}}
+                <span class="muted prefs-inbox">{{ mute.until }}</span>
+
+                <form class="prefs-control" method="post" action="/api/user/notifications/mutes">
+                  <CsrfField />
+                  <input type="hidden" name="subject_type" value="{{ mute.subjectType }}">
+                  <input type="hidden" name="subject_id" value="{{ mute.subjectId }}">
+                  <input type="hidden" name="muted" value="false">
+                  <button type="submit" class="prefs-save">Unmute</button>
+                </form>
+              </li>
+            @endforeach
+          </ul>
+        @endif
       </section>
     @endif
   </div>
