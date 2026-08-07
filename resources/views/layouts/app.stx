@@ -522,6 +522,22 @@
       .diff-path { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
 
       .diff-status { text-transform: capitalize; }
+
+      /* Deliberately quiet. This badge is a reason, not a warning: the file is
+         folded and the reviewer is being told why, so it should read the way a
+         footnote reads. Loud enough to notice while scrolling past, quiet
+         enough that a diff of ninety renamed files is not ninety alarms. */
+      .diff-mechanical {
+        border: 1px dashed var(--line-strong);
+        background: transparent;
+        color: var(--muted);
+        font-weight: 400;
+      }
+
+      /* The same claim in the sidebar, where the reviewer decides what to open.
+         Dimmed rather than struck through: struck through means viewed, and
+         two states that look alike is worse than one that is easy to miss. */
+      .file-row.is-mechanical .file-name { color: var(--muted); }
       .pill-added { background: var(--ok-bg); color: var(--ok); }
       .pill-deleted { background: var(--bad-bg); color: var(--bad); }
       .pill-modified { background: var(--surface); color: var(--pill-text); }

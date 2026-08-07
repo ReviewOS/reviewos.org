@@ -20,6 +20,7 @@ import { highlightLines } from '../Browse/highlight'
 import { gapsIn, oldOffsetAt } from './expand'
 import { inlineChangedRanges, worthComparing } from './inline'
 import { formatLineAnchor } from './lineLink'
+import { classifyFile } from './classify'
 import { escapeHtml, renderDiffHeadContents, renderDiffHeader, renderDiffShell } from './shell'
 
 export interface DiffToken {
@@ -614,8 +615,14 @@ export function renderDiffNote(file: DiffFile): string {
 export function renderDiffFile(file: DiffFile, options: RenderRowsOptions = {}): string {
   const collapsed = options.collapsed === true ? 'fetch' : options.collapsed
 
+  // The same badge the manifest sends the browser, computed the same way, so
+  // the two pages cannot disagree about whether a file needs reading.
+  const headed = file.hunks.length > 0
+    ? { ...file, mechanical: classifyFile(file).reason }
+    : file
+
   if (collapsed === 'fetch')
-    return renderDiffShell(file, { collapsed: true })
+    return renderDiffShell(headed, { collapsed: true })
 
   const columns = options.layout === 'split' ? 4 : 3
   const body = renderDiffRows(file, options)
@@ -630,13 +637,13 @@ export function renderDiffFile(file: DiffFile, options: RenderRowsOptions = {}):
   // cannot be undone is a file that cannot be read.
   if (collapsed === 'fold') {
     return `<details class="diff-file panel" id="file-${escapeHtml(file.path)}">`
-      + `<summary class="diff-head">${renderDiffHeadContents(file)}</summary>`
+      + `<summary class="diff-head">${renderDiffHeadContents(headed)}</summary>`
       + `<div id="body-${escapeHtml(file.path)}" class="diff-body">${contents}</div>`
       + `</details>`
   }
 
   return `<section class="diff-file panel" id="file-${escapeHtml(file.path)}">`
-    + renderDiffHeader(file)
+    + renderDiffHeader(headed)
     + `<div id="body-${escapeHtml(file.path)}" class="diff-body">${contents}</div>`
     + `</section>`
 }

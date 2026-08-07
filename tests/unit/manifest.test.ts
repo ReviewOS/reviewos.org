@@ -115,6 +115,65 @@ rename to new.ts
 
     expect(manifestFile(renamed, 0)).toMatchObject({ path: 'new.ts', from: 'old.ts', status: 'renamed' })
   })
+
+  /**
+   * The contract between the classifier and the browser. The record carries the
+   * reason, not just the fold, because a file folded with no reason asks the
+   * reviewer to trust a judgement nobody stated - and the sidebar counts these
+   * so the number is said out loud rather than silently subtracted.
+   */
+  test('a file that is only formatting folds, and says why', () => {
+    const formatting = parseDiff(`diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1,2 +1,2 @@
+-  const a = 1
+-  const b = 2
++    const a = 1
++    const b = 2
+`)[0]!
+
+    expect(manifestFile(formatting, 0)).toMatchObject({ collapsed: true, mechanical: 'formatting' })
+  })
+
+  test('a file whose every line is one renamed symbol folds, and says why', () => {
+    const renamed = parseDiff(`diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1,3 +1,3 @@
+-oldThing.a()
+-oldThing.b()
+-oldThing.c()
++newThing.a()
++newThing.b()
++newThing.c()
+`)[0]!
+
+    expect(manifestFile(renamed, 0)).toMatchObject({ collapsed: true, mechanical: 'renamed-symbol' })
+  })
+
+  /**
+   * The one that has to stay open. Two mechanical hunks and one real edit is
+   * not a mechanical file, and folding it would hide the only line anybody
+   * needed to read behind a badge saying it was safe to skip.
+   */
+  test('a file that is only partly mechanical stays open and claims nothing', () => {
+    const mixed = parseDiff(`diff --git a/a.ts b/a.ts
+--- a/a.ts
++++ b/a.ts
+@@ -1,2 +1,2 @@
+-  const a = 1
++    const a = 1
+@@ -10,1 +10,1 @@
+-const limit = 1
++const limit = 2
+`)[0]!
+
+    const record = manifestFile(mixed, 0)
+
+    expect(record.collapsed).toBe(false)
+    expect(record.mechanical).toBeUndefined()
+  })
 })
 
 describe('streamManifest', () => {

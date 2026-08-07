@@ -36,6 +36,15 @@ export interface DiffHeaderFile {
   status: string
   additions: number
   deletions: number
+  /**
+   * Why nothing in this file needs reading, when the classifier could say so.
+   *
+   * On the header rather than only in the sidebar, because the header is what a
+   * reviewer sees when they scroll past a folded file. Folding something and
+   * not saying why asks them to trust a judgement nobody stated; saying why
+   * lets them disagree with it in one click.
+   */
+  mechanical?: string | null
 }
 
 /**
@@ -68,11 +77,34 @@ export function renderDiffHeadContents(file: DiffHeaderFile): string {
     ? `<span class="muted">${escapeHtml(file.previousPath)}</span> <span class="muted" aria-hidden="true">-&gt;</span> `
     : ''
 
+  const mechanical = file.mechanical
+    ? `<span class="diff-mechanical pill">${escapeHtml(mechanicalLabel(file.mechanical))}</span>`
+    : ''
+
   return `<span class="diff-path mono">${renamedFrom}${escapeHtml(file.path)}</span>`
     + `<span class="diff-status pill pill-${escapeHtml(file.status)}">${escapeHtml(file.status)}</span>`
+    + mechanical
     + `<span class="diff-counts mono" aria-label="${file.additions} added, ${file.deletions} removed">`
     + `<span class="count-add">+${file.additions}</span><span class="count-del">-${file.deletions}</span>`
     + `</span>`
+}
+
+/**
+ * What a classification is called in front of a reader.
+ *
+ * The wire names are for code. `renamed-symbol` is accurate and means nothing
+ * at a glance, and a badge nobody can read is a badge that gets ignored - which
+ * for this one means a folded file whose reason went unread.
+ */
+export function mechanicalLabel(kind: string): string {
+  if (kind === 'formatting')
+    return 'formatting only'
+  if (kind === 'renamed-symbol')
+    return 'renamed throughout'
+  if (kind === 'moved')
+    return 'moved, unchanged'
+
+  return kind
 }
 
 /**

@@ -17,10 +17,12 @@
  * a phone. We have a server; this is it doing its job.
  */
 
+import type { HunkKind } from './classify'
 import type { DiffFile, FileStatus } from './diff'
 import type { DiffTokenMap } from './rows'
 import type { RowCounts } from './metrics'
 import type { StoredThread } from './loadThreads'
+import { classifyFile } from './classify'
 import { isGenerated, parseDiffFile } from './diff'
 import { countRows } from './metrics'
 import { createPatchSplitter, releaseDetachBuffer } from './patch'
@@ -112,6 +114,14 @@ export interface ManifestFile {
   rows: RowCounts
   /** Collapsed on arrival. See `COLLAPSE_ABOVE_CHANGED_LINES`. */
   collapsed: boolean
+  /**
+   * Why nothing in this file needs reading line by line, when that is true.
+   *
+   * Sent so the file list can say it rather than merely fold the file. A
+   * reviewer told "formatting only" can open it and check; a reviewer shown a
+   * folded file with no reason has been asked to trust something nobody stated.
+   */
+  mechanical?: HunkKind
 }
 
 export interface ManifestRows {
@@ -196,6 +206,12 @@ export function startsCollapsed(file: {
 
 /** One file's record. Pure, so the collapse policy is testable on its own. */
 export function manifestFile(file: DiffFile, index: number): ManifestFile {
+  // A file with a single mechanical reason folds on arrival and says why. A
+  // file that is *partly* mechanical does not: the honest summary of it is the
+  // diff, and folding it would be a claim nobody can check without opening it.
+  const classification = file.hunks.length > 0 ? classifyFile(file) : null
+  const mechanical = classification?.reason ?? undefined
+
   return {
     t: 'file',
     i: index,
@@ -207,7 +223,8 @@ export function manifestFile(file: DiffFile, index: number): ManifestFile {
     deletions: file.deletions,
     hunks: file.hunks.length,
     rows: countRows(file),
-    collapsed: startsCollapsed(file),
+    collapsed: startsCollapsed(file) || mechanical !== undefined,
+    ...(mechanical ? { mechanical } : {}),
   }
 }
 

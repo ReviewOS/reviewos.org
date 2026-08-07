@@ -172,11 +172,33 @@ this is where the claim is either true or marketing.
 - [ ] A line-level interdiff for a file that did change, rather than sending the reader back to its
       whole diff. `git range-diff` is the shape of the answer; rendering a diff of diffs in a viewer
       built for file diffs is the open question.
-- [ ] **Separate the mechanical from the meaningful.** Classify each hunk: a pure rename, a
-      formatting-only change, a mass find-and-replace, a moved block, real logic. Collapse the first
-      four by default and say how many were collapsed. A 4,000 line diff is usually 200 lines of
-      decision inside 3,800 lines of consequence, and reading it linearly is the reason large
-      changes get approved unread.
+- [x] **Separate the mechanical from the meaningful.** Each hunk is classified as formatting only, a
+      symbol renamed throughout, a block that moved unchanged, or logic. A file whose every hunk is
+      mechanical *for the same reason* arrives folded with that reason on its header and in the
+      sidebar, and the sidebar counts them: `5 files, 1 viewed, 2 mechanical`.
+
+  **Said out loud** is the whole safety argument, not a nicety. A reviewer told "two mechanical" can
+  open them and disagree; a reviewer silently shown less has been lied to about the size of what they
+  approved. Nothing is ever removed from the diff.
+
+  Every rule is conservative in the same direction, and the tests are mostly about what the
+  classifier *refuses* to call mechanical, because a false "this is just a rename" hides a real change
+  inside a diff somebody has been told is safe to skim. So: a substitution has to be identifier
+  shaped on both sides, which is what stops `const limit = 1` becoming `2` reading as a rename; the
+  same swap has to hold on *every* changed line, so eighty-nine renames and one real edit is logic; a
+  moved run has to be at least three lines, or every closing brace in every language is a move; and a
+  file that is mechanical two different ways gets no single reason, because the honest summary of it
+  is the diff.
+
+  A file that is only *partly* mechanical stays open and claims nothing. Folding it would hide the
+  one line anybody needed to read behind a badge saying it was safe to skip.
+
+- [ ] Classify at the *hunk* level in the interface, not only the file level. The classifier already
+      answers per hunk; what is missing is folding the mechanical hunks inside a file that also
+      contains logic, which needs a fold control per hunk rather than per file.
+- [ ] A block that moved between two *files* reads as a delete and an add. Detecting that needs the
+      whole diff in view rather than one file, which the streaming manifest deliberately does not
+      have.
 - [ ] Commit-by-commit review for branches whose history was written to be read, rather than forcing
       every change through one squashed view
 - [ ] **The review queue is the home screen.** What is waiting on you, ordered by how long it has

@@ -41,7 +41,7 @@ import { applyPreferences, type DiffPreferences, readPreferences, wirePreference
 // From `shell.ts` rather than from `rows.ts`, and that is the whole reason
 // `shell.ts` exists: `rows.ts` reaches the highlighter, and the browser must
 // never download forty eight grammars to draw a file header.
-import { renderDiffHeader, renderDiffShell } from '../../app/Actions/Pull/shell'
+import { mechanicalLabel, renderDiffHeader, renderDiffShell } from '../../app/Actions/Pull/shell'
 import {
   needsWindow,
   type RowWindow,
@@ -83,6 +83,7 @@ function toFileEntry(record: Record<string, unknown>): DiffFileEntry {
     hunks: Number(record.hunks),
     rows: record.rows as DiffFileEntry['rows'],
     collapsed: Boolean(record.collapsed),
+    ...(typeof record.mechanical === 'string' ? { mechanical: record.mechanical } : {}),
   }
 }
 
@@ -190,9 +191,16 @@ export function createFileList(options: {
     const read = files.filter(file => viewed.has(file.path)).length
     const filtered = shown.length !== files.length ? `${shown.length} of ` : ''
 
+    // Said out loud, always. Folding the mechanical files without a count is
+    // the one thing this must not do: a reviewer who is told "eleven hunks
+    // hidden, all formatting" can open them, and a reviewer silently shown less
+    // has been lied to about the size of what they approved.
+    const mechanical = files.filter(file => file.mechanical).length
+    const skippable = mechanical === 0 ? '' : `, ${mechanical} mechanical`
+
     const base = read === 0
-      ? `${filtered}${files.length} files`
-      : `${filtered}${files.length} files, ${read} viewed`
+      ? `${filtered}${files.length} files${skippable}`
+      : `${filtered}${files.length} files, ${read} viewed${skippable}`
 
     // The reason a list is short has to be visible, or a reviewer with eleven
     // files in front of them concludes the pull request is eleven files and
@@ -226,11 +234,17 @@ export function createFileList(options: {
       const name = cut < 0 ? file.path : file.path.slice(cut + 1)
       const isViewed = viewed.has(file.path)
 
-      return `<div class="file-row${index === current ? ' is-current' : ''}${isViewed ? ' is-viewed' : ''}">`
+      // The reason is on the row's tooltip as well as in the header, because
+      // the sidebar is where a reviewer decides what to open and the header is
+      // only visible once they have.
+      const why = file.mechanical ? ` (${mechanicalLabel(file.mechanical)})` : ''
+
+      return `<div class="file-row${index === current ? ' is-current' : ''}${isViewed ? ' is-viewed' : ''}`
+        + `${file.mechanical ? ' is-mechanical' : ''}">`
         + `<input type="checkbox" class="file-viewed" data-file-index="${index}"`
         + ` aria-label="Mark ${escapeAttribute(file.path)} as viewed"${isViewed ? ' checked' : ''}>`
         + `<button type="button" class="file-open" data-file-index="${index}"`
-        + ` title="${escapeAttribute(file.path)}">`
+        + ` title="${escapeAttribute(file.path)}${escapeAttribute(why)}">`
         + `<span class="file-status file-status-${escapeAttribute(file.status)}" aria-hidden="true"></span>`
         + `<span class="file-name">`
         + (directory ? `<span class="file-dir">${escapeText(directory)}</span>` : '')
@@ -468,6 +482,14 @@ export interface DiffFileEntry {
   hunks: number
   rows: RowCounts
   collapsed: boolean
+  /**
+   * Why this file needs no line by line reading, when the server could say so.
+   *
+   * Shown rather than merely acted on. A folded file with a stated reason is a
+   * claim the reviewer can check by opening it; a folded file with no reason is
+   * a request to trust something nobody said out loud.
+   */
+  mechanical?: string
 }
 
 export interface DiffViewerOptions {
