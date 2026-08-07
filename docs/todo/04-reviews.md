@@ -148,14 +148,41 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
 
 The differentiator. Nothing else in this space handles it well.
 
-- [ ] `stack_parent_id` makes a pull request depend on another
-- [ ] A stacked pull request diffs against its parent's head, so it shows only its own changes
-- [ ] The interface shows the whole stack, with each entry's position and state
-- [ ] Merging a parent automatically retargets its children to the parent's base
-- [ ] Merge the whole stack in order in one action, stopping cleanly if one fails
-- [ ] Detect a stack from branch topology on push, and offer it, rather than requiring manual
-      declaration
-- [ ] Tests: a three-deep stack, merging out of order, and a parent closed without merging
+Most of this was built and left unticked, which is the failure this file opens by warning about. The
+boxes below were audited against the code and against a new end-to-end test rather than ticked from
+memory.
+
+- [x] `stack_parent_id` makes a pull request depend on another, and it is filled in *automatically*:
+      a pull request opened against another open pull request's branch is part of a stack, and
+      `OpenPullRequestAction` says so. Nobody declares it.
+- [x] A stacked pull request diffs against its parent's head, so it shows only its own changes.
+
+  This falls out of the base being the parent's branch rather than from anything that states it, so
+  nothing in the code asserted it and it could have stopped being true silently.
+  `tests/e2e/stacked-diff.test.ts` builds a real three-deep stack, opens all three through the real
+  action, and checks the middle one carries one file. It also checks what the same head diffed
+  against the *default* branch would carry - all three - which is what makes the first assertion
+  measure something rather than pass by coincidence.
+
+  It matters more than it sounds: a middle pull request that showed its parent's changes would make
+  the reviewer read the same code twice, and a stack would be worse than one large branch rather
+  than better.
+- [x] The interface shows the whole stack, with each entry's position and state (`StackNav.stx`,
+      `positionIn`, `stackSummary`).
+- [x] Merging a parent automatically retargets its children to the parent's base. A child somebody
+      has already pointed elsewhere keeps its base and only loses the stack link, so retargeting
+      never moves a branch out from under a decision somebody made by hand.
+- [x] Merge the whole stack in order in one action, stopping cleanly if one fails. Landing is
+      contiguous from the bottom by definition - merging the third without the second would take the
+      second's commits with it - so `MergeStackAction` lands the longest ready run and reports how
+      far it got. A partial land is a correct outcome, not a failure.
+- [ ] Detect a stack from branch topology *on push*, before a pull request exists, and offer it.
+      Detection at open time is done and is most of the value; this is the half that would let
+      somebody push three branches and be offered the stack rather than opening three pull requests
+      in the right order.
+- [x] Tests: a three-deep stack, merging out of order, and a parent closed without merging. All
+      three in `tests/unit/stack.test.ts` - "the top being ready does not let it jump the queue" is
+      the out-of-order case, and "a closed parent orphans its child" is the third.
 
 ## Reviewing at scale
 
