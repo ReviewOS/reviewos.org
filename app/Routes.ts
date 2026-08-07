@@ -20,5 +20,8 @@ export type { RouteDefinition, RouteRegistry } from '@stacksjs/router'
 export default {
   api: 'api',
   attachments: { path: 'attachments', prefix: '' },
+  // Registers nothing; configures the renderer. See the file for why it must
+  // load with the routes rather than in any one server's boot script.
+  views: { path: 'views', prefix: '' },
   git: { path: 'git', prefix: '' },
 } satisfies RouteRegistry
