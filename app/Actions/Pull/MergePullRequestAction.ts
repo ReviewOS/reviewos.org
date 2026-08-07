@@ -354,6 +354,25 @@ export default new Action({
       Number(user.id),
     )
 
+    // Last, after the branch moved, the row says merged, the stack retargeted
+    // and the issues closed. Announcing a merge that then failed to record is
+    // the one notification nobody can take back.
+    const { notify } = await import('../../Notifications/emit')
+    await notify('pr:merged', {
+      actorId: user.id,
+      actorHandle: user.handle,
+      repositoryId: repository.id,
+      owner: String(request.get('owner') ?? '').trim().toLowerCase(),
+      repository: repository.name,
+      subjectType: 'pull_request',
+      subjectId: Number(pullRequest.id),
+      number,
+      title: String(pullRequest.title ?? ''),
+      // Merging somebody else's pull request does not sign you up for the rest
+      // of its conversation - there rarely is one after a merge.
+      subscribeActor: false,
+    })
+
     return response.json({
       number,
       state: 'merged',

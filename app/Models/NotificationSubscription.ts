@@ -28,7 +28,12 @@ export default defineModel({
     useSeeder: { count: 40 },
   },
 
-  belongsTo: ['User'],
+  // Cascades, like the inbox entries it produces. A subscription is a standing
+  // instruction to notify somebody, and one belonging to an account that no
+  // longer exists can only ever produce rows nobody can read. The delivery log
+  // is the deliberate exception - it records what was sent, which outlives the
+  // account it was sent to.
+  belongsTo: [{ model: 'User', onDelete: 'cascade' }],
 
   attributes: {
     user_id: {

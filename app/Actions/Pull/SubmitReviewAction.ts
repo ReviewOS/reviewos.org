@@ -79,6 +79,27 @@ export default new Action({
       .where('reviewer_id', '=', user.id)
       .execute()
 
+    // Told after the review exists, and after the request is marked answered,
+    // so nothing can announce a verdict that then failed to save.
+    const { notify } = await import('../../Notifications/emit')
+    await notify('review:submitted', {
+      actorId: user.id,
+      actorHandle: user.handle,
+      repositoryId: repository.id,
+      owner: String(request.get('owner') ?? '').trim().toLowerCase(),
+      repository: repository.name,
+      subjectType: 'pull_request',
+      subjectId: Number(pullRequest.id),
+      number,
+      title: String(pullRequest.title ?? ''),
+      // The verdict, in the words the sentence needs. Without it a reader has
+      // to open the pull request to find out whether they are blocked.
+      detail: state === 'approved'
+        ? 'approved'
+        : state === 'changes_requested' ? 'requested changes on' : 'commented on',
+      subscribeActor: 'participating',
+    })
+
     // An approval may be the last requirement. attemptAutoMerge never throws
     // and does nothing unless somebody armed it.
     const { attemptAutoMerge } = await import('./autoMerge')

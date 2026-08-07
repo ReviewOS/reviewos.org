@@ -67,8 +67,11 @@
     "typecheck:framework": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false"
   },
   "dependencies": {
+    "@stacksjs/actions": "^0.70.297",
+    "@stacksjs/database": "^0.70.297",
+    "@stacksjs/queue": "^0.70.297",
     "@stacksjs/stx": "^0.2.155",
-    "bun-query-builder": "^0.2.21",
+    "bun-query-builder": "^0.2.23",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.48",
     "stacks": "^0.70.289",
@@ -93,6 +96,7 @@
   "overrides": {
     "@stacksjs/stx": "0.2.155",
     "stx-router": "0.2.151",
-    "bun-plugin-stx": "0.2.155"
+    "bun-plugin-stx": "0.2.155",
+    "bun-query-builder": "0.2.23"
   }
 }

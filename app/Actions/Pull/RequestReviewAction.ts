@@ -96,6 +96,28 @@ export default new Action({
         .execute()
     }
 
+    // `addressed`, not merely emitted: a review request is aimed at a person
+    // rather than broadcast to a thread, so it has to reach somebody who has
+    // never touched this repository and is subscribed to nothing.
+    //
+    // A team request reaches nobody yet - resolving one to its members is
+    // phase 1's model - so it is not addressed rather than addressed at a team
+    // id that means nothing to `users`.
+    const { notify } = await import('../../Notifications/emit')
+    await notify('review:requested', {
+      actorId: user.id,
+      actorHandle: user.handle,
+      repositoryId: repository.id,
+      owner: String(request.get('owner') ?? '').trim().toLowerCase(),
+      repository: repository.name,
+      subjectType: 'pull_request',
+      subjectId: Number(pullRequest.id),
+      number,
+      title: String(pullRequest.title ?? ''),
+      addressed: reviewerType === 'user' ? [reviewerId] : [],
+      subscribeActor: 'participating',
+    })
+
     return response.json({
       number,
       reviewer: { type: reviewerType, id: reviewerId },

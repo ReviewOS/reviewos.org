@@ -116,6 +116,29 @@ export default new Action({
       authorId: user.id,
     })
 
+    // After the row exists, and after the owners are asked, so the people
+    // `CODEOWNERS` just named are addressed by the same event rather than
+    // needing a second one.
+    const { notify } = await import('../../Notifications/emit')
+    const askedIds: any[] = requested.length === 0
+      ? []
+      : await db.selectFrom('users').select(['id']).where('handle', 'in', requested).execute()
+
+    await notify('pr:opened', {
+      actorId: user.id,
+      actorHandle: user.handle,
+      repositoryId: repository.id,
+      owner: String(request.get('owner') ?? '').trim().toLowerCase(),
+      repository: repository.name,
+      subjectType: 'pull_request',
+      subjectId: Number(created?.id),
+      number,
+      title,
+      addressed: askedIds.map(row => Number(row.id)),
+      // Opening something subscribes you to it, as the author.
+      subscribeActor: 'author',
+    })
+
     return response.json({
       id: Number(created?.id),
       number,

@@ -107,11 +107,29 @@ them without also watching a chat channel, and that nobody has to mute the produ
 
 ## Events
 
-- [ ] `app/Events.ts` mapping domain events to listeners: `push:received`, `pr:opened`,
-      `pr:merged`, `pr:closed`, `review:requested`, `review:submitted`, `issue:opened`,
-      `issue:closed`, `comment:created`, `release:published`
-- [ ] Events are emitted from actions, once, at the point the state actually changed. Not from
-      controllers, and not twice on retry.
+- [x] `app/Events.ts` mapping domain events to listeners: `pr:opened`, `pr:merged`, `pr:closed`,
+      `review:requested`, `review:submitted`, `issue:opened`, `issue:closed`, `comment:created`,
+      `release:published`.
+
+  All nine map to one listener rather than nine, because the work is identical every time: find who
+  is subscribed and why, drop the person who caused it, write a row. Nine listeners would be nine
+  copies of that with the reason string changed, and the ninth is the one that forgets the rule.
+  What differs is the sentence, and that lives in `app/Notifications/definitions.ts` where the nine
+  can be read against each other.
+
+  `push:received` is deliberately absent. Nobody is notified about a push directly - they are
+  notified about what it did, which is a pull request opening or a check reporting.
+
+- [ ] Events are emitted from actions, once, at the point the state actually changed.
+
+  Four of nine are wired: `pr:opened`, `pr:merged`, `review:requested`, `review:submitted`. Each
+  emits *after* the write, never before - by the time `pr:merged` fires a branch has moved and a row
+  says merged, and an event sent first and then rolled back is a notification about something that
+  did not happen, which cannot be taken back.
+
+  `issue:opened`, `issue:closed`, `pr:closed`, `comment:created` and `release:published` still need
+  the same one-line call. The helper (`app/Notifications/emit.ts`) and the listener already handle
+  them.
 
 ## Notifications
 

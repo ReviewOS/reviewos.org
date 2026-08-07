@@ -1,223 +1,127 @@
-// Who gets notified, why, and how much.
-//
-// The failure modes here are social rather than technical: notifying someone
-// about their own comment, telling a requested reviewer they are "watching",
-// or sending ten emails for one conversation. Each of those teaches people to
-// ignore notifications, which is the same as not having them.
+/**
+ * What each event says, and where it points.
+ *
+ * The sentence is the product here. "somebody reviewed your pull request" makes
+ * the reader open it to find out whether they are blocked, which is the work
+ * the notification was supposed to save them - so the tests are mostly about
+ * whether the line carries its own answer.
+ */
 
-import { describe, expect, test } from 'bun:test'
-import {
-  batchNotifications,
-  REASONS,
-  reasonText,
-  resolveRecipients,
-  subscribesActor,
-} from '../../app/Actions/Notification/recipients'
+import type { EventSubject } from '../../app/Notifications/definitions'
+import { describe as group, expect, test } from 'bun:test'
+import { describe, reasonsFor, urlFor } from '../../app/Notifications/definitions'
 
-describe('resolveRecipients', () => {
-  test('notifies a candidate', () => {
-    const result = resolveRecipients({ candidates: [{ userId: 2, reason: 'watching' }], actorId: 1 })
+function subject(overrides: Partial<EventSubject> = {}): EventSubject {
+  return {
+    actorId: 1,
+    actorHandle: 'alice',
+    repositoryId: 10,
+    owner: 'acme',
+    repository: 'forge',
+    subjectType: 'pull_request',
+    subjectId: 55,
+    number: 12,
+    title: 'Make the diff stream',
+    ...overrides,
+  }
+}
 
-    expect(result).toEqual([{ userId: 2, reason: 'watching' }])
+group('describe', () => {
+  test('names the person, the place and the thing', () => {
+    expect(describe('pr:opened', subject())?.title)
+      .toBe('alice opened acme/forge#12: Make the diff stream')
   })
 
-  test('never notifies the person who did it', () => {
-    const result = resolveRecipients({
-      candidates: [{ userId: 1, reason: 'author' }, { userId: 2, reason: 'watching' }],
-      actorId: 1,
-    })
-
-    expect(result.map(r => r.userId)).toEqual([2])
+  /**
+   * The verdict is the whole point of a review notification. Without it the
+   * reader has to open the pull request to find out whether they are blocked,
+   * which is exactly the trip the notification exists to save.
+   */
+  test('a review carries its verdict', () => {
+    expect(describe('review:submitted', subject({ detail: 'requested changes on' }))?.title)
+      .toBe('alice requested changes on acme/forge#12')
   })
 
-  test('notifies once, under the strongest reason', () => {
-    const result = resolveRecipients({
-      candidates: [
-        { userId: 2, reason: 'watching' },
-        { userId: 2, reason: 'review_requested' },
-        { userId: 2, reason: 'participating' },
-      ],
-      actorId: 1,
-    })
-
-    expect(result).toEqual([{ userId: 2, reason: 'review_requested' }])
+  test('a review with no verdict still reads as a sentence', () => {
+    expect(describe('review:submitted', subject())?.title).toBe('alice reviewed acme/forge#12')
   })
 
-  test('a review request outranks watching however they are ordered', () => {
-    const forward = resolveRecipients({
-      candidates: [{ userId: 2, reason: 'review_requested' }, { userId: 2, reason: 'watching' }],
-      actorId: 1,
-    })
-
-    expect(forward[0]!.reason).toBe('review_requested')
+  test('a review request is addressed to the reader, not narrated at them', () => {
+    expect(describe('review:requested', subject())?.title)
+      .toBe('alice asked you to review acme/forge#12')
   })
 
-  test('being mentioned outranks being the author', () => {
-    const result = resolveRecipients({
-      candidates: [{ userId: 2, reason: 'author' }, { userId: 2, reason: 'mentioned' }],
-      actorId: 1,
-    })
-
-    expect(result[0]!.reason).toBe('mentioned')
+  test('a close says it did not merge, because that is the part people check', () => {
+    expect(describe('pr:closed', subject())?.title).toContain('without merging')
   })
 
-  test('a muted reason is skipped', () => {
-    const result = resolveRecipients({
-      candidates: [{ userId: 2, reason: 'watching' }],
-      actorId: 1,
-      preferences: [{ userId: 2, muted: ['watching'] }],
-    })
-
-    expect(result).toEqual([])
-  })
-
-  test('muting one reason leaves a stronger one working', () => {
-    // Muting "watching" must not cost someone their review requests.
-    const result = resolveRecipients({
-      candidates: [{ userId: 2, reason: 'watching' }, { userId: 2, reason: 'review_requested' }],
-      actorId: 1,
-      preferences: [{ userId: 2, muted: ['watching'] }],
-    })
-
-    expect(result).toEqual([{ userId: 2, reason: 'review_requested' }])
-  })
-
-  test('unsubscribing from a thread beats every reason', () => {
-    const result = resolveRecipients({
-      candidates: [{ userId: 2, reason: 'review_requested' }, { userId: 2, reason: 'mentioned' }],
-      actorId: 1,
-      preferences: [{ userId: 2, unsubscribed: true }],
-    })
-
-    expect(result).toEqual([])
-  })
-
-  test('orders the strongest reasons first', () => {
-    const result = resolveRecipients({
-      candidates: [
-        { userId: 4, reason: 'watching' },
-        { userId: 3, reason: 'mentioned' },
-        { userId: 2, reason: 'review_requested' },
-      ],
-      actorId: 1,
-    })
-
-    expect(result.map(r => r.userId)).toEqual([2, 3, 4])
-  })
-
-  test('nobody to notify is not an error', () => {
-    expect(resolveRecipients({ candidates: [], actorId: 1 })).toEqual([])
-  })
-})
-
-describe('subscribesActor', () => {
-  test('doing something subscribes you to what follows', () => {
-    expect(subscribesActor('issue:opened')).toBe(true)
-    expect(subscribesActor('comment:created')).toBe(true)
-    expect(subscribesActor('review:submitted')).toBe(true)
-  })
-
-  test('reading or reacting does not', () => {
-    expect(subscribesActor('issue:viewed')).toBe(false)
-    expect(subscribesActor('reaction:added')).toBe(false)
-  })
-})
-
-describe('batchNotifications', () => {
-  const minute = 60_000
-
-  test('collapses a burst into one delivery', () => {
-    const pending = [0, 1, 2, 3].map(n => ({
-      userId: 2,
-      event: 'comment:created',
-      subjectKey: 'pr:7',
-      at: n * minute,
+  test('a release names the tag rather than "a release"', () => {
+    const notification = describe('release:published', subject({
+      subjectType: 'repository',
+      number: undefined,
+      detail: 'v2.1.0',
     }))
 
-    const batches = batchNotifications(pending, 5 * minute)
-
-    expect(batches).toHaveLength(1)
-    expect(batches[0]!.events).toHaveLength(4)
+    expect(notification?.title).toBe('alice published v2.1.0 in acme/forge')
   })
 
-  test('a gap longer than the window starts a new delivery', () => {
-    const pending = [
-      { userId: 2, event: 'comment:created', subjectKey: 'pr:7', at: 0 },
-      { userId: 2, event: 'comment:created', subjectKey: 'pr:7', at: 60 * minute },
-    ]
-
-    expect(batchNotifications(pending, 5 * minute)).toHaveLength(2)
+  test('an unknown event produces nothing rather than a blank row', () => {
+    expect(describe('nonsense' as any, subject())).toBeNull()
   })
 
-  test('a running conversation does not become one message at the end of the day', () => {
-    // Each comment is inside the window of the one before it, but the batch
-    // still closes when the gap does open.
-    const pending = [0, 4, 8, 40].map(n => ({
-      userId: 2,
-      event: 'comment:created',
-      subjectKey: 'pr:7',
-      at: n * minute,
-    }))
-
-    const batches = batchNotifications(pending, 5 * minute)
-
-    expect(batches).toHaveLength(2)
-    expect(batches[0]!.events).toHaveLength(3)
-  })
-
-  test('different subjects are never merged', () => {
-    const pending = [
-      { userId: 2, event: 'comment:created', subjectKey: 'pr:7', at: 0 },
-      { userId: 2, event: 'comment:created', subjectKey: 'issue:3', at: minute },
-    ]
-
-    expect(batchNotifications(pending, 5 * minute)).toHaveLength(2)
-  })
-
-  test('different people are never merged', () => {
-    const pending = [
-      { userId: 2, event: 'comment:created', subjectKey: 'pr:7', at: 0 },
-      { userId: 3, event: 'comment:created', subjectKey: 'pr:7', at: minute },
-    ]
-
-    expect(batchNotifications(pending, 5 * minute)).toHaveLength(2)
-  })
-
-  test('records the span the batch covers', () => {
-    const pending = [
-      { userId: 2, event: 'a', subjectKey: 'pr:7', at: 1000 },
-      { userId: 2, event: 'b', subjectKey: 'pr:7', at: 4000 },
-    ]
-    const [batch] = batchNotifications(pending, 5 * minute)
-
-    expect(batch!.from).toBe(1000)
-    expect(batch!.to).toBe(4000)
-  })
-
-  test('handles events arriving out of order', () => {
-    const pending = [
-      { userId: 2, event: 'b', subjectKey: 'pr:7', at: 4000 },
-      { userId: 2, event: 'a', subjectKey: 'pr:7', at: 1000 },
-    ]
-    const [batch] = batchNotifications(pending, 5 * minute)
-
-    expect(batch!.events).toEqual(['a', 'b'])
-  })
-
-  test('nothing pending is nothing to send', () => {
-    expect(batchNotifications([], minute)).toEqual([])
+  test('a subject with no number reads as the repository', () => {
+    expect(describe('issue:opened', subject({ subjectType: 'issue', number: undefined, title: 'x' }))?.title)
+      .toBe('alice opened acme/forge: x')
   })
 })
 
-describe('reasonText', () => {
-  test('every reason has text a person would recognise', () => {
-    for (const reason of REASONS) {
-      expect(reasonText(reason).length).toBeGreaterThan(0)
-      expect(reasonText(reason)).not.toContain('_')
-    }
+group('urlFor', () => {
+  /**
+   * A pull request notification lands on the review screen rather than the
+   * conversation: somebody told about a review request is going there next, and
+   * a click that needs a second click is a click that gets postponed.
+   */
+  test('a pull request points at the files, which is where the reader is going', () => {
+    expect(urlFor(subject())).toBe('/acme/forge/pull/12/files')
   })
 
-  test('a review request says so', () => {
-    expect(reasonText('review_requested')).toContain('review')
+  test('an issue points at the issue', () => {
+    expect(urlFor(subject({ subjectType: 'issue', number: 7 }))).toBe('/acme/forge/issue/7')
+  })
+
+  test('a repository-level subject points at the repository', () => {
+    expect(urlFor(subject({ subjectType: 'repository', number: undefined }))).toBe('/acme/forge')
+  })
+
+  test('a pull request with no number falls back rather than building a broken link', () => {
+    expect(urlFor(subject({ number: undefined }))).toBe('/acme/forge')
+  })
+})
+
+group('reasonsFor', () => {
+  /**
+   * A review request is addressed at a person rather than broadcast to a
+   * thread, so it has to reach them whether or not they were watching. Every
+   * other event respects why somebody is subscribed.
+   */
+  test('a review request reaches its reviewer however they are subscribed', () => {
+    expect(reasonsFor('review:requested')).toBe('all')
+  })
+
+  /**
+   * Somebody watching a repository wants to know a pull request opened. They do
+   * not want every comment on it, and a forge that sends both is a forge people
+   * mute.
+   */
+  test('a comment reaches the conversation, not everybody watching the repository', () => {
+    const reasons = reasonsFor('comment:created')
+
+    expect(reasons).not.toBe('all')
+    expect(reasons).toContain('participating')
+    expect(reasons).not.toContain('watching')
+  })
+
+  test('an opened pull request does reach the watchers', () => {
+    expect(reasonsFor('pr:opened')).toContain('watching')
   })
 })
