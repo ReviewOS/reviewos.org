@@ -33,14 +33,21 @@ export default {
    *
    * The *shape* of each payload is what differs, and that lives in
    * `app/Notifications/` where it can be read next to the sentence it produces.
+   *
+   * `DispatchWebhooks` is a second listener rather than a branch inside the
+   * first, because the two answer different questions and fail differently.
+   * Notifying a person is about subscriptions and quiet hours; calling
+   * somebody's server is about signatures, timeouts and SSRF. Sharing a
+   * listener would mean one failure could cost the other, and the inbox is the
+   * channel that has to work when everything else does not.
    */
-  'pr:opened': ['Notify'],
-  'pr:merged': ['Notify'],
-  'pr:closed': ['Notify'],
-  'review:requested': ['Notify'],
-  'review:submitted': ['Notify'],
-  'issue:opened': ['Notify'],
-  'issue:closed': ['Notify'],
-  'comment:created': ['Notify'],
-  'release:published': ['Notify'],
+  'pr:opened': ['Notify', 'DispatchWebhooks'],
+  'pr:merged': ['Notify', 'DispatchWebhooks'],
+  'pr:closed': ['Notify', 'DispatchWebhooks'],
+  'review:requested': ['Notify', 'DispatchWebhooks'],
+  'review:submitted': ['Notify', 'DispatchWebhooks'],
+  'issue:opened': ['Notify', 'DispatchWebhooks'],
+  'issue:closed': ['Notify', 'DispatchWebhooks'],
+  'comment:created': ['Notify', 'DispatchWebhooks'],
+  'release:published': ['Notify', 'DispatchWebhooks'],
 } satisfies Events

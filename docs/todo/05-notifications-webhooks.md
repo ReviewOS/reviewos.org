@@ -349,8 +349,28 @@ to prefer it to a badge nobody is looking at.
       `content_type`, `active`, `insecure_ssl`
 - [x] `app/Models/WebhookDelivery.ts`: `webhook_id`, `event`, `payload`, `request_headers`,
       `response_status`, `response_body`, `duration_ms`, `delivered_at`, `attempt`
-- [ ] Payload shapes documented and stable. People build against these, so breaking one is a real
+- [x] Payload shapes documented and stable. People build against these, so breaking one is a real
       cost.
+
+  `app/Webhooks/payloads.ts`, with a contract test that asserts on field *names* rather than
+  behaviour. Reading as pedantic is the point: renaming a field should fail there loudly, because
+  the alternative is finding out from somebody whose CI broke.
+
+  Every payload shares one envelope - `event`, `delivered_at`, `repository`, `sender`, `subject`,
+  `action` - so a receiver is written once rather than growing a switch it will get wrong. `subject`
+  is the same shape for all nine, so somebody who only cares that "something happened to pull
+  request 42" does not need nine field names to find the 42. `sender` is present-and-null rather
+  than absent when nothing caused the event, because null is checkable and missing is a surprise.
+
+  **Nothing on the wire is a database row.** The fields are chosen for the receiver and transcribed,
+  so a column rename here is not a breaking change to somebody else's CI. That is the whole reason
+  the file exists rather than `JSON.stringify(row)`.
+
+  URLs are paths, not absolute. The host is the receiver's to know, and a stored absolute URL is
+  wrong the day the forge moves behind a different name.
+
+  An empty event list means *nothing*, not everything. A webhook created with no events selected
+  should be silent rather than a firehose, and that is the default it is dangerous to get backwards.
 - [x] HMAC SHA-256 signature header, computed over the exact bytes sent
 - [x] `app/Jobs/DeliverWebhookJob.ts` on the `webhooks` queue: timeout, retries with exponential
       backoff, and automatic deactivation after sustained failure
@@ -380,7 +400,22 @@ to prefer it to a badge nobody is looking at.
   The signature is redacted in the delivery log. It is reproducible from the payload and the secret,
   so storing it buys nothing and a log full of valid signatures is a log worth stealing.
 - [ ] Delivery log in the interface, with redelivery
-- [ ] Ping event on creation so a user can verify the endpoint immediately
+- [x] Ping event on creation so a user can verify the endpoint immediately
+
+  Through the real delivery path - the same signature, the same headers, the same SSRF checks -
+  because a special verification path only ever proves the special path works. It is the same
+  envelope with no subject, so a receiver that handles the envelope handles the ping for free, and
+  it carries a line of text because a ping with an empty body is one people mistake for a failure.
+
+  `ManageWebhookAction` had to exist for this box to be honest: until it did, a webhook could only
+  be created by writing to the table by hand. The URL is checked by `ssrf.ts` before it is stored
+  *and* again before every delivery - the first refuses a URL the interface would otherwise display
+  as working, and the second is what DNS cannot dodge. Neither is redundant.
+
+  Re-enabling a webhook resets its failure counter, or it would switch off again on the first
+  hiccup after somebody fixed their endpoint. An update with no secret keeps the old one: blanking
+  it would silently turn signature checking off at the receiver, which is the one failure nobody
+  would go looking for.
 - [x] **SSRF protection.** A webhook URL is attacker-controlled and the request originates from the
       server: block loopback, link-local, and private ranges, resolve DNS before connecting and
       validate the resolved address, and re-validate on redirects. This is the highest-risk feature

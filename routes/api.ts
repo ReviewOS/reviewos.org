@@ -240,6 +240,14 @@ route.get('/repos/pulls/suggested-reviewers', 'Actions/Pull/SuggestReviewersActi
 route.put('/repos/pulls/review-state/viewed', 'Actions/Pull/MarkFileViewedAction').middleware('auth')
 route.put('/repos/pulls/review-state/draft', 'Actions/Pull/SaveReviewDraftAction').middleware('auth')
 
+// Webhooks on a repository. `repository:settings` rather than
+// `repository:push`: a webhook sends this repository's activity to a server
+// somebody chooses, which is a decision about the project rather than a change
+// to its code. One endpoint for create, update and delete, because all three
+// share the rule that decides whether a URL may be called at all - and that
+// rule is the security boundary of the whole feature.
+route.post('/repos/webhooks', 'Actions/Webhook/ManageWebhookAction').middleware('auth')
+
 // Mirrors. The webhook is deliberately unauthenticated at the route level: an
 // upstream forge has no session here, and the request is verified instead by
 // its signature against the mirror's own secret inside the action.
