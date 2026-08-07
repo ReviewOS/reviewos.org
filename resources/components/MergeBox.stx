@@ -1,0 +1,100 @@
+<script server>
+/*
+ * Arrays do not survive an stx attribute as themselves - the StackNav lesson -
+ * so the blockers and the conflicting paths arrive as JSON and are parsed
+ * once, here. Flags arrive as '1' or '', because an attribute is a string and
+ * "false" is a truthy one.
+ */
+const blockerList = typeof blockersJson === 'string' ? JSON.parse(blockersJson || '[]') : (blockersJson ?? [])
+const conflictList = typeof conflictsJson === 'string' ? JSON.parse(conflictsJson || '[]') : (conflictsJson ?? [])
+const armedStrategy = String(autoStrategy ?? '')
+const armedByHandle = String(autoArmedBy ?? '')
+const canMerge = String(mayMerge ?? '') === '1'
+</script>
+
+{{--
+  The merge box. Every reason it cannot merge is listed at once: being sent
+  round the loop one blocker at a time is the thing contributors hate most
+  about a review interface. Auto-merge is offered exactly when merging is
+  blocked - arming a green pull request is the merge button with extra steps -
+  and the endpoint merges immediately if requirements are already met, so a
+  stale page cannot arm what should just merge.
+--}}
+<section class="panel merge-box">
+  <h2 class="side-heading">Merge</h2>
+
+  @if (blockerList.length === 0)
+    <p class="merge-state ok">Everything checks out.</p>
+    <form method="post" action="/api/repos/pulls/merge">
+      <CsrfField />
+      <input type="hidden" name="owner" value="{{ owner }}">
+      <input type="hidden" name="repo" value="{{ repository }}">
+      <input type="hidden" name="number" value="{{ number }}">
+      <label class="visually-hidden" for="strategy">Merge strategy</label>
+      <select id="strategy" name="strategy" class="select">
+        <option value="merge">Create a merge commit</option>
+        <option value="squash">Squash and merge</option>
+        <option value="rebase">Rebase and merge</option>
+      </select>
+      <button type="submit" class="btn btn-primary merge-button">Merge pull request</button>
+    </form>
+  @else
+    <p class="merge-state bad">This cannot be merged yet.</p>
+    <ul class="blockers">
+      @foreach (blockerList as blocker)
+        <li class="blocker">
+          <span class="i-hugeicons-alert-02" aria-hidden="true"></span>
+          {{ blocker }}
+        </li>
+      @endforeach
+    </ul>
+
+    {{-- The conflicting files, named. git already told us which they are, so
+         saying only "this branch has conflicts" would send somebody to their
+         terminal to rediscover what we know. --}}
+    @if (conflictList.length > 0)
+      <p class="conflict-heading">Conflicts in</p>
+      <ul class="conflict-list mono">
+        @foreach (conflictList as path)
+          <li>{{ path }}</li>
+        @endforeach
+      </ul>
+    @endif
+
+    <button type="button" class="btn merge-button" aria-disabled="true" disabled>
+      Merge pull request
+    </button>
+
+    @if (armedStrategy)
+      <p class="muted side-note">
+        Auto-merge is armed ({{ armedStrategy }}){{ armedByHandle ? ` by ${armedByHandle}` : '' }}.
+        It merges the moment everything above is satisfied.
+      </p>
+      @if (canMerge)
+        <form method="post" action="/api/repos/pulls/auto-merge/disarm">
+          <CsrfField />
+          <input type="hidden" name="owner" value="{{ owner }}">
+          <input type="hidden" name="repo" value="{{ repository }}">
+          <input type="hidden" name="number" value="{{ number }}">
+          <button type="submit" class="btn merge-button">Disarm auto-merge</button>
+        </form>
+      @endif
+    @else
+      @if (canMerge)
+        <form method="post" action="/api/repos/pulls/auto-merge">
+          <CsrfField />
+          <input type="hidden" name="owner" value="{{ owner }}">
+          <input type="hidden" name="repo" value="{{ repository }}">
+          <input type="hidden" name="number" value="{{ number }}">
+          <label class="visually-hidden" for="auto-strategy">Auto-merge strategy</label>
+          <select id="auto-strategy" name="strategy" class="select">
+            <option value="merge">Create a merge commit</option>
+            <option value="squash">Squash and merge</option>
+            <option value="rebase">Rebase and merge</option>
+          </select>
+          <button type="submit" class="btn merge-button">Enable auto-merge</button>
+        </form>
+      @endif
+    @endif
+  @endif
+</section>

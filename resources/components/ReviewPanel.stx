@@ -1,0 +1,81 @@
+<script server>
+/*
+ * Reviews arrive as JSON - the StackNav lesson about attributes - and the
+ * may-review flag as '1' or '', because an attribute is a string and "false"
+ * is a truthy one.
+ */
+const reviewList = typeof reviewsJson === 'string' ? JSON.parse(reviewsJson || '[]') : (reviewsJson ?? [])
+const canReview = String(mayReview ?? '') === '1'
+</script>
+
+{{--
+  Who has reviewed, and the form to become one of them. The verdict form is
+  a form, not a fetch: a bare fetch fails CSRF exactly and only for signed-in
+  readers, which is the class of bug this codebase documents at length. It is
+  also the surface keyboard-first needs - keys can only press controls that
+  exist.
+--}}
+<section class="panel side-panel" data-review-panel>
+  <h2 class="side-heading">Reviews</h2>
+  @if (reviewList.length === 0)
+    <p class="muted side-empty">Nobody has reviewed this yet.</p>
+  @else
+    <ul class="review-list">
+      @foreach (reviewList as review)
+        <li class="review-item">
+          <span class="pill {{ review.state === 'approved' ? 'pill-open' : (review.state === 'changes_requested' ? 'pill-closed' : 'pill-draft') }}">
+            {{ review.state === 'approved' ? 'Approved' : (review.state === 'changes_requested' ? 'Changes requested' : 'Commented') }}
+          </span>
+          @if (review.stale)
+            <span class="muted review-stale">on an earlier commit</span>
+          @endif
+        </li>
+      @endforeach
+    </ul>
+  @endif
+  <p class="muted side-note">
+    {{ approvals }} of {{ required }} required approvals.
+  </p>
+
+  @if (canReview)
+    <form method="post" action="/api/repos/pulls/reviews" class="verdict-form" data-verdict-form>
+      <CsrfField />
+      <input type="hidden" name="owner" value="{{ owner }}">
+      <input type="hidden" name="repo" value="{{ repository }}">
+      <input type="hidden" name="number" value="{{ number }}">
+
+      <label class="verdict-choice">
+        <input type="radio" name="state" value="approved">
+        <span>Approve</span>
+      </label>
+      <label class="verdict-choice">
+        <input type="radio" name="state" value="changes_requested">
+        <span>Request changes</span>
+      </label>
+      <label class="verdict-choice">
+        <input type="radio" name="state" value="commented" checked>
+        <span>Comment</span>
+      </label>
+
+      <textarea class="verdict-body" name="body" rows="3" placeholder="Say what you saw"></textarea>
+      <button type="submit" class="btn merge-button">Submit review</button>
+    </form>
+  @endif
+</section>
+
+<style>
+  .verdict-form { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
+  .verdict-choice { display: flex; gap: 8px; align-items: center; font-size: 13.5px; cursor: pointer; }
+
+  .verdict-body {
+    width: 100%;
+    padding: 7px 9px;
+    font: inherit;
+    font-size: 13.5px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control, 10px);
+    resize: vertical;
+  }
+</style>

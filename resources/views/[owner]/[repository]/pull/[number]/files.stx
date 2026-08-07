@@ -242,7 +242,7 @@ const sinceUrl = `/api/repos/pulls/review-state/since?${diffQuery}`
       <noscript>
         <p class="muted" style="padding: 16px 0;">
           The streamed view needs JavaScript.
-          <a href="/{{ owner }}/{{ repositoryName }}/pull/{{ number }}">Read the diff on the conversation page</a>,
+          <a href="/{{ owner }}/{{ repositoryName }}/pull/{{ number }}?tab=files">Read the diff on the files tab</a>,
           which renders in full on the server.
         </p>
       </noscript>

@@ -1,0 +1,47 @@
+<script server>
+/* The files, as JSON across the attribute - the StackNav lesson. */
+const fileList = typeof filesJson === 'string' ? JSON.parse(filesJson || '[]') : (filesJson ?? [])
+</script>
+
+{{--
+  The changed files, as links into the diff below. renderDiffFile gives every
+  file section an id of file-<path>, so each row here is one fragment jump -
+  no script, and the reader's back button undoes it.
+--}}
+@if (fileList.length > 0)
+  <section class="panel side-panel">
+    <h2 class="side-heading">Files</h2>
+    <ul class="file-tree">
+      @foreach (fileList as file)
+        <li class="file-tree-row">
+          <a class="mono file-tree-path" href="#file-{{ file.path }}">{{ file.path }}</a>
+          <span class="mono file-tree-counts">
+            <span class="count-add">+{{ file.additions }}</span>
+            <span class="count-del">-{{ file.deletions }}</span>
+          </span>
+        </li>
+      @endforeach
+    </ul>
+  </section>
+@endif
+
+<style>
+  .file-tree { margin-top: 9px; display: flex; flex-direction: column; gap: 5px; }
+
+  .file-tree-row {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 12.5px;
+  }
+
+  .file-tree-path {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file-tree-counts { flex: none; display: flex; gap: 5px; }
+</style>

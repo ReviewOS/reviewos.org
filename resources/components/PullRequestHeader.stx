@@ -1,0 +1,40 @@
+{{--
+  The title, the state, and the tabs - everything above the fold that says
+  which pull request this is and where the reader is standing in it. All
+  scalar props, which is what lets this stay script-free: an stx attribute
+  delivers strings faithfully, and there is nothing here to parse.
+--}}
+<header class="pr-head">
+  <div class="pr-title-row">
+    <h1 class="pr-title">{{ title }}</h1>
+    <span class="mono muted pr-number">#{{ number }}</span>
+  </div>
+
+  <div class="pr-meta">
+    <span class="pill pill-{{ statePill }}">{{ stateLabel }}</span>
+    <span class="muted">
+      {{ authorName }} wants to merge
+      <span class="mono">{{ headBranch }}</span>
+      into
+      <span class="mono">{{ baseBranch }}</span>
+    </span>
+  </div>
+
+  <div class="pr-counts muted mono">
+    {{ fileCount }} {{ fileCount === '1' ? 'file' : 'files' }}
+    <span class="count-add">+{{ additions }}</span>
+    <span class="count-del">-{{ deletions }}</span>
+  </div>
+</header>
+
+{{-- Real tabs, real URLs. Server-rendered: a tab is a page the reader can
+     open in a new window and send to somebody, not a strip of anchors into
+     one long scroll. The streamed review screen keeps its own door - the
+     same files, built for very large diffs. --}}
+<nav class="tabs" aria-label="Pull request sections">
+  <a class="tab" {{ tab === 'conversation' ? 'aria-current="page"' : '' }} href="?tab=conversation">Conversation</a>
+  <a class="tab" {{ tab === 'commits' ? 'aria-current="page"' : '' }} href="?tab=commits">Commits</a>
+  <a class="tab" {{ tab === 'checks' ? 'aria-current="page"' : '' }} href="?tab=checks">Checks</a>
+  <a class="tab" {{ tab === 'files' ? 'aria-current="page"' : '' }} href="?tab=files">Files changed</a>
+  <a class="tab muted" href="/{{ owner }}/{{ repository }}/pull/{{ number }}/files">Review screen</a>
+</nav>

@@ -13,12 +13,29 @@
 import { repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
-import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists } from '../../../../functions/review'
+import { approvalsSatisfied, commitsOnBranch, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists } from '../../../../functions/review'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
 const number = Number(params.number)
+
+/*
+ * Which tab, from the query string - read from both serving pipelines,
+ * because they disagree here the way they do about cookies. The frontend
+ * server answers through `useRoute()`, and a bare `query` there is the
+ * documented silent failure that renders the page as not-found. A
+ * `route.serve()` boot is the mirror image: `useRoute()` has no context and
+ * answers empty, and `query` is a real binding carrying the parsed search.
+ * The `typeof` guard is what makes naming it safe on the pipeline where it
+ * does not exist.
+ */
+const routeQuery: Record<string, string> = useRoute().query ?? {}
+const boundQuery: Record<string, string> = typeof query === 'undefined' ? {} : (query ?? {})
+const search: Record<string, string> = { ...routeQuery, ...boundQuery }
+const tab = ['conversation', 'commits', 'checks', 'files'].includes(String(search.tab ?? ''))
+  ? String(search.tab)
+  : 'conversation'
 
 // Every body on this page is rendered against the same repository, so `#12`
 // means the same thing in a description as it does in a review comment.
@@ -149,22 +166,37 @@ const threads = anchorThreads(storedThreads, files)
 // Render each file once, with its tokens and the threads that belong in it.
 // Serially rather than in parallel: highlighting is CPU-bound, so racing every
 // file only shortens the time before the event loop is saturated.
-for (const file of files) {
-  const fileThreads = threads.filter((thread: any) => thread.path === file.path)
-  threadsByPath[file.path] = fileThreads
+//
+// Only on the files tab. The parse above runs everywhere - the totals and the
+// thread count are in the header and sidebar of every tab - but highlighting
+// and rendering a hundred files to answer a conversation-tab request would be
+// paying the page's whole cost to show a description.
+if (tab === 'files') {
+  for (const file of files) {
+    const fileThreads = threads.filter((thread: any) => thread.path === file.path)
+    threadsByPath[file.path] = fileThreads
 
-  diffHtmlByPath[file.path] = renderDiffFile(file, {
-    expandable: true,
-    tokens: await highlightDiffFile(file),
-    // `fold` rather than the streamed viewer's `fetch`: the diff on this page
-    // runs no client script, so nothing is going to ask for the rows of a
-    // folded file and a header on its own would be a file nobody can ever
-    // read. The one script the page carries belongs to the suggested-reviewers
-    // panel and touches nothing in the diff.
-    collapsed: startsCollapsed(file) ? 'fold' : false,
-    threadsAt: threadSlotFor(fileThreads, file.path),
-  })
+    diffHtmlByPath[file.path] = renderDiffFile(file, {
+      expandable: true,
+      tokens: await highlightDiffFile(file),
+      // `fold` rather than the streamed viewer's `fetch`: the diff on this page
+      // runs no client script, so nothing is going to ask for the rows of a
+      // folded file and a header on its own would be a file nobody can ever
+      // read. The one script the page carries belongs to the suggested-reviewers
+      // panel and touches nothing in the diff.
+      collapsed: startsCollapsed(file) ? 'fold' : false,
+      threadsAt: threadSlotFor(fileThreads, file.path),
+    })
+  }
 }
+
+/*
+ * The branch's commits, for the commits tab only: a `git log` nobody on
+ * another tab is asking for.
+ */
+const branchCommits = tab === 'commits' && pullRequest
+  ? await commitsOnBranch(owner, repositoryName, String(pullRequest.base_sha), String(pullRequest.head_sha))
+  : []
 
 const descriptionHtml = pullRequest?.body
   ? await renderMarkdownHighlighted(String(pullRequest.body), markdownContext)
@@ -373,6 +405,22 @@ const stateLabel = pullRequest
   ? (pullRequest.state === 'merged' ? 'Merged' : (pullRequest.state === 'closed' ? 'Closed' : (pullRequest.draft ? 'Draft' : 'Open')))
   : ''
 
+/*
+ * Shapes for the components, built here because a component parses its own
+ * JSON and should be handed exactly what it renders - the page knows the
+ * rows, the component knows the markup.
+ */
+const reviewSummaries = reviews.map((review: any) => ({
+  state: String(review.state),
+  stale: pullRequest ? review.commit_sha !== pullRequest.head_sha : false,
+}))
+
+const fileSummaries = files.map((file: any) => ({
+  path: String(file.path),
+  additions: Number(file.additions ?? 0),
+  deletions: Number(file.deletions ?? 0),
+}))
+
 const statePill = pullRequest
   ? (pullRequest.state === 'merged' ? 'merged' : (pullRequest.state === 'closed' ? 'closed' : (pullRequest.draft ? 'draft' : 'open')))
   : 'draft'
@@ -390,61 +438,107 @@ const statePill = pullRequest
         </p>
       </div>
     @else
-      <header class="pr-head">
-        <div class="pr-title-row">
-          <h1 class="pr-title">{{ pullRequest.title }}</h1>
-          <span class="mono muted pr-number">#{{ number }}</span>
-        </div>
-
-        <div class="pr-meta">
-          <span class="pill pill-{{ statePill }}">{{ stateLabel }}</span>
-          <span class="muted">
-            {{ authorName ?? 'someone' }} wants to merge
-            <span class="mono">{{ pullRequest.head_branch }}</span>
-            into
-            <span class="mono">{{ pullRequest.base_branch }}</span>
-          </span>
-        </div>
-
-        <div class="pr-counts muted mono">
-          {{ totals.files }} {{ totals.files === 1 ? 'file' : 'files' }}
-          <span class="count-add">+{{ totals.additions }}</span>
-          <span class="count-del">-{{ totals.deletions }}</span>
-        </div>
-      </header>
-
-      <nav class="tabs" aria-label="Pull request sections">
-        <a class="tab" href="#conversation">Conversation</a>
-        <a class="tab" aria-current="page" href="#files">Files changed</a>
-        <a class="tab" href="#checks">Checks</a>
-      </nav>
+      <PullRequestHeader
+        title="{{ pullRequest.title }}"
+        number="{{ number }}"
+        statePill="{{ statePill }}"
+        stateLabel="{{ stateLabel }}"
+        authorName="{{ authorName ?? 'someone' }}"
+        headBranch="{{ pullRequest.head_branch }}"
+        baseBranch="{{ pullRequest.base_branch }}"
+        fileCount="{{ totals.files }}"
+        additions="{{ totals.additions }}"
+        deletions="{{ totals.deletions }}"
+        tab="{{ tab }}"
+        owner="{{ owner }}"
+        repository="{{ repositoryName }}"
+      />
 
       <div class="pr-body">
         <div class="pr-main" id="files">
-          @if (descriptionHtml)
-            <section class="panel pr-description markdown">{!! descriptionHtml !!}</section>
-          @endif
+          @if (tab === 'conversation')
+            @if (descriptionHtml)
+              <section class="panel pr-description markdown">{!! descriptionHtml !!}</section>
+            @else
+              <p class="muted" style="padding: 24px 0;">No description was written.</p>
+            @endif
 
-          @if (files.length === 0)
-            <p class="muted" style="padding: 24px 0;">
-              This branch has no changes against
-              <span class="mono">{{ pullRequest.base_branch }}</span>.
+            <p class="muted side-note">
+              {{ totals.files }} changed {{ totals.files === 1 ? 'file' : 'files' }} on the
+              <a href="?tab=files">files tab</a>, with {{ threads.length }}
+              review {{ threads.length === 1 ? 'thread' : 'threads' }}.
             </p>
           @endif
 
-          {{--
-            The markup comes from `app/Actions/Pull/rows.ts`, which is what the
-            streamed review screen renders too. It used to be a component here
-            and a string builder there, and two renderers producing nearly the
-            same rows is how a diff ends up looking one way on this page and
-            another on the screen built for reading it.
-          --}}
-          @foreach (files as file)
-            {!! diffHtmlByPath[file.path] !!}
-          @endforeach
+          @if (tab === 'commits')
+            @if (branchCommits.length === 0)
+              <p class="muted" style="padding: 24px 0;">This branch carries no commits of its own.</p>
+            @else
+              {{-- Oldest first: a branch whose history was written to be read
+                   is read in the order it was written. --}}
+              <ul class="pr-commits">
+                @foreach (branchCommits as commit)
+                  <li class="pr-commit">
+                    <a class="mono" href="/{{ owner }}/{{ repositoryName }}/commit/{{ commit.sha }}">{{ commit.sha.slice(0, 10) }}</a>
+                    <span class="pr-commit-subject">{{ commit.subject }}</span>
+                    <span class="muted">{{ commit.author }}</span>
+                  </li>
+                @endforeach
+              </ul>
+            @endif
+          @endif
+
+          @if (tab === 'checks')
+            <section class="panel" style="padding: 15px 17px;">
+              <h2 class="side-heading">Checks</h2>
+              @if (requiredChecks.length === 0)
+                <p class="muted side-empty">No checks are required on this branch.</p>
+              @else
+                <ul class="check-list">
+                  @foreach (checkResult.failing as name)
+                    <li class="check bad"><span class="i-hugeicons-cancel-01" aria-hidden="true"></span>{{ name }}</li>
+                  @endforeach
+                  @foreach (checkResult.pending as name)
+                    <li class="check warn"><span class="i-hugeicons-time-quarter" aria-hidden="true"></span>{{ name }}</li>
+                  @endforeach
+                  @foreach (checkResult.missing as name)
+                    <li class="check warn"><span class="i-hugeicons-help-circle" aria-hidden="true"></span>{{ name }} has never reported</li>
+                  @endforeach
+                  @if (checkResult.satisfied)
+                    <li class="check ok"><span class="i-hugeicons-checkmark-circle-02" aria-hidden="true"></span>All required checks passed</li>
+                  @endif
+                </ul>
+              @endif
+            </section>
+          @endif
+
+          @if (tab === 'files')
+            @if (files.length === 0)
+              <p class="muted" style="padding: 24px 0;">
+                This branch has no changes against
+                <span class="mono">{{ pullRequest.base_branch }}</span>.
+              </p>
+            @endif
+
+            {{--
+              The markup comes from `app/Actions/Pull/rows.ts`, which is what the
+              streamed review screen renders too. It used to be a component here
+              and a string builder there, and two renderers producing nearly the
+              same rows is how a diff ends up looking one way on this page and
+              another on the screen built for reading it.
+            --}}
+            @foreach (files as file)
+              {!! diffHtmlByPath[file.path] !!}
+            @endforeach
+          @endif
         </div>
 
         <aside class="pr-side">
+          {{-- The changed files as links, on the tab where the diff is. --}}
+          @if (tab === 'files')
+            <FileTreeSidebar filesJson="{{ JSON.stringify(fileSummaries) }}" />
+          @endif
+
           <StackNav
             stackJson="{{ JSON.stringify(stack) }}"
             currentId="{{ currentMember ? currentMember.id : 0 }}"
@@ -458,91 +552,16 @@ const statePill = pullRequest
 
 
 
-          {{-- The merge box. Every reason it cannot merge is listed at once:
-               being sent round the loop one blocker at a time is the thing
-               contributors hate most about a review interface. --}}
-          <section class="panel merge-box">
-            <h2 class="side-heading">Merge</h2>
-
-            @if (blockers.length === 0)
-              <p class="merge-state ok">Everything checks out.</p>
-              <form method="post" action="/api/repos/pulls/merge">
-                <CsrfField />
-                <input type="hidden" name="owner" value="{{ owner }}">
-                <input type="hidden" name="repo" value="{{ repositoryName }}">
-                <input type="hidden" name="number" value="{{ number }}">
-                <label class="visually-hidden" for="strategy">Merge strategy</label>
-                <select id="strategy" name="strategy" class="select">
-                  <option value="merge">Create a merge commit</option>
-                  <option value="squash">Squash and merge</option>
-                  <option value="rebase">Rebase and merge</option>
-                </select>
-                <button type="submit" class="btn btn-primary merge-button">Merge pull request</button>
-              </form>
-            @else
-              <p class="merge-state bad">This cannot be merged yet.</p>
-              <ul class="blockers">
-                @foreach (blockers as blocker)
-                  <li class="blocker">
-                    <span class="i-hugeicons-alert-02" aria-hidden="true"></span>
-                    {{ blocker }}
-                  </li>
-                @endforeach
-              </ul>
-
-              {{-- The conflicting files, named. git already told us which they
-                   are, so saying only "this branch has conflicts" would send
-                   somebody to their terminal to rediscover what we know. --}}
-              @if (mergeability.conflictingPaths.length > 0)
-                <p class="conflict-heading">Conflicts in</p>
-                <ul class="conflict-list mono">
-                  @foreach (mergeability.conflictingPaths as path)
-                    <li>{{ path }}</li>
-                  @endforeach
-                </ul>
-              @endif
-
-              <button type="button" class="btn merge-button" aria-disabled="true" disabled>
-                Merge pull request
-              </button>
-
-              {{-- Auto-merge, offered exactly when merging is blocked: arming
-                   a green pull request is the merge button with extra steps.
-                   The endpoint merges immediately if requirements are already
-                   met, so a stale page cannot arm what should just merge. --}}
-              @if (autoMergeArmed)
-                <p class="muted side-note">
-                  Auto-merge is armed ({{ autoMergeArmed }}){{ autoMergeArmedBy?.handle ? ` by ${autoMergeArmedBy.handle}` : '' }}.
-                  It merges the moment everything above is satisfied.
-                </p>
-                @if (viewerMayMerge)
-                  <form method="post" action="/api/repos/pulls/auto-merge/disarm">
-                    <CsrfField />
-                    <input type="hidden" name="owner" value="{{ owner }}">
-                    <input type="hidden" name="repo" value="{{ repositoryName }}">
-                    <input type="hidden" name="number" value="{{ number }}">
-                    <button type="submit" class="btn merge-button">Disarm auto-merge</button>
-                  </form>
-                @endif
-              @else
-                @if (viewerMayMerge)
-                  <form method="post" action="/api/repos/pulls/auto-merge">
-                    <CsrfField />
-                    <input type="hidden" name="owner" value="{{ owner }}">
-                    <input type="hidden" name="repo" value="{{ repositoryName }}">
-                    <input type="hidden" name="number" value="{{ number }}">
-                    <label class="visually-hidden" for="auto-strategy">Auto-merge strategy</label>
-                    <select id="auto-strategy" name="strategy" class="select">
-                      <option value="merge">Create a merge commit</option>
-                      <option value="squash">Squash and merge</option>
-                      <option value="rebase">Rebase and merge</option>
-                    </select>
-                    <button type="submit" class="btn merge-button">Enable auto-merge</button>
-                  </form>
-                @endif
-              @endif
-            @endif
-          </section>
+          <MergeBox
+            owner="{{ owner }}"
+            repository="{{ repositoryName }}"
+            number="{{ number }}"
+            blockersJson="{{ JSON.stringify(blockers) }}"
+            conflictsJson="{{ JSON.stringify(mergeability.conflictingPaths) }}"
+            autoStrategy="{{ autoMergeArmed ?? '' }}"
+            autoArmedBy="{{ autoMergeArmedBy?.handle ?? '' }}"
+            mayMerge="{{ viewerMayMerge ? '1' : '' }}"
+          />
 
           {{-- Who should look, above who has looked. Hidden rather than empty
                for readers who cannot ask anybody: see the gate in the script. --}}
@@ -569,28 +588,15 @@ const statePill = pullRequest
             </section>
           @endif
 
-          <section class="panel side-panel">
-            <h2 class="side-heading">Reviews</h2>
-            @if (reviews.length === 0)
-              <p class="muted side-empty">Nobody has reviewed this yet.</p>
-            @else
-              <ul class="review-list">
-                @foreach (reviews as review)
-                  <li class="review-item">
-                    <span class="pill {{ review.state === 'approved' ? 'pill-open' : (review.state === 'changes_requested' ? 'pill-closed' : 'pill-draft') }}">
-                      {{ review.state === 'approved' ? 'Approved' : (review.state === 'changes_requested' ? 'Changes requested' : 'Commented') }}
-                    </span>
-                    @if (review.commit_sha !== pullRequest.head_sha)
-                      <span class="muted review-stale">on an earlier commit</span>
-                    @endif
-                  </li>
-                @endforeach
-              </ul>
-            @endif
-            <p class="muted side-note">
-              {{ approval.approvals }} of {{ protection?.required_approvals ?? 0 }} required approvals.
-            </p>
-          </section>
+          <ReviewPanel
+            owner="{{ owner }}"
+            repository="{{ repositoryName }}"
+            number="{{ number }}"
+            reviewsJson="{{ JSON.stringify(reviewSummaries) }}"
+            approvals="{{ approval.approvals }}"
+            required="{{ protection?.required_approvals ?? 0 }}"
+            mayReview="{{ viewerMayReview ? '1' : '' }}"
+          />
 
           <section class="panel side-panel" id="checks">
             <h2 class="side-heading">Checks</h2>
@@ -732,6 +738,10 @@ const statePill = pullRequest
 
   .count-add { color: var(--ok); }
   .count-del { color: var(--bad); }
+
+  .pr-commits { display: flex; flex-direction: column; gap: 8px; }
+  .pr-commit { display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; }
+  .pr-commit-subject { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .visually-hidden {
     position: absolute;

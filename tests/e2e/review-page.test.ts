@@ -237,7 +237,9 @@ beforeAll(async () => {
       .execute()
 
     const response = await fetch(
-      `http://127.0.0.1:${port}/${created.handle}/${created.name}/pull/1`,
+      // The files tab: the page grew real tabs, conversation is the default,
+      // and the server-rendered diff this file exists to hold lives here.
+      `http://127.0.0.1:${port}/${created.handle}/${created.name}/pull/1?tab=files`,
       // No `Accept: application/json`, and nothing that runs a script. This is
       // what a browser with JavaScript off sends.
       { headers: { Accept: 'text/html' } },

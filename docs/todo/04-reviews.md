@@ -561,14 +561,28 @@ this is where the claim is either true or marketing.
 ## Views
 
 - [x] `resources/views/[owner]/[repository]/pulls/index.stx`
-- [ ] `.../pull/[number].stx` - conversation, commits, checks, and files, as tabs over one page
+- [x] `.../pull/[number].stx` - conversation, commits, checks, and files, as tabs over one page
+
+  Real tabs, real URLs: `?tab=` read from both serving pipelines (`useRoute()` on the frontend,
+  the bound `query` under `route.serve()` - the cookie lesson again, for the query string), with
+  conversation the default and the diff render loop gated to the files tab, so a hundred-file
+  render is never the price of reading a description. The commits tab is `commitsOnBranch`,
+  oldest first. **The no-JS diff guarantee moved with the diff**: `review-page.test.ts` now
+  fetches `?tab=files`, and `pull-tabs.test.ts` holds the cost model - the conversation tab must
+  NOT carry diff rows - as well as the content of each tab.
 - [x] `.../pull/[number]/files.stx` - the review screen, and the most important screen in the product
 - [ ] `.../compare/[...refs].stx`
-- [ ] Components: `ReviewPanel`, `PullRequestHeader`, `MergeBox`, `StackIndicator`,
+- [x] Components: `ReviewPanel`, `PullRequestHeader`, `MergeBox`, `StackIndicator`,
       `FileTreeSidebar`. `DiffView` and `ReviewThread` were components and are not any more: the
       same markup is needed by the streamed review screen, and a component cannot be called from a
       string. Both now come from `app/Actions/Pull/rows.ts` and `threads.ts`, which is one renderer
       rather than two that drift.
+
+  All extracted, with `StackNav` serving as the stack indicator - it predates this list and does
+  the job under a different name. Arrays cross the attribute boundary as JSON and flags as `'1'`
+  or `''`, per the lessons this file already records. `ReviewPanel` also grew the verdict form -
+  approve, request changes, comment, and a body, posting to the same endpoint every client uses -
+  which is the surface the keyboard-first item names as its missing prerequisite.
 - [x] Keyboard navigation through files and threads, and submitting a review without the mouse
 - [x] The diff renders on the server; the browser gets HTML, not a diff library and a JSON payload.
       The architecture of [phase 14](./14-diff-engine.md), defended on the marketing site, and held
