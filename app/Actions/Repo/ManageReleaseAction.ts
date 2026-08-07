@@ -129,6 +129,29 @@ export default new Action({
       .returning(['id'])
       .executeTakeFirst()
 
+    // A draft is not published. Announcing one would tell everybody watching
+    // about a release that is deliberately unannounced, which is the entire
+    // thing a draft is keeping.
+    // `user` is nullable on this path. A release with no actor has nobody to
+    // name in the sentence and nobody to leave out of the audience, so it is
+    // not announced rather than announced by "somebody".
+    if (!isDraft && user) {
+      const { notify } = await import('../../Notifications/emit')
+      await notify('release:published', {
+        actorId: user.id,
+        actorHandle: user.handle,
+        repositoryId: repository.id,
+        owner: String(request.get('owner') ?? '').trim().toLowerCase(),
+        repository: repository.name,
+        // A release belongs to the repository, so its audience is the watchers
+        // rather than a thread nobody has been subscribed to.
+        subjectType: 'repository',
+        subjectId: repository.id,
+        detail: tag,
+        subscribeActor: false,
+      })
+    }
+
     return response.json({
       id: Number(created?.id),
       tag_name: tag,

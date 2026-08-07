@@ -98,6 +98,28 @@ export default new Action({
       body,
     )
 
+    // Mentions are addressed rather than broadcast: naming somebody in a
+    // comment reaches them whether or not they were following the thread, which
+    // is the whole reason people write an @.
+    const mentionedIds: any[] = mentioned.length === 0
+      ? []
+      : await db.selectFrom('users').select(['id']).where('handle', 'in', [...new Set(mentioned)]).execute()
+
+    const { notify } = await import('../../Notifications/emit')
+    await notify('comment:created', {
+      actorId: user.id,
+      actorHandle: user.handle,
+      repositoryId: repository.id,
+      owner: String(request.get('owner') ?? '').trim().toLowerCase(),
+      repository: repository.name,
+      subjectType: issue.is_pull_request ? 'pull_request' : 'issue',
+      subjectId: Number(issue.id),
+      number,
+      addressed: mentionedIds.map(row => Number(row.id)),
+      // Commenting on something subscribes you to it.
+      subscribeActor: 'participating',
+    })
+
     return response.json({
       id: Number(created?.id),
       issue_number: number,

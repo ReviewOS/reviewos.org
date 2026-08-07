@@ -92,6 +92,20 @@ export default new Action({
       uploaded.body,
     )
 
+    const { notify } = await import('../../Notifications/emit')
+    await notify('issue:opened', {
+      actorId: user.id,
+      actorHandle: user.handle,
+      repositoryId: repository.id,
+      owner: String(request.get('owner') ?? '').trim().toLowerCase(),
+      repository: repository.name,
+      subjectType: 'issue',
+      subjectId: Number(created?.id),
+      number,
+      title,
+      subscribeActor: 'author',
+    })
+
     return response.json({
       id: Number(created?.id),
       number,

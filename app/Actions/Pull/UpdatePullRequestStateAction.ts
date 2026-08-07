@@ -104,6 +104,25 @@ export default new Action({
         .execute()
     }
 
+    // A close, not a reopen, and not a draft toggle. See the note in
+    // `UpdateIssueStateAction`: a notification for every state flip teaches a
+    // thread's watchers that the product is noisy.
+    if (result.state === 'closed') {
+      const { notify } = await import('../../Notifications/emit')
+      await notify('pr:closed', {
+        actorId: user.id,
+        actorHandle: user.handle,
+        repositoryId: repository.id,
+        owner: String(request.get('owner') ?? '').trim().toLowerCase(),
+        repository: repository.name,
+        subjectType: 'pull_request',
+        subjectId: Number(pullRequest.id),
+        number,
+        title: String((pullRequest as any).title ?? ''),
+        subscribeActor: false,
+      })
+    }
+
     return response.json({ number, state: result.state, draft: current.draft })
   },
 })

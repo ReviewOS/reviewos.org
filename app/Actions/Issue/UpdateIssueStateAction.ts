@@ -80,6 +80,25 @@ export default new Action({
       user ? Number(user.id) : null,
     )
 
+    // Only a close is worth telling people about. A reopen is usually the same
+    // person correcting themselves a moment later, and a notification for it
+    // teaches the thread's watchers that the product is noisy.
+    if (result.state === 'closed') {
+      const { notify } = await import('../../Notifications/emit')
+      await notify('issue:closed', {
+        actorId: user.id,
+        actorHandle: user.handle,
+        repositoryId: repository.id,
+        owner: String(request.get('owner') ?? '').trim().toLowerCase(),
+        repository: repository.name,
+        subjectType: 'issue',
+        subjectId: Number(issue.id),
+        number,
+        // Closing somebody else's issue does not sign you up for the rest of it.
+        subscribeActor: false,
+      })
+    }
+
     return response.json({ number, state: result.state, state_reason: result.reason })
   },
 })

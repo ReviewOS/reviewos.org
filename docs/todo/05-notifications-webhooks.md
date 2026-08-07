@@ -33,79 +33,49 @@ them without also watching a chat channel, and that nobody has to mute the produ
   log of what was actually sent and it carries the recipient address independently of the account.
   Deleting a user should unlink that record, not erase the evidence that mail went out.
 
-- [ ] Resolve the missing `jobs` table so the queue works. Everything here is queue-driven.
+- [x] Resolve the missing `jobs` table so the queue works. Everything here is queue-driven.
 
-  The table exists now, and two of its columns described something other than what the queue stores.
-  Both are fixed, through an `app/Models/Job.ts` override rather than a patch to
-  `node_modules` - the framework default is at
-  `storage/framework/defaults/app/Models/Job.ts` and `app/` wins, which is the supported mechanism
-  and survives an install.
+  It works. A job dispatched to the `database` driver is reserved, run and removed, the circuit
+  breaker tracks it, and `QUEUE_DRIVER` is `database` in `.env` and `.env.example`. Getting there
+  took four fixes and three of them were upstream, because the table existing was never the problem.
 
   **`reserved_at` was `schema.date()`.** The queue writes a unix timestamp and its reservation sweep
-  asks `reserved_at <= $1` with an integer, so Postgres answered `operator does not exist: date <=
-  integer` **on every tick**. Nothing was ever reserved, so nothing was ever processed, and the
-  failure was one log line inside the worker's loop - a job dispatched to the database driver sat in
-  the table forever while the worker cheerfully reported "Listening for jobs..." once a second. It is
-  the same kind of value as `available_at`, which is correctly a number three lines above it.
+  asks `reserved_at <= $1` with an integer, so Postgres answered
+  `operator does not exist: date <= integer` on every tick.
+  Fixed by overriding the framework's `Job` model under `app/Models/`, which
+  is the supported resolution order rather than a patch to `node_modules`. `payload` was
+  `varchar(255)` in the same model - a payload is JSON, and Postgres refuses an over-length varchar
+  rather than truncating, so it worked for small payloads and threw for large ones.
 
-  **`payload` had no `max`, so it generated `varchar(255)`.** A payload is JSON - job name,
-  arguments, options - and the trivial two-field probe used to find the bug above was already eighty
-  characters. Postgres refuses an over-length varchar rather than truncating, so this is a dispatch
-  that throws for large payloads and works for small ones: it passes every test written with a short
-  one.
+  **`whereNull` did not exist on the update builder.** The reserve is an optimistic lock - claim the
+  row only if nobody else has - and the method was present on selects and absent on writes, so every
+  claim threw a `TypeError`. Fixed at source in `bun-query-builder`, released as `0.2.23`, with
+  tests for both the update and delete builders.
 
-  Still open, because **the database queue driver cannot reserve a job**, and the cause is a
-  dependency defect this repository cannot fix from inside itself.
+  **The failure was swallowed.** The poll loop caught it bare and continued, so a transient database
+  failure and a reserve that could never work looked identical, and the worker printed "Listening for
+  jobs..." once a second forever. It reports now, rate-limited to once a minute per queue. Fixed at
+  source, in Stacks `0.70.297`.
 
-  `@stacksjs/queue` reserves with an optimistic lock, which is the right shape - claim the row only
-  if it is still unclaimed, so two workers cannot take the same job:
+  **`--queue` never reached the worker.** `buddy queue:work` advertises `-q, --queue [queue]` and the
+  worker parsed its own argv with a splitter that only understood `--key=value`, so `--queue default`
+  became the string `"true"` and it polled a queue named `true`. The log line said so - "Processing
+  queues: true" - and reads exactly like a boolean status message. Also `0.70.297`.
 
-  ```js
-  db.updateTable('jobs')
-    .set({ reserved_at: now, attempts: (row.attempts || 0) + 1 })
-    .where('id', '=', row.id)
-    .whereNull('reserved_at')
-    .executeTakeFirst()
-  ```
+  Then the app still could not see any of it, because seven nested copies of
+  `bun-query-builder@0.2.21` sat under the Stacks packages. The answer was not an `overrides` pin -
+  that hides the problem and drifts out of date - but `stacks` itself, which the app declares and
+  which had been held at `0.70.289`. Updating it collapsed every copy to one.
 
-  **`whereNull` does not exist on the update builder.** It exists on the select builder, which is
-  why it reads as correct and why `reviewLoad` in `app/Actions/Pull/suggest.ts` uses it happily.
-  Checked directly: on a select, `whereNull` and `whereNotNull` are both functions; on an update,
-  both are `undefined`. So every reserve throws `TypeError: ....whereNull is not a function`.
+  `queue_circuit_state` is modelled here too. The framework reads it, prints "table missing - circuit
+  breaker disabled. Run migrations to enable" when it is absent, and carries on - and nothing in the
+  framework creates it, so "run migrations" had nothing to run and the protection was off in every
+  application whose author never read the line. A queue whose downstream is refusing every connection
+  now burns one attempt a minute rather than the whole backlog and all of its retries.
 
-  It is invisible because the processor's loop swallows it whole:
-
-  ```js
-  try { z = await z5(K, $) } catch { continue }
-  ```
-
-  No logging, no failed job, no retry - the worker polls forever, reserves nothing, and reports
-  "Listening for jobs..." once a second. `QUEUE_LOG_LEVEL=debug` adds nothing, because nothing is
-  logged to raise the level of. A job dispatched to the database driver sits in the table until
-  somebody looks.
-
-  The fix is upstream, in one of two places: `bun-query-builder` gains `whereNull`/`whereNotNull` on
-  the update builder, or `@stacksjs/queue` writes that predicate a way the builder supports. The
-  second `catch` is worth fixing either way - a reserve that fails silently is how this stayed
-  hidden through every "the jobs table exists" check.
-
-  Two smaller things found on the way, neither of them the cause:
-
-  - **`--queue` never reaches the worker.** `buddy queue:work` advertises `-q, --queue [queue]`, and
-    the worker action parses its own argv with a splitter that only understands `--key=value`. A
-    space-separated `--queue default` becomes the string `"true"`, so the worker polls a queue named
-    `true`. The log line says so - "Processing queues: true" - and reads exactly like a boolean
-    status message. Running the action directly with `--queue=default` prints the real name.
-  - **`queue_circuit_state` does not exist.** The worker says so and disables the circuit breaker.
-    Graceful, and not the cause. No framework migration creates it.
-
-  `.env` stays on `QUEUE_DRIVER=sync`, deliberately. Every `dispatch()` in the product therefore runs
-  inline, inside the request that triggered it, which makes retries, backoff, held notifications and
-  digests meaningless and turns a slow SMTP server into a slow page. It is still the right setting
-  until the reserve works, because `database` would mean jobs stop running at all rather than
-  running in the wrong place.
-
-## Events
+  Tests force `sync` in `tests/setup.ts`, whatever `.env` says. There is no worker under test, so a
+  queued job is one that never runs, and a test asserting a push reached the application would be
+  asserting the queue's scheduling instead - which is how switching the driver first showed up.
 
 - [x] `app/Events.ts` mapping domain events to listeners: `pr:opened`, `pr:merged`, `pr:closed`,
       `review:requested`, `review:submitted`, `issue:opened`, `issue:closed`, `comment:created`,
@@ -120,16 +90,25 @@ them without also watching a chat channel, and that nobody has to mute the produ
   `push:received` is deliberately absent. Nobody is notified about a push directly - they are
   notified about what it did, which is a pull request opening or a check reporting.
 
-- [ ] Events are emitted from actions, once, at the point the state actually changed.
+- [x] Events are emitted from actions, once, at the point the state actually changed.
 
-  Four of nine are wired: `pr:opened`, `pr:merged`, `review:requested`, `review:submitted`. Each
-  emits *after* the write, never before - by the time `pr:merged` fires a branch has moved and a row
-  says merged, and an event sent first and then rolled back is a notification about something that
-  did not happen, which cannot be taken back.
+  All nine, each *after* the write and never before: by the time `pr:merged` fires a branch has
+  moved and a row says merged, and an event sent first and then rolled back is a notification about
+  something that did not happen, which cannot be taken back.
 
-  `issue:opened`, `issue:closed`, `pr:closed`, `comment:created` and `release:published` still need
-  the same one-line call. The helper (`app/Notifications/emit.ts`) and the listener already handle
-  them.
+  Three carry a judgement about when *not* to fire, and each one is the difference between a product
+  people keep notifications on for and one they mute:
+
+  - **A reopen is not a close.** Only closing announces; reopening is usually the same person
+    correcting themselves a moment later.
+  - **A draft release is not published.** Announcing one would tell every watcher about a release
+    that is deliberately unannounced, which is the whole thing a draft is keeping.
+  - **A mention is addressed, not broadcast.** Naming somebody in a comment reaches them whether or
+    not they were following the thread, which is why people write an `@`.
+
+  Whether the actor is subscribed by their own action is decided per event too. Opening or
+  commenting signs you up; closing somebody else's issue or merging their pull request does not,
+  because acting *on* a thread is not joining it.
 
 ## Notifications
 
