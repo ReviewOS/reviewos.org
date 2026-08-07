@@ -13,7 +13,7 @@
 import { repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
-import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor } from '../../../../functions/review'
+import { approvalsSatisfied, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists } from '../../../../functions/review'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
@@ -332,6 +332,25 @@ const stackBlocker = currentMember ? blockedBy(stack, currentMember.id, stackRea
 const suggestUrl = `/api/repos/pulls/suggested-reviewers?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repositoryName)}&number=${number}`
 const offerSuggestions = Boolean(pullRequest && pullRequest.state === 'open' && access?.viewer && access.can('pull:review'))
 
+/*
+ * Offer to put a deleted head branch back, on merged pull requests only.
+ * `branchExists` is one rev-parse and never throws, and it only runs for the
+ * merged case, so the open pull request - the page's hot path - pays nothing.
+ * Gated on `repository:push` because the button creates a branch, and the
+ * endpoint checks the same ability.
+ */
+const offerRestore = Boolean(
+  pullRequest
+  && pullRequest.state === 'merged'
+  && pullRequest.head_branch
+  && pullRequest.head_sha
+  && access?.viewer
+  && access.can('repository:push')
+  && onDisk.ok
+  && onDisk.path
+  && !(await branchExists(onDisk.path, String(pullRequest.head_branch))),
+)
+
 const title = pullRequest
   ? `${pullRequest.title} by ${authorName ?? 'someone'} · ${owner}/${repositoryName} #${number}`
   : 'Pull request not found'
@@ -479,6 +498,25 @@ const statePill = pullRequest
                for readers who cannot ask anybody: see the gate in the script. --}}
           @if (offerSuggestions)
             <SuggestedReviewers url="{{ suggestUrl }}" />
+          @endif
+
+          {{-- The branch the merge deleted, offered back. The endpoint's
+               create is guarded, so a branch that reappeared under the old
+               name is refused rather than overwritten. --}}
+          @if (offerRestore)
+            <section class="panel side-panel">
+              <h2 class="side-heading">Head branch</h2>
+              <p class="muted side-note">
+                <span class="mono">{{ pullRequest.head_branch }}</span> was deleted after the merge.
+              </p>
+              <form method="post" action="/api/repos/pulls/restore-branch">
+                <CsrfField />
+                <input type="hidden" name="owner" value="{{ owner }}">
+                <input type="hidden" name="repo" value="{{ repositoryName }}">
+                <input type="hidden" name="number" value="{{ number }}">
+                <button type="submit" class="btn merge-button">Restore branch</button>
+              </form>
+            </section>
           @endif
 
           <section class="panel side-panel">

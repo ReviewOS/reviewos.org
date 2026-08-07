@@ -204,8 +204,17 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
       a default changed is one that lost work nobody asked it to lose. Refused while any other open
       pull request is built on that branch, which would otherwise break theirs and take the branch
       they are still working from.
-- [ ] Offer to restore a deleted head branch. The sha is on the merged pull request, so this is a
+- [x] Offer to restore a deleted head branch. The sha is on the merged pull request, so this is a
       button and a ref write; what it needs is somewhere to put the button.
+
+  The button lives in a "Head branch" panel in the conversation page's sidebar, offered on merged
+  pull requests whose branch is gone, to readers with `repository:push` - the ability the endpoint
+  checks, because creating a branch is a push whatever button did it. The write is a *guarded*
+  create (`update-ref` with the all-zeroes old value, git's spelling of "must not exist"): between
+  the check and the write somebody may push a new branch under the old name, and overwriting theirs
+  with an old sha would be losing their work to a button. A commit pruned since the merge is
+  reported as what it is. `tests/e2e/restore-branch.test.ts` asks the route with real credentials
+  and asks git where the ref ended up - including that a refused restore wrote nothing.
 - [x] Tests: every strategy, every protection rule, and a race where two pull requests merge at once.
       The strategies and the rules are covered in `tests/unit/merge.test.ts` and
       `tests/unit/merge-apply.test.ts`; the race is not, and it is the one that needs two processes.

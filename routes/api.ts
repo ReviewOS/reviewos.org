@@ -156,6 +156,9 @@ route.post('/repos/pulls/comments', 'Actions/Pull/CommentOnCodeAction').middlewa
 route.put('/repos/pulls/threads', 'Actions/Pull/ResolveThreadAction').middleware('auth')
 route.post('/repos/pulls/mergeability', 'Actions/Pull/RefreshMergeabilityAction').middleware('auth')
 route.post('/repos/pulls/merge', 'Actions/Pull/MergePullRequestAction').middleware('auth')
+// The branch a merge deleted, put back. A guarded create: it refuses rather
+// than overwrite a branch that has since reappeared under the old name.
+route.post('/repos/pulls/restore-branch', 'Actions/Pull/RestoreHeadBranchAction').middleware('auth')
 
 // The file list of a diff, streamed as newline-delimited JSON while git is
 // still writing the patch. No `auth` middleware: a public repository's pull
