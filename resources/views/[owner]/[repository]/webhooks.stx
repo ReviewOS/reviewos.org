@@ -1,0 +1,227 @@
+<script server>
+/**
+ * A repository's webhooks, and what happened to each delivery.
+ *
+ * The delivery log is the whole point of this page. A webhook that works needs
+ * no interface at all; the reason anybody opens this is that something did not
+ * arrive, and the only question they have is whose fault it is. So every row
+ * says that in words - "your endpoint refused it", "could not be reached" -
+ * rather than showing a status code and leaving the reader to triage it, which
+ * most of them do wrong.
+ *
+ * Attempts are folded. A delivery that retried six times is one thing that
+ * happened, and six rows makes a log of ten look like sixty. The count is kept
+ * because "delivered on the fourth attempt" is what tells somebody their
+ * endpoint is flaky rather than broken.
+ *
+ * Rendered on the server with no client script, like the rest of the product's
+ * settings pages: every control is a form, so it works with JavaScript off and
+ * cannot show a state the database does not agree with.
+ */
+import { foldAttempts, health, parseDelivery } from '../../../../app/Actions/Webhook/deliveries'
+import { WEBHOOK_EVENTS } from '../../../../app/Webhooks/payloads'
+import { cookieJarFromHeader } from '../../../functions/identity'
+import { repositoryForView } from '../../../functions/repo'
+import { relativeTime } from '../../../functions/browse'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const access = await repositoryForView(
+  String(params.owner),
+  String(params.repository),
+  serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie),
+)
+
+// A page that renders "no such repository" under a 200 tells a crawler, a cache
+// and an uptime check that the page is fine. Only the render knows.
+if (!access)
+  setResponseStatus(404)
+
+/*
+ * `repository:settings`, and 404 rather than 403 for anybody else.
+ *
+ * A webhook carries a URL somebody chose and a secret. Answering 403 would
+ * confirm to a stranger that this repository has webhooks configured, which is
+ * the one bit of information the page exists to protect.
+ */
+const mayManage = Boolean(access?.viewer && access.can('repository:settings'))
+
+if (access && !mayManage)
+  setResponseStatus(404)
+
+const hooks: any[] = access && mayManage
+  ? await db
+      .selectFrom('webhooks')
+      .select(['id', 'url', 'events', 'active', 'consecutive_failures', 'last_success_at'])
+      .where('repository_id', '=', Number(access.repository.id))
+      .orderBy('id', 'asc')
+      .execute()
+  : []
+
+// One query for every webhook's deliveries rather than one per webhook. A
+// repository has few webhooks, which is exactly why the per-row version
+// survives review and then shows up on the one that has forty.
+const rows: any[] = hooks.length
+  ? await db
+      .selectFrom('webhook_deliveries')
+      .select(['id', 'webhook_id', 'event', 'payload', 'response_status', 'response_body', 'duration_ms', 'attempt', 'error', 'delivered_at'])
+      .where('webhook_id', 'in', hooks.map(hook => Number(hook.id)))
+      .orderBy('id', 'desc')
+      .limit(300)
+      .execute()
+  : []
+
+// A Date, not a number: `relativeTime` calls `.getTime()` on it. Passing a
+// number throws inside the server script, and stx answers a throw by rendering
+// the page with every variable undefined and saying nothing - so the whole page
+// would come out empty and look like a repository with no webhooks.
+const now = new Date()
+
+/** Rows shaped for the template, so the template holds no logic. */
+const webhooks = hooks.map((hook) => {
+  const mine = rows.filter(row => Number(row.webhook_id) === Number(hook.id)).map(parseDelivery)
+  const folded = foldAttempts(mine).slice(0, 20)
+  const counts = health(folded)
+
+  return {
+    id: Number(hook.id),
+    url: String(hook.url ?? ''),
+    events: String(hook.events ?? '') === '*' ? 'every event' : String(hook.events ?? ''),
+    active: Boolean(hook.active),
+    stateLabel: hook.active ? 'Active' : 'Switched off',
+    stateClass: hook.active ? 'hook-state is-on' : 'hook-state is-off',
+    // Said out loud, because a webhook switched off for sustained failure is
+    // the case somebody is here to understand, and a count on its own does not
+    // explain that it stopped being called.
+    note: !hook.active && Number(hook.consecutive_failures ?? 0) >= 20
+      ? 'Switched off after too many failures. Fix the endpoint, then turn it back on.'
+      : '',
+    summary: folded.length === 0
+      ? 'Nothing delivered yet.'
+      : `${counts.delivered} delivered, ${counts.failed} not`,
+    deliveries: folded.map(delivery => ({
+      id: delivery.id,
+      event: delivery.event,
+      summary: delivery.summary,
+      status: delivery.status === null ? 'no response' : String(delivery.status),
+      duration: `${delivery.durationMs}ms`,
+      attempts: delivery.attempts > 1 ? `${delivery.attempts} attempts` : '',
+      when: relativeTime(new Date(delivery.at).toISOString(), now),
+      rowClass: delivery.outcome === 'delivered' ? 'hook-delivery is-ok' : 'hook-delivery is-bad',
+    })),
+  }
+})
+
+const eventOptions = WEBHOOK_EVENTS.map(event => ({ event }))
+const endpoint = '/api/repos/webhooks'
+const owner = String(params.owner)
+const name = String(params.repository)
+</script>
+
+@layout('app')
+
+@section('title', `Webhooks - ${owner}/${name}`)
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!access || !mayManage)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">Not found</h1>
+      </div>
+    @else
+      <header class="keys-head">
+        <h1 class="keys-title">Webhooks</h1>
+        <p class="muted">
+          Where this repository's activity is sent. Every delivery is recorded, including the ones
+          that did not arrive.
+        </p>
+      </header>
+
+      <section class="keys-section">
+        <h2 class="keys-heading">Add a webhook</h2>
+
+        <form class="panel key-form" method="post" action="{{ endpoint }}">
+          <CsrfField />
+          <input type="hidden" name="owner" value="{{ owner }}">
+          <input type="hidden" name="repository" value="{{ name }}">
+          <input type="hidden" name="operation" value="create">
+
+          <label class="key-label" for="hook-url">Payload URL</label>
+          <input id="hook-url" class="key-input mono" type="url" name="url" required placeholder="https://ci.example.com/hooks/reviewos">
+
+          <label class="key-label" for="hook-events">Events</label>
+          <select id="hook-events" class="key-input" name="events">
+            <option value="*">Everything</option>
+            @foreach (eventOptions as option)
+              <option value="{{ option.event }}">{{ option.event }}</option>
+            @endforeach
+          </select>
+
+          <p class="muted hook-hint">
+            The secret is generated and shown once, on the next screen. A ping is sent immediately so
+            you can check the endpoint before anything real depends on it.
+          </p>
+
+          <div class="key-actions">
+            <button type="submit" class="btn btn-primary">Add webhook</button>
+          </div>
+        </form>
+      </section>
+
+      @if (webhooks.length === 0)
+        <p class="muted keys-empty">No webhooks yet.</p>
+      @else
+        @foreach (webhooks as hook)
+          <section class="panel hook-card">
+            <header class="hook-head">
+              <span class="mono hook-url">{{ hook.url }}</span>
+              <span class="{{ hook.stateClass }}">{{ hook.stateLabel }}</span>
+            </header>
+
+            <p class="muted hook-meta">{{ hook.events }} &middot; {{ hook.summary }}</p>
+
+            @if (hook.note)
+              <p class="muted hook-note">{{ hook.note }}</p>
+            @endif
+
+            @if (hook.deliveries.length > 0)
+              <ul class="hook-deliveries">
+                @foreach (hook.deliveries as delivery)
+                  <li class="{{ delivery.rowClass }}">
+                    <span class="mono hook-event">{{ delivery.event }}</span>
+                    <span class="hook-summary">{{ delivery.summary }}</span>
+                    <span class="muted hook-detail">
+                      {{ delivery.status }} &middot; {{ delivery.duration }}
+                      @if (delivery.attempts)
+                        &middot; {{ delivery.attempts }}
+                      @endif
+                      &middot; {{ delivery.when }}
+                    </span>
+
+                    <form class="hook-redeliver" method="post" action="/api/repos/webhooks/redeliver">
+                      <CsrfField />
+                      <input type="hidden" name="owner" value="{{ owner }}">
+                      <input type="hidden" name="repository" value="{{ name }}">
+                      <input type="hidden" name="delivery_id" value="{{ delivery.id }}">
+                      <button type="submit" class="hook-redeliver-button">Redeliver</button>
+                    </form>
+                  </li>
+                @endforeach
+              </ul>
+            @endif
+
+            <form class="hook-actions" method="post" action="{{ endpoint }}">
+              <CsrfField />
+              <input type="hidden" name="owner" value="{{ owner }}">
+              <input type="hidden" name="repository" value="{{ name }}">
+              <input type="hidden" name="operation" value="delete">
+              <input type="hidden" name="id" value="{{ hook.id }}">
+              <button type="submit" class="hook-delete">Delete this webhook</button>
+            </form>
+          </section>
+        @endforeach
+      @endif
+    @endif
+  </div>
+@endsection

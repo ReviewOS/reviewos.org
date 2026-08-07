@@ -731,6 +731,65 @@
       .unsub-line { margin: 0 0 8px; font-size: 14px; }
       .unsub-form { margin: 18px 0; }
 
+      /* Webhooks. The delivery log is the page: a webhook that works needs no
+        interface, and the reason anybody opens this is that something did not
+        arrive. */
+      .hook-hint { margin: 10px 0 0; font-size: 12px; }
+      .hook-card { margin-bottom: 16px; padding: 16px; }
+      .hook-head { display: flex; align-items: baseline; gap: 10px; }
+      .hook-url { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+
+      .hook-state {
+        flex-shrink: 0;
+        padding: 1px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .hook-state.is-on { background: var(--ok-bg); color: var(--ok); }
+      .hook-state.is-off { background: var(--warn-bg); color: var(--warn); }
+      .hook-meta { margin: 6px 0 0; font-size: 12px; }
+      .hook-note { margin: 6px 0 0; font-size: 12px; }
+      .hook-deliveries { margin: 12px 0 0; padding: 0; list-style: none; }
+
+      .hook-delivery {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 6px 10px;
+        padding: 6px 0;
+        border-top: 1px solid var(--line);
+        font-size: 12px;
+      }
+
+      /* The left edge carries the outcome, so a column of twenty reads without
+        the eye having to find a badge on each row. */
+      .hook-delivery.is-ok { border-left: 2px solid var(--ok); padding-left: 8px; }
+      .hook-delivery.is-bad { border-left: 2px solid var(--bad); padding-left: 8px; }
+      .hook-event { flex-shrink: 0; color: var(--muted); }
+      .hook-summary { flex: 1; min-width: 0; }
+      .hook-detail { flex-shrink: 0; }
+      .hook-redeliver { flex-shrink: 0; margin: 0; }
+
+      .hook-redeliver-button,
+      .hook-delete {
+        padding: 1px 7px;
+        border: 1px solid transparent;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .hook-delivery:hover .hook-redeliver-button { border-color: var(--line); }
+      .hook-redeliver-button:hover { color: var(--text); border-color: var(--line-strong); }
+      .hook-actions { margin: 14px 0 0; }
+      .hook-delete { border-color: var(--line); }
+      .hook-delete:hover { color: var(--bad); border-color: var(--bad); }
+
       .diff-status { text-transform: capitalize; }
 
       /* Deliberately quiet. This badge is a reason, not a warning: the file is

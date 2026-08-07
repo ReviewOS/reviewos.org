@@ -248,6 +248,12 @@ route.put('/repos/pulls/review-state/draft', 'Actions/Pull/SaveReviewDraftAction
 // rule is the security boundary of the whole feature.
 route.post('/repos/webhooks', 'Actions/Webhook/ManageWebhookAction').middleware('auth')
 
+// Sending a recorded delivery again. The stored payload is replayed byte for
+// byte rather than rebuilt: rebuilding would send today's state under
+// yesterday's event name, and the receiver redelivering is doing it precisely
+// to reprocess what they missed.
+route.post('/repos/webhooks/redeliver', 'Actions/Webhook/RedeliverAction').middleware('auth')
+
 // Mirrors. The webhook is deliberately unauthenticated at the route level: an
 // upstream forge has no session here, and the request is verified instead by
 // its signature against the mirror's own secret inside the action.

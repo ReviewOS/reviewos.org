@@ -399,7 +399,32 @@ to prefer it to a badge nobody is looking at.
 
   The signature is redacted in the delivery log. It is reproducible from the payload and the secret,
   so storing it buys nothing and a log full of valid signatures is a log worth stealing.
-- [ ] Delivery log in the interface, with redelivery
+- [x] Delivery log in the interface, with redelivery
+
+  `{owner}/{repository}/webhooks`. The log *is* the page: a webhook that works needs no interface at
+  all, and the only reason anybody opens this is that something did not arrive.
+
+  Every row says whose fault it is in words - "your endpoint refused it", "could not be reached" -
+  rather than a status code. The distinction that matters when debugging is not 200 versus 500, it
+  is whether the request arrived at all, whether their handler refused it, or whether their server
+  broke. A page of raw codes makes every reader triage that themselves and most of them do it wrong.
+
+  Attempts are folded. A delivery that retried six times is one thing that happened, and six rows
+  makes a log of ten look like sixty; the count is kept, because "delivered on the fourth attempt"
+  is what tells somebody their endpoint is flaky rather than broken.
+
+  **Redelivery replays the stored payload byte for byte** rather than rebuilding it. Rebuilding
+  would send today's state under yesterday's event name - a different message wearing the same
+  label - and somebody redelivering is doing it precisely to reprocess what they missed. The
+  signature is recomputed, because it is a function of those bytes and the *current* secret, and a
+  secret rotated since is the one the receiver checks against now. The delivery id is fresh:
+  receivers deduplicate on it, so reusing the original would have the redelivery discarded by
+  exactly the receivers who implemented deduplication correctly.
+
+  A reader without `repository:settings` gets 404, not 403. A 403 would confirm to a stranger that
+  this repository has webhooks configured, which is the one thing the page exists to protect - and
+  the secret is never rendered, because a settings page that redisplays it turns every shoulder and
+  every screenshot into a leak.
 - [x] Ping event on creation so a user can verify the endpoint immediately
 
   Through the real delivery path - the same signature, the same headers, the same SSRF checks -
