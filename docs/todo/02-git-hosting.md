@@ -541,19 +541,34 @@ the one moment where rejecting is still possible.
       verified either - anybody can sign a commit claiming to be somebody else.
       `gnupg.org` is a declared pantry dependency, beside `git`, for the same reason: the binary
       does the cryptography rather than a reimplementation of OpenPGP in TypeScript.
-      What is missing is smaller than it was written down as. This said the blocker was memory
-      pressure - gpg allocates locked, unswappable secure memory, and on a machine whose swap is
-      exhausted the kernel kills the whole process group rather than the allocation. That did
-      happen. Run again with headroom, the process is not killed and `git verify-commit` answers
-      `error: cannot run gpg: No such file or directory`: **there is no gpg on this machine.**
-      `gnupg.org` is in `deps.yaml`, and `pantry install gnupg.org` reports twenty-eight packages
-      installed while `pantry list` shows none, nothing lands on `PATH`, and no `gnupg.org`
-      directory appears under the pantry root. The installed pantry is 0.11.12 against a 0.11.18
-      checkout, so it may already be fixed there.
-      The wrong diagnosis was the expensive part: a blocker recorded as "the kernel kills us" reads
-      as unfixable and gets left alone. The verification itself is still proven - the same keyring
-      and signature this code builds verify `GOODSIG` when gpg is run from a shell that has one.
-      The gpg-dependent tests stay behind `REVIEWOS_GPG_TESTS=1` until there is a gpg to run
+      **There is a gpg, and the gpg-dependent tests pass against it.** `REVIEWOS_GPG_TESTS=1 bun
+      test tests/e2e/git-signature.test.ts` is 8 passing, the good-signature-by-a-registered-key
+      case among them, so `verify.ts` is proven against a real gpg rather than only in a shell.
+      This has now been wrong twice, and both wrong answers cost more than the thing they described.
+      First the blocker was recorded as memory pressure - gpg allocates locked, unswappable secure
+      memory, and on a machine whose swap is exhausted the kernel kills the whole process group
+      rather than the allocation. That did happen, but it is not why this was stuck.
+      Then it was recorded as `pantry install gnupg.org` reporting twenty-eight packages installed
+      and placing none of them. That was also wrong, and in the more expensive direction: it blamed
+      a tool that was working. gnupg.org installed correctly every time. A project install goes to
+      `<project>/pantry/`, not to the pantry root - `pantry/gnupg.org/v2.4.8/bin/gpg`, symlinked
+      into `pantry/.bin/gpg`, which runs and reports 2.4.8. Searching `~/.local/share/pantry`,
+      `~/.pkgx`, `~/.pantry` and `~/Library` was searching everywhere except where it is.
+      What made the install look silent was two separate reporting bugs in pantry, both since fixed
+      upstream (`fix(list)`, `fix(install)`):
+      `pantry list` read `data_dir/packages`, a directory that has never existed - installs go to
+      `data_dir/global/packages` - and it never looked at project installs at all, so it answered
+      "0 package(s) installed" on a machine with a full store. And every `pantry install` appended
+      a duplicate key to `deps.yaml` rather than re-pinning the existing one, which is where this
+      file's four `gnupg.org: ^2.4.8` lines came from.
+      `which gpg` finding nothing was neither of those: the pantry shell hook puts
+      `<project>/pantry/.bin` on `PATH` on `cd`, so a shell already sitting in the project when the
+      install ran never picked it up. After a `cd` into the project, `which gpg` resolves.
+      The gate stays. `REVIEWOS_GPG_TESTS=1` was written for the kernel-kill risk, not for the
+      absence of a binary, and that reason is untouched by having one: a process killed by the OOM
+      killer takes the whole run down and reports nothing, and it cannot be probed for from inside
+      the process it would kill. Opting in is a judgement about the host, which CI should make
+      explicitly rather than inherit
 
 ## Browsing
 
