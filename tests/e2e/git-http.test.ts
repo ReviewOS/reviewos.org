@@ -28,6 +28,8 @@ const created = { userId: 0, repositoryId: 0, tokenId: 0, token: '', handle: '',
 
 let port = 0
 let available = false
+/** What git printed for the push, including anything the post-receive hook said. */
+let pushOutput = ''
 let server: any = null
 let hooks = ''
 
@@ -309,6 +311,11 @@ describe('the git wire protocol, end to end', () => {
     const pushed = await git(work, '-c', 'credential.helper=', 'push', authenticatedUrl(), 'main')
     expect(pushed.ok, pushed.stderr).toBe(true)
 
+    // Kept for the test below, which asserts on what the *hook* said. git
+    // relays the hook's own output through the push, so the sentence explaining
+    // a failure is already here - it just has to reach the assertion.
+    pushOutput = pushed.stderr
+
     // Read from the bare repository rather than from the clone: the clone
     // believing it pushed is not the same as the push having landed.
     expect(await bare('log', '-1', '--format=%s', 'main')).toBe('pushed over http')
@@ -329,8 +336,22 @@ describe('the git wire protocol, end to end', () => {
       .where('id', '=', created.repositoryId)
       .executeTakeFirst()
 
-    expect(row?.pushed_at).toBeTruthy()
-    expect(Number(row?.size_kb ?? 0)).toBeGreaterThan(0)
+    /**
+     * The push's own output, as the failure message.
+     *
+     * `Received: null` says a link in the chain broke and nothing about which,
+     * which is a long afternoon. The post-receive hook already prints why it
+     * could not record a push - "the forge could not be reached", or the status
+     * it got back - and git relays that through the push. So the sentence
+     * exists; it just was not reaching whoever reads the failure.
+     *
+     * The hook allows itself five seconds and never fails a push, both
+     * deliberately: git has already accepted the commits by the time it runs.
+     * That means a loaded machine can drop the record with no other trace, and
+     * this is the trace.
+     */
+    expect(row?.pushed_at, `pushed_at was not written. The push said:\n${pushOutput || '(nothing)'}`).toBeTruthy()
+    expect(Number(row?.size_kb ?? 0), `size_kb was not written. The push said:\n${pushOutput || '(nothing)'}`).toBeGreaterThan(0)
   }, 60_000)
 
   test('fetching again finds nothing new, which is what a fetch should say', async () => {
