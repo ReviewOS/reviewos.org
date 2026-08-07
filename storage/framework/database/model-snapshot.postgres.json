@@ -5877,10 +5877,103 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "queue_circuit_state",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "queue_name",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "success_count",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "failure_count",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "window_start",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "paused_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "resume_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "queue_circuit_state_queue_index",
+            "columns": [
+              "queue_name"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "ab86705524b70276a015b3c91c5f4850b9510f3a3f3878ed590ca3ad4bb58ed9",
+  "hash": "94f5c2f9d5117d0f0564cd8487a01c9123e6781e7cfbfbaf36121a0a3b475a6a",
   "dialect": "postgres",
-  "updatedAt": "2026-08-07T18:35:47.113Z"
+  "updatedAt": "2026-08-07T18:51:03.403Z"
 }

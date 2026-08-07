@@ -18,6 +18,24 @@ if (!Bun.env.STRIPE_SECRET_KEY)
 if (!Bun.env.GIT_HOOK_SECRET || Bun.env.GIT_HOOK_SECRET.trim().length < 16)
   Bun.env.GIT_HOOK_SECRET = Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString('hex')
 
+/**
+ * Jobs run inline under test, whatever `.env` says.
+ *
+ * The application runs on the `database` driver, which is the point of having a
+ * queue: a push is processed, an email is sent, a mirror is fetched, all outside
+ * the request that asked for it. Under test there is no worker, so a queued job
+ * is a job that never runs - and a test asserting that a push reached the
+ * application would be asserting the queue's scheduling instead, and failing.
+ *
+ * Forced here rather than left to `.env` so the suite says the same thing on
+ * every machine. A test that passes or fails depending on a developer's queue
+ * driver is worse than one that does not exist.
+ *
+ * The queue itself is covered by exercising it directly, not by hoping a
+ * background worker drains something mid-assertion.
+ */
+Bun.env.QUEUE_DRIVER = 'sync'
+
 import { applyRuntimeDirectoryEnv } from '@stacksjs/path'
 import { setupTestEnvironment } from '@stacksjs/testing'
 

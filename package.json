@@ -74,7 +74,7 @@
     "bun-query-builder": "^0.2.23",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.48",
-    "stacks": "^0.70.289",
+    "stacks": "^0.70.298",
     "ts-syntax-highlighter": "^0.2.13"
   },
   "workspaces": [
@@ -96,7 +96,6 @@
   "overrides": {
     "@stacksjs/stx": "0.2.155",
     "stx-router": "0.2.151",
-    "bun-plugin-stx": "0.2.155",
-    "bun-query-builder": "0.2.23"
+    "bun-plugin-stx": "0.2.155"
   }
 }
