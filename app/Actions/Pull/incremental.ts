@@ -235,9 +235,14 @@ export function compareProposals(before: Fingerprints, after: Fingerprints): Sin
  * and did not send a verdict has told us exactly as much about where they got
  * to as somebody who left a comment. Taking only the submitted review would
  * hand them the whole diff again, which is the thing this exists to stop.
+ *
+ * The third is the explicit one: a checkpoint, "I have read this round", from
+ * the reviewer who read everything and had nothing to add. They left neither
+ * of the other two records, and without this row the incremental diff keeps
+ * offering them a round they have already read.
  */
 export async function lastSeenHead(pullRequestId: number, reviewerId: number): Promise<string | null> {
-  const [review, viewed] = await Promise.all([
+  const [review, viewed, checkpoint] = await Promise.all([
     db
       .selectFrom('pull_request_reviews')
       .select(['commit_sha', 'created_at'])
@@ -252,6 +257,12 @@ export async function lastSeenHead(pullRequestId: number, reviewerId: number): P
       .where('reviewer_id', '=', reviewerId)
       .orderBy('updated_at', 'desc')
       .executeTakeFirst(),
+    db
+      .selectFrom('review_checkpoints')
+      .select(['head_sha', 'updated_at', 'created_at'])
+      .where('pull_request_id', '=', pullRequestId)
+      .where('reviewer_id', '=', reviewerId)
+      .executeTakeFirst(),
   ])
 
   const candidates: Array<{ sha: string, at: number }> = []
@@ -264,6 +275,9 @@ export async function lastSeenHead(pullRequestId: number, reviewerId: number): P
 
   push(review?.commit_sha, review?.created_at)
   push(viewed?.head_sha, viewed?.updated_at)
+  // Updated in place, so updated_at is when they last said it - but the first
+  // saying leaves updated_at null, and created_at is the honest time then.
+  push(checkpoint?.head_sha, checkpoint?.updated_at ?? checkpoint?.created_at)
 
   if (candidates.length === 0)
     return null

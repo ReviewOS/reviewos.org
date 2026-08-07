@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS "review_checkpoints" (
+  "id" BIGSERIAL PRIMARY KEY,
+  "pull_request_id" bigint not null REFERENCES "pull_requests"("id") ON DELETE CASCADE,
+  "reviewer_id" bigint not null REFERENCES "users"("id") ON DELETE CASCADE,
+  "head_sha" varchar(40) not null,
+  "created_at" timestamp not null default CURRENT_TIMESTAMP,
+  "updated_at" timestamp
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "review_checkpoints_pr_user_index" ON "review_checkpoints" ("pull_request_id", "reviewer_id");

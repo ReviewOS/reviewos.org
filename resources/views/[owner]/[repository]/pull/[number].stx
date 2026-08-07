@@ -330,7 +330,10 @@ const stackBlocker = currentMember ? blockedBy(stack, currentMember.id, stackRea
  * renders the page as not found.
  */
 const suggestUrl = `/api/repos/pulls/suggested-reviewers?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repositoryName)}&number=${number}`
-const offerSuggestions = Boolean(pullRequest && pullRequest.state === 'open' && access?.viewer && access.can('pull:review'))
+
+/** A signed-in reader who may review, on a pull request that is still asking. */
+const viewerMayReview = Boolean(pullRequest && pullRequest.state === 'open' && access?.viewer && access.can('pull:review'))
+const offerSuggestions = viewerMayReview
 
 /*
  * Offer to put a deleted head branch back, on merged pull requests only.
@@ -569,6 +572,21 @@ const statePill = pullRequest
             <p class="muted side-note">
               {{ unresolvedThreads }} unresolved of {{ threads.length }}.
             </p>
+
+            {{-- "I have read this round." The reviewer who read everything
+                 and had nothing to add leaves no review and ticks no file,
+                 and without this the incremental diff keeps offering them a
+                 round they already read. The endpoint records the head as it
+                 is then, not as this page rendered it. --}}
+            @if (viewerMayReview)
+              <form method="post" action="/api/repos/pulls/last-look" style="margin-top: 10px;">
+                <CsrfField />
+                <input type="hidden" name="owner" value="{{ owner }}">
+                <input type="hidden" name="repo" value="{{ repositoryName }}">
+                <input type="hidden" name="number" value="{{ number }}">
+                <button type="submit" class="btn caught-up-button">Mark as caught up</button>
+              </form>
+            @endif
           </section>
         </aside>
       </div>
@@ -654,6 +672,7 @@ const statePill = pullRequest
   }
 
   .merge-button { width: 100%; justify-content: center; margin-top: 9px; }
+  .caught-up-button { width: 100%; justify-content: center; font-size: 13px; }
 
   .review-list, .check-list { margin-top: 9px; display: flex; flex-direction: column; gap: 7px; }
   .review-item { display: flex; align-items: center; gap: 8px; }

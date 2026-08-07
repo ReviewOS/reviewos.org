@@ -155,6 +155,8 @@ route.put('/repos/pulls/reviews/dismiss', 'Actions/Pull/DismissReviewAction').mi
 route.post('/repos/pulls/comments', 'Actions/Pull/CommentOnCodeAction').middleware('auth')
 route.put('/repos/pulls/threads', 'Actions/Pull/ResolveThreadAction').middleware('auth')
 route.post('/repos/pulls/mergeability', 'Actions/Pull/RefreshMergeabilityAction').middleware('auth')
+// "I have read this round": advance last-looked without submitting a verdict.
+route.post('/repos/pulls/last-look', 'Actions/Pull/AdvanceLastLookAction').middleware('auth')
 route.post('/repos/pulls/merge', 'Actions/Pull/MergePullRequestAction').middleware('auth')
 // The branch a merge deleted, put back. A guarded create: it refuses rather
 // than overwrite a branch that has since reappeared under the old name.

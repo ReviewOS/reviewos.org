@@ -299,9 +299,24 @@ this is where the claim is either true or marketing.
   rebases, force-pushes, and asserts the unmoved file is *not* put back in front of the reader -
   which is the only assertion in it that a naive implementation would fail.
 
-- [ ] Advance "last looked" explicitly, so a reviewer can say they have caught up without submitting
+- [x] Advance "last looked" explicitly, so a reviewer can say they have caught up without submitting
       a verdict. It is currently the later of their last review and their last viewed-file mark,
       which is right for the common case and has no way to say "I have read this round".
+
+  A third record: `ReviewCheckpoint`, one row per reviewer per pull request, upserted in place -
+  the history of catch-ups is not worth keeping, because the only question is "where did this
+  reader get to" and only the latest answer is the answer. `lastSeenHead` takes the latest of all
+  three, so a review submitted after a checkpoint outranks it. The button is in the conversation
+  page's Conversations panel, for signed-in readers who may review, and the endpoint records the
+  head *as it is then* rather than one the client names - a stale page must not mark a round read
+  that its reader never saw offered.
+
+  The e2e caught the bug worth writing down: the upsert's first draft stamped rows with
+  `CURRENT_TIMESTAMP`, which writes the database server's *local* clock into these naive timestamp
+  columns while the application writes UTC ISO strings everywhere - so a checkpoint outranked
+  reviews submitted up to eight hours after it, for as many hours as the server sits east of
+  Greenwich. The time is bound as a parameter now, and worth checking for anywhere else raw SQL
+  writes a clock.
 - [ ] A line-level interdiff for a file that did change, rather than sending the reader back to its
       whole diff. `git range-diff` is the shape of the answer; rendering a diff of diffs in a viewer
       built for file diffs is the open question.

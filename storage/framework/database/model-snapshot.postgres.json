@@ -13502,10 +13502,85 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "review_checkpoints",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "pull_request_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "pull_requests",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "reviewer_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "head_sha",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "review_checkpoints_pr_user_index",
+            "columns": [
+              "pull_request_id",
+              "reviewer_id"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "d6e4ea0905ae84725277381f9eb4b82fecda019a905f592eaaeb908b6df3017b",
+  "hash": "97c35d13cc6864860f15bde7f4448da139ef62711d71139e65c67aee15254eed",
   "dialect": "postgres",
-  "updatedAt": "2026-08-07T05:28:42.814Z"
+  "updatedAt": "2026-08-07T13:51:00.480Z"
 }
