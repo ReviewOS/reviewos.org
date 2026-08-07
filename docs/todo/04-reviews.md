@@ -110,15 +110,39 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
 - [ ] Computed in the background rather than on page load. It is computed in the view for now; the
       cache makes that one merge per pair of commits rather than one per visit, but it still means
       the first visitor after a push waits for it. This needs the queue (phase 5 prerequisites).
-- [ ] Merge strategies: merge commit, squash, rebase. Each configurable per repository, with a
-      default.
-- [ ] `MergePullRequestAction.ts` enforcing protected branch rules: required approvals, required
-      checks, no changes requested outstanding, conversation resolution
-- [ ] Commit message templates for squash and merge, editable at merge time
-- [ ] Auto-merge: merge as soon as requirements are met
-- [ ] Delete the head branch on merge, optionally, and offer to restore it
-- [ ] Conflicts reported with the conflicting files named, not just a boolean
-- [ ] Tests: every strategy, every protection rule, and a race where two pull requests merge at once
+- [x] Merge strategies: merge commit, squash, rebase. Each configurable per repository, with a
+      default. Three boolean columns rather than a parsed list, because a list can be malformed and
+      a malformed merge setting is a branch rule that quietly stops applying - `required_checks` on
+      `protected_branches` needs a whole paragraph in the merge action about what a corrupt value
+      means, and a column per strategy needs none.
+
+  A row written before the columns existed reads as allowing everything. Reading a null as "not
+  allowed" would have stopped every merge in every repository on the day the migration ran, which is
+  the worst possible moment for a new setting to be strict.
+
+  The default is deliberately *not* narrowed to what is allowed. A default that is not allowed is a
+  misconfiguration, and quietly substituting a different strategy is how somebody squashes a branch
+  they meant to rebase; it is refused with a sentence instead.
+
+- [x] `MergePullRequestAction.ts` enforcing protected branch rules: required approvals, required
+      checks, no changes requested outstanding, conversation resolution. Every reason is collected
+      and returned together rather than the first one found - a contributor who fixes the conflict
+      only to be told they also need an approval has been sent round the loop twice for no reason.
+- [x] Commit message templates for squash and merge, editable at merge time. The caller's words win
+      over the template: somebody editing a squash message is writing the only commit message that
+      change will ever have, and a template that overrode it would make the field a lie.
+- [ ] Auto-merge: merge as soon as requirements are met. Needs the queue, because "as soon as" means
+      something has to notice a check reporting or an approval landing (phase 5 prerequisites).
+- [x] Delete the head branch on merge, optionally. Off by default, because deleting somebody's
+      branch is not recoverable through the interface and a repository that starts doing it because
+      a default changed is one that lost work nobody asked it to lose. Refused while any other open
+      pull request is built on that branch, which would otherwise break theirs and take the branch
+      they are still working from.
+- [ ] Offer to restore a deleted head branch. The sha is on the merged pull request, so this is a
+      button and a ref write; what it needs is somewhere to put the button.
+- [ ] Tests: every strategy, every protection rule, and a race where two pull requests merge at once.
+      The strategies and the rules are covered in `tests/unit/merge.test.ts` and
+      `tests/unit/merge-apply.test.ts`; the race is not, and it is the one that needs two processes.
 
 ## Stacked pull requests
 

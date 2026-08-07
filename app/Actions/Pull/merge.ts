@@ -18,6 +18,56 @@ export function isMergeStrategy(value: string): value is MergeStrategy {
   return (MERGE_STRATEGIES as readonly string[]).includes(value)
 }
 
+/** A repository's merge settings, as the columns store them. */
+export interface MergeSettings {
+  allow_merge_commit?: unknown
+  allow_squash_merge?: unknown
+  allow_rebase_merge?: unknown
+  default_merge_strategy?: unknown
+}
+
+/**
+ * Which ways this repository lets a pull request land.
+ *
+ * A column per strategy rather than a parsed list, so there is no malformed
+ * value to interpret - and therefore no way for a merge setting to fail open,
+ * which is a branch rule quietly ceasing to apply.
+ *
+ * `undefined` reads as allowed. A row written before these columns existed has
+ * nulls in them, and reading a null as "not allowed" would stop every merge in
+ * every repository on the day the migration ran. The columns default to true
+ * for new rows; this is the same answer for old ones.
+ */
+export function allowedStrategies(settings: MergeSettings | null | undefined): MergeStrategy[] {
+  const allowed = (value: unknown): boolean => value !== false && value !== 0 && value !== '0' && value !== 'false'
+
+  const strategies: MergeStrategy[] = []
+  if (allowed(settings?.allow_merge_commit))
+    strategies.push('merge')
+  if (allowed(settings?.allow_squash_merge))
+    strategies.push('squash')
+  if (allowed(settings?.allow_rebase_merge))
+    strategies.push('rebase')
+
+  return strategies
+}
+
+/**
+ * The strategy the merge control offers first.
+ *
+ * The configured default when it is one, and `merge` otherwise. Deliberately
+ * *not* narrowed to what is allowed: a default that is not allowed is a
+ * misconfiguration, and substituting a different strategy silently is how
+ * somebody squashes a branch they meant to rebase. The merge action refuses it
+ * like any other disallowed strategy, which is a message rather than a
+ * surprise.
+ */
+export function defaultStrategy(settings: MergeSettings | null | undefined): MergeStrategy {
+  const configured = String(settings?.default_merge_strategy ?? '')
+
+  return isMergeStrategy(configured) ? configured : 'merge'
+}
+
 export interface MergeCandidate {
   state: 'open' | 'closed' | 'merged'
   draft: boolean

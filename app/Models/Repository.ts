@@ -187,5 +187,76 @@ export default defineModel({
       validation: { rule: schema.string() },
       factory: faker => faker.date.recent().toISOString(),
     },
+
+    /**
+     * Which ways this repository lets a pull request land.
+     *
+     * Three booleans rather than a list, because a list has to be parsed and a
+     * parse can fail - and a merge setting that fails open is a branch rule
+     * that quietly stops applying. `required_checks` on `protected_branches`
+     * is stored as JSON for a reason that does not apply here (the names are
+     * arbitrary), and it needs a whole paragraph in the merge action about what
+     * a malformed value means. A column per strategy needs none.
+     *
+     * All three on by default, which is what the product did before the setting
+     * existed. Turning them all off is allowed and means nothing merges through
+     * the interface, which is a legitimate thing to want on a mirror.
+     */
+    allow_merge_commit: {
+      order: 18,
+      fillable: true,
+      default: true,
+      validation: { rule: schema.boolean() },
+      factory: () => true,
+    },
+
+    allow_squash_merge: {
+      order: 19,
+      fillable: true,
+      default: true,
+      validation: { rule: schema.boolean() },
+      factory: () => true,
+    },
+
+    allow_rebase_merge: {
+      order: 20,
+      fillable: true,
+      default: true,
+      validation: { rule: schema.boolean() },
+      factory: () => true,
+    },
+
+    /**
+     * The one the merge button offers first.
+     *
+     * Not enforced: a strategy that is the default but not allowed is a
+     * misconfiguration, and the merge action refuses it like any other
+     * disallowed strategy rather than silently substituting one. Silently
+     * substituting is how somebody squashes a branch they meant to rebase.
+     */
+    default_merge_strategy: {
+      order: 21,
+      fillable: true,
+      default: 'merge',
+      validation: { rule: schema.enum(['merge', 'squash', 'rebase']) },
+      factory: () => 'merge',
+    },
+
+    /**
+     * Delete the head branch once its pull request lands.
+     *
+     * Off by default. Deleting somebody's branch is not recoverable through the
+     * interface, and a repository that starts doing it because a default
+     * changed is a repository that lost work it was never asked to lose. The
+     * sha is on the merged pull request either way, so restoring one by hand is
+     * always possible.
+     */
+    delete_branch_on_merge: {
+      order: 22,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
   },
 } as const)

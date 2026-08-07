@@ -7,7 +7,7 @@ import { authorizeRepository } from '../Repo/authorize'
 import { recountOpenIssues } from '../Repo/counters'
 import { updateWhereIn } from '../Support/rows'
 import { approvalsSatisfied } from './anchoring'
-import { isMergeStrategy, mergeBlockers, mergeCommitMessage, retargetStack } from './merge'
+import { allowedStrategies, defaultStrategy, isMergeStrategy, mayDeleteHeadBranch, mergeBlockers, mergeCommitMessage, retargetStack } from './merge'
 import { requirementsSatisfied } from '../Checks/status'
 
 /**
@@ -32,7 +32,10 @@ export default new Action({
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)
 
-    const strategy = String(request.get('strategy') ?? 'merge')
+    // The repository's own default when the caller does not name one, so a
+    // client that has never heard of the setting still lands branches the way
+    // the repository asked to have them landed.
+    const strategy = String(request.get('strategy') ?? defaultStrategy(repository as any))
     if (!isMergeStrategy(strategy))
       return response.json({ error: 'Unknown merge strategy' }, 422)
 
@@ -75,7 +78,10 @@ export default new Action({
       requiredApprovals: Number(protection?.required_approvals ?? 0),
       requireThreadsResolved: Boolean(protection?.require_conversation_resolution),
       requireLinearHistory: Boolean(protection?.require_linear_history),
-      allowedStrategies: ['merge', 'squash', 'rebase'] as const,
+      // From the repository rather than hard-coded. A repository that only
+      // allows squashes says so here, and `mergeBlockers` turns it into a
+      // sentence rather than a silent substitution.
+      allowedStrategies: allowedStrategies(repository as any),
       requiredChecks,
     }
 
@@ -170,13 +176,21 @@ export default new Action({
       commits,
     })
 
+    // The caller's words win over the template's. Somebody editing a squash
+    // message at merge time is writing the only commit message that change will
+    // ever have, and a template that overrode it would make the field a lie.
+    // Absent means use the template; empty means they deleted it, which for a
+    // subject is not a commit message anybody can read, so the template stands.
+    const givenSubject = String(request.get('subject') ?? '').trim()
+    const givenBody = request.get('body_text')
+
     const merged = await performMerge(resolved.path!, {
       strategy,
       base: String(pullRequest.base_branch),
       headSha: String(pullRequest.head_sha),
       baseSha: String(pullRequest.base_sha),
-      subject: message.subject,
-      body: message.body,
+      subject: givenSubject || message.subject,
+      body: givenBody === undefined ? message.body : String(givenBody),
       authorName: user.handle,
       authorEmail: `${user.handle}@users.noreply.reviewos.org`,
     })
@@ -194,6 +208,44 @@ export default new Action({
       })
       .where('id', '=', Number(pullRequest.id))
       .execute()
+
+    // The head branch, if this repository asked for it to go.
+    //
+    // After the row says merged, never before: a delete that ran first and then
+    // failed to record the merge would leave a pull request that still offers
+    // to merge a branch which no longer exists. And never when something is
+    // stacked on it - a child pull request's own base is this branch until it
+    // is retargeted below, and deleting it first is deleting the thing they are
+    // proposed against.
+    const head = String(pullRequest.head_branch)
+
+    // Every other open pull request built on this branch, which is both the
+    // ones stacked on this pull request and any that simply share a head. The
+    // rule itself is `mayDeleteHeadBranch`, tested on its own; this only counts.
+    const stillOnHead = await db
+      .selectFrom('pull_requests')
+      .select(db.fn.count('id').as('count'))
+      .where('repository_id', '=', repository.id)
+      .where('head_branch', '=', head)
+      .where('state', '=', 'open')
+      .where('id', '!=', Number(pullRequest.id))
+      .executeTakeFirst()
+
+    let deletedBranch = false
+    const mayDelete = head !== '' && mayDeleteHeadBranch({
+      deleteOnMerge: Boolean((repository as any).delete_branch_on_merge),
+      headIsDefaultBranch: head === String(repository.default_branch) || head === String(pullRequest.base_branch),
+      // Cross-repository pull requests are not modelled yet, so a head is
+      // always in this repository. Named rather than assumed, so the day forks
+      // arrive this reads as a thing to revisit rather than as a silent bug.
+      headIsFork: false,
+      openPullRequestsOnHead: Number(stillOnHead?.count ?? 0),
+    })
+
+    if (mayDelete) {
+      const removed = await runGit(resolved.path!, ['update-ref', '-d', `refs/heads/${head}`])
+      deletedBranch = removed.ok
+    }
 
     // Anything stacked on this one now points at a branch that has landed.
     const children = await db
@@ -242,6 +294,7 @@ export default new Action({
       strategy,
       merge_commit_sha: merged.sha,
       retargeted: moves.map(move => move.id),
+      deleted_branch: deletedBranch,
       closed,
     })
   },

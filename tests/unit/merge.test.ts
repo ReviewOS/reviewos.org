@@ -6,6 +6,8 @@
 
 import { describe, expect, test } from 'bun:test'
 import {
+  allowedStrategies,
+  defaultStrategy,
   isMergeStrategy,
   mayDeleteHeadBranch,
   mergeBlockers,
@@ -288,5 +290,82 @@ describe('mayDeleteHeadBranch', () => {
 
   test('keeps a branch another open pull request is built on', () => {
     expect(mayDeleteHeadBranch({ ...base, openPullRequestsOnHead: 1 })).toBe(false)
+  })
+})
+
+/**
+ * Which ways a repository lets a pull request land.
+ *
+ * A column per strategy rather than a parsed list, so there is nothing to
+ * misparse - which matters because the failure mode of a misparsed merge
+ * setting is a branch rule that quietly stops applying.
+ */
+describe('allowedStrategies', () => {
+  test('all three, when the repository says nothing against any of them', () => {
+    expect(allowedStrategies({
+      allow_merge_commit: true,
+      allow_squash_merge: true,
+      allow_rebase_merge: true,
+    })).toEqual(['merge', 'squash', 'rebase'])
+  })
+
+  test('a repository that only squashes says so', () => {
+    expect(allowedStrategies({
+      allow_merge_commit: false,
+      allow_squash_merge: true,
+      allow_rebase_merge: false,
+    })).toEqual(['squash'])
+  })
+
+  /**
+   * A row written before these columns existed has nulls in them. Reading a
+   * null as "not allowed" would stop every merge in every repository on the day
+   * the migration ran, which is the worst possible time for a new setting to be
+   * strict.
+   */
+  test('a row from before the setting existed allows everything', () => {
+    expect(allowedStrategies({})).toEqual(['merge', 'squash', 'rebase'])
+    expect(allowedStrategies(null)).toEqual(['merge', 'squash', 'rebase'])
+    expect(allowedStrategies({ allow_merge_commit: null })).toContain('merge')
+  })
+
+  test('reads the shapes a driver hands back for false', () => {
+    expect(allowedStrategies({ allow_merge_commit: 0, allow_squash_merge: 'false', allow_rebase_merge: '0' }))
+      .toEqual([])
+  })
+
+  test('allowing nothing is allowed, and means nothing merges from here', () => {
+    expect(allowedStrategies({
+      allow_merge_commit: false,
+      allow_squash_merge: false,
+      allow_rebase_merge: false,
+    })).toEqual([])
+  })
+})
+
+describe('defaultStrategy', () => {
+  test('the configured one', () => {
+    expect(defaultStrategy({ default_merge_strategy: 'squash' })).toBe('squash')
+  })
+
+  test('a merge commit when nothing is configured, or the value is not one', () => {
+    expect(defaultStrategy({})).toBe('merge')
+    expect(defaultStrategy(null)).toBe('merge')
+    expect(defaultStrategy({ default_merge_strategy: 'cherry-pick' })).toBe('merge')
+  })
+
+  /**
+   * Deliberately not narrowed to what is allowed. A default that is not allowed
+   * is a misconfiguration, and quietly substituting a different strategy is how
+   * somebody squashes a branch they meant to rebase - so the merge refuses it
+   * with a sentence instead, through `mergeBlockers`.
+   */
+  test('does not quietly substitute when the default is not allowed', () => {
+    const settings = { default_merge_strategy: 'rebase', allow_rebase_merge: false }
+
+    expect(defaultStrategy(settings)).toBe('rebase')
+    expect(allowedStrategies(settings)).not.toContain('rebase')
+    expect(mergeBlockers(ready, { ...permissive, allowedStrategies: allowedStrategies(settings) }, clean, 'rebase'))
+      .toContain('The rebase strategy is not allowed on this branch')
   })
 })

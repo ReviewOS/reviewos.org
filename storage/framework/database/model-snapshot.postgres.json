@@ -9416,6 +9416,57 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "allow_merge_commit",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": true
+          },
+          {
+            "name": "allow_squash_merge",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": true
+          },
+          {
+            "name": "allow_rebase_merge",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": true
+          },
+          {
+            "name": "default_merge_strategy",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "merge",
+            "enumValues": [
+              "merge",
+              "squash",
+              "rebase"
+            ],
+            "enumTypeName": "repositories_default_merge_strategy_type"
+          },
+          {
+            "name": "delete_branch_on_merge",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -13454,7 +13505,7 @@
       }
     ]
   },
-  "hash": "28a57af62d73bfe25c82a56b43bac5bf4d23474b69ce9ec3881bd28e164cbd28",
+  "hash": "d6e4ea0905ae84725277381f9eb4b82fecda019a905f592eaaeb908b6df3017b",
   "dialect": "postgres",
-  "updatedAt": "2026-08-07T02:50:05.716Z"
+  "updatedAt": "2026-08-07T05:28:42.814Z"
 }
