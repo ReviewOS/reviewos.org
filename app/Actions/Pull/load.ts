@@ -19,6 +19,12 @@ export interface DiffOptions {
   context?: number
   /** Skip whitespace-only changes at the git level, which is cheaper than hiding them later. */
   ignoreWhitespace?: boolean
+  /**
+   * Restrict the diff to these paths. Single-file review mode's whole
+   * mechanism: git does the restricting, so one file's page never pays for
+   * the other hundred.
+   */
+  paths?: string[]
 }
 
 /**
@@ -61,7 +67,69 @@ export async function pullRequestDiff(
 
   args.push(base, headSha)
 
+  // Everything after `--` is a path, never a revision - which is also what
+  // keeps a file named like a branch from being read as one.
+  if (options.paths && options.paths.length > 0)
+    args.push('--', ...options.paths)
+
   const result = await runGit(resolved.path!, args, { timeoutMs: 60_000 })
+
+  return result.ok ? result.stdout : ''
+}
+
+/**
+ * The paths a pull request changes, in diff order.
+ *
+ * The cheap list single-file navigation is built from: `--name-only` costs a
+ * tree walk, not a content diff, so asking for it on every single-file page
+ * is nothing next to rendering one file.
+ */
+export async function changedPathsFor(
+  owner: string,
+  repositoryName: string,
+  baseSha: string,
+  headSha: string,
+): Promise<string[]> {
+  const resolved = repositoryPath(owner, repositoryName)
+  if (!resolved.ok)
+    return []
+
+  const base = await mergeBase(resolved.path!, baseSha, headSha)
+  if (!base)
+    return []
+
+  const result = await runGit(resolved.path!, ['diff', '--name-only', '--no-color', base, headSha])
+
+  return result.ok ? result.stdout.split('\n').map(line => line.trim()).filter(Boolean) : []
+}
+
+/**
+ * One commit's own diff, against its first parent.
+ *
+ * Commit-by-commit review's loader. `--first-parent` so a merge commit shows
+ * what the merge introduced rather than replaying one side; the caller is
+ * responsible for only asking about commits that are on the branch, because
+ * this function will answer for any commit the repository holds.
+ */
+export async function commitDiff(
+  owner: string,
+  repositoryName: string,
+  sha: string,
+  options: DiffOptions = {},
+): Promise<string> {
+  const resolved = repositoryPath(owner, repositoryName)
+  if (!resolved.ok || !/^[0-9a-f]{40}$/.test(sha))
+    return ''
+
+  const result = await runGit(resolved.path!, [
+    'diff',
+    `--unified=${options.context ?? 3}`,
+    '--find-renames',
+    '--find-copies',
+    '--no-color',
+    '--no-ext-diff',
+    `${sha}^!`,
+  ], { timeoutMs: 60_000 })
 
   return result.ok ? result.stdout : ''
 }

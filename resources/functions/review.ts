@@ -125,7 +125,7 @@ export function tokensFor(
  */
 import { diffTotals as diffTotalsImpl, isGenerated as isGeneratedImpl, isWhitespaceOnly as isWhitespaceOnlyImpl, parseDiff as parseDiffImpl } from '../../app/Actions/Pull/diff'
 import { approvalsSatisfied as approvalsSatisfiedImpl, mapLine as mapLineImpl, reanchor as reanchorImpl, reviewIsStale as reviewIsStaleImpl } from '../../app/Actions/Pull/anchoring'
-import { commitsOnBranch as commitsOnBranchImpl, pullRequestDiff as pullRequestDiffImpl } from '../../app/Actions/Pull/load'
+import { changedPathsFor as changedPathsForImpl, commitDiff as commitDiffImpl, commitsOnBranch as commitsOnBranchImpl, pullRequestDiff as pullRequestDiffImpl } from '../../app/Actions/Pull/load'
 import { isMergeStrategy as isMergeStrategyImpl, mergeBlockers as mergeBlockersImpl } from '../../app/Actions/Pull/merge'
 import { combinedState as combinedStateImpl, requirementSummary as requirementSummaryImpl, requirementsSatisfied as requirementsSatisfiedImpl } from '../../app/Actions/Checks/status'
 import { labelTextColor as labelTextColorImpl } from '../../app/Actions/Issue/labels'
@@ -147,6 +147,12 @@ export const reviewIsStale = reviewIsStaleImpl
 export const approvalsSatisfied = approvalsSatisfiedImpl
 export const pullRequestDiff = pullRequestDiffImpl
 export const commitsOnBranch = commitsOnBranchImpl
+
+/** The changed paths, cheaply, for single-file navigation. */
+export const changedPathsFor = changedPathsForImpl
+
+/** One commit's own diff, for commit-by-commit review. */
+export const commitDiff = commitDiffImpl
 export const mergeBlockers = mergeBlockersImpl
 export const isMergeStrategy = isMergeStrategyImpl
 export const requirementsSatisfied = requirementsSatisfiedImpl

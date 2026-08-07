@@ -125,8 +125,17 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
       ticking one folds the file away on the way back too, which is the half that makes it worth
       remembering. Local storage stays in front of it, so a signed-out reader keeps their place and a
       failed request costs nothing. See [phase 14](./14-diff-engine.md#the-file-tree).
-- [ ] Review a single file at a time: a mode that shows one file and moves to the next, rather than
+- [x] Review a single file at a time: a mode that shows one file and moves to the next, rather than
       one long scroll with the read ones folded
+
+  `?tab=files&file=<path>`: a URL, so the reader's place survives a reload and can be sent to
+  somebody. git restricts the render - the whole parse still runs, because totals and thread
+  counts describe the pull request and not the screen, but the expensive half (highlighting and
+  rendering) is paid for one file. A mode bar says where the reader stands - file N of M - with
+  previous, next, and the way out. The URLs are built in the server script, never the template:
+  an interpolation that throws (and a helper the template scope does not carry, like
+  `encodeURIComponent`, throws) swallows its whole block into an HTML comment - a lesson this
+  build re-learned and the flat-flags comment in the view records.
 - [x] `CODEOWNERS` parsing, and automatic review requests from it. Read from the **base**, not the
       head: a pull request that adds itself to `CODEOWNERS` would otherwise choose its own reviewers,
       which is a way to be approved by nobody.
@@ -392,8 +401,16 @@ this is where the claim is either true or marketing.
 - [ ] A block that moved between two *files* reads as a delete and an add. Detecting that needs the
       whole diff in view rather than one file, which the streaming manifest deliberately does not
       have.
-- [ ] Commit-by-commit review for branches whose history was written to be read, rather than forcing
+- [x] Commit-by-commit review for branches whose history was written to be read, rather than forcing
       every change through one squashed view
+
+  `?tab=files&commit=<sha>`: one commit's own diff against its first parent, with previous and
+  next through the branch oldest-first, entered from "review this step" on the commits tab.
+  Membership on the branch is the safety gate, not just sha syntax - without it the page would
+  render any reachable commit's diff under a pull request's framing. Threads are deliberately
+  absent and the page says so: a thread's line and side are positions in the base...head diff,
+  and painting them into an intermediate step would put comments on code they are not about -
+  the reanchor lesson, avoided by not asking.
 - [x] **The review queue is the home screen.** `/reviews`: what is waiting on you and what you are
       waiting on, ordered by how long it has been waiting and how blocked the author is. First in the
       navigation, because it is the question somebody opens a forge to answer.

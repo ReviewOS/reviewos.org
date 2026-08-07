@@ -231,6 +231,70 @@ describe('the pull request page, as tabs', () => {
     expect(html).not.toContain('the base')
   }, 30_000)
 
+  /**
+   * One file at a time. The whole point is the restriction: the other file's
+   * content must NOT be in the page, or the mode is a scroll position with
+   * extra steps.
+   */
+  test('single-file mode renders that file and only that file', async () => {
+    if (!available)
+      return
+
+    // extra.ts sorts first in the diff, so it is file 1 and greet.ts is its
+    // next - the order is git's, not the fixture's.
+    const html = await page('?tab=files&file=extra.ts')
+    const text = html.replace(/<[^>]+>/g, '')
+
+    expect(text).toContain('export const extra')
+    expect(text).not.toContain('good morning')
+    expect(html).toContain('File 1 of 2')
+    // The neighbour, one click away.
+    expect(html).toContain('file=greet.ts')
+  }, 30_000)
+
+  test('a file the diff does not have is a sentence, not a blank page', async () => {
+    if (!available)
+      return
+
+    const html = await page('?tab=files&file=nothing.ts')
+
+    expect(html).toContain('no file called')
+    expect(html.includes('<table class="diff-table"')).toBe(false)
+  }, 30_000)
+
+  /**
+   * One commit at a time, threads deliberately absent - a thread's line is a
+   * position in the whole diff, and painting it into an intermediate step
+   * would put it on code it is not about.
+   */
+  test('commit mode renders one step of the branch', async () => {
+    if (!available)
+      return
+
+    const commits = await page('?tab=commits')
+    const shaMatch = commits.match(/commit=([0-9a-f]{40})/)
+    expect(shaMatch).not.toBeNull()
+
+    const html = await page(`?tab=files&commit=${shaMatch![1]}`)
+    const text = html.replace(/<[^>]+>/g, '')
+
+    // The first commit changed the greeting and did not add extra.ts.
+    expect(html).toContain('Commit 1 of 2')
+    expect(text).toContain('good morning')
+    expect(text).not.toContain('export const extra')
+    expect(html).toContain('Review threads live on the whole diff')
+  }, 30_000)
+
+  test('a commit not on the branch is refused, not rendered', async () => {
+    if (!available)
+      return
+
+    const html = await page(`?tab=files&commit=${'f'.repeat(40)}`)
+
+    expect(html).toContain('not on this branch')
+    expect(html.includes('<table class="diff-table"')).toBe(false)
+  }, 30_000)
+
   test('a tab nobody has heard of falls back to the conversation', async () => {
     if (!available)
       return

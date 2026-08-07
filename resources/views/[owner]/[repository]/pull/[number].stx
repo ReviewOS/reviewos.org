@@ -13,7 +13,7 @@
 import { repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
-import { approvalsSatisfied, commitsOnBranch, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists } from '../../../../functions/review'
+import { approvalsSatisfied, commitDiff, commitsOnBranch, diffTotals, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists } from '../../../../functions/review'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
@@ -36,6 +36,15 @@ const search: Record<string, string> = { ...routeQuery, ...boundQuery }
 const tab = ['conversation', 'commits', 'checks', 'files'].includes(String(search.tab ?? ''))
   ? String(search.tab)
   : 'conversation'
+
+/*
+ * The files tab's two modes: one file at a time, or one commit at a time.
+ * Both are URLs, so a reader's place survives a reload and can be sent to
+ * somebody. Mutually exclusive, file winning: a URL carrying both is asking
+ * two questions, and answering one is better than a blank stare.
+ */
+const fileMode = tab === 'files' ? String(search.file ?? '') : ''
+const commitMode = tab === 'files' && !fileMode ? String(search.commit ?? '') : ''
 
 // Every body on this page is rendered against the same repository, so `#12`
 // means the same thing in a description as it does in a review comment.
@@ -171,8 +180,15 @@ const threads = anchorThreads(storedThreads, files)
 // thread count are in the header and sidebar of every tab - but highlighting
 // and rendering a hundred files to answer a conversation-tab request would be
 // paying the page's whole cost to show a description.
-if (tab === 'files') {
+if (tab === 'files' && !commitMode) {
   for (const file of files) {
+    // Single-file mode renders exactly one; everything else about the page -
+    // totals, thread counts, the file list - still reads the whole parse,
+    // because the mode changes what is on screen, not what the pull request
+    // is. The saving is the expensive half: highlighting and rendering.
+    if (fileMode && file.path !== fileMode)
+      continue
+
     const fileThreads = threads.filter((thread: any) => thread.path === file.path)
     threadsByPath[file.path] = fileThreads
 
@@ -183,20 +199,77 @@ if (tab === 'files') {
       // runs no client script, so nothing is going to ask for the rows of a
       // folded file and a header on its own would be a file nobody can ever
       // read. The one script the page carries belongs to the suggested-reviewers
-      // panel and touches nothing in the diff.
-      collapsed: startsCollapsed(file) ? 'fold' : false,
+      // panel and touches nothing in the diff. A single file is never folded:
+      // the reader asked for this one by name.
+      collapsed: fileMode ? false : (startsCollapsed(file) ? 'fold' : false),
       threadsAt: threadSlotFor(fileThreads, file.path),
     })
   }
 }
 
 /*
- * The branch's commits, for the commits tab only: a `git log` nobody on
- * another tab is asking for.
+ * Single-file navigation: where this file sits, and its neighbours.
  */
-const branchCommits = tab === 'commits' && pullRequest
+const filePaths = files.map((file: any) => String(file.path))
+const fileIndex = fileMode ? filePaths.indexOf(fileMode) : -1
+const previousFile = fileIndex > 0 ? filePaths[fileIndex - 1] : null
+const nextFile = fileIndex >= 0 && fileIndex < filePaths.length - 1 ? filePaths[fileIndex + 1] : null
+
+// URLs built here, not in the template: an interpolation that throws - and a
+// helper the template scope does not carry, like encodeURIComponent, throws -
+// swallows its whole block into an HTML comment nobody reads.
+const previousFileUrl = previousFile ? `?tab=files&file=${encodeURIComponent(previousFile)}` : null
+const nextFileUrl = nextFile ? `?tab=files&file=${encodeURIComponent(nextFile)}` : null
+
+/*
+ * Commit-by-commit review: one commit's own diff against its first parent,
+ * threads deliberately absent. A thread's line and side are positions in the
+ * base...head diff; painting them into a mid-branch commit's diff would put
+ * comments on lines they were never about - the reanchor lesson, avoided by
+ * not asking.
+ *
+ * Membership on the branch is the safety gate, not just sha syntax: without
+ * it this page would render any reachable commit's diff under a pull
+ * request's framing.
+ */
+const modeCommits = (commitMode || tab === 'commits') && pullRequest
   ? await commitsOnBranch(owner, repositoryName, String(pullRequest.base_sha), String(pullRequest.head_sha))
   : []
+
+const commitIndex = commitMode ? modeCommits.findIndex((entry: any) => entry.sha === commitMode) : -1
+const currentCommit = commitIndex >= 0 ? modeCommits[commitIndex] : null
+const previousCommit = commitIndex > 0 ? modeCommits[commitIndex - 1] : null
+const nextCommit = commitIndex >= 0 && commitIndex < modeCommits.length - 1 ? modeCommits[commitIndex + 1] : null
+
+const commitFiles = currentCommit
+  ? parseDiff(await commitDiff(owner, repositoryName, currentCommit.sha))
+  : []
+
+const commitHtml: string[] = []
+for (const file of commitFiles) {
+  commitHtml.push(renderDiffFile(file, {
+    expandable: true,
+    tokens: await highlightDiffFile(file),
+    collapsed: false,
+  }))
+}
+
+/*
+ * Flat flags for the template. Deeply nested @if/@else inside the files tab
+ * swallowed whole blocks - siblings of an inner branch simply did not render
+ * - so each region tests exactly one boolean at one level.
+ */
+const showCommitMissing = Boolean(tab === 'files' && commitMode && !currentCommit)
+const showCommitDiff = Boolean(tab === 'files' && commitMode && currentCommit)
+const showFileMissing = Boolean(tab === 'files' && !commitMode && fileMode && fileIndex === -1)
+const showFileBar = Boolean(tab === 'files' && !commitMode && fileMode && fileIndex >= 0)
+const showWholeFiles = Boolean(tab === 'files' && !commitMode)
+
+/*
+ * The branch's commits: loaded above for the tabs and modes that ask, and a
+ * `git log` nobody on another tab pays for.
+ */
+const branchCommits = modeCommits
 
 const descriptionHtml = pullRequest?.body
   ? await renderMarkdownHighlighted(String(pullRequest.body), markdownContext)
@@ -482,6 +555,7 @@ const statePill = pullRequest
                     <a class="mono" href="/{{ owner }}/{{ repositoryName }}/commit/{{ commit.sha }}">{{ commit.sha.slice(0, 10) }}</a>
                     <span class="pr-commit-subject">{{ commit.subject }}</span>
                     <span class="muted">{{ commit.author }}</span>
+                    <a class="muted" href="?tab=files&commit={{ commit.sha }}">review this step</a>
                   </li>
                 @endforeach
               </ul>
@@ -512,7 +586,72 @@ const statePill = pullRequest
             </section>
           @endif
 
-          @if (tab === 'files')
+          {{-- The files tab's regions, each behind one flat flag: nesting
+               @if/@else here swallowed whole sibling blocks, so every branch
+               tests one precomputed boolean at one level. --}}
+
+          @if (showCommitMissing)
+            <p class="muted" style="padding: 24px 0;">
+              That commit is not on this branch.
+              <a href="?tab=files">Back to the whole diff.</a>
+            </p>
+          @endif
+
+          @if (showCommitDiff)
+            <nav class="panel mode-bar" aria-label="Commit navigation">
+              <span class="muted">
+                Commit {{ commitIndex + 1 }} of {{ modeCommits.length }}:
+                <span class="mono">{{ currentCommit.sha.slice(0, 10) }}</span>
+                {{ currentCommit.subject }}
+              </span>
+              <span class="mode-links">
+                @if (previousCommit)
+                  <a href="?tab=files&commit={{ previousCommit.sha }}">previous</a>
+                @endif
+                @if (nextCommit)
+                  <a href="?tab=files&commit={{ nextCommit.sha }}">next</a>
+                @endif
+                <a href="?tab=files">whole branch</a>
+              </span>
+            </nav>
+
+            <p class="muted side-note">
+              Review threads live on the whole diff, not on one commit, so
+              none are shown here - a thread's line means something in the
+              branch's final form, and painting it into an intermediate
+              step would put it on code it is not about.
+            </p>
+
+            @foreach (commitHtml as html)
+              {!! html !!}
+            @endforeach
+          @endif
+
+          @if (showFileMissing)
+            <p class="muted" style="padding: 24px 0;">
+              This diff has no file called <span class="mono">{{ fileMode }}</span>.
+              <a href="?tab=files">Back to the whole diff.</a>
+            </p>
+          @endif
+
+          @if (showFileBar)
+            {{-- One file at a time: the mode for the reviewer working a
+                 long diff to completion rather than scrolling it. --}}
+            <nav class="panel mode-bar" aria-label="File navigation">
+              <span class="muted">File {{ fileIndex + 1 }} of {{ filePaths.length }}</span>
+              <span class="mode-links">
+                @if (previousFileUrl)
+                  <a href="{{ previousFileUrl }}">previous</a>
+                @endif
+                @if (nextFileUrl)
+                  <a href="{{ nextFileUrl }}">next</a>
+                @endif
+                <a href="?tab=files">all files</a>
+              </span>
+            </nav>
+          @endif
+
+          @if (showWholeFiles)
             @if (files.length === 0)
               <p class="muted" style="padding: 24px 0;">
                 This branch has no changes against
@@ -528,7 +667,7 @@ const statePill = pullRequest
               another on the screen built for reading it.
             --}}
             @foreach (files as file)
-              {!! diffHtmlByPath[file.path] !!}
+              {!! diffHtmlByPath[file.path] ?? '' !!}
             @endforeach
           @endif
         </div>
@@ -738,6 +877,18 @@ const statePill = pullRequest
 
   .count-add { color: var(--ok); }
   .count-del { color: var(--bad); }
+
+  .mode-bar {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    font-size: 13.5px;
+  }
+
+  .mode-links { display: flex; gap: 12px; flex: none; }
 
   .pr-commits { display: flex; flex-direction: column; gap: 8px; }
   .pr-commit { display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; }

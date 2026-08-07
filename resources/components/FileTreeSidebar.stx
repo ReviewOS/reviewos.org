@@ -1,6 +1,12 @@
 <script server>
 /* The files, as JSON across the attribute - the StackNav lesson. */
 const fileList = typeof filesJson === 'string' ? JSON.parse(filesJson || '[]') : (filesJson ?? [])
+
+// Built here, not in the template: a helper the template scope does not
+// carry throws, and the throw swallows its block into an HTML comment.
+const singleFileUrl = fileList.length > 0
+  ? `?tab=files&file=${encodeURIComponent(String(fileList[0].path))}`
+  : ''
 </script>
 
 {{--
@@ -11,6 +17,9 @@ const fileList = typeof filesJson === 'string' ? JSON.parse(filesJson || '[]') :
 @if (fileList.length > 0)
   <section class="panel side-panel">
     <h2 class="side-heading">Files</h2>
+    <p class="muted side-note">
+      <a href="{{ singleFileUrl }}">Review one file at a time</a>
+    </p>
     <ul class="file-tree">
       @foreach (fileList as file)
         <li class="file-tree-row">
