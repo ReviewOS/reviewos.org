@@ -540,6 +540,15 @@ const statePill = pullRequest
         </p>
       </div>
     @else
+      {{--
+        What changed while you were reading this, and who else is here.
+
+        Above the header on purpose: it is the one thing on the page that can
+        make everything below it wrong, and a banner under a diff is one nobody
+        scrolls back up to find.
+      --}}
+      <LiveBanner owner="{{ owner }}" repository="{{ repositoryName }}" number="{{ number }}" />
+
       <PullRequestHeader
         title="{{ pullRequest.title }}"
         number="{{ number }}"

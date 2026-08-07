@@ -574,6 +574,52 @@ to prefer it to a badge nobody is looking at.
 
 ## Realtime
 
-- [ ] Live updates on an open pull request: new comments, review submissions, status changes
-- [ ] Presence: who else is looking at this pull request right now
-- [ ] Degrade to polling where the connection is unavailable, rather than silently going stale
+- [x] Live updates on an open pull request: new comments, review submissions, status changes
+
+  **It reports counts, never content.** Splicing new comments into a page the reader has scrolled,
+  folded, or started a draft in means reconciling against their unsaved work, and getting that wrong
+  loses somebody's half-written review - which is unforgivable in a review tool. A banner costs a
+  reload the reader chooses and never takes anything from them.
+
+  Two messages, not one. A new comment leaves what is on screen correct and adds to it: "reload when
+  you like". A new head commit does not - every line number may have moved and a draft anchored to
+  one is now on the wrong line - so it says the stronger thing and looks different. A count that
+  went *down* is not news and reports nothing.
+
+  The banner sits above the header, because it is the one thing on the page that can make everything
+  below it wrong, and a banner under a diff is one nobody scrolls back up to find. Its live region
+  is `polite`: a screen reader user mid-sentence in a diff should hear the count when they pause,
+  not be interrupted by it.
+- [x] Presence: who else is looking at this pull request right now
+
+  In the cache, not a table. It is true for sixty seconds and worthless after, and a row per reader
+  per pull request would be a write on every heartbeat from every open tab - the one query pattern
+  guaranteed to be the busiest in the product. A cache that is down costs the presence line and
+  nothing else; the freshness check beside it is the half that matters.
+
+  The reader is dropped from their own roster, or an empty room reads as one person. It is capped
+  and counted, because presence is a glance - "somebody else is in here" is the whole signal and
+  thirty faces is a widget rather than an answer. The sixty second window is generous on purpose: a
+  laptop that slept for thirty seconds must not flicker out and back in, and the flicker is worse
+  than the staleness because it makes the signal look unreliable.
+
+  Answering it needs `repository:read`. "Who is looking at this" is information about people, and
+  answering it to anybody who can guess a number is a way to watch a team work.
+- [x] Degrade to polling where the connection is unavailable, rather than silently going stale
+
+  **Polling is the baseline and the socket is an upgrade**, which is the opposite of the usual
+  arrangement and the point. Make the socket primary and polling the fallback, and the fallback is
+  the path nobody exercises - so it is broken on the day the socket is not there, which is exactly
+  the day it matters. Here the poll always runs and a socket only makes it faster.
+
+  Both ask the same endpoint for the same shape, so there is no second implementation to drift. A
+  socket message is a nudge rather than the state: reading from the endpoint keeps one source of
+  truth, and a socket that sends something malformed cannot put the page into a state the server
+  never described.
+
+  A socket does not stop the poll, it slows it - the poll is what keeps presence alive and what
+  catches whatever the socket missed while the laptop was asleep, because a socket that reconnects
+  has no idea what it lost. A dropped socket goes straight back to the fast poll, since the window
+  between a drop and the next slow poll is exactly where "silently going stale" lives. There is no
+  reconnect loop: against a server that does not speak WebSocket that is a page hammering it
+  forever, and the poll has already lost the reader nothing but latency.

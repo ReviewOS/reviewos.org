@@ -721,6 +721,28 @@
       /* The one line on this page somebody actually reads. Set apart, because
         four rules interact behind it and the answer is not derivable from the
         switches above without doing the interaction in your head. */
+      /* The live banner. Above the header, because it is the one thing on the
+        page that can make everything below it wrong. */
+      .live { margin-bottom: 12px; }
+
+      .live-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-left: 2px solid var(--accent);
+        border-radius: 0 8px 8px 0;
+        background: var(--surface-tint);
+        font-size: 13px;
+      }
+
+      /* A new comment leaves the diff correct and adds to it. A new head
+        commit does not, and the two must not look the same. */
+      .live-banner.is-stale { border-left-color: var(--warn); background: var(--warn-bg); }
+      .live-reload { margin-left: auto; flex-shrink: 0; font-weight: 500; }
+      .live-presence { margin: 6px 0 0; font-size: 12px; }
+
       .push-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
 
       .prefs-now {

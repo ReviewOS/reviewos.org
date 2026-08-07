@@ -251,6 +251,12 @@ route.get('/repos/pulls/suggested-reviewers', 'Actions/Pull/SuggestReviewersActi
 route.put('/repos/pulls/review-state/viewed', 'Actions/Pull/MarkFileViewedAction').middleware('auth')
 route.put('/repos/pulls/review-state/draft', 'Actions/Pull/SaveReviewDraftAction').middleware('auth')
 
+// What moved on a pull request, and who else is looking. POST because it is
+// also the heartbeat - asking is how a reader says they are still here, and
+// presence and freshness are one round trip so a page cannot report itself
+// present while showing stale content.
+route.post('/repos/pulls/live', 'Actions/Pull/LiveStateAction')
+
 // Webhooks on a repository. `repository:settings` rather than
 // `repository:push`: a webhook sends this repository's activity to a server
 // somebody chooses, which is a decision about the project rather than a change

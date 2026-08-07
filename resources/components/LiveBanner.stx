@@ -1,0 +1,55 @@
+<script server>
+/**
+ * "Somebody commented while you were reading this."
+ *
+ * A banner and a presence line, and nothing else. This never rewrites the page:
+ * splicing new comments into a diff the reader has scrolled, folded, or started
+ * a draft in means reconciling against their unsaved work, and getting that
+ * wrong loses somebody's half-written review. A reload the reader chooses costs
+ * a second and takes nothing.
+ *
+ * The distinction between the two messages is the point. A new comment leaves
+ * what is on screen correct and adds to it - "reload when you like". A new head
+ * commit does not: every line number may have moved and a draft anchored to one
+ * is now on the wrong line, so it says the stronger thing.
+ *
+ * Props rather than a query. The page has already loaded the repository and the
+ * number, and a component that fetched them again would be a second round trip
+ * to learn what its parent knew.
+ */
+</script>
+
+<div
+  class="live"
+  x-data="{ summary: '', stale: false, watching: [], extra: 0, handle: null }"
+  x-init="handle = watchPullRequest({
+    owner: $props.owner,
+    repository: $props.repository,
+    number: Number($props.number),
+    onState: (state) => { watching = state.watching; extra = state.watchingExtra },
+    onChange: (text, isStale) => { summary = text; stale = isStale },
+  })"
+  x-destroy="handle?.stop()">
+
+  {{--
+    Nothing at all until something happens. A live region that renders an empty
+    shell is a shell people learn to stop seeing, and then the one time it has
+    something to say it is invisible.
+  --}}
+  <div class="live-banner" x-show="summary" x-cloak :class="stale ? 'is-stale' : ''">
+    {{--
+      `polite`, not `assertive`. A screen reader user mid-sentence in a diff
+      should not be interrupted by a comment count; they should hear it when
+      they pause. `assertive` here would be the audible equivalent of stealing
+      focus.
+    --}}
+    <span role="status" aria-live="polite" x-text="summary"></span>
+    <a class="live-reload" :href="''" @click.prevent="location.reload()">Reload</a>
+  </div>
+
+  <p class="live-presence muted" x-show="watching.length" x-cloak>
+    <span x-text="watching.join(', ')"></span>
+    <template x-if="extra > 0"><span x-text="' and ' + extra + ' more'"></span></template>
+    <span> also looking at this</span>
+  </p>
+</div>
