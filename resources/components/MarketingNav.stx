@@ -22,7 +22,7 @@ import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../functions
     <nav class="nav-links" aria-label="Primary">
       <details class="mega">
         <summary>Features <span class="mega-chevron" aria-hidden="true"></span></summary>
-        <div class="mega-panel mega-features">
+        <div class="mega-features mega-panel">
           <div class="mega-grid">
             @foreach (FEATURE_GROUPS as group)
               <div>
@@ -45,7 +45,7 @@ import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../functions
 
       <details class="mega">
         <summary>Use cases <span class="mega-chevron" aria-hidden="true"></span></summary>
-        <div class="mega-panel mega-cases">
+        <div class="mega-cases mega-panel">
           <div class="mega-grid mega-grid-single">
             @foreach (USE_CASES as useCase)
               <a class="mega-item" href="/for/{{ useCase.slug }}">
@@ -63,7 +63,7 @@ import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../functions
 
       <details class="mega">
         <summary>Compare <span class="mega-chevron" aria-hidden="true"></span></summary>
-        <div class="mega-panel mega-cases">
+        <div class="mega-cases mega-panel">
           <div class="mega-grid mega-grid-single">
             @foreach (COMPARISONS as comparison)
               <a class="mega-item" href="/compare/{{ comparison.slug }}">

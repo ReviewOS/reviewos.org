@@ -152,7 +152,7 @@ describe('preferences decide, and the decision is recorded', () => {
     expect(rows[rows.length - 1].status).toBe('pending')
   })
 
-  test('push is not wired up, and the log says that rather than claiming a send', async () => {
+  test('push with nobody subscribed is skipped, not retried', async () => {
     if (!available)
       return
 
@@ -160,13 +160,37 @@ describe('preferences decide, and the decision is recorded', () => {
     await db.deleteFrom('notification_event_preferences').where('user_id', '=', created.userId).execute()
     await prefer('review:requested', 'push', 'immediate')
 
-    // A channel that silently succeeds is worse than one that visibly does not
-    // exist: the log would fill with rows claiming somebody was reached.
-    await expect(run({ channel: 'push' })).rejects.toThrow(/not wired up/)
+    // Keys, so the run reaches the question this test is about. Without them
+    // it stops one step earlier at "this instance has no VAPID keys" - also a
+    // permanent skip, and also correct, but not the one named above.
+    const { generateVapidKeys } = await import('@stacksjs/push') as any
+    const vapid = generateVapidKeys()
+    const previous = { pub: Bun.env.VAPID_PUBLIC_KEY, priv: Bun.env.VAPID_PRIVATE_KEY }
+    Bun.env.VAPID_PUBLIC_KEY = vapid.publicKey
+    Bun.env.VAPID_PRIVATE_KEY = vapid.privateKey
+
+    // Nobody registered a browser, and no retry will change that. Throwing
+    // would spend three queue attempts and log three failures to reach the
+    // answer it had at the start - which is the distinction `permanent`
+    // exists to carry.
+    let result: any
+    try {
+      result = await run({ channel: 'push' })
+    }
+    finally {
+      Bun.env.VAPID_PUBLIC_KEY = previous.pub ?? ''
+      Bun.env.VAPID_PRIVATE_KEY = previous.priv ?? ''
+    }
+
+    expect(result.sent).toBe(false)
+    expect(String(result.reason)).toContain('no browser')
 
     const rows = await deliveries()
 
-    expect(rows[rows.length - 1].status).toBe('failed')
+    // `skipped`, not `failed`. "Nobody subscribed" belongs in the same column
+    // as "the recipient turned this channel off" - both are a state of the
+    // world, not something refusing.
+    expect(rows[rows.length - 1].status).toBe('skipped')
   })
 
   test('the default applies when nobody chose', async () => {

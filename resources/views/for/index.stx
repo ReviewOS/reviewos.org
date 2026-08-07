@@ -20,7 +20,7 @@ const pageDescription = 'Who ReviewOS is built for, and the specific problem it 
 
     <div class="card-grid">
       @foreach (USE_CASES as item)
-        <a class="panel card" href="/for/{{ item.slug }}">
+        <a class="card panel" href="/for/{{ item.slug }}">
           <span class="card-title">{{ item.name }}</span>
           <span class="card-text">{{ item.summary }}</span>
         </a>

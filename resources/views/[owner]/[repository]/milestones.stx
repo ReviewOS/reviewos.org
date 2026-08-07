@@ -149,7 +149,7 @@ const base = `/${ownerHandle}/${repositoryName}`
             <li class="milestone-row">
               <div class="milestone-head">
                 <h2 class="milestone-title">{{ milestone.title }}</h2>
-                <span class="muted milestone-due">
+                <span class="milestone-due muted">
                   @if (milestone.dueOn)
                     Due {{ milestone.dueOn }}
                   @else
@@ -159,14 +159,14 @@ const base = `/${ownerHandle}/${repositoryName}`
               </div>
 
               @if (milestone.description)
-                <p class="muted milestone-desc">{{ milestone.description }}</p>
+                <p class="milestone-desc muted">{{ milestone.description }}</p>
               @endif
 
               <div class="milestone-progress" role="img" aria-label="{{ milestone.percent }} per cent complete">
                 <div class="milestone-bar" style="width: {{ milestone.percent }}%;"></div>
               </div>
 
-              <p class="muted milestone-counts">
+              <p class="milestone-counts muted">
                 {{ milestone.percent }}% complete
                 &middot;
                 <a href="{{ base }}/issues?milestone={{ milestone.id }}&state=open">{{ milestone.open }} open</a>

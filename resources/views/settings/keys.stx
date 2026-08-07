@@ -103,19 +103,19 @@ if (!viewer)
         </form>
 
         @if (keys.ssh.length === 0)
-          <div class="panel keys-empty">
+          <div class="keys-empty panel">
             <p class="muted">No SSH keys yet. Add one and you can clone and push over SSH.</p>
           </div>
         @else
-          <ul class="panel keys-list">
+          <ul class="keys-list panel">
             @foreach (keys.ssh as key)
               <li class="key-row">
                 <span class="i-hugeicons-key-01 key-icon" aria-hidden="true"></span>
 
                 <div class="key-main">
                   <span class="key-name">{{ key.title }}</span>
-                  <span class="mono muted key-fingerprint">{{ key.fingerprint }}</span>
-                  <span class="muted key-meta">
+                  <span class="key-fingerprint mono muted">{{ key.fingerprint }}</span>
+                  <span class="key-meta muted">
                     {{ key.type }}
                     @if (key.addedAt)
                       &middot; added {{ relativeTime(key.addedAt) }}
@@ -161,7 +161,7 @@ if (!viewer)
             spellcheck="false"
             placeholder="-----BEGIN PGP PUBLIC KEY BLOCK----- (gpg --armor --export &lt;key id&gt;)"></textarea>
 
-          <p class="muted key-hint">
+          <p class="key-hint muted">
             A commit is verified when its signature is good <em>and</em> the key claims the address
             the commit was authored with. A key with no address on it can never verify anything, so
             it is refused rather than stored.
@@ -173,19 +173,19 @@ if (!viewer)
         </form>
 
         @if (keys.gpg.length === 0)
-          <div class="panel keys-empty">
+          <div class="keys-empty panel">
             <p class="muted">No GPG keys yet. Add one and your signed commits will show as verified.</p>
           </div>
         @else
-          <ul class="panel keys-list">
+          <ul class="keys-list panel">
             @foreach (keys.gpg as key)
               <li class="key-row">
                 <span class="i-hugeicons-checkmark-badge-01 key-icon" aria-hidden="true"></span>
 
                 <div class="key-main">
-                  <span class="mono key-name">{{ key.keyId }}</span>
-                  <span class="muted key-fingerprint">{{ key.emails.join(', ') }}</span>
-                  <span class="muted key-meta">
+                  <span class="key-name mono">{{ key.keyId }}</span>
+                  <span class="key-fingerprint muted">{{ key.emails.join(', ') }}</span>
+                  <span class="key-meta muted">
                     @if (key.addedAt)
                       added {{ relativeTime(key.addedAt) }}
                     @endif

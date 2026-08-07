@@ -34,7 +34,7 @@ const accent = props.accent || '#0f6d72'
   </ul>
 
   {{-- One link, to the thread all of these are about. That is what makes this
-       a digest rather than a bundle. --}}
+      a digest rather than a bundle. --}}
   <EmailButton href="{{ url }}" bg="{{ accent }}">Open the thread</EmailButton>
 
   <EmailDivider />

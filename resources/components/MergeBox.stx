@@ -20,7 +20,7 @@ const canMerge = String(mayMerge ?? '') === '1'
   and the endpoint merges immediately if requirements are already met, so a
   stale page cannot arm what should just merge.
 --}}
-<section class="panel merge-box">
+<section class="merge-box panel">
   <h2 class="side-heading">Merge</h2>
 
   @if (blockerList.length === 0)
@@ -39,7 +39,7 @@ const canMerge = String(mayMerge ?? '') === '1'
       <button type="submit" class="btn btn-primary merge-button">Merge pull request</button>
     </form>
   @else
-    <p class="merge-state bad">This cannot be merged yet.</p>
+    <p class="bad merge-state">This cannot be merged yet.</p>
     <ul class="blockers">
       @foreach (blockerList as blocker)
         <li class="blocker">
@@ -50,8 +50,8 @@ const canMerge = String(mayMerge ?? '') === '1'
     </ul>
 
     {{-- The conflicting files, named. git already told us which they are, so
-         saying only "this branch has conflicts" would send somebody to their
-         terminal to rediscover what we know. --}}
+        saying only "this branch has conflicts" would send somebody to their
+        terminal to rediscover what we know. --}}
     @if (conflictList.length > 0)
       <p class="conflict-heading">Conflicts in</p>
       <ul class="conflict-list mono">

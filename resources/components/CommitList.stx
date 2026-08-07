@@ -11,19 +11,19 @@
   telling somebody about.
 --}}
 @if (rows.length === 0)
-  <div class="panel commits-empty">
+  <div class="commits-empty panel">
     <p class="muted">{{ empty || 'No commits on this ref.' }}</p>
   </div>
 @else
-  <div class="panel commits">
+  <div class="commits panel">
     <ul>
       @foreach (rows as row)
         <li class="commit-row">
           <div class="commit-main">
             <a class="commit-subject" href="{{ row.href }}">{{ row.subject }}</a>
-            <span class="muted commit-meta">{{ row.byline }}</span>
+            <span class="commit-meta muted">{{ row.byline }}</span>
           </div>
-          <a class="mono muted commit-sha" href="{{ row.href }}">{{ row.short }}</a>
+          <a class="commit-sha mono muted" href="{{ row.href }}">{{ row.short }}</a>
         </li>
       @endforeach
     </ul>

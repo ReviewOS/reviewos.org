@@ -48,9 +48,9 @@ const current = Number(currentId)
           </span>
 
           <a class="stack-link" href="/{{ owner }}/{{ repository }}/pull/{{ entry.number }}">
-            <span class="stack-number mono">#{{ entry.number }}</span>
+            <span class="mono stack-number">#{{ entry.number }}</span>
             <span class="stack-title">{{ entry.title }}</span>
-            <span class="stack-state muted">
+            <span class="muted stack-state">
               {{ entry.state === 'merged' ? 'Merged' : (entry.state === 'closed' ? 'Closed' : (entry.draft ? 'Draft' : 'Open')) }}
               @if (entry.id === current)
                 <span class="stack-here">you are here</span>

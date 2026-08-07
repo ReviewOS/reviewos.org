@@ -180,10 +180,10 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
         </nav>
 
         @if (head)
-          <div class="panel last-commit">
+          <div class="last-commit panel">
             <span class="mono muted">{{ shortSha(head.sha) }}</span>
             <span class="last-commit-subject">{{ head.subject }}</span>
-            <span class="muted last-commit-author">{{ head.authorName }}</span>
+            <span class="last-commit-author muted">{{ head.authorName }}</span>
           </div>
         @endif
 

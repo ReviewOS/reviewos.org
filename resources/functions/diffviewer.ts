@@ -2801,7 +2801,7 @@ export function mountDiffFiles(): DiffViewer | null {
 
       if (matches.length === 0) {
         const empty = document.createElement('p')
-        empty.className = 'palette-empty muted'
+        empty.className = 'muted palette-empty'
         empty.textContent = 'Nothing matches.'
         list.append(empty)
         return
@@ -2817,7 +2817,7 @@ export function mountDiffFiles(): DiffViewer | null {
         label.textContent = command.label
 
         const hint = document.createElement('span')
-        hint.className = 'muted mono'
+        hint.className = 'mono muted'
         hint.textContent = command.hint
 
         item.append(label, hint)

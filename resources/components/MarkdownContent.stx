@@ -10,7 +10,7 @@
   so it would markdown-render the literal `{!! html !!}` token and then drop the
   file's text into the page untouched.
 --}}
-<section class="panel markdown-panel">
+<section class="markdown-panel panel">
   @if (title)
     <header class="markdown-head">
       <span class="{{ icon || 'i-hugeicons-book-open-01' }}" aria-hidden="true"></span>
@@ -18,7 +18,7 @@
     </header>
   @endif
 
-  <div class="markdown-body markdown">
+  <div class="markdown markdown-body">
     {!! html !!}
   </div>
 </section>

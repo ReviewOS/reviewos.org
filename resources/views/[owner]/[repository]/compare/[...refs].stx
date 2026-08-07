@@ -109,7 +109,7 @@ const title = repoRow && request
         </h1>
 
         {{-- The mode, out loud. The two texts look identical, which is
-             exactly the problem with the second one. --}}
+            exactly the problem with the second one. --}}
         @if (request.mode === 'merge-base')
           <p class="muted" style="margin-top: 6px;">
             From where the histories parted: what

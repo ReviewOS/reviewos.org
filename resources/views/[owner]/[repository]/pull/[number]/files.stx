@@ -163,7 +163,7 @@ const blameUrl = `/api/repos/pulls/diff/blame?${diffQuery}`
 @section('title', title)
 
 @section('content')
-  <div class="shell files-shell">
+  <div class="files-shell shell">
     @if (!pullRequest)
       <div class="panel" style="padding: 32px; text-align: center;">
         <h1 style="font-size: 20px;">No such pull request</h1>
@@ -175,7 +175,7 @@ const blameUrl = `/api/repos/pulls/diff/blame?${diffQuery}`
       <header class="files-head">
         <div class="pr-title-row">
           <h1 class="pr-title">{{ pullRequest.title }}</h1>
-          <span class="mono muted pr-number">#{{ number }}</span>
+          <span class="pr-number mono muted">#{{ number }}</span>
         </div>
 
         <div class="pr-meta">
@@ -254,8 +254,8 @@ const blameUrl = `/api/repos/pulls/diff/blame?${diffQuery}`
       </nav>
 
       {{-- The verdict, in a drawer the `v` key opens. A details element, so
-           it also opens with nothing to run it; the keyboard and the palette
-           only make the opening faster. --}}
+          it also opens with nothing to run it; the keyboard and the palette
+          only make the opening faster. --}}
       @if (viewerMayReview)
         <details class="verdict-drawer" data-verdict-drawer>
           <summary class="btn verdict-summary">Submit a review</summary>
@@ -420,10 +420,10 @@ mountDiffFiles()
   .files-head { padding-bottom: 12px; }
 
   /* The viewport the list virtualizes against. Sized by the page, never by its
-     contents: a region that grew with what is inside it would put every file in
-     the document and there would be nothing left to virtualize. */
+    contents: a region that grew with what is inside it would put every file in
+    the document and there would be nothing left to virtualize. */
   /* The list beside the diff rather than above it, so a reader can see where
-     they are in the change while reading part of it. */
+    they are in the change while reading part of it. */
   .diff-stream {
     display: grid;
     min-height: 0;
@@ -452,15 +452,15 @@ mountDiffFiles()
     overflow-y: auto;
     overscroll-behavior: contain;
     /* Layout, paint and style all stop at this boundary, so a file mounting
-       cannot invalidate the page around it. */
+      cannot invalidate the page around it. */
     contain: strict;
     /* The browser's own scroll anchoring fights ours. */
     overflow-anchor: none;
   }
 
   /* No padding of its own. The space between files is the layout's `gap`, and
-     a host that padded itself would have that space counted twice: once in the
-     height the viewer measures, and once when it adds the gap. */
+    a host that padded itself would have that space counted twice: once in the
+    height the viewer measures, and once when it adds the gap. */
   .diff-file-host { padding-bottom: 0; }
 
   .is-pending .diff-head { opacity: 0.6; }

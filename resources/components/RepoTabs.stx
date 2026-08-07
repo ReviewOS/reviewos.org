@@ -33,7 +33,7 @@ const base = `/${ownerHandle}/${repositoryName}`
     color: var(--muted);
     text-decoration: none;
     /* The underline is on the tab rather than a separate marker so it lands on
-       the same pixel row as the container border. */
+      the same pixel row as the container border. */
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
   }

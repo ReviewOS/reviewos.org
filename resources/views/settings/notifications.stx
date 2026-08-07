@@ -18,6 +18,7 @@
 import { PREFERENCE_EVENTS, preferenceGrid } from '../../../app/Actions/Notification/preferences'
 import { formatDays, parseDays } from '../../../app/Actions/Notification/clock'
 import { deliveryFor } from '../../../app/Actions/Notification/settings'
+import { vapidKeys } from '../../../app/Actions/Notification/vapid'
 import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
 
 /**
@@ -176,6 +177,62 @@ const rows = PREFERENCE_EVENTS.map((event) => {
   }
 })
 
+/*
+ * The instance's push public key, or an empty string.
+ *
+ * Safe to render - the browser needs it to subscribe, and it is public by
+ * design. An instance that never generated one shows the section saying so
+ * rather than a button that fails: "run buddy push:keys" is an answer an
+ * operator can act on, and a silent failure is not.
+ */
+const pushKey = vapidKeys()?.publicKey ?? ''
+
+/*
+ * The browsers already registered.
+ *
+ * Listed with what each said it was, so somebody can tell the laptop at the
+ * office from the desktop at home. Without that the list is three identical
+ * rows and revoking one becomes a guess - which is how people end up revoking
+ * all of them and turning the feature off.
+ */
+const browsers: any[] = viewer
+  ? await db
+      .selectFrom('push_subscriptions')
+      .select(['id', 'user_agent', 'last_seen_at'])
+      .where('user_id', '=', viewer.id)
+      .orderBy('id', 'desc')
+      .execute()
+  : []
+
+const pushBrowsers = browsers.map(row => ({
+  label: shortAgent(String(row.user_agent ?? '')),
+  when: row.last_seen_at ? new Date(String(row.last_seen_at)).toISOString().slice(0, 10) : '',
+}))
+
+/** A user agent as something a person recognises. */
+function shortAgent(agent) {
+  if (!agent)
+    return 'A browser'
+
+  const browser = /Firefox\/(\d+)/.test(agent)
+    ? 'Firefox'
+    : /Edg\//.test(agent)
+      ? 'Edge'
+      : /Chrome\//.test(agent)
+        ? 'Chrome'
+        : /Safari\//.test(agent) ? 'Safari' : 'A browser'
+
+  const platform = /Macintosh/.test(agent)
+    ? 'macOS'
+    : /Windows/.test(agent)
+      ? 'Windows'
+      : /Android/.test(agent)
+        ? 'Android'
+        : /iPhone|iPad/.test(agent) ? 'iOS' : ''
+
+  return platform ? `${browser} on ${platform}` : browser
+}
+
 const days = formatDays(parseDays(String(schedule?.days ?? '1,2,3,4,5')))
 const startsAt = clockOf(Number(schedule?.starts_at ?? 540))
 const endsAt = clockOf(Number(schedule?.ends_at ?? 1080))
@@ -314,6 +371,93 @@ const dayBoxes = [
             <button type="submit" class="btn btn-primary">Save hours</button>
           </div>
         </form>
+      </section>
+
+      {{--
+        Browser notifications.
+
+        The only section on this page that runs client script, because the Push
+        API is a browser capability with no server side: a permission, a service
+        worker, and a subscription the browser mints. The work is in
+        `resources/functions/push.ts` and this holds the answer.
+
+        **The permission is asked on the button, never on load.** A browser
+        asked once and refused cannot be asked again - the promise resolves
+        `denied` forever, and the only undo is buried in browser site settings
+        almost nobody finds. Spending that one prompt on a page load costs the
+        feature permanently for that reader.
+      --}}
+      <section class="keys-section" x-data="{ push: { supported: true, permission: 'default', subscribed: false, message: '' }, note: '', busy: false }" x-init="push = await pushState()">
+        <h2 class="keys-heading">This browser</h2>
+
+        @if (!pushKey)
+          <p class="keys-empty muted">
+            Push is not configured on this instance. Run <span class="mono">buddy push:keys</span> and
+            put the pair in the environment.
+          </p>
+        @else
+          <div class="panel prefs-schedule">
+            <p class="muted prefs-explainer" x-show="!push.supported" x-cloak>
+              This browser cannot show notifications.
+            </p>
+
+            <template x-if="push.supported">
+              <div>
+                <p class="muted prefs-explainer">
+                  A notification arrives whether or not this tab is open. It carries the same
+                  sentence as your inbox and nothing more, and it obeys the same quiet hours and
+                  mutes as email.
+                </p>
+
+                <div class="push-actions">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    x-show="!push.subscribed"
+                    :disabled="busy"
+                    @click="busy = true; push = await enablePush('{{ pushKey }}'); busy = false">Turn on for this browser</button>
+
+                  <button
+                    type="button"
+                    class="btn"
+                    x-show="push.subscribed"
+                    :disabled="busy"
+                    @click="busy = true; push = await disablePush(); busy = false">Turn off for this browser</button>
+
+                  {{--
+                    The test button, and the reason it exists: every way push
+                    breaks - a downgraded permission, a key that does not match,
+                    a worker that never activated - produces exactly the same
+                    symptom, which is nothing arriving. There is no way to tell
+                    them apart from the outside.
+                  --}}
+                  <button
+                    type="button"
+                    class="btn"
+                    x-show="push.subscribed"
+                    :disabled="busy"
+                    @click="busy = true; note = await testPush(); busy = false">Send a test</button>
+                </div>
+
+                <p class="muted prefs-explainer" x-show="push.message" x-cloak x-text="push.message"></p>
+                <p class="muted prefs-explainer" x-show="note" x-cloak x-text="note"></p>
+              </div>
+            </template>
+          </div>
+
+          @if (pushBrowsers.length > 0)
+            <ul class="panel prefs-list">
+              @foreach (pushBrowsers as browser)
+                <li class="prefs-row">
+                  <span class="prefs-event">{{ browser.label }}</span>
+                  @if (browser.when)
+                    <span class="muted prefs-inbox">Registered {{ browser.when }}</span>
+                  @endif
+                </li>
+              @endforeach
+            </ul>
+          @endif
+        @endif
       </section>
 
       <section class="keys-section">

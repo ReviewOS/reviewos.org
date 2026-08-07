@@ -62,11 +62,11 @@ const loadLines = loadRows.map(row => ({
   />
 
   {{-- Who this repository is waiting on, oldest wait first - the request
-       that has waited longest is the one to go and ask about. Ordering by
-       count would make it a leaderboard, and a leaderboard gets routed
-       around. Rendered only when there is something to say: an empty panel
-       would be the page saying "nothing is stuck" to somebody who did not
-       ask. --}}
+      that has waited longest is the one to go and ask about. Ordering by
+      count would make it a leaderboard, and a leaderboard gets routed
+      around. Rendered only when there is something to say: an empty panel
+      would be the page saying "nothing is stuck" to somebody who did not
+      ask. --}}
   @if (loadLines.length > 0)
     <div class="shell" style="padding-bottom: 48px;">
       <section class="panel reviewer-load">

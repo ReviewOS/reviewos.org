@@ -114,12 +114,23 @@ export default new Job({
 
     const sent = await send(channel, user, payload)
 
-    await record(userId, channel, sent.recipient, payload, sent.ok ? 'sent' : 'failed', sent.error)
+    // A permanent no is `skipped`, not `failed`. "This instance has no VAPID
+    // keys" belongs in the same column as "the recipient turned this channel
+    // off" - both are a state of the world, not a mail server refusing.
+    await record(userId, channel, sent.recipient, payload, sent.ok ? 'sent' : (sent.permanent ? 'skipped' : 'failed'), sent.error)
 
     // Thrown rather than returned, so the queue retries. A refused connection
     // is the case `tries` exists for; a preference is not.
-    if (!sent.ok)
+    //
+    // `permanent` is the difference between "try again" and "this will never
+    // work". No VAPID keys, no browser subscribed, no address on file - none of
+    // those change on a retry, and throwing would spend three attempts and log
+    // three failures to reach the same answer.
+    if (!sent.ok && !sent.permanent)
       throw new Error(`[notification] ${channel} to ${user.handle} failed: ${sent.error}`)
+
+    if (!sent.ok)
+      return { ok: true, sent: false, reason: sent.error }
 
     return { ok: true, sent: true }
   },
@@ -128,17 +139,45 @@ export default new Job({
 /**
  * Put it on the wire.
  *
- * Push is not implemented and says so rather than pretending. A channel that
- * silently succeeds is worse than one that visibly does not exist: the delivery
- * log would fill with rows claiming somebody was reached.
+ * Both channels report the same three-way answer: sent, failed and worth
+ * retrying, or permanently not going to happen. That third case is the one a
+ * boolean cannot carry, and without it "this instance has no VAPID keys" costs
+ * three queue attempts and three log lines to reach the answer it had at the
+ * start.
  */
 async function send(
   channel: Channel,
-  user: { email?: string, handle?: string },
+  user: { id?: number, email?: string, handle?: string },
   payload: { title: string, url: string, repository?: string, reason?: string, subjects?: Array<{ type: string, id: number }> },
-): Promise<{ ok: boolean, recipient: string, error?: string }> {
-  if (channel === 'push')
-    return { ok: false, recipient: String(user.handle ?? ''), error: 'push is not wired up yet' }
+): Promise<{ ok: boolean, recipient: string, error?: string, permanent?: boolean }> {
+  if (channel === 'push') {
+    const { pushToUser } = await import('../Actions/Notification/push')
+
+    const outcome = await pushToUser(Number(user.id), {
+      title: payload.title,
+      body: payload.repository ?? '',
+      url: payload.url,
+      // Collapse by thread. Three notifications about one pull request replace
+      // each other rather than stacking, so a device that was asleep wakes to
+      // one current notification instead of three stale ones.
+      tag: payload.subjects?.[0] ? `${payload.subjects[0].type}:${payload.subjects[0].id}` : undefined,
+    })
+
+    // An instance with no VAPID keys has not failed - it has not opted in. A
+    // row saying "failed" would fill the log of every installation that only
+    // wants email.
+    if (outcome.unconfigured)
+      return { ok: false, permanent: true, recipient: String(user.handle ?? ''), error: 'push is not configured on this instance' }
+
+    // No browsers registered is not a failure either. Somebody who never opted
+    // in is not owed a push, and retrying would never change that.
+    if (outcome.sent === 0 && outcome.failed === 0)
+      return { ok: false, permanent: true, recipient: String(user.handle ?? ''), error: 'no browser is subscribed' }
+
+    return outcome.sent > 0
+      ? { ok: true, recipient: `${outcome.sent} browser(s)` }
+      : { ok: false, recipient: String(user.handle ?? ''), error: `every browser refused it` }
+  }
 
   const address = String(user.email ?? '')
 

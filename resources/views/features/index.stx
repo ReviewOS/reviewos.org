@@ -28,7 +28,7 @@ const pageDescription = 'Everything ReviewOS does, grouped by what it is for: re
         </h2>
         <div class="card-grid">
           @foreach (featuresIn(group) as feature)
-            <a class="panel card" href="/features/{{ feature.slug }}">
+            <a class="card panel" href="/features/{{ feature.slug }}">
               <span class="{{ feature.icon }}" aria-hidden="true" style="font-size: 20px; color: var(--accent); display: block; margin-bottom: 12px;"></span>
               <span class="card-title">{{ feature.name }}</span>
               <span class="card-text">{{ feature.summary }}</span>

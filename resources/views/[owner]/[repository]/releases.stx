@@ -150,7 +150,7 @@ function fileSize(bytes: number): string {
                 </div>
               </header>
 
-              <p class="release-meta muted">
+              <p class="muted release-meta">
                 <span class="mono">{{ release.tag_name }}</span>
                 @if (release.target_sha)
                   &middot; <a class="mono" href="{{ base }}/commit/{{ release.target_sha }}">{{ shortSha(release.target_sha) }}</a>
@@ -164,7 +164,7 @@ function fileSize(bytes: number): string {
               </p>
 
               @if (release.html)
-                <div class="release-notes markdown">{!! release.html !!}</div>
+                <div class="markdown release-notes">{!! release.html !!}</div>
               @endif
 
               <div class="release-downloads">

@@ -19,7 +19,7 @@
     <span class="{{ badge.icon }}" aria-hidden="true"></span>
     <span>{{ badge.label }}</span>
     {{-- The tooltip is not reachable without a pointer, so the sentence is
-         carried for a screen reader too rather than only on hover. --}}
+        carried for a screen reader too rather than only on hover. --}}
     <span class="sr-only">. {{ badge.detail }}</span>
   </span>
 @endif
@@ -39,8 +39,8 @@
   }
 
   /* Colour is never the only signal: each tone has its own word and its own
-     icon, so the badge still reads on a monochrome display and to anybody who
-     does not distinguish the hues. */
+    icon, so the badge still reads on a monochrome display and to anybody who
+    does not distinguish the hues. */
   .sig-good { color: var(--ok); border-color: var(--ok); background: var(--ok-bg); }
   .sig-bad { color: var(--bad); border-color: var(--bad); background: var(--bad-bg); }
   .sig-quiet { color: var(--muted); }

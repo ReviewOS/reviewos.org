@@ -203,14 +203,14 @@ function copyCloneUrl(url) {
   }
 
   /* `--surface` and `--bg`, both of which the theme defines. The obvious pair
-     was `--bg-subtle` over `--bg`, and `--bg-subtle` does not exist here: the
-     fallback made the track and the selected pill the same colour, so the only
-     thing marking the selection was the text weight. A selected state you have
-     to squint at is one nobody sees.
+    was `--bg-subtle` over `--bg`, and `--bg-subtle` does not exist here: the
+    fallback made the track and the selected pill the same colour, so the only
+    thing marking the selection was the text weight. A selected state you have
+    to squint at is one nobody sees.
 
-     A CSS comment rather than an stx one: stx does not strip its own comment
-     syntax inside a `<style>` block, so the version of this note written that
-     way reached the browser verbatim and took the rule after it with it. */
+    A CSS comment rather than an stx one: stx does not strip its own comment
+    syntax inside a `<style>` block, so the version of this note written that
+    way reached the browser verbatim and took the rule after it with it. */
   .clone-schemes {
     display: inline-flex;
     margin-bottom: 10px;

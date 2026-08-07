@@ -20,7 +20,7 @@
     <p class="muted repo-description">{{ description }}</p>
   @endif
 
-  <div class="repo-meta muted">
+  <div class="muted repo-meta">
     <BranchPicker :branches="branches" :tags="tags" current="{{ refName }}" />
 
     @if (branches.length > 1)

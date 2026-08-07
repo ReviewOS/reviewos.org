@@ -71,7 +71,7 @@
     "@stacksjs/database": "^0.70.308",
     "@stacksjs/queue": "^0.70.308",
     "@stacksjs/stx": "^0.2.156",
-    "bun-query-builder": "^0.2.24",
+    "bun-query-builder": "^0.2.25",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.48",
     "stacks": "^0.70.308",

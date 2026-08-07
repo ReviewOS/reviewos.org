@@ -560,7 +560,7 @@ const statePill = pullRequest
         <div class="pr-main" id="files">
           @if (tab === 'conversation')
             @if (descriptionHtml)
-              <section class="panel pr-description markdown">{!! descriptionHtml !!}</section>
+              <section class="pr-description markdown panel">{!! descriptionHtml !!}</section>
             @else
               <p class="muted" style="padding: 24px 0;">No description was written.</p>
             @endif
@@ -577,7 +577,7 @@ const statePill = pullRequest
               <p class="muted" style="padding: 24px 0;">This branch carries no commits of its own.</p>
             @else
               {{-- Oldest first: a branch whose history was written to be read
-                   is read in the order it was written. --}}
+                  is read in the order it was written. --}}
               <ul class="pr-commits">
                 @foreach (branchCommits as commit)
                   <li class="pr-commit">
@@ -599,7 +599,7 @@ const statePill = pullRequest
               @else
                 <ul class="check-list">
                   @foreach (checkResult.failing as name)
-                    <li class="check bad"><span class="i-hugeicons-cancel-01" aria-hidden="true"></span>{{ name }}</li>
+                    <li class="bad check"><span class="i-hugeicons-cancel-01" aria-hidden="true"></span>{{ name }}</li>
                   @endforeach
                   @foreach (checkResult.pending as name)
                     <li class="check warn"><span class="i-hugeicons-time-quarter" aria-hidden="true"></span>{{ name }}</li>
@@ -616,8 +616,8 @@ const statePill = pullRequest
           @endif
 
           {{-- The files tab's regions, each behind one flat flag: nesting
-               @if/@else here swallowed whole sibling blocks, so every branch
-               tests one precomputed boolean at one level. --}}
+              @if/@else here swallowed whole sibling blocks, so every branch
+              tests one precomputed boolean at one level. --}}
 
           @if (showCommitMissing)
             <p class="muted" style="padding: 24px 0;">
@@ -627,7 +627,7 @@ const statePill = pullRequest
           @endif
 
           @if (showCommitDiff)
-            <nav class="panel mode-bar" aria-label="Commit navigation">
+            <nav class="mode-bar panel" aria-label="Commit navigation">
               <span class="muted">
                 Commit {{ commitIndex + 1 }} of {{ modeCommits.length }}:
                 <span class="mono">{{ currentCommit.sha.slice(0, 10) }}</span>
@@ -665,8 +665,8 @@ const statePill = pullRequest
 
           @if (showFileBar)
             {{-- One file at a time: the mode for the reviewer working a
-                 long diff to completion rather than scrolling it. --}}
-            <nav class="panel mode-bar" aria-label="File navigation">
+                long diff to completion rather than scrolling it. --}}
+            <nav class="mode-bar panel" aria-label="File navigation">
               <span class="muted">File {{ fileIndex + 1 }} of {{ filePaths.length }}</span>
               <span class="mode-links">
                 @if (previousFileUrl)
@@ -732,14 +732,14 @@ const statePill = pullRequest
           />
 
           {{-- Who should look, above who has looked. Hidden rather than empty
-               for readers who cannot ask anybody: see the gate in the script. --}}
+              for readers who cannot ask anybody: see the gate in the script. --}}
           @if (offerSuggestions)
             <SuggestedReviewers url="{{ suggestUrl }}" />
           @endif
 
           {{-- The branch the merge deleted, offered back. The endpoint's
-               create is guarded, so a branch that reappeared under the old
-               name is refused rather than overwritten. --}}
+              create is guarded, so a branch that reappeared under the old
+              name is refused rather than overwritten. --}}
           @if (offerRestore)
             <section class="panel side-panel">
               <h2 class="side-heading">Head branch</h2>
@@ -773,7 +773,7 @@ const statePill = pullRequest
             @else
               <ul class="check-list">
                 @foreach (checkResult.failing as name)
-                  <li class="check bad"><span class="i-hugeicons-cancel-01" aria-hidden="true"></span>{{ name }}</li>
+                  <li class="bad check"><span class="i-hugeicons-cancel-01" aria-hidden="true"></span>{{ name }}</li>
                 @endforeach
                 @foreach (checkResult.pending as name)
                   <li class="check warn"><span class="i-hugeicons-time-quarter" aria-hidden="true"></span>{{ name }}</li>
@@ -795,10 +795,10 @@ const statePill = pullRequest
             </p>
 
             {{-- "I have read this round." The reviewer who read everything
-                 and had nothing to add leaves no review and ticks no file,
-                 and without this the incremental diff keeps offering them a
-                 round they already read. The endpoint records the head as it
-                 is then, not as this page rendered it. --}}
+                and had nothing to add leaves no review and ticks no file,
+                and without this the incremental diff keeps offering them a
+                round they already read. The endpoint records the head as it
+                is then, not as this page rendered it. --}}
             @if (viewerMayReview)
               <form method="post" action="/api/repos/pulls/last-look" style="margin-top: 10px;">
                 <CsrfField />

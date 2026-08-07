@@ -32,7 +32,7 @@
   @if (previewing)
     <div class="editor-preview markdown">{!! previewHtml !!}</div>
     {{-- Carried so submitting after previewing still posts the body, which the
-         textarea below is no longer showing. --}}
+        textarea below is no longer showing. --}}
     <input type="hidden" name="{{ name }}" value="{{ draft }}">
   @else
     <label class="visually-hidden" for="{{ id }}">{{ label }}</label>
@@ -50,7 +50,7 @@
         <span>Attach files</span>
         <input class="visually-hidden" type="file" name="attachments" multiple>
       </label>
-      <span class="muted editor-hint">Markdown is supported. Images are added to the end.</span>
+      <span class="editor-hint muted">Markdown is supported. Images are added to the end.</span>
     </div>
   @endif
 </div>
@@ -99,8 +99,8 @@
   .editor-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
   /* The input itself is hidden and the label is the control, because a bare
-     file input cannot be styled and looks like nothing else on the page. The
-     label is still focusable through the input it wraps. */
+    file input cannot be styled and looks like nothing else on the page. The
+    label is still focusable through the input it wraps. */
   .editor-attach {
     display: inline-flex;
     align-items: center;

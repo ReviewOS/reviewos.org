@@ -91,7 +91,7 @@ const base = `/${ownerHandle}/${repositoryName}`
         <div class="set-fields">
           <input class="field" name="name" placeholder="Label name" required maxlength="50">
           {{-- Stored without the `#`, so the colour input's value is trimmed on
-               the way in by the same normalizer the default set uses. --}}
+              the way in by the same normalizer the default set uses. --}}
           <input class="field field-color" name="color" type="color" value="#d73a4a" aria-label="Label colour">
           <input class="field field-grow" name="description" placeholder="Description (optional)" maxlength="200">
           <button class="btn btn-primary" type="submit">Create label</button>
@@ -121,7 +121,7 @@ const base = `/${ownerHandle}/${repositoryName}`
                 <input class="field field-color" name="color" type="color" value="#{{ label.color }}" aria-label="Colour">
                 <input class="field field-grow" name="description" value="{{ label.description }}" maxlength="200" placeholder="Description" aria-label="Description">
 
-                <a class="set-count muted" href="{{ base }}/issues?label={{ label.name }}">
+                <a class="muted set-count" href="{{ base }}/issues?label={{ label.name }}">
                   {{ label.count }} {{ label.count === 1 ? 'issue' : 'issues' }}
                 </a>
 

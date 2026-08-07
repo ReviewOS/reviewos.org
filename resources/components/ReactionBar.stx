@@ -39,8 +39,8 @@
 
   @if (!open)
     {{-- A link rather than a button, because opening the picker is navigation:
-         it is the same page with one more thing on it, and it survives being
-         bookmarked, opened in a new tab, and the back button. --}}
+        it is the same page with one more thing on it, and it survives being
+        bookmarked, opened in a new tab, and the back button. --}}
     <a class="reaction reaction-more" href="{{ pickerHref }}" title="Add a reaction">
       <span aria-hidden="true">+</span>
       <span class="visually-hidden">Add a reaction</span>
@@ -72,8 +72,8 @@
   .reaction:hover { border-color: var(--line-strong); }
 
   /* The one the reader has already pressed. Tinted rather than filled: a row of
-     reactions is a tally, and a saturated button in it reads as a call to
-     action rather than as something already done. */
+    reactions is a tally, and a saturated button in it reads as a call to
+    action rather than as something already done. */
   .reaction.is-mine {
     color: var(--accent-text);
     background: var(--accent-quiet);

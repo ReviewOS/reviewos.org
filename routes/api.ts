@@ -58,6 +58,17 @@ route.post('/user/notifications/read', 'Actions/Notification/MarkReadAction').mi
 // values it read five minutes ago.
 route.post('/user/notifications/preferences', 'Actions/Notification/UpdatePreferenceAction').middleware('auth')
 
+// This browser, for push. One endpoint for register and unregister, because
+// both turn on the same question - is this endpoint already ours - and
+// splitting them is how that check ends up written twice.
+route.post('/user/notifications/push', 'Actions/Notification/PushSubscribeAction').middleware('auth')
+
+// Ring this browser now. The failure modes of web push are all invisible from
+// both ends - a downgraded permission, a mismatched key, a worker that never
+// activated - and a button that rings the browser in front of you is the only
+// way to tell them apart.
+route.post('/user/notifications/push/test', 'Actions/Notification/PushTestAction').middleware('auth')
+
 
 // Repositories. Settings is one endpoint for every field, because a rename
 // moves a directory and the row and the directory have to end up agreeing;

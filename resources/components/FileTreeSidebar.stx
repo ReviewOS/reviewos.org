@@ -23,8 +23,8 @@ const singleFileUrl = fileList.length > 0
     <ul class="file-tree">
       @foreach (fileList as file)
         <li class="file-tree-row">
-          <a class="mono file-tree-path" href="#file-{{ file.path }}">{{ file.path }}</a>
-          <span class="mono file-tree-counts">
+          <a class="file-tree-path mono" href="#file-{{ file.path }}">{{ file.path }}</a>
+          <span class="file-tree-counts mono">
             <span class="count-add">+{{ file.additions }}</span>
             <span class="count-del">-{{ file.deletions }}</span>
           </span>

@@ -18,14 +18,14 @@
   should get the same one rather than a copy that drifts.
 --}}
 <div class="thread-body">
-  <article class="panel issue-post">
+  <article class="issue-post panel">
     <header class="post-head">
       <span class="post-author">{{ opening.author }}</span>
       <span class="muted post-time">{{ opening.when }}</span>
     </header>
 
     @if (opening.bodyHtml)
-      <div class="post-body markdown">{!! opening.bodyHtml !!}</div>
+      <div class="markdown post-body">{!! opening.bodyHtml !!}</div>
     @else
       <div class="post-body"><p class="muted">No description was given.</p></div>
     @endif
@@ -45,17 +45,17 @@
     @if (item.kind === 'event')
       <TimelineEntry :entry="item.event" />
     @else
-      <article class="panel issue-post" id="comment-{{ item.comment.id }}">
+      <article class="issue-post panel" id="comment-{{ item.comment.id }}">
         <header class="post-head">
           {{-- A mirrored comment names its upstream author, the same way the
-               issue does, so it is no longer shown as "someone". --}}
+              issue does, so it is no longer shown as "someone". --}}
           <span class="post-author">{{ item.comment.author }}</span>
           <span class="muted post-time">
             {{ item.comment.when }}@if (item.comment.edited) &middot; edited@endif
           </span>
         </header>
 
-        <div class="post-body markdown">{!! item.comment.bodyHtml !!}</div>
+        <div class="markdown post-body">{!! item.comment.bodyHtml !!}</div>
 
         <footer class="post-foot">
           <ReactionBar
@@ -89,6 +89,6 @@
   .post-body { padding: 16px 18px; font-size: 14px; }
 
   /* Separated by space rather than by a rule: a reaction row is part of the
-     post it sits under, and a second border would make it look like a reply. */
+    post it sits under, and a second border would make it look like a reply. */
   .post-foot { padding: 0 18px 12px; }
 </style>

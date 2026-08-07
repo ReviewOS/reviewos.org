@@ -50,7 +50,7 @@ const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name
 @layout('app')
 
 @section('content')
-  <div class="shell narrow">
+  <div class="narrow shell">
     @if (!viewer)
       <div class="panel signin">
         <h1>Create a repository</h1>
@@ -67,7 +67,7 @@ const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name
         </p>
       </header>
 
-      <form class="panel form" method="post" action="/api/repos">
+      <form class="form panel" method="post" action="/api/repos">
         <CsrfField />
 
         <div class="field-pair">
@@ -83,7 +83,7 @@ const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name
           <label class="field">
             <span class="label">Repository name</span>
             <input class="input" name="name" required maxlength="100" autocomplete="off"
-                   spellcheck="false" placeholder="checkout">
+                  spellcheck="false" placeholder="checkout">
             <span class="hint muted">
               Letters, numbers, dashes, underscores and dots. It becomes part of every URL and
               every clone command, so short is kind.
@@ -94,7 +94,7 @@ const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name
         <label class="field">
           <span class="label">Description <span class="muted">optional</span></span>
           <input class="input" name="description" maxlength="500"
-                 placeholder="What this is, in one line.">
+                placeholder="What this is, in one line.">
         </label>
 
         <fieldset class="field visibility">
@@ -128,11 +128,11 @@ const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name
         <label class="field">
           <span class="label">Default branch</span>
           <input class="input input-small mono" name="default_branch" value="main" maxlength="100"
-                 spellcheck="false">
+                spellcheck="false">
           <span class="hint muted">What a clone checks out, and what a pull request targets.</span>
         </label>
 
-        <section class="field start">
+        <section class="start field">
           <span class="label">Start it with</span>
           <p class="hint muted">
             Leave these alone if you have a repository to push. A first commit here means your
@@ -179,7 +179,7 @@ const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name
           <label class="field">
             <span class="label">Copyright holder <span class="muted">optional</span></span>
             <input class="input" name="license_holder" maxlength="200"
-                   placeholder="{{ owners[0]?.handle ?? '' }}">
+                  placeholder="{{ owners[0]?.handle ?? '' }}">
             <span class="hint muted">
               Used only by licences with a slot for a name. Empty means the owner.
             </span>
@@ -207,8 +207,8 @@ const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name
 
   .field-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 16px; }
   /* `align-content: start` because the two fields in a pair have different
-     heights - one carries a hint under it and the other does not - and a
-     stretched row makes the shorter field's control grow to fill it. */
+    heights - one carries a hint under it and the other does not - and a
+    stretched row makes the shorter field's control grow to fill it. */
   .field { display: grid; gap: 6px; min-width: 0; border: 0; padding: 0; margin: 0; align-content: start; }
   .label { font-size: 13px; font-weight: 500; }
   .label .muted { font-weight: 400; }

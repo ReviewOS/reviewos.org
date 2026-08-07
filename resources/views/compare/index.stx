@@ -20,7 +20,7 @@ const pageDescription = 'How ReviewOS compares to GitHub, GitLab, and Forgejo, w
 
     <div class="card-grid">
       @foreach (COMPARISONS as item)
-        <a class="panel card" href="/compare/{{ item.slug }}">
+        <a class="card panel" href="/compare/{{ item.slug }}">
           <span class="card-title">{{ item.name }}</span>
           <span class="card-text">{{ item.summary }}</span>
         </a>

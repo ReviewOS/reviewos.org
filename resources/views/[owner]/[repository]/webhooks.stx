@@ -141,7 +141,7 @@ const name = String(params.repository)
       <section class="keys-section">
         <h2 class="keys-heading">Add a webhook</h2>
 
-        <form class="panel key-form" method="post" action="{{ endpoint }}">
+        <form class="key-form panel" method="post" action="{{ endpoint }}">
           <CsrfField />
           <input type="hidden" name="owner" value="{{ owner }}">
           <input type="hidden" name="repository" value="{{ name }}">
@@ -158,7 +158,7 @@ const name = String(params.repository)
             @endforeach
           </select>
 
-          <p class="muted hook-hint">
+          <p class="hook-hint muted">
             The secret is generated and shown once, on the next screen. A ping is sent immediately so
             you can check the endpoint before anything real depends on it.
           </p>
@@ -170,28 +170,28 @@ const name = String(params.repository)
       </section>
 
       @if (webhooks.length === 0)
-        <p class="muted keys-empty">No webhooks yet.</p>
+        <p class="keys-empty muted">No webhooks yet.</p>
       @else
         @foreach (webhooks as hook)
-          <section class="panel hook-card">
+          <section class="hook-card panel">
             <header class="hook-head">
-              <span class="mono hook-url">{{ hook.url }}</span>
+              <span class="hook-url mono">{{ hook.url }}</span>
               <span class="{{ hook.stateClass }}">{{ hook.stateLabel }}</span>
             </header>
 
-            <p class="muted hook-meta">{{ hook.events }} &middot; {{ hook.summary }}</p>
+            <p class="hook-meta muted">{{ hook.events }} &middot; {{ hook.summary }}</p>
 
             @if (hook.note)
-              <p class="muted hook-note">{{ hook.note }}</p>
+              <p class="hook-note muted">{{ hook.note }}</p>
             @endif
 
             @if (hook.deliveries.length > 0)
               <ul class="hook-deliveries">
                 @foreach (hook.deliveries as delivery)
                   <li class="{{ delivery.rowClass }}">
-                    <span class="mono hook-event">{{ delivery.event }}</span>
+                    <span class="hook-event mono">{{ delivery.event }}</span>
                     <span class="hook-summary">{{ delivery.summary }}</span>
-                    <span class="muted hook-detail">
+                    <span class="hook-detail muted">
                       {{ delivery.status }} &middot; {{ delivery.duration }}
                       @if (delivery.attempts)
                         &middot; {{ delivery.attempts }}

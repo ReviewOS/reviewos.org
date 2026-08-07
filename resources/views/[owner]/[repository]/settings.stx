@@ -88,14 +88,14 @@ const fullName = `${ownerHandle}/${repositoryName}`
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
 
       @if (isArchived)
-        <div class="panel notice">
+        <div class="notice panel">
           <strong>This repository is archived.</strong>
           It is readable and frozen: no pushes, no new issues, no comments. Unarchiving is the
           only change it accepts, which is what keeps archiving reversible.
         </div>
       @endif
 
-      <section class="panel card">
+      <section class="card panel">
         <h2 class="card-title">Details</h2>
 
         <form class="grid" method="post" action="/api/repos/settings">
@@ -143,7 +143,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
         </form>
       </section>
 
-      <section class="panel card">
+      <section class="card panel">
         <h2 class="card-title">Merging</h2>
 
         {{--
@@ -217,7 +217,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
         </form>
       </section>
 
-      <section class="panel card">
+      <section class="card panel">
         <h2 class="card-title">Topics</h2>
 
         <form class="grid" method="post" action="/api/repos/topics">
@@ -240,7 +240,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
         </form>
       </section>
 
-      <section class="panel card danger">
+      <section class="card danger panel">
         <h2 class="card-title">Danger zone</h2>
 
         <div class="row">

@@ -721,6 +721,8 @@
       /* The one line on this page somebody actually reads. Set apart, because
         four rules interact behind it and the answer is not derivable from the
         switches above without doing the interaction in your head. */
+      .push-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+
       .prefs-now {
         margin: 10px 0 0;
         padding: 8px 12px;

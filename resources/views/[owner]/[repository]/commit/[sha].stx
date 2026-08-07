@@ -81,7 +81,7 @@ const signature = signatureBadge(signed?.verification.status ?? 'unsigned', sign
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
 
-      <article class="panel commit-card">
+      <article class="commit-card panel">
         <h2 class="commit-subject">{{ commit.subject }}</h2>
 
         @if (commit.body)
@@ -133,7 +133,7 @@ const signature = signatureBadge(signed?.verification.status ?? 'unsigned', sign
           <p class="muted">This commit changed no files.</p>
         </div>
       @else
-        <ul class="panel files">
+        <ul class="files panel">
           @foreach (files as file)
             <li class="file-row">
               <span class="status status-{{ file.status }}" title="{{ file.status }}">{{ file.status.slice(0, 1).toUpperCase() }}</span>
@@ -147,7 +147,7 @@ const signature = signatureBadge(signed?.verification.status ?? 'unsigned', sign
               </span>
 
               @if (file.binary)
-                <span class="muted counts">binary</span>
+                <span class="counts muted">binary</span>
               @else
                 <span class="counts">
                   <span class="add">+{{ file.additions }}</span>

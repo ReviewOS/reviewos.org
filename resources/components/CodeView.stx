@@ -13,7 +13,7 @@
   The `@foreach` over tokens is written on one line on purpose: whitespace
   between the spans would be whitespace in the code.
 --}}
-<div class="panel file">
+<div class="file panel">
   <header class="file-head">
     <span class="mono">{{ path }}</span>
     <span class="muted">
@@ -25,11 +25,11 @@
   </header>
 
   @if (state === 'missing')
-    <p class="muted file-note">This file does not exist at {{ refName }}.</p>
+    <p class="file-note muted">This file does not exist at {{ refName }}.</p>
   @elseif (state === 'binary')
-    <p class="muted file-note">Binary file, not shown.</p>
+    <p class="file-note muted">Binary file, not shown.</p>
   @elseif (state === 'too-large')
-    <p class="muted file-note">This file is {{ size }}, too large to display.</p>
+    <p class="file-note muted">This file is {{ size }}, too large to display.</p>
   @elseif (state === 'markdown')
     <MarkdownContent :html="markdownHtml" />
   @else
@@ -37,8 +37,8 @@
       <tbody>
         @foreach (lines as tokens, index)
           <tr class="source-row">
-            <td class="source-num mono">{{ index + 1 }}</td>
-            <td class="source-code mono">@foreach (tokens as token)<span class="t-{{ token.type }}">{{ token.content }}</span>@endforeach</td>
+            <td class="mono source-num">{{ index + 1 }}</td>
+            <td class="mono source-code">@foreach (tokens as token)<span class="t-{{ token.type }}">{{ token.content }}</span>@endforeach</td>
           </tr>
         @endforeach
       </tbody>
@@ -61,9 +61,9 @@
   .file-note { padding: 18px; }
 
   /* Already inside a panel with its own header, so the markdown panel drops
-     its border and its gap rather than drawing a card inside a card. A
-     descendant rule rather than a prop: a boolean passed to a component is a
-     boolean two callers can disagree about. */
+    its border and its gap rather than drawing a card inside a card. A
+    descendant rule rather than a prop: a boolean passed to a component is a
+    boolean two callers can disagree about. */
   .file .markdown-panel { margin-top: 0; border: 0; border-radius: 0; background: none; }
   .file .markdown-body { padding: 20px 22px; }
 

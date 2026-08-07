@@ -378,25 +378,95 @@ The point is that a review request or a red build reaches the desk without the p
 the loop. A browser notification arrives whether or not the tab is open, which is the whole reason
 to prefer it to a badge nobody is looking at.
 
-- [ ] `app/Models/PushSubscription.ts`: `user_id`, `endpoint`, `p256dh`, `auth`, `user_agent`,
-      `last_seen_at`. One row per browser, so revoking one desk does not sign out the other.
-- [ ] VAPID keys generated at install and kept in the environment, not committed. A self-hosted
-      instance generates its own on first boot rather than shipping a shared key.
-- [ ] A service worker that shows the notification and, on click, focuses an existing tab on that
-      pull request instead of opening a fourth copy of it
-- [ ] Permission is asked at the moment someone opts in from settings, never on page load. A
-      browser that has been asked once and refused cannot be asked again, so spending that prompt on
-      a first visit costs the feature permanently.
-- [ ] Delivery through the same `SendNotificationJob` as every other channel, subject to the same
-      quiet hours and mutes. A push that ignores the schedule is worse than no push.
-- [ ] Prune dead subscriptions on `404` and `410` from the push service, rather than retrying an
-      endpoint that will never accept again
-- [ ] Collapse by subject: three pushes about one pull request replace each other rather than
-      stacking, using the notification tag
-- [ ] A test button in settings that sends one to this browser, because the failure mode is a
-      permission or a key being wrong and there is no way to tell from the outside
-- [ ] Tests: a subscription that returns 410 is pruned, a held notification does not push, and the
-      payload carries no private repository content beyond what the recipient can already read
+- [x] `app/Models/PushSubscription.ts`: one row per browser, so revoking one desk does not sign
+      out the other.
+
+  The columns are `public_key` and `auth_secret`, not `p256dh` and `auth`. Those are the Push API's
+  wire names - one names a curve rather than a thing, and the other would read in this codebase as
+  authentication when it is an input to a key derivation. The mapping happens where the browser's
+  JSON is read, which is the one place that vocabulary belongs.
+
+  `endpoint` is `text` and unique across the table rather than per user. Unique per user would let
+  one browser keep ringing an account it had moved away from; unique overall means an endpoint names
+  exactly one browser, which is what it is.
+- [x] VAPID keys generated at install and kept in the environment, not committed.
+
+  `buddy push:keys` mints a pair and prints it. Printing rather than writing, because a command that
+  edits its own `.env` fails on a read-only deployment and succeeds confusingly on a shared one.
+  Running it twice is not idempotent and it says so before the keys rather than after: a browser
+  subscribes *to* a public key, so replacing the pair invalidates every subscription on the instance.
+
+  An instance with no keys is not broken. It sends email and fills the inbox exactly as before, and
+  says "push is not configured" rather than logging a delivery it never attempted.
+- [x] A service worker that shows the notification and, on click, focuses an existing tab.
+
+  `public/push-worker.js`, served from the root because a worker's scope is its own directory - one
+  at `/js/` would control `/js/*`, receive nothing, and report a successful registration.
+
+  It matches on the path and calls `focus`, so four notifications about one pull request end in one
+  tab rather than four copies with different scroll positions. `includeUncontrolled` matters:
+  tabs opened before this worker took control are not controlled by it, which is most of them right
+  after a deploy, and without it the first click after every deploy opens a duplicate.
+
+  It does two things and refuses a third. Caching or offline here would make this file responsible
+  for what the product serves, and a caching bug in a service worker survives a deploy.
+- [x] Permission is asked at the moment someone opts in from settings, never on page load.
+
+  `pushState()` reads `Notification.permission`, which prompts for nothing and is safe on load.
+  `enablePush()` calls `requestPermission`, and it is reachable only from a button that says what it
+  is for. A browser asked once and refused resolves `denied` immediately, forever, and the only undo
+  is in browser site settings almost nobody finds - so that one prompt is spent deliberately or it
+  is lost.
+- [x] Delivery through the same `SendNotificationJob` as every other channel, subject to the same
+      quiet hours and mutes.
+
+  No separate path, so a push cannot arrive at 03:00 because somebody forgot to check the schedule
+  on one branch. The job gained a third answer for it: `permanent`, meaning this will never work -
+  no keys, no browser subscribed, no address on file. Without that distinction "this instance has no
+  VAPID keys" costs three queue attempts and three log lines to reach the answer it had at the
+  start, and lands in the log as `failed` beside a refused mail server rather than as `skipped`.
+- [x] Prune dead subscriptions on `404` and `410`, and on nothing else.
+
+  Those two mean the browser is gone: uninstalled, permission revoked, profile wiped. Keeping the
+  row spends a request on it on every future notification, forever, and fills the delivery log with
+  failures nobody can act on. Every other answer is transient - a 429 is "slow down" and a 5xx is
+  theirs - and pruning on one would sign somebody out of push because a push service had a bad
+  afternoon. A network error is not pruned either: the endpoint may be perfectly good and the
+  network may not be.
+- [x] Collapse by subject, in both places it can happen.
+
+  The push service's `Topic` header collapses while the browser is offline; the notification tag
+  collapses once it is awake. Using only one leaves the other case stacking, so both carry the
+  thread. `renotify` is deliberately false - it would re-alert on every replacement, turning
+  collapsing from a courtesy into being buzzed once per comment.
+
+  The topic is base64url and capped at 32 characters, which every push service enforces by rejecting
+  the whole request. An unencoded tag does not degrade to "no collapsing"; it stops the notification.
+- [x] A test button in settings that sends one to this browser.
+
+  Every way web push breaks - a downgraded permission, a key that does not match what the browser
+  subscribed against, a worker that never activated, a subscription the service expired - produces
+  exactly the same symptom: nothing arrives. None of them is distinguishable from "nothing has
+  happened yet".
+
+  It goes through `pushToUser`, the same function real notifications use, so what is tested is what
+  runs. Quiet hours are deliberately skipped for it alone: somebody pressing a test button is asking
+  for a notification now, and holding it until 09:00 looks exactly like the failure they are trying
+  to diagnose.
+- [x] Tests: a subscription that returns 410 is pruned, a held notification does not push, and the
+      payload carries no private repository content.
+
+  Against a real push service - a local server that answers whatever status the test asks for - so
+  the pruning rule is exercised on 404, 410, 429 and 500 rather than asserted about.
+
+  The payload test reads the source and asserts on the field list, which is unusual and deliberate:
+  the risk is not that today's payload leaks, it is that somebody later adds the comment body
+  because it would be useful. A notification lands on a device that may be locked on a desk or
+  mirrored to a watch, and the preview is shown before anybody authenticates.
+
+  The protocol itself is tested in `@stacksjs/push` against RFC 8291's own vector, and decrypted
+  back the way a browser does it - a round trip against itself passes with the HKDF info strings
+  swapped.
 
 ## Webhooks
 

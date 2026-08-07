@@ -101,11 +101,11 @@ const base = `/${ownerHandle}/${repositoryName}`
               </span>
 
               @if (tag.head)
-                <span class="ref-head muted">
+                <span class="muted ref-head">
                   <a class="mono" href="{{ base }}/commit/{{ tag.head.sha }}">{{ shortSha(tag.head.sha) }}</a>
                   {{ tag.release || tag.head.subject }}
                 </span>
-                <span class="ref-when muted">{{ relativeTime(tag.head.when) }}</span>
+                <span class="muted ref-when">{{ relativeTime(tag.head.when) }}</span>
               @endif
             </li>
           @endforeach

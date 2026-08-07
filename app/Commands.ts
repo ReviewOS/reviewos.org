@@ -33,4 +33,5 @@ export default {
   'git:hooks': 'GitHooks',
   'git:scan': 'GitScan',
   'git:ssh': 'GitSsh',
+  'push:keys': 'PushKeys',
 } satisfies CommandRegistry

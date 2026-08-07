@@ -7,7 +7,7 @@
 <header class="pr-head">
   <div class="pr-title-row">
     <h1 class="pr-title">{{ title }}</h1>
-    <span class="mono muted pr-number">#{{ number }}</span>
+    <span class="pr-number mono muted">#{{ number }}</span>
   </div>
 
   <div class="pr-meta">
@@ -20,7 +20,7 @@
     </span>
   </div>
 
-  <div class="pr-counts muted mono">
+  <div class="pr-counts mono muted">
     {{ fileCount }} {{ fileCount === '1' ? 'file' : 'files' }}
     <span class="count-add">+{{ additions }}</span>
     <span class="count-del">-{{ deletions }}</span>
@@ -28,13 +28,13 @@
 </header>
 
 {{-- Real tabs, real URLs. Server-rendered: a tab is a page the reader can
-     open in a new window and send to somebody, not a strip of anchors into
-     one long scroll. The streamed review screen keeps its own door - the
-     same files, built for very large diffs. --}}
+    open in a new window and send to somebody, not a strip of anchors into
+    one long scroll. The streamed review screen keeps its own door - the
+    same files, built for very large diffs. --}}
 <nav class="tabs" aria-label="Pull request sections">
   <a class="tab" {{ tab === 'conversation' ? 'aria-current="page"' : '' }} href="?tab=conversation">Conversation</a>
   <a class="tab" {{ tab === 'commits' ? 'aria-current="page"' : '' }} href="?tab=commits">Commits</a>
   <a class="tab" {{ tab === 'checks' ? 'aria-current="page"' : '' }} href="?tab=checks">Checks</a>
   <a class="tab" {{ tab === 'files' ? 'aria-current="page"' : '' }} href="?tab=files">Files changed</a>
-  <a class="tab muted" href="/{{ owner }}/{{ repository }}/pull/{{ number }}/files">Review screen</a>
+  <a class="muted tab" href="/{{ owner }}/{{ repository }}/pull/{{ number }}/files">Review screen</a>
 </nav>

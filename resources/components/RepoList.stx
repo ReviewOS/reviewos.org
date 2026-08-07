@@ -219,8 +219,8 @@ const notFound = !repoRow
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="{{ kind }}" />
 
       {{-- Filters. Plain links rather than a scripted control, so they work
-           before any JavaScript runs and each one is a real url someone can
-           share. --}}
+          before any JavaScript runs and each one is a real url someone can
+          share. --}}
       <nav class="list-filters" aria-label="Filter">
         <a class="list-filter {{ filter === 'open' ? 'is-current' : '' }}" href="{{ filterHref(base, 'open') }}">
           {{ countLabel(openCount, 'open ' + noun[0], 'open ' + noun[1]) }}
@@ -233,8 +233,8 @@ const notFound = !repoRow
         </a>
 
         {{-- Labels and milestones belong to the repository rather than to this
-             list, and this is the only place anybody looks for them. Pull
-             requests carry the same labels, so the links show on both. --}}
+            list, and this is the only place anybody looks for them. Pull
+            requests carry the same labels, so the links show on both. --}}
         <span class="list-filters-end">
           <a class="list-filter" href="/{{ ownerHandle }}/{{ repositoryName }}/labels">Labels</a>
           <a class="list-filter" href="/{{ ownerHandle }}/{{ repositoryName }}/milestones">Milestones</a>
@@ -250,18 +250,18 @@ const notFound = !repoRow
         </div>
       @else
         {{-- Triage is a bulk activity: somebody works down a list applying the
-             same label to eight things, and doing that one page load at a time
-             is why it does not get done. One form wraps the rows, so the
-             checkboxes and the toolbar are the same submission with no client
-             script holding them together. --}}
+            same label to eight things, and doing that one page load at a time
+            is why it does not get done. One form wraps the rows, so the
+            checkboxes and the toolbar are the same submission with no client
+            script holding them together. --}}
         <form method="post" action="/api/repos/issues/bulk">
           <CsrfField />
         <input type="hidden" name="owner" value="{{ ownerHandle }}">
         <input type="hidden" name="repo" value="{{ repositoryName }}">
 
         @if (kind === 'issues')
-          <div class="panel bulk-bar">
-            <span class="muted bulk-hint">With the selected issues:</span>
+          <div class="bulk-bar panel">
+            <span class="bulk-hint muted">With the selected issues:</span>
             <button class="bulk-btn" type="submit" name="operation" value="close">Close</button>
             <button class="bulk-btn" type="submit" name="operation" value="reopen">Reopen</button>
             <label class="visually-hidden" for="bulk-label">Label</label>
@@ -276,7 +276,7 @@ const notFound = !repoRow
           </div>
         @endif
 
-        <ul class="panel list-rows" data-list>
+        <ul class="list-rows panel" data-list>
           @foreach (listRows as row)
             <IssueListItem :row="row" :selectable="kind === 'issues'" />
           @endforeach
@@ -284,9 +284,9 @@ const notFound = !repoRow
         </form>
 
         {{-- The shortcuts, listed rather than hidden behind a `?` panel nobody
-             finds. Six lines of text at the bottom of a list is cheaper than a
-             modal, and it is how somebody learns the keys exist. --}}
-        <p class="muted list-keys" data-keys hidden>
+            finds. Six lines of text at the bottom of a list is cheaper than a
+            modal, and it is how somebody learns the keys exist. --}}
+        <p class="list-keys muted" data-keys hidden>
           <kbd>j</kbd> <kbd>k</kbd> move &middot;
           <kbd>Enter</kbd> open &middot;
           @if (kind === 'issues')
@@ -319,18 +319,18 @@ const notFound = !repoRow
 
 {{-- Keyboard navigation, and the second script in the product.
 
-     People who live in issues navigate by keyboard, and there is no way to do
-     it without one: moving focus is a DOM operation, and stx reactivity drives
-     what a page *contains* rather than where the caret is.
+    People who live in issues navigate by keyboard, and there is no way to do
+    it without one: moving focus is a DOM operation, and stx reactivity drives
+    what a page *contains* rather than where the caret is.
 
-     So it is contained the same way the diagram loader is. The list works
-     completely without it - every row is a link, Tab already walks them, and
-     the checkboxes are ordinary checkboxes - and this only makes the walking
-     faster. Nothing here is the only way to do anything.
+    So it is contained the same way the diagram loader is. The list works
+    completely without it - every row is a link, Tab already walks them, and
+    the checkboxes are ordinary checkboxes - and this only makes the walking
+    faster. Nothing here is the only way to do anything.
 
-     Typing is checked first on every key. A shortcut that fires while somebody
-     is filling in the bulk-label box is not a shortcut, it is a bug that eats
-     text. --}}
+    Typing is checked first on every key. A shortcut that fires while somebody
+    is filling in the bulk-label box is not a shortcut, it is a bug that eats
+    text. --}}
 <script type="module">
   const list = document.querySelector('[data-list]')
 
@@ -488,7 +488,7 @@ const notFound = !repoRow
   .list-filter.is-current { background: var(--surface-tint); color: var(--text); font-weight: 500; }
 
   /* The row itself is styled by `IssueListItem`, which owns it. What is left
-     here is the list around the rows. */
+    here is the list around the rows. */
   .list-rows { list-style: none; margin: 0; padding: 0; }
 
   .list-pager {
