@@ -15,12 +15,12 @@
 // showing "Verified" for a key nobody registered - is the whole feature failing
 // silently while looking like it works.
 //
-// It stops one level below the page, and deliberately. A view served by
-// `route.serve` inside `bun test` cannot resolve anything in
-// `resources/components/` - `repo-tabs` and `SignatureBadge` both come back as
-// "Error loading component" - so an assertion on rendered HTML here would be
-// asserting on a harness limitation rather than on this feature. The template
-// line is one prop; everything that decides what it says is below.
+// It asserts at both levels. The badge's *content* is decided by two calls the
+// page makes, and those are checked directly; the page is then fetched to prove
+// the component reaches a reader at all. The second half was not possible when
+// this was written - a view served by `route.serve` could not resolve anything
+// in `resources/components/` - and `tests/helpers/server.ts` is what changed
+// that.
 //
 // The fixture is the same signed commit the unit tests use, replayed into a
 // fresh repository with git plumbing. Behind `REVIEWOS_GPG_TESTS=1` for the
@@ -39,6 +39,7 @@ const publicKey = readFileSync(join(FIXTURES, 'ada.public.asc'), 'utf8')
 const created = { userId: 0, repositoryId: 0, keyId: 0, handle: '', name: '', diskPath: '' }
 
 let available = false
+let port = 0
 
 function unique(prefix: string): string {
   return `${prefix}${Buffer.from(crypto.getRandomValues(new Uint8Array(5))).toString('hex')}`
@@ -63,6 +64,15 @@ async function writeObject(kind: 'blob' | 'tree' | 'commit', bytes: Buffer, scra
   return await git(['--git-dir', created.diskPath, 'hash-object', '-w', '-t', kind, path])
 }
 
+/** The commit page, as a reader gets it. */
+async function page(): Promise<string> {
+  const response = await fetch(`http://127.0.0.1:${port}/${created.handle}/${created.name}/commit/${meta.commit}`, {
+    headers: { Accept: 'text/html' },
+  })
+
+  return await response.text()
+}
+
 /** The badge the commit page would draw, through the same two calls it makes. */
 async function badge(): Promise<{ label: string, tone: string, detail: string, show: boolean }> {
   const { verifySignature } = await import('../../app/Actions/Git/signatures')
@@ -85,9 +95,14 @@ beforeAll(async () => {
     }
 
     const { injectGlobalAutoImports } = await import('@stacksjs/server')
+    const { serveForTest } = await import('../helpers/server')
 
     await injectGlobalAutoImports()
     await (globalThis as any).db.selectFrom('users').select(['id']).limit(1).execute()
+
+    // Through the helper rather than `route.serve` directly, so the view can
+    // find `SignatureBadge` in `resources/components/`.
+    port = (await serveForTest()).port
 
     const { repositoryPath } = await import('../../app/Actions/Git/storage')
 
@@ -196,6 +211,16 @@ describe('a signed commit', () => {
     // And it says who, which is the part that makes it worth anything: "signed"
     // is a fact about bytes, "signed by Ada" is a fact about a person.
     expect(drawn.detail).toContain('Ada Lovelace')
+
+    // And it is on the page, not just computable. The commit view uses
+    // `<SignatureBadge>` directly, which is the shape that renders.
+    const html = await page()
+    expect(html).toContain('>Verified<')
+    // The class on the element, not the name in the stylesheet: the component
+    // ships `.sig-good { … }` in a `<style>` block whatever tone it drew, so
+    // matching the bare word passes for every status.
+    expect(html).toContain('class="sig sig-good"')
+    expect(html).not.toContain('Error loading component')
   }, 60_000)
 
   test('is unverified once the key is no longer registered', async () => {
@@ -213,6 +238,11 @@ describe('a signed commit', () => {
 
       expect(drawn.label).toBe('Unverified')
       expect(drawn.tone).toBe('quiet')
+
+      const html = await page()
+      expect(html).toContain('>Unverified<')
+      expect(html).toContain('class="sig sig-quiet"')
+      expect(html).not.toContain('class="sig sig-good"')
     }
     finally {
       // Put it back, so the test above can run in either order.

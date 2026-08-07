@@ -27,3 +27,35 @@ setupTestEnvironment()
 // `storage/` here too. Without it a test that renders a template or touches a
 // cloud helper would write to `.stx` / `.ts-cloud` in the project root.
 applyRuntimeDirectoryEnv()
+
+/**
+ * Tell the router where this project's components are, before anything serves.
+ *
+ * `route` is a process-wide singleton and `bun test` runs every file in one
+ * process, so the first `serve()` builds the file-based view handlers and every
+ * later one reuses them. Configuring this from inside a test file therefore
+ * works when that file runs alone and does nothing when it runs after another
+ * that served first - which is the worst shape a test can have.
+ *
+ * Here is the only place that is reliably before all of them.
+ *
+ * Why it is needed at all: `route.serve()` renders views through bun-router's
+ * file routing, which defaults its components directory to
+ * `resources/views/components`. Every component in this project is in
+ * `resources/components`, so each one rendered as
+ * `[Error loading component: ENOENT …]` inlined into a page that still answered
+ * 200. See `tests/helpers/server.ts`, and `configureViewDirectories` in the
+ * Stacks router, which is the fix this stands in for until that release lands.
+ */
+try {
+  const { route } = await import('@stacksjs/router')
+  const { viewDirectories } = await import('./helpers/server')
+  const bunRouter: any = (route as any).bunRouter
+
+  if (typeof bunRouter?.views === 'function')
+    bunRouter.views(viewDirectories())
+}
+catch {
+  // A suite that never touches the router does not need it configured, and a
+  // failure to load it here must not take every unrelated test down with it.
+}
