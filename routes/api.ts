@@ -191,6 +191,11 @@ route.get('/repos/pulls/review-state', 'Actions/Pull/ReviewStateAction')
 // rather than a diff: the viewer already holds the diff, and what it is missing
 // is which of its files an earlier conclusion no longer covers.
 route.get('/repos/pulls/review-state/since', 'Actions/Pull/SinceLastLookAction')
+
+// Who has worked on the files this pull request changes. A suggestion and never
+// a request: asking somebody is a person's decision, and a queue filled with a
+// heuristic's guesses is a queue people stop reading.
+route.get('/repos/pulls/suggested-reviewers', 'Actions/Pull/SuggestReviewersAction')
 route.put('/repos/pulls/review-state/viewed', 'Actions/Pull/MarkFileViewedAction').middleware('auth')
 route.put('/repos/pulls/review-state/draft', 'Actions/Pull/SaveReviewDraftAction').middleware('auth')
 

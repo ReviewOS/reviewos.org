@@ -18,7 +18,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (22/57) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (120/121) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
-| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (70/93) |
+| [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | In progress (71/93) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | In progress (21/51) |
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (1/20) |
 | [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress (21/45) |
@@ -178,6 +178,17 @@ long as it is a read. The pattern looks proven by a dozen working call sites, an
 `deleteWhereIn` and `updateWhereIn` in `app/Actions/Support/rows.ts` are the workaround, in one
 place so it is worked around once rather than remembered. They go away when the builder renders
 `IN` on writes.
+
+**`.where(column, 'is', null)` binds the null.** The fourth of the family, and the cheapest to
+avoid: it emits `"responded_at" is $2` and Postgres answers `syntax error at or near "$2"`. Use
+`whereNull` and `whereNotNull`, which render it properly - `MirrorMetadataSyncJob` has a note about
+the second and it is the same answer for both.
+
+This one announced itself, and only by luck. The call was outside a `try`; inside one - which is
+where three of the four above were found - it would have returned an empty result and the feature
+built on it would have quietly done nothing. That is the pattern, across all four: **the builder
+does not refuse what it cannot express, it emits something Postgres refuses**, and whether anybody
+notices depends entirely on who is catching.
 
 ## How work is shaped
 

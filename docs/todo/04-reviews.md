@@ -343,9 +343,30 @@ this is where the claim is either true or marketing.
 
 - [ ] A count on the navigation item, so the answer is visible without opening the page. Needs a
       cheap count query rather than the full queue, and a decision about how stale it may be.
-- [ ] Suggested reviewers from who actually changed these lines, weighted by recency, not only from
+- [x] Suggested reviewers from who actually changed these lines, weighted by recency, not only from
       `CODEOWNERS`. Include current review load, so the suggestion does not always name the same
       person.
+
+  `CODEOWNERS` answers "who is responsible", which is a policy; this answers "who knows this code",
+  which is a fact, and the two disagree often enough to both be worth having. The owner of a
+  directory is frequently not the person who wrote the twelve lines somebody just changed.
+
+  Three terms. **Who touched these paths**, from `git log` over the changed paths only - reading the
+  repository at large would name the most prolific committer for every pull request, which is a
+  suggestion nobody reads twice. **How recently**, halving every ninety days: a curve rather than a
+  cliff, because there is no honest date on which somebody stops knowing a file. And **how much is
+  already waiting on them**, reciprocally, so it can never reach zero - somebody buried in requests
+  is still the right answer when they are the only person who has touched the file. Being busy is a
+  reason to prefer somebody else, not a reason to be invisible.
+
+  A suggestion, never a request. `CODEOWNERS` requests automatically because a file in the repository
+  said to; this is the forge having an opinion, and an opinion is offered. Requesting from a
+  heuristic would fill every queue with guesses, and a queue full of guesses is one people stop
+  reading. Every suggestion says why - `3 commits here, last 5d ago, 2 waiting on them` - because a
+  name nobody can account for is one people either click without thinking or ignore.
+
+  History is read on the **base**. The head's recent commits are the ones being reviewed, and
+  counting them would suggest the author of the change as the reviewer of it.
 - [ ] Reviewer load and staleness visible to maintainers: which requests have gone unanswered, and
       by whom, as information rather than as a leaderboard
 - [ ] **Coverage in the diff.** If CI uploads a coverage report, mark changed lines that no test
