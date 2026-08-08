@@ -71,10 +71,12 @@
     "@stacksjs/database": "^0.70.312",
     "@stacksjs/queue": "^0.70.312",
     "@stacksjs/stx": "0.2.157",
+    "@stacksjs/ts-ssh": "^0.1.0",
     "bun-query-builder": "^0.2.25",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.48",
     "stacks": "^0.70.312",
+    "ts-git-lfs": "^0.1.1",
     "ts-syntax-highlighter": "^0.2.13"
   },
   "workspaces": [
@@ -95,6 +97,7 @@
   },
   "overrides": {
     "@stacksjs/stx": "0.2.157",
+    "@stacksjs/ts-ssh": "^0.1.0",
     "stx-router": "0.2.157",
     "bun-plugin-stx": "0.2.157"
   }
