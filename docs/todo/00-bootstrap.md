@@ -82,9 +82,17 @@ Each one is committed and pushed in the repository named.
 
 ## Known gaps, deferred deliberately
 
-- [x] `notifications.user_id` and `notification_deliveries.user_id` foreign keys are missing from the
-      live schema. Those tables are created by the framework's guarantee path rather than the model
-      corpus, so the declared relations are not enforced. Harmless today, worth fixing before the
+- [ ] **Stacks** - `notifications.user_id` and `notification_deliveries.user_id` foreign keys are
+      missing from the live schema, and cannot be fixed from this repository. Ticked once in error:
+      the constraints were present at the time, but they had been added by hand-written alters, and
+      rebuilding the corpus from the models removed them again. The mechanism, run down since:
+      the model corpus *does* declare both (`create-notifications-table.sql` carries
+      `REFERENCES "users"("id") ON DELETE CASCADE`) and the migration *does* run, but something
+      creates the table before it - so `CREATE TABLE IF NOT EXISTS` is a no-op and the constraint
+      never lands. Reproduced by dropping the table, un-recording the migration and replaying it:
+      the table comes back without the key. `migrate.ts` in the buddy package says guarantees run
+      after model migrations precisely so the model stays authoritative, so either the ordering is
+      not what the comment claims or a guarantee runs during boot. Harmless today, worth fixing before the
       notification work in phase 5.
 - [x] The `jobs` table was dropped by `migrate:fresh` and not recreated by the corpus, so seeding
       skipped it.
