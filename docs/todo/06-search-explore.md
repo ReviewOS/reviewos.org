@@ -9,7 +9,7 @@ a different problem and is scoped separately below.
 
 - [ ] `useSearch` on `Repository` (name, description, topics, owner handle), `Issue` (title, body,
       labels), `PullRequest`, and `User` (handle, name)
-- [ ] `app/Jobs/IndexRepositoryJob.ts` on the `search` queue, triggered on create, update, and push
+- [x] `app/Jobs/IndexRepositoryJob.ts` on the `search` queue, triggered on create, update, and push
 - [ ] Reindex command for a full rebuild, and for recovering after an index loss
 - [x] Visibility is enforced at query time from the current user's permissions. Never rely on the
       index alone to keep private repositories out of results.
