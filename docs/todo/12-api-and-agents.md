@@ -63,10 +63,35 @@ vocabulary, and it is discoverable without reading the source.
   Keys are scoped to the token and the endpoint. A key is chosen by the client and two clients will
   eventually choose the same one - a bad UUID seed, or the literal `1` - and unscoped, one agent's
   retry returns another agent's response, which is a disclosure rather than a duplicate.
-- [ ] Rate limits that are documented, returned in headers on every response rather than only on the
+- [x] Rate limits that are documented, returned in headers on every response rather than only on the
       rejection, per token rather than per account, and paired with a `Retry-After` that is true
-- [ ] Errors that name the field and the fix, with a stable machine-readable code. "Validation
+
+  `app/Api/rate-limit.ts`. All three properties are the complaint about how this is usually done. A
+  client that only learns its budget when it runs out cannot pace itself, only recover. A shared
+  per-account bucket means the first bad retry loop takes everything down with it - and the first
+  bad loop is never malice, it is a retry with no backoff. And `Retry-After` is the window's real
+  remaining time rather than a fixed guess, because a client that trusts a guess and retries into
+  another rejection learns to ignore the header.
+
+  `remaining` counts what is left *after* this request. Reporting the count before it means a client
+  told it has 1 sends one more and is refused, which makes the number useless for the only thing it
+  is for.
+
+  Reads are generous and writes are tight: the design asks clients to poll and then makes polling
+  free with `ETag`, so punishing it would be incoherent - while a thousand reads are invisible and a
+  thousand comments are somebody's afternoon.
+- [x] Errors that name the field and the fix, with a stable machine-readable code. "Validation
       failed" costs a retry loop that will never succeed.
+
+  `app/Api/errors.ts`. The code is a closed set so a client can exhaustively handle it, and adding
+  one is a deliberate act that shows in review rather than a string typed at a call site. The status
+  comes from the code rather than from the caller, so the two cannot disagree - a `not_found`
+  answered with a 200 only shows up when somebody's retry loop never terminates.
+
+  `fix` is in words and is not a restatement of the rule: "must match ^[a-z]" says what failed, not
+  what to do. `Retry-After` goes in the header *and* the body, because a client on a generic HTTP
+  layer reads one and a client written against this API reads the other, and sending only one means
+  half of them busy-loop.
 - [ ] Partial responses: ask for the fields you need. A pull request list that always carries every
       body is expensive on both ends.
 - [ ] A structured diff endpoint: hunks, ranges and line origins as JSON, from the same parser the
