@@ -730,6 +730,14 @@ in July 2026. Both agree on the mechanics, so this follows them rather than inve
   means now. Squash is the strategy that makes this matter - the parent's original commits never
   reach the base, and an unrestacked child re-shows the parent's work in its own diff forever.
 
+  The replay goes through `replayOnto` in `app/Actions/Git/git.ts`, and it is worth reading why.
+  This was the second of two callers written against `git replay` printing its ref update and
+  applying nothing, which is how it behaved until git 2.54 made applying the default. The rebase
+  merge strategy lost its compare-and-swap; **this one was worse.** `--advance` is pointed at the
+  *base* branch on purpose, because the only thing wanted from the replay is the sha of the child's
+  commits rebuilt on the base tip - so under the new default it moves `main` to the child's commits,
+  with no merge, no review and no guard. One helper now, so a third caller cannot get it wrong.
+
   Two latent bugs surfaced on the way. Retargeting changed `base_branch` and left `base_sha` at the
   parent's old head, and `performMerge` guards its update-ref on the row's `base_sha` - so merging
   *any* retargeted child was refused as "the base moved", because it had, at retarget time, and

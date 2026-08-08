@@ -9,11 +9,16 @@
  * old head to the child's head, which excludes everything the parent already
  * landed - onto the merge result, and moves the child's branch there.
  *
- * `git replay --advance` is pointed at the *base* branch on purpose: replay
- * only prints, and what is wanted from it is the sha of the child's commits
- * rebuilt on the base tip. That sha is then written to the child's own ref,
- * guarded by the child's old head - somebody pushing to the child mid-restack
- * wins, and the restack refuses rather than discarding their push.
+ * The replay is pointed at the *base* branch on purpose: what is wanted from it
+ * is the sha of the child's commits rebuilt on the base tip, and nothing else.
+ * That sha is then written to the child's own ref, guarded by the child's old
+ * head - somebody pushing to the child mid-restack wins, and the restack
+ * refuses rather than discarding their push.
+ *
+ * It goes through `replayOnto`, which is where the reason lives: git 2.54 made
+ * replay apply its ref update by default, and under that default pointing
+ * `--advance` at the base branch moves `main` to the child's commits, with no
+ * merge, no review and no guard.
  *
  * A replay that cannot apply - the child genuinely conflicts with what landed
  * - leaves the branch alone. That is today's behavior for every child, and a
@@ -22,7 +27,7 @@
  * is at least honest about there being something to resolve.
  */
 
-import { runGit } from '../Git/git'
+import { replayOnto, runGit } from '../Git/git'
 
 export interface RestackOutcome {
   pullRequestId: number
@@ -54,21 +59,17 @@ export async function restackChild(options: {
 
   const currentHead = tip.stdout.trim()
 
-  const replayed = await runGit(diskPath, [
-    'replay',
-    '--advance',
+  const replayed = await replayOnto(
+    diskPath,
     `refs/heads/${baseBranch}`,
     `${parentOldHead}..${currentHead}`,
-  ], { env: options.env })
+    options.env,
+  )
 
-  if (!replayed.ok)
+  if (!replayed.ok || !replayed.sha)
     return skip('conflict')
 
-  const line = replayed.stdout.split('\n').find(candidate => candidate.startsWith('update '))
-  const newHead = line?.trim().split(/\s+/)[2]
-
-  if (!newHead || !/^[0-9a-f]{40}$/.test(newHead))
-    return skip('conflict')
+  const newHead = replayed.sha
 
   const moved = await runGit(diskPath, ['update-ref', `refs/heads/${child.headBranch}`, newHead, currentHead])
   if (!moved.ok)

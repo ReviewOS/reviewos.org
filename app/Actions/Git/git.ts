@@ -220,6 +220,58 @@ export async function cloneBare(from: string, to: string): Promise<GitResult> {
 }
 
 /**
+ * Replay a range of commits onto a branch, and report where they landed.
+ *
+ * `git replay` is the only way to rebase in a bare repository: it works
+ * entirely on objects, with no index and no checkout. Anything else would mean
+ * checking out a copy of the repository on every merge.
+ *
+ * **It must never be allowed to move the ref itself, and making sure of that is
+ * the whole reason this function exists.** Replay printed its update and
+ * applied nothing until git 2.54, which made applying the default and printing
+ * opt-in behind `--ref-action=print`. Both callers here had been written
+ * against the old behavior, and under the new default:
+ *
+ * - the rebase merge strategy lost its compare-and-swap, so a push arriving
+ *   mid-merge was overwritten rather than refused - and replay printed nothing,
+ *   so the code then reported "the replay produced no commit" and the merge had
+ *   already landed;
+ * - restacking a stacked child pointed `--advance` at the *base* branch, on
+ *   purpose, only ever wanting the sha it printed. Under the new default that
+ *   moves `main` to the child's commits, with no merge, no review and no guard.
+ *
+ * So the flag is passed, the ref update is returned rather than applied, and
+ * the caller writes it through a guarded `update-ref`. The fallback runs only
+ * when git says it does not know the flag - never on a conflict, which would
+ * trade a refusal for exactly the unguarded update this prevents.
+ */
+export async function replayOnto(
+  repositoryPath: string,
+  branchRef: string,
+  range: string,
+  env?: Record<string, string>,
+): Promise<{ ok: boolean, sha: string | null, stderr: string }> {
+  const advance = ['--advance', branchRef, range]
+
+  let replayed = await runGit(repositoryPath, ['replay', '--ref-action=print', ...advance], { env })
+
+  if (!replayed.ok && /unknown option|ref-action/i.test(replayed.stderr))
+    replayed = await runGit(repositoryPath, ['replay', ...advance], { env })
+
+  if (!replayed.ok)
+    return { ok: false, sha: null, stderr: replayed.stderr }
+
+  // Each line is `update <ref> <new> <old>`.
+  const line = replayed.stdout.split('\n').find(candidate => candidate.startsWith('update '))
+  const sha = line?.trim().split(/\s+/)[2] ?? null
+
+  if (!sha || !isFullSha(sha))
+    return { ok: false, sha: null, stderr: replayed.stderr }
+
+  return { ok: true, sha, stderr: '' }
+}
+
+/**
  * The commit both refs descend from.
  *
  * This is what a pull request diffs against. Diffing against the base tip shows

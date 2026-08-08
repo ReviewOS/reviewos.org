@@ -11,7 +11,7 @@
  * merge, the update fails and nothing is lost.
  */
 
-import { runGit } from '../Git/git'
+import { replayOnto, runGit } from '../Git/git'
 
 export interface MergeInput {
   strategy: 'merge' | 'squash' | 'rebase'
@@ -81,51 +81,29 @@ export async function performMerge(path: string, input: MergeInput): Promise<Mer
  * entirely on objects, with no index and no checkout. Anything else would mean
  * checking out a copy of the repository on every merge.
  *
- * `--advance` names the branch the commits are for, and `--ref-action=print`
- * makes replay *print* the ref update rather than apply one, so the ref still
- * moves through the same guarded `update-ref` as the other strategies. The
- * commits are built on the branch's current tip; when that tip is no longer the
- * baseSha the rules were checked against, the guard below refuses, which is the
- * same answer the other strategies give to a push that arrived mid-merge.
- *
- * **The flag is not optional and its absence is not cosmetic.** `git replay`
- * printed and never updated until git 2.54, which made updating the default and
- * printing opt-in. Under that default the guard is gone: replay moves the branch
- * itself, unconditionally, and a push that arrived mid-merge is overwritten
- * rather than refused. It also prints nothing, so the code below found no sha
- * and answered "the replay produced no commit" - a merge that reported failure
- * and landed anyway, which is the shape of bug somebody debugs by reading the
- * reflog a week later.
+ * `replayOnto` names the branch the commits are for and returns the ref update
+ * rather than applying one - the reason that matters is written there - so the
+ * ref still moves through the same guarded `update-ref` as the other
+ * strategies. The commits are built on the branch's current tip; when that tip
+ * is no longer the baseSha the rules were checked against, the guard below
+ * refuses, which is the same answer the other strategies give to a push that
+ * arrived mid-merge.
  */
 async function performRebase(
   path: string,
   input: MergeInput,
   env: Record<string, string>,
 ): Promise<MergeResult> {
-  const range = `${input.baseSha}..${input.headSha}`
-  const advance = ['--advance', `refs/heads/${input.base}`, range]
+  const replayed = await replayOnto(path, `refs/heads/${input.base}`, `${input.baseSha}..${input.headSha}`, env)
 
-  let replayed = await runGit(path, ['replay', '--ref-action=print', ...advance], { env })
+  if (!replayed.ok || !replayed.sha) {
+    return {
+      ok: false,
+      error: replayed.stderr.trim() || 'the branch could not be replayed onto the base',
+    }
+  }
 
-  /*
-   * Retried without the flag on a git that predates it, where printing is the
-   * behavior anyway. Matched on the message rather than the exit code because
-   * every failure here exits non-zero, and falling back on a conflict would
-   * turn a refusal into an unguarded ref update - exactly what the flag is for.
-   */
-  if (!replayed.ok && /unknown option|ref-action/i.test(replayed.stderr))
-    replayed = await runGit(path, ['replay', ...advance], { env })
-
-  if (!replayed.ok)
-    return { ok: false, error: replayed.stderr.trim() || 'the branch could not be replayed onto the base' }
-
-  // Each line is `update <ref> <new> <old>`.
-  const line = replayed.stdout.split('\n').find(candidate => candidate.startsWith('update '))
-  const sha = line?.trim().split(/\s+/)[2]
-
-  if (!sha || !/^[0-9a-f]{40}$/.test(sha))
-    return { ok: false, error: 'the replay produced no commit' }
-
+  const sha = replayed.sha
   const update = await runGit(path, ['update-ref', `refs/heads/${input.base}`, sha, input.baseSha], { env })
   if (!update.ok)
     return { ok: false, error: 'The base branch moved while merging, so nothing was changed' }
