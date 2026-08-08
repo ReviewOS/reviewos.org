@@ -115,3 +115,14 @@ export async function mirrorFor(repositoryId: number): Promise<any | null> {
     .where('repository_id', '=', repositoryId)
     .executeTakeFirst() ?? null
 }
+
+/**
+ * Running a search from a page.
+ *
+ * The same `runSearch` the JSON endpoint calls, so the page and the API cannot
+ * answer the same question differently. See `app/Actions/Search/run.ts`.
+ */
+import { runSearch as runSearchImpl, SEARCHABLE_SCOPES as SEARCHABLE_SCOPES_IMPL } from '../../app/Actions/Search/run'
+
+export const runSearch = runSearchImpl
+export const SEARCHABLE_SCOPES = SEARCHABLE_SCOPES_IMPL

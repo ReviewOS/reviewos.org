@@ -23,7 +23,7 @@ a different problem and is scoped separately below.
       `milestone:`, `repo:`, `org:`, `language:`, `created:`, `updated:`
 - [x] A real parser for the query syntax, not a regex, so quoting and negation behave
 - [x] Result ranking that puts recently active things first
-- [ ] `resources/views/search.stx` with tabs per scope
+- [x] `resources/views/search.stx` with tabs per scope
 
 ## Explore
 

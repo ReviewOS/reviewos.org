@@ -1,0 +1,281 @@
+<script server>
+/**
+ * Search, as a page.
+ *
+ * Rendered on the server, from the same `runSearch` the JSON endpoint calls.
+ * That is the whole point of extracting it: a page that reimplemented the
+ * visibility filter would be a second answer to "who may see this", and only
+ * one of the two would ever be audited.
+ *
+ * No client-side fetching. The results are in the HTML, so the page works with
+ * JavaScript off, the browser's back button returns to the results rather than
+ * to an empty box, and a result can be linked to. A search page whose URL does
+ * not carry the search is one nobody can share.
+ */
+import { viewerFromCookies, cookieJarFromHeader } from '../functions/identity'
+import { runSearch } from '../functions/repo'
+import { relativeTime } from '../functions/browse'
+import { setStatus } from '../functions/http'
+
+// Both spellings of the request, because each is undeclared on the other
+// rendering path and an undeclared identifier is a ReferenceError that takes
+// every variable below it down with it.
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+
+// `useRoute().query` is not available on every path that renders this, so the
+// query is read from whichever of them is present.
+const params = serveContext?.query ?? (typeof query === 'undefined' ? {} : query) ?? {}
+const term = String(params.q ?? '').trim()
+const requested = String(params.scope ?? 'repositories')
+
+const tabs = [
+  { key: 'repositories', label: 'Repositories' },
+  { key: 'issues', label: 'Issues' },
+  { key: 'pulls', label: 'Pull requests' },
+]
+
+const scope = tabs.some(tab => tab.key === requested) ? requested : 'repositories'
+
+const outcome = term
+  ? await runSearch({ query: term, scope, viewerId: viewer?.id ?? null, perPage: 25 })
+  : { query: '', scope, page: 1, perPage: 25, total: 0, results: [], unavailable: undefined }
+
+const results = outcome.results ?? []
+const onIssues = scope !== 'repositories'
+
+// A search node that is down is a degraded page, not a broken one, and it is
+// certainly not an empty result list - that reads as "nothing matched".
+if (outcome.unavailable)
+  setStatus(503)
+
+/** The tab links keep the query, which is the only reason tabs are useful. */
+function tabHref(key) {
+  return `/search?q=${encodeURIComponent(term)}&scope=${key}`
+}
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    <header class="search-head">
+      <h1 class="search-title">Search</h1>
+
+      {{--
+        A GET form, so the query ends up in the URL. That is what makes a
+        result linkable and the back button behave.
+      --}}
+      <form class="search-form" method="get" action="/search">
+        <input type="hidden" name="scope" value="{{ scope }}">
+        <input
+          class="search-input"
+          type="search"
+          name="q"
+          value="{{ term }}"
+          autofocus
+          placeholder="Search repositories, issues and pull requests"
+          aria-label="Search">
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+
+      <p class="search-hint muted">
+        Qualifiers work the way you expect: <code>is:open</code>, <code>author:someone</code>,
+        <code>label:bug</code>, <code>org:acme</code>, <code>topic:git</code>. Put a phrase in quotes
+        to match it whole, and prefix any of them with <code>-</code> to exclude.
+      </p>
+    </header>
+
+    <nav class="search-tabs" aria-label="Search scopes">
+      @foreach (tabs as tab)
+        <a
+          href="{{ tabHref(tab.key) }}"
+          class="search-tab {{ tab.key === scope ? 'is-current' : '' }}"
+          @if (tab.key === scope) aria-current="page" @endif>{{ tab.label }}</a>
+      @endforeach
+    </nav>
+
+    @if (outcome.unavailable)
+      <div class="panel search-empty">
+        <p>Search is unavailable right now.</p>
+        <p class="muted">
+          The index is a separate service and it is not answering. Everything else on this instance
+          works: repositories, issues and pull requests are all still readable by browsing to them.
+        </p>
+      </div>
+    @elseif (!term)
+      <div class="panel search-empty">
+        <p class="muted">Type something above to search this instance.</p>
+      </div>
+    @elseif (results.length === 0)
+      <div class="panel search-empty">
+        <p>No {{ onIssues ? 'issues' : 'repositories' }} matched <strong>{{ term }}</strong>.</p>
+        <p class="muted">
+          Only what you have access to is searched, so a private repository you are not a member of
+          will not appear here.
+        </p>
+      </div>
+    @else
+      <p class="search-count muted">
+        {{ outcome.total }} {{ outcome.total === 1 ? 'result' : 'results' }}
+      </p>
+
+      <ul class="search-results panel">
+        @foreach (results as hit)
+          <li class="search-result">
+            @if (onIssues)
+              <div class="search-result-main">
+                <a class="search-result-title" href="/{{ hit.repository }}/issues/{{ hit.number }}">{{ hit.title }}</a>
+                <p class="search-result-meta muted">
+                  <span class="mono">{{ hit.repository }}</span> #{{ hit.number }}
+                  @if (hit.author)
+                    &middot; opened by {{ hit.author }}
+                  @endif
+                  @if (hit.updated_at)
+                    &middot; updated {{ relativeTime(hit.updated_at * 1000) }}
+                  @endif
+                </p>
+
+                @if (hit.labels.length > 0)
+                  <p class="search-labels">
+                    @foreach (hit.labels as label)
+                      <span class="search-label">{{ label }}</span>
+                    @endforeach
+                  </p>
+                @endif
+              </div>
+
+              <span class="search-state search-state-{{ hit.state }}">{{ hit.state }}</span>
+            @else
+              <div class="search-result-main">
+                <a class="search-result-title" href="/{{ hit.full_name }}">{{ hit.full_name }}</a>
+
+                @if (hit.description)
+                  <p class="search-result-desc">{{ hit.description }}</p>
+                @endif
+
+                <p class="search-result-meta muted">
+                  @if (hit.topics.length > 0)
+                    @foreach (hit.topics as topic)
+                      <span class="search-label">{{ topic }}</span>
+                    @endforeach
+                  @endif
+                  @if (hit.pushed_at)
+                    &middot; pushed {{ relativeTime(hit.pushed_at * 1000) }}
+                  @endif
+                </p>
+              </div>
+
+              @if (hit.visibility !== 'public')
+                {{-- Said out loud, so nobody is surprised that a result is not
+                    something they can share a link to. --}}
+                <span class="search-state">{{ hit.visibility }}</span>
+              @endif
+            @endif
+          </li>
+        @endforeach
+      </ul>
+    @endif
+  </div>
+@endsection
+
+<style>
+  .search-head { margin-bottom: 18px; }
+  .search-title { font-size: 22px; font-weight: 600; margin-bottom: 12px; }
+
+  .search-form { display: flex; gap: 8px; margin-bottom: 10px; }
+
+  .search-input {
+    flex: 1;
+    padding: 9px 12px;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--r-control, 10px);
+  }
+
+  .search-hint { font-size: 12.5px; line-height: 1.6; max-width: 70ch; }
+  .search-hint code { font-size: 12px; }
+
+  .search-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .search-tab {
+    padding: 8px 12px;
+    font-size: 13.5px;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+
+  .search-tab:hover { color: var(--text); }
+
+  .search-tab.is-current {
+    color: var(--text);
+    font-weight: 500;
+    border-bottom-color: var(--accent, var(--text));
+  }
+
+  .search-count { font-size: 12.5px; margin-bottom: 8px; }
+  .search-empty { padding: 28px; text-align: center; }
+  .search-empty p { margin-bottom: 6px; }
+  .search-results { overflow: hidden; }
+
+  .search-result {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .search-result:last-child { border-bottom: 0; }
+  .search-result-main { flex: 1; min-width: 0; }
+
+  .search-result-title {
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--text);
+  }
+
+  .search-result-title:hover { text-decoration: underline; }
+
+  .search-result-desc {
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 3px;
+  }
+
+  .search-result-meta { font-size: 12px; margin-top: 4px; }
+
+  .search-labels { margin-top: 6px; }
+
+  .search-label {
+    display: inline-block;
+    padding: 1px 7px;
+    margin-right: 4px;
+    font-size: 11.5px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
+
+  .search-state {
+    flex: none;
+    padding: 2px 9px;
+    font-size: 11.5px;
+    text-transform: capitalize;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
+
+  .search-state-open { color: var(--ok); border-color: var(--ok); }
+</style>
