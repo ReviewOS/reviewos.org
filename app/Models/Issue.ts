@@ -23,11 +23,29 @@ export default defineModel({
   traits: {
     useUuid: true,
     useTimestamps: true,
+    /*
+     * The index, declared here for the same reason the repository's is.
+     *
+     * `repository_id` is filterable and carried on every document, and that is
+     * not for searching: an issue is readable exactly when its repository is,
+     * so a hit has to be traceable back to a repository before
+     * `app/Actions/Search/visibility.ts` can rule on it. A document without it
+     * could not be filtered at all.
+     *
+     * `author` and `labels` are denormalized because `author:` and `label:` are
+     * the qualifiers people type, and resolving them per hit is the N+1 that
+     * `shapeMany` exists to avoid.
+     */
     useSearch: {
-      displayable: ['id', 'number', 'title', 'state'],
-      searchable: ['title', 'body'],
-      sortable: ['created_at', 'updated_at'],
-      filterable: ['state'],
+      displayable: ['id', 'repository', 'number', 'title', 'state', 'labels', 'author'],
+      searchable: ['title', 'body', 'labels', 'author', 'repository'],
+      sortable: ['created_at', 'updated_at', 'comments_count'],
+      filterable: ['state', 'repository_id', 'author', 'labels', 'is_pull_request'],
+      shapeMany: async (rows: any[]) => {
+        const { issueDocuments } = await import('../Actions/Search/documents')
+
+        return await issueDocuments(rows)
+      },
     },
     useSeeder: { count: 30 },
   },

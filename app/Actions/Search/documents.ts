@@ -166,3 +166,148 @@ export const REPOSITORY_COLUMNS = [
   'pushed_at',
   'updated_at',
 ] as const
+
+/** The index an issue document lives in. Matches the model's table. */
+export const ISSUE_INDEX = 'issues'
+
+/**
+ * An issue, as the index holds it.
+ *
+ * `repository_id` is carried and it is the field that matters most here, for a
+ * reason that is not about searching: an issue is readable exactly when its
+ * repository is, so every hit has to be traceable back to a repository before
+ * `visibility.ts` can rule on it. A document without it could not be filtered
+ * at all, and the fallback would be a query per hit.
+ *
+ * `author` and `labels` are denormalized for the same reason the repository
+ * document carries the owner handle - `author:me` and `label:bug` are the
+ * qualifiers people actually type, and resolving them per hit at query time is
+ * the N+1 this whole approach exists to avoid.
+ *
+ * The body is indexed but truncated. Search wants the words; nobody scrolls a
+ * result, and a forty-kilobyte issue body in the index costs write time on
+ * every edit and buys nothing a first paragraph does not.
+ */
+export interface IssueDocument {
+  id: string
+  repository_id: number
+  repository: string
+  number: number
+  title: string
+  body: string
+  author: string
+  labels: string[]
+  state: string
+  is_pull_request: boolean
+  comments_count: number
+  created_at: number
+  updated_at: number
+}
+
+/** How much of a body is worth indexing. */
+const BODY_LIMIT = 4000
+
+export async function issueDocuments(input: readonly any[]): Promise<IssueDocument[]> {
+  if (input.length === 0)
+    return []
+
+  const rows = input.map((row: any) =>
+    (row?._attributes ?? (typeof row?.toJSON === 'function' ? row.toJSON() : row)) as any,
+  )
+
+  const ids = rows.map(row => Number(row.id))
+  const repositoryIds = [...new Set(rows.map(row => Number(row.repository_id)).filter(Boolean))]
+  const authorIds = [...new Set(rows.map(row => Number(row.author_id)).filter(Boolean))]
+
+  // The repository's full name, so a result can say where it lives without the
+  // page joining back per row.
+  const repositories = repositoryIds.length > 0
+    ? await db
+        .selectFrom('repositories')
+        .select(['id', 'name', 'owner_type', 'owner_id'])
+        .where('id', 'in', repositoryIds)
+        .execute()
+    : []
+
+  const owners = await ownerHandles(repositories as any[])
+  const repositoryNames = new Map<number, string>()
+  for (const row of repositories as any[]) {
+    const handle = owners.get(`${row.owner_type}:${Number(row.owner_id)}`) ?? ''
+    repositoryNames.set(Number(row.id), handle ? `${handle}/${String(row.name)}` : String(row.name))
+  }
+
+  const authors = authorIds.length > 0
+    ? await db.selectFrom('users').select(['id', 'handle']).where('id', 'in', authorIds).execute()
+    : []
+  const authorHandles = new Map((authors as any[]).map(row => [Number(row.id), String(row.handle)]))
+
+  const labelRows = await db
+    .selectFrom('issue_labels')
+    .innerJoin('repository_labels', 'repository_labels.id', '=', 'issue_labels.label_id')
+    .select(['issue_labels.issue_id as issue_id', 'repository_labels.name as name'])
+    .where('issue_labels.issue_id', 'in', ids)
+    .execute()
+
+  const labels = new Map<number, string[]>()
+  for (const row of labelRows as any[]) {
+    const key = Number(row.issue_id)
+    const list = labels.get(key) ?? []
+    list.push(String(row.name))
+    labels.set(key, list)
+  }
+
+  return rows.map(row => ({
+    id: String(row.id),
+    repository_id: Number(row.repository_id),
+    repository: repositoryNames.get(Number(row.repository_id)) ?? '',
+    number: Number(row.number ?? 0),
+    title: String(row.title ?? ''),
+    // An external author has no account, so the row carries the name instead.
+    author: authorHandles.get(Number(row.author_id)) ?? String(row.external_author ?? ''),
+    body: String(row.body ?? '').slice(0, BODY_LIMIT),
+    labels: labels.get(Number(row.id)) ?? [],
+    state: String(row.state ?? ''),
+    is_pull_request: Boolean(row.is_pull_request),
+    comments_count: Number(row.comments_count ?? 0),
+    created_at: seconds(row.created_at),
+    updated_at: seconds(row.updated_at),
+  }))
+}
+
+/** Handles for a set of repository rows, keyed `type:id`. Two queries, not N. */
+async function ownerHandles(repositories: any[]): Promise<Map<string, string>> {
+  const userIds = repositories.filter(r => String(r.owner_type) === 'user').map(r => Number(r.owner_id))
+  const orgIds = repositories.filter(r => String(r.owner_type) === 'organization').map(r => Number(r.owner_id))
+
+  const users = userIds.length > 0
+    ? await db.selectFrom('users').select(['id', 'handle']).where('id', 'in', [...new Set(userIds)]).execute()
+    : []
+
+  const organizations = orgIds.length > 0
+    ? await db.selectFrom('organizations').select(['id', 'handle']).where('id', 'in', [...new Set(orgIds)]).execute()
+    : []
+
+  const map = new Map<string, string>()
+  for (const row of users as any[])
+    map.set(`user:${Number(row.id)}`, String(row.handle))
+  for (const row of organizations as any[])
+    map.set(`organization:${Number(row.id)}`, String(row.handle))
+
+  return map
+}
+
+/** The issue columns the projection needs. */
+export const ISSUE_COLUMNS = [
+  'id',
+  'repository_id',
+  'number',
+  'title',
+  'body',
+  'author_id',
+  'external_author',
+  'state',
+  'is_pull_request',
+  'comments_count',
+  'created_at',
+  'updated_at',
+] as const

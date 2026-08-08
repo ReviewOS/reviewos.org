@@ -11,7 +11,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-const created = { ownerId: 0, outsiderId: 0, outsiderToken: '', publicId: 0, privateId: 0, handle: '', term: '' }
+const created = { ownerId: 0, outsiderId: 0, outsiderToken: '', publicId: 0, privateId: 0, publicIssueId: 0, privateIssueId: 0, handle: '', term: '' }
 
 let available = false
 let db: any
@@ -22,8 +22,8 @@ function unique(prefix: string): string {
   return `${prefix}${Buffer.from(crypto.getRandomValues(new Uint8Array(5))).toString('hex')}`
 }
 
-async function search(query: string, token?: string): Promise<{ status: number, body: any }> {
-  const answer = await fetch(`http://127.0.0.1:${port}/api/search?q=${encodeURIComponent(query)}`, {
+async function search(query: string, token?: string, scope = 'repositories'): Promise<{ status: number, body: any }> {
+  const answer = await fetch(`http://127.0.0.1:${port}/api/search?q=${encodeURIComponent(query)}&scope=${scope}`, {
     headers: { Accept: 'application/json', ...(token ? { Cookie: `auth-token=${token}` } : {}) },
   })
 
@@ -100,11 +100,47 @@ beforeAll(async () => {
   const job: any = (await import('../../app/Jobs/IndexRepositoryJob')).default
   await job.handle({ repositoryId: created.publicId })
   await job.handle({ repositoryId: created.privateId })
+
+  // One issue in each repository, carrying the same distinctive term. The one
+  // in the private repository is the leak case for this scope.
+  const { issueDocuments } = await import('../../app/Actions/Search/documents')
+  const { useSearchEngine } = await import('@stacksjs/search-engine')
+  const engine: any = useSearchEngine()
+
+  for (const [key, repositoryId] of [['publicIssueId', created.publicId], ['privateIssueId', created.privateId]] as const) {
+    const row: any = await db
+      .insertInto('issues')
+      .values({
+        repository_id: repositoryId,
+        number: 1,
+        title: `${created.term} in the title`,
+        body: 'a body',
+        author_id: created.ownerId,
+        state: 'open',
+        is_pull_request: false,
+      })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    created[key] = Number(row?.id)
+  }
+
+  const issueRows = await db
+    .selectFrom('issues')
+    .select(['id', 'repository_id', 'number', 'title', 'body', 'author_id', 'external_author', 'state', 'is_pull_request', 'comments_count', 'created_at', 'updated_at'])
+    .where('id', 'in', [created.publicIssueId, created.privateIssueId])
+    .execute()
+
+  await engine.addDocuments('issues', await issueDocuments(issueRows))
   await new Promise(resolve => setTimeout(resolve, 800))
 }, 120_000)
 
 afterAll(async () => {
   try {
+    const issues = [created.publicIssueId, created.privateIssueId].filter(Boolean)
+    if (db && issues.length > 0)
+      await db.deleteFrom('issues').where('id', 'in', issues).execute()
+
     const repositories = [created.publicId, created.privateId].filter(Boolean)
     if (db && repositories.length > 0)
       await db.deleteFrom('repositories').where('id', 'in', repositories).execute()
@@ -190,10 +226,68 @@ describe('searching through the route', () => {
 
     // An empty list would read as "no matches", which is a lie that costs
     // somebody an afternoon.
-    const answer = await fetch(`http://127.0.0.1:${port}/api/search?q=anything&scope=issues`, {
+    // `users` genuinely is not wired. This test named `issues` until issues
+    // were wired, at which point it correctly started failing.
+    const answer = await fetch(`http://127.0.0.1:${port}/api/search?q=anything&scope=users`, {
       headers: { Accept: 'application/json' },
     })
 
     expect(answer.status).toBe(501)
+  })
+})
+
+describe('the issues scope', () => {
+  test('an issue in a private repository does not reach a stranger', async () => {
+    if (!available)
+      return
+
+    // Both issues are in the index and both match. An issue is readable exactly
+    // when its repository is, and that is the only thing keeping the private
+    // one out of this response.
+    const { status, body } = await search(created.term, created.outsiderToken, 'issues')
+
+    expect(status).toBe(200)
+
+    const ids = body.results.map((r: any) => r.id)
+    expect(ids).toContain(created.publicIssueId)
+    expect(ids).not.toContain(created.privateIssueId)
+  })
+
+  test('the owner sees both', async () => {
+    if (!available)
+      return
+
+    const { createToken } = await import('@stacksjs/auth')
+    const issued: any = await createToken(created.ownerId, 'owner issue search')
+    const { body } = await search(created.term, String(issued?.plainTextToken ?? issued?.token ?? issued), 'issues')
+
+    const ids = body.results.map((r: any) => r.id)
+    expect(ids).toContain(created.publicIssueId)
+    expect(ids).toContain(created.privateIssueId)
+  })
+
+  test('a result says where it lives and who opened it', async () => {
+    if (!available)
+      return
+
+    const { body } = await search(created.term, created.outsiderToken, 'issues')
+    const hit = body.results[0]
+
+    // Denormalized onto the document, so the page renders without joining back
+    // per row.
+    expect(hit.repository).toContain(created.handle)
+    expect(hit.author).toBe(created.handle)
+    expect(hit.state).toBe('open')
+  })
+
+  test('the pulls scope does not return issues', async () => {
+    if (!available)
+      return
+
+    // Same rows, split by `is_pull_request`. That is what the tabs mean, and
+    // getting it backwards shows issues under "pull requests" forever.
+    const { body } = await search(created.term, created.outsiderToken, 'pulls')
+
+    expect(body.results.map((r: any) => r.id)).not.toContain(created.publicIssueId)
   })
 })

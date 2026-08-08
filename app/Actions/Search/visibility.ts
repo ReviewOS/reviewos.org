@@ -138,3 +138,23 @@ export async function filterToReadable<T>(
 
   return hits.filter(hit => allowed.has(repositoryIdOf(hit)))
 }
+
+/**
+ * Filter hits that belong to a repository rather than being one.
+ *
+ * An issue, a pull request, a comment: all readable exactly when the repository
+ * containing them is. Rather than teach each of those its own rule - which is
+ * how three subtly different answers to one question end up in a codebase -
+ * they all come through here and the repository decides.
+ *
+ * The hit carries `repository_id` because the document was built to carry it.
+ * That is the whole reason it is in the projection: without it this would need
+ * a query per hit to find out which repository to ask about.
+ */
+export async function filterByRepository<T>(
+  hits: readonly T[],
+  repositoryIdOf: (hit: T) => number,
+  viewerId: number | null,
+): Promise<T[]> {
+  return await filterToReadable(hits, repositoryIdOf, viewerId)
+}
