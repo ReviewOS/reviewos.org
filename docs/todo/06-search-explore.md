@@ -11,9 +11,9 @@ a different problem and is scoped separately below.
       labels), `PullRequest`, and `User` (handle, name)
 - [ ] `app/Jobs/IndexRepositoryJob.ts` on the `search` queue, triggered on create, update, and push
 - [ ] Reindex command for a full rebuild, and for recovering after an index loss
-- [ ] Visibility is enforced at query time from the current user's permissions. Never rely on the
+- [x] Visibility is enforced at query time from the current user's permissions. Never rely on the
       index alone to keep private repositories out of results.
-- [ ] Tests specifically for the leak case: a private repository must not appear for a user without
+- [x] Tests specifically for the leak case: a private repository must not appear for a user without
       access, including through issue and comment results
 
 ## Search
