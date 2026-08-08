@@ -33,12 +33,36 @@ vocabulary, and it is discoverable without reading the source.
 
 ## Built for a program, not a person with curl
 
-- [ ] Cursor pagination with a stable total ordering. Offset pagination over a table people are
+- [x] Cursor pagination with a stable total ordering. Offset pagination over a table people are
       actively writing to silently skips and repeats rows, and a paginating agent will hit it.
-- [ ] `ETag` and `If-None-Match` on read endpoints. An agent that polls should be cheap to serve, so
+
+  `app/Api/cursor.ts`. The part worth stating is that the ordering has to be *total*: `created_at`
+  alone is not, so two rows written in the same millisecond straddle a page boundary and one is
+  never returned - the same failure offset has, which would make the rewrite pointless. Every
+  ordering ends in the primary key. The caller asks for one row more than the page and it is never
+  returned; it answers "is there more" without a `COUNT`, which on a large table costs more than the
+  page did.
+- [x] `ETag` and `If-None-Match` on read endpoints. An agent that polls should be cheap to serve, so
       the honest answer to polling is to make it free rather than to forbid it.
-- [ ] Idempotency keys on anything that creates. Agents retry on timeout, and the current behavior of
+
+  `app/Api/etag.ts`. Tags come from cheap facts - a row's `updated_at`, a count, a head sha - never
+  from the rendered body, because a tag hashed from the response saves the transfer and nothing
+  else, and serving a pull request means reading its comments, reviews, checks and diff stat.
+  Weak (`W/`) because that is the true claim: the bytes are not identical a second later, the
+  resource is. `If-None-Match` is a list and is compared entry by entry, which is the bug that makes
+  conditional requests silently never match.
+- [x] Idempotency keys on anything that creates. Agents retry on timeout, and the current behavior of
       every forge is to create the comment twice.
+
+  `app/Api/idempotency.ts`. Four outcomes, and the two unhappy ones matter as much as the replay: a
+  recycled key carrying a *different* body is refused rather than replayed, because returning the
+  first response for a second request means the second was never created and the client is told it
+  succeeded - silent, and worse than the duplicate; and a second request arriving while the first is
+  still running is held, because two retries racing is exactly what a timeout produces.
+
+  Keys are scoped to the token and the endpoint. A key is chosen by the client and two clients will
+  eventually choose the same one - a bad UUID seed, or the literal `1` - and unscoped, one agent's
+  retry returns another agent's response, which is a disclosure rather than a duplicate.
 - [ ] Rate limits that are documented, returned in headers on every response rather than only on the
       rejection, per token rather than per account, and paired with a `Retry-After` that is true
 - [ ] Errors that name the field and the fix, with a stable machine-readable code. "Validation
