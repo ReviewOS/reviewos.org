@@ -1,16 +1,17 @@
 /**
  * What a repository looks like in the index.
  *
- * Built here rather than through the `useSearch` trait's `shape()` hook, and
- * the reason is that `shape()` is synchronous. The two fields that make this
- * index worth searching - the owner's handle and the repository's topics - are
- * relations, so producing them means asking the database. A synchronous hook
- * that did that would issue two queries per row, turning a reindex of a hundred
- * repositories into a few hundred round trips, and it cannot await anyway.
+ * Called by the `useSearch` trait on the model, through `shapeMany`. The model
+ * is where the index belongs - it is the thing being indexed, and a projection
+ * that lives anywhere else is one the next person has to go looking for.
  *
- * So the projection lives with the thing that indexes in batches. One query for
- * every owner in the batch, one for every topic, and the documents are
- * assembled in memory.
+ * `shapeMany` and not `shape`, because the two fields that make this corpus
+ * worth searching - the owner's handle and the topics - are relations. `shape`
+ * is per row, so denormalizing a relation through it costs a query per row and
+ * turns a rebuild into thousands of round trips. The batch form takes the whole
+ * chunk: one query for the owners in it, one for the topics, however large it
+ * is. That form did not exist until this needed it, and was added to Stacks
+ * rather than worked around here.
  *
  * **The document is deliberately small.** The trait's default projection put
  * all twenty-one columns in: `disk_path`, `allow_squash_merge`,
@@ -78,9 +79,18 @@ function seconds(value: unknown): number {
  * per row. A caller with one repository passes an array of one and pays for two
  * queries, which is the same as it would have cost anyway.
  */
-export async function repositoryDocuments(rows: readonly RepositoryRow[]): Promise<RepositoryDocument[]> {
-  if (rows.length === 0)
+export async function repositoryDocuments(input: readonly any[]): Promise<RepositoryDocument[]> {
+  if (input.length === 0)
     return []
+
+  // Plain rows from a hand-written query, or model instances from
+  // `makeAllSearchable`. The trait hands over whatever the ORM was holding, and
+  // an instance keeps its columns on `_attributes` rather than on itself - so
+  // reading `row.name` off one yields undefined and indexes a corpus of
+  // "undefined", which is exactly what the first run of this produced.
+  const rows = input.map((row: any) =>
+    (row?._attributes ?? (typeof row?.toJSON === 'function' ? row.toJSON() : row)) as RepositoryRow,
+  )
 
   const ids = rows.map(row => Number(row.id))
 

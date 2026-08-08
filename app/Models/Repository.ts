@@ -33,11 +33,36 @@ export default defineModel({
   traits: {
     useUuid: true,
     useTimestamps: true,
+    /*
+     * The index, declared where the model is.
+     *
+     * `shapeMany` rather than `shape`, because the two fields that make this
+     * corpus worth searching - the owner's handle and the topics - are
+     * relations, and asking for them one row at a time turns a rebuild into two
+     * queries per repository. The batch form gets the whole chunk and spends
+     * two queries on it however large it is.
+     *
+     * `searchable` is what a person types; `full_name` is in it because
+     * "owner/name" is how a repository is said out loud, and somebody pasting
+     * that should find it. What is deliberately *not* indexed is the rest of
+     * the row - `disk_path`, the merge-strategy flags, `issue_counter` - which
+     * the default projection used to include, at the cost of index size and a
+     * write on every push, and which nobody has ever searched for.
+     *
+     * `visibility` is filterable and is not a permission boundary. See
+     * `app/Actions/Search/visibility.ts`: the index is never trusted for that,
+     * because it is a copy and a copy goes stale.
+     */
     useSearch: {
-      displayable: ['id', 'name', 'description', 'visibility'],
-      searchable: ['name', 'description'],
-      sortable: ['created_at', 'pushed_at', 'stars_count'],
-      filterable: ['visibility'],
+      displayable: ['id', 'name', 'full_name', 'owner', 'description', 'topics', 'visibility', 'stars_count'],
+      searchable: ['name', 'full_name', 'owner', 'description', 'topics'],
+      sortable: ['stars_count', 'pushed_at', 'updated_at'],
+      filterable: ['visibility', 'owner', 'topics', 'is_fork', 'is_archived'],
+      shapeMany: async (rows: any[]) => {
+        const { repositoryDocuments } = await import('../Actions/Search/documents')
+
+        return await repositoryDocuments(rows)
+      },
     },
     useSeeder: { count: 8 },
   },
