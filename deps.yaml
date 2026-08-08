@@ -5,10 +5,10 @@
 # https://stacksjs.com/docs/dependency-management
 
 dependencies:
-  git-lfs: ^3.7.1
-  gnupg.org: ^2.4.8
-  bun: ^1.3.11
+  bun: ^1.3.14
   git: ^2.47.0
+  gnupg.org: ^2.4.8
+  git-lfs: ^3.7.1
   postgresql.org: ^17.10
 
 services:

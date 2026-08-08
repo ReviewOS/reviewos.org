@@ -14,11 +14,10 @@ export const config: PantryConfig = {
    * These are binary tools and system packages required for development
    */
   dependencies: {
-    // 1.3.14 is what pantry installs and what stx requires, but ts-pantry's
-    // generated version union is a snapshot that currently stops at 1.3.11, so
-    // pinning the exact floor does not typecheck. The caret range still resolves
-    // to 1.3.14. Raise this once a ts-pantry release includes the newer versions.
-    bun: '^1.3.11',
+    // The floor stx requires, and what pantry installs. It had been held at
+    // ^1.3.11 because ts-pantry's generated version union is a snapshot and
+    // that was as far as it went; 0.11.19's snapshot reaches 1.3.19.
+    bun: '^1.3.14',
     git: '^2.47.0',
     // Commit signature verification. git can tell you a commit carries a
     // signature without it, but not whether the signature is good - that is
@@ -30,17 +29,29 @@ export const config: PantryConfig = {
     // was never installable. 2.4.8 is the one installed and what deps.yaml
     // declares.
     //
-    // The suppression is a ts-pantry bug rather than anything about the value:
-    // `PackageVersions<T>` looks the name up in `Packages` first, and only a
-    // flattened key like `gnupgorg` is in there, never the domain `gnupg.org`.
-    // The miss indexes with `never`, which then satisfies the `{ versions }`
-    // check vacuously, so the generated union - which does carry 2.2.42 through
-    // 2.4.8 for this name - is never consulted and no version string at all
-    // typechecks. Every domain-style name has this; `bun` above does not,
-    // because it is a real key. Delete the directive once ts-pantry checks for
-    // the miss before indexing: it reports itself as unused.
-    // @ts-expect-error ts-pantry resolves a domain name's versions to never
+    // This line carried a `@ts-expect-error` until ts-pantry 0.11.19, and it
+    // was the tool rather than the value: `PackageVersions<T>` looked the name
+    // up in `Packages`, which is keyed by flattened names like `gnupgorg` and
+    // never by the domain, so the miss indexed with `never` - which satisfies
+    // the `{ versions }` check vacuously - and the generated union that does
+    // carry these versions was never consulted. No version string at all
+    // typechecked for any domain-style name.
     'gnupg.org': '^2.4.8',
+    /*
+     * The LFS client, for the operator rather than for the server.
+     *
+     * Nothing here shells out to it: the protocol is `ts-git-lfs` and the
+     * object store is this forge's own, so serving LFS needs no binary. It is
+     * declared because an operator on the box - checking what a pointer
+     * resolves to, migrating a store, cloning a repository to look at it -
+     * needs the client, and finding it missing at that moment is finding it
+     * missing during an incident.
+     *
+     * It had been hand-added to `deps.yaml` and never declared here, so the
+     * next `buddy setup` would have quietly dropped it. That file is generated;
+     * this one is the source.
+     */
+    'git-lfs': '^3.7.1',
     // The database engine is swapped for the one DB_CONNECTION names when
     // `buddy setup` regenerates deps.yaml, so only one ever gets installed.
     sqlite: '^3.47.2',
