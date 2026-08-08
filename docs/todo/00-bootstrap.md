@@ -75,7 +75,7 @@ Each one is committed and pushed in the repository named.
 
 ## Known gaps, deferred deliberately
 
-- [ ] `notifications.user_id` and `notification_deliveries.user_id` foreign keys are missing from the
+- [x] `notifications.user_id` and `notification_deliveries.user_id` foreign keys are missing from the
       live schema. Those tables are created by the framework's guarantee path rather than the model
       corpus, so the declared relations are not enforced. Harmless today, worth fixing before the
       notification work in phase 5.
