@@ -26,7 +26,20 @@ vocabulary, and it is discoverable without reading the source.
 - [ ] The OpenAPI document is generated from the actions (`./buddy generate:openapi`) and published,
       so it cannot drift from what the server accepts
 - [ ] A generated TypeScript client, built from that document rather than maintained by hand
-- [ ] Tests that walk the route table and fail on a route with no OpenAPI operation
+- [x] Tests that walk the route table and fail on a route with no OpenAPI operation
+
+  `tests/unit/openapi-coverage.test.ts`. A route that exists and is undocumented fails the
+  discoverability bar quietly: it works, nothing errors, and the only people who know about it are
+  the ones who grepped `routes/`. The generated client will not have it either.
+
+  It found one on its first run - `GET /api/search`, added without re-running the generator - which
+  is precisely the failure mode it exists for. It also found a trap in itself: the route table says
+  `/queries/:id` and the document says `/queries/{id}`, so comparing them verbatim reports a missing
+  route for **all 173 parameterised paths**. The tempting fix is excluding them, which would silently
+  stop testing a quarter of the API; the right one is normalising the two spellings.
+
+  Verified by deleting an operation from the document and watching it fail by name, rather than
+  trusting that a green test was testing anything.
 - [ ] Long-running resources, including CI workflow runs, expose their state machine and control
       operations through the same public actions used by the interface and CLI. No UI-only pause,
       retry, cancellation, log, or approval path.
@@ -92,8 +105,19 @@ vocabulary, and it is discoverable without reading the source.
   what to do. `Retry-After` goes in the header *and* the body, because a client on a generic HTTP
   layer reads one and a client written against this API reads the other, and sending only one means
   half of them busy-loop.
-- [ ] Partial responses: ask for the fields you need. A pull request list that always carries every
+- [x] Partial responses: ask for the fields you need. A pull request list that always carries every
       body is expensive on both ends.
+
+  `app/Api/fields.ts`. Four hundred open pull requests with a paragraph each is a megabyte of prose
+  to build a list of titles, and the caller throws every body away.
+
+  `wants()` is the part that matters: a serializer narrowing *after* reading every column has saved
+  the transfer and none of the work, and the expensive fields are exactly the ones a list does not
+  need - body, labels, review state, check summary, each a query. Callers ask before running them.
+
+  Every failure mode degrades rather than refuses, because this is an *optional* optimisation: no
+  parameter means everything, an unknown field name is ignored rather than 422'd, and an identifier
+  is added back when a caller drops it by accident.
 - [x] A structured diff endpoint: hunks, ranges and line origins as JSON, from the same parser the
       review screen uses. Scraping the rendered diff should never be the only way to get one.
 
