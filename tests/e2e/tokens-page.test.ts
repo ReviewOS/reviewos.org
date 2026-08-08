@@ -205,6 +205,20 @@ describe('the access tokens page', () => {
     expect(html).toContain(`value="${created.repositoryId}"`)
   })
 
+  test('offers to rotate a live token, and explains the overlap', async () => {
+    if (!available)
+      return
+
+    const html = await fetchPage('/settings/tokens', created.token)
+
+    expect(html).toContain('/api/user/tokens/rotate')
+    expect(html).toContain('Rotate')
+    // The overlap is the entire feature, and a button labelled "Rotate" with no
+    // explanation reads as "revoke and reissue" - which is the thing people
+    // avoid doing, for the reason this exists.
+    expect(html).toContain('24 hours')
+  })
+
   test('asks somebody who is not signed in to sign in', async () => {
     if (!available)
       return

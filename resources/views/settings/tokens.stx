@@ -42,18 +42,12 @@ const repositories = viewer ? await scopableRepositories(viewer.id) : []
 // A settings page for nobody is not a 404. The page exists, and saying so is
 // how somebody knows to sign in rather than that they mistyped the URL.
 //
-// Guarded for the same reason `__stxServeContext` is, and it is the same bug
-// twice: `setResponseStatus` is provided by stx's `serve`, and a host that
-// mounts views itself - which is what `route.serve()` does, and what the e2e
-// suite and a production boot both use - provides nothing. Calling it there is
-// a ReferenceError inside this script's IIFE, which takes every variable below
-// it down and renders the signed-out branch to somebody who is signed in, with
-// a 200 and nothing in the log.
-//
-// stx is growing a no-op default for exactly this, which will cover the ten
-// other views in this repository that call it unguarded. This line does not
-// wait for that release.
-if (!viewer && typeof setResponseStatus === 'function')
+// `setStatus` carries the `typeof` guard itself - see `functions/http.ts` for
+// why it has to. Repeating the guard here was worse than redundant: it asked
+// about `setResponseStatus` and then called `setStatus`, so on the one boot
+// path where the name is missing it skipped the status entirely, which is the
+// path it was put there to cover.
+if (!viewer)
   setStatus(401)
 
 // The scopes the form offers, with the sentence each level buys. Repository
@@ -256,16 +250,39 @@ const scopes = [
                   </p>
                 </div>
 
-                @if (token.state === 'active')
-                  <form method="post" action="/api/user/tokens/revoke" class="tok-revoke">
-                    <CsrfField />
-                    <input type="hidden" name="id" value="{{ token.id }}">
-                    <button type="submit" class="btn btn-quiet">Revoke</button>
-                  </form>
-                @endif
+                <div class="tok-buttons">
+                  {{--
+                    Rotate is offered for an expired token as well as a live
+                    one, because expiry is the most common reason somebody wants
+                    it: refusing there would mean the one moment they reach for
+                    this is the moment it is not available. A revoked token is
+                    not offered it - revocation has to be final.
+                  --}}
+                  @if (token.state !== 'revoked')
+                    <form method="post" action="/api/user/tokens/rotate" class="tok-rotate">
+                      <CsrfField />
+                      <input type="hidden" name="id" value="{{ token.id }}">
+                      <button type="submit" class="btn btn-quiet">Rotate</button>
+                    </form>
+                  @endif
+
+                  @if (token.state === 'active')
+                    <form method="post" action="/api/user/tokens/revoke" class="tok-revoke">
+                      <CsrfField />
+                      <input type="hidden" name="id" value="{{ token.id }}">
+                      <button type="submit" class="btn btn-quiet">Revoke</button>
+                    </form>
+                  @endif
+                </div>
               </li>
             @endforeach
           </ul>
+
+          <p class="tok-hint muted" style="margin-top: 10px;">
+            Rotating issues a replacement and leaves the old token working for 24 hours, so the
+            deploy that picks up the new one does not have to happen the same minute. Both appear
+            in this list until the old one lapses.
+          </p>
         @endif
       </section>
     @endif
@@ -403,5 +420,11 @@ const scopes = [
 
   .tok-repolist { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .tok-revoke { flex: none; }
+  .tok-buttons { flex: none; display: flex; align-items: center; gap: 6px; }
+
+  /* The old token keeps working for a day after a rotation, so the pair sits
+    in this list together and both need to stay legible on a narrow screen. */
+  @media (max-width: 560px) {
+    .tok-buttons { flex-direction: column; align-items: stretch; }
+  }
 </style>

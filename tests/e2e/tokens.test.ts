@@ -633,3 +633,154 @@ describe('the tokens settings page reads', () => {
     expect(strangers.map(entry => entry.name)).toContain(created.repositoryName)
   })
 })
+
+describe('rotation', () => {
+  /** Call the action the way the route does, and read the JSON back. */
+  async function rotate(tokenId: number, userId: number): Promise<{ status: number, body: any }> {
+    const action: any = (await import('../../app/Actions/Tokens/RotateTokenAction')).default
+
+    const answer: any = await action.handle({
+      get: (field: string) => (field === 'id' ? tokenId : undefined),
+      // `currentUser` calls `request.user()`, which is what the auth
+      // middleware installs. Driving the action directly means supplying it the
+      // same way rather than reaching past `currentUser`, so these tests still
+      // go through the identity check they are asserting about.
+      user: async () => ({ id: userId }),
+      headers: { get: () => null },
+    })
+
+    return { status: Number(answer?.status ?? 200), body: await readJson(answer) }
+  }
+
+  async function readJson(answer: any): Promise<any> {
+    if (answer && typeof answer.json === 'function')
+      return await answer.json()
+
+    return answer?.body ?? answer
+  }
+
+  test('the replacement carries the same grants and the same reach', async () => {
+    if (!available)
+      return
+
+    const issued = await issueToken({ name: 'to rotate', level: 'write', repositoryIds: [created.repositoryId] })
+
+    const { body } = await rotate(issued.id, created.collaboratorId)
+
+    expect(body.replaces).toBe(issued.id)
+    expect(body.permissions).toEqual([{ scope: 'contents', level: 'write' }])
+    expect(body.repository_ids).toEqual([created.repositoryId])
+
+    // Copied from the row rather than restated by the caller. A rotation that
+    // took permissions from the request would be a way to widen a token with
+    // nobody reviewing it, and would silently drop a scope somebody forgot.
+    const replacement = await authenticateToken(body.token)
+    expect(replacement.ok).toBe(true)
+    if (!replacement.ok)
+      return
+
+    expect(replacement.token.grants).toEqual([{ scope: 'contents', level: 'write' }])
+    expect(replacement.token.reach.repositoryIds).toEqual([created.repositoryId])
+
+    await db.deleteFrom('access_token_repositories').where('access_token_id', 'in', [issued.id, body.id]).execute()
+    await db.deleteFrom('access_token_permissions').where('access_token_id', 'in', [issued.id, body.id]).execute()
+    await db.deleteFrom('access_tokens').where('id', 'in', [issued.id, body.id]).execute()
+  })
+
+  test('both tokens work during the overlap, which is the whole point', async () => {
+    if (!available)
+      return
+
+    const issued = await issueToken({ name: 'overlapping', level: 'write', repositoryIds: [created.repositoryId] })
+    const { body } = await rotate(issued.id, created.collaboratorId)
+
+    // The old one is not revoked. If it were, everything using it would be
+    // broken from this instant until the deploy lands - the gap this feature
+    // exists to remove.
+    const old = await authenticateToken(issued.token)
+    const fresh = await authenticateToken(body.token)
+
+    expect(old.ok).toBe(true)
+    expect(fresh.ok).toBe(true)
+    expect(body.overlap_ms).toBeGreaterThan(0)
+
+    await db.deleteFrom('access_token_repositories').where('access_token_id', 'in', [issued.id, body.id]).execute()
+    await db.deleteFrom('access_token_permissions').where('access_token_id', 'in', [issued.id, body.id]).execute()
+    await db.deleteFrom('access_tokens').where('id', 'in', [issued.id, body.id]).execute()
+  })
+
+  test('the old token stops on its own when the overlap ends', async () => {
+    if (!available)
+      return
+
+    const issued = await issueToken({ name: 'expiring soon', level: 'read', repositoryIds: [created.repositoryId] })
+    const { body } = await rotate(issued.id, created.collaboratorId)
+
+    // Asserted by asking the authenticator where the clock is, rather than by
+    // waiting a day: the overlap ends at a stored time, and this is that time.
+    const endsMs = Date.parse(body.previous_expires_at)
+
+    expect(await authenticateToken(issued.token, endsMs - 1_000)).toMatchObject({ ok: true })
+    expect(await authenticateToken(issued.token, endsMs + 1_000)).toEqual({ ok: false, reason: 'expired' })
+
+    // And the replacement is still going long after.
+    expect((await authenticateToken(body.token, endsMs + 1_000)).ok).toBe(true)
+
+    await db.deleteFrom('access_token_repositories').where('access_token_id', 'in', [issued.id, body.id]).execute()
+    await db.deleteFrom('access_token_permissions').where('access_token_id', 'in', [issued.id, body.id]).execute()
+    await db.deleteFrom('access_tokens').where('id', 'in', [issued.id, body.id]).execute()
+  })
+
+  test('a revoked token cannot be rotated back to life', async () => {
+    if (!available)
+      return
+
+    const issued = await issueToken({ name: 'revoked one', level: 'write', repositoryIds: [created.repositoryId] })
+
+    await db
+      .updateTable('access_tokens')
+      .set({ revoked_at: new Date().toISOString(), revoked_by_id: created.collaboratorId })
+      .where('id', '=', issued.id)
+      .execute()
+
+    const { status, body } = await rotate(issued.id, created.collaboratorId)
+
+    // Revocation is final or it is not revocation.
+    expect(status).toBe(409)
+    expect(body.error).toContain('revoked')
+
+    // And nothing was created on the way to refusing.
+    const count = await db
+      .selectFrom('access_tokens')
+      .select(['id'])
+      .where('user_id', '=', created.collaboratorId)
+      .where('name', '=', 'revoked one')
+      .execute()
+
+    expect(count.length).toBe(1)
+
+    await db.deleteFrom('access_token_repositories').where('access_token_id', '=', issued.id).execute()
+    await db.deleteFrom('access_token_permissions').where('access_token_id', '=', issued.id).execute()
+    await db.deleteFrom('access_tokens').where('id', '=', issued.id).execute()
+  })
+
+  test('somebody else\'s token is missing, not forbidden', async () => {
+    if (!available)
+      return
+
+    const issued = await issueToken({ name: 'not yours', level: 'read', repositoryIds: [created.repositoryId] })
+
+    const { status, body } = await rotate(issued.id, created.ownerId)
+
+    expect(status).toBe(404)
+    expect(body.error).toBe('No such token')
+
+    // The old token is untouched: a refused rotation must not have moved its
+    // expiry on the way out.
+    expect((await authenticateToken(issued.token)).ok).toBe(true)
+
+    await db.deleteFrom('access_token_repositories').where('access_token_id', '=', issued.id).execute()
+    await db.deleteFrom('access_token_permissions').where('access_token_id', '=', issued.id).execute()
+    await db.deleteFrom('access_tokens').where('id', '=', issued.id).execute()
+  })
+})

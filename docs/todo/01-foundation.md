@@ -208,7 +208,7 @@ So the rule for this codebase, and it is a rule rather than a preference:
 - [x] `app/Actions/Tokens/` and `GET`/`POST`/`DELETE /api/user/tokens`. Unknown scopes are dropped
       rather than refused, and the response says what was actually recorded, so a client built
       against a newer instance still gets a working token and can see what it got.
-- [ ] Rotation: issue a replacement with the same grants and a short overlap, so a token can be
+- [x] Rotation: issue a replacement with the same grants and a short overlap, so a token can be
       changed without a window where the old one is dead and the new one is not deployed
 
 ### Living with tokens

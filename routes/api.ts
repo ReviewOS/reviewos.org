@@ -66,6 +66,9 @@ route.delete('/user/tokens', 'Actions/Tokens/RevokeTokenAction').middleware('aut
 // And over POST, for the same reason the key removals are: `settings/tokens.stx`
 // revokes with a form, and a form cannot send DELETE.
 route.post('/user/tokens/revoke', 'Actions/Tokens/RevokeTokenAction').middleware('auth')
+// Replacing one without a gap. The old token keeps working for a day, so the
+// deploy that picks up the new one does not have to happen the same minute.
+route.post('/user/tokens/rotate', 'Actions/Tokens/RotateTokenAction').middleware('auth')
 
 // When notifications may interrupt, and what has been muted. Both are here
 // rather than under a repository because they are decisions about a person.
@@ -94,6 +97,17 @@ route.post('/user/notifications/push', 'Actions/Notification/PushSubscribeAction
 // way to tell them apart.
 route.post('/user/notifications/push/test', 'Actions/Notification/PushTestAction').middleware('auth')
 
+
+// Teams. `members:manage` rather than `settings:manage`, because a team is how
+// access is handed out - requiring the settings rung would mean an admin who
+// can add people cannot put them in a team, which is the same job in two halves.
+route.post('/orgs/teams', 'Actions/Team/ManageTeamAction').middleware('auth')
+route.post('/orgs/teams/members', 'Actions/Team/ManageTeamMemberAction').middleware('auth')
+
+// Granting a team a repository is an act on the *repository*, so it is
+// authorized there. Checking the organization instead would let an admin grant
+// access to a repository they cannot themselves administer.
+route.post('/repos/teams', 'Actions/Team/GrantRepositoryAction').middleware('auth')
 
 // Repositories. Settings is one endpoint for every field, because a rename
 // moves a directory and the row and the directory have to end up agreeing;
