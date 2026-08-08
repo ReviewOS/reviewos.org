@@ -2,7 +2,7 @@ import { dispatch } from '@stacksjs/events'
 import { Job } from '@stacksjs/queue'
 import { GitHubClient } from '../Actions/Mirror/github-client'
 import type { MappedIssue, MappedPull } from '../Actions/Mirror/github'
-import { buildThreads, mapIssue, mapPull, mapReviewComment, onlyIssues } from '../Actions/Mirror/github'
+import { buildThreads, mapIssue, mapLabel, mapPull, mapRepository, mapReviewComment, onlyIssues } from '../Actions/Mirror/github'
 import {
   issueRow,
   metadataBackoffSeconds,
@@ -90,6 +90,17 @@ export default new Job({
       issues: await writeIssues(issues, repositoryId),
       pulls: await writePulls(pulls, repositoryId),
       threads: await writeReviewThreads(commentsResult.items, repositoryId, linked),
+      /*
+       * The repository's own fields, and the labels and milestones under it.
+       *
+       * After the issues rather than before, because a label only matters once
+       * something wears it, and a failure here must not cost the import that
+       * did land. `client.repository()` answers null rather than throwing for
+       * the same reason: a mirror whose git data and issues arrived and whose
+       * description did not is a working mirror with a stale sentence.
+       */
+      repository: await writeRepositoryMetadata(client, owner, name, repositoryId),
+      labels: await writeLabels(client, owner, name, repositoryId),
     }
 
     // A sync is the largest single change to a repository's issue count there
@@ -320,6 +331,185 @@ async function writeReviewThreads(
         updated++
       }
     }
+  }
+
+  return { created, updated }
+}
+
+/**
+ * The repository's description, topics, visibility and default branch.
+ *
+ * **Only fields the mirror owns.** A repository that is a mirror is a copy, so
+ * upstream is authoritative for what it says about itself - but overwriting
+ * `name` would move its URL under readers who have it bookmarked, and
+ * overwriting `visibility` upward would publish a repository somebody
+ * deliberately made private here. Visibility follows upstream only in the safe
+ * direction: public upstream never forces public here.
+ *
+ * Returns what changed rather than a boolean, so a sync that adjusted nothing
+ * reads as such in the job's result instead of as a write that happened.
+ */
+async function writeRepositoryMetadata(
+  client: GitHubClient,
+  owner: string,
+  name: string,
+  repositoryId: number,
+): Promise<{ updated: string[] }> {
+  const mapped = mapRepository(await client.repository(owner, name))
+  if (!mapped)
+    return { updated: [] }
+
+  const current: any = await db
+    .selectFrom('repositories')
+    .select(['id', 'description', 'visibility', 'default_branch', 'is_archived'])
+    .where('id', '=', repositoryId)
+    .executeTakeFirst()
+
+  if (!current)
+    return { updated: [] }
+
+  const changes: Record<string, unknown> = {}
+
+  if (mapped.description !== String(current.description ?? ''))
+    changes.description = mapped.description
+
+  /*
+   * The default branch follows upstream, which is the point of this box: a
+   * repository that renamed `master` to `main` shows the wrong branch here
+   * forever otherwise, and every link into the code browser lands on a ref
+   * that no longer moves.
+   */
+  if (mapped.defaultBranch && mapped.defaultBranch !== String(current.default_branch ?? ''))
+    changes.default_branch = mapped.defaultBranch
+
+  if (mapped.archived !== Boolean(current.is_archived))
+    changes.is_archived = mapped.archived
+
+  /*
+   * Private upstream makes it private here. The reverse is deliberately not
+   * done: somebody may have mirrored a public repository into a private one on
+   * purpose, and a sync that publishes it because upstream is public would be
+   * a disclosure performed by a background job.
+   */
+  if (mapped.visibility === 'private' && String(current.visibility) !== 'private')
+    changes.visibility = 'private'
+
+  if (Object.keys(changes).length > 0) {
+    await db
+      .updateTable('repositories')
+      .set(changes)
+      .where('id', '=', repositoryId)
+      .execute()
+  }
+
+  await writeTopics(mapped.topics, repositoryId)
+
+  return { updated: Object.keys(changes) }
+}
+
+/**
+ * Topics, as the set upstream has.
+ *
+ * Replaced rather than merged, because topics are a set and a topic removed
+ * upstream should disappear here - the alternative is a mirror that only ever
+ * accumulates, and a repository that was once tagged `deprecated` wearing it
+ * forever.
+ */
+async function writeTopics(topics: string[], repositoryId: number): Promise<void> {
+  const existing: any[] = await db
+    .selectFrom('repo_topics')
+    .select(['id', 'topic'])
+    .where('repository_id', '=', repositoryId)
+    .execute()
+
+  const have = new Set(existing.map(row => String(row.topic)))
+  const want = new Set(topics)
+
+  const gone = existing.filter(row => !want.has(String(row.topic))).map(row => Number(row.id))
+  if (gone.length > 0)
+    await db.deleteFrom('repo_topics').where('id', 'in', gone).execute()
+
+  for (const topic of topics) {
+    if (have.has(topic))
+      continue
+
+    try {
+      await db.insertInto('repo_topics').values({ repository_id: repositoryId, topic }).execute()
+    }
+    catch {
+      // The unique index on (repository_id, topic) is the authority. A race
+      // with another sync of the same repository is not worth failing over.
+    }
+  }
+}
+
+/**
+ * Labels, matched by name.
+ *
+ * Name rather than upstream id, because a label's identity here *is* its name -
+ * that is what an issue references and what a reader filters by. Matching on id
+ * would create a second `bug` the first time somebody recreated it upstream.
+ *
+ * Nothing is deleted, for the reason `planByNumber` gives: a label removed
+ * upstream is usually still worn by issues here, and removing it would strip
+ * them to tidy up.
+ */
+async function writeLabels(
+  client: GitHubClient,
+  owner: string,
+  name: string,
+  repositoryId: number,
+): Promise<{ created: number, updated: number }> {
+  const result = await client.labels(owner, name)
+
+  const incoming = result.items
+    .map(item => mapLabel(item))
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+
+  if (incoming.length === 0)
+    return { created: 0, updated: 0 }
+
+  const existing: any[] = await db
+    .selectFrom('labels')
+    .select(['id', 'name', 'color', 'description'])
+    .where('repository_id', '=', repositoryId)
+    .execute()
+
+  const byName = new Map(existing.map(row => [String(row.name).toLowerCase(), row]))
+
+  let created = 0
+  let updated = 0
+
+  for (const label of incoming) {
+    const found = byName.get(label.name.toLowerCase())
+
+    if (!found) {
+      try {
+        await db.insertInto('labels').values({
+          repository_id: repositoryId,
+          name: label.name,
+          color: label.color,
+          description: label.description,
+        }).execute()
+        created++
+      }
+      catch {
+        // Raced with another sync. The row exists either way, which is the
+        // desired state.
+      }
+      continue
+    }
+
+    if (String(found.color) === label.color && String(found.description ?? '') === label.description)
+      continue
+
+    await db
+      .updateTable('labels')
+      .set({ color: label.color, description: label.description })
+      .where('id', '=', Number(found.id))
+      .execute()
+
+    updated++
   }
 
   return { created, updated }

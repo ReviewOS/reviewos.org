@@ -58,8 +58,21 @@ Git data is the easy half and is worth landing on its own:
       here
 - [x] `--prune` matters: without it a branch deleted on GitHub lingers here forever and the branch
       list slowly stops meaning anything
-- [ ] Default branch follows the remote's
-- [ ] Repository description, topics and visibility, refreshed on sync
+- [x] Default branch follows the remote's. A repository that renamed `master` to `main` upstream
+      showed the wrong branch here forever otherwise, and every link into the code browser landed on
+      a ref that no longer moves
+- [x] Repository description, topics and visibility, refreshed on sync
+
+  Only the fields the mirror owns. `name` is deliberately not one: overwriting it would move the
+  repository's URL under readers who have it bookmarked. **Visibility follows upstream in one
+  direction only** - private upstream makes it private here, and public upstream never forces public.
+  Somebody may have mirrored a public repository into a private one on purpose, and a sync that
+  published it would be a disclosure performed by a background job.
+
+  Topics are replaced rather than merged, because they are a set: the alternative is a mirror that
+  only accumulates, and a repository that was once tagged `deprecated` wearing it forever. Stars,
+  watchers and forks are deliberately not carried - they are their numbers about their copy, and
+  showing them here would make this instance look like it has an audience it does not have.
 
 The metadata is where the value is, because it is what the review screen operates on:
 
@@ -68,7 +81,10 @@ The metadata is where the value is, because it is what the review screen operate
 - [x] Review comments and review threads, anchored to the same file, line and side, so the diff
       renders them where they belong
 - [x] Issues, with the same number-preserving rule (issue comments still to come)
-- [ ] Labels and milestones
+- [x] Labels, matched by name rather than by upstream id - a label's identity here *is* its name,
+      which is what an issue references and what a reader filters by, and matching on id would
+      create a second `bug` the first time somebody recreated it upstream. Milestones are mapped and
+      tested; writing them waits on the issue-to-milestone link
 - [x] Authorship maps to a ReviewOS user when the GitHub identity is linked, and to a display-only
       attribution when it is not. It must never silently attribute someone's comment to the wrong
       account
@@ -89,8 +105,18 @@ there?
 
 ## Divergence
 
-- [ ] A mirrored repository refuses pushes to its mirrored refs by default. Accepting one creates a
+- [x] A mirrored repository refuses pushes to its mirrored refs by default. Accepting one creates a
       fork that neither side knows about
+
+  Refused at receive time, which is the only moment the pusher can be told: the next sync is a
+  `git fetch --prune` that rewrites these refs to match upstream, so a commit pushed here does not
+  join the repository - it disappears within the hour with nothing recording why. Losing somebody's
+  work quietly is worse than refusing it.
+
+  The rule lives inside `decidePush` rather than beside it, because a caller that has to remember to
+  ask two questions will one day ask one. Wiring it up found that the gate only called `decidePush`
+  when branch rules existed - and every mirror has none, since nobody writes protection rules for a
+  copy - so the check would have been skipped on exactly the repositories it is for.
 - [x] When the remote force-pushes, the mirror follows it, and the fact that history was rewritten
       is shown rather than absorbed silently
 - [ ] Detect and surface a mirror that has stopped tracking - remote deleted, credential revoked,

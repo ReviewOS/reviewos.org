@@ -209,20 +209,34 @@ route.post(GATE_ENDPOINT, async (request: any) => {
     .where('repository_id', '=', Number(repository.id))
     .execute()
 
-  if (rules.length > 0) {
-    const judged = []
-    for (const update of updates) {
-      // Only asked when a rule could refuse it, because it costs a git process
-      // per ref and most pushes are covered by no rule at all.
-      const forced = update.change === 'updated' && rulesFor(rules, update.name).length > 0
-        ? !(await isAncestor(path, update.before, update.after))
-        : false
+  /*
+   * Whether this repository is a mirror, which refuses pushes on its own.
+   *
+   * Read unconditionally, and `decidePush` is called unconditionally below.
+   * Both were previously behind `rules.length > 0`, and a mirror with no branch
+   * rules - which is every mirror, since nobody writes protection rules for a
+   * copy - would have skipped the check entirely and accepted a push that the
+   * next sync silently discards.
+   */
+  const mirror: any = await db
+    .selectFrom('repository_mirrors')
+    .select(['enabled', 'allow_local_pushes'])
+    .where('repository_id', '=', Number(repository.id))
+    .executeTakeFirst()
 
-      judged.push({ update, isForced: forced })
-    }
+  const judged = []
+  for (const update of updates) {
+    // Only asked when a rule could refuse it, because it costs a git process
+    // per ref and most pushes are covered by no rule at all. A mirror needs no
+    // such question: it refuses whether or not history was dropped.
+    const forced = update.change === 'updated' && rules.length > 0 && rulesFor(rules, update.name).length > 0
+      ? !(await isAncestor(path, update.before, update.after))
+      : false
 
-    refused.push(...decidePush(rules, judged).refused)
+    judged.push({ update, isForced: forced })
   }
+
+  refused.push(...decidePush(rules, judged, { mirror: mirror ?? null }).refused)
 
   if (refused.length > 0)
     return new Response(JSON.stringify({ ok: false, refused }), { headers: { 'Content-Type': 'application/json' } })

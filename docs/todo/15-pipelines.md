@@ -1,0 +1,683 @@
+# 15 - Pipelines
+
+[Phase 9](./09-checks-ci.md) builds the machinery: a check API, a durable workflow control plane, a
+runner contract, and a gate in front of ever executing somebody else's code. This phase is the
+product that machinery has to add up to.
+
+It has two competitors rather than one, and they are not competing for the same thing. Getting this
+distinction wrong is the most expensive mistake available in this phase, so it goes first.
+
+**GitHub Actions is the familiarity target.** It is what almost everyone arriving here already
+knows. They have `.github/workflows/ci.yml` files that work, muscle memory for `runs-on` and
+`needs:` and `uses: actions/checkout@v6`, and no appetite whatsoever for learning a second CI
+language in order to leave GitHub. What they want is Actions that they own: same syntax, same
+ecosystem, running on their hardware, with the reliability and the visibility that GitHub does not
+give them. **If somebody cannot copy a working `.github/workflows` directory across and watch it go
+green, nothing else in this phase matters.**
+
+**Buildkite is the capability target.** It is what Actions turns into when a company outgrows it,
+and it is the reference for the engine underneath: concurrency groups, dynamic step generation,
+runner fleet management, signed steps, test intelligence. Buildkite sells to people who already hit
+the ceiling Actions has.
+
+So: **Actions syntax on the front, Buildkite-grade engine underneath.** Those are compatible goals,
+not a compromise between two, and the rest of this file is written on that assumption. Where the two
+conflict, Actions compatibility wins on the authoring surface and Buildkite wins on what the engine
+can do once a workflow is parsed.
+
+## Why the engine is modelled on Buildkite
+
+Buildkite's model is hybrid: **they run the control plane, you run the compute.** Their agent is a
+small cross-platform binary that you install on your own machines; it polls their API for work, runs
+it on your hardware, inside your network, with your secrets, and reports back. Buildkite never sees
+the source code, never holds the secrets, and never executes anything.
+
+That is the shape phase 9 arrived at independently, from the opposite direction. Phase 9 splits the
+durable control plane from the execution plane and puts a security review in front of the second one
+because running untrusted repository code on instance-managed infrastructure is a separate project
+with its own threat model. Buildkite made that same split a business model.
+
+Which means the expensive, dangerous half of what Buildkite sells is the half we are deliberately
+not building yet, and the half that is genuinely hard to copy is a control plane, an API, and a set
+of screens.
+
+| | GitHub Actions | Buildkite | ReviewOS |
+|---|---|---|---|
+| Source | Closed, runner is open source | Closed, agent is open source | Open source, whole thing |
+| Control plane | Theirs. Enterprise Server is the only self-hosted path | Theirs, no self-hosted option | Yours, on your box |
+| Compute | Theirs, or your self-hosted runners | Yours, or their hosted agents | Yours, or a provider you choose |
+| Priced on | Compute minutes and seats | Seats, compute minutes, managed tests | Nothing |
+| Forge | It is the forge | None. Bring GitHub, GitLab, or Bitbucket | It is the forge |
+| Authoring | Workflow YAML, huge ecosystem | Their own YAML and plugins | Workflow YAML, their ecosystem |
+| Where a result lands | The pull request | A dashboard, plus a status on your forge | The review surface, natively |
+
+The last row is the one that matters and the only one a competitor cannot copy by changing a price.
+Buildkite has to report into somebody else's pull request through a status API, so its richest
+output, the annotations, the flaky test verdict, the artifact, the log, lives on a page in another
+tab. Actions has the pull request but spends it on a check summary and a link to a log viewer. Here
+it lands on the diff, on the line, in the review. Phase 9 already states the rule ("an annotation
+shown only in a log is a link nobody clicks"); this phase is where it gets paid off.
+
+## Vocabulary, decided once
+
+Good news first: **phase 9's chosen names are already Actions' names.** A workflow is a workflow, a
+run is a run, a job is a job, a step is a step, and the thing that executes them is a runner. Nobody
+coming from Actions has to relearn a noun. The table below exists because Buildkite calls all five
+of those something else, and the Buildkite word must not creep in as a synonym.
+
+| GitHub Actions | Buildkite | Here | Why |
+|---|---|---|---|
+| workflow | pipeline | **workflow** | Phase 9 named it, and it matches Actions. `Workflow` plus immutable `WorkflowVersion`. |
+| workflow run | build | **workflow run** | "Build" implies compilation. Most runs do not compile anything. |
+| job | job | **workflow job** | Same word everywhere. |
+| step | step | **workflow step** | Same word everywhere. |
+| runner | **agent** | **runner** | Actions wins. `agent` is taken: in [phase 12](./12-api-and-agents.md) an agent is a coding agent with a token, and that is the more valuable meaning. |
+| runner group | cluster | **runner pool** | A group of queues and the workflows allowed to use them. Neither name was good; this one says what it is. |
+| runner label | queue plus tags | **queue plus tags** | Buildkite splits these and the split is useful. `runs-on` maps onto it. |
+| matrix | build matrix | **matrix** | Same word. |
+| (no equivalent) | meta-data | **run metadata** | `meta-data` with a hyphen is a Buildkite spelling, not a word. |
+| (no equivalent) | test suite / run / execution | **test suite / test run / test execution** | Unchanged from Buildkite. |
+| annotation | annotation | **annotation** | Same word, and it is already a phase 9 model. |
+| check run | (reports as one) | **check run** | Phase 9 owns it. |
+
+- [ ] A test that greps routes, actions, models, and generated OpenAPI for `pipeline`, `build`,
+      `agent`, and `meta-data` used in the Buildkite sense, and fails. This is the same class of rule
+      as "never repo", and the same reason: a synonym that lands once is permanent.
+
+---
+
+## GitHub Actions compatibility
+
+This section is the front door, and it is load-bearing for adoption in a way nothing else here is.
+Phase 9 leaves the authoring contract open ("a constrained TypeScript API, a declarative format, or
+both. Document the portability and security costs before choosing ecosystem compatibility"). **This
+phase closes that box: the canonical format is Actions-compatible workflow YAML.** The reasoning is
+written down here so it does not get relitigated:
+
+- The ecosystem is the product. `actions/checkout`, `actions/setup-node`, `actions/cache` and a few
+  thousand others are what a workflow is actually made of. A format that cannot run them starts at
+  zero no matter how good it is.
+- The syntax is already an industry default. Gitea and Forgejo both chose compatibility over
+  invention, and it is the single reason a repository can move to either of them in an afternoon.
+- Everything Buildkite can express, this file has to express anyway. Almost all of it fits as
+  additive keys on a familiar shape rather than as a different language.
+- A typed authoring SDK stays on the list, further down, but it emits the same normalized graph. It
+  is a second front door, not the only one.
+
+### The bar
+
+- [ ] Copy `.github/workflows/` to `.reviewos/workflows/`, push, and a normal repository's CI runs
+      green with no edits. This is the acceptance test for the whole section, run against real
+      workflow files from real repositories rather than ones written to pass.
+- [ ] `.github/workflows/` is also read directly, so a mirrored repository ([phase 13](./13-mirroring.md))
+      runs its existing workflows without a commit that would have to be undone to go back
+- [ ] A conformance suite pinned to a corpus of widely used public workflows, run in CI, reporting
+      which constructs pass, which are unimplemented, and which are refused on purpose. The report is
+      published. Silence about a gap is how Gitea's ignored `concurrency:` surprised people.
+- [ ] Where behavior deliberately differs from GitHub, it is documented per key with the reason, and
+      the parser emits a warning naming the difference rather than quietly doing something else
+
+### Workflow syntax
+
+- [ ] `on:` triggers: `push`, `pull_request`, `pull_request_target`, `issues`, `issue_comment`,
+      `release`, `schedule`, `workflow_dispatch`, `workflow_call`, `workflow_run`, `repository_dispatch`,
+      with `branches`, `branches-ignore`, `tags`, `paths`, `paths-ignore`, and `types` filters
+- [ ] `jobs:` with `needs:`, `if:`, `strategy.matrix` including `include`, `exclude`, `fail-fast`,
+      and `max-parallel`, plus `continue-on-error`, `timeout-minutes`, and `outputs`
+- [ ] `runs-on:`, accepting a single label, a list of labels, and a `group`/`labels` object, mapped
+      onto queues and runner tags. Complex `runs-on` expressions are in scope; Gitea's not supporting
+      them is a known migration blocker.
+- [ ] `steps:` with `run`, `uses`, `with`, `env`, `id`, `if`, `name`, `shell`, `working-directory`,
+      and `continue-on-error`
+- [ ] `container:` and `services:` on a job, with `image`, `env`, `ports`, `volumes`, `options`, and
+      health-checked service startup before the first step
+- [ ] `concurrency:` with `group` and `cancel-in-progress`, at workflow and job level. Actions has
+      this and Gitea ignores it; the Buildkite concurrency engine in this file implements it properly
+      rather than partially.
+- [ ] `permissions:` on the workflow and per job, mapped onto the fine-grained token permissions from
+      [phase 1](./01-foundation.md#access-tokens), defaulting to read-only
+- [ ] `defaults:` including `run.shell` and `run.working-directory`
+- [ ] `env:` at workflow, job, and step level with Actions' precedence order
+- [ ] `secrets:` on `workflow_call`, including `inherit`
+- [ ] `workflow_dispatch` inputs of every type Actions supports (string, boolean, choice, environment)
+      and the interface form generated from them
+- [ ] `environment:` on a job, wired to phase 9's deployment environments and their protection rules,
+      including required reviewers and wait timers
+- [ ] Reusable workflows via `uses:` at job level, local and cross-repository, with inputs, secrets,
+      and outputs, and the called workflow's jobs shown in the run rather than collapsed to one box
+- [ ] Composite actions, JavaScript actions, and Docker actions, all three, because a repository's
+      dependency tree contains all three whether or not its own workflows do
+
+### Expressions and contexts
+
+- [ ] `${{ }}` expression evaluation: operators, precedence, and the function set (`contains`,
+      `startsWith`, `endsWith`, `format`, `join`, `toJSON`, `fromJSON`, `hashFiles`)
+- [ ] Status functions `success()`, `always()`, `cancelled()`, `failure()`, with Actions' rule that
+      an `if:` without one implies `success()`
+- [ ] Contexts: `github`, `env`, `vars`, `job`, `jobs`, `steps`, `runner`, `secrets`, `strategy`,
+      `matrix`, `needs`, `inputs`. A `reviewos` context is the canonical name and `github` is an
+      alias, which is the approach Forgejo took and it works.
+- [ ] The expression evaluator is sandboxed and total: no host access, no unbounded evaluation, and a
+      documented failure mode for an expression that cannot be resolved
+- [ ] Tests: an expression suite ported from Actions' own documented examples, including the ones
+      that are surprising
+
+### The runner protocol Actions expects
+
+This is where compatibility is actually won or lost. A workflow file that parses but whose steps
+cannot talk back to the runner is a workflow that fails on its second line.
+
+- [ ] Workflow commands on stdout: `::error::`, `::warning::`, `::notice::` with `file`, `line`,
+      `col`, and `endLine`, plus `::group::`, `::endgroup::`, `::debug::`, `::add-mask::`,
+      `::add-matcher::`, and `::stop-commands::`
+- [ ] `::error file=...,line=...::` becomes a check annotation, which becomes a comment on the diff
+      line. This is the sentence where the Actions ecosystem and this project's whole premise meet,
+      and every linter, compiler wrapper and test reporter already emits it.
+- [ ] File-based protocol: `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_STATE`, and
+      `GITHUB_STEP_SUMMARY`, with the multiline delimiter form, under both `GITHUB_*` and
+      `REVIEWOS_*` names
+- [ ] Step summaries render as markdown on the run and, where they belong to a check, on the pull
+      request
+- [ ] The default environment variable set: `GITHUB_REPOSITORY`, `GITHUB_SHA`, `GITHUB_REF`,
+      `GITHUB_REF_NAME`, `GITHUB_HEAD_REF`, `GITHUB_BASE_REF`, `GITHUB_WORKSPACE`, `GITHUB_ACTOR`,
+      `GITHUB_RUN_ID`, `GITHUB_RUN_NUMBER`, `GITHUB_RUN_ATTEMPT`, `GITHUB_EVENT_NAME`,
+      `GITHUB_EVENT_PATH`, `GITHUB_SERVER_URL`, `GITHUB_API_URL`, and the rest, each aliased
+- [ ] `GITHUB_EVENT_PATH` contains an event payload matching the shape of the webhook payloads from
+      [phase 5](./05-notifications-webhooks.md), because half the ecosystem parses it
+- [ ] An automatic per-job token, scoped to the run and the repository, expiring with the job,
+      honouring the `permissions:` block, and never granted to a fork run by default. This is
+      `GITHUB_TOKEN` and the ecosystem assumes it exists.
+- [ ] The API endpoints that automatic token is used against by common actions, at
+      `GITHUB_API_URL`, in the same shapes, so `actions/github-script` and friends work
+- [ ] Secret masking in logs, including values registered at runtime with `::add-mask::`
+
+### Resolving `uses:`
+
+- [ ] Local actions: `uses: ./.reviewos/actions/thing`
+- [ ] Container actions: `uses: docker://registry/image:tag`
+- [ ] Remote actions by owner and name with a configurable default host, plus fully qualified URLs,
+      so an instance can point at its own mirror, a public mirror, or GitHub
+- [ ] Ref resolution by tag, branch, and commit sha, with sha pinning enforceable by policy
+- [ ] An action cache on the instance, so a fleet of runners does not each fetch the same action, and
+      so an instance can keep working when the upstream host does not
+- [ ] Mirroring of the actions a repository actually uses into the instance ([phase 13](./13-mirroring.md)
+      already mirrors repositories), so an air-gapped install is a supported configuration
+- [ ] An allowlist policy at instance and owner level over which action sources may be used, since
+      `uses:` is arbitrary code selection by anyone who can edit a workflow file
+- [ ] Tests: every resolution form, a pinned sha that does not match, an action outside the
+      allowlist, an unreachable upstream with a warm cache, and a local action outside the repository
+
+### First run
+
+Actions users do not provision anything. They push a file and it runs. That expectation does not
+survive contact with a self-hosted forge unless we make it.
+
+- [ ] A single documented command brings up a runner and registers it with the instance
+- [ ] A default queue exists on a new instance, so `runs-on: ubuntu-latest` resolves to something
+      without configuration
+- [ ] Optionally, the instance ships with one local runner enabled for single-tenant installs, off by
+      default for multi-tenant ones, with the tradeoff stated plainly rather than buried
+- [ ] The interface says clearly when a run is queued because no runner matches, and which labels
+      would have matched, instead of a spinner
+- [ ] A repository with no workflows offers starter templates that are real Actions workflows
+
+### Where the compatible forges stop, and we do not
+
+Gitea and Forgejo both chose Actions compatibility and both proved it works. The places they fall
+short are documented, and they are precisely the Buildkite capabilities in the rest of this file,
+which is the whole argument for this phase existing:
+
+| They do not have | We do, and it is in this file |
+|---|---|
+| `concurrency:` groups (ignored by Gitea) | The concurrency engine, ordered and eager |
+| Scheduled workflows (ignored by Gitea) | Schedules with branch, message, and environment |
+| Complex `runs-on` expressions | Queue plus tag selection, with a visible reason when nothing matches |
+| Environment protection rules | Phase 9 deployments, reviewers, wait timers, and scoped secrets |
+| Test intelligence of any kind | Flaky detection, quarantine, splitting, ownership |
+| Fleet management beyond a registered runner | Pools, queues, autoscaler contract, drain, lifecycle |
+| Signed step dispatch | Signed workflows, enforceable per pool |
+| Annotations on the diff | The reason this project exists |
+
+- [ ] Each row above has a test proving the difference, because a comparison table in marketing that
+      no test defends becomes false without anybody noticing
+
+---
+
+## The engine: the step model underneath
+
+Everything above describes what an author writes. This describes what the control plane can do once
+it has parsed it. The Actions surface normalizes into this model, and the Buildkite capabilities here
+are reachable from additive keys on Actions syntax rather than from a second language.
+
+### Step kinds
+
+Actions has one step kind and expresses the rest through job structure. Buildkite has six, and the
+extra five are genuinely useful, so the engine carries all of them. In Actions syntax the last four
+appear as job-level keys rather than as new step types, which is the pattern for everything in this
+phase: **familiar surface, larger engine.**
+
+- [ ] **Command step.** One or more shell commands, or a `uses:` action. The only kind that consumes
+      a runner, and the only one an Actions workflow writes directly.
+- [ ] **Wait step.** A barrier. Everything before it must finish before anything after it starts,
+      with a variant that continues on failure. `needs:` covers most of this; an explicit barrier
+      covers the rest.
+- [ ] **Block step.** Pauses the run until a human unblocks it. The approval gate, and the primitive
+      phase 9's "waiting steps" already describes. Reached from Actions syntax through
+      `environment:` protection rules.
+- [ ] **Input step.** Pauses and collects typed fields (text, select, boolean) from the person
+      unblocking it, which become available to later steps.
+- [ ] **Trigger step.** Starts a run of another workflow, in this repository or another, passing
+      commit, branch, environment, and metadata. Async by default, awaitable on request. Actions
+      reaches this through `workflow_call` and `repository_dispatch`.
+- [ ] **Group step.** Nests steps under one label so a run with two hundred jobs reads as eight
+      things. Groups carry their own dependency edges and rollup state.
+
+### Step attributes
+
+Every one of these has to survive normalization into rows (phase 9: no workflow-sized JSON blob) and
+has to be expressible in the validator that runs before a definition ever reaches a runner. The names
+below are the internal model's; the Actions key that maps onto each is noted where it is not obvious.
+
+- [ ] `key`, `label`, and a stable identity that survives re-uploads within a run
+- [ ] `depends_on`, accepting several keys, plus `allow_dependency_failure` so a step can run after a
+      failure on purpose
+- [ ] `if`, a conditional expression over a documented, sandboxed variable set: branch, tag, commit
+      message, trigger source, changed paths, prior step outcomes, and declared inputs. No arbitrary
+      reads of control-plane state.
+- [ ] `branches`, including negation, as the shorthand for the most common `if`
+- [ ] `skip`, boolean or a reason string that shows on the run
+- [ ] `soft_fail`, boolean or a list of exit statuses that report failure without failing the run
+- [ ] `retry`, automatic and manual. Automatic retries key on exit status, a lost runner, and a
+      timeout, with limits and constant, linear, or exponential backoff. Manual retry can be
+      permitted, forbidden, or forbidden with a reason.
+- [ ] `timeout_in_minutes`, per step, with a workflow default and an instance ceiling
+- [ ] `priority`, so a deploy jumps a queue full of pull request checks
+- [ ] `parallelism`, expanding one step into N identical jobs that differ only by index and total
+- [ ] `matrix`, expanding across named dimensions, with `adjustments` that add a single combination,
+      skip one, or soft-fail one, because the useful matrix is never the full cross product
+- [ ] `concurrency` and `concurrency_group`, a named limit shared across runs and workflows, which is
+      how a shared staging environment or a deploy lock gets serialized
+- [ ] `concurrency_method`: ordered (a FIFO queue) or eager (whoever is ready). The difference is
+      whether a deploy queue preserves commit order.
+- [ ] `agents`, a `key=value` tag query selecting which runners may take the job
+- [ ] `env`, per step, over a workflow-level `env`, over runner environment
+- [ ] `secrets`, naming secrets to inject rather than embedding them, resolved at dispatch
+- [ ] `artifact_paths`, globs uploaded automatically when the step ends, pass or fail
+- [ ] `plugins`, the extension point, with its own section below
+- [ ] `cancel_on_build_failing`, so long jobs stop when a sibling has already sunk the run
+- [ ] `checkout` options: submodules, clone depth, LFS, sparse paths, clean behavior, and skipping
+      checkout entirely
+- [ ] `if_changed`, path-glob gating evaluated against the run's diff. The monorepository primitive,
+      and the one that decides whether a big repository is usable here at all.
+- [ ] `notify`, per step, distinct from workflow-level notification
+- [ ] Tests: every attribute above round-trips definition to normalized rows to execution, and the
+      validator rejects each one's malformed forms with a file location and a fix
+
+Which of those an Actions author already has a word for, so the engine does not grow a second
+spelling for a thing people can already say:
+
+| Internal | Actions key | Note |
+|---|---|---|
+| `depends_on` | `needs:` | Same semantics. `allow_dependency_failure` is `if: always()`. |
+| `if` | `if:` | Same expression language as the section above. |
+| `soft_fail` | `continue-on-error:` | Actions has boolean only; the exit-status list form is additive. |
+| `timeout` | `timeout-minutes:` | Same. |
+| `parallelism` | `strategy.matrix` | Actions expresses N identical jobs as a one-dimensional matrix. |
+| `matrix` | `strategy.matrix` | `adjustments` are `include:` and `exclude:`. |
+| `agents` | `runs-on:` | Labels resolve to a queue plus tag query. |
+| `artifact_paths` | `actions/upload-artifact` | Both work. The declarative form uploads on failure too, which the action cannot. |
+| `env`, `secrets` | `env:`, `secrets:` | Same. |
+| `checkout` options | `actions/checkout` inputs | Both work. |
+| `if_changed` | `on.push.paths` | Actions filters the whole workflow; per-step filtering is additive and is the monorepository primitive. |
+| `concurrency_group` | `concurrency.group` | Same. `concurrency_method` is additive. |
+| `priority` | (none) | Additive. |
+| `plugins` | `uses:` | Different mechanisms, overlapping purpose. See the plugins section. |
+
+- [ ] Every additive key above is documented as an extension, in one place, with what happens when a
+      workflow using it is taken back to GitHub. An extension nobody can find, or that silently
+      breaks portability, is worse than not having it.
+
+### Dynamic definitions
+
+Buildkite's most important feature and its largest security surface. A job can generate steps and
+upload them into the run it is already part of, so a workflow can decide what to do after looking at
+the repository. Actions has only a shadow of this: a matrix built from `fromJSON` of a prior job's
+output, which covers the common case and nothing else.
+
+- [ ] A runner-side upload command that appends steps to the current run, validated by the control
+      plane before any of them become eligible
+- [ ] Uploaded steps are attributed to the job that uploaded them, and the run records the full
+      resulting graph rather than only what was declared at the start
+- [ ] An uploaded step cannot raise its own trust level: it cannot grant itself secrets, target a
+      queue the parent could not, or turn a fork run into a trusted one
+- [ ] An upload budget: maximum steps, maximum depth, maximum total uploads per run, so a loop is
+      bounded by the control plane rather than by a quota nobody set
+- [ ] Signature verification. When signed workflows are enforced (below), an uploaded step must be
+      signed by a key the runner pool trusts, or refused.
+- [ ] Tests: uploading a step that targets a forbidden queue, an upload loop, an upload from a fork,
+      an unsigned upload under enforcement, and an upload after the run reached a terminal state
+
+### Definition management
+
+- [ ] Workflow templates, owner-managed, so an organization can require a starting point. This is
+      phase 9's "owner-managed reusable workflows" from the governance side rather than the reuse
+      side.
+- [ ] Schedules in cron syntax, per workflow, each with its own branch, commit, message, and
+      environment, plus enable and disable without deleting
+- [ ] Skip intermediate runs and cancel intermediate runs, per workflow: when three commits land in a
+      minute on the same branch, do not run all three
+- [ ] Merge queue support: a run against the prospective merge result rather than the branch tip, so
+      a queue of pull requests is tested in the order it will land
+- [ ] A workflow can live at a path other than the repository root, and more than one can live in one
+      repository
+- [ ] Environment variables and settings at instance, owner, repository, and workflow level, with a
+      documented precedence order and a screen that shows where a value came from
+- [ ] Tests: schedule fires once per window, intermediate cancellation leaves exactly one run, a
+      template change does not retroactively alter a finished run
+
+---
+
+## The runner fleet
+
+Buildkite's agent is the part of it that is open source, and the part people trust it for. Phase 9
+defines the protocol; this is the fleet management around it.
+
+- [ ] Runner pools: a named group of queues plus the workflows permitted to use them. A workflow in
+      one pool cannot dispatch to, read artifacts from, or trigger a workflow in another unless a
+      rule says so.
+- [ ] Queues within a pool, named for infrastructure rather than for teams, with pause and resume so
+      an operator can drain one without deleting it
+- [ ] Registration tokens scoped to one pool, rotatable, revocable, with a first-use and last-use
+      record. Registration credentials never enter a job environment (phase 9 rule).
+- [ ] Runner tags, set at registration and by a startup hook, queried by a step's `agents` selector.
+      Unmatched selectors leave a job queued with a visible reason rather than silently forever.
+- [ ] Runner lifecycle visible in the interface: connecting, idle, accepted, running, stopping,
+      stopped, lost, with the job it is on and the time in state
+- [ ] Ephemeral runners: disconnect after one job, or after an idle timeout, which is what makes an
+      autoscaling group safe
+- [ ] Graceful stop that lets the current job finish, and a forced stop that does not, both from the
+      API
+- [ ] A metrics endpoint reporting queue depth, waiting jobs per queue, and runner counts by state,
+      in a shape an autoscaler can poll. This is the whole interface an autoscaler needs.
+- [ ] Reference autoscaler for at least one substrate, plus documentation of the polling contract for
+      the ones we do not write
+- [ ] Pool maintainers: a role that can manage queues, tokens, and workflow assignment without being
+      an instance administrator
+- [ ] Tests: a job with an impossible selector, a runner lost mid-job, a drained queue, a revoked
+      token mid-job, and a runner claiming work from a pool it is not registered to
+
+### Runner hooks
+
+Buildkite's hook set is the extension point that makes the agent adaptable without a plugin, and the
+list is worth copying wholesale because each entry exists to solve a problem people actually have.
+
+- [ ] Fleet lifecycle: `runner-startup`, `runner-shutdown`
+- [ ] Job lifecycle, in order: `pre-bootstrap`, `environment`, `pre-checkout`, `checkout`,
+      `post-checkout`, `pre-command`, `command`, `post-command`, `pre-artifact`, `post-artifact`,
+      `pre-exit`
+- [ ] Three scopes with a documented precedence: runner hooks (on the machine, outside repository
+      control), repository hooks (in the checkout), and plugin hooks
+- [ ] `pre-bootstrap` can refuse a job before any repository code is fetched. This is how an operator
+      keeps a trusted runner from running an arbitrary workflow, and it must be runner-scoped only.
+- [ ] `checkout` and `command` are overridable, so a fleet can substitute its own clone strategy or
+      execution wrapper
+- [ ] Tests: a refusing `pre-bootstrap`, a repository hook attempting to override a runner hook, hook
+      failure at each stage, and the environment a hook can and cannot see
+
+### Plugins
+
+**Actions is the primary extension mechanism.** `uses:` is what an author reaches for, it is what the
+ecosystem is made of, and nothing here replaces it. A plugin is the second mechanism, for the thing
+an action structurally cannot do: hook into the job around the command, before checkout or after
+artifact upload, on every step in a pool without being written into each workflow. Buildkite's
+plugins and Actions' actions are not competitors; they sit at different points in the job lifecycle.
+
+- [ ] The distinction above is documented on one page with a decision rule, or every workflow author
+      will pick by coin flip and half of them will be wrong
+- [ ] A plugin is a versioned, self-contained repository providing hooks and a declared parameter
+      schema, referenced by a step or attached to a pool
+- [ ] Parameters are validated against the plugin's schema before dispatch, not by the plugin at
+      runtime
+- [ ] Pinning by commit or tag, and an instance policy that can require pinning
+- [ ] An allowlist policy at instance, owner, or pool level, because an unrestricted plugin reference
+      is arbitrary code selection by whoever can edit a workflow file
+- [ ] Vendored plugins: a plugin resolved from the repository itself rather than fetched
+- [ ] A plugin can be marked as requiring elevated capability (docker socket, host network), and a
+      pool can refuse those
+- [ ] Documented authoring path, a local test harness, and a small first-party set that covers the
+      cases every fleet needs
+- [ ] Tests: an unpinned plugin under a pinning policy, a schema violation, a plugin outside the
+      allowlist, and a plugin hook attempting an escalation the pool forbids
+
+---
+
+## What a run looks like
+
+The screens. Buildkite's advantage here is a decade of small decisions, and most of the list is small
+decisions.
+
+- [ ] Log output streamed live, with collapsible groups the job itself opens and closes, per-line
+      timestamps, ANSI colour, links, and images
+- [ ] Log search that works during streaming and on a finished run, with deep links to a line
+- [ ] Log redaction applied before persistence, driven by the secrets the job was given, with a
+      visible marker where something was removed rather than a silent gap
+- [ ] Log size ceiling with a documented truncation behavior, and backpressure that slows a runner
+      rather than dropping the middle of the log
+- [ ] Annotations: markdown, with a level (success, info, warning, error), a context key so a rerun
+      replaces rather than appends, and append semantics when asked for
+- [ ] **Annotations render on the diff**, on the file and line they name, on both sides. This is the
+      row in the table at the top of this file, and it is the reason to build any of this.
+- [ ] Artifacts: uploaded by glob, content-addressed, downloadable individually and as a set,
+      searchable within a run, with retention policy and expiry visible before it happens
+- [ ] Artifacts are downloadable by later steps in the same run by name, which is the only reason
+      most artifacts exist
+- [ ] Run metadata: string key/value pairs any job in a run can read or write, with
+      compare-and-set so two parallel jobs cannot lose a write
+- [ ] Run and job state machines exposed exactly as phase 9 defines them, with the interface, API,
+      and webhooks reading the same states rather than three vocabularies
+- [ ] A dependency graph view: what ran, what is running, what is blocked and on what, and the
+      critical path through the run
+- [ ] Timing on every job: queue time, run time, and the difference between them, because a slow run
+      is usually a queue problem and the graph should say so
+- [ ] Rerun a whole run, rerun failed jobs only, and rerun one job, each recording that it is an
+      attempt rather than overwriting the first
+- [ ] Cancel a run and cancel a job, cooperative first and forced after a deadline (phase 9)
+- [ ] Unblock a block step from the interface, the API, and the CLI, recording who did it, and
+      collecting input fields where declared
+- [ ] A run's provenance is always visible: which workflow version, which commit, which trigger,
+      which actor or token, which runner, and which pool
+- [ ] Keyboard navigation through jobs and log sections, and a run page that is readable with no
+      JavaScript for the finished case, in line with the phase 14 rule
+- [ ] Tests: a run page rendered server-side for a finished run, redaction of a secret that appears
+      in a log line split across two writes, an annotation replaced by context key, metadata written
+      by two parallel jobs, and artifact download authorization from a different repository
+
+---
+
+## Security
+
+Phase 9's execution-plane gate covers sandboxing. This section is the part that applies even when
+every runner is somebody else's machine.
+
+- [ ] **Signed workflows.** The control plane signs each step it dispatches, over the command,
+      environment, plugins, and matrix values; the runner verifies before executing. Without this,
+      anyone who can write to the control plane's database can execute arbitrary code on every runner
+      in the fleet.
+- [ ] Verification is enforceable per pool, and a pool can be set to refuse any unsigned step
+- [ ] Key management: generation, rotation, and multiple active verification keys during a rotation
+- [ ] **OIDC.** A job can request a short-lived token, scoped to the run, repository, workflow, and
+      branch, to authenticate to an external service without a stored credential. This is how a
+      deploy stops needing a long-lived cloud key.
+- [ ] OIDC claims are documented and stable, so a cloud trust policy written against them keeps
+      working
+- [ ] Secrets stored encrypted, scoped to a pool, repository, or environment, injected only into the
+      steps that name them, never listed in plaintext after creation
+- [ ] The recommended path stays an external secret store, with first-party support for fetching from
+      one, because the best secret is one we never held
+- [ ] Fork policy: a run triggered from a fork gets no secrets and no OIDC by default, cannot supply
+      the workflow definition it runs under, and requires approval to run at all. Phase 9 states this
+      rule; this is where it is enforced in the dispatch path.
+- [ ] Fine-grained token permissions for reading runs, dispatching runs, managing workflows,
+      administering pools, and reading logs, each separable, per the [phase 1](./01-foundation.md)
+      rule that there is no fallback token type
+- [ ] Every state-changing operation is in the audit log from [phase 11](./11-self-hosting-deploy.md),
+      attributable to a token as well as a person
+- [ ] Tests: a forged step signature, a rotated key mid-run, an OIDC token used against another
+      repository's trust policy, a fork run attempting secret access, and a token with dispatch but
+      not admin attempting each admin route
+
+---
+
+## Test intelligence
+
+Buildkite Test Engine is a separate product and, for a lot of their customers, the reason they are
+there at all. It ingests test results from any CI, not just their own, which is the shape to copy: it
+should work for a repository that has not moved its CI here yet.
+
+- [ ] `TestSuite`, `TestRun`, `TestExecution`, and `ManagedTest` models. A test is identified by
+      suite, scope, and name; scope is what separates two tests with the same name.
+- [ ] Ingest JUnit XML and a documented JSON format over an authenticated endpoint, from any CI,
+      with the run tied to a commit and optionally a pull request
+- [ ] First-party collectors for the frameworks people actually use, starting with the ones this
+      repository could use on itself, and a documented protocol so the rest are writable by anyone
+- [ ] Per-execution: result, duration, retries, failure message, stack, and the job it ran in
+- [ ] Tags as dimensions on an execution, for filtering and aggregation
+- [ ] Ownership: map a test to a team or a path, so a failure has an addressee
+- [ ] **Flaky detection**: a test that passed and failed on the same commit, or that changes verdict
+      across reruns, over a configurable window
+- [ ] Test states: enabled, muted, skipped. A muted test still runs and still reports, but does not
+      fail the run. A skipped test does not run. The difference matters and most tools conflate it.
+- [ ] Quarantine is auditable and expires: who muted it, when, why, and a review date, so quarantine
+      does not become a graveyard
+- [ ] Monitors and actions: a rule that watches a test over time, raises an alarm when a condition
+      holds, recovers when it stops, and fires an action once per transition rather than per run
+- [ ] Reliability and duration trends per test, per suite, and per branch, with the slowest and least
+      reliable surfaced without a query
+- [ ] **Test splitting**: a client that distributes a suite across parallel jobs using historical
+      timing, so `parallelism` stops meaning "split alphabetically and hope"
+- [ ] Splitting degrades honestly with no history: deterministic partition, and a note saying it had
+      nothing to work with
+- [ ] Test results appear on the pull request, and a newly flaky test introduced by a branch is
+      distinguishable from one that was already flaky on the base
+- [ ] Retention policy on execution data, configurable, with the storage cost stated
+- [ ] REST API, webhooks, and generated OpenAPI for suites, runs, executions, and states
+- [ ] Tests: ingestion of a malformed report, the same run reported twice, a test renamed between
+      runs, flake detection across a rerun, muting that does not hide the result, and splitting with
+      partial history
+
+---
+
+## Delivery
+
+Phase 9 owns deployments. Two Buildkite capabilities sit next to them and belong here.
+
+- [ ] Preview environments linked on the pull request, expiring on merge or close, using phase 9's
+      deployment model rather than a second one
+- [ ] macOS runners as a first-class case in documentation and pool configuration: they are how
+      mobile delivery works and they are the case every CI product handles worst
+- [ ] Signing material and store credentials as environment-scoped secrets released only to the
+      publish step, never to build or test steps
+- [ ] Tests: a preview expiring, a build step attempting to read a publish secret
+
+---
+
+## Insight
+
+Buildkite sells reporting on the fleet, and it is the thing an operator opens on a Monday.
+
+- [ ] Per workflow and per repository: run count, success rate, duration percentiles including p95,
+      failure by step, and retry rate, over a selectable window
+- [ ] Queue wait time by queue and by pool, which is the number that tells an operator to add runners
+- [ ] Runner utilization and idle time, which is the number that tells them to remove some
+- [ ] Cost proxies: total run minutes by repository, owner, and queue. We do not bill, but somebody
+      self-hosting this pays for the machines and should be able to see where they went.
+- [ ] Flaky test impact: runs failed by a test that was already known flaky, which is the argument
+      for fixing it
+- [ ] The whole surface is available through the API in the same shape as the screens
+
+---
+
+## Clients
+
+Buildkite's surface is reachable from a terminal, from Terraform, and from a program, and phase 12
+already commits us to the principle. These are the pipeline-specific pieces.
+
+- [ ] CLI: validate a workflow, dispatch one, follow logs, inspect a run, unblock a step, cancel,
+      and retry from a step, as a client of the public API only ([phase 12](./12-api-and-agents.md))
+- [ ] Workflows as code: a typed SDK, in the shape Cloudflare's `@cloudflare/ci` demonstrates, where
+      the workflow is a program and ordinary control flow expresses the graph. It runs as an
+      orchestrator job under the durable-execution rules in
+      [phase 9](./09-checks-ci.md), never in the control plane, and it produces the same normalized
+      rows as a YAML workflow. This is the second front door, not a second product.
+- [ ] The SDK's determinism rules are enforced by its own types and a lint rule where they can be,
+      and by the replay check where they cannot. An author should learn about a forbidden clock read
+      from an editor, not from a diverged run three weeks later.
+- [ ] Terraform provider covering workflows, schedules, pools, queues, tokens, and secrets, because
+      a fleet that cannot be declared is a fleet that drifts
+- [ ] MCP surface for runs, logs, and test results, so a coding agent can read a failure without
+      scraping a page
+- [ ] Webhook events for every run, job, and test transition, redelivered through
+      [phase 5](./05-notifications-webhooks.md)
+- [ ] Notifications on run outcome, per workflow and per step, to the channels phase 5 already
+      delivers, with a rule set rather than an on/off switch
+- [ ] A status badge endpoint, cached, for a workflow on a branch
+
+---
+
+## Arriving from somewhere else
+
+A migration path is a feature. There are two of them and they are not the same shape.
+
+**From GitHub Actions there is no migration**, and that is the point of the compatibility section:
+the workflow files are the workflow files. What is still needed is everything around them.
+
+- [ ] [Phase 8](./08-migration.md)'s importer carries workflow files across untouched, and reports
+      which constructs the conformance suite says will not run yet, before the move rather than after
+- [ ] Repository and organization secrets, variables, and environments import as part of the same
+      operation, since a workflow without them is green in the file and red in the run
+- [ ] Self-hosted runner labels are preserved, so `runs-on: [self-hosted, gpu]` keeps meaning what it
+      meant
+- [ ] A per-repository report after import: workflows found, constructs unsupported, actions
+      referenced that the instance cannot resolve, and what to do about each
+- [ ] Tests: import a real repository's workflow directory and assert the run graph matches what
+      Actions produced for the same commit
+
+**From Buildkite it is a translation**, and it is cheap because their format is public.
+
+- [ ] An importer that reads a `pipeline.yml` and emits workflow YAML, reporting per step and per
+      attribute what translated, what translated with a change in meaning, and what has no
+      equivalent. The report is the deliverable; a silent partial translation is worse than a refusal.
+- [ ] A documented mapping table from their vocabulary to ours, which is the table at the top of this
+      file plus the attribute list
+- [ ] A stated position on plugin compatibility: their plugin interface is hook scripts plus a
+      parameter schema, which is close enough that compatibility is a decision rather than a
+      rewrite. Decide, write it down, and do not leave it implied.
+- [ ] Test result import so history survives the move, since the flaky verdict is the part that took
+      months to accumulate
+
+---
+
+## Not copying
+
+Named so they stop being re-proposed, in the manner of the index's deferred list.
+
+- **Seat pricing, managed test pricing, and compute minutes.** There is no meter. Several Buildkite
+  features exist to make a meter legible and have no purpose here.
+- **A hosted execution plane, for now.** Unchanged from [phase 9](./09-checks-ci.md): it does not
+  begin until the threat model, isolation boundary, secret flow, cache policy, and quotas pass
+  review. Everything in this file is deliberately useful with only self-hosted runners.
+- **A package registry, for now.** Buildkite sells one and it is a real gap against them. It stays on
+  the deferred list in [the index](./index.md) until the forge is good, with the standing condition
+  that when it lands, `packages:read` and `packages:write` are fine-grained token permissions from
+  the first commit ([phase 1](./01-foundation.md#access-tokens)). Writing that condition down now is
+  the entire point of naming it here.
+- **A second receive pipeline.** Push triggers consume the `push:received` event from
+  [phase 2](./02-git-hosting.md), as phase 9 already says.
+- **A better workflow language.** There is a good argument that Actions YAML is not a good format,
+  and it does not matter. It is the format people have, the format the ecosystem targets, and the
+  format a repository can leave with. The typed SDK in the clients section exists for anyone who
+  disagrees, and it emits the same graph. Inventing a third language is how a CI product acquires
+  users it already had and loses the ones it wanted.
+- **Bug-for-bug fidelity with GitHub.** Compatible means a normal workflow runs unchanged, not that
+  every undocumented behavior is reproduced. Where we differ, the conformance report says so and the
+  parser warns. The line between those two is a judgement call, made per construct, written down.

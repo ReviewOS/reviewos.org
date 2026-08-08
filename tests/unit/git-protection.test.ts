@@ -140,3 +140,59 @@ describe('decidePush', () => {
       .toEqual(['refs/heads/main', 'refs/heads/develop'])
   })
 })
+
+/**
+ * A mirrored repository refuses pushes to the refs it tracks.
+ *
+ * The failure this prevents is silent and total: the next sync is a
+ * `git fetch --prune` that rewrites these refs to match upstream, so a commit
+ * pushed here does not join the repository - it disappears within the hour with
+ * nothing recording why. Refusing at receive time is the only moment the pusher
+ * can be told, and losing somebody's work quietly is worse than refusing it.
+ */
+describe('a mirrored repository', () => {
+  const mirrored = { mirror: { enabled: true, allow_local_pushes: false } }
+
+  test('refuses a push to a mirrored branch', () => {
+    const decision = decidePush([], [{ update: move('main'), isForced: false }], mirrored)
+
+    expect(decision.ok).toBe(false)
+    // The reason says what will happen rather than "forbidden", because the
+    // pusher's next question is why, and "it would be overwritten" answers it.
+    expect(decision.refused[0].reason).toContain('overwritten by the next sync')
+  })
+
+  test('and a tag, which a sync rewrites too', () => {
+    expect(decidePush([], [{ update: tag('v1.0'), isForced: false }], mirrored).ok).toBe(false)
+  })
+
+  test('allows it once somebody has said so deliberately', () => {
+    // A real choice with a real cost: the repository then has two sources of
+    // truth for the same refs and the sync picks one without asking.
+    const allowed = { mirror: { enabled: true, allow_local_pushes: true } }
+
+    expect(decidePush([], [{ update: move('main'), isForced: false }], allowed).ok).toBe(true)
+  })
+
+  test('and does not refuse when the mirror is switched off', () => {
+    const off = { mirror: { enabled: false, allow_local_pushes: false } }
+
+    expect(decidePush([], [{ update: move('main'), isForced: false }], off).ok).toBe(true)
+  })
+
+  test('leaves an ordinary repository alone', () => {
+    // The default argument, which is what every existing caller passes.
+    expect(decidePush([], [{ update: move('main'), isForced: false }]).ok).toBe(true)
+  })
+
+  test('reports the mirror rather than the branch rule when both would refuse', () => {
+    /*
+     * Being told "main is protected" on a repository where no push can survive
+     * would send somebody to ask for a permission that would not help them.
+     */
+    const locked = { pattern: 'main', allow_force_push: false, allow_deletion: false }
+    const decision = decidePush([locked], [{ update: remove('main'), isForced: false }], mirrored)
+
+    expect(decision.refused[0].reason).toContain('overwritten by the next sync')
+  })
+})

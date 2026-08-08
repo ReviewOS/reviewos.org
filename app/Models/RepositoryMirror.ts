@@ -110,8 +110,30 @@ export default defineModel({
       factory: () => true,
     },
 
-    last_synced_at: {
+    /**
+     * Whether somebody may push to the refs this mirror tracks.
+     *
+     * **False by default, and the default is the safe one.** The next sync is a
+     * `git fetch --prune` that rewrites these refs to match upstream, so a
+     * commit pushed here does not join the repository - it disappears within
+     * the hour, with nothing recording why. Refusing at receive time is the
+     * only moment the pusher can be told.
+     *
+     * Turning it on is a real decision with a real cost: the repository then
+     * has two sources of truth for the same refs and the sync picks one without
+     * asking. The column exists so that choice is written down rather than
+     * implied by the absence of a check.
+     */
+    allow_local_pushes: {
       order: 10,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    last_synced_at: {
+      order: 11,
       fillable: true,
       validation: { rule: schema.string() },
       factory: () => null,
@@ -119,14 +141,14 @@ export default defineModel({
 
     /** Head of the default branch at the last sync, to spot a rewrite. */
     last_sha: {
-      order: 11,
+      order: 12,
       fillable: true,
       validation: { rule: schema.string().max(64) },
       factory: () => null,
     },
 
     last_error: {
-      order: 12,
+      order: 13,
       fillable: true,
       validation: { rule: schema.string().max(1000) },
       factory: () => null,
@@ -137,7 +159,7 @@ export default defineModel({
      * work stops being retried every fifteen minutes forever.
      */
     failure_count: {
-      order: 13,
+      order: 14,
       fillable: true,
       default: 0,
       validation: { rule: schema.number().min(0) },
@@ -154,7 +176,7 @@ export default defineModel({
      * huge repository may reasonably want the code and not the backlog.
      */
     sync_metadata: {
-      order: 14,
+      order: 15,
       fillable: true,
       default: false,
       validation: { rule: schema.boolean() },
@@ -162,7 +184,7 @@ export default defineModel({
     },
 
     last_metadata_sync_at: {
-      order: 15,
+      order: 16,
       fillable: true,
       validation: { rule: schema.string() },
       factory: () => null,
@@ -176,7 +198,7 @@ export default defineModel({
      * repository page claim the mirror is broken when only half of it is.
      */
     metadata_error: {
-      order: 16,
+      order: 17,
       fillable: true,
       validation: { rule: schema.string().max(1000) },
       factory: () => null,
@@ -184,7 +206,7 @@ export default defineModel({
 
     /** Consecutive metadata failures, so the retry interval can widen. */
     metadata_failure_count: {
-      order: 17,
+      order: 18,
       fillable: true,
       default: 0,
       validation: { rule: schema.number().min(0) },

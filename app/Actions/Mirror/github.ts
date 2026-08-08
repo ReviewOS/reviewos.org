@@ -275,3 +275,93 @@ export function buildThreads(comments: readonly MappedReviewComment[]): MappedRe
     [...thread].sort((a, b) => String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? ''))),
   )
 }
+
+/**
+ * The repository's own metadata, as a mirror should carry it.
+ *
+ * Deliberately a small set. A mirror is a copy of what is there to read, not a
+ * copy of GitHub's settings: stars, watchers and fork counts are *their*
+ * numbers about *their* copy, and showing them here would make this instance
+ * look like it has an audience it does not have.
+ */
+export interface MappedRepository {
+  description: string
+  /** Lowercased and de-duplicated, so it matches how topics are stored here. */
+  topics: string[]
+  /** `public` or `private`. GitHub's `internal` has no meaning off a GHE instance. */
+  visibility: 'public' | 'private'
+  defaultBranch: string | null
+  /** Set when upstream has archived it, which is worth following. */
+  archived: boolean
+}
+
+export function mapRepository(repository: any): MappedRepository | null {
+  if (!repository || typeof repository !== 'object')
+    return null
+
+  const topics = Array.isArray(repository.topics)
+    ? [...new Set(repository.topics.map((topic: unknown) => String(topic).toLowerCase().trim()).filter(Boolean))] as string[]
+    : []
+
+  return {
+    description: String(repository.description ?? '').slice(0, 500),
+    topics,
+    /*
+     * `private` is the flag GitHub actually sets; `visibility` is a newer field
+     * that reads `internal` on an Enterprise instance. Trusting `visibility`
+     * verbatim would store a value this product's enum does not have, and a
+     * mirror of an internal repository is private here whatever it is called
+     * there.
+     */
+    visibility: repository.private === true ? 'private' : 'public',
+    defaultBranch: repository.default_branch ? String(repository.default_branch) : null,
+    archived: repository.archived === true,
+  }
+}
+
+/** A label, as this product stores one. */
+export interface MappedLabel {
+  name: string
+  /** Six hex digits, no leading `#`, which is how GitHub sends it and how this stores it. */
+  color: string
+  description: string
+}
+
+export function mapLabel(label: any): MappedLabel | null {
+  const name = String(label?.name ?? '').trim()
+  if (!name)
+    return null
+
+  const color = String(label?.color ?? '').replace(/^#/, '').toLowerCase()
+
+  return {
+    name: name.slice(0, 100),
+    // Falls back rather than storing an invalid colour: a label whose colour is
+    // three characters renders as no colour at all, which reads as a bug in
+    // this product rather than as bad data upstream.
+    color: /^[0-9a-f]{6}$/.test(color) ? color : '888888',
+    description: String(label?.description ?? '').slice(0, 200),
+  }
+}
+
+/** A milestone, as this product stores one. */
+export interface MappedMilestone {
+  number: number
+  title: string
+  description: string
+  state: 'open' | 'closed'
+  dueOn: string | null
+}
+
+export function mapMilestone(milestone: any): MappedMilestone | null {
+  if (typeof milestone?.number !== 'number')
+    return null
+
+  return {
+    number: milestone.number,
+    title: String(milestone.title ?? '').slice(0, 200),
+    description: String(milestone.description ?? '').slice(0, 1000),
+    state: milestone.state === 'closed' ? 'closed' : 'open',
+    dueOn: milestone.due_on ? String(milestone.due_on) : null,
+  }
+}

@@ -12,6 +12,11 @@ The first two do not require this instance to run somebody else's code. A self-h
 external execution provider can consume jobs from the control plane, which makes the useful review
 surface available without quietly turning the web server into a shell service.
 
+This phase is the machinery. [Phase 15](./15-pipelines.md) is the product it has to add up
+to, written against Buildkite, and it holds the step model, the runner fleet, the run surface, and
+test intelligence. Where the two touch, phase 9 wins on the state machine and the protocol and phase
+15 wins on what the thing is called and what it looks like. The vocabulary table is in phase 15.
+
 ## What we are taking from Cloudflare
 
 Cloudflare's August 2026 article,
@@ -33,11 +38,106 @@ ReviewOS should carry the product capabilities that transfer to a self-hosted fo
 - Conditional preview and deployment steps after checks pass
 - Opt-in repair agents that propose a fix on a branch without turning the failed run green
 
-TypeScript is the natural authoring API here because ReviewOS and its framework run on Bun, but that
-is a decision to verify against portability and safe evaluation. We should copy Cloudflare's code-first
-composability only if a repository workflow can be parsed, versioned, and executed entirely inside the
-chosen isolation boundary. A central workflow managed by an organization must not need to trust or
-evaluate code from every repository it covers.
+### Where they run the workflow, and where we have to
+
+The paragraph that used to sit here left the code-first question open, with a condition attached: we
+copy Cloudflare's composability only if a repository's workflow can be parsed, versioned, and
+executed inside the isolation boundary, and only if an organization-wide workflow never has to
+evaluate code from every repository it covers. That condition is answerable, and the answer decides
+the architecture, so it is written down here rather than deferred again.
+
+**Cloudflare can evaluate workflow code in their control plane because their control plane is a
+Workers isolate.** Running untrusted code is what it is for. `CIWorkflow` is a Worker; it calls out
+to sandboxes for the commands and orchestrates them with ordinary TypeScript, including `Promise.all`
+as a barrier. That is why their authoring model can be a program rather than a document.
+
+Ours is a Bun process holding the database, the session keys, and every bare repository on disk.
+**Evaluating a repository's TypeScript inside it is not a tradeoff, it is the same class of bug as
+[phase 2's `--git-dir`](./02-git-hosting.md), where a check passed against one repository while a
+different one was handed over.** So the decision:
+
+- [ ] **The workflow program runs as a job, not in the control plane.** A code-first workflow is
+      dispatched to a runner like any other untrusted work, holding a lease. Its `step()` calls are
+      authenticated API calls back to the control plane, which schedules the real work and returns
+      the result. The control plane never imports, transpiles, or evaluates repository code.
+- [ ] A static workflow document needs no orchestrator job at all: the graph is known before
+      dispatch. The orchestrator exists only for definitions whose graph is decided at runtime.
+- [ ] Both forms normalize to the same `WorkflowRun` and step rows, so the interface, API, logs, and
+      restart-from-step behave identically whichever way a workflow was written. If a screen can tell
+      which authoring form produced a run, the normalization is wrong.
+- [ ] An organization-wide workflow runs as its own orchestrator with its own trust level, and the
+      repositories it covers supply data, not code. This is the condition the old paragraph set, and
+      it is the reason the orchestrator is per-run rather than per-repository.
+
+### Durable execution
+
+"Durable" is the load-bearing word in Cloudflare's announcement and it is not a synonym for
+"retried". It means the run survives the death of whatever was executing it, resumes without
+repeating completed work, and can be restarted from a named step hours later. Getting that from an
+orchestrator that is itself a killable job requires a journal, and this is the Temporal and DBOS
+pattern rather than something to invent.
+
+- [ ] Every `step()` call is journaled by the control plane with a deterministic sequence identity
+      **before** the work is dispatched, and its result recorded when it completes. The journal, not
+      the orchestrator's memory, is the run.
+- [ ] On restart the orchestrator replays: calls up to the journal head return their recorded results
+      immediately without re-executing, and the first uncommitted call resumes real work. A run whose
+      orchestrator was killed at step 40 does not repeat steps 1 to 39.
+- [ ] Determinism rules for orchestrator code, documented and enforced rather than requested: no
+      wall-clock reads, no randomness, no direct network or filesystem access. Each has an injected
+      equivalent that is journaled, so a replay sees the same values it saw the first time.
+- [ ] A replay that diverges from the journal, a call arriving in a different order or with different
+      arguments, **fails the run loudly and names the divergence**. Silent divergence is the failure
+      mode of every durable-execution system, and this repository has a written history of exactly
+      that shape of bug going unnoticed for months.
+- [ ] Sleeps and waits suspend the orchestrator and release its runner. A workflow waiting three days
+      for an approval must not hold a lease for three days; the control plane wakes it by replay when
+      the timer fires or the event arrives.
+- [ ] The orchestrator's credential is scoped to its own run: it can create steps, read its own
+      outputs, and nothing else. It is not a repository token and cannot outlive the run.
+- [ ] An orchestrator that exceeds its own wall-time, step-count, or journal-size budget is
+      terminated with a stated reason, so a runaway loop in a workflow file is bounded by the control
+      plane rather than by whoever notices the bill
+- [ ] Tests: kill the orchestrator mid-run and assert no completed step re-executes; a non-deterministic
+      workflow detected on replay; a sleep that outlives the runner that started it; a restart from a
+      named step whose inputs changed; and two orchestrators for one run, where the second is refused.
+
+### Step results are data
+
+Cloudflare's dashboard shows per-step inputs, outputs, wall time, and CPU time, and that is what
+makes restart-from-step meaningful rather than decorative: a step can only be skipped on restart if
+its result was recorded as a value.
+
+- [ ] Steps record typed inputs and outputs as rows, not as text scraped from a log. A later step
+      reading an earlier step's output is reading the database.
+- [ ] Wall time and active execution time are recorded separately per step, plus queue time. A step
+      that took nine minutes of which eight were queueing is a different problem from one that took
+      nine minutes of work, and one number cannot say which.
+- [ ] Cached and reused results are labelled as such in the interface and the API, with a link to the
+      attempt that actually produced them
+- [ ] Tests: a restart reusing outputs, a restart refusing to reuse them because the workflow version
+      changed, and an output too large for the value store handled explicitly rather than truncated
+
+### Snapshot caching
+
+Their dependency cache is a snapshot of the workspace after `install`, restored into later steps,
+rather than a keyed archive of a named directory. It is the better primitive for the common case,
+because it needs no author to know which paths a package manager writes to.
+
+- [ ] Snapshot a step's workspace on completion, content-addressed, and restore it as the starting
+      state of dependent steps
+- [ ] The snapshot key is derived from declared inputs (lockfile digest, runtime version,
+      architecture, image), so a lockfile change invalidates it without anyone maintaining a key
+      expression
+- [ ] Keyed path caching also exists, because `actions/cache` is what a migrating workflow already
+      uses and it must keep working
+- [ ] Cache restore permissions prevent a fork or a lower-trust branch from writing a snapshot a
+      protected branch would restore. This is listed in the execution-plane section too, and it is
+      the one cache property that is a security boundary rather than an optimization.
+- [ ] Snapshots are garbage collected by size and age with the policy visible before it deletes
+      anything
+- [ ] Tests: a snapshot restored into a parallel fan-out, an invalidated key, a poisoning attempt
+      from a fork, and a restore whose base image no longer exists
 
 ## Commit status and checks API
 
@@ -78,8 +178,14 @@ This much makes ReviewOS usable with any existing CI. Ship it independently of t
 The workflow is a versioned resource, not whatever happens to be in the default branch when an old
 run is inspected.
 
-- [ ] Decide the authoring contract: a constrained TypeScript API, a declarative format, or both.
-      Document the portability and security costs before choosing ecosystem compatibility.
+- [ ] The authoring contract is **both**, and the decision is now made rather than pending.
+      [Phase 15](./15-pipelines.md) makes GitHub Actions-compatible YAML canonical, because the
+      ecosystem is the product and a format nobody can leave with is a format nobody adopts. The
+      constrained TypeScript API is the second front door for graphs that are decided at runtime,
+      and it runs as an orchestrator job under the rules above. Both normalize to the same rows.
+- [ ] Neither front door can express something the other cannot represent in the run. A capability
+      reachable only from the SDK becomes a screen that renders differently depending on how a
+      workflow was written, which is how two products grow inside one.
 - [ ] `Workflow` and immutable `WorkflowVersion` models: owner, repository scope, source commit and
       path, content digest, trigger policy, state, and the normalized step graph
 - [ ] Normalize jobs, steps, dependencies, triggers, and input declarations into related rows. A
@@ -92,6 +198,16 @@ run is inspected.
       receive pipeline just for CI.
 - [ ] Owner-managed reusable workflows can target many repositories, while a repository may also
       define its own workflows. Both are visible in the resulting run.
+- [ ] A workflow can be **owned entirely by the organization and carried by no repository at all**,
+      matching every repository under an owner or a selector over them. Cloudflare gets this by
+      omitting `repoName` from an event binding; the value is that a security scan or a licence check
+      lands on two hundred repositories without two hundred commits, and cannot be removed by editing
+      a file in one of them.
+- [ ] Such a workflow declares what it needs from each repository it covers (checkout, changed paths,
+      metadata) and gets nothing else. It runs at the owner's trust level over the repository's data,
+      never at the repository's trust level, which is what makes it safe to give it a secret.
+- [ ] A typed event API can start a run directly, so a workflow is reachable from a webhook, another
+      run, a scheduler, or an external system without a synthetic push
 - [ ] Trigger policy records which source revision supplied the workflow. A pull request from a fork
       cannot replace a trusted workflow and gain secrets.
 - [ ] Monorepository support: changed-path matching, working directory, shared setup jobs, and more

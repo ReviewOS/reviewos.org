@@ -179,4 +179,39 @@ export class GitHubClient {
   reviewComments(owner: string, name: string) {
     return this.collect<any>(`/repos/${owner}/${name}/pulls/comments?sort=created&direction=asc`)
   }
+
+  labels(owner: string, name: string) {
+    return this.collect<any>(`/repos/${owner}/${name}/labels`)
+  }
+
+  milestones(owner: string, name: string) {
+    // `state=all` for the same reason issues are: a closed milestone is what
+    // most of a repository's history is filed under.
+    return this.collect<any>(`/repos/${owner}/${name}/milestones?state=all`)
+  }
+
+  /**
+   * The repository itself: description, topics, visibility, default branch.
+   *
+   * A single object rather than a collection, so it does not go through
+   * `collect`. Returns null rather than throwing on a failure, because this is
+   * the *decorative* half of a sync - a mirror whose git data landed and whose
+   * description did not is a working mirror with a stale sentence, and failing
+   * the whole sync over that would stop the half that matters.
+   */
+  async repository(owner: string, name: string): Promise<any | null> {
+    try {
+      const answer = await this.fetchImpl(`https://api.github.com/repos/${owner}/${name}`, {
+        headers: this.headers(),
+      })
+
+      if (!answer.ok)
+        return null
+
+      return await answer.json()
+    }
+    catch {
+      return null
+    }
+  }
 }

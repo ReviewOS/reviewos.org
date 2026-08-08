@@ -127,6 +127,14 @@
             }
           },
           {
+            "name": "expiry_warned_days",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
             "name": "created_at",
             "type": "datetime",
             "isPrimaryKey": false,
@@ -138,14 +146,6 @@
           {
             "name": "updated_at",
             "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "expiry_warned_days",
-            "type": "integer",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -329,6 +329,139 @@
             "name": "access_token_repositories_repository_index",
             "columns": [
               "repository_id"
+            ],
+            "type": "index"
+          }
+        ]
+      },
+      {
+        "table": "activity_events",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "actor_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "verb",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "subject_type",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "subject_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "organization_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "is_public",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "detail",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "activity_events_actor_index",
+            "columns": [
+              "actor_id",
+              "created_at"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "activity_events_repository_index",
+            "columns": [
+              "repository_id",
+              "created_at"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "activity_events_subject_index",
+            "columns": [
+              "subject_type",
+              "subject_id"
             ],
             "type": "index"
           }
@@ -756,6 +889,212 @@
               "uuid"
             ],
             "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "coverage_files",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "commit_sha",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "path",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "uncovered_lines",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "covered_lines",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "coverage_files_repo_sha_path_index",
+            "columns": [
+              "repository_id",
+              "commit_sha",
+              "path"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "coverage_files_repo_sha_index",
+            "columns": [
+              "repository_id",
+              "commit_sha"
+            ],
+            "type": "index"
+          }
+        ]
+      },
+      {
+        "table": "deploy_keys",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "title",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 100
+          },
+          {
+            "name": "key_type",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "public_key",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "fingerprint",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 100
+          },
+          {
+            "name": "can_write",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "last_used_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "deploy_keys_fingerprint_index",
+            "columns": [
+              "fingerprint"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "deploy_keys_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -1571,19 +1910,6 @@
             "hasDefault": false
           },
           {
-            "name": "user_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "references": {
-              "table": "users",
-              "column": "id",
-              "onDelete": "set null"
-            }
-          },
-          {
             "name": "channel",
             "type": "enum",
             "isPrimaryKey": false,
@@ -1665,6 +1991,101 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "user_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "set null"
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "table": "notification_event_preferences",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "event",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "channel",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "enumValues": [
+              "in_app",
+              "email",
+              "push"
+            ],
+            "enumTypeName": "notification_event_preferences_channel_type"
+          },
+          {
+            "name": "delivery",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "immediate",
+            "enumValues": [
+              "off",
+              "immediate",
+              "digest"
+            ],
+            "enumTypeName": "notification_event_preferences_delivery_type"
+          },
+          {
+            "name": "user_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
           },
           {
             "name": "created_at",
@@ -1775,6 +2196,76 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "notification_preferences",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "user_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
+          },
+          {
+            "name": "channel",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 50
+          },
+          {
+            "name": "enabled",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": true
+          },
+          {
+            "name": "category",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": []
       },
       {
         "table": "notification_schedules",
@@ -2592,31 +3083,6 @@
             "maxLength": 120
           },
           {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "uuid",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": true,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
             "name": "auto_merge_strategy",
             "type": "enum",
             "isPrimaryKey": false,
@@ -2642,6 +3108,31 @@
               "column": "id",
               "onDelete": "set null"
             }
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -2907,6 +3398,194 @@
               "pull_request_id"
             ],
             "type": "index"
+          }
+        ]
+      },
+      {
+        "table": "push_subscriptions",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "endpoint",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "public_key",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "auth_secret",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "user_agent",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
+          },
+          {
+            "name": "last_seen_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "user_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "push_subscriptions_endpoint_unique",
+            "columns": [
+              "endpoint"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "queue_circuit_state",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "queue_name",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "success_count",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "failure_count",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "window_start",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "paused_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "resume_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 32
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "queue_circuit_state_queue_index",
+            "columns": [
+              "queue_name"
+            ],
+            "type": "unique"
           }
         ]
       },
@@ -3577,31 +4256,6 @@
             "hasDefault": false
           },
           {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "uuid",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": true,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
             "name": "allow_merge_commit",
             "type": "boolean",
             "isPrimaryKey": false,
@@ -3651,6 +4305,31 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -3779,6 +4458,125 @@
             "name": "repository_labels_uuid_unique",
             "columns": [
               "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "repository_lfs_locks",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "lock_id",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "path",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "owner_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "owner_name",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 120
+          },
+          {
+            "name": "ref",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "locked_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "repository_lfs_locks_repo_path_index",
+            "columns": [
+              "repository_id",
+              "path"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "repository_lfs_locks_lock_id_index",
+            "columns": [
+              "lock_id"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "repository_lfs_locks_lock_id_unique",
+            "columns": [
+              "lock_id"
             ],
             "type": "unique"
           }
@@ -3983,6 +4781,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "allow_local_pushes",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -4076,6 +4883,81 @@
               "topic"
             ],
             "type": "index"
+          }
+        ]
+      },
+      {
+        "table": "review_checkpoints",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "pull_request_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "pull_requests",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "reviewer_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "head_sha",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "review_checkpoints_pr_user_index",
+            "columns": [
+              "pull_request_id",
+              "reviewer_id"
+            ],
+            "type": "unique"
           }
         ]
       },
@@ -4214,6 +5096,210 @@
               "uuid"
             ],
             "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "review_drafts",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "pull_request_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "pull_requests",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "author_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "path",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "side",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "right",
+            "enumValues": [
+              "left",
+              "right"
+            ],
+            "enumTypeName": "review_drafts_side_type"
+          },
+          {
+            "name": "from_line",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "to_line",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "body",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "review_drafts_pr_author_index",
+            "columns": [
+              "pull_request_id",
+              "author_id"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
+        "table": "reviewed_files",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "pull_request_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "pull_requests",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "reviewer_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "path",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "head_sha",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "reviewed_files_pr_user_path_index",
+            "columns": [
+              "pull_request_id",
+              "reviewer_id",
+              "path"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "reviewed_files_pr_user_index",
+            "columns": [
+              "pull_request_id",
+              "reviewer_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -4731,6 +5817,96 @@
         ]
       },
       {
+        "table": "team_repositories",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "team_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "teams",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "permission",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "read",
+            "enumValues": [
+              "read",
+              "triage",
+              "write",
+              "maintain",
+              "admin"
+            ],
+            "enumTypeName": "team_repositories_permission_type"
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "team_repositories_team_repo_unique",
+            "columns": [
+              "team_id",
+              "repository_id"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "team_repositories_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
+          }
+        ]
+      },
+      {
         "table": "timeline_entries",
         "columns": [
           {
@@ -4969,6 +6145,14 @@
             "defaultValue": false
           },
           {
+            "name": "machine_for_organization_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
             "name": "email_verified_at",
             "type": "string",
             "isPrimaryKey": false,
@@ -5007,14 +6191,6 @@
             "type": "string",
             "isPrimaryKey": false,
             "isUnique": true,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "machine_for_organization_id",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
             "isNullable": true,
             "hasDefault": false
           }
@@ -5409,1177 +6585,10 @@
             "type": "unique"
           }
         ]
-      },
-      {
-        "table": "repository_lfs_locks",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "repository_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "repositories",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "lock_id",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": true,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 64
-          },
-          {
-            "name": "path",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "owner_id",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "owner_name",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 120
-          },
-          {
-            "name": "ref",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 255
-          },
-          {
-            "name": "locked_at",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 64
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "repository_lfs_locks_repo_path_index",
-            "columns": [
-              "repository_id",
-              "path"
-            ],
-            "type": "unique"
-          },
-          {
-            "name": "repository_lfs_locks_lock_id_index",
-            "columns": [
-              "lock_id"
-            ],
-            "type": "unique"
-          },
-          {
-            "name": "repository_lfs_locks_lock_id_unique",
-            "columns": [
-              "lock_id"
-            ],
-            "type": "unique"
-          }
-        ]
-      },
-      {
-        "table": "review_drafts",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "pull_request_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "pull_requests",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "author_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "users",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "path",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "side",
-            "type": "enum",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": true,
-            "defaultValue": "right",
-            "enumValues": [
-              "left",
-              "right"
-            ],
-            "enumTypeName": "review_drafts_side_type"
-          },
-          {
-            "name": "from_line",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "to_line",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "body",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "review_drafts_pr_author_index",
-            "columns": [
-              "pull_request_id",
-              "author_id"
-            ],
-            "type": "unique"
-          }
-        ]
-      },
-      {
-        "table": "reviewed_files",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "pull_request_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "pull_requests",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "reviewer_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "users",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "path",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "head_sha",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 40
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "reviewed_files_pr_user_path_index",
-            "columns": [
-              "pull_request_id",
-              "reviewer_id",
-              "path"
-            ],
-            "type": "unique"
-          },
-          {
-            "name": "reviewed_files_pr_user_index",
-            "columns": [
-              "pull_request_id",
-              "reviewer_id"
-            ],
-            "type": "index"
-          }
-        ]
-      },
-      {
-        "table": "review_checkpoints",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "pull_request_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "pull_requests",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "reviewer_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "users",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "head_sha",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 40
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "review_checkpoints_pr_user_index",
-            "columns": [
-              "pull_request_id",
-              "reviewer_id"
-            ],
-            "type": "unique"
-          }
-        ]
-      },
-      {
-        "table": "coverage_files",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "repository_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "repositories",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "commit_sha",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 40
-          },
-          {
-            "name": "path",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "uncovered_lines",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "covered_lines",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "coverage_files_repo_sha_path_index",
-            "columns": [
-              "repository_id",
-              "commit_sha",
-              "path"
-            ],
-            "type": "unique"
-          },
-          {
-            "name": "coverage_files_repo_sha_index",
-            "columns": [
-              "repository_id",
-              "commit_sha"
-            ],
-            "type": "index"
-          }
-        ]
-      },
-      {
-        "table": "queue_circuit_state",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "queue_name",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 255
-          },
-          {
-            "name": "success_count",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": true,
-            "defaultValue": 0
-          },
-          {
-            "name": "failure_count",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": true,
-            "defaultValue": 0
-          },
-          {
-            "name": "window_start",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 32
-          },
-          {
-            "name": "paused_at",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 32
-          },
-          {
-            "name": "resume_at",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 32
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "queue_circuit_state_queue_index",
-            "columns": [
-              "queue_name"
-            ],
-            "type": "unique"
-          }
-        ]
-      },
-      {
-        "table": "notification_event_preferences",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "event",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 64
-          },
-          {
-            "name": "channel",
-            "type": "enum",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "enumValues": [
-              "in_app",
-              "email",
-              "push"
-            ],
-            "enumTypeName": "notification_event_preferences_channel_type"
-          },
-          {
-            "name": "delivery",
-            "type": "enum",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "immediate",
-            "enumValues": [
-              "off",
-              "immediate",
-              "digest"
-            ],
-            "enumTypeName": "notification_event_preferences_delivery_type"
-          },
-          {
-            "name": "user_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "references": {
-              "table": "users",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": []
-      },
-      {
-        "table": "notification_preferences",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "user_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "users",
-              "column": "id"
-            }
-          },
-          {
-            "name": "channel",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 50
-          },
-          {
-            "name": "enabled",
-            "type": "boolean",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": true
-          },
-          {
-            "name": "category",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 255
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": []
-      },
-      {
-        "table": "push_subscriptions",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "endpoint",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": true,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "public_key",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 255
-          },
-          {
-            "name": "auth_secret",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 255
-          },
-          {
-            "name": "user_agent",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "maxLength": 500
-          },
-          {
-            "name": "last_seen_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "user_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "references": {
-              "table": "users",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "push_subscriptions_endpoint_unique",
-            "columns": [
-              "endpoint"
-            ],
-            "type": "unique"
-          }
-        ]
-      },
-      {
-        "table": "deploy_keys",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "repository_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "repositories",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "title",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 100
-          },
-          {
-            "name": "key_type",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 32
-          },
-          {
-            "name": "public_key",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "fingerprint",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 100
-          },
-          {
-            "name": "can_write",
-            "type": "boolean",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": true,
-            "defaultValue": false
-          },
-          {
-            "name": "last_used_at",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "deploy_keys_fingerprint_index",
-            "columns": [
-              "fingerprint"
-            ],
-            "type": "unique"
-          },
-          {
-            "name": "deploy_keys_repository_index",
-            "columns": [
-              "repository_id"
-            ],
-            "type": "index"
-          }
-        ]
-      },
-      {
-        "table": "activity_events",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "actor_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "users",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "verb",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 64
-          },
-          {
-            "name": "subject_type",
-            "type": "string",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "maxLength": 32
-          },
-          {
-            "name": "subject_id",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "repository_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false,
-            "references": {
-              "table": "repositories",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "organization_id",
-            "type": "integer",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "is_public",
-            "type": "boolean",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": false
-          },
-          {
-            "name": "detail",
-            "type": "text",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "activity_events_actor_index",
-            "columns": [
-              "actor_id",
-              "created_at"
-            ],
-            "type": "index"
-          },
-          {
-            "name": "activity_events_repository_index",
-            "columns": [
-              "repository_id",
-              "created_at"
-            ],
-            "type": "index"
-          },
-          {
-            "name": "activity_events_subject_index",
-            "columns": [
-              "subject_type",
-              "subject_id"
-            ],
-            "type": "index"
-          }
-        ]
-      },
-      {
-        "table": "team_repositories",
-        "columns": [
-          {
-            "name": "id",
-            "type": "bigint",
-            "isPrimaryKey": true,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false
-          },
-          {
-            "name": "team_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "teams",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "repository_id",
-            "type": "bigint",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": false,
-            "references": {
-              "table": "repositories",
-              "column": "id",
-              "onDelete": "cascade"
-            }
-          },
-          {
-            "name": "permission",
-            "type": "enum",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "read",
-            "enumValues": [
-              "read",
-              "triage",
-              "write",
-              "maintain",
-              "admin"
-            ],
-            "enumTypeName": "team_repositories_permission_type"
-          },
-          {
-            "name": "created_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": false,
-            "hasDefault": true,
-            "defaultValue": "CURRENT_TIMESTAMP"
-          },
-          {
-            "name": "updated_at",
-            "type": "datetime",
-            "isPrimaryKey": false,
-            "isUnique": false,
-            "isNullable": true,
-            "hasDefault": false
-          }
-        ],
-        "indexes": [
-          {
-            "name": "team_repositories_team_repo_unique",
-            "columns": [
-              "team_id",
-              "repository_id"
-            ],
-            "type": "unique"
-          },
-          {
-            "name": "team_repositories_repository_index",
-            "columns": [
-              "repository_id"
-            ],
-            "type": "index"
-          }
-        ]
       }
     ]
   },
-  "hash": "9572f158e3ec8ca07223785a9c5dacc7b7b1a131ba936dfd037305444885ed55",
+  "hash": "fd7087d6eae4588b95b8455ade8e476f6b91eefbba62a1a7381f9a1d1a3252aa",
   "dialect": "postgres",
-  "updatedAt": "2026-08-08T03:01:46.718Z"
+  "updatedAt": "2026-08-08T05:08:48.191Z"
 }
