@@ -14999,6 +14999,31 @@
         }
       }
     },
+    "/api/mcp": {
+      "post": {
+        "summary": "/api/mcp",
+        "operationId": "post__api_mcp",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/api/mirrors/sync": {
       "post": {
         "summary": "/api/mirrors/sync",
@@ -20216,6 +20241,31 @@
         }
       }
     },
+    "/api/repos/pulls/show": {
+      "get": {
+        "summary": "/api/repos/pulls/show",
+        "operationId": "get__api_repos_pulls_show",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/api/repos/pulls/state": {
       "put": {
         "summary": "/api/repos/pulls/state",
@@ -20868,6 +20918,31 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/reviews/queue": {
+      "get": {
+        "summary": "/api/reviews/queue",
+        "operationId": "get__api_reviews_queue",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "Successful response",

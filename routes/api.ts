@@ -22,6 +22,25 @@ route.get('/health', () => response.json({ ok: true }))
  */
 route.get('/search', 'Actions/Search/SearchAction')
 
+/*
+ * The Model Context Protocol endpoint: the review surface as agent tools.
+ *
+ * No `auth` middleware, and that is not an oversight. The action reads the
+ * bearer itself and hands it to every API call it makes - it holds no
+ * credential of its own, so there is no path through it that reaches anything
+ * the caller could not have reached directly. Putting `auth` in front would
+ * additionally make an unauthenticated handshake a 401 HTML page rather than a
+ * JSON-RPC error, which reads to an MCP client as a broken server.
+ *
+ * `skipCsrf` for the same reason it is safe: a request with no bearer is
+ * refused by the action before anything else happens, so there is no
+ * cookie-authenticated path here for a forged cross-site POST to ride. CSRF
+ * protection defends the browser's ambient credential, and this endpoint
+ * accepts no ambient credential at all. Left on, it answers a client that
+ * forgot its token with a 403 about a cookie it was never going to send.
+ */
+route.post('/mcp', 'Mcp/McpAction').skipCsrf()
+
 // Signing in, out, and up. These override the framework defaults, which answer
 // with JSON and set no cookie - right for an API client reading access_token,
 // wrong for a form, because a browser shown JSON is a browser still signed out.
@@ -284,6 +303,20 @@ route.post('/repos/milestones', 'Actions/Issue/ManageMilestoneAction').middlewar
 
 // Pull requests and review. Merging is its own endpoint rather than a state
 // update: it moves a branch, and that is not something to reach by accident.
+/*
+ * Reading one pull request, and what is waiting on you.
+ *
+ * Both existed only as pages, which is the parity gap this project calls a bug
+ * rather than a design decision: the interface reached something the API could
+ * not, so an agent asking the most useful question a reviewing agent has - what
+ * should I look at - had to scrape the page or reconstruct the ordering itself.
+ *
+ * The queue endpoint takes no user parameter. It is always the caller's own, so
+ * there is no check to forget.
+ */
+route.get('/repos/pulls/show', 'Actions/Pull/ShowPullRequestAction')
+route.get('/reviews/queue', 'Actions/Pull/ReviewQueueAction').middleware('auth')
+
 route.post('/repos/pulls', 'Actions/Pull/OpenPullRequestAction').middleware('auth')
 route.put('/repos/pulls', 'Actions/Pull/UpdatePullRequestAction').middleware('auth')
 route.put('/repos/pulls/state', 'Actions/Pull/UpdatePullRequestStateAction').middleware('auth')

@@ -31,8 +31,17 @@ export default new Action({
     if (!webhookTriggersSync(event))
       return response.json({ ok: true, ignored: event })
 
-    const raw = typeof request.rawBody === 'string' ? request.rawBody : JSON.stringify(request.body ?? {})
-    const payload = request.body ?? {}
+    /*
+     * The exact bytes, from `rawBody()`, which is a method and not a property.
+     *
+     * Re-serializing the parsed body is not byte-identical - key order, spacing
+     * and unicode escapes all differ - so an HMAC computed over it fails against
+     * every real delivery. `request.body` is worse still: on an `EnhancedRequest`
+     * it is the `Request` stream, so `JSON.stringify` of it is the string `{}`
+     * and the payload reads as empty.
+     */
+    const raw = await request.rawBody?.() ?? ''
+    const payload = request.jsonBody ?? {}
 
     const owner = String(payload?.repository?.owner?.login ?? payload?.repository?.owner?.name ?? '')
     const name = String(payload?.repository?.name ?? '')

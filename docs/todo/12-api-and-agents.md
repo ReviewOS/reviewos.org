@@ -21,6 +21,16 @@ vocabulary, and it is discoverable without reading the source.
 - [ ] Every interface action has an API equivalent, because both call the same action in
       `app/Actions/`. Where the interface reaches somewhere the API cannot, that is a bug filed
       against this list, not a design decision.
+
+  Two of those bugs are fixed. Building the MCP tools meant checking that each one pointed at a real
+  route, and two of five did not: reading one pull request, and the review queue. `reviewQueue()`
+  existed with exactly one caller, `resources/views/reviews.stx` - the interface reached the most
+  useful question a reviewing agent has, *what should I look at*, and the API could not, so an agent
+  had to scrape the page or reconstruct the ordering itself.
+
+  `ShowPullRequestAction` and `ReviewQueueAction` close them, over the same functions the pages call.
+  Writing a client against the surface is the only reliable way to find gaps like these: they are
+  invisible from inside, because the page works.
 - [ ] One vocabulary. The API says `repository`, `pull request`, `review thread` and `stack`,
       matching the table in `AGENTS.md`, rather than a second set of names for the same things.
 - [ ] The OpenAPI document is generated from the actions (`./buddy generate:openapi`) and published,
@@ -190,13 +200,64 @@ resolution, and the differences are the ones that genuinely matter.
 The Model Context Protocol is how an agent gets tools, and Stacks already ships MCP support
 (`stacks-ai`), so this is wiring rather than invention.
 
-- [ ] A ReviewOS MCP server exposing the review surface as tools: list what is waiting on me, read a
+- [x] A ReviewOS MCP server exposing the review surface as tools: list what is waiting on me, read a
       pull request, read its diff by file, comment on a line, submit a review, read a check's output
-- [ ] Tools are scoped by the token that authenticates the connection, with no ambient authority.
+
+  `app/Mcp/`, reached at `POST /api/mcp`. JSON-RPC 2.0 over HTTP rather than stdio, because this one
+  is *hosted*: it runs alongside the instance and is reached over the network by whichever agent
+  holds a token. A stdio server would have to run on the agent's machine with a credential sitting in
+  its environment, which is the deployment this design exists to avoid.
+
+  Five tools, not six. `read_check_output` is deliberately absent: checks are
+  [phase 9](./09-ci-cd.md) and there is no endpoint behind it. Shipping the tool anyway would
+  advertise a capability that answers 404, and a model handed a tool that always fails does not
+  conclude the tool is broken, it concludes the *task* is impossible and gives up on the whole line
+  of work. An absent tool is a capability an agent works around; a broken one is a capability it
+  stops trusting. The sixth tool arrives with the endpoint.
+
+  The tool list is curated rather than complete. A menu with two hundred entries costs the model
+  context on every single call while making the six that matter harder to find, and everything
+  absent is still reachable through the HTTP API.
+- [x] Tools are scoped by the token that authenticates the connection, with no ambient authority.
       The agent gets exactly the token's permissions and nothing that leaks from the server process.
-- [ ] Read tools return the structured diff, not HTML
+
+  **Every tool is an HTTP call to this instance's own public API carrying the token the connection
+  authenticated with.** The server process holds no credential, so "no ambient authority" is a
+  property of the construction rather than a rule somebody has to keep obeying: there is no path
+  through the dispatcher that reaches the API without the caller's token, because there is nothing
+  else to reach it with.
+
+  The cost is a round trip to ourselves per call. Worth it. The alternative is calling the actions
+  directly, which means re-deriving which token may do what, and a second implementation of that is
+  the one bug in this codebase that would matter most.
+
+  The origin comes from the incoming request rather than from configuration, so an instance behind a
+  proxy or on a custom port reaches itself without being told where it lives. `http://localhost:3000`
+  is right until the first deployment that is not that, and then it is wrong only in production.
+- [x] Read tools return the structured diff, not HTML
+
+  `read_pull_request_diff` calls `/api/repos/pulls/diff/structured`, the endpoint above. An agent
+  handed HTML has to parse it back into hunks, which is a parser it should never have had to write.
 - [ ] Self-hostable alongside the instance, and documented in the self-hosting guide
-- [ ] Tests: a tool call against a repository the token cannot read fails the same way the API does
+
+  Self-hostable already: it is part of the instance, so running one is running the forge, with
+  nothing extra to deploy and nothing extra to hand a credential to. The box stays open for the
+  documentation, which belongs with [phase 11](./11-self-hosting-deploy.md)'s guide.
+- [x] Tests: a tool call against a repository the token cannot read fails the same way the API does
+
+  `tests/e2e/mcp.test.ts`, and the assertion is not against a hard-coded 404. It asks the API
+  directly with the same token, then asks through the tool, and requires the second to carry the
+  first's status - so the two cannot drift apart. If the API ever started answering 403, the test
+  would notice that the tool had not.
+
+  Not "fails similarly": it **is** the API failing, relayed. There is no second permission check here
+  to disagree with the first one, because there is no first one here at all.
+
+  A refusal comes back as `isError` with the API's own words rather than as a JSON-RPC error. The
+  distinction decides who hears it: a JSON-RPC error is a *protocol* failure and most clients surface
+  it to the operator, so a model that asked about a repository it cannot read would be told nothing
+  and would try again. `isError` puts the refusal in front of the model, which is the only way it
+  learns to stop asking.
 
 ## Command line
 
