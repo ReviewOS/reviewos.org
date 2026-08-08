@@ -140,6 +140,28 @@ export const config: PantryConfig = {
     enabled: true,
     commands: [
       {
+        name: "Start the search engine",
+        command: "pantry",
+        /*
+         * Port 8208 rather than Typesense's default 8108, and that is not
+         * arbitrary. Pantry runs one instance per project, but every project
+         * asks for the same default port, so whichever starts second fails to
+         * bind - and the health check probes the default port, gets the other
+         * project's answer, and reports success. Naming a port here is what
+         * makes this instance this project's.
+         *
+         * `config/search-engine.ts` reads TYPESENSE_PORT from `.env`, which is
+         * where the matching 8208 lives. Both have to agree; there is no third
+         * place that derives one from the other.
+         *
+         * Idempotent: pantry writes a launchd agent with KeepAlive, so this
+         * survives a reboot and re-running setup is a no-op.
+         */
+        args: ["start", "typesense", "--port", "8208"],
+        description: "Typesense, on this project's own port and data directory",
+        required: false,
+      },
+      {
         name: "Generate model files",
         command: "./buddy",
         args: ["generate:db-types"],
