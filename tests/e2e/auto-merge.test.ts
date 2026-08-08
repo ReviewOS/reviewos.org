@@ -311,3 +311,187 @@ describe('auto-merge', () => {
     expect(tip).toBe(String(row?.merge_commit_sha))
   }, 30_000)
 })
+
+/**
+ * A whole review in one request: comments plus a verdict, atomically.
+ *
+ * Living in this file because it needs exactly the fixture this file already
+ * builds - an open pull request against a real repository, and a reviewer who
+ * is not its author. Duplicating two hundred lines of git setup to keep the
+ * filename tidy would be the worse trade.
+ *
+ * The shape exists for callers with no drafts to publish. The browser writes
+ * pending threads as the reviewer types and submits them together; an agent
+ * assembles its comments in memory and has nowhere to put them until it
+ * submits. Twelve round trips is twelve chances to leave half a review behind.
+ */
+describe('submitting a whole review at once', () => {
+  /*
+   * Its own pull request, number 2.
+   *
+   * The tests above merge number 1, so sharing it would make this block pass or
+   * fail depending on which ran first - and the failure is a 409 that reads
+   * like a bug in the endpoint rather than in the fixture.
+   */
+  let reviewablePullId = 0
+
+  beforeAll(async () => {
+    if (!available)
+      return
+
+    const row: any = await (globalThis as any).db
+      .insertInto('pull_requests')
+      .values({
+        repository_id: created.repositoryId,
+        number: 2,
+        title: 'Whole review fixture',
+        body: '',
+        author_id: created.ownerId,
+        state: 'open',
+        head_branch: 'change',
+        head_sha: 'b'.repeat(40),
+        base_branch: 'main',
+        base_sha: 'a'.repeat(40),
+        draft: false,
+        additions: 1,
+        deletions: 0,
+        changed_files: 1,
+      })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    reviewablePullId = Number(row?.id)
+  })
+
+  /** JSON rather than the form encoding above, because `comments` is an array. */
+  async function postJson(path: string, token: string, body: Record<string, unknown>) {
+    const answer = await fetch(`http://127.0.0.1:${port}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ owner: created.handle, repo: created.name, ...body }),
+    })
+
+    return { status: answer.status, body: await answer.json().catch(() => null) }
+  }
+
+  test('writes every comment and the verdict together', async () => {
+    if (!available)
+      return
+
+    const submitted = await postJson('/api/repos/pulls/reviews', created.reviewerToken, {
+      number: '2',
+      state: 'commented',
+      body: 'a few things',
+      comments: [
+        { path: 'README.md', line: 1, side: 'right', body: 'this line' },
+        { path: 'README.md', line: 2, side: 'right', body: 'and this one' },
+      ],
+    })
+
+    expect(submitted.status).toBe(201)
+    expect(submitted.body?.comments).toHaveLength(2)
+
+    // Each comment is a real thread, the same shape the browser writes - a
+    // comment left by an agent and one left by a person have to be the same
+    // kind of object, or every reader of them grows a special case.
+    const threads: any[] = await (globalThis as any).db
+      .selectFrom('review_threads')
+      .select(['id', 'path', 'line', 'side', 'original_commit_sha'])
+      .where('pull_request_id', '=', reviewablePullId)
+      .execute()
+
+    expect(threads.length).toBeGreaterThanOrEqual(2)
+    // Anchored to the head the review was written against, which is what lets a
+    // thread be marked outdated later rather than drifting onto whatever line
+    // now occupies that number.
+    expect(threads.every(thread => thread.original_commit_sha)).toBe(true)
+  })
+
+  test('refuses the whole thing when any comment is invalid', async () => {
+    if (!available)
+      return
+
+    const before: any[] = await (globalThis as any).db
+      .selectFrom('review_threads')
+      .select(['id'])
+      .where('pull_request_id', '=', reviewablePullId)
+      .execute()
+
+    const refused = await postJson('/api/repos/pulls/reviews', created.reviewerToken, {
+      number: '2',
+      state: 'commented',
+      body: 'mixed',
+      comments: [
+        { path: 'README.md', line: 1, side: 'right', body: 'fine' },
+        { path: '', line: 0, side: 'sideways', body: '' },
+      ],
+    })
+
+    expect(refused.status).toBe(422)
+
+    // Nothing was written, including the comment that was fine. Half a review
+    // is the failure this shape exists to prevent.
+    const after: any[] = await (globalThis as any).db
+      .selectFrom('review_threads')
+      .select(['id'])
+      .where('pull_request_id', '=', reviewablePullId)
+      .execute()
+
+    expect(after).toHaveLength(before.length)
+  })
+
+  test('and names every problem, not just the first', async () => {
+    if (!available)
+      return
+
+    /*
+     * A caller sending twelve comments with two mistakes should learn about
+     * both. Fixing the first otherwise only earns them the second error on the
+     * next attempt, and an agent doing that is an agent in a loop.
+     */
+    const refused = await postJson('/api/repos/pulls/reviews', created.reviewerToken, {
+      number: '2',
+      state: 'commented',
+      body: 'x',
+      comments: [
+        { path: '', line: 1, side: 'right', body: 'no path' },
+        { path: 'a.ts', line: 0, side: 'right', body: 'no line' },
+      ],
+    })
+
+    expect(refused.status).toBe(422)
+    expect(refused.body?.comments?.length).toBeGreaterThanOrEqual(2)
+    expect(refused.body?.comments?.map((c: any) => c.index)).toContain(0)
+    expect(refused.body?.comments?.map((c: any) => c.index)).toContain(1)
+  })
+
+  test('still accepts a review with no comments, which is the browser flow', async () => {
+    if (!available)
+      return
+
+    // The existing path must keep working: the browser publishes drafts written
+    // earlier and sends no `comments` at all.
+    const submitted = await postJson('/api/repos/pulls/reviews', created.reviewerToken, {
+      number: '2',
+      state: 'commented',
+      body: 'just a note',
+    })
+
+    expect(submitted.status).toBe(201)
+    expect(submitted.body?.comments).toEqual([])
+  })
+
+  test('refuses a comment review that says nothing at all', async () => {
+    if (!available)
+      return
+
+    const refused = await postJson('/api/repos/pulls/reviews', created.reviewerToken, {
+      number: '2',
+      state: 'commented',
+      body: '',
+      comments: [],
+    })
+
+    expect(refused.status).toBe(422)
+  })
+})

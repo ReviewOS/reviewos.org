@@ -96,8 +96,24 @@ vocabulary, and it is discoverable without reading the source.
       body is expensive on both ends.
 - [ ] A structured diff endpoint: hunks, ranges and line origins as JSON, from the same parser the
       review screen uses. Scraping the rendered diff should never be the only way to get one.
-- [ ] Submit a whole review in one request: many comments plus a verdict, atomically. A review
+- [x] Submit a whole review in one request: many comments plus a verdict, atomically. A review
       assembled by twelve round trips is twelve chances to leave half a review behind.
+
+  `SubmitReviewAction` takes `comments: [...]` alongside the verdict, rather than a second endpoint.
+  It is the browser flow turned inside out and exists for callers with no drafts to publish: the
+  interface writes pending threads as the reviewer types, and an agent assembles its comments in
+  memory with nowhere to put them until it submits.
+
+  **Every comment is validated before any is written**, and all the problems come back at once. A
+  caller sending twelve with two mistakes should learn about both - fixing the first otherwise only
+  earns them the second error on the next attempt, and an agent doing that is an agent in a loop.
+  A connection that drops mid-review leaves comments attached to a real review rather than orphans
+  attached to nothing, because the review row is written first and the notification fires only after
+  every comment lands.
+
+  Each comment becomes a thread of the same shape `CommentOnCodeAction` writes. A comment left by an
+  agent and one left by a person have to be the same kind of object, or every reader of them grows a
+  special case.
 - [ ] Webhooks are the supported way to stay current (phase 5), and every event that changes
       something an agent cares about has one
 - [ ] A consistent operation pattern for asynchronous work: create with an idempotency key, receive
