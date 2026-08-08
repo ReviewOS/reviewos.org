@@ -131,8 +131,19 @@ describe('indexing one repository', () => {
 
     // Paged by id rather than offset, so a small chunk size must still reach
     // the end. An offset walk over a table being written to skips rows.
-    const result = await indexJob.handle({ chunkSize: 3 })
+    // Small enough to need several pages over any real corpus, large enough
+    // that the walk is not a few hundred round trips to the search node - which
+    // is what a chunk of three became once this instance had a hundred and
+    // forty repositories, and it timed out rather than failed.
+    const result = await indexJob.handle({ chunkSize: 25 })
 
-    expect(result.indexed).toBe(total)
-  })
+    // At least what was there when we counted, not exactly it. The suite runs
+    // test files concurrently and several of them create and delete
+    // repositories, so an equality here fails for a reason that has nothing to
+    // do with paging - which is what it did, only in the full run, only
+    // sometimes. The claim being made is that the walk reaches the end rather
+    // than stopping after one page of three.
+    expect(result.indexed).toBeGreaterThanOrEqual(total)
+    expect(result.indexed).toBeGreaterThan(25)
+  }, 30_000)
 })

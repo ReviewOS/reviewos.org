@@ -81,9 +81,19 @@ export async function runSearch(input: {
     hits = answer?.hits ?? []
   }
   catch (error) {
-    // A search node that is down is a degraded feature, not a broken page.
-    // Saying so is better than an empty result set that reads as "no matches".
-    return response.json({ error: 'Search is unavailable right now', detail: String((error as Error).message ?? error) }, 503)
+    // A search node that is down is a degraded feature, not a broken page, so
+    // this reports rather than throws and the caller decides the status. It
+    // must not build a Response here: the page renders this too, and a page
+    // that received an HTTP response object would render nothing at all.
+    return {
+      query: raw,
+      scope,
+      page,
+      perPage,
+      total: 0,
+      results: [],
+      unavailable: String((error as Error).message ?? error),
+    }
   }
 
   const documents = hits.map((hit: any) => hit?.document ?? hit).filter(Boolean)
