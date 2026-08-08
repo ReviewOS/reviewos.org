@@ -52,6 +52,24 @@ export const config: PantryConfig = {
      * this one is the source.
      */
     'git-lfs': '^3.7.1',
+    /*
+     * The search engine, and the reason it is a declared dependency rather
+     * than a hosted service.
+     *
+     * Search is the one subsystem where a forge either owns its data or hands
+     * it to somebody else: an instance that has to talk to Algolia to find its
+     * own issues is not self-hostable, whatever the rest of it does. Typesense
+     * runs from a single binary with no JVM under it, which is what makes
+     * "search works out of the box on your own box" a claim this can keep -
+     * OpenSearch, which `config/search-engine.ts` named before this, wants a
+     * multi-gigabyte JVM and is not something to ask of somebody running a
+     * forge for four people.
+     *
+     * Stacks already ships the driver (`search-engine/src/drivers/typesense.ts`)
+     * and the `useSearch` trait indexes through it, so the model layer needs no
+     * adapter written here.
+     */
+    'typesense.org': '^30.2.0',
     // The database engine is swapped for the one DB_CONNECTION names when
     // `buddy setup` regenerates deps.yaml, so only one ever gets installed.
     sqlite: '^3.47.2',
