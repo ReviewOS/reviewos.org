@@ -57,18 +57,25 @@ Each one is committed and pushed in the repository named.
 - [x] **pantry** - Service units are per-project but the PostgreSQL data directory was global, so
       two projects on different majors destroyed each other's cluster in a loop, each backing up and
       re-initializing what the other had just built.
-- [ ] **pickier** - A function whose return type is written as an inline union
+- [x] **pickier** - A function whose return type is written as an inline union
       (`): { ok: true, ... } | { ok: false, ... } {`) makes `no-unused-vars` report every parameter
-      as unused, because the parser does not find the body. Naming the union and referring to it is
-      the workaround, and it is better code anyway, so this is worked around here rather than
-      blocking. `transitionDraft` in `app/Actions/Pull/state.ts` is the case that found it, and
-      `resolveExpiry` in `app/TokenScopes.ts` is the case that proved it recurs: this needs fixing
-      upstream rather than remembering.
-- [ ] **pickier** - `no-unused-vars` also misses a module-level `const` that is referenced before it
-      is declared, which is ordinary and valid: the eight content constants in `SeedDemo.ts` were
-      each reported as unused while being used. Moving them into `demo-content.ts` and importing is
-      the workaround, and again it is better structure anyway. Two false positives in one rule is a
-      reason to look at the rule rather than keep rearranging code around it.
+      as unused, because the parser does not find the body. `transitionDraft` in
+      `app/Actions/Pull/state.ts` is the case that found it, and `resolveExpiry` in
+      `app/TokenScopes.ts` is the case that proved it recurs.
+
+  Fixed upstream and verified against the published build: the rule scanned past the return type for
+  a `{` and stopped at the first one following a completed brace pair, so the second member of the
+  union was read as the body. The body then read as empty and `--fix` renamed every parameter to
+  `_name` while the body kept referring to `name` - code that no longer compiles, which is what
+  makes it worse than noise. `pickier@0.1.49`, with
+  `test/rules/no-unused-vars-return-types.test.ts` pinning it.
+- [x] **pickier** - `no-unused-vars` also missed a module-level `const` referenced before it is
+      declared, which is ordinary and valid: the eight content constants in `SeedDemo.ts` were each
+      reported as unused while being used. Also fixed in `0.1.49`.
+
+  Both workarounds stay. Naming the union and moving the constants into `demo-content.ts` were
+  better code independently of the linter, and reverting structure to prove a tool is fixed is how
+  you end up doing it twice.
 - [x] **bun-query-builder** - Enum type names are table-qualified, but only newly added columns were
       stamped with the qualified name, so altering an existing enum column referenced a type nothing
       creates. Migrating to Postgres died on the last file with `type "channel_type" does not exist`.
@@ -79,9 +86,21 @@ Each one is committed and pushed in the repository named.
       live schema. Those tables are created by the framework's guarantee path rather than the model
       corpus, so the declared relations are not enforced. Harmless today, worth fixing before the
       notification work in phase 5.
-- [ ] The `jobs` table is dropped by `migrate:fresh` and not recreated by the corpus, so seeding
-      skips it. Needs resolving before the queue matters in phase 5.
-- [ ] Pantry cannot auto-activate environments under the `den` shell: it recognizes zsh, bash, fish,
-      and nushell, and den has no `chpwd` or pre-prompt hook to attach to. Tracked in
-      [phase 11](./11-self-hosting-deploy.md); `./buddy setup` covers the same ground explicitly in
-      the meantime.
+- [x] The `jobs` table was dropped by `migrate:fresh` and not recreated by the corpus, so seeding
+      skipped it.
+
+  Resolved by the thing that fixed the queue itself: `app/Models/Job.ts` overrides the framework
+  default, because two of its columns describe something other than what `@stacksjs/queue` stores.
+  A model in the corpus means a generated migration in the corpus, so
+  `0000000012-create-jobs-table.sql` is replayed by `migrate:fresh` like anything else - the table
+  had been missing precisely because nothing described it here.
+- [x] Pantry could not auto-activate environments under the `den` shell: it recognized zsh, bash,
+      fish and nushell, and den has no `chpwd` or pre-prompt hook to attach to.
+
+  Fixed upstream and verified against the installed binary - `PANTRY_SHELL=den pantry dev:shellcode`
+  emits it. The hook is written out and sourced rather than eval'd, because den's `eval` parses its
+  argument as a command chain and a chain cannot carry a function definition, so an eval'd hook
+  defines nothing. It also looks nothing like the bash template on purpose: in den a `[` test costs
+  around 5ms where bash measures it in microseconds, so the shell-side parent walk that other shells
+  use would spend most of a second per `cd` deciding a directory is not a project. It forks
+  `pantry shell:lookup` once instead and lets native code walk.
