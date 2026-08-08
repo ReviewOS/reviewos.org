@@ -150,6 +150,30 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "limit_pull_requests_per_hour",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "limit_comments_per_hour",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "limit_reviews_per_hour",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -701,6 +725,14 @@
             "type": "string",
             "isPrimaryKey": false,
             "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "access_token_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
             "isNullable": true,
             "hasDefault": false
           }
@@ -4330,6 +4362,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "count_machine_approvals",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -6585,10 +6626,90 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "token_usage_windows",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "access_token_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "access_tokens",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "action",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "window_started_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "used",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "token_usage_windows_token_action_unique",
+            "columns": [
+              "access_token_id",
+              "action"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "fd7087d6eae4588b95b8455ade8e476f6b91eefbba62a1a7381f9a1d1a3252aa",
+  "hash": "d004234209c040757f2f50fabb0d5aa920cbde851d6635db880e4165d150a9b0",
   "dialect": "postgres",
-  "updatedAt": "2026-08-08T05:08:48.191Z"
+  "updatedAt": "2026-08-08T21:05:23.037Z"
 }

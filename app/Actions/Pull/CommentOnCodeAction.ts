@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { refusal, spendFor } from '../../Api/token-limits'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { suggestionIn } from './suggestions'
@@ -48,6 +49,12 @@ export default new Action({
     const { repository, user } = auth.context
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)
+
+    // The token's hourly budget, spent before anything is written. A comment
+    // costs somebody's attention, which is the thing the limit is protecting.
+    const budget = await spendFor(request, 'comments')
+    if (!budget.verdict.allowed)
+      return refusal('comments', budget.limit, budget.verdict)
 
     const body = String(request.get('body') ?? '').trim()
     if (!body)

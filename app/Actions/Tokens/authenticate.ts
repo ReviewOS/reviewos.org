@@ -23,6 +23,20 @@ export interface AuthenticatedToken {
   userId: number
   grants: TokenGrant[]
   reach: TokenReach
+  /**
+   * The hourly creation budgets this token was issued with, null where it was
+   * issued with none and takes the instance default.
+   *
+   * Carried on the authenticated token rather than fetched when a write needs
+   * it. The row is already being read here, and a second query per created
+   * object - to answer a question about a row this function had in its hand -
+   * is the kind of cost that gets a limit removed rather than tuned.
+   */
+  limits: {
+    pull_requests: number | null
+    comments: number | null
+    reviews: number | null
+  }
 }
 
 export type TokenRejection = 'malformed' | 'unknown' | 'expired' | 'revoked'
@@ -49,7 +63,18 @@ export async function authenticateToken(
 
   const row = await db
     .selectFrom('access_tokens')
-    .select(['id', 'user_id', 'token_hash', 'selection', 'organization_id', 'expires_at', 'revoked_at'])
+    .select([
+      'id',
+      'user_id',
+      'token_hash',
+      'selection',
+      'organization_id',
+      'expires_at',
+      'revoked_at',
+      'limit_pull_requests_per_hour',
+      'limit_comments_per_hour',
+      'limit_reviews_per_hour',
+    ])
     .where('prefix', '=', prefix)
     .executeTakeFirst()
 
@@ -103,8 +128,26 @@ export async function authenticateToken(
         organizationId: row.organization_id === null ? null : Number(row.organization_id),
         repositoryIds,
       },
+      limits: {
+        // Null through, deliberately. Null means "the instance default", and
+        // coercing it to a number here would pick one silently in the place
+        // least likely to be read.
+        pull_requests: hourly(row.limit_pull_requests_per_hour),
+        comments: hourly(row.limit_comments_per_hour),
+        reviews: hourly(row.limit_reviews_per_hour),
+      },
     },
   }
+}
+
+/** An hourly budget column, as a number or null. */
+function hourly(value: unknown): number | null {
+  if (value === null || value === undefined)
+    return null
+
+  const parsed = Number(value)
+
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : null
 }
 
 /**

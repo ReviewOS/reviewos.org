@@ -118,3 +118,40 @@ describe('the OpenAPI document', () => {
     expect(wrong).toEqual([])
   })
 })
+
+describe('the generated client', () => {
+  test('matches the document it was generated from', async () => {
+    /*
+     * A generated client that nothing verifies is a hand-maintained client with
+     * extra steps. It stops matching the day somebody regenerates the document
+     * alone, and the mismatch shows up in a consumer's project as a missing
+     * method rather than here as a failure.
+     *
+     * Compared byte for byte against a fresh render, which is only meaningful
+     * because the renderer is deterministic: the document's paths are already
+     * sorted for exactly this reason.
+     */
+    const { renderApiClient } = await import('@stacksjs/api')
+
+    const spec = await Bun.file('storage/framework/api/openapi.json').json()
+    const checkedIn = await Bun.file('storage/framework/api/client.ts').text()
+
+    expect(checkedIn).toBe(renderApiClient(spec, { name: spec.info?.title }))
+  })
+
+  test('has a method for every operation in it', async () => {
+    const spec = await Bun.file('storage/framework/api/openapi.json').json()
+    const client = await Bun.file('storage/framework/api/client.ts').text()
+
+    const operations = Object.values(spec.paths ?? {})
+      .flatMap((item: any) => Object.keys(item))
+      .length
+
+    // One `name(input` line per operation. Counting rather than naming: the
+    // names are the generator's business and are tested where it lives. What
+    // matters here is that none of them were dropped.
+    const methods = client.match(/^ {2}\w+\(/gm)?.length ?? 0
+
+    expect(methods).toBe(operations)
+  })
+})

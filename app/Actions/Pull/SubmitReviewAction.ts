@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { refusal, spendFor } from '../../Api/token-limits'
 import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 
@@ -64,6 +65,18 @@ export default new Action({
     const { repository, user } = auth.context
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)
+
+    /*
+     * One review, one unit - not one per comment it carries.
+     *
+     * A review with twelve line comments is one act of reviewing, and metering
+     * it twelve times would punish exactly the batching this endpoint exists to
+     * encourage. The comment budget stays for `comment_on_line`, which is the
+     * call a loop makes repeatedly.
+     */
+    const budget = await spendFor(request, 'reviews')
+    if (!budget.verdict.allowed)
+      return refusal('reviews', budget.limit, budget.verdict)
 
     const state = String(request.get('state') ?? 'commented')
     if (!(STATES as readonly string[]).includes(state))

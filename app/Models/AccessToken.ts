@@ -170,5 +170,44 @@ export default defineModel({
       validation: { rule: schema.number() },
       factory: () => null,
     },
+
+    /**
+     * How much this token may create in an hour, chosen by whoever issued it.
+     *
+     * Three separate budgets rather than one, because the three cost different
+     * amounts of somebody's attention. Forty comments an hour from a linting
+     * agent is a working configuration; forty pull requests an hour is not, and
+     * a single number cannot express both without being wrong for one of them.
+     *
+     * **Null means the instance default**, not unlimited. A column defaulting
+     * to no limit would make every token issued before this existed unlimited
+     * forever, which is precisely the population most likely to be running
+     * unattended.
+     *
+     * The reason to have them at all: the first bad agent loop is not malice,
+     * it is a retry with no backoff, and the repository should survive it. A
+     * limit the token's owner sets is also the only kind they will set - an
+     * instance-wide one is somebody else's problem until it is theirs.
+     */
+    limit_pull_requests_per_hour: {
+      order: 13,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    limit_comments_per_hour: {
+      order: 14,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    limit_reviews_per_hour: {
+      order: 15,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
   },
 } as const)

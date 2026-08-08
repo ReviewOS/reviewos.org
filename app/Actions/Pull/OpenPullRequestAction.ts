@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { refusal, spendFor } from '../../Api/token-limits'
 import { isSafeRef, mergeBase, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { allocateNumber, authorizeRepository } from '../Repo/authorize'
@@ -81,6 +82,17 @@ export default new Action({
       .where('head_branch', '=', base)
       .where('state', '=', 'open')
       .executeTakeFirst()
+
+    /*
+     * The token's hourly budget, spent before anything is created.
+     *
+     * Before `allocateNumber`, because that increments the repository's counter
+     * and a refusal after it would burn a pull request number on a request that
+     * never happened - leaving a gap somebody has to explain.
+     */
+    const budget = await spendFor(request, 'pull_requests')
+    if (!budget.verdict.allowed)
+      return refusal('pull_requests', budget.limit, budget.verdict)
 
     const number = await allocateNumber(repository.id)
 

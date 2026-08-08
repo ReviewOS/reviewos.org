@@ -110,6 +110,7 @@ export default new Action({
         selection: selection as ResourceSelection,
         organization_id: organizationId,
         expires_at: new Date(expiry.expiresAtMs).toISOString(),
+        ...hourlyLimits(request),
       })
       .returning(['id'])
       .executeTakeFirst()
@@ -328,4 +329,41 @@ async function machineAccountFor(
     return { error: 'No such machine account', status: 404 }
 
   return { account: { id: Number(account.id), handle: String(account.handle) } }
+}
+
+/**
+ * The hourly creation budgets this token was issued with.
+ *
+ * Absent means the instance default, which is why an unspecified field is left
+ * out of the insert rather than written as null: the two are the same value
+ * today and would stop being the same if a column ever gained a default, and a
+ * token silently granted a different budget from the one its owner chose is the
+ * failure this whole feature exists to prevent.
+ *
+ * Zero is kept. "This token may not open pull requests" is a reasonable thing
+ * to say, and rounding it away to the default would do the opposite.
+ */
+function hourlyLimits(request: any): Record<string, number> {
+  const columns: Record<string, string> = {
+    limit_pull_requests_per_hour: 'limit_pull_requests_per_hour',
+    limit_comments_per_hour: 'limit_comments_per_hour',
+    limit_reviews_per_hour: 'limit_reviews_per_hour',
+  }
+
+  const values: Record<string, number> = {}
+
+  for (const column of Object.keys(columns)) {
+    const raw = request.get(column)
+    if (raw === undefined || raw === null || raw === '')
+      continue
+
+    const parsed = Number(raw)
+    // A limit that is not a number is ignored rather than refused. It arrives
+    // from a form field and the cost of being wrong here is a token with the
+    // default budget, which is the same thing not sending it does.
+    if (Number.isFinite(parsed) && parsed >= 0)
+      values[column] = Math.floor(parsed)
+  }
+
+  return values
 }
