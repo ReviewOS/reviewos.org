@@ -7,8 +7,8 @@
  * names do not exist - which is the same reason the guard below is needed at
  * runtime, one layer up.
  */
-declare const setResponseStatus: ((status: number) => void) | undefined
-declare const setResponseHeader: ((name: string, value: string) => void) | undefined
+declare const setResponseStatus: ((_status: number) => void) | undefined
+declare const setResponseHeader: ((_name: string, _value: string) => void) | undefined
 
 /**
  * Asking for a response status from a page, without betting the page on it.

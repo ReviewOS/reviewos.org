@@ -14,8 +14,56 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
       `useSeeder`
 - [x] Handle validation: lowercase alphanumeric and hyphens, 1-39 characters, cannot collide with a
       reserved route segment (`explore`, `settings`, `new`, `login`, `register`, `docs`, `api`)
-- [ ] `app/Actions/Auth/RegisterAction.ts`, `LoginAction.ts`, `LogoutAction.ts`, `MeAction.ts`
-- [ ] `app/Actions/Profile/UpdateProfileAction.ts`, `UpdateAvatarAction.ts`
+- [x] `app/Actions/Auth/RegisterAction.ts`, `LoginAction.ts`, `LogoutAction.ts`
+
+  The framework ships all of these and they answer with JSON and set no cookie - right for an API
+  client reading `access_token`, wrong for a form, because every page here identifies its reader
+  from the session cookie. A browser shown JSON is a browser still signed out. So these override the
+  defaults, and one endpoint serves both: an `Accept` of `text/html` gets a redirect and a cookie,
+  anything else gets the token pack the framework's clients already expect.
+
+  `MeAction` is deliberately not among them. Every page reads its viewer through
+  `viewerFromCookies` on the server; an endpoint that answers "who am I" exists for a client that
+  renders on its own, and this product does not have one. Adding it would be a second answer to a
+  question already answered.
+
+  **Registration asks for a handle**, because a handle is the URL segment rather than a profile
+  field: `/{handle}` is the profile and the first segment of every repository under it. An account
+  without one has no page, and picking it later means the page moves. It goes through
+  `checkHandle`, so an account can never be created at a name that would shadow `/settings` or
+  `/explore` - which would make part of the product unreachable and hand whoever registered it a
+  page every reader trusts.
+
+  The row is written here rather than through the framework's `register`, and only because
+  `users.handle` is NOT NULL: `register` inserts without one and fails before there is a row to
+  update. The **hash is still the framework's** `makeHash`, which is what `Auth.attempt` verifies
+  against - the same implementation, not a second one.
+
+  Login gives one answer for "no such account" and "wrong password". They are different facts and
+  the same message, because distinguishing them turns the endpoint into a way to test whether an
+  address is registered here, which is the first step of every credential-stuffing run.
+
+  Logout **revokes the token** rather than only clearing the cookie. Clearing it leaves a live
+  credential in a proxy log, a synced profile, a shared machine - and a shared machine is the reason
+  anybody presses it. It revokes *that* token, not all of them: signing out at the office should not
+  sign somebody out on their phone. POST rather than GET, because `<img src="/logout">` in a comment
+  would sign every reader out.
+
+  `next` accepts only a path on this host, including refusing `//evil.example` and a backslash. An
+  open redirect on a sign-in page is the good one for an attacker: somebody is sent to their site in
+  the second after typing a password, on a link that genuinely started here.
+- [x] `app/Actions/Profile/UpdateProfileAction.ts`
+
+  Only your own, and there is no parameter that could say otherwise. An endpoint that takes a user
+  id and checks it against the caller is one where the check can be forgotten; one with no id
+  cannot be.
+
+  A website must start with `http` or `https`. The field is rendered as an anchor on a page every
+  reader visits, and `javascript:` in that anchor is stored XSS with a form in front of it.
+
+  `UpdateAvatarAction` is not built. Avatars need the storage decisions in phase 11 - where files
+  live, what is served from disk versus S3, how a self-hosted instance without object storage
+  behaves - and a profile without one is a profile; a half-wired upload is a broken page.
 - [ ] Email verification, and password reset using the framework's token table
 - [x] `resources/views/[owner]/index.stx` - profile: repositories, activity, contribution summary
 
@@ -34,8 +82,49 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   Private repositories and private activity show only to the owner. There is deliberately no middle
   case where a collaborator sees a colleague's private activity: a profile whose contents depend on
   a permission graph has a disclosure for its first bug.
-- [ ] `resources/views/settings/profile.stx`
-- [ ] Tests: handle uniqueness, reserved handles, registration, login, session expiry
+- [x] `resources/views/settings/profile.stx`, and `login.stx` and `register.stx`
+
+  Six pages linked to `/login` and there was no page there - the review queue, the inbox, three
+  settings screens and the new-repository form all told a signed-out reader to sign in, at a URL
+  that answered nothing.
+
+  The profile form says what changing a handle costs at the point of changing it - it moves the page
+  and every repository URL under it - rather than in a confirmation dialog people click through.
+- [x] Tests: handle uniqueness, reserved handles, registration, login
+
+  `tests/e2e/auth.test.ts` against the real routes, and `tests/unit/auth-session.test.ts` for the
+  cookie flags - which are the whole security surface of being signed in and every one of which
+  fails invisibly. A missing `HttpOnly` shows up when an injection reads the token; a wrongly-set
+  `Secure` shows up as logging in appearing not to work.
+
+  `SameSite=Lax` rather than `Strict`, and it is asserted so nobody "tightens" it: `Strict`
+  withholds the cookie on a top-level navigation from another site, so following a link to a pull
+  request from a chat message lands signed out, which reads as being logged out at random.
+
+  Session expiry is not tested here. The token's life is the framework's, the cookie is set to match
+  it, and a test that waits for one to lapse is a slow test asserting somebody else's clock.
+
+- [ ] **Every form in this product is refused for a first-time visitor.** The CSRF cookie is seeded
+      on `/api/*` responses and not on the file-based views, so a browser that lands on `/login`,
+      `/new` or a repository page and submits the form in front of it has nothing to match against.
+      `<CsrfField />` renders its token, the post comes back `CSRF token mismatch`, and the button
+      appears to do nothing.
+
+  Found while writing the auth tests, and it had never shown up before for a specific reason:
+  **every write in this suite authenticates with a bearer token, and a bearer bypasses the check by
+  design.** So the whole suite passes while every human interaction fails. That is the third
+  instance of the pattern already written up in `docs/todo/index.md` under "A signed-in browser is
+  not a signed-in test client" - and the first two were found the same way, by opening a page rather
+  than by running anything.
+
+  It is not fixable from here cleanly. The router's file-based view path does not run the named
+  middleware a route file attaches, so there is no per-page spelling; and `route.use` wants a
+  middleware shape the framework's own `Csrf` class does not match, while that class defaults to a
+  `csrf-token` cookie where the API path sets `X-CSRF-Token` - two implementations, and wiring the
+  wrong one globally would make a third behaviour rather than fix anything.
+
+  The auth tests prime their token from `/api/health`, which a test can reach and a person cannot,
+  and say so where they do it.
 
 ## Organizations
 

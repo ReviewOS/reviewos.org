@@ -14,6 +14,23 @@ import { response, route } from '@stacksjs/router'
 
 route.get('/health', () => response.json({ ok: true }))
 
+// Signing in, out, and up. These override the framework defaults, which answer
+// with JSON and set no cookie - right for an API client reading access_token,
+// wrong for a form, because a browser shown JSON is a browser still signed out.
+// One endpoint serves both: an Accept of text/html gets a redirect and a cookie,
+// anything else gets the token pack the framework clients already expect.
+route.post('/auth/login', 'Actions/Auth/LoginAction')
+route.post('/auth/register', 'Actions/Auth/RegisterAction')
+// POST, not GET. An <img src="/logout"> in a comment would sign every reader
+// out, which is a denial of service written in one tag by anybody who can post
+// markdown.
+route.post('/auth/logout', 'Actions/Auth/LogoutAction')
+
+// Your own profile, and only your own. There is no id parameter that could say
+// otherwise - an endpoint that takes one and checks it is an endpoint where the
+// check can be forgotten.
+route.post('/user/profile', 'Actions/Profile/UpdateProfileAction').middleware('auth')
+
 // Organizations. Membership changes carry rules that cannot be recovered from
 // if they are got wrong (an organization with no owner), so each one is its own
 // action rather than a general update endpoint.

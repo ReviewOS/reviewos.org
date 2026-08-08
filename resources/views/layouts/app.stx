@@ -721,6 +721,25 @@
       /* The one line on this page somebody actually reads. Set apart, because
         four rules interact behind it and the answer is not derivable from the
         switches above without doing the interaction in your head. */
+      /* Sign in, sign up, and anything else that is one card and one form. */
+      .auth-card { max-width: 420px; margin: 0 auto; padding: 28px; }
+      .auth-title { margin: 0 0 14px; font-size: 20px; }
+      .auth-line { margin: 14px 0 0; font-size: 14px; }
+      .auth-form { margin: 0; }
+      .auth-hint { margin: 4px 0 0; font-size: 12px; }
+
+      /* Loud enough to find without scrolling, quiet enough that a mistyped
+        password does not read as a system failure. */
+      .auth-error {
+        margin: 0 0 14px;
+        padding: 8px 12px;
+        border-left: 2px solid var(--bad);
+        border-radius: 0 8px 8px 0;
+        background: var(--bad-bg);
+        color: var(--bad);
+        font-size: 13px;
+      }
+
       /* A profile, and the feed on it. */
       .profile { display: grid; grid-template-columns: 260px 1fr; gap: 32px; align-items: start; }
       @media (max-width: 800px) { .profile { grid-template-columns: 1fr; gap: 20px; } }

@@ -1,0 +1,88 @@
+<script server>
+/**
+ * Sign in.
+ *
+ * Six pages in this product linked here and there was no page - the review
+ * queue, the inbox, three settings screens and the new-repository form all told
+ * a signed-out reader to sign in, at a URL that answered nothing.
+ *
+ * A form, posting to `/api/auth/login`, with no client script. The endpoint
+ * sets the session cookie and redirects, which is the whole reason it overrides
+ * the framework's default: that one answers with JSON, and a browser shown JSON
+ * is a browser still signed out.
+ *
+ * `next` survives the round trip, so somebody sent here from a pull request
+ * lands back on it rather than on a dashboard, having lost the thing they were
+ * doing.
+ */
+import { setStatus } from '../functions/http'
+import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+
+const search: Record<string, string> = useRoute().query ?? {}
+const error = String(search.error ?? '')
+
+/*
+ * Only a path on this host.
+ *
+ * A `next` that accepts an absolute URL is an open redirect, and an open
+ * redirect on a sign-in page is the good one: somebody is sent to an attacker's
+ * site in the second after typing a password, on a link that genuinely started
+ * here. A protocol-relative `//evil.example` is the case people miss - it is a
+ * path by the usual test and an absolute URL to a browser.
+ */
+const requested = String(search.next ?? '')
+const next = requested.startsWith('/') && !requested.startsWith('//') && !requested.includes('\\')
+  ? requested
+  : '/reviews'
+
+// Already signed in: say so rather than offering a form that would replace one
+// session with the same session.
+const alreadyIn = Boolean(viewer)
+</script>
+
+@layout('app')
+
+@section('title', 'Sign in')
+
+@section('content')
+  <div class="shell" style="padding-top: 60px; padding-bottom: 80px;">
+    <div class="auth-card panel">
+      @if (alreadyIn)
+        <h1 class="auth-title">You are signed in</h1>
+        <p class="auth-line muted">
+          <a href="/reviews">Go to your reviews</a>, or <a href="/{{ viewer.handle }}">your profile</a>.
+        </p>
+      @else
+        <h1 class="auth-title">Sign in</h1>
+
+        @if (error)
+          <p class="auth-error" role="alert">{{ error }}</p>
+        @endif
+
+        <form method="post" action="/api/auth/login" class="auth-form">
+          <CsrfField />
+          <input type="hidden" name="next" value="{{ next }}">
+
+          <label class="key-label" for="email">Email</label>
+          <input id="email" class="key-input" type="email" name="email" required autocomplete="username" autofocus>
+
+          <label class="key-label" for="password">Password</label>
+          <input id="password" class="key-input" type="password" name="password" required autocomplete="current-password">
+
+          <div class="key-actions">
+            <button type="submit" class="btn btn-primary">Sign in</button>
+          </div>
+        </form>
+
+        <p class="auth-line muted">
+          No account? <a href="/register">Create one</a>.
+        </p>
+      @endif
+    </div>
+  </div>
+@endsection

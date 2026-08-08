@@ -1,0 +1,101 @@
+<script server>
+/**
+ * Your own profile, as a form.
+ *
+ * Every field here is optional except the handle, and the handle is the one
+ * that costs something to change: `/{handle}` is your page and the first
+ * segment of every repository URL under it, so a rename breaks every link
+ * anybody has written down. The form says so at the point of changing it rather
+ * than in a confirmation nobody reads.
+ *
+ * No client script. The page reads its own state on every load, so it cannot
+ * show a value the database does not have.
+ */
+import { setStatus } from '../../functions/http'
+import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+
+// A settings page for nobody is not a 404 - the page exists, and saying so is
+// how somebody knows to sign in rather than that they mistyped the URL.
+if (!viewer)
+  setStatus(401)
+
+const account = viewer
+  ? await db
+      .selectFrom('users')
+      .select(['handle', 'name', 'bio', 'location', 'website'])
+      .where('id', '=', viewer.id)
+      .executeTakeFirst()
+  : null
+
+const search: Record<string, string> = useRoute().query ?? {}
+const error = String(search.error ?? '')
+
+const handle = String(account?.handle ?? '')
+const name = String(account?.name ?? '')
+const bio = String(account?.bio ?? '')
+const location = String(account?.location ?? '')
+const website = String(account?.website ?? '')
+</script>
+
+@layout('app')
+
+@section('title', 'Profile settings')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!viewer)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">Sign in to edit your profile</h1>
+        <p class="muted" style="margin-top: 6px;">
+          <a href="/login?next=/settings/profile">Sign in</a> to change your handle, name and bio.
+        </p>
+      </div>
+    @else
+      <header class="keys-head">
+        <h1 class="keys-title">Profile</h1>
+        <p class="muted">What people see at <a href="/{{ handle }}">/{{ handle }}</a>.</p>
+      </header>
+
+      @if (error)
+        <p class="auth-error" role="alert">{{ error }}</p>
+      @endif
+
+      <form class="key-form panel" method="post" action="/api/user/profile">
+        <CsrfField />
+
+        <label class="key-label" for="handle">Handle</label>
+        <input id="handle" class="key-input mono" type="text" name="handle" value="{{ handle }}" maxlength="39" required>
+        {{--
+          The cost, at the point of paying it. A rename moves this page and
+          every repository URL under it, and a warning in a confirmation dialog
+          is one people click through.
+        --}}
+        <p class="auth-hint muted">
+          Changing this moves your profile and every repository URL under it. Links people have
+          already written down will stop working.
+        </p>
+
+        <label class="key-label" for="name">Name</label>
+        <input id="name" class="key-input" type="text" name="name" value="{{ name }}" maxlength="100">
+
+        <label class="key-label" for="bio">Bio</label>
+        <textarea id="bio" class="key-input" name="bio" rows="3" maxlength="300">{{ bio }}</textarea>
+
+        <label class="key-label" for="location">Location</label>
+        <input id="location" class="key-input" type="text" name="location" value="{{ location }}" maxlength="100">
+
+        <label class="key-label" for="website">Website</label>
+        <input id="website" class="key-input" type="url" name="website" value="{{ website }}" maxlength="200" placeholder="https://example.com">
+
+        <div class="key-actions">
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    @endif
+  </div>
+@endsection

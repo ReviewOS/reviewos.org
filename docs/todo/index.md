@@ -15,7 +15,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | Phase | What it covers | State |
 |---|---|---|
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done, 5 deferred (27/32) |
-| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (45/65) |
+| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (49/66) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (120/121) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (95/95) |
@@ -29,11 +29,22 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Not started (0/30) |
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | In progress (24/44) |
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (134/169) |
+| [15 - Pipelines, against Buildkite](./15-pipelines-buildkite.md) | Step model, runner fleet, run surface, test intelligence | Not started (0/135) |
 
 Phase 14 was written after reading Pierre's [DiffsHub](https://diffshub.com) and the Apache 2.0
-packages behind it. It is the only phase with a named competitor, because the diff surface is the one
-place where somebody else has already published the number we have to beat. It carries the diff
-engine work that phase 4 refers to but does not describe.
+packages behind it. It carries the diff engine work that phase 4 refers to but does not describe,
+and it names a competitor because the diff surface is the one place where somebody else has already
+published the number we have to beat.
+
+Phase 15 is the second phase with a named competitor, and the competitor is
+[Buildkite](https://buildkite.com/home/) rather than GitHub Actions. Buildkite's whole product is
+what phase 9 describes, and their architecture is ours: they run the control plane, you run the
+compute on your own machines with your own secrets. So the expensive, dangerous half of what they
+sell is the half phase 9 has deliberately gated behind a security review, and the half that is
+actually hard to copy is a control plane, an API, and a set of screens. Phase 9 owns the machinery;
+phase 15 is the product it has to add up to, including the one thing a competitor cannot price
+against us: a check result, an annotation, and a flaky test verdict landing on the diff rather than
+in another tab.
 
 Several later phases have code in them too. Work went depth-first through vertical slices (identity,
 a repository on disk, an issue, a pull request, a notification, checks, operations, mirroring, and
@@ -301,10 +312,12 @@ Two upstream fixes are waiting on that:
 
 Naming these keeps them from being re-proposed every few weeks:
 
-- **A package registry.** Out of scope until the forge itself is good. When it is reconsidered, its
-  permissions (`packages:read`, `packages:write`) are fine-grained token permissions from the first
-  commit. See the rule in [phase 1](./01-foundation.md#access-tokens): there is no second token type
-  to fall back to, which is exactly the trap this project is avoiding.
+- **A package registry.** Out of scope until the forge itself is good, and it stays out of scope even
+  though Buildkite sells one and [phase 15](./15-pipelines-buildkite.md) counts it as a real gap
+  against them. When it is reconsidered, its permissions (`packages:read`, `packages:write`) are
+  fine-grained token permissions from the first commit. See the rule in
+  [phase 1](./01-foundation.md#access-tokens): there is no second token type to fall back to, which
+  is exactly the trap this project is avoiding.
 - **A wiki.** Repository markdown files cover most of the need.
 - **Projects and boards.** Issues with labels and milestones first.
 - **In-browser editing.** A pull request from the browser is a phase 4 concern at the earliest.
@@ -312,4 +325,6 @@ Naming these keeps them from being re-proposed every few weeks:
   provider-neutral workflow control plane that self-hosted or external runners can consume. Running
   other people's code on instance-managed infrastructure remains a separate security project and
   does not begin until its threat model, isolation boundary, secret flow, cache policy, and quotas
-  pass review.
+  pass review. Everything in [phase 15](./15-pipelines-buildkite.md) is deliberately written to be
+  useful with only self-hosted runners, so competing with Buildkite never becomes the argument for
+  skipping that review.

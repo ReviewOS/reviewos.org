@@ -1,0 +1,84 @@
+<script server>
+/**
+ * Create an account.
+ *
+ * The handle is asked for here rather than derived from an email or picked
+ * later, because it is the URL segment: `/{handle}` is the profile and the
+ * first segment of every repository under it. An account without one is an
+ * account with no page, and choosing it afterwards means the page moves.
+ *
+ * What a reader typed comes back on a refusal - handle, email, name, never the
+ * password. Losing four fields because the fifth was wrong is how people
+ * abandon a sign-up.
+ */
+import { setStatus } from '../functions/http'
+import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+
+const search: Record<string, string> = useRoute().query ?? {}
+const error = String(search.error ?? '')
+const handle = String(search.handle ?? '')
+const email = String(search.email ?? '')
+const name = String(search.name ?? '')
+
+const alreadyIn = Boolean(viewer)
+</script>
+
+@layout('app')
+
+@section('title', 'Create an account')
+
+@section('content')
+  <div class="shell" style="padding-top: 60px; padding-bottom: 80px;">
+    <div class="auth-card panel">
+      @if (alreadyIn)
+        <h1 class="auth-title">You already have an account</h1>
+        <p class="auth-line muted">
+          Signed in as <a href="/{{ viewer.handle }}">{{ viewer.handle }}</a>.
+        </p>
+      @else
+        <h1 class="auth-title">Create an account</h1>
+
+        @if (error)
+          <p class="auth-error" role="alert">{{ error }}</p>
+        @endif
+
+        <form method="post" action="/api/auth/register" class="auth-form">
+          <CsrfField />
+
+          <label class="key-label" for="handle">Handle</label>
+          <input id="handle" class="key-input mono" type="text" name="handle" required value="{{ handle }}" maxlength="39" autocomplete="username" autofocus>
+          {{--
+            Said before they type it rather than after they get it wrong. The
+            handle is the one field here that cannot be changed without moving
+            a page.
+          --}}
+          <p class="auth-hint muted">Letters, numbers and hyphens. This is your URL: reviewos.org/your-handle</p>
+
+          <label class="key-label" for="name">Name</label>
+          <input id="name" class="key-input" type="text" name="name" value="{{ name }}" maxlength="100" autocomplete="name">
+          <p class="auth-hint muted">Optional. Your handle is used when this is empty.</p>
+
+          <label class="key-label" for="email">Email</label>
+          <input id="email" class="key-input" type="email" name="email" required value="{{ email }}" autocomplete="email">
+
+          <label class="key-label" for="password">Password</label>
+          <input id="password" class="key-input" type="password" name="password" required minlength="10" autocomplete="new-password">
+          <p class="auth-hint muted">At least 10 characters. Length is the only rule that helps.</p>
+
+          <div class="key-actions">
+            <button type="submit" class="btn btn-primary">Create account</button>
+          </div>
+        </form>
+
+        <p class="auth-line muted">
+          Already have one? <a href="/login">Sign in</a>.
+        </p>
+      @endif
+    </div>
+  </div>
+@endsection
