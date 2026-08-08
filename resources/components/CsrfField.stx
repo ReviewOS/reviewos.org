@@ -36,9 +36,28 @@
  * requests, so reading cookies off it could hand one reader another reader's
  * session.
  */
+import { cookieJarFromHeader } from '../functions/identity'
+
 const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
 
-const cookies = serveContext?.cookies ?? {}
+/*
+ * Both spellings, like every other page in this codebase.
+ *
+ * `__stxServeContext` is provided by the dev frontend and is **undefined**
+ * under `route.serve()` - the API server, the e2e suite, a production boot.
+ * Every view here already reaches for the raw `Cookie` header as a fallback for
+ * exactly that reason, and this component was the one that did not: it read the
+ * context alone, found nothing, and rendered an empty token.
+ *
+ * So every form in the product was refused. The field was present, its value
+ * was blank, and the post came back `CSRF token mismatch`. It never showed up
+ * in a test because every write in this suite authenticates with a bearer, and
+ * a bearer bypasses the check by design - the third time that has hidden a bug
+ * here, and the first two are already written up in `docs/todo/index.md`.
+ */
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const cookies = serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie)
 
 // Both spellings, because the middleware accepts both and a proxy may
 // normalise the case of a cookie name.

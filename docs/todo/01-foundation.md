@@ -104,37 +104,37 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   Session expiry is not tested here. The token's life is the framework's, the cookie is set to match
   it, and a test that waits for one to lapse is a slow test asserting somebody else's clock.
 
-- [ ] **Every form in this product is refused for a first-time visitor.** The CSRF cookie is seeded
-      on `/api/*` responses and not on the file-based views, so a browser that lands on `/login`,
-      `/new` or a repository page and submits the form in front of it has nothing to match against.
-      `<CsrfField />` renders its token, the post comes back `CSRF token mismatch`, and the button
-      appears to do nothing.
+- [x] **Every form in this product was refused for a first-time visitor.** Fixed in two places, and
+      either half alone leaves it broken.
 
-  Found while writing the auth tests, and it had never shown up before for a specific reason:
-  **every write in this suite authenticates with a bearer token, and a bearer bypasses the check by
-  design.** So the whole suite passes while every human interaction fails. That is the third
-  instance of the pattern already written up in `docs/todo/index.md` under "A signed-in browser is
-  not a signed-in test client" - and the first two were found the same way, by opening a page rather
-  than by running anything.
+  The CSRF check is double-submit: a value from the request against the `X-CSRF-Token` cookie. Both
+  halves of the seeding existed in the router and both hung off the *route handler* pipeline - one
+  puts a token on the incoming request so a template can embed it, the other puts the matching
+  cookie on the response. **A file-based view takes neither**, so a visitor who landed on `/login`,
+  `/new` or a repository page got no cookie at all. Fixed in Stacks 0.70.312 by wrapping
+  `handleRequest`, which is the only seam that sees a view: a middleware runs on the pipeline a view
+  does not take, and the serve options are discarded because bun-router overwrites `fetch` with its
+  own bound handler.
 
-  It is not fixable from here cleanly. The router's file-based view path does not run the named
-  middleware a route file attaches, so there is no per-page spelling; and `route.use` wants a
-  middleware shape the framework's own `Csrf` class does not match, while that class defaults to a
-  `csrf-token` cookie where the API path sets `X-CSRF-Token` - two implementations, and wiring the
-  wrong one globally would make a third behaviour rather than fix anything.
+  `seedCsrfCookieIfMissing` also ignored the token it was handed and minted a fresh one, so even
+  where both halves ran the page and the browser held different values - which fails exactly the way
+  no token at all does.
 
-  The auth tests prime their token from `/api/health`, which a test can reach and a person cannot,
-  and say so where they do it.
+  The second half was here. `CsrfField` read the token from `__stxServeContext`, which is
+  **undefined under `route.serve()`**, and rendered an empty value. Every other view in this
+  codebase already falls back to the raw `Cookie` header for that reason; this component was the one
+  that did not.
 
-## Organizations
+  **It never showed up in a test, and that is the part worth remembering.** Every write in this suite
+  authenticates with a bearer token, and a bearer bypasses the check by design - so a hundred tests
+  passed while nobody could open an issue, create a repository, comment, or sign up.
+  `tests/e2e/csrf-forms.test.ts` now does what none of them could: GET a page, keep the cookie, read
+  the token out of the rendered HTML, and post the form. It also asserts that a missing or
+  mismatched token is still refused, so a future "fix" cannot be to turn the check off.
 
-- [x] `app/Models/Organization.ts`: `handle`, `name`, `description`, `avatar_url`, `website`,
-      `billing_email`
-- [x] `app/Models/OrgMember.ts`: `organization_id`, `user_id`, `role` (owner, admin, member),
-      `invited_by`, `joined_at`
-- [x] Handles share one namespace with users; one uniqueness check covers both
-- [x] `app/Actions/Org/CreateOrganizationAction.ts` - creates the organization and its owner
-      membership atomically, cleaning up the organization row if the membership insert fails
+  Third instance of the pattern in [the index](./index.md) under "A signed-in browser is not a
+  signed-in test client". All three were found by opening a page rather than by running anything.
+
 - [ ] `app/Actions/Org/UpdateOrganizationAction.ts`, `DeleteOrganizationAction.ts`
 - [ ] `app/Actions/Org/InviteMemberAction.ts`, `AcceptInviteAction.ts`, `RemoveMemberAction.ts`,
       `ChangeMemberRoleAction.ts`

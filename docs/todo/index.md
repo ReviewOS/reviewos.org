@@ -15,7 +15,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | Phase | What it covers | State |
 |---|---|---|
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done, 5 deferred (27/32) |
-| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (49/66) |
+| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (46/62) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (120/121) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (95/95) |
@@ -23,28 +23,47 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (1/20) |
 | [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress (21/45) |
 | [08 - Migration](./08-migration.md) | Importing from GitHub and other forges | Not started (0/16) |
-| [09 - Checks and CI](./09-checks-ci.md) | Checks, durable workflows, runner providers, deployments | Started (3/94) |
+| [09 - Checks and CI](./09-checks-ci.md) | Checks, durable execution, runner providers, deployments | Started (3/120) |
 | [10 - Federation](./10-federation.md) | Research: ActivityPub / ForgeFed versus AT Protocol | Research (0/13) |
 | [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Started (1/44) |
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Not started (0/30) |
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | In progress (24/44) |
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (134/169) |
-| [15 - Pipelines, against Buildkite](./15-pipelines-buildkite.md) | Step model, runner fleet, run surface, test intelligence | Not started (0/135) |
+| [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | Not started (0/189) |
 
 Phase 14 was written after reading Pierre's [DiffsHub](https://diffshub.com) and the Apache 2.0
 packages behind it. It carries the diff engine work that phase 4 refers to but does not describe,
 and it names a competitor because the diff surface is the one place where somebody else has already
 published the number we have to beat.
 
-Phase 15 is the second phase with a named competitor, and the competitor is
-[Buildkite](https://buildkite.com/home/) rather than GitHub Actions. Buildkite's whole product is
-what phase 9 describes, and their architecture is ours: they run the control plane, you run the
-compute on your own machines with your own secrets. So the expensive, dangerous half of what they
-sell is the half phase 9 has deliberately gated behind a security review, and the half that is
-actually hard to copy is a control plane, an API, and a set of screens. Phase 9 owns the machinery;
-phase 15 is the product it has to add up to, including the one thing a competitor cannot price
-against us: a check result, an annotation, and a flaky test verdict landing on the diff rather than
-in another tab.
+Phase 15 has two named competitors, and they are competing for different things.
+**GitHub Actions is the familiarity target**: almost everyone arriving already has workflow files
+that work and no appetite for learning a second CI language to leave GitHub, so the canonical format
+is Actions-compatible YAML and the acceptance test is that a copied `.github/workflows` directory
+goes green with no edits. **[Buildkite](https://buildkite.com/home/) is the capability target**: it
+is what Actions turns into when a company outgrows it, and their architecture is ours, in that they
+run the control plane while you run the compute on your own machines with your own secrets. So the
+expensive, dangerous half of what Buildkite sells is the half phase 9 has deliberately gated behind
+a security review, and the half that is actually hard to copy is a control plane, an API, and a set
+of screens.
+
+Actions syntax on the front, Buildkite-grade engine underneath. Gitea and Forgejo both proved the
+compatible-format half works; the places they stop, concurrency groups, schedules, environment
+protection, and test intelligence, are exactly the Buildkite capabilities phase 15 carries. Phase 9
+owns the machinery; phase 15 is the product it has to add up to, including the one thing neither
+competitor can price against us: a check result, an annotation, and a flaky test verdict landing on
+the diff rather than in another tab.
+
+Phase 9 has a third reference, [Cloudflare's CI Workflows](https://blog.cloudflare.com/ci-workflows/),
+and it supplies the substrate rather than the surface: durable execution, where a run survives the
+death of whatever was executing it and restarts from a named step without repeating completed work.
+The question that had been left open there is now answered. Cloudflare evaluates workflow code in
+their control plane because their control plane is a Workers isolate and running untrusted code is
+what it is for; ours holds the database, the session keys, and every bare repository on disk, so
+**a code-first workflow runs as an orchestrator job on a runner and its step calls are API calls
+back**, journaled by the control plane so a killed orchestrator replays rather than re-runs. Static
+YAML needs no orchestrator at all. Both normalize to the same rows, which is the property that keeps
+one product from becoming two.
 
 Several later phases have code in them too. Work went depth-first through vertical slices (identity,
 a repository on disk, an issue, a pull request, a notification, checks, operations, mirroring, and
@@ -93,6 +112,27 @@ What they have in common is the credential. **Every test in this repository auth
 token, and a token works whether or not either bug is present.** A suite that only ever holds a
 bearer cannot see a class of failure that only exists for cookie holders, which is every human being
 using the product. Ask what the *browser* sends, not what the client library can be made to send.
+
+## Three bugs the test suite could not see, all the same shape
+
+Written up because a fourth is coming and it will look like this one.
+
+**Every write in this suite authenticates with a bearer token, and a bearer bypasses CSRF by
+design.** So the suite exercises a request no human ever makes, and anything that only breaks for a
+cookie-holding browser passes. The two bugs already recorded below - a `fetch` carrying no CSRF
+token, and `currentUser` never looking at a cookie - are the first two instances.
+
+The third: **every form in the product was refused for a first-time visitor**, for eight months, with
+a hundred passing tests. The router seeded the CSRF cookie only on the route-handler pipeline, which
+a file-based view does not take, and `CsrfField` read its token from `__stxServeContext`, which is
+undefined under `route.serve()`. Nobody could open an issue, create a repository, comment or sign
+up. Written up in [phase 1](./01-foundation.md); fixed upstream in Stacks 0.70.312 and here.
+
+All three were found by opening a page, not by running anything. The rule that would have caught all
+three: **a test that authenticates differently from a person is not testing what a person does.**
+`tests/e2e/csrf-forms.test.ts` is the one that behaves like a browser - GET the page, keep the
+cookie, read the token out of the HTML, post the form - and it is worth adding to rather than
+working around.
 
 ## The tests all used the cases where the wrong answer is right
 
@@ -313,7 +353,7 @@ Two upstream fixes are waiting on that:
 Naming these keeps them from being re-proposed every few weeks:
 
 - **A package registry.** Out of scope until the forge itself is good, and it stays out of scope even
-  though Buildkite sells one and [phase 15](./15-pipelines-buildkite.md) counts it as a real gap
+  though Buildkite sells one and [phase 15](./15-pipelines.md) counts it as a real gap
   against them. When it is reconsidered, its permissions (`packages:read`, `packages:write`) are
   fine-grained token permissions from the first commit. See the rule in
   [phase 1](./01-foundation.md#access-tokens): there is no second token type to fall back to, which
@@ -325,6 +365,6 @@ Naming these keeps them from being re-proposed every few weeks:
   provider-neutral workflow control plane that self-hosted or external runners can consume. Running
   other people's code on instance-managed infrastructure remains a separate security project and
   does not begin until its threat model, isolation boundary, secret flow, cache policy, and quotas
-  pass review. Everything in [phase 15](./15-pipelines-buildkite.md) is deliberately written to be
+  pass review. Everything in [phase 15](./15-pipelines.md) is deliberately written to be
   useful with only self-hosted runners, so competing with Buildkite never becomes the argument for
   skipping that review.

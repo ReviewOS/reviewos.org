@@ -67,14 +67,14 @@
     "typecheck:framework": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false"
   },
   "dependencies": {
-    "@stacksjs/actions": "^0.70.308",
-    "@stacksjs/database": "^0.70.308",
-    "@stacksjs/queue": "^0.70.308",
+    "@stacksjs/actions": "^0.70.312",
+    "@stacksjs/database": "^0.70.312",
+    "@stacksjs/queue": "^0.70.312",
     "@stacksjs/stx": "0.2.157",
     "bun-query-builder": "^0.2.25",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.48",
-    "stacks": "^0.70.308",
+    "stacks": "^0.70.312",
     "ts-syntax-highlighter": "^0.2.13"
   },
   "workspaces": [
