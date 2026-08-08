@@ -69,7 +69,7 @@
   "dependencies": {
     "@stacksjs/actions": "^0.70.321",
     "@stacksjs/database": "^0.70.321",
-    "@stacksjs/orm": "^0.70.322",
+    "@stacksjs/orm": "^0.70.324",
     "@stacksjs/queue": "^0.70.321",
     "@stacksjs/search-engine": "^0.70.322",
     "@stacksjs/stx": "0.2.162",

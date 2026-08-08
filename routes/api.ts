@@ -14,6 +14,14 @@ import { response, route } from '@stacksjs/router'
 
 route.get('/health', () => response.json({ ok: true }))
 
+/*
+ * Search. No `auth` middleware, deliberately: a public repository is public and
+ * a stranger searching for one should find it. Who the caller is decides what
+ * comes back rather than whether they may ask - `SearchAction` filters every
+ * hit through `visibility.ts` against the current user, anonymous included.
+ */
+route.get('/search', 'Actions/Search/SearchAction')
+
 // Signing in, out, and up. These override the framework defaults, which answer
 // with JSON and set no cookie - right for an API client reading access_token,
 // wrong for a form, because a browser shown JSON is a browser still signed out.

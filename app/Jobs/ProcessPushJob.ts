@@ -125,6 +125,39 @@ async function touchPushedAt(repositoryId: number): Promise<void> {
   catch {
     // A stale `pushed_at` is a sorting inaccuracy on a list. It is not worth
     // failing the rest of the work for.
+    return
+  }
+
+  /*
+   * And tell the index, because nothing else will.
+   *
+   * The `useSearch` trait re-indexes on save, which covers a repository being
+   * renamed or having its description edited - those go through the model. A
+   * push does not: the update above is deliberately raw SQL, so no model hook
+   * fires, and `pushed_at` is exactly the field the search results sort by.
+   * Without this the index keeps whatever timestamp it was built with and
+   * "recently active" means "recently reindexed", which is a ranking that
+   * quietly stops tracking reality.
+   */
+  await reindex(repositoryId)
+}
+
+/**
+ * Queue a reindex, and never let it fail the push.
+ *
+ * The search node being down is not a reason to fail work that has already
+ * been written to disk and to the database. The index is allowed to lag - the
+ * code that reads it re-checks every hit against the database anyway - so this
+ * is dispatched and forgotten.
+ */
+async function reindex(repositoryId: number): Promise<void> {
+  try {
+    const IndexRepositoryJob = (await import('./IndexRepositoryJob')).default
+
+    await IndexRepositoryJob.dispatch({ repositoryId })
+  }
+  catch (error) {
+    console.error('[push] could not queue a reindex:', error)
   }
 }
 
