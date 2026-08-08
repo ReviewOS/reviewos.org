@@ -2120,7 +2120,8 @@
             "hasDefault": false,
             "references": {
               "table": "organizations",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -2132,7 +2133,8 @@
             "hasDefault": false,
             "references": {
               "table": "users",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -6566,7 +6568,7 @@
       }
     ]
   },
-  "hash": "206587c8b6a69ca0bb5ca8f384a2b4c61f15bb2d269066adb800c00434b7b00b",
+  "hash": "34a5e2438b20f829cdbf6e39760ec8e65074bc9e2b7ef5d2e4e36bf12db66282",
   "dialect": "postgres",
-  "updatedAt": "2026-08-08T01:15:51.720Z"
+  "updatedAt": "2026-08-08T01:40:47.586Z"
 }

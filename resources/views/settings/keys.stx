@@ -48,6 +48,8 @@ if (!viewer)
 
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    <SettingsNav current="keys" />
+
     @if (!viewer)
       <div class="panel" style="padding: 32px; text-align: center;">
         <h1 style="font-size: 20px;">Sign in to manage your keys</h1>

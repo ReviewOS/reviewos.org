@@ -1,0 +1,62 @@
+<script server>
+/**
+ * The settings pages, linked to each other.
+ *
+ * Each of these was reachable only by typing its URL, so somebody who found the
+ * keys page had no way to discover that tokens or notifications existed. One
+ * row of links is the whole fix.
+ *
+ * The current page is passed in rather than read from the request, because the
+ * two ways a view learns its own path disagree depending on how it was served,
+ * and a nav that highlights the wrong item is worse than one that highlights
+ * nothing.
+ */
+const active = String(current ?? '')
+
+const pages = [
+  { key: 'profile', href: '/settings/profile', label: 'Profile' },
+  { key: 'organizations', href: '/settings/organizations', label: 'Organizations' },
+  { key: 'keys', href: '/settings/keys', label: 'Keys' },
+  { key: 'tokens', href: '/settings/tokens', label: 'Tokens' },
+  { key: 'notifications', href: '/settings/notifications', label: 'Notifications' },
+]
+</script>
+
+<nav class="settings-nav" aria-label="Settings">
+  @foreach (pages as page)
+    @if (page.key === active)
+      <a class="settings-nav-item is-current" href="{{ page.href }}" aria-current="page">{{ page.label }}</a>
+    @else
+      <a class="settings-nav-item" href="{{ page.href }}">{{ page.label }}</a>
+    @endif
+  @endforeach
+</nav>
+
+<style>
+.settings-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-nav-item {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.settings-nav-item:hover { color: inherit; }
+
+/* An underline rather than a fill. The row sits directly above the page's own
+   heading, and a filled tab reads as a second heading competing with it. */
+.settings-nav-item.is-current {
+  color: inherit;
+  font-weight: 600;
+  border-bottom-color: var(--accent, currentColor);
+}
+</style>

@@ -1699,6 +1699,11 @@
           <a class="muted" style="text-decoration: none;" href="/explore">Explore</a>
           <a class="muted" style="text-decoration: none;" href="/dashboard">Dashboard</a>
           <a class="muted" style="text-decoration: none;" href="/docs">Docs</a>
+          {{-- Last, and only when there is somebody to have settings. Six
+              settings pages existed and nothing in the chrome pointed at any
+              of them, which is the same failure as a link to a page that does
+              not exist, from the other end. --}}
+          <SettingsLink />
         </nav>
       </div>
     </header>

@@ -23,7 +23,19 @@ export default defineModel({
     useSeeder: { count: 12 },
   },
 
-  belongsTo: ['Organization', 'User'],
+  /*
+   * Both cascade. A membership of an organization that no longer exists means
+   * nothing, and one belonging to a deleted account means less - and without
+   * the cascades neither the organization nor the user could be deleted at all
+   * while a single row pointed at them.
+   *
+   * `invited_by_id` deliberately does not, and is not declared as a relation:
+   * it records who did something, and the record should survive them leaving.
+   */
+  belongsTo: [
+    { model: 'Organization', onDelete: 'cascade' },
+    { model: 'User', onDelete: 'cascade' },
+  ],
 
   attributes: {
     organization_id: {

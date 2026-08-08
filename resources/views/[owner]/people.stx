@@ -1,0 +1,215 @@
+<script server>
+/**
+ * Who is in an organization, and what each of them may do.
+ *
+ * **Not public.** `members:view` is a member's right, so somebody outside gets
+ * the same answer they would get for an organization that does not exist. The
+ * membership list of a private company is a target list, and a page that says
+ * "you cannot see this" has already confirmed the interesting half.
+ *
+ * The management controls only render for somebody who may use them, and the
+ * actions behind them check again. Both, because hiding a button is a courtesy
+ * and the check is the rule.
+ */
+import { cookieJarFromHeader, organizationRoleOf, peopleIn, viewerFromCookies } from '../../functions/identity'
+import { relativeTime } from '../../functions/browse'
+import { setStatus } from '../../functions/http'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+const handle = String(params.owner ?? '').toLowerCase()
+
+const organization: any = handle
+  ? await db
+      .selectFrom('organizations')
+      .select(['id', 'handle', 'name'])
+      .where('handle', '=', handle)
+      .executeTakeFirst()
+  : null
+
+const role = organization && viewer ? await organizationRoleOf(Number(organization.id), viewer.id) : null
+
+/*
+ * One condition for "no such organization" and "not yours to see". A user
+ * handle lands here too - `/{handle}/people` is only a page for an organization
+ * - and all three answer the same way, which is what keeps the page from being
+ * a membership oracle.
+ */
+const visible = Boolean(organization && role)
+const people = visible ? await peopleIn(Number(organization.id)) : []
+const mayManage = role === 'owner' || role === 'admin'
+const isOwner = role === 'owner'
+
+if (!visible)
+  setStatus(404)
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!visible)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">Not found</h1>
+        <p class="muted" style="margin-top: 6px;">
+          There is no page here.
+          @if (!viewer)
+            If you were expecting one, <a href="/login">sign in</a> first.
+          @endif
+        </p>
+      </div>
+    @else
+      <header class="people-head">
+        <h1 class="people-title">
+          <a href="/{{ organization.handle }}">{{ organization.name || organization.handle }}</a>
+          <span class="muted">people</span>
+        </h1>
+        <p class="muted">
+          {{ people.length }} {{ people.length === 1 ? 'person' : 'people' }}, including anybody
+          invited who has not answered yet.
+        </p>
+      </header>
+
+      @if (mayManage)
+        <section class="people-invite" x-data="{ inviting: false }">
+          <button
+            type="button"
+            class="btn"
+            @click="inviting = !inviting"
+            :aria-expanded="inviting ? 'true' : 'false'">Invite somebody</button>
+
+          <form class="invite-form" method="post" action="/api/orgs/members" x-show="inviting" x-cloak>
+            <CsrfField />
+            <input type="hidden" name="organization_id" value="{{ organization.id }}">
+
+            <label class="invite-label" for="invite-handle">Handle</label>
+            <input
+              id="invite-handle"
+              class="invite-input mono"
+              type="text"
+              name="handle"
+              required
+              maxlength="39"
+              spellcheck="false"
+              placeholder="somebody">
+
+            <label class="invite-label" for="invite-role">Role</label>
+            <select id="invite-role" class="invite-input" name="role">
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+              {{--
+                Only an owner sees "owner", and the action refuses it from
+                anybody else. An admin who could appoint an owner could appoint
+                themselves, which is a privilege escalation with extra steps.
+              --}}
+              @if (isOwner)
+                <option value="owner">Owner</option>
+              @endif
+            </select>
+
+            <div class="invite-actions">
+              <button type="submit" class="btn btn-primary">Send invitation</button>
+            </div>
+          </form>
+        </section>
+      @endif
+
+      <ul class="people-list panel">
+        @foreach (people as person)
+          <li class="person-row">
+            @if (person.avatarUrl)
+              <img class="person-avatar" src="{{ person.avatarUrl }}" alt="" width="32" height="32">
+            @else
+              <span class="i-hugeicons-user person-icon" aria-hidden="true"></span>
+            @endif
+
+            <div class="person-main">
+              <a class="person-name" href="/{{ person.handle }}">{{ person.name }}</a>
+              <span class="person-meta muted">
+                {{ person.handle }}
+                &middot; {{ person.role }}
+                @if (person.pending)
+                  &middot; invited, not answered
+                @elseif (person.joinedAt)
+                  &middot; joined {{ relativeTime(person.joinedAt) }}
+                @endif
+              </span>
+            </div>
+
+            @if (mayManage)
+              <div class="person-actions">
+                {{--
+                  The role select submits on change rather than behind a save
+                  button. There is one field, and a row of unsaved selects is
+                  how somebody changes three people and persuades none of them.
+                --}}
+                <form method="post" action="/api/orgs/members/role" class="person-role">
+                  <CsrfField />
+                  <input type="hidden" name="organization_id" value="{{ organization.id }}">
+                  <input type="hidden" name="user_id" value="{{ person.id }}">
+                  <select name="role" class="person-select" onchange="this.form.submit()">
+                    <option value="member" {{ person.role === 'member' ? 'selected' : '' }}>Member</option>
+                    <option value="admin" {{ person.role === 'admin' ? 'selected' : '' }}>Admin</option>
+                    @if (isOwner)
+                      <option value="owner" {{ person.role === 'owner' ? 'selected' : '' }}>Owner</option>
+                    @endif
+                  </select>
+                  <noscript><button type="submit" class="btn">Change</button></noscript>
+                </form>
+
+                <form method="post" action="/api/orgs/members/remove">
+                  <CsrfField />
+                  <input type="hidden" name="organization_id" value="{{ organization.id }}">
+                  <input type="hidden" name="user_id" value="{{ person.id }}">
+                  <button type="submit" class="btn btn-quiet">{{ person.pending ? 'Cancel' : 'Remove' }}</button>
+                </form>
+              </div>
+            @endif
+          </li>
+        @endforeach
+      </ul>
+    @endif
+  </div>
+@endsection
+
+<style>
+.people-head { margin-bottom: 22px; }
+.people-title { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 8px; }
+.people-title .muted { font-size: 16px; font-weight: 400; }
+.people-head > .muted { margin-top: 6px; font-size: 14px; }
+
+.people-invite { margin-bottom: 18px; }
+.invite-form { margin-top: 12px; padding: 18px; border: 1px solid var(--border); border-radius: 8px; max-width: 420px; }
+.invite-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+.invite-label + .invite-input { margin-bottom: 14px; }
+.invite-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; font-size: 14px; }
+.invite-input.mono { font-family: var(--mono, ui-monospace, monospace); }
+.invite-actions { margin-top: 4px; }
+
+.people-list { list-style: none; padding: 0; margin: 0; }
+
+.person-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.person-row:last-child { border-bottom: 0; }
+
+.person-avatar { border-radius: 50%; flex: none; }
+.person-icon { font-size: 20px; opacity: 0.65; width: 32px; text-align: center; flex: none; }
+.person-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.person-name { font-weight: 600; font-size: 14.5px; }
+.person-meta { font-size: 12.5px; }
+
+.person-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.person-select { padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; font-size: 13px; }
+
+@media (max-width: 640px) {
+  .person-row { flex-wrap: wrap; }
+  .person-actions { width: 100%; padding-left: 44px; }
+}
+</style>

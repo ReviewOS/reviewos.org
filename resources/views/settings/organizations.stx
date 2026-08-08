@@ -1,0 +1,232 @@
+<script server>
+/**
+ * The organizations an account belongs to, and the invitations waiting on it.
+ *
+ * One list, not two. An unanswered invitation is the thing most worth seeing
+ * here, and the notification that announced it points at this page - a
+ * separate section further down is a separate thing to scroll to.
+ *
+ * Reading is `app/Actions/Org/read.ts`; writing is the actions behind
+ * `/api/orgs`. This lays it out.
+ */
+import { cookieJarFromHeader, organizationsFor, viewerFromCookies } from '../../functions/identity'
+import { relativeTime } from '../../functions/browse'
+import { setStatus } from '../../functions/http'
+
+/**
+ * The request, when there is one, without naming a binding that may not exist.
+ *
+ * stx declares `__stxServeContext` on the path that serves a request and on no
+ * other, and an *undeclared* identifier is a ReferenceError - which optional
+ * chaining does not save, because `x?.y` throws on `x` before the chain is
+ * reached. It throws inside the server script's IIFE, so it takes every other
+ * variable in this file down with it and the page renders its signed-out
+ * branch as though nobody were there.
+ */
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+
+// The other spelling of the same thing. `route.serve()` mounts views itself and
+// names the request differently, so reading only `__stxServeContext` shows the
+// signed-out branch to somebody who is signed in - on the boot the e2e suite
+// and a production server both use.
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+const organizations = viewer ? await organizationsFor(viewer.id) : []
+const invitations = organizations.filter(organization => !organization.joinedAt)
+const joined = organizations.filter(organization => organization.joinedAt)
+
+// A settings page for nobody is not a 404 - the page exists, and saying so is
+// how somebody knows to sign in rather than that they mistyped the URL.
+if (!viewer)
+  setStatus(401)
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    <SettingsNav current="organizations" />
+
+    @if (!viewer)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">Sign in to see your organizations</h1>
+        <p class="muted" style="margin-top: 6px;">
+          <a href="/login">Sign in</a> to see the organizations you belong to and any invitations
+          waiting for you.
+        </p>
+      </div>
+    @else
+      <header class="orgs-head">
+        <h1 class="orgs-title">Organizations</h1>
+        <p class="muted">
+          An organization is a handle that owns repositories on behalf of several people.
+        </p>
+      </header>
+
+      @if (invitations.length > 0)
+        <section class="orgs-section">
+          <h2 class="orgs-heading">Waiting for you</h2>
+
+          <ul class="orgs-list panel">
+            @foreach (invitations as invitation)
+              <li class="org-row org-row-pending">
+                <span class="i-hugeicons-mail-open-01 org-icon" aria-hidden="true"></span>
+
+                <div class="org-main">
+                  <a class="org-name" href="/{{ invitation.handle }}">{{ invitation.name }}</a>
+                  <span class="org-meta muted">
+                    Invited as {{ invitation.role }}
+                    &middot; {{ invitation.memberCount }} {{ invitation.memberCount === 1 ? 'member' : 'members' }}
+                  </span>
+                </div>
+
+                {{--
+                  Two forms rather than one with a pair of submit buttons. A
+                  form whose meaning depends on which button was pressed does
+                  the wrong thing when the reader presses Enter in a field, and
+                  declining is not the thing to do by accident.
+                --}}
+                <div class="org-actions">
+                  <form method="post" action="/api/orgs/members/accept">
+                    <CsrfField />
+                    <input type="hidden" name="organization_id" value="{{ invitation.id }}">
+                    <button type="submit" class="btn btn-primary">Accept</button>
+                  </form>
+
+                  <form method="post" action="/api/orgs/members/accept">
+                    <CsrfField />
+                    <input type="hidden" name="organization_id" value="{{ invitation.id }}">
+                    <input type="hidden" name="operation" value="decline">
+                    <button type="submit" class="btn">Decline</button>
+                  </form>
+                </div>
+              </li>
+            @endforeach
+          </ul>
+        </section>
+      @endif
+
+      <section class="orgs-section" x-data="{ creating: false }">
+        <div class="orgs-section-head">
+          <h2 class="orgs-heading">Your organizations</h2>
+          <button
+            type="button"
+            class="btn"
+            @click="creating = !creating"
+            :aria-expanded="creating ? 'true' : 'false'">New organization</button>
+        </div>
+
+        <form class="org-form" method="post" action="/api/orgs" x-show="creating" x-cloak>
+          <CsrfField />
+
+          <label class="org-label" for="org-handle">Handle</label>
+          {{--
+            The handle is the URL segment, so it is asked for first and by that
+            name. An organization created without one has no page, and picking
+            it later means the page moves.
+          --}}
+          <input
+            id="org-handle"
+            class="org-input mono"
+            type="text"
+            name="handle"
+            required
+            maxlength="39"
+            spellcheck="false"
+            placeholder="acme">
+          <p class="org-hint muted">Lowercase letters, numbers and hyphens. This becomes /acme.</p>
+
+          <label class="org-label" for="org-name">Display name</label>
+          <input id="org-name" class="org-input" type="text" name="name" maxlength="100" placeholder="Acme">
+
+          <div class="org-form-actions">
+            <button type="submit" class="btn btn-primary">Create organization</button>
+          </div>
+        </form>
+
+        @if (joined.length === 0)
+          <div class="orgs-empty panel">
+            <p class="muted">
+              You are not in any organizations yet. Create one to own repositories as a group rather
+              than as yourself.
+            </p>
+          </div>
+        @else
+          <ul class="orgs-list panel">
+            @foreach (joined as organization)
+              <li class="org-row">
+                <span class="i-hugeicons-building-03 org-icon" aria-hidden="true"></span>
+
+                <div class="org-main">
+                  <a class="org-name" href="/{{ organization.handle }}">{{ organization.name }}</a>
+                  @if (organization.description)
+                    <span class="org-description muted">{{ organization.description }}</span>
+                  @endif
+                  <span class="org-meta muted">
+                    {{ organization.role }}
+                    &middot; {{ organization.memberCount }} {{ organization.memberCount === 1 ? 'member' : 'members' }}
+                    &middot; {{ organization.repositoryCount }} {{ organization.repositoryCount === 1 ? 'repository' : 'repositories' }}
+                    @if (organization.joinedAt)
+                      &middot; joined {{ relativeTime(organization.joinedAt) }}
+                    @endif
+                  </span>
+                </div>
+
+                <div class="org-actions">
+                  <a class="btn" href="/{{ organization.handle }}/people">People</a>
+                </div>
+              </li>
+            @endforeach
+          </ul>
+        @endif
+      </section>
+    @endif
+  </div>
+@endsection
+
+<style>
+.orgs-head { margin-bottom: 26px; }
+.orgs-title { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+.orgs-head .muted { margin-top: 6px; font-size: 14px; }
+
+.orgs-section { margin-top: 30px; }
+.orgs-section-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.orgs-heading { font-size: 15px; font-weight: 600; }
+
+.orgs-list { list-style: none; padding: 0; margin: 0; }
+.orgs-empty { padding: 26px; text-align: center; font-size: 14px; }
+
+.org-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.org-row:last-child { border-bottom: 0; }
+
+/* An unanswered invitation is the one thing on this page that wants an answer,
+   so it carries a rule rather than a fill: a tinted row reads as a warning. */
+.org-row-pending { border-left: 2px solid var(--accent, currentColor); }
+
+.org-icon { font-size: 18px; margin-top: 2px; opacity: 0.75; flex: none; }
+.org-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.org-name { font-weight: 600; font-size: 15px; }
+.org-description { font-size: 13px; }
+.org-meta { font-size: 12.5px; }
+.org-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+.org-form { padding: 18px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 14px; }
+.org-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+.org-label + .org-input { margin-bottom: 4px; }
+.org-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; font-size: 14px; }
+.org-input.mono { font-family: var(--mono, ui-monospace, monospace); }
+.org-hint { font-size: 12.5px; margin: 0 0 14px; }
+.org-form-actions { margin-top: 16px; }
+
+@media (max-width: 640px) {
+  .org-row { flex-wrap: wrap; }
+  .org-actions { width: 100%; }
+}
+</style>

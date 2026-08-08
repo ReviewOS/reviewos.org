@@ -135,12 +135,63 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   Third instance of the pattern in [the index](./index.md) under "A signed-in browser is not a
   signed-in test client". All three were found by opening a page rather than by running anything.
 
-- [ ] `app/Actions/Org/UpdateOrganizationAction.ts`, `DeleteOrganizationAction.ts`
-- [ ] `app/Actions/Org/InviteMemberAction.ts`, `AcceptInviteAction.ts`, `RemoveMemberAction.ts`,
+- [x] `app/Actions/Org/UpdateOrganizationAction.ts`, `DeleteOrganizationAction.ts`
+
+  Deleting is **refused while the organization still owns a repository, and the repositories come
+  back named**. A cascade there would take every repository and with them every issue, pull request
+  and review anybody ever wrote - and a confirmation box does not make that safe, because the person
+  clicking it is thinking about the organization, not about the seventeen repositories underneath
+  it. They have to be transferred or deleted one at a time, each with its own confirmation and its
+  own recoverable copy on disk. Slower on purpose. The refusal is a to-do list rather than a wall.
+
+  The handle has to be typed back, exactly, for the same reason `DeleteRepositoryAction` asks: a
+  misdirected click, a stale tab and a script pointed at the wrong organization all produce a
+  correctly authorized request for the wrong thing, which is what the permission check cannot catch.
+
+  Updating is gated on `settings:manage`, which the abilities table puts at owner. There is
+  deliberately no lower rung for the profile fields - an organization's name is what every reader
+  sees above its repositories, and an admin appointed to manage members has not been given that. A
+  website must start with `http`, the same rule the user profile applies and for the same reason:
+  the field renders as an anchor, and `javascript:` in one is stored XSS with a form in front of it.
+- [x] `app/Actions/Org/InviteMemberAction.ts`, `AcceptInviteAction.ts`, `RemoveMemberAction.ts`,
       `ChangeMemberRoleAction.ts`
-- [ ] Transferring a repository between owners, including handle collision handling
-- [ ] `resources/views/settings/organizations.stx`, `[owner]/people.stx`
-- [x] Tests: the last owner cannot be removed or demoted
+
+  **A pending invitation is now a real thing, and it grants nothing.** It is an `org_members` row
+  carrying the role it will have with a null `joined_at`, and `organizationRoleOf` answers null
+  until that fills in. The filter lives there rather than at each call site because there are dozens
+  of those and one of them will be written without it; that function is the only thing in the
+  codebase that turns a membership row into an answer about what somebody may do. Before this,
+  inviting somebody *was* adding them - the action wrote `joined_at` immediately, so the access the
+  invitation offered arrived at the moment it was offered.
+
+  `organizationOwnerCount` counts accepted owners only, or the last real owner could demote
+  themselves on the strength of an invitee who never arrives.
+
+  Accepting takes no id but the organization's, so there is no parameter that could accept on
+  somebody else's behalf. Accepting twice is success, not a conflict: the usual way to reach it is a
+  second click on a notification still sitting in the inbox.
+- [x] Transferring a repository between owners, including handle collision handling
+
+  Built with the rest of `app/Actions/Repo/TransferRepositoryAction.ts` and left unticked. Two
+  permissions rather than one - admin on the repository is the right to give it away, and the right
+  to receive it belongs to the target - and `decideTransfer` refuses a name already taken there
+  rather than picking a silent answer.
+- [x] `resources/views/settings/organizations.stx`, `[owner]/people.stx`
+
+  Invitations are in the same list as the organizations, marked, rather than in a section of their
+  own: the unanswered thing is what the reader came for, and the notification points here.
+
+  The people page is **not public**. Somebody outside the organization gets the same answer they
+  would get for an organization that does not exist, because a page saying "you cannot see this" has
+  already confirmed the interesting half, and a membership list is a target list.
+
+  While building these it turned out **six settings pages existed and nothing in the chrome pointed
+  at any of them** - profile, keys, tokens, notifications, and the two new ones, reachable only by
+  typing the URL. The same failure as fourteen links to a profile page that did not exist, from the
+  other end. `SettingsLink` puts one item in the header for somebody signed in, and `SettingsNav`
+  links the pages to each other.
+- [x] Tests: the last owner cannot be removed or demoted, and `tests/e2e/organizations.test.ts` for
+      the invitation, the pages and the two deletes that refuse
 
 ## Teams
 

@@ -278,28 +278,51 @@ export async function viewerFromCookies(
   }
 }
 
-/** Somebody's role in an organization, or null when they are not a member. */
+/**
+ * Somebody's role in an organization, or null when they are not a member.
+ *
+ * **A pending invitation is not a membership.** An invited row exists with the
+ * role it will carry and a null `joined_at`, and the whole point of asking
+ * somebody to accept is that they have not yet. Answering with the role before
+ * they do would hand out the access the invitation is offering at the moment it
+ * is offered, which is not an invitation at all.
+ *
+ * The filter lives here rather than at each call site because there are dozens
+ * of those and one of them will be written without it. This function is the
+ * only thing in the codebase that turns an `org_members` row into an answer
+ * about what somebody may do.
+ */
 export async function organizationRoleOf(organizationId: number, userId: number): Promise<'owner' | 'admin' | 'member' | null> {
   const row = await db
     .selectFrom('org_members')
-    .select(['role'])
+    .select(['role', 'joined_at'])
     .where('organization_id', '=', organizationId)
     .where('user_id', '=', userId)
     .executeTakeFirst()
 
-  return (row?.role as 'owner' | 'admin' | 'member' | undefined) ?? null
+  if (!row || !row.joined_at)
+    return null
+
+  return (row.role as 'owner' | 'admin' | 'member' | undefined) ?? null
 }
 
-/** How many owners an organization has. Used before removing or demoting one. */
+/**
+ * How many owners an organization has. Used before removing or demoting one.
+ *
+ * Counts accepted owners only, for the same reason. An organization whose only
+ * owner has been invited and has not accepted has no owner, and treating the
+ * invitation as one would let the last real owner demote themselves on the
+ * strength of somebody who may never arrive.
+ */
 export async function organizationOwnerCount(organizationId: number): Promise<number> {
   const rows = await db
     .selectFrom('org_members')
-    .select(['id'])
+    .select(['id', 'joined_at'])
     .where('organization_id', '=', organizationId)
     .where('role', '=', 'owner')
     .execute()
 
-  return rows.length
+  return rows.filter((row: any) => Boolean(row.joined_at)).length
 }
 
 /**
@@ -313,19 +336,32 @@ export async function organizationOwnerCount(organizationId: number): Promise<nu
 export async function ownersForCreate(
   user: { id: number, handle: string },
 ): Promise<{ handle: string, kind: 'user' | 'organization' }[]> {
-  const memberships = await db
+  const memberships: any[] = await db
     .selectFrom('org_members')
-    .select(['organization_id', 'role'])
+    .select(['organization_id', 'role', 'joined_at'])
     .where('user_id', '=', user.id)
     .execute()
 
-  const allowed = memberships.filter(row => canInOrganization(String(row.role) as any, 'repositories:create'))
+  // `joined_at` first, for the reason written on `organizationRoleOf`: a
+  // pending invitation is not a membership, and offering somebody an
+  // organization they have not joined would have the create endpoint refuse
+  // them after they filled in the form - which is the exact failure this
+  // function exists to prevent, pointed the other way.
+  const allowed = memberships.filter(row => Boolean(row.joined_at)
+    && canInOrganization(String(row.role) as any, 'repositories:create'))
+
   if (allowed.length === 0)
     return [{ handle: user.handle, kind: 'user' }]
 
-  const organizations = await db
+  const ids = allowed.map(row => Number(row.organization_id))
+
+  // Scoped to the ids in hand. Reading every organization on the instance to
+  // resolve a handful of handles is the query that gets slow first, and it does
+  // so on the page somebody opens to create their first repository.
+  const organizations: any[] = await db
     .selectFrom('organizations')
     .select(['id', 'handle'])
+    .where('id', 'in', ids)
     .execute()
 
   const byId = new Map(organizations.map(row => [Number(row.id), String(row.handle)]))

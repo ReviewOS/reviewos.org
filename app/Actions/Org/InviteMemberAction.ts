@@ -44,6 +44,14 @@ export default new Action({
     if (existing)
       return response.json({ error: 'Already a member', role: existing }, 409)
 
+    /*
+     * The row is written with a null `joined_at`, which is what "invited" is.
+     *
+     * It carries the role it will have, so accepting is one column and no
+     * decision, and `organizationRoleOf` answers null until then - so the
+     * pending row grants nothing anywhere in the product, including to a query
+     * written later by somebody who has never read this file.
+     */
     await db
       .insertInto('org_members')
       .values({
@@ -51,10 +59,59 @@ export default new Action({
         user_id: inviteeId,
         role,
         invited_by_id: actor.id,
-        joined_at: new Date().toISOString(),
+        joined_at: null,
       })
       .execute()
 
-    return response.json({ ok: true, handle, role }, 201)
+    await notifyOfInvitation({ organizationId, inviteeId, role, invitedBy: actor.handle })
+
+    return response.json({ ok: true, handle, role, pending: true }, 201)
   },
 })
+
+/**
+ * Put the invitation in the invitee's inbox.
+ *
+ * Written directly rather than emitted as an event, because the notification
+ * machinery resolves recipients from subscriptions and there is exactly one
+ * recipient here, known by name. Routing a single addressed message through a
+ * subscription resolver would mean inventing a subscription for it.
+ *
+ * Never throws. An invitation that was recorded and not announced is a member
+ * waiting to be told; an invitation that failed because the inbox insert did is
+ * a caller retrying against a row that already exists.
+ */
+async function notifyOfInvitation(input: {
+  organizationId: number
+  inviteeId: number
+  role: string
+  invitedBy: string
+}): Promise<void> {
+  try {
+    const organization: any = await db
+      .selectFrom('organizations')
+      .select(['handle', 'name'])
+      .where('id', '=', input.organizationId)
+      .executeTakeFirst()
+
+    const name = String(organization?.name || organization?.handle || 'an organization')
+
+    await db.insertInto('notifications').values({
+      user_id: input.inviteeId,
+      type: 'org:invited',
+      data: JSON.stringify({
+        title: `${input.invitedBy} invited you to ${name} as ${input.role}`,
+        // Straight to the page that can accept it. An invitation notification
+        // that lands somewhere requiring a hunt for the accept button is a
+        // notification people leave unread.
+        url: '/settings/organizations',
+        reason: 'You were invited',
+        repository: null,
+        number: null,
+      }),
+    }).execute()
+  }
+  catch (error) {
+    console.error('[org] could not announce the invitation:', error)
+  }
+}
