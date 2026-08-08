@@ -67,15 +67,15 @@
     "typecheck:framework": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false"
   },
   "dependencies": {
-    "@stacksjs/actions": "^0.70.313",
-    "@stacksjs/database": "^0.70.313",
-    "@stacksjs/queue": "^0.70.313",
+    "@stacksjs/actions": "^0.70.315",
+    "@stacksjs/database": "^0.70.315",
+    "@stacksjs/queue": "^0.70.315",
     "@stacksjs/stx": "0.2.159",
     "@stacksjs/ts-ssh": "^0.1.0",
     "bun-query-builder": "^0.2.25",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.48",
-    "stacks": "^0.70.313",
+    "stacks": "^0.70.315",
     "ts-git-lfs": "^0.1.1",
     "ts-syntax-highlighter": "^0.2.13"
   },
