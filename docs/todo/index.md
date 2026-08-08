@@ -15,7 +15,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | Phase | What it covers | State |
 |---|---|---|
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done, 5 deferred (27/32) |
-| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (60/65) |
+| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (62/65) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (120/121) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (95/95) |
@@ -133,6 +133,20 @@ three: **a test that authenticates differently from a person is not testing what
 `tests/e2e/csrf-forms.test.ts` is the one that behaves like a browser - GET the page, keep the
 cookie, read the token out of the HTML, post the form - and it is worth adding to rather than
 working around.
+
+A fourth has since joined them, and it is the same shape one level down. `useRoute().query` was
+always `{}` on the boot a production server and the e2e suite both use: it read a raw search string
+that only the dev server sets, while bun-router's file-based `serve()` supplies the query already
+parsed. **Eleven pages here were reading a query string that was always empty**, and none of them
+looked broken - a page keyed on `?token=` rendered its no-token branch, which is a real branch that
+reads as correct. Fixed in stx 0.2.159.
+
+The common thread across all four is worth naming, because it will produce a fifth: **two hosts
+render stx in this product, and only one of them is the one anybody looks at.** `buddy dev` goes
+through bun-plugin-stx; everything else - a production boot, the e2e suite - goes through
+`route.serve()`, and the second is where the request context, the CSRF cookie, the response helpers
+and now the query string all turned out to be missing. When something works in development and a
+test cannot see it, that difference is the first place to look.
 
 ## The tests all used the cases where the wrong answer is right
 

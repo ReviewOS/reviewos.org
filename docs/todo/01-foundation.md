@@ -10,8 +10,9 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
 
 - [x] `app/Models/User.ts` overriding the framework default: `handle` (unique, the URL segment),
       `name`, `email`, `bio`, `avatar_url`, `location`, `website`, `is_admin`
-- [ ] Traits: `useAuth` with passkeys, `useUuid`, `useTimestamps`, `useSearch` on handle and name,
-      `useSeeder`
+- [x] Traits: `useAuth` with passkeys, `useUuid`, `useTimestamps`, `useSearch` on handle and name,
+      `useSeeder`. All present on `app/Models/User.ts` and left unticked, which is the failure
+      [the index](./index.md) opens by warning about
 - [x] Handle validation: lowercase alphanumeric and hyphens, 1-39 characters, cannot collide with a
       reserved route segment (`explore`, `settings`, `new`, `login`, `register`, `docs`, `api`)
 - [x] `app/Actions/Auth/RegisterAction.ts`, `LoginAction.ts`, `LogoutAction.ts`
@@ -64,7 +65,43 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   `UpdateAvatarAction` is not built. Avatars need the storage decisions in phase 11 - where files
   live, what is served from disk versus S3, how a self-hosted instance without object storage
   behaves - and a profile without one is a profile; a half-wired upload is a broken page.
-- [ ] Email verification, and password reset using the framework's token table
+- [x] Email verification, and password reset using the framework's token table
+
+  The token machinery is entirely `@stacksjs/auth`'s - hashing before storage, expiry, rotating an
+  outstanding token, revoking every session on success, mailing a notice that the password changed.
+  None of it is reimplemented. What is here is the browser: the framework's actions answer JSON, and
+  a link clicked in a mail client is a browser, which has verified nothing as far as its reader can
+  tell. `config/auth.ts` points both mail templates at these pages, since the framework's defaults
+  are `/password/reset/{token}` and `/verify-email/{id}/{token}` - two URLs this product does not
+  have, so the mail would have gone out pointing at a 404.
+
+  **The reset request answers identically for an address with an account and one without**, and
+  `/forgot-password` says so in those words so the flat answer reads as deliberate rather than as
+  the page failing to notice. Reporting the difference turns a public form into a way to test who
+  has an account here, which on a forge also answers "does this person work here". A send that
+  throws is swallowed for the same reason: an unknown address and a dead mail transport must look
+  identical from outside.
+
+  Nobody is signed in as a side effect of either. Clicking a link in an email proves reaching a
+  mailbox and nothing else, and a mailbox somebody else is reading is the case verification exists
+  to notice. The reset deliberately leaves every session revoked, including this one: the usual
+  reason to reset a password is that somebody else may have had it.
+
+  Three upstream gaps came out of building it, all of the same shape - the framework shipping a
+  feature and not the thing it needs:
+
+  - `email_verifications` did not exist. `core/auth/src/email-verification.ts` had been writing to
+    it since it was written, `password_resets` was created beside it, and this one never was, so the
+    framework's own verification flow answered a 500 naming a relation nobody's code mentions. Fixed
+    in Stacks 0.70.315.
+  - `useRoute().query` was always `{}` on the boot a production server and the e2e suite use. It
+    read a raw search string that only the dev server sets, while bun-router's file-based `serve()`
+    supplies the query already parsed - the same way it supplies `params`, which the same function
+    was already reading correctly. **Eleven pages here were reading a query string that was always
+    empty**, silently: a page keyed on `?token=` rendered its no-token branch, which is a real
+    branch that looks entirely right. Fixed in stx 0.2.159.
+  - `.middleware(['auth', 'orgCan:…'])` pushed the array in whole and failed at boot with
+    `input.split is not a function` from inside a case converter. Fixed in Stacks 0.70.314.
 - [x] `resources/views/[owner]/index.stx` - profile: repositories, activity, contribution summary
 
   **Fourteen links in this product already pointed here and there was no page.** Every commit

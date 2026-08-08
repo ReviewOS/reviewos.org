@@ -740,6 +740,18 @@
         font-size: 13px;
       }
 
+      /* The same shape as .auth-error in the neutral colour. Something worked,
+         and it is worth saying so on the page it lands on rather than leaving
+         the reader to infer it from a form they no longer need. */
+      .auth-notice {
+        margin: 0 0 14px;
+        padding: 8px 12px;
+        border-left: 2px solid var(--accent);
+        border-radius: 0 8px 8px 0;
+        background: var(--panel-2, transparent);
+        font-size: 13px;
+      }
+
       /* A profile, and the feed on it. */
       .profile { display: grid; grid-template-columns: 260px 1fr; gap: 32px; align-items: start; }
       @media (max-width: 800px) { .profile { grid-template-columns: 1fr; gap: 20px; } }

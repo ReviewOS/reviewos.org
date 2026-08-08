@@ -27,6 +27,27 @@ const search: Record<string, string> = useRoute().query ?? {}
 const error = String(search.error ?? '')
 
 /*
+ * What just happened, if anything did.
+ *
+ * All three flows that end here end with "now sign in": a reset link was sent,
+ * a password was changed, an address was verified. Written as a lookup rather
+ * than as three branches in the markup so the strings sit together and can be
+ * read against each other.
+ *
+ * Deliberately not signed in as a side effect of any of them. Clicking a link
+ * in an email proves reaching a mailbox and nothing else, and a mailbox
+ * somebody else is reading is the case verification exists to notice.
+ */
+const notices: Record<string, string> = {
+  'reset=sent': 'If that address has an account here, a reset link is on its way.',
+  'reset=done': 'Your password has been changed. Every other session was signed out.',
+  'verified=1': 'Your email address is verified.',
+}
+
+const notice = String(search.reset ? notices[`reset=${search.reset}`] ?? '' : '')
+  || String(search.verified ? notices['verified=1'] : '')
+
+/*
  * Only a path on this host.
  *
  * A `next` that accepts an absolute URL is an open redirect, and an open
@@ -64,6 +85,16 @@ const alreadyIn = Boolean(viewer)
           <p class="auth-error" role="alert">{{ error }}</p>
         @endif
 
+        {{--
+          The three things that send somebody back here having just done
+          something. Said on this page rather than on one of their own, because
+          all three end with "now sign in" and a page that only says that is a
+          page with a button on it.
+        --}}
+        @if (notice)
+          <p class="auth-notice" role="status">{{ notice }}</p>
+        @endif
+
         <form method="post" action="/api/auth/login" class="auth-form">
           <CsrfField />
           <input type="hidden" name="next" value="{{ next }}">
@@ -81,6 +112,7 @@ const alreadyIn = Boolean(viewer)
 
         <p class="auth-line muted">
           No account? <a href="/register">Create one</a>.
+          Forgotten your password? <a href="/forgot-password">Reset it</a>.
         </p>
       @endif
     </div>

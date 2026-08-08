@@ -96,5 +96,31 @@ export default {
      * @default 60
      */
     throttle: env.AUTH_PASSWORD_RESET_THROTTLE ||60,
+
+    /**
+     * Where the link in the mail lands.
+     *
+     * `/forgot-password` serves both halves of the flow: with no token it asks
+     * for an address, with one it asks for a new password. The framework's
+     * default template is `/password/reset/{token}`, which is a page this
+     * product does not have - the mail would have gone out pointing at a 404.
+     *
+     * The address rides along because the token is stored hashed against it and
+     * `passwordResets(email)` is keyed on it, so the reader does not retype
+     * what they typed a minute ago.
+     */
+    url: '/forgot-password?token={token}&email={email}',
+  },
+
+  /**
+   * Verifying an email address.
+   */
+  emailVerification: {
+    /**
+     * Same reason as the reset link above: the framework's default is
+     * `/verify-email/{id}/{token}`, and the endpoint here is an action that
+     * redirects a browser rather than a page. The mail points straight at it.
+     */
+    url: '/api/auth/verify?id={id}&token={token}',
   },
 } satisfies AuthConfig

@@ -26,6 +26,23 @@ route.post('/auth/register', 'Actions/Auth/RegisterAction')
 // markdown.
 route.post('/auth/logout', 'Actions/Auth/LogoutAction')
 
+/*
+ * Forgotten passwords and unverified addresses.
+ *
+ * The reset endpoint is one action for both halves - asking for a link and
+ * using one - because they are the same conversation and splitting them means
+ * two places that have to agree on how a token is spelled.
+ *
+ * Verification is a GET, which is the one place the rule about GET not changing
+ * anything has to bend: it is a link in an email, a mail client cannot POST,
+ * and asking somebody to copy a token into a form loses most of them. The token
+ * is single-use, expiring and unguessable, so the worst a prefetching mail
+ * client can do is verify the address its own user asked to verify.
+ */
+route.post('/auth/password/reset', 'Actions/Auth/PasswordResetAction')
+route.get('/auth/verify', 'Actions/Auth/VerifyEmailAction')
+route.post('/auth/verify/resend', 'Actions/Auth/VerifyEmailAction').middleware('auth')
+
 // Your own profile, and only your own. There is no id parameter that could say
 // otherwise - an endpoint that takes one and checks it is an endpoint where the
 // check can be forgotten.
