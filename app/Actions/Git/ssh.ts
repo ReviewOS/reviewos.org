@@ -318,9 +318,9 @@ async function runGitCommand(command: Command, report: (error: unknown) => void)
   // fall through to the anonymous answer - which for a public repository is
   // "yes, read", and would quietly make every deploy key a key to every public
   // repository on the instance.
-  const allowed = identity?.kind === 'deploy'
-    ? Boolean(repository) && deployKeyMay(identity.key, Number(repository.id), parsed.service)
-    : Boolean(repository) && await mayUseService(repository, userId, parsed.service)
+  const allowed = repository != null && (identity?.kind === 'deploy'
+    ? deployKeyMay(identity.key, Number(repository.id), parsed.service)
+    : await mayUseService(repository, userId, parsed.service))
 
   // The same answer for a repository that does not exist and one this key may
   // not see. Anything else turns a 'not found' into a directory of private

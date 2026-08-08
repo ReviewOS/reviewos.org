@@ -145,7 +145,7 @@ export async function tokensFor(userId: number, nowMs = Date.now()): Promise<Tok
     .where('user_id', '=', userId)
     .execute()
 
-  const listings = await Promise.all(rows.map(async (row: any): Promise<TokenListing> => {
+  const listings: TokenListing[] = await Promise.all(rows.map(async (row: any): Promise<TokenListing> => {
     const id = Number(row.id)
 
     const permissions = await db

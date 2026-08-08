@@ -14,10 +14,10 @@ import { currentUser } from '../Identity/lookup'
 export default new Action({
   name: 'DeleteSshKey',
   description: 'Remove one of the caller\'s SSH keys',
-  // POST as well as DELETE. An HTML form can only send GET or POST, and every
-  // write in this application goes through a form with a CSRF field - so the
-  // verb-correct route exists for API clients and the form uses the other.
-  method: ['DELETE', 'POST'],
+  // The verb this action is about. `routes/api.ts` also registers it on POST,
+  // because an HTML form can only send GET or POST and every write in this
+  // application goes through a form with a CSRF field.
+  method: 'DELETE',
 
   async handle(request: any) {
     const user = await currentUser(request)

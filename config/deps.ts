@@ -24,7 +24,23 @@ export const config: PantryConfig = {
     // signature without it, but not whether the signature is good - that is
     // gpg's job, and the same reasoning as git applies: the binary does the
     // cryptography rather than a reimplementation of OpenPGP in TypeScript.
-    'gnupg.org': '^2.4.0',
+    //
+    // 2.4.8 rather than 2.4.0 because pantry does not distribute 2.4.0 or
+    // 2.4.1 - its oldest 2.4 is 2.4.2 - so the old floor named a version that
+    // was never installable. 2.4.8 is the one installed and what deps.yaml
+    // declares.
+    //
+    // The suppression is a ts-pantry bug rather than anything about the value:
+    // `PackageVersions<T>` looks the name up in `Packages` first, and only a
+    // flattened key like `gnupgorg` is in there, never the domain `gnupg.org`.
+    // The miss indexes with `never`, which then satisfies the `{ versions }`
+    // check vacuously, so the generated union - which does carry 2.2.42 through
+    // 2.4.8 for this name - is never consulted and no version string at all
+    // typechecks. Every domain-style name has this; `bun` above does not,
+    // because it is a real key. Delete the directive once ts-pantry checks for
+    // the miss before indexing: it reports itself as unused.
+    // @ts-expect-error ts-pantry resolves a domain name's versions to never
+    'gnupg.org': '^2.4.8',
     // The database engine is swapped for the one DB_CONNECTION names when
     // `buddy setup` regenerates deps.yaml, so only one ever gets installed.
     sqlite: '^3.47.2',

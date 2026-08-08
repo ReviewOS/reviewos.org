@@ -92,11 +92,18 @@ export async function attemptAutoMerge(pullRequestId: number): Promise<AutoMerge
 
     const { default: MergePullRequest } = await import('./MergePullRequestAction')
 
+    // A stand-in request, cast because a real `RequestInstance` has some fifty
+    // members and the merge runs from the scheduler with no HTTP request behind
+    // it. These three are all it reads: `get` for the four values above, `user`
+    // for the account that armed the auto-merge, and `headers` for the token
+    // and cookie lookups in `currentUser` - which find nothing here, correctly,
+    // since `user` has already answered. An empty `Headers` rather than an
+    // object with a `get`, so the one member that has a real type has it.
     const answer: any = await MergePullRequest.handle({
       get: (key: string) => values[key],
       user: async () => ({ id: Number(pullRequest.auto_merge_by_id) }),
-      headers: { get: () => null },
-    })
+      headers: new Headers(),
+    } as any)
 
     const body = await answer.json().catch(() => null)
     const merged = body?.state === 'merged'
