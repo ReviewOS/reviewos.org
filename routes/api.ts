@@ -307,6 +307,22 @@ route.get('/repos/pulls/diff/manifest', 'Actions/Pull/DiffManifestAction')
 // a pathspec and the cost is the files asked for rather than the ones skipped.
 route.get('/repos/pulls/diff/rows', 'Actions/Pull/DiffRowsAction')
 
+/*
+ * The same diff as data, for a caller that is not a browser.
+ *
+ * `/diff/rows` returns HTML because that is what a browser needs and rendering
+ * it on the server is what makes a fifty-thousand line diff cheap. An agent
+ * asking the same question would otherwise have to parse that HTML back into
+ * hunks - re-implementing the parser, getting it subtly wrong, and breaking the
+ * first time a class name changes. Scraping the rendered diff should never be
+ * the only way to get one.
+ *
+ * Same `parseDiff` as the review screen, so the two cannot disagree about what
+ * a hunk is. If they ever did, the diff a reviewer approved would not be the
+ * diff an agent read.
+ */
+route.get('/repos/pulls/diff/structured', 'Actions/Pull/DiffStructuredAction')
+
 // The lines between two hunks. Read from the blob at the head commit, because
 // the patch does not contain them: not containing them is what makes them a gap.
 route.get('/repos/pulls/diff/context', 'Actions/Pull/DiffContextAction')

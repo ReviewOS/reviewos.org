@@ -83,8 +83,8 @@ describe('a conditional read', () => {
   const tag = etagFrom(['pr', 12])
   const build = () => new Response(JSON.stringify({ number: 12 }), { status: 200 })
 
-  it('returns 304 with no body when the client is current', () => {
-    const answer = conditional({ headers: { get: () => tag } }, tag, build)
+  it('returns 304 with no body when the client is current', async () => {
+    const answer = await conditional({ headers: { get: () => tag } }, tag, build)
 
     expect(answer.status).toBe(304)
     expect(answer.body).toBeNull()
@@ -99,17 +99,48 @@ describe('a conditional read', () => {
     expect(notModified(tag).headers.get('etag')).toBe(tag)
   })
 
-  it('builds the response and tags it when the client is behind', () => {
-    const answer = conditional({ headers: { get: () => 'W/"stale"' } }, tag, build)
+  it('builds the response and tags it when the client is behind', async () => {
+    const answer = await conditional({ headers: { get: () => 'W/"stale"' } }, tag, build)
 
     expect(answer.status).toBe(200)
     expect(answer.headers.get('etag')).toBe(tag)
   })
 
-  it('reads the header from either request shape', () => {
+  it('reads the header from either request shape', async () => {
     // The framework's request exposes `header()`; a plain Request exposes
     // `headers.get`. An endpoint should not have to know which it has.
-    expect(conditional({ header: () => tag }, tag, build).status).toBe(304)
+    expect((await conditional({ header: () => tag }, tag, build)).status).toBe(304)
+  })
+
+  it('never calls the builder on a hit, which is what keeps a poll free', async () => {
+    /*
+     * The whole economics of this. The expensive readers - a diff is a git
+     * process and a parse, a pull request is five queries - are exactly the
+     * ones worth a 304, and a builder that ran anyway would save the transfer
+     * and nothing else.
+     */
+    let built = 0
+    const counting = () => {
+      built++
+      return build()
+    }
+
+    await conditional({ headers: { get: () => tag } }, tag, counting)
+    expect(built).toBe(0)
+
+    await conditional({ headers: { get: () => null } }, tag, counting)
+    expect(built).toBe(1)
+  })
+
+  it('awaits an async builder, because the readers worth caching are async', async () => {
+    const answer = await conditional(
+      { headers: { get: () => null } },
+      tag,
+      async () => new Response('{}', { status: 200 }),
+    )
+
+    expect(answer.status).toBe(200)
+    expect(answer.headers.get('etag')).toBe(tag)
   })
 })
 

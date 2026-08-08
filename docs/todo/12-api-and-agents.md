@@ -94,8 +94,27 @@ vocabulary, and it is discoverable without reading the source.
   half of them busy-loop.
 - [ ] Partial responses: ask for the fields you need. A pull request list that always carries every
       body is expensive on both ends.
-- [ ] A structured diff endpoint: hunks, ranges and line origins as JSON, from the same parser the
+- [x] A structured diff endpoint: hunks, ranges and line origins as JSON, from the same parser the
       review screen uses. Scraping the rendered diff should never be the only way to get one.
+
+  `/api/repos/pulls/diff/structured`, over the same `parseDiff`. Not a second parser and not a second
+  definition of what a hunk is: if the two ever disagreed, the diff a reviewer approved would not be
+  the diff an agent read.
+
+  Every line carries **both** line numbers even though one is always null. An agent commenting on
+  line 40 of the new file needs the new-side number, and deriving it from a patch means counting
+  hunk offsets - which is exactly the arithmetic that puts a comment two lines off.
+
+  Collected rather than streamed, which is the one place it differs from `/diff/rows`. That streams
+  because a browser can paint the first file while git writes the last; a JSON document has no such
+  shape, so the choice was between collecting it and inventing a second streaming format nobody
+  asked for. The `path` filter and file-level paging keep the size sane.
+
+  It is also the first reader behind an `ETag`, and building it made `conditional` async - the
+  expensive readers are precisely the ones worth a 304, and a synchronous signature pushed every one
+  of them into wrapping a promise in a `Response` body by hand, which loses the status and the
+  headers. A test now pins that the builder is never called on a hit, because a builder that ran
+  anyway would save the transfer and nothing else.
 - [x] Submit a whole review in one request: many comments plus a verdict, atomically. A review
       assembled by twelve round trips is twelve chances to leave half a review behind.
 
