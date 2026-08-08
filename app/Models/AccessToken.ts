@@ -147,5 +147,28 @@ export default defineModel({
       validation: { rule: schema.number() },
       factory: () => null,
     },
+
+    /**
+     * The narrowest expiry warning already sent, in days.
+     *
+     * Stored rather than derived, because "have we told them yet" cannot be
+     * recovered from the row otherwise: a sweep that runs every hour would send
+     * the seven-day warning seven times over, and somebody who is warned seven
+     * times about one token learns to filter the warnings.
+     *
+     * The number is the threshold, not a count, so the sweep can send a second
+     * and narrower warning later - seven days out, then one - by only ever
+     * warning when the window is tighter than the last one recorded. That rule
+     * is also what makes rotation safe to leave alone: bringing the old token's
+     * expiry forward to the end of its overlap moves it into a tighter window
+     * than any warning already sent, so the one-day notice still goes out
+     * without anything having to reset this.
+     */
+    expiry_warned_days: {
+      order: 12,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
   },
 } as const)

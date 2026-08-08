@@ -146,10 +146,23 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
 
 - [x] `app/Models/Team.ts`: `organization_id`, `name`, `slug`, `description`, `parent_team_id`
 - [x] `app/Models/TeamMember.ts`: `team_id`, `user_id`, `role`
-- [ ] Teams grant repository access as a unit; permission resolution is user, then team, then
+- [x] `app/Models/TeamRepository.ts`: the grant itself, `team_id` + `repository_id` + `permission`.
+      Its absence was why the rule below read as done and was not: `permissionOn` passed an empty
+      array for team permissions because there was no table for a team to be granted anything from,
+      so the team branch of the resolver had never once been reached with a value in it
+- [x] Teams grant repository access as a unit; permission resolution is user, then team, then
       organization role, with the most permissive winning
-- [ ] `app/Actions/Team/` - create, update, delete, add member, remove member
-- [ ] Tests: nested team inheritance, and that a user in two teams gets the union of access
+- [x] `app/Actions/Team/` - create, update, delete, add member, remove member
+- [x] Inheritance runs downward - a child team gets what its parent was granted, and the parent gets
+      nothing from the child. `app/Actions/Team/resolve.ts` walks the chain with a visited set,
+      because `parent_team_id` is a plain column and two writes can close a loop; walking that
+      without one is an infinite loop inside a permission check
+- [x] Cascades on `team_members` and `teams`. `team_members.team_id` had a foreign key without one,
+      so a team that had members could not be deleted at all - which made the delete operation in
+      `ManageTeamAction` broken in production, not only in the test that found it
+- [x] Tests: nested team inheritance, and that a user in two teams gets the union of access
+      (`tests/unit/team-resolve.test.ts` against literals, `tests/e2e/team-access.test.ts` through
+      the database and the real resolver)
 
 ## Permissions
 
@@ -218,7 +231,7 @@ The half of this nobody builds, and the half that decides whether an instance is
 - [x] `settings/tokens.stx` lists tokens with what each one can actually do, in the same words as
       the permission checks, not as a scope string the reader has to decode
 - [x] Last used, from where, and against which repositories, so an unused token is visible as unused
-- [ ] Expiry warnings by email before a token dies, because a token that expires silently in CI at
+- [x] Expiry warnings by email before a token dies, because a token that expires silently in CI at
       2am teaches people to set no expiry at all
 - [ ] Organization owners can list every token with access to their repositories, and revoke one.
       Optionally, tokens against an organization require owner approval before they work.

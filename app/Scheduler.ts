@@ -34,6 +34,15 @@ export default function () {
     .job('SendDigest')
     .everyFiveMinutes()
 
+  // Tokens close to lapsing, once a day. The thresholds are counted in days, so
+  // running more often would find the same tokens and send nothing extra -
+  // `expiry_warned_days` records what has already gone. Daily is also what
+  // makes the message worth reading: a warning that arrives hourly is one
+  // people build a filter for, and the filter hides the last notice too.
+  schedule
+    .job('WarnExpiringTokens')
+    .daily()
+
   // Packing repositories and letting go of deletions past the retention window.
   // Nightly and early, because `git gc` on a large repository is the most
   // expensive thing this server does and nobody wants to be cloning while it

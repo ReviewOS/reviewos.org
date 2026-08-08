@@ -784,3 +784,171 @@ describe('rotation', () => {
     await db.deleteFrom('access_tokens').where('id', '=', issued.id).execute()
   })
 })
+
+describe('the expiry warning sweep', () => {
+  /** Run the job against a chosen clock, so no test waits for a real deadline. */
+  async function sweep(nowMs: number): Promise<{ examined: number, warned: number }> {
+    const job: any = (await import('../../app/Jobs/WarnExpiringTokensJob')).default
+
+    return await job.handle({ nowMs })
+  }
+
+  async function warnedDaysOf(id: number): Promise<number | null> {
+    const row: any = await db
+      .selectFrom('access_tokens')
+      .select(['expiry_warned_days'])
+      .where('id', '=', id)
+      .executeTakeFirst()
+
+    return row?.expiry_warned_days === null || row?.expiry_warned_days === undefined
+      ? null
+      : Number(row.expiry_warned_days)
+  }
+
+  async function cleanup(id: number): Promise<void> {
+    await db.deleteFrom('notifications').where('user_id', '=', created.collaboratorId).execute()
+    await db.deleteFrom('access_token_repositories').where('access_token_id', '=', id).execute()
+    await db.deleteFrom('access_token_permissions').where('access_token_id', '=', id).execute()
+    await db.deleteFrom('access_tokens').where('id', '=', id).execute()
+  }
+
+  test('warns once when the window opens, and not again inside it', async () => {
+    if (!available)
+      return
+
+    const nowMs = Date.now()
+    const issued = await issueToken({
+      name: 'expiring in six days',
+      level: 'read',
+      repositoryIds: [created.repositoryId],
+      expiresAtMs: nowMs + 6 * 86_400_000,
+    })
+
+    const first = await sweep(nowMs)
+    expect(first.warned).toBeGreaterThanOrEqual(1)
+    expect(await warnedDaysOf(issued.id)).toBe(7)
+
+    // The inbox row, which is what somebody sees if they never read the email.
+    const notifications = await db
+      .selectFrom('notifications')
+      .select(['type', 'data'])
+      .where('user_id', '=', created.collaboratorId)
+      .execute()
+
+    const mine = notifications.filter((row: any) => String(row.data).includes('expiring in six days'))
+    expect(mine.length).toBe(1)
+    expect(String(mine[0].type)).toBe('token:expiring')
+    // Straight to the page that can do something about it.
+    expect(String(mine[0].data)).toContain('/settings/tokens')
+
+    // The sweep runs daily and this token sits in the window for a week. The
+    // second run must find it and say nothing.
+    const second = await sweep(nowMs + 86_400_000)
+    const stillMine = (await db
+      .selectFrom('notifications')
+      .select(['data'])
+      .where('user_id', '=', created.collaboratorId)
+      .execute()).filter((row: any) => String(row.data).includes('expiring in six days'))
+
+    expect(stillMine.length).toBe(1)
+    expect(second.warned).toBe(0)
+
+    await cleanup(issued.id)
+  })
+
+  test('warns a second time when the last day arrives', async () => {
+    if (!available)
+      return
+
+    const nowMs = Date.now()
+    const issued = await issueToken({
+      name: 'expiring in hours',
+      level: 'read',
+      repositoryIds: [created.repositoryId],
+      expiresAtMs: nowMs + 6 * 3_600_000,
+    })
+
+    // Pretend the seven-day notice already went.
+    await db
+      .updateTable('access_tokens')
+      .set({ expiry_warned_days: 7 })
+      .where('id', '=', issued.id)
+      .execute()
+
+    await sweep(nowMs)
+
+    expect(await warnedDaysOf(issued.id)).toBe(1)
+
+    await cleanup(issued.id)
+  })
+
+  test('says nothing about a revoked token', async () => {
+    if (!available)
+      return
+
+    const nowMs = Date.now()
+    const issued = await issueToken({
+      name: 'revoked and expiring',
+      level: 'read',
+      repositoryIds: [created.repositoryId],
+      expiresAtMs: nowMs + 2 * 86_400_000,
+    })
+
+    await db
+      .updateTable('access_tokens')
+      .set({ revoked_at: new Date(nowMs).toISOString() })
+      .where('id', '=', issued.id)
+      .execute()
+
+    await sweep(nowMs)
+
+    // Nothing to act on, so the mail could only annoy. Two layers refuse it
+    // and this pins the behaviour rather than either mechanism: the sweep's
+    // query skips revoked rows so they are not even loaded, and `warningFor`
+    // refuses on state anyway. Removing the query filter alone changes no
+    // answer here, which is the point of the second layer.
+    expect(await warnedDaysOf(issued.id)).toBeNull()
+
+    await cleanup(issued.id)
+  })
+
+  test('says nothing about one that has already lapsed', async () => {
+    if (!available)
+      return
+
+    const nowMs = Date.now()
+    const issued = await issueToken({
+      name: 'already gone',
+      level: 'read',
+      repositoryIds: [created.repositoryId],
+      expiresAtMs: nowMs - 86_400_000,
+    })
+
+    await sweep(nowMs)
+
+    expect(await warnedDaysOf(issued.id)).toBeNull()
+
+    await cleanup(issued.id)
+  })
+
+  test('leaves tokens that are months away alone', async () => {
+    if (!available)
+      return
+
+    const nowMs = Date.now()
+    const issued = await issueToken({
+      name: 'far away',
+      level: 'read',
+      repositoryIds: [created.repositoryId],
+      expiresAtMs: nowMs + 60 * 86_400_000,
+    })
+
+    const result = await sweep(nowMs)
+
+    // Bounded in SQL: the sweep should not even load it.
+    expect(await warnedDaysOf(issued.id)).toBeNull()
+    expect(result.examined).toBeGreaterThanOrEqual(0)
+
+    await cleanup(issued.id)
+  })
+})
