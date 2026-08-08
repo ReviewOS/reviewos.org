@@ -2,6 +2,7 @@ import type { AuthenticatedToken } from '../Tokens/authenticate'
 import { canOnRepository, type RepositoryPermission, type RepositoryVisibility } from '../../Permissions'
 import { tokenAllows, tokenReaches } from '../../TokenScopes'
 import { authenticateToken } from '../Tokens/authenticate'
+import { effectiveTeamsFor, teamPermissionsOn } from '../Team/resolve'
 import { repositoryPath } from './storage'
 
 /**
@@ -183,10 +184,28 @@ export async function permissionOn(repository: GitRepositoryRow, userId: number 
 
   const user = await db.selectFrom('users').select(['is_admin']).where('id', '=', userId).executeTakeFirst()
 
+  /*
+   * What this person's teams reach.
+   *
+   * This was hard-coded to `[]`. `repositoryPermissionFor` has always unioned
+   * these into its answer, so the rule existed and the branch had never once
+   * been reached with a value in it - a team was a list of names with no effect
+   * on access at all.
+   *
+   * Teams are scoped to the organization that owns the repository. A team
+   * elsewhere cannot grant anything here, and a personal repository has no
+   * organization, so it has no team grants either.
+   */
+  const teamIds = repository.owner_type === 'organization'
+    ? await effectiveTeamsFor(userId, Number(repository.owner_id))
+    : []
+
+  const teamPermissions = await teamPermissionsOn(Number(repository.id), teamIds)
+
   return {
     collaboratorPermission: (collaborator?.permission as RepositoryPermission | undefined) ?? null,
     organizationRole,
-    teamPermissions: [],
+    teamPermissions,
     isSiteAdmin: Boolean(user?.is_admin),
   }
 }

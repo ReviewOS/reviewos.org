@@ -26,7 +26,10 @@ export default defineModel({
     useSeeder: { count: 6 },
   },
 
-  belongsTo: ['Organization'],
+  // Cascades. A team is a subdivision of an organization and cannot outlive
+  // one - the grants it holds are on that organization's repositories, which
+  // are going too.
+  belongsTo: [{ model: 'Organization', onDelete: 'cascade' }],
 
   attributes: {
     organization_id: {

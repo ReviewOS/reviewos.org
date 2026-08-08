@@ -264,6 +264,15 @@ The part that is genuinely hard, and the part reviewers notice when it is wrong.
   because either may, but that exactly one does, that the ref is exactly where the winner put it,
   and that the loser was refused for the stated reason with nothing written.
 
+  Those tests then caught a break they were not written for. `git replay` printed its ref update and
+  applied nothing until git 2.54, which made applying the default and printing opt-in behind
+  `--ref-action=print`. Under the new default the guard is simply gone: replay moves the branch
+  itself, unconditionally, so a push that arrived mid-merge is overwritten rather than refused. It
+  also prints nothing, so the code found no sha and answered "the replay produced no commit" - a
+  rebase merge that reported failure and landed anyway. `performRebase` now passes the flag, and
+  falls back only when git says it does not know it, because falling back on a conflict would trade
+  a refusal for an unguarded ref update.
+
 ## Stacked pull requests
 
 The differentiator. Nothing else in this space handles it well.

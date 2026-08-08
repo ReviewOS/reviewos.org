@@ -23,7 +23,20 @@ export default defineModel({
     useSeeder: { count: 15 },
   },
 
-  belongsTo: ['Team', 'User'],
+  /*
+   * Both cascade, and the team one was a live bug: without it a team with
+   * members could not be deleted at all - Postgres refused the delete on the
+   * foreign key, and the endpoint answered with a constraint violation.
+   *
+   * A membership in a team that no longer exists means nothing, and a
+   * membership belonging to a deleted account means less. Neither is worth
+   * keeping, and a dangling row in an access table is the kind that survives a
+   * reorganisation and quietly grants somebody something.
+   */
+  belongsTo: [
+    { model: 'Team', onDelete: 'cascade' },
+    { model: 'User', onDelete: 'cascade' },
+  ],
 
   attributes: {
     team_id: {

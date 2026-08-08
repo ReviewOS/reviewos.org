@@ -142,6 +142,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "expiry_warned_days",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -4555,7 +4563,8 @@
             "hasDefault": false,
             "references": {
               "table": "organizations",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -4656,7 +4665,8 @@
             "hasDefault": false,
             "references": {
               "table": "teams",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -4668,7 +4678,8 @@
             "hasDefault": false,
             "references": {
               "table": "users",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -6462,10 +6473,100 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "team_repositories",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "team_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "teams",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "permission",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "read",
+            "enumValues": [
+              "read",
+              "triage",
+              "write",
+              "maintain",
+              "admin"
+            ],
+            "enumTypeName": "team_repositories_permission_type"
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "team_repositories_team_repo_unique",
+            "columns": [
+              "team_id",
+              "repository_id"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "team_repositories_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "3ea4174c8f8e211989ff94baf67e4d918ba4bf3cb90ac6ee80b7bbd681a5bc27",
+  "hash": "206587c8b6a69ca0bb5ca8f384a2b4c61f15bb2d269066adb800c00434b7b00b",
   "dialect": "postgres",
-  "updatedAt": "2026-08-07T23:04:40.667Z"
+  "updatedAt": "2026-08-08T01:15:51.720Z"
 }
