@@ -1,7 +1,9 @@
 import type { ResourceSelection } from '../../TokenScopes'
 import { Action } from '@stacksjs/actions'
 import { normalizeGrants, ORGANIZATION_SCOPES, REPOSITORY_SCOPES, resolveExpiry } from '../../TokenScopes'
-import { currentUser } from '../Identity/lookup'
+import { canInOrganization } from '../../Permissions'
+import { currentUser, organizationRoleOf } from '../Identity/lookup'
+import { recordTokenAudit } from './audit'
 import { generateToken } from './secret'
 
 const SELECTIONS = ['all', 'organization', 'selected'] as const
@@ -21,9 +23,28 @@ export default new Action({
   method: 'POST',
 
   async handle(request: any) {
-    const user = await currentUser(request)
-    if (!user)
+    const caller = await currentUser(request)
+    if (!caller)
       return response.json({ error: 'Unauthenticated' }, 401)
+
+    /*
+     * A token can be issued *for* a machine account by somebody who administers
+     * the organization that owns it.
+     *
+     * Without this the feature does not work at all: a machine account cannot
+     * sign in, so it can never call this endpoint as itself, and an account
+     * that exists to hold tokens and cannot be given one is a row in a table.
+     *
+     * It is narrow on purpose. Only an account that is a machine, only for the
+     * organization it belongs to, and only by somebody who administers that
+     * organization - so this is not a general "issue a token as another user",
+     * which is what it would become if any of the three were relaxed.
+     */
+    const machine = await machineAccountFor(request, caller.id)
+    if (machine.error)
+      return response.json({ error: machine.error }, machine.status)
+
+    const user = machine.account ?? caller
 
     const name = String(request.get('name') ?? '').trim()
     if (!name)
@@ -108,6 +129,23 @@ export default new Action({
         .values({ access_token_id: tokenId, repository_id: repositoryId })
         .execute()
     }
+
+    await recordTokenAudit({
+      event: 'token:created',
+      tokenId,
+      ownerId: user.id,
+      prefix: issued.prefix,
+      detail: {
+        name,
+        selection,
+        organization_id: organizationId,
+        repository_ids: repositoryIds,
+        // What it was born able to do. Every later change is read against this
+        // row, so it has to be the whole set rather than a count.
+        permissions: grants.map(grant => `${grant.scope}:${grant.level}`).sort(),
+        expires_at: new Date(expiry.expiresAtMs).toISOString(),
+      },
+    })
 
     return response.json({
       id: tokenId,
@@ -245,4 +283,49 @@ async function readableRepositories(requested: unknown, userId: number): Promise
   }
 
   return reachable
+}
+
+/**
+ * The machine account this token is being issued for, if any.
+ *
+ * Three conditions, all required, and each one is the difference between this
+ * and a general "issue a token as somebody else":
+ *
+ * - the target is a machine account, so no person's identity can be borrowed;
+ * - the caller administers the organization that owns it, so it is theirs to
+ *   act for;
+ * - the machine belongs to that organization, so an administrator of one
+ *   organization cannot reach another's.
+ */
+async function machineAccountFor(
+  request: any,
+  callerId: number,
+): Promise<{ account?: { id: number, handle: string }, error?: string, status?: number }> {
+  const requested = request.get('machine_account_id')
+  if (requested === undefined || requested === null || requested === '')
+    return {}
+
+  const machineId = Number(requested)
+  if (!Number.isInteger(machineId) || machineId <= 0)
+    return { error: 'A machine account id has to be a number', status: 422 }
+
+  const account: any = await db
+    .selectFrom('users')
+    .select(['id', 'handle', 'machine_for_organization_id'])
+    .where('id', '=', machineId)
+    .executeTakeFirst()
+
+  // Not found rather than forbidden for all three failures, including "that is
+  // a person". The alternative lets somebody enumerate which accounts are
+  // machines, which is a list of where the standing credentials are.
+  if (!account?.machine_for_organization_id)
+    return { error: 'No such machine account', status: 404 }
+
+  const organizationId = Number(account.machine_for_organization_id)
+  const role = await organizationRoleOf(organizationId, callerId)
+
+  if (!canInOrganization(role, 'settings:manage'))
+    return { error: 'No such machine account', status: 404 }
+
+  return { account: { id: Number(account.id), handle: String(account.handle) } }
 }

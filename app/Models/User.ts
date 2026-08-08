@@ -131,8 +131,37 @@ export default defineModel({
       factory: () => false,
     },
 
-    email_verified_at: {
+    /**
+     * The organization this account exists to serve, or null for a person.
+     *
+     * A **machine account**: an account that holds tokens and nothing else. No
+     * password, no session login, owned by an organization rather than by
+     * whoever happened to create it.
+     *
+     * It exists because the alternative happens anyway. Without one, CI needs a
+     * credential and somebody uses their own, or the team creates a shared
+     * human account with the password in a password manager - and then that
+     * account has a mailbox, a review vote, and a session anybody who has ever
+     * been on the team can still open. A machine account has none of those: it
+     * cannot sign in, so there is nothing to share, and it belongs to the
+     * organization, so it survives its creator leaving and is revocable by
+     * people who are still there.
+     *
+     * Not fillable. It is set by `CreateMachineAccountAction` and by nothing
+     * else - a profile update that could set it would be a way to turn your own
+     * account into somebody's machine, or theirs into yours.
+     */
+    machine_for_organization_id: {
       order: 10,
+      fillable: false,
+      validation: {
+        rule: schema.number(),
+      },
+      factory: () => null,
+    },
+
+    email_verified_at: {
+      order: 11,
       fillable: true,
       validation: {
         rule: schema.string(),
@@ -149,7 +178,7 @@ export default defineModel({
      * name on a different host, which is ordinary and not recoverable from.
      */
     github_username: {
-      order: 11,
+      order: 12,
       fillable: true,
       unique: true,
       validation: {

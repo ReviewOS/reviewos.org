@@ -25,7 +25,9 @@ export default defineModel({
     useSeeder: { count: 20 },
   },
 
-  belongsTo: ['AccessToken', { model: 'Repository', onDelete: 'cascade' }],
+  // Both cascade. The repository half was already declared; the token half was
+  // not, so a token scoped to a repository could not be deleted.
+  belongsTo: [{ model: 'AccessToken', onDelete: 'cascade' }, { model: 'Repository', onDelete: 'cascade' }],
 
   attributes: {
     access_token_id: {

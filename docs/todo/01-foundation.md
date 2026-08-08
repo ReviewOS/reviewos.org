@@ -349,13 +349,64 @@ The half of this nobody builds, and the half that decides whether an instance is
 - [x] Last used, from where, and against which repositories, so an unused token is visible as unused
 - [x] Expiry warnings by email before a token dies, because a token that expires silently in CI at
       2am teaches people to set no expiry at all
-- [ ] Organization owners can list every token with access to their repositories, and revoke one.
-      Optionally, tokens against an organization require owner approval before they work.
-- [ ] Every token action lands in the audit log: created, used the first time, permission changed,
-      revoked
-- [ ] Machine accounts: an account that exists to hold tokens, owned by an organization, with no
-      password and no session login. Better than a human account shared by a team, which is what
-      happens when the product does not offer this.
+- [x] Organization owners can list every token with access to their repositories, and revoke one.
+
+  `/api/orgs/tokens`, and the hard part is the third case. A token reaches an organization by being
+  scoped to it, by being scoped to one of its repositories, **or by being scoped to nothing in
+  particular while its owner happens to be a member** - and that last one is what gets missed,
+  because nothing joins it to the organization. The link is the membership, not a row about the
+  token. A listing built by querying the token tables finds the first two and reports a clean answer
+  that is wrong, which is worse than not having the page.
+
+  Revocation goes through the same endpoint an owner uses on their own token, so there is one place
+  that decides what revoking means. An organization administrator may stop a token that reaches
+  them and no other, and the refusal is a 404 rather than a 403 so token ids cannot be enumerated by
+  an administrator of anywhere.
+
+  Owner approval before an organization token works is **not** built, and the roadmap said
+  "optionally". It is the feature that turns every new contributor's first day into a ticket, and
+  the listing above answers the same question after the fact without that cost. Reconsider if
+  somebody asks for it.
+- [x] Every token action lands in the audit log: created, used the first time, revoked
+
+  `app/Actions/Tokens/audit.ts`, one wrapper rather than three call sites building their own rows -
+  an audit log is worth exactly as much as its consistency. **The secret is never in it in any
+  form**: not the token, not a truncated token, not a hash. A log is the thing most likely to be
+  shipped somewhere central and read by people who are not administrators.
+
+  The first use is an event and every use after it is a column. A token's first use is the moment it
+  stopped being a string in a clipboard and became a credential in something, which is often the
+  only record of *where* it went; a log with a row per clone is a log nobody reads.
+
+  There is deliberately no `permissions-changed`. A token's grants cannot be edited in place here -
+  the path is to rotate - because a token whose abilities change under a client is a token that
+  starts failing at 3am for a reason nobody connects to a settings page. A rotation records
+  `token:created` on the replacement carrying `replaces`. An event nothing can emit would leave a
+  reader believing the log answers a question it never will.
+- [x] Machine accounts: an account that exists to hold tokens, owned by an organization, with no
+      password and no session login.
+
+  **Not signing in is enforced by the password, not by a flag.** The row gets a hash of 64 random
+  bytes generated at creation, never returned and never written down, so `Auth.attempt` fails for it
+  through the code that already exists rather than through a branch somebody could forget to add to
+  a new sign-in path. A flag checked in one of three entry points is how these become back doors.
+  The address is under `.invalid`, reserved by RFC 2606, so a password reset - the one route back
+  into an account with no way in - cannot be delivered either.
+
+  It joins its organization at `member`, which grants no repository access on its own. Whatever it
+  should reach is granted deliberately, like anybody else: a machine that can read everything by
+  existing is the shared account again with a better name.
+
+  Its tokens are issued *for* it by somebody who administers its organization, because it cannot ask
+  for one itself. Narrow on purpose - only a machine account, only for its own organization, only by
+  an administrator of that organization - since relaxing any of the three turns it into a general
+  "issue a token as another user".
+
+  Three more missing cascades came out of testing this, all the same shape as the team ones:
+  `access_token_permissions` and `access_token_repositories` had no rule onto `access_tokens`, so a
+  token could not be deleted at all. `audit_events.actor_id` is now `SET NULL` rather than a
+  cascade, which is the interesting one: deleting the audit trail along with the account is
+  precisely backwards, since the records that matter most are the ones about somebody who is gone.
 - [x] A per-request resolver that validates the token, checks expiry and revocation, intersects with
       live access, and records the use. Recording is not awaited on the critical path: an unused
       token being visible as unused is worth a write, but not worth failing a clone over.

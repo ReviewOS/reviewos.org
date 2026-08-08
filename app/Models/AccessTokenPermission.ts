@@ -26,7 +26,10 @@ export default defineModel({
     useSeeder: { count: 20 },
   },
 
-  belongsTo: ['AccessToken'],
+  // Cascades. A grant belonging to a token that no longer exists means nothing,
+  // and without it the token could not be deleted at all while one row pointed
+  // at it - the same gap the repository link beside it already avoided.
+  belongsTo: [{ model: 'AccessToken', onDelete: 'cascade' }],
 
   attributes: {
     access_token_id: {

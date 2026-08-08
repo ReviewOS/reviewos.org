@@ -196,7 +196,8 @@
             "hasDefault": false,
             "references": {
               "table": "access_tokens",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -281,7 +282,8 @@
             "hasDefault": false,
             "references": {
               "table": "access_tokens",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -506,7 +508,8 @@
             "hasDefault": false,
             "references": {
               "table": "users",
-              "column": "id"
+              "column": "id",
+              "onDelete": "set null"
             }
           },
           {
@@ -5006,6 +5009,14 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "machine_for_organization_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -6568,7 +6579,7 @@
       }
     ]
   },
-  "hash": "34a5e2438b20f829cdbf6e39760ec8e65074bc9e2b7ef5d2e4e36bf12db66282",
+  "hash": "9572f158e3ec8ca07223785a9c5dacc7b7b1a131ba936dfd037305444885ed55",
   "dialect": "postgres",
-  "updatedAt": "2026-08-08T01:40:47.586Z"
+  "updatedAt": "2026-08-08T03:01:46.718Z"
 }

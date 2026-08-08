@@ -116,11 +116,45 @@ export async function authenticateToken(
  */
 export async function recordTokenUse(tokenId: number, ip: string | null, nowMs = Date.now()): Promise<void> {
   try {
+    /*
+     * The first use is an audit event; every use after it is a column.
+     *
+     * A token's first use is the moment it stopped being a string in somebody's
+     * clipboard and started being a credential in something. That is worth a
+     * permanent line - it is often the only record of *where* a token went,
+     * which is the question nobody can answer later. Every subsequent use is
+     * traffic, and a log with a row per clone is a log nobody reads.
+     *
+     * The read is conditional on the update, so the extra query only happens
+     * for a token that has never been used: `last_used_at IS NULL` matches once
+     * in a token's life.
+     */
+    const first: any = await db
+      .selectFrom('access_tokens')
+      .select(['id', 'user_id', 'prefix', 'last_used_at'])
+      .where('id', '=', tokenId)
+      .executeTakeFirst()
+
     await db
       .updateTable('access_tokens')
       .set({ last_used_at: new Date(nowMs).toISOString(), last_used_ip: ip })
       .where('id', '=', tokenId)
       .execute()
+
+    if (first && !first.last_used_at) {
+      const { recordTokenAudit } = await import('./audit')
+
+      await recordTokenAudit({
+        event: 'token:first-used',
+        tokenId,
+        ownerId: Number(first.user_id),
+        prefix: first.prefix ? String(first.prefix) : null,
+        // No actor. This is the token acting, not a person, and naming the
+        // owner here would read as them having done something.
+        actorId: null,
+        ip,
+      })
+    }
   }
   catch {
     // Deliberately swallowed. See above.

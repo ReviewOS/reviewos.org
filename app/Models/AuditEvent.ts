@@ -44,7 +44,20 @@ export default defineModel({
     useSeeder: { count: 0 },
   },
 
-  belongsTo: [{ model: 'User', foreignKey: 'actor_id' }],
+  /*
+   * `SET NULL`, and deliberately not a cascade.
+   *
+   * A cascade here would delete the audit trail along with the account, which
+   * is precisely backwards: the records that matter most are the ones about
+   * somebody who is gone. Leaving no rule at all was not right either - it made
+   * a user with any audit history undeletable, so the account deletion path
+   * failed on a foreign key rather than doing anything.
+   *
+   * So the event survives and forgets who. `external_actor` and `detail` still
+   * carry what was recorded at the time, which is what a reader needs; the
+   * account behind the id is gone and there is nothing useful to point at.
+   */
+  belongsTo: [{ model: 'User', foreignKey: 'actor_id', onDelete: 'set null' }],
 
   attributes: {
     /**

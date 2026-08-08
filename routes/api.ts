@@ -69,6 +69,10 @@ route.post('/orgs/members', 'Actions/Org/InviteMemberAction').middleware(['auth'
 // Accepting takes no id but the organization's, because the invitation is
 // always the caller's own. There is no parameter that could name somebody else.
 route.post('/orgs/members/accept', 'Actions/Org/AcceptInviteAction').middleware('auth')
+// An account that holds tokens and nothing else. Not behind `orgCan`, because
+// the action refuses with a 404 in one of its cases and a middleware saying 403
+// first would confirm what the 404 is there to hide.
+route.post('/orgs/machine-accounts', 'Actions/Org/CreateMachineAccountAction').middleware('auth')
 route.put('/orgs/members/role', 'Actions/Org/ChangeMemberRoleAction').middleware(['auth', 'orgCan:members:manage'])
 route.delete('/orgs/members', 'Actions/Org/RemoveMemberAction').middleware(['auth', 'orgCan:members:manage'])
 // The same four over POST. An HTML form can only GET or POST, and every write
@@ -108,6 +112,21 @@ route.post('/user/tokens/revoke', 'Actions/Tokens/RevokeTokenAction').middleware
 // Replacing one without a gap. The old token keeps working for a day, so the
 // deploy that picks up the new one does not have to happen the same minute.
 route.post('/user/tokens/rotate', 'Actions/Tokens/RotateTokenAction').middleware('auth')
+
+/*
+ * The other question about tokens, and the one nobody builds: not "what are my
+ * tokens" but "what can currently reach our code, and who is holding it".
+ *
+ * Not behind `orgCan`, because the refusal has to be a 404 rather than a 403 -
+ * a forbidden here confirms the organization exists and that its token list is
+ * worth asking about. The action does the check and answers accordingly.
+ *
+ * Revoking one of these goes through the same `/user/tokens/revoke` an owner
+ * uses on their own, which grants an organization administrator the power for
+ * exactly the tokens that reach them. One endpoint, so there is one place that
+ * decides what revocation means.
+ */
+route.get('/orgs/tokens', 'Actions/Tokens/ListOrganizationTokensAction').middleware('auth')
 
 // When notifications may interrupt, and what has been muted. Both are here
 // rather than under a repository because they are decisions about a person.

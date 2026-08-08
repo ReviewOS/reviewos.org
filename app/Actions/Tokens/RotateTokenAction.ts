@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { resolveExpiry, tokenState } from '../../TokenScopes'
 import { currentUser } from '../Identity/lookup'
+import { recordTokenAudit } from './audit'
 import { planRotation, ROTATION_OVERLAP_MS } from './rotate'
 import { generateToken } from './secret'
 
@@ -128,6 +129,28 @@ export default new Action({
       .set({ expires_at: oldExpiresAt })
       .where('id', '=', id)
       .execute()
+
+    // One row, on the replacement, carrying what it replaces. The old token has
+    // no event of its own because nothing happened to it that the log does not
+    // already imply: it was not revoked, its expiry moved, and this row says
+    // when and why.
+    await recordTokenAudit({
+      event: 'token:created',
+      tokenId: replacementId,
+      ownerId: user.id,
+      prefix: issued.prefix,
+      detail: {
+        name: String(existing.name),
+        replaces: id,
+        selection: existing.selection,
+        organization_id: existing.organization_id,
+        permissions: grants.map((grant: any) => `${grant.scope}:${grant.level}`).sort(),
+        expires_at: new Date(expiry.expiresAtMs).toISOString(),
+        // The window in which both work, which is the thing somebody reading
+        // this row after an incident wants to know the bounds of.
+        replaced_token_expires_at: oldExpiresAt,
+      },
+    })
 
     return response.json({
       id: replacementId,

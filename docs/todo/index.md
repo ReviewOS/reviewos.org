@@ -15,7 +15,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | Phase | What it covers | State |
 |---|---|---|
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | Done, 5 deferred (27/32) |
-| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | In progress (62/65) |
+| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (65/65) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | In progress (120/121) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (95/95) |
@@ -90,6 +90,12 @@ state, which is indistinguishable from there being nothing to show.
 That is how the issue-template chooser, the milestone state filter, and the `?state=` filter on both
 list views all shipped ticked and none of them ever ran. `STX_DEBUG=1` prints the real cause; it is
 worth running the dev server with it on.
+
+**And `useRoute()` was only half the answer until stx 0.2.159.** It read a raw search string that
+only the dev server sets, so on the boot a production server and the e2e suite both use it returned
+`{}` - eleven pages here were reading a query string that was always empty, and none of them looked
+broken, because a page keyed on `?token=` renders its no-token branch, which is a real branch. Use
+`useRoute().query`; it now reads whichever shape the host supplied.
 
 ## A signed-in browser is not a signed-in test client
 
