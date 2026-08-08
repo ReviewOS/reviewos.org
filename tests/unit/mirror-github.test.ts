@@ -187,6 +187,28 @@ describe('mapReviewComment', () => {
   it('refuses a comment with no path, which cannot be anchored', () => {
     expect(mapReviewComment({ id: 1, body: 'x' }, linked)).toBeNull()
   })
+
+  /**
+   * The attribution rule, asserted on a *comment* specifically.
+   *
+   * `attribute` is tested above, but a comment is the case that matters: it
+   * carries words. Assigning a stranger's sentence to a local user who happens
+   * to share a handle across two hosts puts words in somebody's mouth, and that
+   * is not a bug anybody apologises their way out of.
+   */
+  it('attributes a comment from an unlinked account to nobody local', () => {
+    const mapped = mapReviewComment({ id: 9, path: 'a.ts', line: 1, body: 'looks wrong', user: { login: 'a-stranger' } }, linked)
+
+    expect(mapped?.attribution.userId).toBeNull()
+    // The name still shows, so the comment is not anonymous - only unlinked.
+    expect(mapped?.attribution.displayName).toBe('a-stranger')
+  })
+
+  it('and links one from an account somebody has claimed', () => {
+    const mapped = mapReviewComment({ id: 10, path: 'a.ts', line: 1, body: 'ok', user: { login: 'chrisbreuer' } }, linked)
+
+    expect(mapped?.attribution.userId).toBe(7)
+  })
 })
 
 describe('buildThreads', () => {

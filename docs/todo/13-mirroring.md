@@ -176,9 +176,25 @@ the idempotence the checklist asks for rather than an assertion about it.
 ## Tests
 
 - [x] Sync is idempotent: running it twice changes nothing the second time, verified against the live repository
-- [ ] A deleted upstream branch disappears here
-- [ ] A force-push upstream is followed and reported
-- [ ] Numbers are preserved, so a mirrored `#123` is `#123`
-- [ ] A comment from an unlinked GitHub account is attributed to nobody local
-- [ ] A failed sync leaves the previous state intact and readable, rather than a half-updated
+- [x] A deleted upstream branch disappears here, through `--prune`. Verified against two real bare
+      repositories in `tests/unit/mirror-fetch.test.ts` rather than asserted about the flag
+- [x] A force-push upstream is followed and reported *as a rewrite*. A force push and an ordinary
+      advance are both "updated" until somebody asks git whether the old commit is still reachable,
+      and a mirror that says "3 commits" for a rewrite tells the reader nothing happened to the
+      history they already read. The control case is tested too, because calling every update a
+      rewrite is as useless as calling none of them one
+- [x] Numbers are preserved, so a mirrored `#123` is `#123`
+- [x] A comment from an unlinked GitHub account is attributed to nobody local, asserted on a comment
+      specifically rather than only on `attribute`: a comment is the case that matters because it
+      carries words, and assigning a stranger's sentence to somebody who shares a handle across two
+      hosts is not a bug anybody apologises their way out of. The name still shows, so it is
+      unlinked rather than anonymous
+- [x] A failed sync leaves the previous state intact and readable, rather than a half-updated
       repository
+
+  The case the fetch tests exist for. A half-updated mirror is worse than a stale one: stale is
+  visibly old, half-updated is a repository whose branches disagree with each other and whose reader
+  has no way to tell. Asserted three ways - the refs on disk are unchanged, the outcome *reports*
+  them as unchanged so a caller diffing before against after does not invent a deletion of every
+  branch, and `git log` still reads, since refs that survived while objects did not would pass the
+  first two and still be broken.
