@@ -17,7 +17,7 @@
  */
 import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
 
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
 
 let signedIn = false

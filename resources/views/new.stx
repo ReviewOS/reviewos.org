@@ -31,7 +31,7 @@ import { setStatus } from '../functions/http'
  * requests, so reading cookies off it could hand one reader another reader's
  * session.
  */
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 
 const viewer = await viewerFromCookies(serveContext?.cookies)
 

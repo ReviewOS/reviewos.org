@@ -67,7 +67,7 @@ const markdownContext = { owner, repository: repositoryName }
  * requests, so reading cookies off it could hand one reader another reader's
  * session.
  */
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 
 /*
  * Two pipelines serve this page and they disagree about what a request looks

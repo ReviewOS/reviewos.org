@@ -35,7 +35,7 @@ const repositoryName = String(repository)
  * requests, so reading cookies off it could hand one reader another reader's
  * session.
  */
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 
 const cloneUrl = cloneUrlFor(serveContext, ownerHandle, repositoryName, process.env.APP_URL)
 const sshUrl = sshCloneUrlFor(serveContext, ownerHandle, repositoryName, process.env)

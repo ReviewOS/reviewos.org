@@ -38,7 +38,7 @@
  */
 import { cookieJarFromHeader } from '../functions/identity'
 
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 
 /*
  * Both spellings, like every other page in this codebase.

@@ -27,7 +27,7 @@ import { setStatus } from '../functions/http'
  * variable in this file down with it and the page renders its empty branch as
  * though there were genuinely nothing waiting.
  */
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 
 const viewer = await viewerFromCookies(serveContext?.cookies)
 

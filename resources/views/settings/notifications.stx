@@ -31,7 +31,7 @@ import { setStatus } from '../../functions/http'
  * IIFE and take every variable here with it, so a signed-in reader would get
  * the signed-out branch and think auth was broken.
  */
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
 
 const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))

@@ -22,7 +22,7 @@ import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
 // Both serving pipelines, guarded: the frontend server provides
 // `__stxServeContext` with cookies parsed, a route.serve() boot provides raw
 // headers, and either identifier is undeclared on the other path.
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
 
 let waiting = 0

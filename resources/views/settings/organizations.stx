@@ -23,7 +23,7 @@ import { setStatus } from '../../functions/http'
  * variable in this file down with it and the page renders its signed-out
  * branch as though nobody were there.
  */
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 
 // The other spelling of the same thing. `route.serve()` mounts views itself and
 // names the request differently, so reading only `__stxServeContext` shows the

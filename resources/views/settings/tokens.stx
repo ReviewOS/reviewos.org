@@ -32,7 +32,7 @@ import { setStatus } from '../../functions/http'
 // Reading only `__stxServeContext` is why this page showed the signed-out
 // branch to a signed-in reader under `route.serve()`, which is the boot the
 // e2e suite and a production server both use.
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
 
 const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))

@@ -35,7 +35,7 @@ const number = Number(params.number)
  * requests, so reading cookies off it could hand one reader another reader's
  * session.
  */
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 
 // Both serving pipelines, the cookie lesson: the frontend hands views a
 // parsed jar, route.serve() hands them raw headers, and a page that only

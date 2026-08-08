@@ -99,8 +99,22 @@ unresolvable-import warning that already did. Both are the same argument - a pag
 APIs fails on `document` or `window` and on nothing else, so anything else that is "not defined" is
 a bug and should say so.
 
-- [ ] Pick up the stx fix here when it releases, and drop the fourteen local guards. They are
-      correct and they are noise once the binding is always declared.
+- [x] Pick up the stx fix here when it releases, and drop the local guards. They are correct and
+      they are noise once the binding is always declared.
+
+  Thirty-three by the time it came to it, not fourteen - the spelling spread to every page and
+  component written since. All of them gone, on stx 0.2.162.
+
+  **And the fix released above was not sufficient**, which is worth writing down because the reason
+  it looked sufficient is the same trap twice. `render.ts` defaulted the binding for a *page* render.
+  A component's server script is extracted with a context the component renderer builds, and that
+  one never carried the key - so `<CsrfField />` and every badge still fell back to static
+  extraction while a page naming the same binding worked. Dropping the guards on 0.2.159 took 58
+  e2e tests down at once, which is the only reason it was caught: the failure mode is a component
+  rendering empty, and empty is what a component with nothing to show looks like.
+
+  It is declared in `extractVariables` now, the one seam every server script passes through whoever
+  built the context.
 
 ### The fourth and fifth: a signed-in browser is not a signed-in client
 

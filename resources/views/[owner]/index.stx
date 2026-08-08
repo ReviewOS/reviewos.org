@@ -19,7 +19,7 @@ import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity
 import { relativeTime } from '../../functions/browse'
 import { setStatus } from '../../functions/http'
 
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
 
 const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))

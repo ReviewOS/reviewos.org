@@ -35,7 +35,7 @@ import { setStatus } from '../functions/http'
  * and take every variable in this file down with it, so the page would render
  * its signed-out branch to a signed-in reader and look like a bug in auth.
  */
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
 
 const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))

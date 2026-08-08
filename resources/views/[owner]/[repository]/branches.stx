@@ -32,7 +32,7 @@ const repositoryName = String(params.repository)
  * requests, so reading cookies off it could hand one reader another reader's
  * session.
  */
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null

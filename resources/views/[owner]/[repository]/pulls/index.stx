@@ -30,7 +30,7 @@ const pageNumberParam = String(search.page ?? '')
  * whichever pipeline served this page; see the conversation page for why both
  * spellings exist.
  */
-const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
 
 const access = await repositoryForView(
