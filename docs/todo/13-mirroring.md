@@ -119,16 +119,20 @@ there?
   copy - so the check would have been skipped on exactly the repositories it is for.
 - [x] When the remote force-pushes, the mirror follows it, and the fact that history was rewritten
       is shown rather than absorbed silently
-- [ ] Detect and surface a mirror that has stopped tracking - remote deleted, credential revoked,
+- [x] Detect and surface a mirror that has stopped tracking - remote deleted, credential revoked,
       repository made private - instead of showing stale data as if it were live
 
 ## Interface
 
-- [ ] A repository shows that it is a mirror, of what, and when it last synced, on the repository
+- [x] A repository shows that it is a mirror, of what, and when it last synced, on the repository
       header. Not buried in settings
-- [ ] "Synced 3 minutes ago" beats "mirror enabled", because the reader's real question is whether
+- [x] "Synced 3 minutes ago" beats "mirror enabled", because the reader's real question is whether
       what they are looking at is current
-- [ ] Manual "sync now" for when someone does not want to wait for the interval
+- [x] Manual "sync now" for when someone does not want to wait for the interval. Behind
+      `repository:settings`, because a sync spends somebody else's rate limit - a public mirror
+      anybody could trigger is a way to get this instance's token banned by whoever it belongs to.
+      Rate limited to one a minute, which is less about abuse than about the button being pressed
+      three times because nothing visibly happened: three sweeps race each other into the same refs
 - [x] Mirror setup asks for the remote and the local name separately, since they differ by default
       (`buddy mirror:add --remote stacksjs/stacks --owner stacks --name stacks`)
 
@@ -138,7 +142,9 @@ there?
       the one someone will try first
 - [ ] Private repositories use a stored token or GitHub App installation, encrypted at rest,
       referenced by the mirror rather than copied into it
-- [ ] A revoked credential disables the mirror and says so, rather than retrying forever
+- [x] A revoked credential is named as such and says what to do, rather than showing the raw error.
+      It is the one failure with a different fix from all the others - every other is "wait or
+      retry", this one is "go and issue a new token" - and they read identically in a log
 
 ## First mirror: stacks/stacks
 

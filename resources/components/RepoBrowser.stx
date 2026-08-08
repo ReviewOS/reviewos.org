@@ -10,8 +10,8 @@
  * Server-rendered, like the review screen, so a repository with thousands of
  * files costs the browser nothing.
  */
-import { repositoryForView } from '../functions/repo'
-import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, refLinks, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
+import { mirrorFor, repositoryForView, summarizeMirror } from '../functions/repo'
+import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
 import { setStatus } from '../functions/http'
 
@@ -109,6 +109,18 @@ const blobMarkdownHtml = (blob?.ok && blob.text !== null && !blob.binary && !blo
 
 const notFound = !repoRow
 
+/*
+ * Whether this is a mirror, and whether what is on screen can be believed.
+ *
+ * The reader's question is not "is mirroring enabled" - it is whether the code
+ * they are about to review is current. So the banner leads with when it last
+ * synced, and `mirrorHealth` decides whether that is recent enough to say so
+ * plainly or to warn.
+ */
+const mirror = repoRow ? await mirrorFor(Number(repoRow.id)) : null
+const mirrorStatus = summarizeMirror(mirror)
+const maySyncNow = Boolean(mirrorStatus) && Boolean(repoAccess?.can?.('repository:settings'))
+
 // The base every link on this page hangs off. One string, so a page that links
 // to a file and a page that links to a branch cannot disagree about it.
 const base = `/${ownerHandle}/${repositoryName}`
@@ -159,6 +171,61 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
         :tags="tagLinks" />
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+
+      {{--
+        A mirror says so, and says when it last synced.
+
+        Above the code rather than below it, because the reader's question -
+        "can I trust what I am about to read?" - is one they have before they
+        start reading, not after. "Synced 3 minutes ago" answers it; "mirror
+        enabled" answers a different question.
+      --}}
+      @if (mirrorStatus)
+        <div class="mirror-banner mirror-{{ mirrorStatus.health }}">
+          <span class="i-hugeicons-copy-01 mirror-icon" aria-hidden="true"></span>
+
+          <div class="mirror-main">
+            <p class="mirror-line">
+              Mirrored from
+              @if (mirrorStatus.remoteUrl)
+                <a href="{{ mirrorStatus.remoteUrl }}" rel="noreferrer noopener">{{ mirrorStatus.remote }}</a>
+              @else
+                <span class="mono">{{ mirrorStatus.remote }}</span>
+              @endif
+              @if (mirrorStatus.health === 'never')
+                &middot; not synced yet
+              @elseif (mirrorStatus.health === 'disabled')
+                &middot; syncing is switched off
+              @elseif (mirrorStatus.lastSyncedAt)
+                &middot; synced {{ relativeTime(mirrorStatus.lastSyncedAt) }}
+              @endif
+            </p>
+
+            {{--
+              Only when there is something to act on. `problem` is null while a
+              mirror is simply syncing, so this never renders an empty warning.
+            --}}
+            @if (mirrorStatus.problem)
+              <p class="mirror-problem">{{ mirrorStatus.problem }}</p>
+            @endif
+          </div>
+
+          @if (maySyncNow)
+            {{--
+              For the person who does not want to wait for the interval. Behind
+              `repository:settings`, the same rung that configures the mirror -
+              a sync is a write against somebody else's rate limit, so it is not
+              a button for every reader.
+            --}}
+            <form method="post" action="/api/mirrors/sync" class="mirror-sync">
+              <CsrfField />
+              <input type="hidden" name="owner" value="{{ ownerHandle }}">
+              <input type="hidden" name="repository" value="{{ repositoryName }}">
+              <button type="submit" class="btn">Sync now</button>
+            </form>
+          @endif
+        </div>
+      @endif
 
       @if (emptyRepository)
         <div class="panel" style="padding: 32px; text-align: center; margin-top: 18px;">

@@ -372,3 +372,8 @@ route.post('/repos/webhooks/redeliver', 'Actions/Webhook/RedeliverAction').middl
 // upstream forge has no session here, and the request is verified instead by
 // its signature against the mirror's own secret inside the action.
 route.post('/mirrors/webhook', 'Actions/Mirror/MirrorWebhookAction')
+// For the person who does not want to wait for the interval. Behind
+// `repository:settings` in the action, because a sync spends somebody else's
+// rate limit - a public mirror anybody could trigger is a way to get this
+// instance's token banned by whoever it belongs to.
+route.post('/mirrors/sync', 'Actions/Mirror/SyncNowAction').middleware('auth')

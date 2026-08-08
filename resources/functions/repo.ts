@@ -93,3 +93,25 @@ import { scopableRepositories as scopableRepositoriesImpl, tokensFor as tokensFo
 
 export const tokensFor = tokensForImpl
 export const scopableRepositories = scopableRepositoriesImpl
+
+/**
+ * The mirror summary for a repository, or null when it is not one.
+ *
+ * A page's real question about a mirror is whether what it is showing is
+ * current - `app/Actions/Mirror/status.ts` has the reasoning.
+ */
+import { summarize as summarizeMirrorImpl } from '../../app/Actions/Mirror/status'
+
+export const summarizeMirror = summarizeMirrorImpl
+
+/** The mirror row for a repository, read where a view can reach it. */
+export async function mirrorFor(repositoryId: number): Promise<any | null> {
+  if (!repositoryId)
+    return null
+
+  return await db
+    .selectFrom('repository_mirrors')
+    .selectAll()
+    .where('repository_id', '=', repositoryId)
+    .executeTakeFirst() ?? null
+}
