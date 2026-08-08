@@ -82,18 +82,26 @@ Each one is committed and pushed in the repository named.
 
 ## Known gaps, deferred deliberately
 
-- [ ] **Stacks** - `notifications.user_id` and `notification_deliveries.user_id` foreign keys are
-      missing from the live schema, and cannot be fixed from this repository. Ticked once in error:
-      the constraints were present at the time, but they had been added by hand-written alters, and
-      rebuilding the corpus from the models removed them again. The mechanism, run down since:
-      the model corpus *does* declare both (`create-notifications-table.sql` carries
-      `REFERENCES "users"("id") ON DELETE CASCADE`) and the migration *does* run, but something
-      creates the table before it - so `CREATE TABLE IF NOT EXISTS` is a no-op and the constraint
-      never lands. Reproduced by dropping the table, un-recording the migration and replaying it:
-      the table comes back without the key. `migrate.ts` in the buddy package says guarantees run
-      after model migrations precisely so the model stays authoritative, so either the ordering is
-      not what the comment claims or a guarantee runs during boot. Harmless today, worth fixing before the
-      notification work in phase 5.
+- [x] **Stacks** - `notifications.user_id` and `notification_deliveries.user_id` foreign keys were
+      missing from the live schema on every installation, not just this one.
+
+  The last note here had the reproduction right and the mechanism half right, and guessed at the
+  ordering. It is not a guarantee running during boot: `runDatabaseMigration` calls
+  `migrateNotificationTables()` **before** the model batch, deliberately and with a comment saying
+  why - a generated model migration may normalize or rebuild these tables and needs them to exist
+  first. That is also exactly why the keys never landed. The guarantee creates the table without
+  them, and the model's own `CREATE TABLE IF NOT EXISTS … REFERENCES "users"("id") ON DELETE
+  CASCADE` is then a no-op against a table that already exists. The migration runs, the corpus
+  declares the key, and the key is not there.
+
+  Putting `REFERENCES` inline in the guarantee does not work either: on a brand-new database nothing
+  has created `users` yet, so the CREATE would fail and take the boot with it.
+
+  Fixed in Stacks 0.70.318 by adding the keys **after** the batch, when `users` is certain to exist
+  - the same defensive-ALTER-and-swallow pattern `ensureUsersAuthColumns` already uses in
+  `auth-tables.ts`, and for the same reason: an installation that has deliberately dropped the
+  relation must not fail its migration over a constraint it does not want. Verified against this
+  database, which now carries both with the cascade.
 - [x] The `jobs` table was dropped by `migrate:fresh` and not recreated by the corpus, so seeding
       skipped it.
 
