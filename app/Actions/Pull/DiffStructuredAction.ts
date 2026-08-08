@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { streamMergeBaseDiff } from '../Git/diffStream'
 import { diskPathFor } from '../Git/access'
 import { authorizeRepository } from '../Repo/authorize'
@@ -31,6 +32,27 @@ export default new Action({
   name: 'DiffStructured',
   description: 'A pull request diff as structured JSON',
   method: 'GET',
+
+  /*
+   * Declared so the OpenAPI document, and therefore the generated client, know
+   * what this endpoint reads. Without a declaration the document says the
+   * endpoint takes nothing, and a client generated from it cannot call it.
+   *
+   * **Deliberately none of them required.** The framework validates a declared
+   * block before the action runs and answers in its own shape, which is not
+   * phase 12's error envelope - so requiring a field here would replace this
+   * action's `invalid_field` plus its `fix` sentence with a generic 422. The
+   * declaration describes the shape; the action keeps the refusals, and for
+   * input the action would have accepted the check is a no-op.
+   */
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    number: { rule: schema.number() },
+    path: { rule: schema.string() },
+    per_page: { rule: schema.number() },
+    offset: { rule: schema.number() },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:read')

@@ -274,6 +274,24 @@
       .pill-draft { background: var(--surface-tint); color: var(--pill-text); }
       .pill-pending { background: var(--warn-bg); color: var(--warn); }
 
+      /*
+       * A machine account, marked but not flagged.
+       *
+       * Quiet on purpose: an agent is a contributor here, and a red badge next
+       * to its name would read as a warning about the change rather than as a
+       * fact about the author. Small, lowercase, and the same weight as the
+       * text around it.
+       */
+      .pill-machine {
+        height: 18px;
+        padding: 0 7px;
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        background: var(--surface-tint);
+        color: var(--muted);
+        border: 1px solid var(--line);
+      }
+
       .tabs {
         display: flex;
         gap: 4px;

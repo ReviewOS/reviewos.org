@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { requirementsSatisfied } from '../Checks/status'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
-import { approvalsSatisfied } from './anchoring'
+import { approvalsSatisfied, machineAccountsAmong } from './anchoring'
 import { performMerge } from './apply'
 import { isMergeStrategy, mergeBlockers, mergeCommitMessage, retargetStack } from './merge'
 import { buildStack, landablePrefix } from './stack'
@@ -222,15 +222,23 @@ async function blockersFor(repository: any, row: any): Promise<string[]> {
     .orderBy('id', 'asc')
     .execute()
 
+  const machineReviewers = await machineAccountsAmong(
+    reviews.map((review: any) => Number(review.reviewer_id)),
+  )
+
   const approval = approvalsSatisfied({
     reviews: reviews.map((review: any) => ({
       reviewerId: Number(review.reviewer_id),
       state: String(review.state),
       commitSha: review.commit_sha as string | null,
+      machine: machineReviewers.has(Number(review.reviewer_id)),
     })),
     headSha: row.head_sha as string | null,
     requiredApprovals: Number(protection?.required_approvals ?? 0),
     dismissStaleReviews: Boolean(protection?.dismiss_stale_reviews),
+    // Every member of a stack belongs to the same repository, so one setting
+    // governs the lot.
+    countMachineApprovals: Boolean((repository as any).count_machine_approvals),
   })
 
   const unresolved = await db
@@ -279,6 +287,7 @@ async function blockersFor(repository: any, row: any): Promise<string[]> {
     {
       approvals: approval.approvals,
       blockingReviews: approval.blocking,
+      uncountedApprovals: approval.uncounted,
       unresolvedThreads: Number(unresolved?.count ?? 0),
       checks,
     },

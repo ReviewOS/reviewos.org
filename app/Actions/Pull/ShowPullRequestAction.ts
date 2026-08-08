@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { apiError } from '../../Api/errors'
 import { conditional, etagFrom } from '../../Api/etag'
 import { pick, readFields, withRequired } from '../../Api/fields'
@@ -22,6 +23,25 @@ export default new Action({
   name: 'ShowPullRequest',
   description: 'Read one pull request',
   method: 'GET',
+
+  /*
+   * Declared so the OpenAPI document, and therefore the generated client, know
+   * what this endpoint reads. Without a declaration the document says the
+   * endpoint takes nothing, and a client generated from it cannot call it.
+   *
+   * **Deliberately none of them required.** The framework validates a declared
+   * block before the action runs and answers a failure in its own shape, which
+   * is not phase 12's error envelope - so requiring `number` here would replace
+   * `invalid_field` plus the `fix` sentence below with a generic 422. The
+   * declaration describes the shape; the action keeps the refusals, and for
+   * input the action would have accepted the check is a no-op.
+   */
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    number: { rule: schema.number() },
+    fields: { rule: schema.string() },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:read')

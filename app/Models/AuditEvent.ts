@@ -96,9 +96,29 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * The token the request carried, when it carried one.
+     *
+     * Attribution to the account alone is not enough once agents are
+     * contributors. An account can hold a personal token, a CI token and an
+     * agent's token at once, and "chris deleted the repository" is a very
+     * different sentence from "the deploy token chris issued in March deleted
+     * the repository" - the first sends somebody to ask Chris, the second sends
+     * them to revoke a credential.
+     *
+     * Null for anything a person did in a browser, which is most of the log.
+     * That absence is itself the signal: a session did it, not a token.
+     */
+    access_token_id: {
+      order: 5,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
     /** Who, when there is no local account - a token owner, a remote name. */
     external_actor: {
-      order: 5,
+      order: 6,
       fillable: true,
       validation: { rule: schema.string().max(120) },
       factory: () => null,
@@ -112,7 +132,7 @@ export default defineModel({
      * to write them.
      */
     reason: {
-      order: 6,
+      order: 7,
       fillable: true,
       type: 'text',
       validation: { rule: schema.string() },
@@ -127,7 +147,7 @@ export default defineModel({
      * with a column per action is a table that is mostly null.
      */
     detail: {
-      order: 7,
+      order: 8,
       fillable: true,
       type: 'text',
       validation: { rule: schema.string() },
@@ -135,7 +155,7 @@ export default defineModel({
     },
 
     ip_address: {
-      order: 8,
+      order: 9,
       fillable: true,
       validation: { rule: schema.string().max(45) },
       factory: () => null,

@@ -39,6 +39,15 @@ export interface GitRepositoryRow {
   allow_rebase_merge: boolean | null
   default_merge_strategy: string | null
   delete_branch_on_merge: boolean | null
+  /**
+   * Whether a machine account's approval counts toward required approvals.
+   *
+   * On this row for exactly the reason the comment above describes: the merge
+   * action reads its repository through here, and a column left off reads as
+   * `undefined`, which the approval rule would treat as "do not count" - the
+   * safe direction, but silently inert for a repository that had opted in.
+   */
+  count_machine_approvals: boolean | null
 }
 
 /** Look up a repository by the owner handle and name in a git URL. */
@@ -74,6 +83,7 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
       'allow_rebase_merge',
       'default_merge_strategy',
       'delete_branch_on_merge',
+      'count_machine_approvals',
     ])
     .where('owner_type', '=', ownerType)
     .where('owner_id', '=', ownerId)
@@ -101,6 +111,7 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
     allow_rebase_merge: repository.allow_rebase_merge ?? null,
     default_merge_strategy: repository.default_merge_strategy ? String(repository.default_merge_strategy) : null,
     delete_branch_on_merge: repository.delete_branch_on_merge ?? null,
+    count_machine_approvals: repository.count_machine_approvals ?? null,
   }
 }
 

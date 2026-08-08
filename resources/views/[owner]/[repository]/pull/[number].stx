@@ -13,7 +13,7 @@
 import { repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
-import { approvalsSatisfied, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists } from '../../../../functions/review'
+import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists } from '../../../../functions/review'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
@@ -101,10 +101,21 @@ const pullRequest = repoRow
  * whoever opened it on the other host, who usually has no account here.
  */
 const localAuthor = pullRequest && pullRequest.author_id
-  ? await db.selectFrom('users').select(['handle']).where('id', '=', Number(pullRequest.author_id)).executeTakeFirst()
+  ? await db.selectFrom('users').select(['handle', 'machine_for_organization_id']).where('id', '=', Number(pullRequest.author_id)).executeTakeFirst()
   : undefined
 
 const authorName = localAuthor?.handle ?? (pullRequest?.external_author ? String(pullRequest.external_author) : null)
+
+/**
+ * Whether the author is a machine account.
+ *
+ * Said plainly on the page, and not to shame it. A reader's standard for
+ * "somebody looked at this" depends on who looked, and an agent's pull request
+ * that is indistinguishable from a colleague's borrows a trust it has not
+ * earned yet. The label is the cheapest possible way to stop that, and it costs
+ * one column on a query that was already running.
+ */
+const authorIsMachine = Boolean(localAuthor?.machine_for_organization_id)
 
 const reviews = pullRequest
   ? await db
@@ -342,15 +353,28 @@ const checkResult = requirementsSatisfied(
   requiredChecks,
 )
 
+/*
+ * Which reviewers are machine accounts.
+ *
+ * Needed twice below: the count this page shows must agree with the count the
+ * merge endpoint computes, and the summary strip labels them. Computing it once
+ * here is what keeps the page and the endpoint from disagreeing about whether
+ * something is ready - the worst possible disagreement, because the page is
+ * where somebody decides to press the button.
+ */
+const machineReviewers = await machineAccountsAmong(reviews.map((review: any) => Number(review.reviewer_id)))
+
 const approval = approvalsSatisfied({
   reviews: reviews.map((review: any) => ({
     reviewerId: Number(review.reviewer_id),
     state: String(review.state),
     commitSha: review.commit_sha as string | null,
+    machine: machineReviewers.has(Number(review.reviewer_id)),
   })),
   headSha: pullRequest ? (pullRequest.head_sha as string | null) : null,
   requiredApprovals: Number(protection?.required_approvals ?? 0),
   dismissStaleReviews: Boolean(protection?.dismiss_stale_reviews),
+  countMachineApprovals: Boolean(repoRow?.count_machine_approvals),
 })
 
 const unresolvedThreads = threads.filter((thread: any) => !thread.resolved).length
@@ -515,6 +539,10 @@ const stateLabel = pullRequest
 const reviewSummaries = reviews.map((review: any) => ({
   state: String(review.state),
   stale: pullRequest ? review.commit_sha !== pullRequest.head_sha : false,
+  // Labelled in the strip for the same reason the author is labelled in the
+  // header: an approval from an agent and one from a colleague are not the
+  // same evidence, and a reader cannot weigh them if they look identical.
+  machine: machineReviewers.has(Number(review.reviewer_id)),
 }))
 
 const fileSummaries = files.map((file: any) => ({
@@ -555,6 +583,7 @@ const statePill = pullRequest
         statePill="{{ statePill }}"
         stateLabel="{{ stateLabel }}"
         authorName="{{ authorName ?? 'someone' }}"
+        :authorIsMachine="authorIsMachine"
         headBranch="{{ pullRequest.head_branch }}"
         baseBranch="{{ pullRequest.base_branch }}"
         fileCount="{{ totals.files }}"
@@ -772,6 +801,7 @@ const statePill = pullRequest
             reviewsJson="{{ JSON.stringify(reviewSummaries) }}"
             approvals="{{ approval.approvals }}"
             required="{{ protection?.required_approvals ?? 0 }}"
+            uncounted="{{ approval.uncounted }}"
             mayReview="{{ viewerMayReview ? '1' : '' }}"
           />
 
@@ -907,6 +937,9 @@ const statePill = pullRequest
   .review-list, .check-list { margin-top: 9px; display: flex; flex-direction: column; gap: 7px; }
   .review-item { display: flex; align-items: center; gap: 8px; }
   .review-stale { font-size: 12.5px; }
+  /* On its own line: it explains the count above it, and inline it reads as
+     part of the sentence rather than as the reason for it. */
+  .review-uncounted { display: block; margin-top: 3px; font-size: 12.5px; }
 
   .check { display: flex; gap: 8px; align-items: center; font-size: 13.5px; }
   .check.ok span { color: var(--ok); }

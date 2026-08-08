@@ -26,6 +26,12 @@ const canReview = String(mayReview ?? '') === '1'
           <span class="pill {{ review.state === 'approved' ? 'pill-open' : (review.state === 'changes_requested' ? 'pill-closed' : 'pill-draft') }}">
             {{ review.state === 'approved' ? 'Approved' : (review.state === 'changes_requested' ? 'Changes requested' : 'Commented') }}
           </span>
+          @if (review.machine)
+            {{-- An approval from an agent and one from a colleague are not the
+                same evidence, and a reader cannot weigh them if they look
+                identical. --}}
+            <span class="pill pill-machine" title="A machine account, not a person">bot</span>
+          @endif
           @if (review.stale)
             <span class="muted review-stale">on an earlier commit</span>
           @endif
@@ -35,6 +41,14 @@ const canReview = String(mayReview ?? '') === '1'
   @endif
   <p class="muted side-note">
     {{ approvals }} of {{ required }} required approvals.
+    @if (Number(uncounted ?? 0) > 0)
+      {{-- Otherwise the count contradicts the list directly above it, and the
+          reader's next move is to ask somebody rather than to find the
+          setting. --}}
+      <span class="review-uncounted">
+        {{ uncounted }} from a machine account {{ Number(uncounted) === 1 ? 'does' : 'do' }} not count here.
+      </span>
+    @endif
   </p>
 
   @if (canReview)

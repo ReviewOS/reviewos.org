@@ -283,5 +283,31 @@ export default defineModel({
       validation: { rule: schema.boolean() },
       factory: () => false,
     },
+
+    /**
+     * Whether an approval from a machine account counts toward the required
+     * approvals a branch rule demands.
+     *
+     * **Off by default**, and the default is the whole point. The failure mode
+     * it prevents is a branch protected by a robot approving its own class of
+     * change: an agent opens the pull request, another agent approves it, the
+     * rule that said "two approvals" is satisfied, and nobody looked.
+     *
+     * A machine's *objection* is not affected. `changes_requested` from a
+     * machine account blocks exactly as anyone else's does, because the two
+     * directions are not symmetric - declining to count a robot's approval is
+     * cautious, and ignoring a robot's objection is the opposite.
+     *
+     * Turning it on is a legitimate choice for a repository whose reviewing
+     * agent is trusted and whose humans are the bottleneck. It has to be a
+     * choice.
+     */
+    count_machine_approvals: {
+      order: 23,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
   },
 } as const)

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 
 const STATES = ['approved', 'changes_requested', 'commented'] as const
@@ -29,6 +30,31 @@ export default new Action({
   name: 'SubmitReview',
   description: 'Submit a review on a pull request',
   method: 'POST',
+
+  /*
+   * Declared so the OpenAPI document, and therefore the generated client, know
+   * what this endpoint reads. Without a declaration the document says the
+   * endpoint takes nothing, and a client generated from it cannot call it.
+   *
+   * **Deliberately none of them required.** The framework validates a declared
+   * block before the action runs and answers in its own shape, which is not
+   * phase 12's error envelope - so requiring a field here would replace this
+   * action's own refusal, and its `fix` sentence, with a generic 422. The
+   * declaration describes the shape; the action keeps the refusals, and for
+   * input the action would have accepted the check is a no-op.
+   */
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    number: { rule: schema.number() },
+    state: { rule: schema.enum(['approved', 'changes_requested', 'commented']) },
+    body: { rule: schema.string() },
+    // The whole review in one request: each entry is `{ path, line, side?,
+    // body }`. Described as an array rather than spelled out per field,
+    // because the document has no way to say "array of these" that the
+    // generated client would read any better.
+    comments: { rule: schema.array() },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'pull:review')

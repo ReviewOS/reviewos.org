@@ -172,25 +172,48 @@ export function reviewIsStale(reviewCommitSha: string | null, headSha: string | 
  * saying "not like this" is not outvoted by two saying "fine".
  */
 export function approvalsSatisfied(input: {
-  reviews: Array<{ reviewerId: number, state: string, commitSha: string | null }>
+  reviews: Array<{ reviewerId: number, state: string, commitSha: string | null, machine?: boolean }>
   headSha: string | null
   requiredApprovals: number
   dismissStaleReviews: boolean
-}): { satisfied: boolean, approvals: number, blocking: number } {
+  /**
+   * Whether an approval from a machine account counts toward the total.
+   *
+   * Defaults to false, per the repository setting of the same name. The
+   * failure mode is a branch protected by a robot approving its own class of
+   * change - an agent opens it, an agent approves it, the rule is satisfied
+   * and nobody looked.
+   */
+  countMachineApprovals?: boolean
+}): { satisfied: boolean, approvals: number, blocking: number, uncounted: number } {
   // Only the latest review from each reviewer counts; an approval after a
   // change request is a change of mind, not a second opinion.
-  const latest = new Map<number, { state: string, commitSha: string | null }>()
+  const latest = new Map<number, { state: string, commitSha: string | null, machine: boolean }>()
   for (const review of input.reviews) {
     if (review.state === 'pending' || review.state === 'dismissed')
       continue
-    latest.set(review.reviewerId, { state: review.state, commitSha: review.commitSha })
+    latest.set(review.reviewerId, {
+      state: review.state,
+      commitSha: review.commitSha,
+      machine: Boolean(review.machine),
+    })
   }
 
   let approvals = 0
   let blocking = 0
+  let uncounted = 0
 
   for (const review of latest.values()) {
     if (review.state === 'changes_requested') {
+      /*
+       * A machine's objection blocks like anyone else's.
+       *
+       * The two directions are deliberately not symmetric: declining to count
+       * a robot's approval is cautious, and ignoring a robot's objection is
+       * the opposite. A repository that has opted out of machine approvals has
+       * said it does not want a robot's "yes" to be the reason something
+       * merged, not that it wants a robot's "no" thrown away.
+       */
       blocking += 1
       continue
     }
@@ -201,6 +224,15 @@ export function approvalsSatisfied(input: {
     if (input.dismissStaleReviews && reviewIsStale(review.commitSha, input.headSha))
       continue
 
+    if (review.machine && !input.countMachineApprovals) {
+      // Counted separately rather than silently dropped, so the merge screen
+      // can say "approved by a machine account, which this repository does not
+      // count" instead of showing an approval and a refusal side by side with
+      // nothing connecting them.
+      uncounted += 1
+      continue
+    }
+
     approvals += 1
   }
 
@@ -208,5 +240,43 @@ export function approvalsSatisfied(input: {
     satisfied: blocking === 0 && approvals >= input.requiredApprovals,
     approvals,
     blocking,
+    uncounted,
   }
+}
+
+/**
+ * Which of these user ids are machine accounts.
+ *
+ * One query for the set rather than a lookup per review: a pull request with
+ * eight reviews would otherwise make eight round trips to answer a question
+ * about eight rows.
+ *
+ * A reviewer id that no longer exists is simply absent from the set, so a
+ * deleted account's approval is treated as a person's. That is the safe
+ * direction of the two - the alternative is a deletion quietly invalidating
+ * approvals that were counted when the merge screen was drawn.
+ */
+export async function machineAccountsAmong(ids: number[]): Promise<Set<number>> {
+  const wanted = [...new Set(ids.filter(id => Number.isInteger(id) && id > 0))]
+  if (wanted.length === 0)
+    return new Set()
+
+  /*
+   * `whereNotNull`, not `where(column, 'is not', null)`.
+   *
+   * The second binds the null as a parameter and emits
+   * `"machine_for_organization_id" is not $2`, which Postgres answers with
+   * `syntax error at or near "$2"`. Same defect `suggest.ts` documents at
+   * length for the `is` half. Here it would have been worse than loud: the
+   * caller treats a failure as "no machines", so every agent approval would
+   * have counted.
+   */
+  const rows: any[] = await (globalThis as any).db
+    .selectFrom('users')
+    .select(['id'])
+    .where('id', 'in', wanted)
+    .whereNotNull('machine_for_organization_id')
+    .execute()
+
+  return new Set(rows.map(row => Number(row.id)))
 }

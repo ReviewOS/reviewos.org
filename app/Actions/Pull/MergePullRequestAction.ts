@@ -6,7 +6,7 @@ import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
 import { recountOpenIssues } from '../Repo/counters'
 import { updateWhereIn } from '../Support/rows'
-import { approvalsSatisfied } from './anchoring'
+import { approvalsSatisfied, machineAccountsAmong } from './anchoring'
 import { allowedStrategies, defaultStrategy, isMergeStrategy, mayDeleteHeadBranch, mergeBlockers, mergeCommitMessage, retargetStack } from './merge'
 import { requirementsSatisfied } from '../Checks/status'
 
@@ -92,10 +92,15 @@ export default new Action({
       .orderBy('id', 'asc')
       .execute()
 
+    const machineReviewers = await machineAccountsAmong(
+      reviews.map((review: any) => Number(review.reviewer_id)),
+    )
+
     const readinessReviews = reviews.map((review: any) => ({
       reviewerId: Number(review.reviewer_id),
       state: String(review.state),
       commitSha: review.commit_sha as string | null,
+      machine: machineReviewers.has(Number(review.reviewer_id)),
     }))
 
     const approval = approvalsSatisfied({
@@ -103,6 +108,7 @@ export default new Action({
       headSha: pullRequest.head_sha as string | null,
       requiredApprovals: rules.requiredApprovals,
       dismissStaleReviews: Boolean(protection?.dismiss_stale_reviews),
+      countMachineApprovals: Boolean((repository as any).count_machine_approvals),
     })
 
     const unresolved = await db
@@ -150,6 +156,7 @@ export default new Action({
       {
         approvals: approval.approvals,
         blockingReviews: approval.blocking,
+        uncountedApprovals: approval.uncounted,
         unresolvedThreads: Number(unresolved?.count ?? 0),
         checks: checkResult,
       },

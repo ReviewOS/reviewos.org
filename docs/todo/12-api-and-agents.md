@@ -181,17 +181,49 @@ resolution, and the differences are the ones that genuinely matter.
 - [ ] Machine accounts, defined in
       [phase 1](./01-foundation.md#living-with-tokens), can be authors, reviewers and assignees like
       anyone else
-- [ ] Attribution is visible: a pull request opened by a machine account, or a review submitted by
+- [x] Attribution is visible: a pull request opened by a machine account, or a review submitted by
       one, says so plainly in the interface. Not to shame it, but because a reader's standard for
       "somebody looked at this" depends on who looked.
-- [ ] An approval from a machine account counts toward required approvals only if the repository
+
+  A `bot` pill beside the author in the pull request header and beside each verdict in the review
+  panel. Deliberately quiet - small, lowercase, the same weight as the text around it - because an
+  agent is a contributor here and a red badge would read as a warning about the change rather than
+  as a fact about who wrote it.
+- [x] An approval from a machine account counts toward required approvals only if the repository
       opts in. Default off, because the failure mode is a branch protected by a robot approving its
       own class of change.
+
+  `repositories.count_machine_approvals`, off by default, read by `approvalsSatisfied`.
+
+  **A machine's objection is not affected.** `changes_requested` from a machine account blocks
+  exactly as anyone else's does, because the two directions are not symmetric: declining to count a
+  robot's approval is cautious, and ignoring a robot's objection is the opposite. A repository that
+  opted out has said it does not want a robot's yes to be the reason something merged, not that it
+  wants a robot's no thrown away.
+
+  An uncounted approval is reported rather than dropped, and the refusal says why. "1 more approval
+  is required" on a pull request that visibly has one reads as a bug in the counting, and the
+  reader's next move is to ask a colleague rather than to find the setting.
+
+  Wiring it found the trap `access.ts` already documents for the merge settings, one column later:
+  `findRepositoryByPath` selects an explicit list, so a new column reads as `undefined` and the
+  setting is configurable and inert. The comment warning about it was three lines above the list.
 - [ ] Per-token limits an owner can set: how many pull requests, comments or reviews an hour. The
       first bad agent loop is not malice, it is a retry with no backoff, and the repository should
       survive it.
-- [ ] Everything a token did is in the audit log, attributable to the token and not only to the
+- [x] Everything a token did is in the audit log, attributable to the token and not only to the
       account behind it
+
+  `audit_events.access_token_id`, written through the one `recordAudit` every caller uses, read off
+  the request by `tokenIdFor` so no call site has to know where the router keeps it.
+
+  Attribution to the account alone stops being enough once agents are contributors. One account can
+  hold a personal token, a CI token and an agent's token at once, and "chris deleted the repository"
+  is a different sentence from "the deploy token chris issued in March deleted the repository": the
+  first sends somebody to ask Chris, the second sends them to revoke a credential.
+
+  Null for anything done in a browser, which is most of the log, and that absence is itself the
+  signal - a session did it, not a token.
 - [ ] Repository rules can require that an agent-authored change carries a human approval before it
       merges, expressed as a rule rather than as a convention people remember
 

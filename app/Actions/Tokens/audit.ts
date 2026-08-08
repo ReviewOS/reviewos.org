@@ -54,6 +54,8 @@ export interface TokenAudit {
   /** Public, and the only way a reader tells one of somebody's tokens from another. */
   prefix?: string | null
   actorId?: number | null
+  /** The credential the request carried, when the actor used one. */
+  actingTokenId?: number | null
   reason?: string | null
   detail?: Record<string, unknown>
   ip?: string | null
@@ -63,6 +65,16 @@ export async function recordTokenAudit(entry: TokenAudit): Promise<boolean> {
   return await recordAudit({
     action: entry.event,
     subject: { type: 'access_token', id: entry.tokenId },
+    /*
+     * The acting token, not only the subject one.
+     *
+     * They are the same row for `token:first-used` - the token is what acted -
+     * and different for a revocation done from a browser, where this stays
+     * null. Recording it here means "everything a token did" can be answered
+     * with one filter rather than by knowing which events happen to name a
+     * token in their subject.
+     */
+    tokenId: entry.actingTokenId ?? (entry.event === 'token:first-used' ? entry.tokenId : null),
     // Defaults to the owner, because two of the three events are somebody
     // acting on their own token. `token:first-used` has no actor at all - it is
     // the token acting - and passing null there is deliberate rather than an

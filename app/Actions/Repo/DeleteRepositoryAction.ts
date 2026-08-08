@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { mkdir, rename } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { recordAudit } from '../Git/audit'
+import { recordAudit, tokenIdFor } from '../Git/audit'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
 import { recountForks } from './counters'
@@ -61,6 +61,7 @@ export default new Action({
       action: 'repository.deleted',
       subject: { type: 'repository', id: Number(repository.id) },
       actorId: user?.id ?? null,
+      tokenId: await tokenIdFor(request),
       detail: { owner, name: repository.name, retired_to: retired, swept: swept.removed },
     })
 

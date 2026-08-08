@@ -6,7 +6,7 @@ import { GATE_ENDPOINT, HOOK_ENDPOINT, hookSecret, repositoryByGitDir, repositor
 import { refsToExclude, reportLines, safeQuarantine, scanUpdate } from '../app/Actions/Git/scan'
 import { instancePatterns, pushProtectionSettings } from '../app/Actions/Git/patterns'
 import { decideBypass, readBypass } from '../app/Actions/Git/bypass'
-import { recordAudit } from '../app/Actions/Git/audit'
+import { recordAudit, tokenIdFor } from '../app/Actions/Git/audit'
 import { decidePush, rulesFor } from '../app/Actions/Git/protection'
 import { parseRefUpdates } from '../app/Actions/Git/push'
 import { isAncestor } from '../app/Actions/Mirror/fetch'
@@ -269,6 +269,9 @@ route.post(GATE_ENDPOINT, async (request: any) => {
       action: 'push.protection.bypassed',
       subject: { type: 'repository', id: Number(repository.id) },
       actorId: Number.isFinite(actorId as number) ? actorId : null,
+      // A push over HTTP is always a token, never a session, so this is the
+      // line that says *which* credential overrode the protection.
+      tokenId: await tokenIdFor(request),
       reason: bypass.reason,
       detail: {
         refs: protection.map(one => one.ref),

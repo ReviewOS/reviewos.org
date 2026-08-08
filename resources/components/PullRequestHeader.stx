@@ -13,7 +13,14 @@
   <div class="pr-meta">
     <span class="pill pill-{{ statePill }}">{{ stateLabel }}</span>
     <span class="muted">
-      {{ authorName }} wants to merge
+      {{ authorName }}
+      {{-- Said plainly, next to the name, because a reader's standard for
+          "somebody looked at this" depends on who looked. Not a warning and
+          not styled as one: a machine account is a contributor here. --}}
+      @if (authorIsMachine)
+        <span class="pill pill-machine" title="A machine account, not a person">bot</span>
+      @endif
+      wants to merge
       <span class="mono">{{ headBranch }}</span>
       into
       <span class="mono">{{ baseBranch }}</span>

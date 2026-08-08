@@ -17,6 +17,14 @@ export interface AuditEntry {
   action: string
   subject?: { type: string, id: number } | null
   actorId?: number | null
+  /**
+   * The token the request carried, when it carried one.
+   *
+   * Absent for anything done in a browser, which is most of the log. `tokenIdFor`
+   * reads it off a request so a call site never has to know where the router
+   * keeps it.
+   */
+  tokenId?: number | null
   externalActor?: string | null
   reason?: string | null
   detail?: unknown
@@ -32,6 +40,7 @@ export async function recordAudit(entry: AuditEntry): Promise<boolean> {
         subject_type: entry.subject?.type?.slice(0, 40) ?? null,
         subject_id: entry.subject?.id ?? null,
         actor_id: entry.actorId ?? null,
+        access_token_id: entry.tokenId ?? null,
         external_actor: entry.externalActor?.slice(0, 120) ?? null,
         reason: entry.reason ?? null,
         // Serialized here rather than at the call site, so every row's `detail`
@@ -45,5 +54,29 @@ export async function recordAudit(entry: AuditEntry): Promise<boolean> {
   }
   catch {
     return false
+  }
+}
+
+/**
+ * The id of the access token this request authenticated with, or null.
+ *
+ * A single place to ask, because the answer lives in a router internal
+ * (`_currentAccessToken`, populated by the auth middleware) and every call site
+ * that reached for it directly would be a call site that breaks silently when
+ * the internal is renamed - silently because a missing token id looks exactly
+ * like a browser session.
+ *
+ * Never throws. An audit row with the actor and no token is worth writing; one
+ * that failed to be written because the lookup threw is not.
+ */
+export async function tokenIdFor(request: any): Promise<number | null> {
+  try {
+    const token = request?._currentAccessToken ?? await request?.userToken?.()
+    const id = Number((token as any)?.id)
+
+    return Number.isInteger(id) && id > 0 ? id : null
+  }
+  catch {
+    return null
   }
 }

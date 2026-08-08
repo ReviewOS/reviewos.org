@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { mkdir, rename } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { canInOrganization } from '../../Permissions'
-import { recordAudit } from '../Git/audit'
+import { recordAudit, tokenIdFor } from '../Git/audit'
 import { repositoryPath } from '../Git/storage'
 import { organizationRoleOf, resolveOwner } from '../Identity/lookup'
 import { authorizeRepository } from './authorize'
@@ -99,6 +99,7 @@ export default new Action({
       action: 'repository.transferred',
       subject: { type: 'repository', id: Number(repository.id) },
       actorId: user?.id ?? null,
+      tokenId: await tokenIdFor(request),
       detail: {
         name: repository.name,
         from: { kind: repository.owner_type, id: repository.owner_id, handle: fromHandle },

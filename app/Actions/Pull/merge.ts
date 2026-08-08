@@ -89,6 +89,15 @@ export interface MergeRules {
 export interface MergeReadiness {
   approvals: number
   blockingReviews: number
+  /**
+   * Approvals that exist but do not count, because they came from a machine
+   * account and the repository has not opted in.
+   *
+   * Reported so the refusal can say why. "1 more approval is required" on a
+   * pull request showing an approval reads as a bug in the counting, and the
+   * reader's next move is to ask somebody rather than to find the setting.
+   */
+  uncountedApprovals?: number
   unresolvedThreads: number
   /** From `requirementsSatisfied` in app/Actions/Checks/status.ts. */
   checks?: {
@@ -136,7 +145,15 @@ export function mergeBlockers(
 
   if (readiness.approvals < rules.requiredApprovals) {
     const missing = rules.requiredApprovals - readiness.approvals
-    blockers.push(`${missing} more ${missing === 1 ? 'approval is' : 'approvals are'} required`)
+    const uncounted = readiness.uncountedApprovals ?? 0
+
+    // The reason, when there is one. Without it the sentence contradicts the
+    // approval sitting on the screen.
+    const because = uncounted > 0
+      ? ` (${uncounted} from a machine account ${uncounted === 1 ? 'does' : 'do'} not count toward this, which the repository can change)`
+      : ''
+
+    blockers.push(`${missing} more ${missing === 1 ? 'approval is' : 'approvals are'} required${because}`)
   }
 
   if (rules.requireThreadsResolved && readiness.unresolvedThreads > 0) {

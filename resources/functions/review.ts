@@ -124,7 +124,7 @@ export function tokensFor(
  * binding undefined rather than by saying so.
  */
 import { diffTotals as diffTotalsImpl, isGenerated as isGeneratedImpl, isWhitespaceOnly as isWhitespaceOnlyImpl, parseDiff as parseDiffImpl } from '../../app/Actions/Pull/diff'
-import { approvalsSatisfied as approvalsSatisfiedImpl, mapLine as mapLineImpl, reanchor as reanchorImpl, reviewIsStale as reviewIsStaleImpl } from '../../app/Actions/Pull/anchoring'
+import { approvalsSatisfied as approvalsSatisfiedImpl, machineAccountsAmong as machineAccountsAmongImpl, mapLine as mapLineImpl, reanchor as reanchorImpl, reviewIsStale as reviewIsStaleImpl } from '../../app/Actions/Pull/anchoring'
 import { changedPathsFor as changedPathsForImpl, commitDiff as commitDiffImpl, commitsOnBranch as commitsOnBranchImpl, pullRequestDiff as pullRequestDiffImpl } from '../../app/Actions/Pull/load'
 import { isMergeStrategy as isMergeStrategyImpl, mergeBlockers as mergeBlockersImpl } from '../../app/Actions/Pull/merge'
 import { combinedState as combinedStateImpl, requirementSummary as requirementSummaryImpl, requirementsSatisfied as requirementsSatisfiedImpl } from '../../app/Actions/Checks/status'
@@ -147,6 +147,7 @@ export const reanchor = reanchorImpl
 export const mapLine = mapLineImpl
 export const reviewIsStale = reviewIsStaleImpl
 export const approvalsSatisfied = approvalsSatisfiedImpl
+export const machineAccountsAmong = machineAccountsAmongImpl
 export const pullRequestDiff = pullRequestDiffImpl
 export const commitsOnBranch = commitsOnBranchImpl
 

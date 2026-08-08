@@ -189,7 +189,17 @@ export function toolByName(name: string): ToolDefinition | null {
  * changed, and would be this server's fault for having advertised it.
  */
 export function publicToolList(): Array<Omit<ToolDefinition, 'call'>> {
-  return TOOLS.map(({ call: _call, ...tool }) => tool)
+  /*
+   * Built by naming what goes out, rather than by spreading and removing
+   * `call`. The two are equivalent today and stop being equivalent the moment
+   * `ToolDefinition` grows another internal field: a spread publishes it, and
+   * an allow-list leaves it out until somebody decides otherwise.
+   */
+  return TOOLS.map(tool => ({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+  }))
 }
 
 /**
