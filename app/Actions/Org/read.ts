@@ -28,6 +28,15 @@ export interface PersonRow {
   role: 'owner' | 'admin' | 'member'
   joinedAt: string | null
   pending: boolean
+  /**
+   * A machine account rather than a person.
+   *
+   * Carried on the same row rather than in a separate query, because a machine
+   * account *is* an `org_members` row and splitting the read would mean two
+   * places that have to agree on what counts as membership. The page separates
+   * them; the reader does not.
+   */
+  machine: boolean
 }
 
 /**
@@ -117,7 +126,7 @@ export async function peopleIn(organizationId: number): Promise<PersonRow[]> {
 
   const users: any[] = await db
     .selectFrom('users')
-    .select(['id', 'handle', 'name', 'avatar_url'])
+    .select(['id', 'handle', 'name', 'avatar_url', 'machine_for_organization_id'])
     .where('id', 'in', memberships.map(row => Number(row.user_id)))
     .execute()
 
@@ -139,6 +148,7 @@ export async function peopleIn(organizationId: number): Promise<PersonRow[]> {
       role: String(membership.role) as PersonRow['role'],
       joinedAt: membership.joined_at ? String(membership.joined_at) : null,
       pending: !membership.joined_at,
+      machine: Boolean(user.machine_for_organization_id),
     })
   }
 

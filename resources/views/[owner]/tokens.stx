@@ -1,0 +1,206 @@
+<script server>
+/**
+ * What can currently reach this organization's repositories.
+ *
+ * Not "what are my tokens" - every forge answers that. This is the question an
+ * administrator actually has and usually cannot ask: which credentials exist,
+ * who is holding them, and which of them nobody has used. Without it, a
+ * contractor leaving is a request to several people to please remember to
+ * revoke something.
+ *
+ * **Owner only, and the refusal is a 404.** This is a list of where the standing
+ * credentials to an organization are, which is a more sensitive thing than the
+ * membership list beside it - a 403 would confirm the organization exists and
+ * that its token list is worth asking about.
+ *
+ * Reading is `app/Actions/Tokens/organization.ts`; revoking goes through the
+ * same endpoint an owner uses on their own token.
+ */
+import { cookieJarFromHeader, organizationRoleOf, viewerFromCookies } from '../../functions/identity'
+import { tokensReaching } from '../../../app/Actions/Tokens/organization'
+import { relativeTime } from '../../functions/browse'
+import { setStatus } from '../../functions/http'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+const handle = String(params.owner ?? '').toLowerCase()
+
+const organization: any = handle
+  ? await db
+      .selectFrom('organizations')
+      .select(['id', 'handle', 'name'])
+      .where('handle', '=', handle)
+      .executeTakeFirst()
+  : null
+
+const role = organization && viewer ? await organizationRoleOf(Number(organization.id), viewer.id) : null
+const visible = Boolean(organization) && role === 'owner'
+
+const tokens = visible ? await tokensReaching(Number(organization.id)) : []
+
+/*
+ * Counted by how each one reaches here, because the three are different
+ * problems. A `membership` token is one nobody scoped to this organization at
+ * all - it reaches everything its owner can, which includes these repositories
+ * - and it is the number an administrator has never seen before.
+ */
+const viaMembership = tokens.filter(token => token.via === 'membership').length
+const neverUsed = tokens.filter(token => !token.lastUsedAt).length
+
+/** What each `via` means, said once rather than in three places in the markup. */
+const reachLabels: Record<string, string> = {
+  organization: 'scoped to this organization',
+  selected: 'scoped to a repository here',
+  membership: 'reaches everything its owner can',
+}
+
+if (!visible)
+  setStatus(404)
+</script>
+
+@layout('app')
+
+@section('title', 'Tokens')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!visible)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">Not found</h1>
+        <p class="muted" style="margin-top: 6px;">
+          There is no page here.
+          @if (!viewer)
+            If you were expecting one, <a href="/login">sign in</a> first.
+          @endif
+        </p>
+      </div>
+    @else
+      <header class="people-head">
+        <h1 class="people-title">
+          <a href="/{{ organization.handle }}">{{ organization.name || organization.handle }}</a>
+          <span class="muted">tokens</span>
+        </h1>
+        <p class="muted">
+          {{ tokens.length }} live {{ tokens.length === 1 ? 'token' : 'tokens' }} can reach these
+          repositories.
+          <a href="/{{ organization.handle }}/people">People</a>.
+        </p>
+      </header>
+
+      @if (tokens.length > 0 && (viaMembership > 0 || neverUsed > 0))
+        <div class="token-summary panel">
+          @if (viaMembership > 0)
+            <p>
+              <strong>{{ viaMembership }}</strong>
+              {{ viaMembership === 1 ? 'token was' : 'tokens were' }} never scoped to this
+              organization at all. They reach everything their owner can, which includes these
+              repositories for as long as that person is a member.
+            </p>
+          @endif
+          @if (neverUsed > 0)
+            <p>
+              <strong>{{ neverUsed }}</strong>
+              {{ neverUsed === 1 ? 'token has' : 'tokens have' }} never been used. Somebody issued
+              {{ neverUsed === 1 ? 'it' : 'them' }}, something changed, and
+              {{ neverUsed === 1 ? 'it has' : 'they have' }} been sitting here since.
+            </p>
+          @endif
+        </div>
+      @endif
+
+      @if (tokens.length === 0)
+        <div class="keys-empty panel">
+          <p class="muted">
+            Nothing can reach these repositories with a token. Every clone and push here is somebody
+            signed in, or an SSH key.
+          </p>
+        </div>
+      @else
+        <ul class="people-list panel">
+          {{--
+            Never used first, then least recently used. The reason to open this
+            page is to find what should not be here.
+          --}}
+          @foreach (tokens as token)
+            <li class="person-row">
+              <span class="i-hugeicons-key-01 person-icon" aria-hidden="true"></span>
+
+              <div class="person-main">
+                <span class="person-name">{{ token.name }}</span>
+                <span class="token-prefix mono muted">{{ token.prefix }}</span>
+                <span class="person-meta muted">
+                  <a href="/{{ token.ownerHandle }}">{{ token.ownerHandle }}</a>
+                  &middot; {{ reachLabels[token.via] }}
+                  @if (token.repositoryNames.length > 0)
+                    &middot; {{ token.repositoryNames.join(', ') }}
+                  @endif
+                </span>
+                <span class="person-meta muted">
+                  {{--
+                    Never used is said out loud rather than left as a blank. It
+                    is how somebody spots the token issued for a job that was
+                    cancelled.
+                  --}}
+                  {{ token.lastUsedAt ? `last used ${relativeTime(token.lastUsedAt)}` : 'never used' }}
+                  @if (token.expiresAt)
+                    &middot; expires {{ relativeTime(token.expiresAt) }}
+                  @endif
+                  @if (token.permissions.length > 0)
+                    &middot; {{ token.permissions.join(', ') }}
+                  @endif
+                </span>
+              </div>
+
+              <div class="person-actions">
+                {{--
+                  Revoking somebody else's token asks why, and the reason lands
+                  in the audit log next to who did it. The row that matters
+                  months later is "stopped by somebody other than its owner",
+                  and it is worth a sentence at the time.
+                --}}
+                <form method="post" action="/api/user/tokens/revoke" class="token-revoke">
+                  <CsrfField />
+                  <input type="hidden" name="id" value="{{ token.id }}">
+                  <input
+                    class="token-reason"
+                    type="text"
+                    name="reason"
+                    maxlength="200"
+                    placeholder="Why?"
+                    aria-label="Reason for revoking {{ token.name }}">
+                  <button type="submit" class="btn btn-quiet">Revoke</button>
+                </form>
+              </div>
+            </li>
+          @endforeach
+        </ul>
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+.token-summary { padding: 16px 18px; margin-bottom: 18px; font-size: 13.5px; }
+.token-summary p { margin: 0; max-width: 74ch; }
+.token-summary p + p { margin-top: 8px; }
+
+.token-prefix { font-size: 12px; }
+
+.token-revoke { display: flex; align-items: center; gap: 8px; }
+.token-reason {
+  width: 150px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .token-revoke { width: 100%; }
+  .token-reason { flex: 1; width: auto; }
+}
+</style>

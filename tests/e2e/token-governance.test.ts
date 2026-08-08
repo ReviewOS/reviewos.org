@@ -55,6 +55,15 @@ async function call(method: string, path: string, token: string, body?: Record<s
   return { status: answer.status, json: await answer.json().catch(() => null) }
 }
 
+/** A page, as a signed-in browser sees it. */
+async function page(path: string, token: string): Promise<string> {
+  const answer = await fetch(`http://127.0.0.1:${port}${path}`, {
+    headers: { Accept: 'text/html', Cookie: `auth-token=${token}` },
+  })
+
+  return await answer.text()
+}
+
 /** Issue a token directly, so the test controls its shape. */
 async function issue(userId: number, selection: string, extra: Record<string, unknown> = {}): Promise<number> {
   const { generateToken } = await import('../../app/Actions/Tokens/secret')
@@ -458,6 +467,49 @@ describe('a machine account', () => {
     })
 
     expect(refused.status).toBe(404)
+  })
+})
+
+describe('the pages', () => {
+  test('the token list renders for an owner, with the reach that gets missed', async () => {
+    if (!available)
+      return
+
+    /*
+     * Asked of the page rather than the function, because stx fails silently: a
+     * server script that throws renders with every variable undefined, so this
+     * page would show "nothing can reach these repositories" to an organization
+     * with four live tokens. That does not look like a failure - it looks like
+     * good news.
+     */
+    const html = await page(`/${created.orgHandle}/tokens`, created.ownerToken)
+
+    expect(html).toContain('live')
+    expect(html).toContain(created.orgHandle)
+    expect(html).toContain('reaches everything its owner can')
+  })
+
+  test('and is not found for a plain member', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.orgHandle}/tokens`, created.memberToken)
+
+    expect(html).toContain('Not found')
+    expect(html).not.toContain('reaches everything its owner can')
+  })
+
+  test('the people page lists a machine account, separately from the people', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.orgHandle}/people`, created.ownerToken)
+
+    expect(html).toContain('Machine accounts')
+    expect(html).toContain(created.machineHandle)
+    // Said on the row, because it is the property that makes the account worth
+    // having rather than a shared login.
+    expect(html).toContain('cannot sign in')
   })
 })
 

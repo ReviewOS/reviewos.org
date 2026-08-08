@@ -38,9 +38,20 @@ const role = organization && viewer ? await organizationRoleOf(Number(organizati
  * a membership oracle.
  */
 const visible = Boolean(organization && role)
-const people = visible ? await peopleIn(Number(organization.id)) : []
+const everybody = visible ? await peopleIn(Number(organization.id)) : []
 const mayManage = role === 'owner' || role === 'admin'
 const isOwner = role === 'owner'
+
+/*
+ * Machine accounts in their own section, because they are not people.
+ *
+ * Mixed into the list they read as colleagues who never log in, and the
+ * question this page answers - who is here, and who runs this - gets a wrong
+ * answer for every count. They are still `org_members` rows and still come from
+ * the same read, so nothing has to agree twice about what membership means.
+ */
+const people = everybody.filter(person => !person.machine)
+const machines = everybody.filter(person => person.machine)
 
 if (!visible)
   setStatus(404)
@@ -69,6 +80,9 @@ if (!visible)
         <p class="muted">
           {{ people.length }} {{ people.length === 1 ? 'person' : 'people' }}, including anybody
           invited who has not answered yet.
+          @if (isOwner)
+            <a href="/{{ organization.handle }}/tokens">See what can reach your repositories</a>.
+          @endif
         </p>
       </header>
 
@@ -170,6 +184,96 @@ if (!visible)
           </li>
         @endforeach
       </ul>
+
+      {{--
+        Machine accounts, separately, and only for somebody who manages the
+        organization. They are standing credentials rather than colleagues, and
+        the list of where your standing credentials are is not the same kind of
+        thing as the list of who works here.
+      --}}
+      @if (mayManage)
+        <section class="machines" x-data="{ adding: false }">
+          <div class="machines-head">
+            <h2 class="machines-title">Machine accounts</h2>
+            @if (isOwner)
+              <button
+                type="button"
+                class="btn"
+                @click="adding = !adding"
+                :aria-expanded="adding ? 'true' : 'false'">New machine account</button>
+            @endif
+          </div>
+
+          <p class="muted machines-lede">
+            An account that holds tokens and cannot sign in. Better than a shared login with the
+            password in a password manager, which is what happens otherwise.
+          </p>
+
+          @if (isOwner)
+            <form class="invite-form" method="post" action="/api/orgs/machine-accounts" x-show="adding" x-cloak>
+              <CsrfField />
+              <input type="hidden" name="organization_id" value="{{ organization.id }}">
+
+              <label class="invite-label" for="machine-handle">Handle</label>
+              <input
+                id="machine-handle"
+                class="invite-input mono"
+                type="text"
+                name="handle"
+                required
+                maxlength="39"
+                spellcheck="false"
+                placeholder="{{ organization.handle }}-ci">
+
+              <label class="invite-label" for="machine-name">Display name</label>
+              <input id="machine-name" class="invite-input" type="text" name="name" maxlength="100" placeholder="CI">
+
+              <div class="invite-actions">
+                <button type="submit" class="btn btn-primary">Create</button>
+              </div>
+              <p class="muted machines-note">
+                It joins as a member, which grants nothing on its own. Give it a token, and grant
+                that token what it needs.
+              </p>
+            </form>
+          @endif
+
+          @if (machines.length === 0)
+            <div class="keys-empty panel">
+              <p class="muted">No machine accounts. CI and deploys are running as somebody.</p>
+            </div>
+          @else
+            <ul class="people-list panel">
+              @foreach (machines as machine)
+                <li class="person-row">
+                  <span class="i-hugeicons-robotic person-icon" aria-hidden="true"></span>
+
+                  <div class="person-main">
+                    <a class="person-name" href="/{{ machine.handle }}">{{ machine.name }}</a>
+                    <span class="person-meta muted">
+                      {{ machine.handle }} &middot; cannot sign in
+                      @if (machine.joinedAt)
+                        &middot; created {{ relativeTime(machine.joinedAt) }}
+                      @endif
+                    </span>
+                  </div>
+
+                  @if (isOwner)
+                    <div class="person-actions">
+                      <form method="post" action="/api/orgs/members/remove">
+                        <CsrfField />
+                        <input type="hidden" name="organization_id" value="{{ organization.id }}">
+                        <input type="hidden" name="user_id" value="{{ machine.id }}">
+                        <button type="submit" class="btn btn-quiet">Remove</button>
+                      </form>
+                    </div>
+                  @endif
+                </li>
+              @endforeach
+            </ul>
+          @endif
+        </section>
+      @endif
     @endif
   </div>
 @endsection
@@ -206,6 +310,12 @@ if (!visible)
 .person-meta { font-size: 12.5px; }
 
 .person-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.machines { margin-top: 34px; }
+.machines-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 6px; }
+.machines-title { font-size: 15px; font-weight: 600; }
+.machines-lede { font-size: 13px; margin: 0 0 14px; max-width: 62ch; }
+.machines-note { font-size: 12.5px; margin: 12px 0 0; max-width: 56ch; }
+
 .person-select { padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; font-size: 13px; }
 
 @media (max-width: 640px) {

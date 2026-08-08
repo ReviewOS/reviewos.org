@@ -358,6 +358,10 @@ The half of this nobody builds, and the half that decides whether an instance is
   token. A listing built by querying the token tables finds the first two and reports a clean answer
   that is wrong, which is worse than not having the page.
 
+  `/{owner}/tokens` is the page, owner-only and refusing with a 404 for the same reason the people
+  page does. It leads with the two counts worth acting on: how many tokens were never scoped to this
+  organization at all, and how many nobody has ever used.
+
   Revocation goes through the same endpoint an owner uses on their own token, so there is one place
   that decides what revoking means. An organization administrator may stop a token that reaches
   them and no other, and the refusal is a 404 rather than a 403 so token ids cannot be enumerated by
@@ -397,8 +401,10 @@ The half of this nobody builds, and the half that decides whether an instance is
   should reach is granted deliberately, like anybody else: a machine that can read everything by
   existing is the shared account again with a better name.
 
-  Its tokens are issued *for* it by somebody who administers its organization, because it cannot ask
-  for one itself. Narrow on purpose - only a machine account, only for its own organization, only by
+  It appears in its own section of the people page rather than among the people, because it is not
+  one - mixed in it reads as a colleague who never logs in, and every count on the page is then
+  wrong. Its tokens are issued *for* it by somebody who administers its organization, because it
+  cannot ask for one itself. Narrow on purpose - only a machine account, only for its own organization, only by
   an administrator of that organization - since relaxing any of the three turns it into a general
   "issue a token as another user".
 
