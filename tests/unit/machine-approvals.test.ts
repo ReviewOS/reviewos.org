@@ -140,3 +140,86 @@ describe('the refusal a reader sees', () => {
     expect(blockers).toContain('1 more approval is required')
   })
 })
+
+describe('a branch that requires a person to look', () => {
+  it('blocks an agent\'s change with only agent approvals', () => {
+    /*
+     * Expressed as a rule rather than left to a convention people remember.
+     * "We always look at the bot's pull requests" is true for about three
+     * weeks, and the week it stops being true is the week nobody notices,
+     * because what changed is nobody's attention rather than any file.
+     */
+    const blockers = mergeBlockers(
+      { state: 'open', draft: false, mergeable: true, stackParent: null },
+      {
+        requiredApprovals: 0,
+        requireThreadsResolved: false,
+        requireLinearHistory: false,
+        allowedStrategies: ['merge'],
+        requireHumanApprovalForAgents: true,
+      },
+      { approvals: 1, blockingReviews: 0, unresolvedThreads: 0, authorIsMachine: true, humanApprovals: 0 },
+      'merge',
+    )
+
+    expect(blockers.join(' ')).toContain('a person to approve')
+  })
+
+  it('lets it through once a person approves', () => {
+    // One human approval, not all of them. The requirement is that somebody
+    // looked; demanding every approval be human would make an agent reviewer
+    // useless on exactly the branches most likely to have one.
+    const blockers = mergeBlockers(
+      { state: 'open', draft: false, mergeable: true, stackParent: null },
+      {
+        requiredApprovals: 0,
+        requireThreadsResolved: false,
+        requireLinearHistory: false,
+        allowedStrategies: ['merge'],
+        requireHumanApprovalForAgents: true,
+      },
+      { approvals: 2, blockingReviews: 0, unresolvedThreads: 0, authorIsMachine: true, humanApprovals: 1 },
+      'merge',
+    )
+
+    expect(blockers).toEqual([])
+  })
+
+  it('does not apply to a change a person wrote', () => {
+    // Otherwise turning the rule on quietly requires a self-approval on every
+    // ordinary pull request, which is not what anybody asked for.
+    const blockers = mergeBlockers(
+      { state: 'open', draft: false, mergeable: true, stackParent: null },
+      {
+        requiredApprovals: 0,
+        requireThreadsResolved: false,
+        requireLinearHistory: false,
+        allowedStrategies: ['merge'],
+        requireHumanApprovalForAgents: true,
+      },
+      { approvals: 0, blockingReviews: 0, unresolvedThreads: 0, authorIsMachine: false, humanApprovals: 0 },
+      'merge',
+    )
+
+    expect(blockers).toEqual([])
+  })
+
+  it('counts a human approval even where machine approvals are not counted', () => {
+    /*
+     * The two rules are independent. A branch can count an agent's approval on
+     * everyone else's changes and still require a person on the agent's own,
+     * and `approvalsSatisfied` has to report both numbers for that to be
+     * expressible.
+     */
+    const result = approvalsSatisfied({
+      reviews: [review({ reviewerId: 1, machine: true }), review({ reviewerId: 2 })],
+      headSha: head,
+      requiredApprovals: 1,
+      dismissStaleReviews: false,
+      countMachineApprovals: false,
+    })
+
+    expect(result.human).toBe(1)
+    expect(result.approvals).toBe(1)
+  })
+})

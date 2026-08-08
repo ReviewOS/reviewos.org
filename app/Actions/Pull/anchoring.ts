@@ -185,7 +185,7 @@ export function approvalsSatisfied(input: {
    * and nobody looked.
    */
   countMachineApprovals?: boolean
-}): { satisfied: boolean, approvals: number, blocking: number, uncounted: number } {
+}): { satisfied: boolean, approvals: number, blocking: number, uncounted: number, human: number } {
   // Only the latest review from each reviewer counts; an approval after a
   // change request is a change of mind, not a second opinion.
   const latest = new Map<number, { state: string, commitSha: string | null, machine: boolean }>()
@@ -202,6 +202,10 @@ export function approvalsSatisfied(input: {
   let approvals = 0
   let blocking = 0
   let uncounted = 0
+  // Counted whether or not machine approvals count toward the total, because
+  // the two rules are independent: a branch can require a human approval on an
+  // agent's change while also counting an agent's approval on everyone else's.
+  let human = 0
 
   for (const review of latest.values()) {
     if (review.state === 'changes_requested') {
@@ -224,6 +228,9 @@ export function approvalsSatisfied(input: {
     if (input.dismissStaleReviews && reviewIsStale(review.commitSha, input.headSha))
       continue
 
+    if (!review.machine)
+      human += 1
+
     if (review.machine && !input.countMachineApprovals) {
       // Counted separately rather than silently dropped, so the merge screen
       // can say "approved by a machine account, which this repository does not
@@ -241,6 +248,7 @@ export function approvalsSatisfied(input: {
     approvals,
     blocking,
     uncounted,
+    human,
   }
 }
 

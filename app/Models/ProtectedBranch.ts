@@ -102,5 +102,31 @@ export default defineModel({
       validation: { rule: schema.boolean() },
       factory: () => false,
     },
+
+    /**
+     * A change written by a machine account needs a person to approve it.
+     *
+     * Expressed as a rule rather than left to a convention people remember.
+     * "We always look at the bot's pull requests" is true for about three
+     * weeks, and the week it stops being true is the week nobody notices,
+     * because the thing that changed is nobody's attention rather than any
+     * file.
+     *
+     * Distinct from `count_machine_approvals` on the repository, which is
+     * about whose approval *counts*. This is about whose change needs *one*.
+     * A repository can reasonably want both: an agent's review is worth
+     * counting, and an agent's own change still gets a human.
+     *
+     * One human approval, not all of them. The requirement is that somebody
+     * looked, and a rule that demanded every approval be human would make an
+     * agent reviewer useless on exactly the branches most likely to have one.
+     */
+    require_human_approval_for_agents: {
+      order: 10,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
   },
 } as const)

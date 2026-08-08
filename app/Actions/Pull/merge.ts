@@ -84,6 +84,15 @@ export interface MergeRules {
   allowedStrategies: readonly MergeStrategy[]
   /** Names of checks that must have reported success on the head commit. */
   requiredChecks?: readonly string[]
+  /**
+   * A change written by a machine account needs one human approval.
+   *
+   * Only meaningful when the author *is* one, which the readiness reports
+   * rather than this: whether the rule applies and whether it is satisfied are
+   * different questions, and a rule that had to know who the author was would
+   * need the database.
+   */
+  requireHumanApprovalForAgents?: boolean
 }
 
 export interface MergeReadiness {
@@ -98,6 +107,10 @@ export interface MergeReadiness {
    * reader's next move is to ask somebody rather than to find the setting.
    */
   uncountedApprovals?: number
+  /** Whether the pull request was written by a machine account. */
+  authorIsMachine?: boolean
+  /** Approvals from accounts that are not machines. */
+  humanApprovals?: number
   unresolvedThreads: number
   /** From `requirementsSatisfied` in app/Actions/Checks/status.ts. */
   checks?: {
@@ -155,6 +168,15 @@ export function mergeBlockers(
 
     blockers.push(`${missing} more ${missing === 1 ? 'approval is' : 'approvals are'} required${because}`)
   }
+
+  /*
+   * A person has to have looked. Checked separately from the count, because
+   * "two approvals" and "one of them from a human" are different requirements
+   * and a repository that wanted only the second would otherwise have to set
+   * the first as a proxy for it.
+   */
+  if (rules.requireHumanApprovalForAgents && readiness.authorIsMachine && (readiness.humanApprovals ?? 0) < 1)
+    blockers.push('This branch requires a person to approve a change written by a machine account')
 
   if (rules.requireThreadsResolved && readiness.unresolvedThreads > 0) {
     blockers.push(

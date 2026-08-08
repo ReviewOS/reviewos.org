@@ -222,9 +222,12 @@ async function blockersFor(repository: any, row: any): Promise<string[]> {
     .orderBy('id', 'asc')
     .execute()
 
-  const machineReviewers = await machineAccountsAmong(
-    reviews.map((review: any) => Number(review.reviewer_id)),
-  )
+  const machineAccounts = await machineAccountsAmong([
+    ...reviews.map((review: any) => Number(review.reviewer_id)),
+    Number(row.author_id),
+  ])
+
+  const machineReviewers = machineAccounts
 
   const approval = approvalsSatisfied({
     reviews: reviews.map((review: any) => ({
@@ -283,11 +286,14 @@ async function blockersFor(repository: any, row: any): Promise<string[]> {
       requireLinearHistory: Boolean(protection?.require_linear_history),
       allowedStrategies: ['merge', 'squash', 'rebase'],
       requiredChecks,
+      requireHumanApprovalForAgents: Boolean(protection?.require_human_approval_for_agents),
     },
     {
       approvals: approval.approvals,
       blockingReviews: approval.blocking,
       uncountedApprovals: approval.uncounted,
+      authorIsMachine: machineAccounts.has(Number(row.author_id)),
+      humanApprovals: approval.human,
       unresolvedThreads: Number(unresolved?.count ?? 0),
       checks,
     },

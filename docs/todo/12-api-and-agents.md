@@ -296,8 +296,21 @@ resolution, and the differences are the ones that genuinely matter.
 
   Null for anything done in a browser, which is most of the log, and that absence is itself the
   signal - a session did it, not a token.
-- [ ] Repository rules can require that an agent-authored change carries a human approval before it
+- [x] Repository rules can require that an agent-authored change carries a human approval before it
       merges, expressed as a rule rather than as a convention people remember
+
+  `protected_branches.require_human_approval_for_agents`, off by default, checked at merge alongside
+  the approval count. "We always look at the bot's pull requests" is true for about three weeks, and
+  the week it stops being true is the week nobody notices - because what changed is nobody's
+  attention rather than any file.
+
+  Distinct from `count_machine_approvals`, which is about whose approval *counts*. This is about
+  whose change needs *one*, and a repository can reasonably want both: an agent's review is worth
+  counting, and an agent's own change still gets a person.
+
+  One human approval, not all of them. The requirement is that somebody looked, and a rule demanding
+  every approval be human would make an agent reviewer useless on exactly the branches most likely to
+  have one.
 
 ## MCP
 

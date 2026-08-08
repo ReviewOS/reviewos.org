@@ -83,6 +83,7 @@ export default new Action({
       // sentence rather than a silent substitution.
       allowedStrategies: allowedStrategies(repository as any),
       requiredChecks,
+      requireHumanApprovalForAgents: Boolean(protection?.require_human_approval_for_agents),
     }
 
     const reviews = await db
@@ -92,9 +93,19 @@ export default new Action({
       .orderBy('id', 'asc')
       .execute()
 
-    const machineReviewers = await machineAccountsAmong(
-      reviews.map((review: any) => Number(review.reviewer_id)),
-    )
+    /*
+     * The author is asked about alongside the reviewers, in one query.
+     *
+     * The branch rule needs to know whether the change was written by a
+     * machine, and asking separately would be a second round trip for one more
+     * id that is already on the row in hand.
+     */
+    const machineAccounts = await machineAccountsAmong([
+      ...reviews.map((review: any) => Number(review.reviewer_id)),
+      Number(pullRequest.author_id),
+    ])
+
+    const machineReviewers = machineAccounts
 
     const readinessReviews = reviews.map((review: any) => ({
       reviewerId: Number(review.reviewer_id),
@@ -157,6 +168,8 @@ export default new Action({
         approvals: approval.approvals,
         blockingReviews: approval.blocking,
         uncountedApprovals: approval.uncounted,
+        authorIsMachine: machineAccounts.has(Number(pullRequest.author_id)),
+        humanApprovals: approval.human,
         unresolvedThreads: Number(unresolved?.count ?? 0),
         checks: checkResult,
       },

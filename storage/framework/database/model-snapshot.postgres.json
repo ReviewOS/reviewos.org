@@ -2834,6 +2834,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "require_human_approval_for_agents",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -6709,7 +6718,7 @@
       }
     ]
   },
-  "hash": "d004234209c040757f2f50fabb0d5aa920cbde851d6635db880e4165d150a9b0",
+  "hash": "9f06fd5a10bf583263ded347e5045153d41d7ced5ed88f8a88fa99fb8adc69e5",
   "dialect": "postgres",
-  "updatedAt": "2026-08-08T21:05:23.037Z"
+  "updatedAt": "2026-08-08T21:12:54.743Z"
 }
