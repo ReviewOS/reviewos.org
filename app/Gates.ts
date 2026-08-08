@@ -1,11 +1,21 @@
 import type { UserModel } from '@stacksjs/orm'
+import type { RepositoryAbility, RepositoryAccessInput } from './Permissions'
+import { allowedOnArchivedRepository, canOnRepository, wouldOrphanOrganization } from './Permissions'
 
 /**
- * Authorization Gates Configuration
+ * Authorization gates.
  *
- * Define your application's authorization gates and policy mappings here.
- * Gates provide a simple way to authorize actions, while policies
- * organize authorization logic around particular models.
+ * **Deliberately thin, and that is the design.** Every rule that decides access
+ * lives in `app/Permissions.ts` as a pure function over plain values, and the
+ * actions call it directly through `authorizeRepository` and
+ * `organizationRoleOf`. These gates give a few of those rules a name for code
+ * that reaches for the framework's `Gate`, and add no logic of their own.
+ *
+ * A gate that re-derived a rule would be a second place that decides, and the
+ * one that disagrees quietly is the one that ships. So what is here is the
+ * questions that are *not* simple role comparisons - would this leave an
+ * organization with no owner, does this ability survive archiving - each
+ * delegating to the one implementation.
  *
  * @see https://stacksjs.org/docs/security/authorization
  */
@@ -25,29 +35,62 @@ import type { UserModel } from '@stacksjs/orm'
  */
 export const gates = {
   /**
-   * Check if user can access admin area
+   * Whether somebody administers this instance.
+   *
+   * The `is_admin` column, and nothing derived. The framework's default checked
+   * an email domain, which on a self-hosted forge means that whoever controls
+   * the mail domain in `.env` controls the instance - and that anybody who can
+   * register with an address at that domain administers it.
    */
   'access-admin': (user: UserModel | null) => {
-    return user?.email?.endsWith('@stacksjs.org') ?? false
+    return Boolean((user as any)?.is_admin)
   },
 
   /**
-   * Check if user can edit application settings
+   * Whether the last owner of an organization may be removed or demoted.
+   *
+   * A gate rather than a role comparison, which is the distinction this file is
+   * for: it is not about who is asking. An owner has every right to leave, and
+   * the refusal is about what would be left behind - an organization nobody can
+   * administer, which cannot be repaired from the interface because there is
+   * nobody left to appoint a replacement.
+   *
+   * `wouldOrphanOrganization` is the rule and `ChangeMemberRoleAction` and
+   * `RemoveMemberAction` both apply it directly. This is here so the same
+   * question has one name when it is asked from anywhere else.
    */
-  'edit-settings': (user: UserModel | null) => {
-    // Add your logic here
-    return user !== null
+  'orphan-organization': (_user: UserModel | null, input: Parameters<typeof wouldOrphanOrganization>[0]) => {
+    return !wouldOrphanOrganization(input)
   },
 
   /**
-   * Check if user can view dashboard
+   * Whether somebody may act on a repository.
+   *
+   * The resolver, given a name. Every rule that decides access to a repository
+   * is in `repositoryPermissionFor` and the abilities table beside it, and this
+   * deliberately adds nothing: a second place that decides is a second place
+   * that can disagree, and the one that disagrees quietly is the one that gets
+   * shipped.
+   *
+   * The caller resolves the grants - collaborator, team, organization role -
+   * because that needs the database, and a gate that queries is a gate that
+   * cannot be tested against literals.
    */
-  'view-dashboard': (user: UserModel | null) => {
-    return user !== null
+  'repository': (_user: UserModel | null, input: RepositoryAccessInput, ability: RepositoryAbility) => {
+    return canOnRepository(input, ability)
   },
 
-  // Add more gates here...
-  // 'ability-name': (user, ...args) => boolean,
+  /**
+   * Whether an ability survives the repository being archived.
+   *
+   * Not a permission question at all, which is why it is separate: an admin of
+   * an archived repository still administers it, and still cannot push to it.
+   * Archiving is about the repository's state rather than the reader's rights,
+   * and folding the two together is how "unarchive" ends up needing write.
+   */
+  'archived-repository': (_user: UserModel | null, ability: RepositoryAbility) => {
+    return allowedOnArchivedRepository(ability)
+  },
 }
 
 /**

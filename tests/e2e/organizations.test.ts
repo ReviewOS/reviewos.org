@@ -310,6 +310,35 @@ describe('updating the organization', () => {
   })
 })
 
+describe('the orgCan middleware', () => {
+  test('refuses a request that names no organization, rather than waving it through', async () => {
+    if (!available)
+      return
+
+    // A gate whose subject is missing has not passed; it has failed to run, and
+    // the two must never be the same answer.
+    const refused = await post('/api/orgs/update', created.ownerToken, { name: 'No organization named' })
+
+    expect(refused.status).toBe(422)
+  })
+
+  test('and a request from nobody', async () => {
+    if (!available)
+      return
+
+    const answer = await fetch(`http://127.0.0.1:${port}/api/orgs/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organization_id: created.orgId, name: 'Anonymous rename' }),
+    })
+
+    // 401 or 403 - which one is the auth middleware's business. What matters is
+    // that it is neither 200 nor a 500 from the gate failing to find its
+    // parameter, which is how a misread `_middlewareParams` would present.
+    expect([401, 403]).toContain(answer.status)
+  })
+})
+
 describe('deleting the organization', () => {
   test('needs the handle typed back', async () => {
     if (!available)

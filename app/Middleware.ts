@@ -30,6 +30,19 @@ export default {
   'verified': 'EnsureEmailIsVerified',
   'csrf': 'Csrf',
   'compress': 'Compress',
+
+  /*
+   * Organization gates. `orgCan:<ability>` is the one to reach for - it names
+   * what the endpoint is *for*, so when a rung moves in
+   * `ORGANIZATION_ABILITIES` the route follows. `orgRole:<role>` is for the
+   * handful of places where the rung really is the requirement.
+   *
+   * Both are a convenience, not the boundary: every action behind them checks
+   * again, because a route registered without one looks exactly like a route
+   * registered with one.
+   */
+  'orgRole': 'OrgRole',
+  'orgCan': 'OrgCan',
   // Add more middleware aliases here
   // Note: Use ! prefix for negation (e.g., '!auth', '!env:development')
 } satisfies Middleware

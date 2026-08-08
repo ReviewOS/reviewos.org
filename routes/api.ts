@@ -35,20 +35,31 @@ route.post('/user/profile', 'Actions/Profile/UpdateProfileAction').middleware('a
 // if they are got wrong (an organization with no owner), so each one is its own
 // action rather than a general update endpoint.
 route.post('/orgs', 'Actions/Org/CreateOrganizationAction').middleware('auth')
-route.put('/orgs', 'Actions/Org/UpdateOrganizationAction').middleware('auth')
-route.delete('/orgs', 'Actions/Org/DeleteOrganizationAction').middleware('auth')
-route.post('/orgs/members', 'Actions/Org/InviteMemberAction').middleware('auth')
+/*
+ * `orgCan:<ability>` in front of the endpoints that act on an existing
+ * organization. It names what the endpoint is for rather than which rung
+ * happens to reach it, so a rung moving in `ORGANIZATION_ABILITIES` carries the
+ * route with it.
+ *
+ * The actions check again. This is a convenience - the failure arrives as a 403
+ * before anything is loaded, and a route file says what it requires - and not
+ * the boundary, because a route registered without it looks exactly like one
+ * registered with it.
+ */
+route.put('/orgs', 'Actions/Org/UpdateOrganizationAction').middleware(['auth', 'orgCan:settings:manage'])
+route.delete('/orgs', 'Actions/Org/DeleteOrganizationAction').middleware(['auth', 'orgCan:organization:delete'])
+route.post('/orgs/members', 'Actions/Org/InviteMemberAction').middleware(['auth', 'orgCan:members:manage'])
 // Accepting takes no id but the organization's, because the invitation is
 // always the caller's own. There is no parameter that could name somebody else.
 route.post('/orgs/members/accept', 'Actions/Org/AcceptInviteAction').middleware('auth')
-route.put('/orgs/members/role', 'Actions/Org/ChangeMemberRoleAction').middleware('auth')
-route.delete('/orgs/members', 'Actions/Org/RemoveMemberAction').middleware('auth')
+route.put('/orgs/members/role', 'Actions/Org/ChangeMemberRoleAction').middleware(['auth', 'orgCan:members:manage'])
+route.delete('/orgs/members', 'Actions/Org/RemoveMemberAction').middleware(['auth', 'orgCan:members:manage'])
 // The same four over POST. An HTML form can only GET or POST, and every write
 // on the organization settings page goes through one.
-route.post('/orgs/update', 'Actions/Org/UpdateOrganizationAction').middleware('auth')
-route.post('/orgs/delete', 'Actions/Org/DeleteOrganizationAction').middleware('auth')
-route.post('/orgs/members/role', 'Actions/Org/ChangeMemberRoleAction').middleware('auth')
-route.post('/orgs/members/remove', 'Actions/Org/RemoveMemberAction').middleware('auth')
+route.post('/orgs/update', 'Actions/Org/UpdateOrganizationAction').middleware(['auth', 'orgCan:settings:manage'])
+route.post('/orgs/delete', 'Actions/Org/DeleteOrganizationAction').middleware(['auth', 'orgCan:organization:delete'])
+route.post('/orgs/members/role', 'Actions/Org/ChangeMemberRoleAction').middleware(['auth', 'orgCan:members:manage'])
+route.post('/orgs/members/remove', 'Actions/Org/RemoveMemberAction').middleware(['auth', 'orgCan:members:manage'])
 
 // Keys the caller pushes with, and signs with. Both are listed by the settings
 // page rather than by an endpoint: it reads them server-side, so a list route

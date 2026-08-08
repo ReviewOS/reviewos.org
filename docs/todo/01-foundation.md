@@ -220,9 +220,37 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
 - [x] `app/Permissions.ts`: repository permissions (read, triage, write, maintain, admin) and
       organization permissions (members:view, members:manage, repositories:create, settings:manage,
       billing:manage)
-- [ ] `app/Middleware/OrgRole.ts` and `OrgCan.ts`, registered in `app/Middleware.ts` as `orgRole`
+- [x] `app/Middleware/OrgRole.ts` and `OrgCan.ts`, registered in `app/Middleware.ts` as `orgRole`
       and `orgCan:<permission>`
-- [ ] `app/Gates.ts` entries for the checks that are not simple role comparisons
+
+  `orgCan:<ability>` is the one to reach for, and the organization routes use it. It names what the
+  endpoint is *for*, so when a rung moves in `ORGANIZATION_ABILITIES` - and that is a table
+  precisely so it can - every route named by ability follows, while every route named by role has
+  to be found and edited. `orgRole:<role>` is ranked rather than matched, so `orgRole:admin` admits
+  an owner; comparing for equality would lock owners out of every admin endpoint, which is the kind
+  of bug that gets fixed by giving somebody two rows.
+
+  **Both are a convenience, not the boundary.** Every action behind them checks again, because a
+  route registered without the middleware would otherwise be unguarded and look exactly like one
+  that is. What they buy is the failure arriving before the action loads anything, and a route file
+  that says what it requires.
+
+  A request that names no organization is refused rather than waved through: a gate whose subject is
+  missing has not passed, it has failed to run. An unknown ability is a 500 rather than a 403, since
+  a typo in a route file is a server fault and should not send somebody looking at their own
+  permissions.
+- [x] `app/Gates.ts` entries for the checks that are not simple role comparisons
+
+  Deliberately thin, and each one delegates. Every rule that decides access is a pure function in
+  `app/Permissions.ts` and the actions call it directly; a gate that re-derived one would be a
+  second place that decides, and the one that disagrees quietly is the one that ships. So what is
+  there is the questions that are not role comparisons - would this leave an organization with no
+  owner, does this ability survive the repository being archived - each with a name and no logic.
+
+  The framework's default `access-admin` gate checked whether the email ends in a particular domain.
+  On a self-hosted forge that means whoever controls the mail domain in `.env` controls the
+  instance, and that anybody who can register an address there administers it. It reads `is_admin`
+  now.
 - [x] One resolver every action calls, rather than permission logic inline per action
 - [x] Tests covering the full matrix. This is the security boundary of the product, so exhaustive
       beats representative.
