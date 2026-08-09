@@ -9,6 +9,7 @@ import { recordSize } from '../Actions/Repo/size'
 import { recordCommitReferences } from '../Actions/Issue/crossReferences'
 import { closingTargets } from '../Actions/Issue/closing'
 import { record } from '../Actions/Issue/timeline'
+import { notifyProgramsOnly } from '../Notifications/emit'
 
 /**
  * Everything that happens because somebody pushed.
@@ -52,7 +53,10 @@ export default new Job({
     // After the objects have landed, so what is measured is what the push left.
     const sizeKb = await recordSize(Number(repository.id), gitDir)
     const defaultBranch = await settleDefaultBranch(repository, updates, gitDir)
-    const refreshed = await refreshPullRequests(Number(repository.id), branches)
+    const refreshed = await refreshPullRequests(Number(repository.id), branches, {
+      owner: owner ?? '',
+      name: String(repository.name ?? ''),
+    })
     // After the head shas are current, so the recompute reads what this push
     // left rather than what the last one did.
     const precomputed = owner ? await precomputeMergeability(repository, owner, branches) : 0
@@ -206,7 +210,11 @@ async function settleDefaultBranch(repository: any, updates: RefUpdate[], gitDir
  * marked unknown, so nothing shows a stale "no conflicts" against a branch that
  * has moved since it was computed. A wrong green is worse than a missing one.
  */
-async function refreshPullRequests(repositoryId: number, branches: RefUpdate[]): Promise<number> {
+async function refreshPullRequests(
+  repositoryId: number,
+  branches: RefUpdate[],
+  repository?: { owner: string, name: string },
+): Promise<number> {
   let refreshed = 0
 
   for (const update of branches) {
@@ -214,6 +222,19 @@ async function refreshPullRequests(repositoryId: number, branches: RefUpdate[]):
       continue
 
     try {
+      /*
+       * Read before the write, because the event needs to name which pull
+       * requests moved and an `UPDATE` reports a count rather than rows. One
+       * extra query per pushed branch, on a path that already spawns git.
+       */
+      const affected: any[] = await db
+        .selectFrom('pull_requests')
+        .select(['id', 'number', 'title', 'author_id', 'head_sha'])
+        .where('repository_id', '=', repositoryId)
+        .where('head_branch', '=', update.name)
+        .where('state', '=', 'open')
+        .execute()
+
       const result = await db
         .updateTable('pull_requests')
         .set({ head_sha: update.after, mergeable_state: 'unknown' })
@@ -223,6 +244,38 @@ async function refreshPullRequests(repositoryId: number, branches: RefUpdate[]):
         .executeTakeFirst()
 
       refreshed += Number(result?.numUpdatedRows ?? 0)
+
+      /*
+       * `pr:synchronized`, the event a reviewing agent most needs.
+       *
+       * Emitted after the row is updated, so a receiver that immediately reads
+       * the pull request back sees the new head rather than the one it was
+       * told about. The other order is a race that only shows up under load
+       * and reads as the API lying.
+       *
+       * Only when the sha genuinely changed: a push that leaves a branch where
+       * it was - a re-push of the same commits, a tag alongside - is not a
+       * change anybody needs telling about.
+       */
+      for (const pullRequest of affected) {
+        if (String(pullRequest.head_sha ?? '') === String(update.after))
+          continue
+
+        await notifyProgramsOnly('pr:synchronized', {
+          // The push, not a person clicking. `actorId` is the pusher where the
+          // job knows one; zero reads as "the system" to every consumer.
+          actorId: 0,
+          actorHandle: '',
+          repositoryId,
+          owner: repository?.owner ?? '',
+          repository: repository?.name ?? '',
+          subjectType: 'pull_request',
+          subjectId: Number(pullRequest.id),
+          number: Number(pullRequest.number),
+          title: String(pullRequest.title ?? ''),
+          detail: String(update.after),
+        } as any)
+      }
     }
     catch {
       // Same rule as everywhere else in this job: one branch failing does not

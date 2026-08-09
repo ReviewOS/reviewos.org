@@ -6411,7 +6411,7 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": true,
-            "defaultValue": "[\"*\"]"
+            "defaultValue": "*"
           },
           {
             "name": "content_type",
@@ -6718,7 +6718,7 @@
       }
     ]
   },
-  "hash": "9f06fd5a10bf583263ded347e5045153d41d7ced5ed88f8a88fa99fb8adc69e5",
+  "hash": "b052a6f5ebbd39dfaa26024d2926acf6f2df10ae7bffb0621b661826e34ab2d6",
   "dialect": "postgres",
-  "updatedAt": "2026-08-08T21:12:54.743Z"
+  "updatedAt": "2026-08-09T03:11:56.865Z"
 }

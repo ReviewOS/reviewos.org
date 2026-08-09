@@ -231,8 +231,39 @@ vocabulary, and it is discoverable without reading the source.
   Each comment becomes a thread of the same shape `CommentOnCodeAction` writes. A comment left by an
   agent and one left by a person have to be the same kind of object, or every reader of them grows a
   special case.
-- [ ] Webhooks are the supported way to stay current (phase 5), and every event that changes
+- [x] Webhooks are the supported way to stay current (phase 5), and every event that changes
       something an agent cares about has one
+
+  Auditing the nine [phase 5](./05-notifications-webhooks.md) shipped against what a *program* needs
+  found the important one missing: **the head moved.** An agent that reviewed a change and hears
+  nothing when the author pushes a fix has two options and both are bad - poll every open pull
+  request forever, or never look again. A person has neither problem: they are told when somebody
+  re-requests review, and they were going to open the page anyway.
+
+  So `pr:synchronized`, from the push job, only when the sha genuinely changed and only after the row
+  is updated - a receiver that immediately reads the pull request back must not see the old head.
+  And `pr:ready_for_review`, because nothing else about a draft changes when it becomes ready, so
+  there is no push, comment or review request to observe.
+
+  **Both are webhooks and neither is a notification.** Telling every reviewer about every push is how
+  an inbox becomes something people filter, and the inbox is the channel that has to work when
+  everything else does not. `notifyProgramsOnly` is a separate function rather than a flag on
+  `notify`, because the difference is not a setting.
+
+  `tests/unit/webhook-coverage.test.ts` writes the claim down: which events a program needs and why,
+  that each is dispatched rather than merely advertised (an advertised event that never fires is
+  worse than an absent one - the client cannot tell), and that a wildcard picks up events added
+  later.
+
+  It immediately found a second defect. The `events` column declared a JSON array and defaulted to
+  `["*"]`; `subscribes()` splits on commas. **A webhook created with the column default subscribed to
+  nothing and was silent forever**, and its owner's only clue would have been that nothing ever
+  arrived - indistinguishable from the endpoint being wrong. Only rows written through the endpoint,
+  which stores the comma form, ever worked, which is exactly why it survived. The test now asserts
+  against the model's own default so the two cannot drift apart again.
+
+  Checks are still absent, deliberately: they are [phase 9](./09-ci-cd.md) and there is nothing to
+  emit yet. The same reasoning as the MCP tool that is not there.
 - [ ] A consistent operation pattern for asynchronous work: create with an idempotency key, receive
       a resource and status URL, poll cheaply with `ETag`, follow a cursor-based event or log stream,
       and cancel with the same token authority that created it

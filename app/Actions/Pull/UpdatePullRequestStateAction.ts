@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { notifyProgramsOnly } from '../../Notifications/emit'
 import { runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
@@ -81,6 +82,31 @@ export default new Action({
           .set({ draft: result.draft })
           .where('id', '=', Number(pullRequest.id))
           .execute()
+
+        /*
+         * A draft becoming ready, for the programs watching.
+         *
+         * An agent configured to review what is ready has no other way to
+         * notice: nothing about the pull request changes except a boolean, so
+         * there is no push, no comment and no review request to observe.
+         *
+         * Only in that direction. Going back to draft is the author saying
+         * "not yet", and an event announcing it would invite exactly the
+         * attention they just withdrew.
+         */
+        if (transition === 'ready') {
+          await notifyProgramsOnly('pr:ready_for_review', {
+            actorId: user.id,
+            actorHandle: user.handle,
+            repositoryId: repository.id,
+            owner: String(request.get('owner') ?? '').trim().toLowerCase(),
+            repository: repository.name,
+            subjectType: 'pull_request',
+            subjectId: Number(pullRequest.id),
+            number,
+            title: String(pullRequest.title ?? ''),
+          } as any)
+        }
       }
 
       return response.json({ number, state: current.state, draft: result.draft })

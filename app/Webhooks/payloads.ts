@@ -28,9 +28,38 @@ import type { EventSubject, NotificationEvent } from '../Notifications/definitio
  * Pure over plain values. Nothing here reads the database.
  */
 
-/** Every event that can carry a webhook. The same nine the inbox knows. */
+/**
+ * Every event that can carry a webhook.
+ *
+ * Mostly the same set the inbox knows, plus the two an agent needs and a person
+ * does not. Webhooks are the supported way for a program to stay current, and a
+ * program has different questions from a colleague watching a page.
+ */
 export const WEBHOOK_EVENTS = [
   'pr:opened',
+  /*
+   * The head moved: somebody pushed to an open pull request's branch.
+   *
+   * The single most important event for a reviewing agent and the one that was
+   * missing. An agent that reviewed a change and is told nothing when the
+   * author pushes a fix has two options, and both are bad: poll every open
+   * pull request forever, or never look again. A person has neither problem -
+   * they get a notification when somebody re-requests review, and they were
+   * going to open the page anyway.
+   *
+   * Deliberately **not** a notification. Telling every reviewer about every
+   * push is how an inbox becomes something people filter, and the thing they
+   * filter is the channel that has to work.
+   */
+  'pr:synchronized',
+  /*
+   * A draft became ready.
+   *
+   * An agent configured to review what is ready has no way to notice the
+   * transition otherwise: nothing about the pull request changes except a
+   * boolean, so there is no push, no comment and no review request to observe.
+   */
+  'pr:ready_for_review',
   'pr:merged',
   'pr:closed',
   'review:requested',
@@ -97,6 +126,8 @@ export interface WebhookPayload extends Envelope {
 /** What `action` each event means. */
 const ACTIONS: Record<string, string> = {
   'pr:opened': 'opened',
+  'pr:synchronized': 'synchronized',
+  'pr:ready_for_review': 'ready_for_review',
   'pr:merged': 'merged',
   'pr:closed': 'closed',
   'review:requested': 'review_requested',

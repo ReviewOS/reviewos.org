@@ -24,6 +24,10 @@ import { subscribes, webhookPayload } from '../Webhooks/payloads'
 export default {
   listensTo: [
     'pr:opened',
+    // Webhook-only, both of them: a program's questions, not a colleague's.
+    // See the note beside them in `app/Events.ts`.
+    'pr:synchronized',
+    'pr:ready_for_review',
     'pr:merged',
     'pr:closed',
     'review:requested',

@@ -49,6 +49,22 @@ export default {
    * reports who is behind on what to anybody who scrolls.
    */
   'pr:opened': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
+  /*
+   * Webhooks only, for both of these, and that is the interesting part.
+   *
+   * `pr:synchronized` is a push to an open pull request's branch, and it is the
+   * event a reviewing agent most needs: without it, an agent that reviewed a
+   * change and hears nothing when the author pushes a fix must either poll
+   * every open pull request forever or never look again.
+   *
+   * Notifying a *person* about it would be wrong. Telling every reviewer about
+   * every push is how an inbox becomes something people filter, and the inbox
+   * is the channel that has to work when everything else does not. It is also
+   * not activity: a feed of "pushed again" entries buries the things somebody
+   * would actually scroll to find.
+   */
+  'pr:synchronized': ['DispatchWebhooks'],
+  'pr:ready_for_review': ['DispatchWebhooks'],
   'pr:merged': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'pr:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'review:requested': ['Notify', 'DispatchWebhooks'],

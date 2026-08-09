@@ -52,14 +52,25 @@ export default defineModel({
       factory: faker => faker.string.alphanumeric(40),
     },
 
-    /** JSON array of event names, or `["*"]` for everything. */
+    /**
+     * The events this webhook wants, comma separated, or `*` for everything.
+     *
+     * A comma-separated string rather than JSON, because that is what
+     * `subscribes()` reads and what `ManageWebhookAction` writes. This column
+     * declared a JSON array and defaulted to `["*"]`, which nothing could
+     * parse: a webhook created with the column default subscribed to nothing
+     * and was silent forever, and its owner's only clue would have been that
+     * nothing ever arrived - indistinguishable from the endpoint being wrong.
+     *
+     * Only rows written through the endpoint worked, which is why it survived.
+     */
     events: {
       order: 4,
       fillable: true,
       type: 'text',
-      default: '["*"]',
+      default: '*',
       validation: { rule: schema.string() },
-      factory: () => '["pr:opened","pr:merged","issue:opened"]',
+      factory: () => 'pr:opened,pr:merged,issue:opened',
     },
 
     content_type: {

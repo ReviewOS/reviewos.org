@@ -69,3 +69,28 @@ export async function notify(event: NotificationEvent, options: EmitOptions): Pr
     console.error(`[notify] ${event} could not be emitted:`, error)
   }
 }
+
+/**
+ * Emit an event that only programs care about.
+ *
+ * No subscriptions, no inbox entry, no activity - it goes to the webhook
+ * listener and stops there. `pr:synchronized` is the case it exists for: a
+ * reviewing agent needs to know the head moved, and telling every reviewer
+ * about every push is how an inbox becomes something people filter.
+ *
+ * Separate from `notify` rather than a flag on it, because the difference is
+ * not a setting. `notify` subscribes people, and a function that sometimes does
+ * and sometimes does not is one whose call sites have to be read carefully
+ * forever.
+ *
+ * Never throws, for the same reason `notify` does not: by the time this runs
+ * the push has landed, and a webhook must not be able to fail it.
+ */
+export async function notifyProgramsOnly(event: string, subject: EventSubject): Promise<void> {
+  try {
+    dispatch(event, { ...subject, event })
+  }
+  catch (error) {
+    console.error(`[notify] ${event} could not be emitted:`, error)
+  }
+}
