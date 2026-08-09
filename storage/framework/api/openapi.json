@@ -15087,6 +15087,31 @@
         }
       }
     },
+    "/api/metrics": {
+      "get": {
+        "summary": "/api/metrics",
+        "operationId": "get__api_metrics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/api/mirrors/sync": {
       "post": {
         "summary": "/api/mirrors/sync",

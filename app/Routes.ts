@@ -31,7 +31,7 @@ export default {
    * Routes that need something else say so with `throttle:<n>,<window>`, which
    * overrides this rather than adding to it.
    */
-  api: { path: 'api', middleware: 'throttle' },
+  api: { path: 'api', middleware: ['throttle', 'measure'] },
   attachments: { path: 'attachments', prefix: '' },
   // Unsubscribing, at the root: the URL goes into an email and into a
   // List-Unsubscribe header, both read by machines that will not follow a

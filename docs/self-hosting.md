@@ -179,6 +179,50 @@ a row per request to make it exact would cost every request to stop an
 attacker's burst surviving a deploy, which is the wrong way round. (Per-token
 *creation* budgets are different and do persist - see the agents section.)
 
+## Metrics
+
+`GET /api/metrics`, in Prometheus exposition format, because that is what every
+scraper reads. A JSON shape of our own would be a format each operator has to
+write an exporter for.
+
+**Not public.** The numbers say how many repositories and accounts an instance
+has, how much traffic it takes and when it is struggling - reconnaissance,
+served conveniently - and it is the endpoint most likely to be left exposed,
+because the scraper works either way and nothing complains. An instance
+administrator may read it, or set `METRICS_TOKEN` and give the scraper a bearer:
+
+```yaml
+scrape_configs:
+  - job_name: reviewos
+    metrics_path: /api/metrics
+    authorization:
+      credentials: <METRICS_TOKEN>
+    static_configs:
+      - targets: ['reviewos.example']
+```
+
+A stranger gets a 404 rather than a 403 - whether an instance exposes metrics at
+all is worth not confirming.
+
+What is there:
+
+| Metric | What it answers |
+|---|---|
+| `reviewos_http_requests_total` | Request rate, by method, route pattern and status class. |
+| `reviewos_http_request_seconds` | Latency, as a histogram. |
+| `reviewos_git_operation_seconds` | How long git takes, by subcommand. This is where a forge's time goes. |
+| `reviewos_queue_depth` / `reviewos_queue_oldest_seconds` | Work waiting. The second climbing steadily means no worker is running. |
+| `reviewos_repositories_total` / `reviewos_users_total` | How big this instance is. |
+
+Labels are **route patterns, never URLs**, and status is a class (`2xx`) rather
+than a code. One series per repository on a forge with two hundred of them is a
+cardinality explosion that takes the scraper down, and it is the most common way
+a metrics endpoint becomes the outage it was meant to warn about.
+
+Counters live in the process and reset when it restarts, which is normal for
+Prometheus - a scraper detects the reset and `rate()` stays correct. With
+several processes each reports its own, which is what a scraper expects.
+
 ## Backup
 
 **Postgres and `storage/repos` have to come from the same moment.** A database

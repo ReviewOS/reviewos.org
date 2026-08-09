@@ -26,6 +26,20 @@ import { response, route } from '@stacksjs/router'
 route.get('/health', 'Actions/Ops/HealthAction')
 
 /*
+ * Metrics, for a scraper. Prometheus exposition format, because it is what
+ * every scraper reads and a self-hosted forge should be observable with the
+ * tools people already run.
+ *
+ * Not public: the numbers say how many repositories and accounts an instance
+ * has, how much traffic it takes and when it is struggling, which is
+ * reconnaissance served conveniently. An administrator, or `METRICS_TOKEN` -
+ * a scrape config holds a bearer far more comfortably than a session, and
+ * asking somebody to give their scraper an admin account is asking for an admin
+ * password in a config file.
+ */
+route.get('/metrics', 'Actions/Ops/MetricsAction')
+
+/*
  * The OpenAPI document, at a stable public URL.
  *
  * Generating it is not publishing it: a document only somebody with the source

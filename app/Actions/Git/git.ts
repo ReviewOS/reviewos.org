@@ -10,6 +10,7 @@
  * builds a shell command.
  */
 
+import { observeGit } from '../../Ops/metrics'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -129,8 +130,29 @@ export async function runGit(repositoryPath: string, args: string[], options: {
 } = {}): Promise<GitResult> {
   const { input, timeoutMs = 30_000, env = {} } = options
 
+  /*
+   * Timed, because git is where this product spends its time and a forge that
+   * has become slow is almost always a forge whose git calls have.
+   *
+   * The *subcommand* is the label - `diff`, `rev-parse`, `merge-base` - and not
+   * the arguments. Arguments carry branch names and paths, so labelling with
+   * them would produce a new time series per branch, which is the cardinality
+   * explosion that takes a scraper down.
+   */
+  const startedNs = Bun.nanoseconds()
+  const subcommand = String(args.find(argument => !argument.startsWith('-')) ?? 'unknown')
+
   return await new Promise<GitResult>((resolvePromise) => {
     const child = spawn('git', ['--git-dir', repositoryPath, ...args], { env: gitEnvironment(env) })
+
+    const record = () => {
+      try {
+        observeGit(subcommand, (Bun.nanoseconds() - startedNs) / 1_000_000_000)
+      }
+      catch {
+        // A measurement must never fail the thing it measures.
+      }
+    }
 
     let stdout = ''
     let stderr = ''
@@ -140,6 +162,9 @@ export async function runGit(repositoryPath: string, args: string[], options: {
       if (!settled) {
         child.kill('SIGKILL')
         settled = true
+        // Timed out is a duration too, and the most interesting one: it is
+        // what a histogram's overflow bucket is for.
+        record()
         resolvePromise({ ok: false, stdout, stderr: `${stderr}\ngit timed out after ${timeoutMs}ms`, code: -1 })
       }
     }, timeoutMs)
@@ -152,6 +177,7 @@ export async function runGit(repositoryPath: string, args: string[], options: {
         return
       settled = true
       clearTimeout(timer)
+      record()
       resolvePromise({ ok: false, stdout, stderr: String(error), code: -1 })
     })
 
@@ -160,6 +186,7 @@ export async function runGit(repositoryPath: string, args: string[], options: {
         return
       settled = true
       clearTimeout(timer)
+      record()
       resolvePromise({ ok: code === 0, stdout, stderr, code: code ?? -1 })
     })
 

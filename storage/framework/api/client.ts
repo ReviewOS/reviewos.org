@@ -3810,6 +3810,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/metrics
+   */
+  getMetrics(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/metrics", {}, [], false, options)
+  },
+
+  /**
    * POST /api/mirrors/sync
    */
   postMirrorsSync(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

@@ -175,8 +175,34 @@ promise, so the operational story is a feature and not an afterthought.
   `parseEnvelope` reconstructs field by field rather than spreading, so it dropped the new field on
   the way through - the write worked, the read was silent, and every job still logged under its own
   id. That is the shape of bug this whole item is about.
-- [ ] Metrics: request rate and latency, queue depth and job durations, git operation timings,
+- [x] Metrics: request rate and latency, queue depth and job durations, git operation timings,
       database pool usage
+
+  `GET /api/metrics`, Prometheus exposition format, because that is what every scraper reads - a
+  JSON shape of our own is a format each operator has to write an exporter for.
+
+  **Labels are route patterns, never URLs**, and status is a class rather than a code. One series
+  per repository on a forge with two hundred of them is a cardinality explosion that takes the
+  scraper down, and that is the most common way a metrics endpoint becomes the outage it exists to
+  warn about. Git operations are labelled by subcommand for the same reason: the arguments carry
+  branch names.
+
+  Git gets its own, wider buckets. A `rev-parse` is a millisecond and a clone is minutes, so sharing
+  the HTTP buckets would put every real operation in the overflow and every trivial one in the
+  first - a histogram that answers nothing.
+
+  Not public. The numbers say how big an instance is and when it is struggling, and it is the
+  endpoint most likely to be left exposed because the scraper works either way. An administrator or
+  `METRICS_TOKEN`, compared in constant time; a stranger gets a 404 rather than a 403, since whether
+  an instance exposes metrics at all is worth not confirming.
+
+  **Database pool usage is not there**, and is the one part of this box left undone: the query
+  builder does not expose pool statistics, and inventing a number would be worse than the gap.
+
+  It needed a second upstream seam. The middleware pipeline is pre-action, so a middleware can time
+  the start of a request and cannot learn its status or duration - `_afterResponse` in Stacks
+  0.70.347. The alternative shapes were wrapping every action, or recording a metric as a side
+  effect of a header getter, which is the sort of cleverness that confuses whoever reads it next.
 - [ ] Error reporting hookable to an external service, off by default
 - [ ] Admin area: instance stats, user administration, repository administration, queue inspection,
       failed job retry

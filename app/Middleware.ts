@@ -18,6 +18,8 @@ export default {
   'abilities': 'Abilities',
   'can': 'Can',
   'throttle': 'Throttle',
+  // Counts and times every request, through the router's after-response hook.
+  'measure': 'Measure',
   'env': 'Env',
   'env:local': 'EnvLocal',
   'env:development': 'EnvDevelopment',
