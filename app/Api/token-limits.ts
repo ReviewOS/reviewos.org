@@ -17,7 +17,7 @@ import type { Limit, Verdict } from './rate-limit'
 import { log } from '@stacksjs/logging'
 import { authenticateToken } from '../Actions/Tokens/authenticate'
 import { apiError } from './errors'
-import { check, headers as rateHeaders } from './rate-limit'
+import { check } from './rate-limit'
 
 /** The three things a token creates that somebody has to read. */
 export type MeteredAction = 'pull_requests' | 'comments' | 'reviews'
@@ -176,10 +176,20 @@ export function refusal(action: MeteredAction, limit: Limit, verdict: Verdict): 
   // Through `apiError`, not a second error shape. The code set is closed so a
   // client can handle it exhaustively, and an endpoint that invents its own
   // envelope for one case is the reason clients stop trusting the set.
+  /*
+   * `X-Create-*`, not `X-RateLimit-*`.
+   *
+   * Two different budgets cannot share one header name. `X-RateLimit-*` is the
+   * request-rate limiter's, applied to every response by the throttle
+   * middleware, and it was overwriting these - so a refusal whose body said
+   * "this token may create 2 comments an hour" arrived carrying
+   * `X-RateLimit-Limit: 300`. A client reading the headers and a client reading
+   * the body would have disagreed about what just happened.
+   */
   return apiError('rate_limited', `This token may create ${limit.max} ${noun} an hour, and has.`, {
     fix: `Wait ${verdict.retryAfterSeconds} seconds, or raise the limit on the token.`,
     retryAfter: verdict.retryAfterSeconds,
-    headers: rateHeaders(limit, verdict),
+    headers: createHeaders(action, limit, verdict),
   })
 }
 
@@ -251,4 +261,21 @@ async function tokenOn(request: any): Promise<AuthenticatedToken | null> {
   }
 
   return resolved
+}
+
+/**
+ * The creation budget, as headers.
+ *
+ * Named apart from `X-RateLimit-*` because it is a different limit measuring a
+ * different thing: that one is how many requests a second, this one is how many
+ * objects an hour. The action is in the header too, since a token has three
+ * separate budgets and "which one did I exhaust" is the first question.
+ */
+export function createHeaders(action: MeteredAction, limit: Limit, verdict: Verdict): Record<string, string> {
+  return {
+    'X-Create-Limit': String(limit.max),
+    'X-Create-Remaining': String(verdict.remaining),
+    'X-Create-Reset': String(verdict.resetAtSeconds),
+    'X-Create-Action': action,
+  }
 }

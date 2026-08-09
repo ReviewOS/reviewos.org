@@ -18,7 +18,20 @@ export type { RouteDefinition, RouteRegistry } from '@stacksjs/router'
  * almost anything, cannot shadow a more specific route.
  */
 export default {
-  api: 'api',
+  /*
+   * The whole API is rate limited, not a handful of endpoints.
+   *
+   * "Rate limiting on the API" has to mean the API. Annotating routes one at a
+   * time produces a surface where the limit is wherever somebody remembered,
+   * and the endpoint that gets hammered is always the one nobody thought of.
+   *
+   * The default is generous for reads and tight for writes - the design asks
+   * clients to poll and then makes polling free with `ETag`, so punishing it
+   * would be incoherent, while a thousand comments are somebody's afternoon.
+   * Routes that need something else say so with `throttle:<n>,<window>`, which
+   * overrides this rather than adding to it.
+   */
+  api: { path: 'api', middleware: 'throttle' },
   attachments: { path: 'attachments', prefix: '' },
   // Unsubscribing, at the root: the URL goes into an email and into a
   // List-Unsubscribe header, both read by machines that will not follow a

@@ -96,6 +96,20 @@ function unauthorized(status: number): Response {
 /**
  * Ref advertisement: the first thing a clone or push asks for.
  */
+/*
+ * The git wire protocol, throttled generously.
+ *
+ * 300 a minute per credential. A clone is one request and a fetch is two, so a
+ * person cannot reach this and a CI fleet on one token has to be trying. What it
+ * stops is the case worth stopping: a loop that re-clones in a retry, which
+ * costs a `git upload-pack` per attempt and is the most expensive thing an
+ * unauthenticated-looking request can ask this server to do.
+ *
+ * The internal gate and hook endpoints below are deliberately *not* throttled.
+ * They are called by scripts this server wrote into the repository, once per
+ * push, and a limit there would refuse a legitimate push under load - which
+ * fails the push rather than protecting anything.
+ */
 route.get('/{owner}/{repository}/info/refs', async (request: any) => {
   const url = new URL(request.url)
   const service = gitService(url.pathname, url.searchParams)
@@ -138,7 +152,7 @@ route.get('/{owner}/{repository}/info/refs', async (request: any) => {
       'Pragma': 'no-cache',
     },
   })
-}).skipCsrf()
+}).skipCsrf().middleware('throttle:300,1m')
 
 /** Fetch and clone. */
 route.post('/{owner}/{repository}/git-upload-pack', async (request: any) => {
@@ -147,7 +161,7 @@ route.post('/{owner}/{repository}/git-upload-pack', async (request: any) => {
     return unauthorized(auth.status)
 
   return streamService(request, auth.path, 'upload-pack')
-}).skipCsrf()
+}).skipCsrf().middleware('throttle:300,1m')
 
 /** Push. */
 route.post('/{owner}/{repository}/git-receive-pack', async (request: any) => {
@@ -156,7 +170,7 @@ route.post('/{owner}/{repository}/git-receive-pack', async (request: any) => {
     return unauthorized(auth.status)
 
   return streamService(request, auth.path, 'receive-pack')
-}).skipCsrf()
+}).skipCsrf().middleware('throttle:300,1m')
 
 /**
  * Where the pre-receive hook asks whether a push may land.

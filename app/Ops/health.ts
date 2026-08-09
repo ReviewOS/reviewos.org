@@ -14,6 +14,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { REPOSITORY_ROOT } from '../Actions/Git/storage'
+import { draining } from './shutdown'
 
 export type CheckStatus = 'ok' | 'degraded' | 'failed'
 
@@ -43,6 +44,22 @@ export interface HealthReport {
 const SLOW_MS = 1000
 
 export async function checkHealth(options: { writeProbe?: boolean } = {}): Promise<HealthReport> {
+  /*
+   * A draining process reports unhealthy while it is still answering.
+   *
+   * That gap is the whole of a zero-downtime deploy: the load balancer needs a
+   * few seconds to notice and stop routing here, and those seconds have to
+   * happen before the socket closes. A process that reports healthy right up
+   * until it stops accepting is a process that drops whatever was in flight,
+   * and the drop looks like a network blip rather than a deploy.
+   */
+  if (draining()) {
+    return {
+      ok: false,
+      checks: [{ name: 'accepting requests', status: 'failed', ms: 0, detail: 'this process is shutting down' }],
+    }
+  }
+
   return summarize([
     await database(),
     await queue(),

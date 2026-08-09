@@ -3,6 +3,7 @@ import process from 'node:process'
 import { describe, inspect } from '../Ops/config'
 import { checkHealth } from '../Ops/health'
 import { checkRepositories } from '../Ops/repositories'
+import { onSignals } from '../Ops/shutdown'
 
 /**
  * Is this instance configured and working.
@@ -79,5 +80,58 @@ export default function (cli: CLI) {
       }
 
       process.exit(report.problems.length === 0 ? 0 : 1)
+    })
+
+  cli
+    .command('instance:serve', 'Serve this instance, and stop without dropping anything')
+    .option('--port <port>', 'The port to listen on', { default: '3000' })
+    .option('--host <host>', 'The address to bind', { default: '0.0.0.0' })
+    .action(async (options: { port?: string, host?: string }) => {
+      /*
+       * The configuration first, and fatally.
+       *
+       * A process that will not start is a five-minute problem. One that starts
+       * with a missing `APP_KEY` and serves sessions that evaporate is a
+       * fortnight of confused reports, so the check that would have caught it
+       * has to run before the socket opens rather than being a command somebody
+       * remembers.
+       */
+      const verdict = inspect(process.env)
+      if (!verdict.ok) {
+        console.error(describe(verdict))
+        console.error('')
+        console.error('Refusing to start.')
+        process.exit(1)
+        return
+      }
+
+      for (const finding of verdict.findings)
+        console.error(`warning  ${finding.variable} ${finding.problem}`)
+
+      const { route } = await import('@stacksjs/router')
+      const { injectGlobalAutoImports } = await import('@stacksjs/server')
+
+      await injectGlobalAutoImports()
+      await route.importRoutes()
+
+      const server = await route.serve({
+        port: Number(options.port ?? 3000),
+        hostname: String(options.host ?? '0.0.0.0'),
+      })
+
+      console.log(`Serving on ${options.host}:${options.port}`)
+
+      /*
+       * The reason this command exists rather than `buddy serve`.
+       *
+       * A deploy sends SIGTERM and then SIGKILL some seconds later. What
+       * happens in between decides whether a push cut off mid-receive-pack
+       * leaves a repository with objects and no ref. `onSignals` reports
+       * unhealthy first, keeps serving while the load balancer notices, then
+       * closes and waits for what is in flight.
+       */
+      onSignals(() => {
+        server?.stop?.()
+      })
     })
 }

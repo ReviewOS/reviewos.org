@@ -49,8 +49,27 @@ promise, so the operational story is a feature and not an afterthought.
   Queue depth is reported rather than judged, because what counts as too many jobs depends entirely
   on the instance. What *is* judged is a job waiting more than five minutes, which means nothing is
   working the queue - a different fact from "there is a lot of work".
-- [ ] Graceful shutdown: finish in-flight requests, stop accepting new jobs, let running jobs
+- [x] Graceful shutdown: finish in-flight requests, stop accepting new jobs, let running jobs
       complete
+
+  `app/Ops/shutdown.ts`, installed by `buddy instance:serve`, which is what the container runs.
+
+  **Three steps, and the order is the design.** Report unhealthy first and *keep serving* for five
+  seconds, because a load balancer polls every few seconds and needs two or three failures to take
+  an instance out - those seconds have to happen before the socket closes. Then stop accepting. Then
+  wait for what is in flight, up to twenty-five seconds, which is under the thirty most
+  orchestrators allow before `SIGKILL`.
+
+  Skipping the first step is why "zero-downtime" deploys still drop requests: the process stops
+  accepting while traffic is still being routed to it, and the drop reads as a network blip.
+
+  Verified against a live process rather than only in tests: healthy, `SIGTERM`, 503 *while still
+  answering*, then a clean exit. The unit tests inject the clock so the ordering is asserted without
+  waiting twenty-five seconds for it.
+
+  Work in flight is counted through a wrapper rather than by hand, because a `finally` somebody
+  forgets is a counter that never returns to zero and a process that never exits - which reads as a
+  hung deploy, days after the code was written.
 - [x] Run the queue worker as its own process, with its concurrency documented
 
   Its own container in `compose.yaml`, because the two fail differently: a job that wedges a worker
@@ -136,7 +155,31 @@ promise, so the operational story is a feature and not an afterthought.
 - [ ] Error reporting hookable to an external service, off by default
 - [ ] Admin area: instance stats, user administration, repository administration, queue inspection,
       failed job retry
-- [ ] Rate limiting on the API, on git operations, and on authentication attempts
+- [x] Rate limiting on the API, on git operations, and on authentication attempts
+
+  `app/Middleware/Throttle.ts`, overriding the framework's, which keys on IP or account. That is the
+  wrong unit here: **one agent looping must not exhaust the budget of the person who issued its
+  token**, so the bucket is the token, falling back to the account, falling back to the address.
+
+  The primitives had been built and ticked in [phase 12](./12-api-and-agents.md) and nothing was
+  using them - a documented limit that is not enforced is worse than none, because it is quoted in a
+  guide. This is what enforces them.
+
+  Sign-in is 10 per 5 minutes, and it is the one place where the limit *is* the security control.
+  Registration is 20 an hour rather than the 5 per 10 minutes I first wrote: it is keyed by address,
+  and five people signing up in ten minutes from one office is a Monday rather than an attack. The
+  test suite found that within a minute of the limit going in, which is the argument for putting
+  limits in early.
+
+  Counters are in memory and per process, stated in the guide rather than hidden: the effective
+  limit is the configured one times the number of processes. A per-request database write to make it
+  exact would cost every request to stop a burst surviving a deploy, which is the wrong way round -
+  and is a genuinely different trade from the per-token *creation* budgets, which do persist.
+
+  Headers on every response, not only the refusal, which needed a seam the framework did not have:
+  its middleware pipeline is pre-action only, so a middleware with something to say about the
+  *answer* had nowhere to put it. Compression had a hard-coded post-action wrapper and everything
+  else had nothing. Fixed upstream in Stacks 0.70.341 as `request._responseHeaders`.
 - [x] Upgrade path: run migrations, what to do when one fails, and how to roll back
 
   In the guide, with the honest note that a failed migration is the one case where the answer is

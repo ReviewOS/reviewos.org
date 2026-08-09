@@ -1,5 +1,5 @@
 import { Action } from '@stacksjs/actions'
-import { currentUser } from './lookup'
+import { currentActor } from './lookup'
 
 /**
  * Who this credential belongs to.
@@ -23,7 +23,20 @@ export default new Action({
   method: 'GET',
 
   async handle(request: any) {
-    const user = await currentUser(request)
+    /*
+     * `currentActor`, not `currentUser`.
+     *
+     * `currentUser` deliberately refuses to resolve this project's own
+     * fine-grained tokens - answering "who is this" for one would drop its
+     * reach and its grants, which is right where those matter. Here they do
+     * not: the question is only which account the credential belongs to.
+     *
+     * Using the wrong one made this answer 401 to exactly the credential this
+     * forge issues, which is the credential `reviewos login` checks before
+     * storing. A CLI that refuses every real token is a CLI nobody gets past
+     * the first command with.
+     */
+    const { user, token } = await currentActor(request)
 
     if (!user) {
       /*
@@ -38,6 +51,14 @@ export default new Action({
     return response.json({
       handle: user.handle,
       is_admin: user.is_admin,
+      /*
+       * Which credential answered, when it was a token.
+       *
+       * A person holding three tokens and debugging why one of them cannot do
+       * something needs to know *which* one the server saw, and comparing a
+       * prefix by eye is how the wrong one gets revoked.
+       */
+      token_id: token?.tokenId ?? null,
     })
   },
 })

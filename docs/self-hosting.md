@@ -118,6 +118,67 @@ an outage. Only `failed` produces the 503.
 
 `?quick=1` skips the disk write, for a liveness probe running every few seconds.
 
+## Stopping and restarting
+
+`docker compose stop`, a rolling deploy, and `kubectl delete pod` all do the
+same thing: send `SIGTERM`, wait, then `SIGKILL`. What happens in between is
+what decides whether a push cut off mid-`receive-pack` leaves a repository with
+objects and no ref.
+
+The container's command is `buddy instance:serve`, which handles it in three
+steps, in this order:
+
+1. **Report unhealthy, keep serving.** For five seconds by default
+   (`SHUTDOWN_LEAD_MS`). A load balancer polls every few seconds and needs two
+   or three failures to take an instance out, and those seconds have to happen
+   *before* the socket closes. Skipping this step is why "zero-downtime" deploys
+   still drop requests.
+2. **Stop accepting.** The socket closes.
+3. **Wait for what is in flight**, up to twenty-five seconds
+   (`SHUTDOWN_DRAIN_MS`). Under the thirty most orchestrators allow before
+   `SIGKILL`, deliberately: a process that exits on its own terms has finished
+   its writes, and one that is killed has not.
+
+A second `SIGTERM` exits immediately, and the process says how much work it
+abandoned. If you see that line, either the drain window is too short or
+something is stuck - and those are different problems.
+
+Give the orchestrator at least thirty-five seconds of grace, or it will
+`SIGKILL` in the middle of step three and undo the point of steps one and two.
+
+## Rate limits
+
+On by default, and keyed to the **credential** rather than the address: one
+agent looping must not exhaust the budget of the person who issued its token,
+or of the other agents on the same account.
+
+| Surface | Limit | Why that number |
+|---|---|---|
+| Reads | 5000/hour | The design asks clients to poll and then makes polling free with `ETag`, so punishing it would be incoherent. |
+| Writes | 300/hour | A thousand reads are invisible; a thousand comments are somebody's afternoon. |
+| Sign-in | 10 per 5 minutes, per address | Here the limit *is* the security control: a password is otherwise only as good as how fast somebody can guess. |
+| Registration | 20/hour, per address | Loose enough for an office behind one NAT, tight enough that scripted bulk signup - which arrives in hundreds - does not work. |
+| Password reset | 5 per 15 minutes, per address | It sends mail to somebody who did not ask for it. |
+| Git over HTTP | 300/minute | A clone is one request. A person cannot reach this; a retry loop re-cloning can. |
+
+Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and
+`X-RateLimit-Reset`, not only the refusals - a client that learns its budget
+when it runs out cannot pace itself, only recover.
+
+Per-token **creation** budgets - how many pull requests, comments and reviews a
+token may create in an hour - are a separate limit with separate headers,
+`X-Create-Limit` / `X-Create-Remaining` / `X-Create-Reset` / `X-Create-Action`.
+Two budgets measuring different things cannot share one header name, and they
+briefly did: a refusal whose body said "2 an hour" arrived under an
+`X-RateLimit-Limit` of 300.
+
+Counters are per process and in memory, so with several web processes the
+effective limit is the configured one times the number of processes. That is
+fine for what it is for: it turns an unbounded flood into a bounded one. Writing
+a row per request to make it exact would cost every request to stop an
+attacker's burst surviving a deploy, which is the wrong way round. (Per-token
+*creation* budgets are different and do persist - see the agents section.)
+
 ## Backup
 
 **Postgres and `storage/repos` have to come from the same moment.** A database

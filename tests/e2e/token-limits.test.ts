@@ -234,8 +234,15 @@ describe('a token spending its budget', () => {
     expect(refused.body?.error?.code).toBe('rate_limited')
     expect(refused.body?.error?.message).toContain('2')
     expect(Number(refused.headers.get('Retry-After'))).toBeGreaterThan(0)
-    expect(refused.headers.get('X-RateLimit-Limit')).toBe('2')
-    expect(refused.headers.get('X-RateLimit-Remaining')).toBe('0')
+    /*
+     * `X-Create-*`, not `X-RateLimit-*`. Two different budgets cannot share one
+     * header name: the request-rate limiter puts its own numbers on every
+     * response, and this refusal used to arrive carrying them - a body saying
+     * "2 an hour" under a header saying 300.
+     */
+    expect(refused.headers.get('X-Create-Limit')).toBe('2')
+    expect(refused.headers.get('X-Create-Remaining')).toBe('0')
+    expect(refused.headers.get('X-Create-Action')).toBe('comments')
   })
 
   test('and nothing was written by the refused attempts', async () => {

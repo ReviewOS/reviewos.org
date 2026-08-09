@@ -71,7 +71,15 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD bun -e "const r = await fetch('http://127.0.0.1:3000/api/health?quick=1'); process.exit(r.ok ? 0 : 1)"
 
-# The web process. The queue worker runs the same image with a different command
-# - see compose.yaml - because they scale and fail independently: a stuck job
-# should not stop anybody reading a diff.
-CMD ["bun", "run", "--bun", "./buddy", "serve"]
+# `instance:serve`, not `buddy serve`, and the difference is the shutdown.
+#
+# It checks the configuration fatally before the socket opens - a process that
+# will not start is a five-minute problem, one that starts with a missing
+# APP_KEY and serves sessions that evaporate is a fortnight of confused reports
+# - and it installs the SIGTERM handling that lets a deploy stop this without
+# cutting a push off mid-receive-pack.
+#
+# The queue worker runs the same image with a different command (see
+# compose.yaml) because they scale and fail independently: a stuck job should
+# not stop anybody reading a diff.
+CMD ["bun", "run", "--bun", "./buddy", "instance:serve", "--port", "3000"]

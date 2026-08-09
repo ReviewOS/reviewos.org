@@ -81,8 +81,33 @@ route.post('/mcp', 'Mcp/McpAction').skipCsrf()
 // wrong for a form, because a browser shown JSON is a browser still signed out.
 // One endpoint serves both: an Accept of text/html gets a redirect and a cookie,
 // anything else gets the token pack the framework clients already expect.
-route.post('/auth/login', 'Actions/Auth/LoginAction')
-route.post('/auth/register', 'Actions/Auth/RegisterAction')
+/*
+ * Ten attempts every five minutes, per address.
+ *
+ * Sign-in is the one endpoint where the limit is the security control rather
+ * than a courtesy: without it, a password is only as good as how fast somebody
+ * can guess, and a modern machine guesses quickly. Ten is generous for a person
+ * who has forgotten which password they used and useless to anybody working
+ * through a list.
+ *
+ * Per address, unavoidably - a request that has not signed in yet carries no
+ * token and names no account. It is the weak bucket the module warns about, and
+ * it is the only one available here.
+ */
+route.post('/auth/login', 'Actions/Auth/LoginAction').middleware('throttle:10,5m')
+/*
+ * Twenty an hour, not five.
+ *
+ * Registration is keyed by address like sign-in, and unlike sign-in the limit
+ * is not the security control - email verification and invite-only are. So the
+ * number has to clear the case the module's own comment warns about: an office
+ * or a university behind one NAT, where five people signing up in ten minutes
+ * is a Monday rather than an attack.
+ *
+ * Twenty an hour still stops scripted bulk signup, which arrives in hundreds
+ * and not dozens.
+ */
+route.post('/auth/register', 'Actions/Auth/RegisterAction').middleware('throttle:20,1h')
 // POST, not GET. An <img src="/logout"> in a comment would sign every reader
 // out, which is a denial of service written in one tag by anybody who can post
 // markdown.
@@ -101,7 +126,13 @@ route.post('/auth/logout', 'Actions/Auth/LogoutAction')
  * is single-use, expiring and unguessable, so the worst a prefetching mail
  * client can do is verify the address its own user asked to verify.
  */
-route.post('/auth/password/reset', 'Actions/Auth/PasswordResetAction')
+/*
+ * Tighter still. A reset sends mail to somebody who did not ask for it, so an
+ * unthrottled endpoint is a way to use this instance to send a stranger fifty
+ * emails - which costs them an afternoon and costs this instance its sending
+ * reputation.
+ */
+route.post('/auth/password/reset', 'Actions/Auth/PasswordResetAction').middleware('throttle:5,15m')
 route.get('/auth/verify', 'Actions/Auth/VerifyEmailAction')
 route.post('/auth/verify/resend', 'Actions/Auth/VerifyEmailAction').middleware('auth')
 
