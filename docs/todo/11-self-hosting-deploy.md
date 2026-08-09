@@ -149,7 +149,32 @@ promise, so the operational story is a feature and not an afterthought.
 
 ## Operations
 
-- [ ] Structured logs with request ids that follow a request into its jobs
+- [x] Structured logs with request ids that follow a request into its jobs
+
+  Three links, and **none of them worked.** The framework had the read side of all of it and no
+  write side anywhere, which is the most convincing kind of broken: every piece looks implemented.
+
+  - The router echoed `X-Request-ID`, stitched it into JSON error bodies, and used it as the
+    implicit trace for background work - all guarded on `_requestId` being set, and **nothing ever
+    set it**. So the header never appeared and the id was always undefined. Fixed in Stacks 0.70.345:
+    every request gets one, and an inbound value is honoured so a trace survives a proxy - bounded to
+    8-200 characters of the alphabet ids use first, because it goes into log lines verbatim and an
+    unbounded one from a stranger is log injection with extra steps.
+  - `runJob` accepted a `traceId` and no caller ever passed one, so every job minted its own. The id
+    now travels in the job envelope, written at dispatch and read by both drivers' workers - a worker
+    is another process, so the AsyncLocalStorage cannot reach it and the id has to be in the row. No
+    envelope version bump: additive and optional, so a rolling deploy does not stall in-flight jobs
+    for a field nothing requires.
+  - The sync driver dropped it too, and that one is worse than it sounds: minting *replaces* the
+    caller's id, so a job run inline during a request logged under a different id from the request
+    that ran it - the one case where the connection is free.
+  - `getLogContext()` folds the active trace in, so a log line carries it without every call site
+    remembering to. Read through the process-global symbol the router publishes rather than by
+    importing it, which would be a cycle.
+
+  `parseEnvelope` reconstructs field by field rather than spreading, so it dropped the new field on
+  the way through - the write worked, the read was silent, and every job still logged under its own
+  id. That is the shape of bug this whole item is about.
 - [ ] Metrics: request rate and latency, queue depth and job durations, git operation timings,
       database pool usage
 - [ ] Error reporting hookable to an external service, off by default
