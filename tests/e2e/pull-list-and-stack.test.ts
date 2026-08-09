@@ -332,3 +332,53 @@ describe('who am I', () => {
     expect(answer.status).toBe(401)
   })
 })
+
+describe('the document', () => {
+  test('is published at a stable URL', async () => {
+    if (!available)
+      return
+
+    /*
+     * Unauthenticated, deliberately. The document describes which endpoints
+     * exist, not what is in them, and an API that hides its own shape from
+     * strangers is an API whose clients are written by guessing.
+     */
+    const answer = await fetch(`http://127.0.0.1:${port}/api/openapi.json`, { headers: { Accept: 'application/json' } })
+
+    expect(answer.status).toBe(200)
+
+    const document: any = await answer.json()
+    expect(document?.openapi).toBeTruthy()
+    expect(Object.keys(document?.paths ?? {}).length).toBeGreaterThan(50)
+  })
+
+  test('and describes itself, which is the circle that has to close', async () => {
+    if (!available)
+      return
+
+    // A published document that does not mention the endpoint serving it is a
+    // document generated from a different route table than the one running.
+    const answer = await fetch(`http://127.0.0.1:${port}/api/openapi.json`)
+    const document: any = await answer.json()
+
+    // `toHaveProperty` reads a dot as a path segment, so the `.json` in the
+    // URL would have it looking for `paths['/api/openapi']['json']`.
+    expect(Object.keys(document?.paths ?? {})).toContain('/api/openapi.json')
+  })
+
+  test('a repeat is free', async () => {
+    if (!available)
+      return
+
+    // Three quarters of a megabyte. A client that reads it at startup and a
+    // proxy in front of a busy instance should both stop paying for it.
+    const first = await fetch(`http://127.0.0.1:${port}/api/openapi.json`)
+    const tag = first.headers.get('ETag')
+
+    const again = await fetch(`http://127.0.0.1:${port}/api/openapi.json`, {
+      headers: { 'If-None-Match': String(tag) },
+    })
+
+    expect(again.status).toBe(304)
+  })
+})

@@ -15,6 +15,16 @@ import { response, route } from '@stacksjs/router'
 route.get('/health', () => response.json({ ok: true }))
 
 /*
+ * The OpenAPI document, at a stable public URL.
+ *
+ * Generating it is not publishing it: a document only somebody with the source
+ * can find is a document for the group that did not need it. The bar this phase
+ * set is that the API is discoverable *without* reading the source, and this is
+ * the URL that makes that true.
+ */
+route.get('/openapi.json', 'Actions/Api/OpenApiAction')
+
+/*
  * Search. No `auth` middleware, deliberately: a public repository is public and
  * a stranger searching for one should find it. Who the caller is decides what
  * comes back rather than whether they may ask - `SearchAction` filters every
