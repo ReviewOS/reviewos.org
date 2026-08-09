@@ -375,3 +375,82 @@ export async function ownersForCreate(
       .map(handle => ({ handle, kind: 'organization' as const })),
   ]
 }
+
+/**
+ * Who is calling, and with which credential.
+ *
+ * `currentUser` deliberately refuses to resolve this project's fine-grained
+ * tokens: answering "who is this" for one would drop its reach and its grants,
+ * handing a read-only token scoped to one repository everything its owner can
+ * do. That rule is right for anything repository-scoped, where
+ * `authorizeRepository` applies both halves.
+ *
+ * It is wrong for the endpoints that are not about a repository at all - an
+ * operation's status, who am I - where there is no ability to check and the
+ * question really is just "who". Those need the token resolved, and they need
+ * to know *which* token, because some of them - cancelling - are decided by the
+ * credential rather than by the person.
+ *
+ * So: this returns both, and a caller that ignores `token` gets identity only.
+ * Never throws; an unreadable credential is nobody.
+ */
+export async function currentActor(request: any): Promise<{
+  user: { id: number, handle: string, is_admin: boolean } | null
+  token: { tokenId: number, userId: number } | null
+}> {
+  const stashed = request?.__fineGrainedToken
+
+  if (stashed && typeof stashed === 'object') {
+    const user = await currentUser(request)
+
+    return {
+      user: user ?? await userRow(Number((stashed as any).userId)),
+      token: { tokenId: Number((stashed as any).tokenId), userId: Number((stashed as any).userId) },
+    }
+  }
+
+  try {
+    const header = String(
+      request?.headers?.get?.('authorization') ?? request?.header?.('authorization') ?? '',
+    )
+
+    if (header.startsWith('Bearer ')) {
+      const presented = header.slice('Bearer '.length).trim()
+
+      if (presented.startsWith('ros_')) {
+        const { authenticateToken } = await import('../Tokens/authenticate')
+        const result = await authenticateToken(presented)
+
+        if (result.ok) {
+          return {
+            user: await userRow(result.token.userId),
+            token: { tokenId: result.token.tokenId, userId: result.token.userId },
+          }
+        }
+
+        // Ours and not valid. Nobody, rather than falling through to the
+        // session path - an expired token must not be answered as a stranger.
+        return { user: null, token: null }
+      }
+    }
+  }
+  catch {
+    // An unreadable header is nobody, not an error.
+  }
+
+  return { user: await currentUser(request), token: null }
+}
+
+/** One user, in the shape the callers above hand around. */
+async function userRow(id: number): Promise<{ id: number, handle: string, is_admin: boolean } | null> {
+  if (!Number.isInteger(id) || id <= 0)
+    return null
+
+  const row = await db
+    .selectFrom('users')
+    .select(['id', 'handle', 'is_admin'])
+    .where('id', '=', id)
+    .executeTakeFirst()
+
+  return row ? { id: Number(row.id), handle: String(row.handle), is_admin: Boolean(row.is_admin) } : null
+}

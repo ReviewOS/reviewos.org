@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { accepted, startOperation } from '../Api/start'
 import { authorizeRepository } from '../Repo/authorize'
 
 /**
@@ -65,14 +66,37 @@ export default new Action({
      * a connection open that long is a request that times out at whatever proxy
      * is in front of this - after which the sync completes and nobody is told.
      */
-    const MirrorSyncJob = (await import('../../Jobs/MirrorSyncJob')).default
-    await MirrorSyncJob.dispatch({ mirrorId: Number(mirror.id) })
+    /*
+     * As an operation, which is the shape every long-running thing here wears.
+     *
+     * It used to answer `{ queued: true }`, which tells a caller nothing they
+     * can act on: no way to ask whether it started, whether it finished, or why
+     * it did not. A client's only recourse was to poll the mirror row and infer,
+     * and a mirror that has not moved is indistinguishable from a sync that
+     * never ran.
+     *
+     * An `Idempotency-Key` on the request joins the operation it already
+     * started rather than beginning a second fetch of the same remote.
+     */
+    const { row, fresh } = await startOperation({
+      kind: 'mirror.sync',
+      subject: { type: 'repository', id: Number(repository.id) },
+      actorId: auth.context.user?.id ?? null,
+      request,
+    })
 
-    if (mirror.sync_metadata) {
-      const MirrorMetadataSyncJob = (await import('../../Jobs/MirrorMetadataSyncJob')).default
-      await MirrorMetadataSyncJob.dispatch({ mirrorId: Number(mirror.id) })
+    if (fresh) {
+      const MirrorSyncJob = (await import('../../Jobs/MirrorSyncJob')).default
+      await MirrorSyncJob.dispatch({ mirrorId: Number(mirror.id), operationId: Number(row.id) })
+
+      if (mirror.sync_metadata) {
+        const MirrorMetadataSyncJob = (await import('../../Jobs/MirrorMetadataSyncJob')).default
+        await MirrorMetadataSyncJob.dispatch({ mirrorId: Number(mirror.id) })
+      }
     }
 
-    return response.json({ queued: true, mirror_id: Number(mirror.id) })
+    // `mirror_id` stays, because something already reads it. Adding a field is
+    // safe; removing one is a breaking change to somebody else's script.
+    return accepted(row, { mirror_id: Number(mirror.id) })
   },
 })

@@ -333,7 +333,18 @@ describe('sync now', () => {
       repository: created.name,
     })
 
-    expect(queued.status).toBe(200)
-    expect(queued.json?.queued).toBe(true)
+    /*
+     * `202` with an operation, not `200` with `{ queued: true }`.
+     *
+     * The old answer told a caller nothing they could act on: no way to ask
+     * whether it started, whether it finished, or why it did not. The operation
+     * carries a status URL, which is the whole point of the pattern.
+     */
+    expect(queued.status).toBe(202)
+    expect(queued.json?.operation?.status).toBe('queued')
+    expect(queued.json?.operation?.url).toContain('/api/operations/')
+    // Still reported, because something already read it. Adding a field is
+    // safe; removing one is a breaking change to somebody else's script.
+    expect(queued.json?.mirror_id).toBeGreaterThan(0)
   })
 })

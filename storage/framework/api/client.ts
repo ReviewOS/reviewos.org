@@ -3999,6 +3999,20 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/operations/{id}
+   */
+  getOperationsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/operations/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * POST /api/operations/{id}/cancel
+   */
+  postOperationsIdCancel(input: { "id": string; body?: { "id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/operations/{id}/cancel", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/orders
    */
   getOrders(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

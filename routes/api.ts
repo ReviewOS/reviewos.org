@@ -25,6 +25,20 @@ route.get('/health', () => response.json({ ok: true }))
 route.get('/openapi.json', 'Actions/Api/OpenApiAction')
 
 /*
+ * Long-running work, as a resource.
+ *
+ * One shape for all of it, so a client that can follow a mirror sync can follow
+ * an import without learning anything new. The alternative - every endpoint
+ * answering `202` with a body of its own invention - means each client writes
+ * its own inference about what happened, and each one is wrong differently.
+ *
+ * `{id}` is the operation's uuid, never its primary key: a sequential id in a
+ * URL says how much work this instance has done and invites walking it.
+ */
+route.get('/operations/{id}', 'Actions/Api/ShowOperationAction')
+route.post('/operations/{id}/cancel', 'Actions/Api/CancelOperationAction')
+
+/*
  * Search. No `auth` middleware, deliberately: a public repository is public and
  * a stranger searching for one should find it. Who the caller is decides what
  * comes back rather than whether they may ask - `SearchAction` filters every

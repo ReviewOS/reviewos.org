@@ -53,8 +53,26 @@ vocabulary, and it is discoverable without reading the source.
   A token of ours that fails to authenticate is now a 401 rather than a fall-through to anonymous. An
   expired token reading a private repository used to be answered 404, which sends somebody looking
   for a repository that was there yesterday.
-- [ ] One vocabulary. The API says `repository`, `pull request`, `review thread` and `stack`,
+- [x] One vocabulary. The API says `repository`, `pull request`, `review thread` and `stack`,
       matching the table in `AGENTS.md`, rather than a second set of names for the same things.
+
+  `tests/unit/api-vocabulary.test.ts`, reading the generated document rather than the source, because
+  the document is what a client sees and a name that never reaches it is an internal one this rule
+  does not govern.
+
+  A drift guard rather than proof of correctness: the vocabulary is right today, and what this makes
+  expensive is the day somebody adds `/api/repos/merge-requests` because that is what they called it
+  at their last job. Each banned word is paired with the term that wins - a bare blocklist reads as
+  arbitrary, and the next person deletes the line rather than renaming their endpoint.
+
+  It also pins parameter names as snake case. `per_page` beside `productId` is two conventions in one
+  document, and a client written against one fails on the other in a way that reads as a typo rather
+  than as a rule.
+
+  The one deliberate pair is pinned so nobody "fixes" it in either direction: `/{owner}/{repository}`
+  in a browsable path, because a URL is the most visible copy there is and the domain table says
+  never "repo" there, and `?repo=` as the compact parameter every forge's clients already type. Both
+  resolve through the same `authorizeRepository`, which accepts either.
 - [x] The OpenAPI document is generated from the actions (`./buddy generate:openapi`) and published,
       so it cannot drift from what the server accepts
 
@@ -264,9 +282,44 @@ vocabulary, and it is discoverable without reading the source.
 
   Checks are still absent, deliberately: they are [phase 9](./09-ci-cd.md) and there is nothing to
   emit yet. The same reasoning as the MCP tool that is not there.
-- [ ] A consistent operation pattern for asynchronous work: create with an idempotency key, receive
+- [x] A consistent operation pattern for asynchronous work: create with an idempotency key, receive
       a resource and status URL, poll cheaply with `ETag`, follow a cursor-based event or log stream,
       and cancel with the same token authority that created it
+
+  An `operations` table, `app/Api/operations.ts` for the shape, `app/Api/progress.ts` for the worker
+  half, and `GET /api/operations/{id}` plus `POST /api/operations/{id}/cancel`.
+
+  The problem it removes: an endpoint that starts work and answers `202 Accepted` has told the caller
+  nothing they can act on. Did it start? Is it still going? Did it fail an hour ago? The usual answer
+  is "poll the resource and infer", so every client writes a different inference and each is wrong
+  differently - a mirror that has not moved is indistinguishable from a sync that never ran.
+
+  `queued` and `running` are separate states because conflating them hides the failure worth seeing:
+  work accepted and never picked up. `cancelled` is separate from `failed` because a caller who asked
+  to stop should not be told their work broke.
+
+  **Cancel needs the same token authority, not merely the same person.** Two agents under one account
+  must not be able to stop each other, which is a distinction that only started mattering when agents
+  began holding tokens. A person cancelling from a session what their own token started is fine.
+
+  Cancelling is a *request*, not an act: the work is running elsewhere and notices at its next
+  checkpoint, so the status keeps saying `running` with `cancelling: true` until it does. Reporting
+  `cancelled` immediately would be the one lie a status endpoint must not tell. Queued work stops at
+  once, because there is no checkpoint to wait for.
+
+  The idempotency key is scoped to the token, the kind and the subject. A key is chosen by the client
+  and two clients will eventually choose the same one, so an unscoped lookup would join one caller's
+  retry to another's work - a disclosure rather than a duplicate.
+
+  Mirror sync is the first user, and answering `{ queued: true }` is what it used to do. The event or
+  log stream is the one piece not built: nothing here produces a stream yet, and inventing one before
+  [phase 9](./09-ci-cd.md)'s workflow logs would be guessing at its shape.
+
+  Building it found a defect in what was already shipped: `tokenIdFor` read
+  `request._currentAccessToken`, which is the *framework's* token row from a different table with its
+  own id space. Every audit entry written for a framework-authenticated request recorded somebody
+  else's primary key as an `access_tokens` id. Silent, until a column referenced the real table and
+  the foreign key refused it.
 
 ## Agents as a first-class kind of contributor
 

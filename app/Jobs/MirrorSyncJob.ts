@@ -2,6 +2,7 @@ import { dispatch } from '@stacksjs/events'
 import { Job } from '@stacksjs/queue'
 import { fetchMirror, isAncestor } from '../Actions/Mirror/fetch'
 import { describeChanges, diffRefs, headOf, isForcePush, shouldDisable } from '../Actions/Mirror/sync'
+import { cancelRequested, markCancelled, markFailed, markRunning, markSucceeded } from '../Api/progress'
 
 /**
  * Bring one mirror up to date.
@@ -24,7 +25,53 @@ export default new Job({
   tries: 3,
   backoff: 30,
 
-  async handle(payload: { mirrorId: number }) {
+  /**
+   * Reports into the operation the caller is polling, when there is one.
+   *
+   * A wrapper rather than a status write at each of the five return points:
+   * the fifth is the one somebody forgets, and a caller left polling `running`
+   * forever has no way to tell that from work that is genuinely still going.
+   *
+   * `operationId` is absent for the scheduled sweep and for a webhook, which
+   * nobody is watching. Every helper here no-ops on a missing id, so there is
+   * no branch to get wrong.
+   */
+  async handle(payload: { mirrorId: number, operationId?: number }) {
+    const operationId = Number(payload?.operationId) || null
+
+    // A cancel that arrived while it sat in the queue. Checked before the fetch
+    // rather than after, because the fetch is the expensive part and the whole
+    // point of cancelling was not to do it.
+    if (await cancelRequested(operationId)) {
+      await markCancelled(operationId)
+      return { ok: false, reason: 'cancelled' }
+    }
+
+    await markRunning(operationId)
+
+    try {
+      const outcome = await run(payload)
+
+      if (outcome.ok)
+        await markSucceeded(operationId, outcome)
+      else
+        await markFailed(operationId, String((outcome as any).reason ?? 'the sync failed'))
+
+      return outcome
+    }
+    catch (error) {
+      // Recorded and rethrown. The queue's retry is the queue's business, and
+      // swallowing the throw here would turn a retryable failure into a
+      // permanent one that reports success.
+      await markFailed(operationId, error instanceof Error ? error.message : String(error))
+      throw error
+    }
+  },
+})
+
+/** The sync itself, unchanged. */
+async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason?: string, changes?: number, summary?: string, rewroteHistory?: boolean }> {
+  {
     const mirrorId = Number(payload?.mirrorId)
     if (!Number.isFinite(mirrorId))
       return { ok: false, reason: 'no mirror id' }
@@ -69,7 +116,9 @@ export default new Job({
         .execute()
 
       dispatch('mirror:failed', { mirrorId, repositoryId: repository.id, error: outcome.error })
-      return { ok: false, reason: outcome.error }
+      // `?? undefined` rather than the null the fetch reports: the wrapper reads
+      // `reason` as the sentence it records, and "null" is not one.
+      return { ok: false, reason: outcome.error ?? undefined }
     }
 
     const changes = diffRefs(outcome.before, outcome.after)
@@ -110,5 +159,5 @@ export default new Job({
     })
 
     return { ok: true, changes: changes.length, summary: describeChanges(changes), rewroteHistory: rewrote }
-  },
-})
+  }
+}

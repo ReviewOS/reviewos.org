@@ -71,12 +71,46 @@ export async function recordAudit(entry: AuditEntry): Promise<boolean> {
  */
 export async function tokenIdFor(request: any): Promise<number | null> {
   try {
-    const token = request?._currentAccessToken ?? await request?.userToken?.()
-    const id = Number((token as any)?.id)
+    /*
+     * This project's own token, and only that.
+     *
+     * `request._currentAccessToken` is the *framework's* token row, from
+     * `oauth_access_tokens` - a different table with its own id space. Reading
+     * it here meant a framework-authenticated request recorded somebody else's
+     * primary key as an `access_tokens` id: silently wrong attribution in the
+     * audit log, and a foreign key violation the moment a column referenced
+     * the real table.
+     *
+     * The middleware and `authorizeRepository` both stash the resolved token,
+     * so this is usually a property read. The header is parsed only for a
+     * request that reached neither.
+     */
+    const stashed = request?.__fineGrainedToken
+    if (stashed && typeof stashed === 'object') {
+      const id = Number((stashed as any).tokenId)
 
-    return Number.isInteger(id) && id > 0 ? id : null
+      return Number.isInteger(id) && id > 0 ? id : null
+    }
+
+    const header = String(
+      request?.headers?.get?.('authorization') ?? request?.header?.('authorization') ?? '',
+    )
+
+    if (!header.startsWith('Bearer '))
+      return null
+
+    const presented = header.slice('Bearer '.length).trim()
+    if (!presented.startsWith('ros_'))
+      return null
+
+    const { authenticateToken } = await import('../Tokens/authenticate')
+    const result = await authenticateToken(presented)
+
+    return result.ok ? result.token.tokenId : null
   }
   catch {
+    // An audit row with the actor and no token is worth writing; one that
+    // failed to be written because the lookup threw is not.
     return null
   }
 }
