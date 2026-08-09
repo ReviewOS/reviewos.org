@@ -30,7 +30,7 @@ export default new Action({
     // repository, so there is no ability to check and a fine-grained token is
     // simply a caller. `currentUser` refuses to resolve one on purpose, which
     // is right where grants matter and wrong here.
-    const { user, token } = await currentActor(request)
+    const { user } = await currentActor(request)
     if (!user)
       return apiError('unauthenticated', 'Not signed in')
 

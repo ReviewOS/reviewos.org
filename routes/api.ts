@@ -12,7 +12,18 @@ import { response, route } from '@stacksjs/router'
  * storage/framework/defaults/routes. Only application routes belong here.
  */
 
-route.get('/health', () => response.json({ ok: true }))
+/*
+ * Health, meaning the three things that can be broken while the process is
+ * fine: the database, the queue, and the disk the repositories live on.
+ *
+ * It used to answer `{ ok: true }` unconditionally, which tells a load balancer
+ * to keep sending traffic to an instance whose database is gone. The process
+ * being up was never in doubt - it is the thing answering.
+ *
+ * `?quick=1` skips the disk write, for a liveness probe that runs every few
+ * seconds. One endpoint serving both probes beats two that drift.
+ */
+route.get('/health', 'Actions/Ops/HealthAction')
 
 /*
  * The OpenAPI document, at a stable public URL.

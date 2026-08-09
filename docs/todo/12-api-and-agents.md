@@ -465,11 +465,17 @@ The Model Context Protocol is how an agent gets tools, and Stacks already ships 
 
   `read_pull_request_diff` calls `/api/repos/pulls/diff/structured`, the endpoint above. An agent
   handed HTML has to parse it back into hunks, which is a parser it should never have had to write.
-- [ ] Self-hostable alongside the instance, and documented in the self-hosting guide
+- [x] Self-hostable alongside the instance, and documented in the self-hosting guide
 
-  Self-hostable already: it is part of the instance, so running one is running the forge, with
-  nothing extra to deploy and nothing extra to hand a credential to. The box stays open for the
-  documentation, which belongs with [phase 11](./11-self-hosting-deploy.md)'s guide.
+  Self-hostable by construction: it is part of the instance, so running one is running the forge,
+  with nothing extra to deploy and nothing extra to hand a credential to.
+
+  Documented in `docs/self-hosting.md`, which now exists. The section is about the *token* rather
+  than the server, because the token is the whole of the configuration - the server holds no
+  credential of its own, so there is no second permission check to set up and none to get wrong.
+  What it tells an operator is which scopes a reviewing agent actually needs, that reach makes
+  unlisted repositories read as missing, and the two repository settings worth knowing before
+  pointing an agent at a protected branch.
 - [x] Tests: a tool call against a repository the token cannot read fails the same way the API does
 
   `tests/e2e/mcp.test.ts`, and the assertion is not against a hard-coded 404. It asks the API

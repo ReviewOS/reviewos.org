@@ -1,0 +1,106 @@
+# A whole ReviewOS instance, on one host.
+#
+# One host is what most instances will be, and this is the shape of it: the
+# application, a queue worker, Postgres, and a search engine. Four containers,
+# two volumes, and nothing that needs a cluster.
+#
+#   docker compose up -d
+#   docker compose exec app bun run --bun ./buddy migrate
+#
+# Read docs/self-hosting.md before running this in anger. The two things that
+# matter most are not in this file: the secrets, which belong in `.env`, and the
+# backup, which has to take Postgres and the repositories from the same moment.
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    # `env_file` rather than inline `environment`, so no secret is ever written
+    # into a file that gets committed. This one is gitignored.
+    env_file: .env
+    environment:
+      # Overrides for the container's view of the world. The service names are
+      # the hostnames inside the compose network, and a `.env` written for a
+      # local run will say `127.0.0.1` for both.
+      DB_HOST: postgres
+      SEARCH_HOST: http://search:7700
+    ports:
+      - '3000:3000'
+    volumes:
+      # The two paths that hold state. Everything else in the image is
+      # reproducible from the source, and these two are not: the first holds
+      # every repository, the second every upload.
+      - repos:/app/storage/repos
+      - uploads:/app/storage/app
+    depends_on:
+      postgres:
+        # Not merely started. A container that is running is not a database that
+        # is accepting connections, and the difference is a crash loop on every
+        # `docker compose up` while Postgres finishes its first-run
+        # initialisation.
+        condition: service_healthy
+
+  # The queue as its own process, and its own container.
+  #
+  # Separate because the two fail differently and scale differently: a job that
+  # wedges a worker should not stop anybody reading a diff, and an instance with
+  # heavy mirroring wants more workers without more web processes.
+  #
+  # Concurrency is 4. Most jobs here are a git process or an outbound HTTP
+  # request - waiting, rather than computing - so the useful number is higher
+  # than the core count and is bounded by what the disk and the remote will
+  # take. Raise it if the queue depth in `/api/health` stays above zero; lower
+  # it if the host's load average climbs while nothing is being served.
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: postgres
+      SEARCH_HOST: http://search:7700
+    command: ['bun', 'run', '--bun', './buddy', 'queue:work', '--concurrency', '4']
+    volumes:
+      # The same repositories. A worker that fetches a mirror or computes a
+      # merge writes to exactly the disk the web process reads from, and pointing
+      # them at two volumes is a bug that looks like missing data.
+      - repos:/app/storage/repos
+      - uploads:/app/storage/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-reviewos}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      # What `depends_on: service_healthy` above waits for.
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-reviewos}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Search. Optional in the sense that the rest of the instance works without
+  # it - a repository you cannot search is still a repository you can clone -
+  # but the search page is empty until this is up and indexed.
+  search:
+    image: getmeili/meilisearch:v1.11
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${SEARCH_KEY:-please-change-me}
+      MEILI_ENV: production
+    volumes:
+      - search:/meili_data
+
+volumes:
+  # Named, not bind mounts, so a `docker compose down` does not take them with
+  # it. `down -v` still does, which is the one command to be careful with.
+  repos:
+  uploads:
+  postgres:
+  search:

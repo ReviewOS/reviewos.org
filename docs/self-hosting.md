@@ -1,0 +1,261 @@
+# Self-hosting ReviewOS
+
+Self-hosting is the product, not a mode of it. This is what running one takes,
+including running one badly and getting it back.
+
+## The short version
+
+```sh
+git clone https://github.com/ReviewOS/reviewos.org
+cd reviewos.org
+cp .env.example .env          # then edit it, see Configuration below
+docker compose up -d
+docker compose exec app bun run --bun ./buddy migrate
+```
+
+Then check it, before anybody else does:
+
+```sh
+docker compose exec app bun run --bun ./buddy instance:check
+```
+
+That prints the configuration problems and the state of the database, the queue
+and repository storage. It exits non-zero when something is fatal, so it works
+in a start script without anybody parsing its output.
+
+## What holds state
+
+**Two directories and one database.** Everything else in a deployment is
+reproducible from the source, and these three are not.
+
+| Path | What is in it | What losing it costs |
+|---|---|---|
+| `storage/repos` | Every bare git repository, as `{owner}/{name}.git` | The code. This is the one that cannot be rebuilt from anything else. |
+| `storage/app` | Uploads and attachments | Images in issues and comments. |
+| Postgres | Everything else: accounts, pull requests, reviews, threads, tokens | The conversation around the code. |
+
+Everything under `storage/framework/` is a build artifact and a cache. It is
+safe to delete and is rebuilt on the next boot, so do not back it up and do not
+put it on the expensive volume.
+
+`compose.yaml` mounts the two directories as named volumes, and the `Dockerfile`
+declares them, so `docker inspect` reports the same list this table does.
+
+## Configuration
+
+Everything comes from the environment. Nothing is committed - `.env` is
+gitignored, and `env_file: .env` in the compose file is what keeps a secret out
+of a file that gets checked in.
+
+The values that have to be right:
+
+| Variable | Default | What it does, and what a wrong value looks like |
+|---|---|---|
+| `APP_KEY` | none | Signs and encrypts everything. Absent means sessions that do not survive a restart; short means it looks configured and is not. `buddy key:generate` writes one. |
+| `APP_URL` | `reviewos.localhost` | The host this instance believes it is at, used in email links and redirects. A scheme is optional; a *path* is a mistake and appears twice in every link. |
+| `APP_ENV` | `local` | `production` turns on the stricter half of the boot check. |
+| `DB_CONNECTION` | `postgres` | The driver. |
+| `DB_HOST` | `127.0.0.1` | `postgres` inside compose, which is the service name. |
+| `DB_PORT` | `5432` | A stray space or quote here reads as a connection refused, which sends people to look at the network. |
+| `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `reviewos` / `postgres` / - | Postgres has exactly one role in the pantry-managed local cluster, so `postgres` is not a placeholder. |
+| `MAIL_HOST` and friends | none | Absent means no password reset and no notification email can be sent, silently. Fine for an invite-only instance, and worth knowing. |
+| `SEARCH_HOST` / `SEARCH_KEY` | - | Meilisearch. The instance works without it; the search page is empty. |
+
+`buddy instance:check` reads all of these and says which are wrong, why, and
+what to do. It is the same check the boot path runs, so there is nothing to
+learn twice.
+
+## The queue
+
+Jobs run in their own process. `compose.yaml` runs one:
+
+```sh
+bun run --bun ./buddy queue:work --concurrency 4
+```
+
+Separate from the web process because the two fail differently: a job that
+wedges a worker should not stop anybody reading a diff.
+
+**Concurrency 4 is the starting point, not a law.** Most jobs here are a git
+process or an outbound HTTP request - waiting rather than computing - so the
+useful number is higher than the core count and is bounded by what the disk and
+the remote will take. Raise it if the queue depth reported by `/api/health` stays
+above zero; lower it if the host's load average climbs while nothing is being
+served.
+
+Without a worker running, the instance looks fine and quietly stops doing
+anything asynchronous: no mirror syncs, no webhooks, no notification email. The
+health endpoint reports it - a job that has been waiting more than five minutes
+is `degraded` with "is a worker running?" - which is the fastest way to notice.
+
+## Health
+
+`GET /api/health` checks the three things that can be broken while the process
+is fine, and answers **503** when one of them is:
+
+```json
+{
+  "ok": true,
+  "checks": [
+    { "name": "database", "status": "ok", "ms": 3 },
+    { "name": "queue", "status": "ok", "ms": 1 },
+    { "name": "repository storage", "status": "ok", "ms": 2 }
+  ]
+}
+```
+
+- **database** - a real query against a real table, not `SELECT 1`. `SELECT 1`
+  succeeds against a database with no schema in it, which is exactly what a
+  deploy that has not run its migrations looks like.
+- **queue** - reachable, and nothing stuck. Depth is reported rather than
+  judged, because what counts as too many jobs depends on the instance.
+- **repository storage** - present *and writable*. A volume that failed to mount
+  leaves an empty directory that reads perfectly and accepts nothing.
+
+`status` is `ok`, `degraded` or `failed`. **Degraded still serves**: taking an
+instance out of rotation because something was slow turns a slow dependency into
+an outage. Only `failed` produces the 503.
+
+`?quick=1` skips the disk write, for a liveness probe running every few seconds.
+
+## Backup
+
+**Postgres and `storage/repos` have to come from the same moment.** A database
+restored to a point after the repository snapshot has pull requests whose commits
+are not on disk; the other way round has commits nothing references. Neither
+reports an error, which is what makes this the important sentence on this page.
+
+```sh
+# Stop writes for the length of the snapshot. Seconds, not minutes.
+docker compose stop app worker
+
+docker compose exec -T postgres pg_dump -U postgres reviewos | gzip > backup/db.sql.gz
+tar -czf backup/repos.tar.gz -C /var/lib/docker/volumes/reviewos_repos/_data .
+tar -czf backup/uploads.tar.gz -C /var/lib/docker/volumes/reviewos_uploads/_data .
+
+docker compose start app worker
+```
+
+Stopping the two application containers is what makes them the same moment. An
+instance that cannot take that pause wants a filesystem snapshot or a replica
+instead, and both are outside what this file can honestly describe.
+
+### Restoring
+
+```sh
+docker compose down
+docker volume rm reviewos_repos reviewos_uploads   # only when replacing them wholesale
+docker compose up -d postgres
+gunzip -c backup/db.sql.gz | docker compose exec -T postgres psql -U postgres reviewos
+docker compose up -d
+tar -xzf backup/repos.tar.gz -C /var/lib/docker/volumes/reviewos_repos/_data
+docker compose exec app bun run --bun ./buddy instance:check
+```
+
+Then check that the repositories and the database agree:
+
+```sh
+docker compose exec app bun run --bun ./buddy instance:repos
+```
+
+That walks every repository row, confirms the directory exists and that `git`
+can read it, and reports rows with no directory and directories with no row.
+Both are ordinary after a restore from mismatched snapshots, and both are
+invisible until somebody clones.
+
+**An untested restore procedure is a hope, not a backup.** Run the above against
+a copy before you need it, on the same day you set the backup up.
+
+### Retention and offsite
+
+Keep enough that a problem noticed late is still recoverable: daily for a
+fortnight, weekly for a quarter, is a reasonable default for a small instance and
+is a decision rather than a rule. A backup on the same host is not a backup -
+it survives a mistake and not a disk - so copy it somewhere else, and encrypt it
+before it leaves, because it contains every private repository on the instance.
+
+## Upgrading
+
+```sh
+git pull
+docker compose build
+docker compose up -d
+docker compose exec app bun run --bun ./buddy migrate
+docker compose exec app bun run --bun ./buddy instance:check
+```
+
+Migrations run forward and are checked before they are applied. Take a backup
+first - the one above, both halves - because a migration that fails halfway is
+the case where having one matters, and it is the only case where the answer is
+"restore" rather than "fix and re-run".
+
+## Agents and MCP
+
+An instance serves the Model Context Protocol at `POST /api/mcp`, and there is
+nothing extra to deploy: it is part of the application, so running one is
+running the forge.
+
+Point an agent at it with the URL and a fine-grained token:
+
+```json
+{
+  "mcpServers": {
+    "reviewos": {
+      "url": "https://reviewos.example/api/mcp",
+      "headers": { "Authorization": "Bearer ros_..." }
+    }
+  }
+}
+```
+
+The tools are the review surface: list what is waiting, read a pull request,
+read its diff as structured data, comment on a line, submit a review.
+
+**The server holds no credential of its own.** Every tool call is a request to
+this instance's public API carrying the token the connection authenticated with,
+so an agent gets exactly that token's permissions and nothing that leaks from
+the server process. There is no second permission check to configure and none to
+get wrong.
+
+Which means the token is the whole of the configuration, and the things worth
+setting on it are:
+
+- **Scopes.** A reviewing agent needs `pull_requests: write` and `contents:
+  read`. It does not need `administration`.
+- **Reach.** A token scoped to selected repositories cannot see the others, and
+  they read as missing rather than forbidden.
+- **Hourly limits.** How many pull requests, comments and reviews it may create
+  in an hour. The first bad agent loop is not malice, it is a retry with no
+  backoff, and the repository should survive it.
+
+Two repository settings are worth knowing about before you point an agent at
+anything protected:
+
+- `count_machine_approvals` is **off** by default, so a machine account's
+  approval does not satisfy a required-approvals rule. Its *objection* still
+  blocks: declining to count a robot's yes is cautious, ignoring its no is not.
+- A branch rule can require that a change written by a machine account carries a
+  human approval before it merges.
+
+## Security
+
+Report a vulnerability to `security@reviewos.org`. See
+[SECURITY.md](../SECURITY.md) for what is in scope and what to expect.
+
+Three things about a deployment, in the order they bite:
+
+- **Terminate TLS in front of this.** Tokens and session cookies cross the
+  network on every request. `buddy instance:check` warns when `APP_URL` says
+  otherwise.
+- **Keep `APP_KEY` secret and stable.** Everything signed and encrypted depends
+  on it: rotating it invalidates every session, and leaking it is worse than
+  leaking a password.
+- **The backup is a security control.** It contains every private repository on
+  the instance, so encrypt it before it leaves the host.
+
+---
+
+*The compose file is validated (`docker compose config`) but the image in this
+repository has not been built end to end on the machine that wrote this file -
+no daemon was running. Treat the `docker build` step as unverified until
+somebody runs it.*

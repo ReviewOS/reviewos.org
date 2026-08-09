@@ -5,33 +5,128 @@ promise, so the operational story is a feature and not an afterthought.
 
 ## Deployment
 
-- [ ] Dockerfile that builds and runs the application, and a compose file bringing up Postgres,
+- [x] Dockerfile that builds and runs the application, and a compose file bringing up Postgres,
       Meilisearch, and the queue worker alongside it
-- [ ] Persist repositories and uploads on volumes, and document exactly which paths hold state
-- [ ] Health endpoint that checks the database, the queue, and repository storage, rather than only
+
+  Two stages, so the production image carries the result and not the package manager and compiler
+  that produced it. `git` is installed explicitly and is not optional: every repository operation
+  shells out to it, so an image without it starts fine and fails on the first clone.
+
+  Postgres is waited on with `condition: service_healthy` rather than `service_started`. A container
+  that is running is not a database accepting connections, and the difference is a crash loop on
+  every `docker compose up` while Postgres finishes its first-run initialisation.
+
+  The worker mounts *the same* repositories volume. Pointing the two at different volumes is a bug
+  that presents as missing data rather than as an error.
+
+  `docker compose config` validates. The image has not been built end to end here - no daemon was
+  running on the machine that wrote it - and the guide says so rather than implying otherwise.
+- [x] Persist repositories and uploads on volumes, and document exactly which paths hold state
+
+  Two directories and one database, and the guide names them in a table with what losing each costs.
+  `storage/repos` is the one that cannot be rebuilt from anything else.
+
+  Said in three places that cannot drift far apart: `VOLUME` in the Dockerfile, so `docker inspect`
+  reports it; named volumes in the compose file, so `docker compose down` does not take them; and
+  the table in `docs/self-hosting.md`. Everything under `storage/framework/` is explicitly *not* on
+  that list - it is a build cache, and backing it up wastes the expensive volume.
+- [x] Health endpoint that checks the database, the queue, and repository storage, rather than only
       returning 200
+
+  `app/Ops/health.ts`. It used to answer `{ ok: true }` unconditionally, which tells a load balancer
+  to keep sending traffic to an instance whose database is gone - the process being up was never in
+  doubt, it is the thing answering.
+
+  The database check is a real query against a real table rather than `SELECT 1`, because `SELECT 1`
+  succeeds against a database with no schema in it, which is exactly what a deploy that has not run
+  its migrations looks like. Storage is checked for *writability*, not presence: a volume that failed
+  to mount leaves an empty directory that reads perfectly and accepts nothing.
+
+  Three states, not two. **Degraded still serves** - taking an instance out of rotation because
+  something was slow turns a slow dependency into an outage - and only `failed` produces the 503. A
+  check that says `ok` at four seconds never warns anybody before it starts failing.
+
+  Queue depth is reported rather than judged, because what counts as too many jobs depends entirely
+  on the instance. What *is* judged is a job waiting more than five minutes, which means nothing is
+  working the queue - a different fact from "there is a lot of work".
 - [ ] Graceful shutdown: finish in-flight requests, stop accepting new jobs, let running jobs
       complete
-- [ ] Run the queue worker as its own process, with its concurrency documented
+- [x] Run the queue worker as its own process, with its concurrency documented
+
+  Its own container in `compose.yaml`, because the two fail differently: a job that wedges a worker
+  should not stop anybody reading a diff.
+
+  Concurrency 4, with the reasoning written down rather than the number alone: most jobs here are a
+  git process or an outbound request - waiting rather than computing - so the useful number is above
+  the core count and is bounded by the disk and the remote. The guide says which direction to move it
+  and what to watch.
+
+  Without a worker the instance looks fine and silently stops doing anything asynchronous, so the
+  health endpoint reports a stalled queue as degraded with "is a worker running?".
 - [ ] Deployment to a single host, which is what most instances will be
 - [ ] Sizing guidance from measurement, not guesses
 
 ## Configuration
 
-- [ ] Every environment variable documented with its default and its effect
-- [ ] Validate configuration at boot and fail loudly on a bad value, rather than at first use
+- [x] Every environment variable documented with its default and its effect
+
+  A table in `docs/self-hosting.md` giving each value's default and, more usefully, *what a wrong one
+  looks like*: a short `APP_KEY` is sessions that do not survive a restart, a `DB_PORT` with a stray
+  quote is a connection refused that sends people to look at the network, an unset mail host is
+  silence a fortnight later when a stranger tries to reset a password.
+- [x] Validate configuration at boot and fail loudly on a bad value, rather than at first use
+
+  `app/Ops/config.ts`, run by `buddy instance:check`. Pure over a plain object rather than reading
+  `process.env`, so every rule is testable without setting a variable in the test runner's own
+  process - which leaks between tests and cannot reliably be undone.
+
+  Fatal and warning are different, and the split is deliberate: refusing to start in development
+  over a mail password nobody set would teach people to bypass the check, and a check people bypass
+  is worse than none. A production instance is held to more, because a developer with no `APP_KEY`
+  has made a reasonable choice and a production instance with the same has not.
+
+  Writing it found a rule of my own that was wrong: it demanded a scheme on `APP_URL`, which would
+  have flagged every correctly configured instance - `config.app.url` is used as a *domain* here and
+  this project's own default is `reviewos.localhost`. It warns about a *path* instead, which is
+  somebody pasting a browser URL in and getting it twice in every link.
 - [ ] Secrets from the environment or a file, never committed
 - [ ] Instance settings that do not warrant a redeploy live in the database and are editable by an
       admin
 
 ## Backup and restore
 
-- [ ] Documented backup of Postgres and `storage/repos` together, since a restore needs both from
+- [x] Documented backup of Postgres and `storage/repos` together, since a restore needs both from
       the same moment
+
+  With the commands, and with the sentence that makes it matter: a database restored to a point after
+  the repository snapshot has pull requests whose commits are not on disk, and the other way round
+  has commits nothing references. **Neither reports an error.** Stopping the two application
+  containers for the length of the snapshot is what makes them the same moment.
 - [ ] Restore procedure, written after actually performing one on a copy. An untested restore
       procedure is a hope, not a backup.
-- [ ] Repository consistency check after restore
-- [ ] Retention and offsite guidance
+
+  The procedure is written down and the consistency check it ends with is built and tested. The box
+  stays open on its own terms: nobody has yet run it end to end against a copy, and the whole point
+  of the sentence is that writing one is not the same as having done one.
+- [x] Repository consistency check after restore
+
+  `buddy instance:repos`. Walks every repository row, confirms the directory is there and that `git`
+  can read it, and reports the mismatch in both directions.
+
+  Readable *by git*, not merely present: a directory left by a failed clone passes any check that
+  only asks whether the path exists, and fails at the first fetch. And the other direction is
+  reported because it is the shape of the mistake that loses data - a repository nothing references
+  is invisible in the interface, so the next person clearing disk space deletes it.
+
+  **It reports and never repairs.** Both mismatches have two plausible fixes, restore the other half
+  or delete this one, and which is right depends on which snapshot was good. A command that guessed
+  would eventually delete the only copy of something.
+- [x] Retention and offsite guidance
+
+  Daily for a fortnight, weekly for a quarter, offered as a default and named as a decision rather
+  than a rule. The part that is not negotiable: a backup on the same host survives a mistake and not
+  a disk, and it contains every private repository on the instance, so it is encrypted before it
+  leaves.
 
 ## Operations
 
@@ -42,11 +137,21 @@ promise, so the operational story is a feature and not an afterthought.
 - [ ] Admin area: instance stats, user administration, repository administration, queue inspection,
       failed job retry
 - [ ] Rate limiting on the API, on git operations, and on authentication attempts
-- [ ] Upgrade path: run migrations, what to do when one fails, and how to roll back
+- [x] Upgrade path: run migrations, what to do when one fails, and how to roll back
+
+  In the guide, with the honest note that a failed migration is the one case where the answer is
+  "restore" rather than "fix and re-run" - which is why the backup step comes first and takes both
+  halves.
 
 ## Security
 
-- [ ] Security policy and a disclosure address
+- [x] Security policy and a disclosure address
+
+  `SECURITY.md`. An address, what to expect and when, and what is in scope - including the things
+  that are not, because a policy that does not say so gets scanner output.
+
+  No bounty, said plainly. Promising money this project cannot reliably pay would be worse than
+  offering none.
 - [ ] Dependency scanning through buddy-bot
 - [ ] CSRF on state-changing routes, and correct exemptions for token-authenticated API calls
 - [ ] Session handling: rotation on privilege change, absolute and idle expiry, sessions listed and

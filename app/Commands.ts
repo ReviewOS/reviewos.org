@@ -36,6 +36,10 @@ export default {
    */
   'review': 'Review',
 
+  // `instance:check`, for after a deploy that did not go well and for a
+  // container's start script.
+  'instance': 'Doctor',
+
   'inspire': 'Inspire',
   'seed:demo': 'SeedDemo',
   'mirror:add': 'MirrorAdd',
