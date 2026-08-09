@@ -155,6 +155,32 @@ export function inspect(env: Record<string, string | undefined>, options: { prod
   }
 
   /*
+   * Error reporting, when it is on.
+   *
+   * Checked at boot rather than at the first error, which is the whole point:
+   * an address that is wrong here is discovered on the day something breaks,
+   * by somebody who is already having a bad time and now has no report either.
+   */
+  const reportingUrl = value('ERROR_REPORTING_URL')
+  if (reportingUrl && !/^https?:\/\//.test(reportingUrl)) {
+    findings.push({
+      variable: 'ERROR_REPORTING_URL',
+      severity: 'warning',
+      problem: `is "${reportingUrl}", which has no scheme, so error reporting is off`,
+      fix: 'Include https://. Reporting is off rather than half on, which is why this is worth saying now.',
+    })
+  }
+
+  if (production && reportingUrl && reportingUrl.startsWith('http://') && !isLocal(reportingUrl)) {
+    findings.push({
+      variable: 'ERROR_REPORTING_URL',
+      severity: 'warning',
+      problem: 'is http, and error reports carry stack traces and request context',
+      fix: 'Use https. Redaction removes credentials, not the shape of your instance.',
+    })
+  }
+
+  /*
    * Mail. A warning rather than fatal, because an instance with no mail is a
    * perfectly reasonable private deployment - but somebody should know, since
    * password resets and review notifications both go out this way and their

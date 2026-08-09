@@ -111,6 +111,35 @@ describe('the instance URL', () => {
   })
 })
 
+describe('error reporting', () => {
+  it('says nothing when it is off, which is the default', () => {
+    expect(warnings(sound)).toEqual([])
+  })
+
+  it('warns about an address with no scheme rather than half-enabling it', () => {
+    /*
+     * Reporting is off in that case rather than half on, and the point of
+     * saying so at boot is that the alternative is discovering it on the day
+     * something breaks - by somebody already having a bad time who now has no
+     * report either.
+     */
+    expect(warnings({ ...sound, ERROR_REPORTING_URL: 'collector.example/hook' })).toContain('ERROR_REPORTING_URL')
+  })
+
+  it('and about sending reports over plain http', () => {
+    // Redaction removes credentials, not the shape of your instance.
+    expect(warnings({ ...sound, ERROR_REPORTING_URL: 'http://collector.example/hook' })).toContain('ERROR_REPORTING_URL')
+  })
+
+  it('but not about a local collector', () => {
+    expect(warnings({ ...sound, ERROR_REPORTING_URL: 'http://localhost:9000/hook' })).toEqual([])
+  })
+
+  it('and not about a correctly configured one', () => {
+    expect(warnings({ ...sound, ERROR_REPORTING_URL: 'https://collector.example/hook' })).toEqual([])
+  })
+})
+
 describe('mail', () => {
   it('is a warning rather than fatal', () => {
     /*

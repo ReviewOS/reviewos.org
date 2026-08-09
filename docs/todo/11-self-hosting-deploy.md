@@ -203,7 +203,31 @@ promise, so the operational story is a feature and not an afterthought.
   the start of a request and cannot learn its status or duration - `_afterResponse` in Stacks
   0.70.347. The alternative shapes were wrapping every action, or recording a metric as a side
   effect of a header getter, which is the sort of cleverness that confuses whoever reads it next.
-- [ ] Error reporting hookable to an external service, off by default
+- [x] Error reporting hookable to an external service, off by default
+
+  `app/Ops/reporting.ts`. A webhook rather than an SDK for a named service: an SDK is a dependency, a
+  supply-chain surface and a bet on which vendor the operator uses, while a POST of JSON is something
+  Sentry, a Slack relay and an internal collector all accept.
+
+  Off unless `ERROR_REPORTING_URL` is set, and the default is the product decision rather than
+  laziness - self-hosted software that phones home by default is software people stop trusting.
+
+  **Delivery is the least of it.** An error reporter is a machine for taking the contents of your
+  process and posting them to a third party, so the tests are twelve about redaction and one about
+  sending:
+
+  - Credentials are stripped before anything leaves. A token keeps its public prefix - the half that
+    identifies which one to revoke - and loses the secret. Connection-string passwords, bearers, and
+    anything in a field *named* like a credential go regardless of what the value looks like, because
+    a short password is exactly what a value-shaped rule lets through.
+  - A commit sha survives, because it is usually the most useful token in the report. Getting that
+    exemption right took two goes: "any string of hex characters" also exempts `Ab3Ab3Ab3…` at sixty
+    characters, which is precisely the shape of a key. Hashes are exempt at the lengths hashes are.
+  - The same error is sent once per window and the rest are counted, so a loop is one report saying
+    "and 4,812 more" rather than a filled quota with the one that mattered buried in it. Two errors
+    differing only in an id are the same error, or the suppression suppresses nothing.
+  - A failed report never fails the request, and is not logged either: the caller is already handling
+    an error, and a second line about the report of it is noise on the path somebody is reading.
 - [ ] Admin area: instance stats, user administration, repository administration, queue inspection,
       failed job retry
 - [x] Rate limiting on the API, on git operations, and on authentication attempts

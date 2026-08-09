@@ -223,6 +223,44 @@ Counters live in the process and reset when it restarts, which is normal for
 Prometheus - a scraper detects the reset and `rate()` stays correct. With
 several processes each reports its own, which is what a scraper expects.
 
+## Error reporting
+
+**Off unless you configure it.** This is self-hosted software, and software that
+phones home by default is software people stop trusting. Nothing leaves an
+instance until `ERROR_REPORTING_URL` is set.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `ERROR_REPORTING_URL` | none | Where to POST a report. Absent means off. |
+| `ERROR_REPORTING_TOKEN` | none | Sent as `Authorization: Bearer`, if your collector wants one. |
+| `ERROR_REPORTING_TIMEOUT_MS` | 3000 | How long to wait before giving up on a report. |
+| `ERROR_REPORTING_WINDOW_MS` | 300000 | How long one error stays quiet after being reported. |
+
+A webhook rather than an SDK for a named service: an SDK is a dependency, a
+supply-chain surface, and a bet on which vendor you use, while a POST of JSON is
+something Sentry, a Slack relay, an internal collector and a file behind `nc`
+can all accept.
+
+Three things matter more than delivery, and are worth knowing before you point
+this at somebody else's service:
+
+- **Credentials are redacted before anything is sent.** A stack trace and a
+  request context are the two places credentials most reliably appear. Tokens
+  keep their public prefix - which is what identifies the one to revoke - and
+  lose the secret half; connection-string passwords, bearers, and anything in a
+  field called `password`, `secret`, `token` or `authorization` are replaced. A
+  commit sha is deliberately kept, because it is usually the most useful thing
+  in the report.
+- **A failed report never fails the request.** It is a consequence of a failure
+  that already happened, and making it a second one is worse than losing it.
+- **The same error is sent once per window**, with a count of how many were
+  suppressed. An error loop otherwise fills your quota, costs you money, and
+  buries the report that mattered.
+
+Redaction removes credentials. It does not remove the shape of your instance -
+paths, repository names, route patterns - so send reports over https and to a
+collector you actually control.
+
 ## Backup
 
 **Postgres and `storage/repos` have to come from the same moment.** A database
