@@ -73,6 +73,16 @@ route.post('/auth/verify/resend', 'Actions/Auth/VerifyEmailAction').middleware('
 // Your own profile, and only your own. There is no id parameter that could say
 // otherwise - an endpoint that takes one and checks it is an endpoint where the
 // check can be forgotten.
+/*
+ * Who this credential belongs to.
+ *
+ * No `auth` middleware: the endpoint's whole job is to answer whether the
+ * caller is signed in, and a middleware that refuses an unauthenticated request
+ * with an HTML 401 makes "no" indistinguishable from a broken server. The
+ * action answers 401 as JSON itself.
+ */
+route.get('/user', 'Actions/Identity/WhoAmIAction')
+
 route.post('/user/profile', 'Actions/Profile/UpdateProfileAction').middleware('auth')
 
 // Organizations. Membership changes carry rules that cannot be recovered from
@@ -314,7 +324,19 @@ route.post('/repos/milestones', 'Actions/Issue/ManageMilestoneAction').middlewar
  * The queue endpoint takes no user parameter. It is always the caller's own, so
  * there is no check to forget.
  */
+route.get('/repos/pulls', 'Actions/Pull/ListPullRequestsAction')
 route.get('/repos/pulls/show', 'Actions/Pull/ShowPullRequestAction')
+
+/*
+ * The stack, as data.
+ *
+ * Both of these exist because the CLI needed them and they did not, which is
+ * the rule this phase set: an endpoint a client needs gets built rather than
+ * worked around. Listing was reachable only by rendering a page, and a stack
+ * only as a navigation strip - so a client would have had to fetch every pull
+ * request and rebuild the chain, which is a second answer to what lands first.
+ */
+route.get('/repos/pulls/stack', 'Actions/Pull/StackAction')
 route.get('/reviews/queue', 'Actions/Pull/ReviewQueueAction').middleware('auth')
 
 route.post('/repos/pulls', 'Actions/Pull/OpenPullRequestAction').middleware('auth')

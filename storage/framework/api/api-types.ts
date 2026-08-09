@@ -13342,7 +13342,20 @@ export interface paths {
     trace?: never
   }
   "/api/repos/pulls": {
-    get?: never
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "state"?: "open" | "closed" | "merged" | "all"; "author"?: string; "base"?: string; "per_page"?: number; "cursor"?: string; "fields"?: string }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
     put: {
     parameters: {
       query?: never
@@ -13910,6 +13923,29 @@ export interface paths {
     get: {
     parameters: {
       query?: { "owner"?: string; "repo"?: string; "number"?: number; "fields"?: string }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/pulls/stack": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "number"?: number }
       header?: never
       path?: never
       cookie?: never
@@ -15597,6 +15633,29 @@ export interface paths {
       "500": { content: never }
     }
   }
+    trace?: never
+  }
+  "/api/user": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
     trace?: never
   }
   "/api/user/gpg-keys": {

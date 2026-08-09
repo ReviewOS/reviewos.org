@@ -232,8 +232,8 @@ resolution, and the differences are the ones that genuinely matter.
 
   True by construction - a machine account is a `users` row and nothing in the permission path knows
   the difference - which is exactly why it needed a test rather than a reading. "It should work" and
-  "it does" are different statements, and the gap between them is where a `WHERE
-  machine_for_organization_id IS NULL`, added somewhere for some other reason, would live unnoticed.
+  "it does" are different statements, and the gap between them is where an exclusion added somewhere
+  for some other reason - `WHERE machine_for_organization_id IS NULL` - would live unnoticed.
 
   `tests/e2e/machine-contributor.test.ts` has one review a pull request, take a review request, take
   an assignment and comment, all under **its own token** rather than a person acting for it. That is
@@ -388,9 +388,58 @@ The Model Context Protocol is how an agent gets tools, and Stacks already ships 
 
 ## Command line
 
-- [ ] A CLI for the operations that belong in a terminal: open a pull request from the current
+- [x] A CLI for the operations that belong in a terminal: open a pull request from the current
       branch, check out someone else's, see the stack, submit a review from a file
-- [ ] It authenticates with the same fine-grained tokens, and stores them in the OS keychain rather
+
+  `cli/reviewos.ts`, built with `bun build --compile`, over the shared implementations in
+  `app/Cli/commands.ts`. The same commands are registered on `buddy` for working inside this
+  repository - two front ends, one implementation, because `buddy` refuses to run outside a Stacks
+  checkout and the person this is for has never seen this codebase.
+
+  Exactly those four, and deliberately not more. A CLI that mirrors the whole product is a second
+  product to maintain, and the browser is better at most of it. These are the four where a terminal
+  wins because the answer is already in the working copy or the input is already in a file.
+
+  The instance and the repository are read from the git remote rather than asked for, in all three
+  spellings the same remote has - `https://host/o/r.git`, `git@host:o/r`, `ssh://git@host/o/r` - so
+  somebody who cloned over ssh and somebody who cloned over https are working on the same repository
+  as far as the CLI is concerned.
+
+  `pr checkout` fetches into `pr/<n>` rather than checking out the contributor's branch by name.
+  Their branch may not exist locally, may exist and be something else, and is theirs: a reviewer who
+  commits on it by accident has written on somebody else's branch.
+
+  `review` reads its body from a file or standard input. A review is prose; `--body` is fine for one
+  sentence and hostile for the paragraph a real review is, which is most of why the command exists.
+- [x] It authenticates with the same fine-grained tokens, and stores them in the OS keychain rather
       than a dotfile
-- [ ] It is a client of the public API only. If the CLI needs an endpoint that does not exist, the
+
+  `security` on macOS, `secret-tool` on Linux, `cmdkey` on Windows - each the utility that platform
+  already ships, none a dependency this project adds. A token in `~/.reviewos/token` is readable by
+  every process the user runs, ends up in backups, and survives in a synced home directory long
+  after somebody thought they had removed it.
+
+  `REVIEWOS_TOKEN` is read first and stored nowhere, which is how CI supplies one: scoped to the
+  job, injected by the runner's secret store, never written to a disk.
+
+  **There is deliberately no file fallback.** A CLI that quietly writes a dotfile when the keychain
+  is unavailable teaches its users that the keychain is optional, and the machines where it is
+  unavailable are the shared ones. `login` checks a token against `/api/user` before storing it,
+  because finding out on the next command is a worse first experience than one round trip.
+- [x] It is a client of the public API only. If the CLI needs an endpoint that does not exist, the
       endpoint gets built, which keeps parity honest.
+
+  Held absolutely: nothing under `app/Cli/` imports a model or touches the database. The value is
+  entirely in it being absolute - the moment one command reaches into the database because it is
+  quicker, the CLI stops being a check on whether the API is complete and becomes a second
+  implementation of the product.
+
+  It immediately paid for itself. Three endpoints did not exist and now do:
+
+  - `GET /api/repos/pulls` - listing was reachable only by rendering a page. Built on the phase's own
+    primitives rather than three new ones: a cursor, an `ETag`, and `fields`.
+  - `GET /api/repos/pulls/stack` - a stack was visible only as a navigation strip, so a client would
+    have had to fetch every pull request and rebuild the chain, which is a second answer to what
+    lands first. It calls the same `buildStack` the interface does.
+  - `GET /api/user` - the smallest useful thing an API can offer, and the one `login` needs to check
+    a token before storing it.

@@ -4986,6 +4986,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/pulls
+   */
+  getReposPulls(input?: { "owner"?: string; "repo"?: string; "state"?: "open" | "closed" | "merged" | "all"; "author"?: string; "base"?: string; "per_page"?: number; "cursor"?: string; "fields"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls", input ?? {}, ["owner", "repo", "state", "author", "base", "per_page", "cursor", "fields"], false, options)
+  },
+
+  /**
    * PUT /api/repos/pulls
    */
   putReposPulls(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -5165,6 +5172,13 @@ export function createClient(config: ClientConfig) {
    */
   getReposPullsShow(input?: { "owner"?: string; "repo"?: string; "number"?: number; "fields"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/repos/pulls/show", input ?? {}, ["owner", "repo", "number", "fields"], false, options)
+  },
+
+  /**
+   * GET /api/repos/pulls/stack
+   */
+  getReposPullsStack(input?: { "owner"?: string; "repo"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/stack", input ?? {}, ["owner", "repo", "number"], false, options)
   },
 
   /**
@@ -5795,6 +5809,13 @@ export function createClient(config: ClientConfig) {
    */
   patchTransactionsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "PATCH", "/api/transactions/{id}", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /api/user
+   */
+  getUser(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/user", {}, [], false, options)
   },
 
   /**

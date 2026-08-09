@@ -27,6 +27,15 @@ export type CommandRegistry = Record<string, string | CommandConfig>
  * },
  */
 export default {
+  /*
+   * The contributor-facing CLI, all in one file.
+   *
+   * Registered under `review` because the registry keys a file rather than a
+   * command name - the file declares `login`, `pr`, `stack` and `review`
+   * itself, which is what a person types.
+   */
+  'review': 'Review',
+
   'inspire': 'Inspire',
   'seed:demo': 'SeedDemo',
   'mirror:add': 'MirrorAdd',
