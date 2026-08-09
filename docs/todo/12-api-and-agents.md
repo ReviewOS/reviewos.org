@@ -226,9 +226,19 @@ vocabulary, and it is discoverable without reading the source.
 Not a special case bolted on. A machine account is an account, subject to the same permission
 resolution, and the differences are the ones that genuinely matter.
 
-- [ ] Machine accounts, defined in
+- [x] Machine accounts, defined in
       [phase 1](./01-foundation.md#living-with-tokens), can be authors, reviewers and assignees like
       anyone else
+
+  True by construction - a machine account is a `users` row and nothing in the permission path knows
+  the difference - which is exactly why it needed a test rather than a reading. "It should work" and
+  "it does" are different statements, and the gap between them is where a `WHERE
+  machine_for_organization_id IS NULL`, added somewhere for some other reason, would live unnoticed.
+
+  `tests/e2e/machine-contributor.test.ts` has one review a pull request, take a review request, take
+  an assignment and comment, all under **its own token** rather than a person acting for it. That is
+  the part that could not have worked a commit ago: it cannot sign in, so a token is the only way it
+  acts at all, and this project's tokens could not call this API.
 - [x] Attribution is visible: a pull request opened by a machine account, or a review submitted by
       one, says so plainly in the interface. Not to shame it, but because a reader's standard for
       "somebody looked at this" depends on who looked.
