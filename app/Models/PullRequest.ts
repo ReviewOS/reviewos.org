@@ -30,11 +30,27 @@ export default defineModel({
   traits: {
     useUuid: true,
     useTimestamps: true,
+    /*
+     * Its own index, because pull requests are their own table.
+     *
+     * Search reached these through the issues corpus at first, filtering on
+     * `issues.is_pull_request` - a column that exists and that nothing sets.
+     * The scope returned nothing for every query.
+     *
+     * `repository_id` is filterable and on every document because a pull
+     * request is readable exactly when its repository is, and the visibility
+     * filter has to ask about the repository without a query per hit.
+     */
     useSearch: {
-      displayable: ['id', 'number', 'title', 'state'],
-      searchable: ['title', 'body'],
-      sortable: ['created_at', 'updated_at'],
-      filterable: ['state'],
+      displayable: ['id', 'repository', 'number', 'title', 'state', 'author', 'draft'],
+      searchable: ['title', 'body', 'author', 'repository', 'head_branch'],
+      sortable: ['created_at', 'updated_at', 'changed_files'],
+      filterable: ['state', 'repository_id', 'author', 'draft', 'base_branch'],
+      shapeMany: async (rows: any[]) => {
+        const { pullDocuments } = await import('../Actions/Search/documents')
+
+        return await pullDocuments(rows)
+      },
     },
     useSeeder: { count: 20 },
   },

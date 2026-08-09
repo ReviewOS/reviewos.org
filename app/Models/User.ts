@@ -29,11 +29,29 @@ export default defineModel({
     useUuid: true,
     useTimestamps: true,
     useSocials: ['github'],
+    /*
+     * A named projection, because the default one indexed the whole row.
+     *
+     * The whole row includes `password`. A hash in a search corpus turns any
+     * read of the search node into an offline cracking target needing no
+     * further access; it also carried `email`, making every address on the
+     * instance queryable, and `is_admin`, which is a map of who is worth
+     * attacking. `displayable` did not prevent any of it - that governs what
+     * comes back from a query, not what is written.
+     *
+     * `shapeMany` is a deny list by construction: a column added to this table
+     * stays out of the index until somebody names it in `userDocuments`.
+     */
     useSearch: {
       displayable: ['id', 'handle', 'name', 'avatar_url'],
       searchable: ['handle', 'name'],
-      sortable: ['created_at'],
+      sortable: [],
       filterable: [],
+      shapeMany: async (rows: any[]) => {
+        const { userDocuments } = await import('../Actions/Search/documents')
+
+        return await userDocuments(rows)
+      },
     },
     useSeeder: { count: 10 },
   },

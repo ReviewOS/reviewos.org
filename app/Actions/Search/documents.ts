@@ -311,3 +311,157 @@ export const ISSUE_COLUMNS = [
   'created_at',
   'updated_at',
 ] as const
+
+/** The index a pull request document lives in. Matches the model's table. */
+export const PULL_INDEX = 'pull_requests'
+
+/**
+ * A pull request, as the index holds it.
+ *
+ * Its own corpus, and that is a correction rather than a preference. This
+ * started out searching pull requests as issues carrying `is_pull_request`,
+ * because the column exists - but nothing ever sets it, and pull requests live
+ * in their own table. The scope returned an empty list for every query, and the
+ * test that was supposed to cover it asserted only that issues did *not* appear,
+ * which is trivially true when nothing appears at all.
+ *
+ * Carries `repository_id` for the same reason the issue document does: a pull
+ * request is readable exactly when its repository is, and `visibility.ts` has to
+ * be able to ask about the repository without a query per hit.
+ *
+ * `draft` and `state` are separate because they answer different questions.
+ * `is:draft` is about whether it wants review; `is:open` is about whether it is
+ * still live. A draft that is closed is both.
+ */
+export interface PullDocument {
+  id: string
+  repository_id: number
+  repository: string
+  number: number
+  title: string
+  body: string
+  author: string
+  state: string
+  draft: boolean
+  base_branch: string
+  head_branch: string
+  changed_files: number
+  created_at: number
+  updated_at: number
+}
+
+export async function pullDocuments(input: readonly any[]): Promise<PullDocument[]> {
+  if (input.length === 0)
+    return []
+
+  const rows = input.map((row: any) =>
+    (row?._attributes ?? (typeof row?.toJSON === 'function' ? row.toJSON() : row)) as any,
+  )
+
+  const repositoryIds = [...new Set(rows.map(row => Number(row.repository_id)).filter(Boolean))]
+  const authorIds = [...new Set(rows.map(row => Number(row.author_id)).filter(Boolean))]
+
+  const repositories = repositoryIds.length > 0
+    ? await db
+        .selectFrom('repositories')
+        .select(['id', 'name', 'owner_type', 'owner_id'])
+        .where('id', 'in', repositoryIds)
+        .execute()
+    : []
+
+  const owners = await ownerHandles(repositories as any[])
+  const repositoryNames = new Map<number, string>()
+  for (const row of repositories as any[]) {
+    const handle = owners.get(`${row.owner_type}:${Number(row.owner_id)}`) ?? ''
+    repositoryNames.set(Number(row.id), handle ? `${handle}/${String(row.name)}` : String(row.name))
+  }
+
+  const authors = authorIds.length > 0
+    ? await db.selectFrom('users').select(['id', 'handle']).where('id', 'in', authorIds).execute()
+    : []
+  const authorHandles = new Map((authors as any[]).map(row => [Number(row.id), String(row.handle)]))
+
+  return rows.map(row => ({
+    id: String(row.id),
+    repository_id: Number(row.repository_id),
+    repository: repositoryNames.get(Number(row.repository_id)) ?? '',
+    number: Number(row.number ?? 0),
+    title: String(row.title ?? ''),
+    body: String(row.body ?? '').slice(0, BODY_LIMIT),
+    author: authorHandles.get(Number(row.author_id)) ?? String(row.external_author ?? ''),
+    state: String(row.state ?? ''),
+    draft: Boolean(row.draft),
+    base_branch: String(row.base_branch ?? ''),
+    head_branch: String(row.head_branch ?? ''),
+    changed_files: Number(row.changed_files ?? 0),
+    created_at: seconds(row.created_at),
+    updated_at: seconds(row.updated_at),
+  }))
+}
+
+/** The pull request columns the projection needs. */
+export const PULL_COLUMNS = [
+  'id',
+  'repository_id',
+  'number',
+  'title',
+  'body',
+  'author_id',
+  'external_author',
+  'state',
+  'draft',
+  'base_branch',
+  'head_branch',
+  'changed_files',
+  'created_at',
+  'updated_at',
+] as const
+
+/** The index a user document lives in. Matches the model's table. */
+export const USER_INDEX = 'users'
+
+/**
+ * A person, as the index holds them.
+ *
+ * **This exists because the default projection indexed the whole row**, and the
+ * whole row includes `password`. A password hash in a search corpus turns any
+ * read of the search node into an offline cracking target that needs no further
+ * access - the same reason the token hash is kept off the settings page. It also
+ * carried `email`, which made every address on the instance queryable by anyone
+ * who could search, and `is_admin`, which is a map of who is worth attacking.
+ *
+ * So the document is a deny-by-default list of four fields. Anything added to
+ * the users table from now on stays out of the index until somebody names it
+ * here, which is the right direction for a table that holds credentials.
+ *
+ * There is no visibility filter on people: an account is public on a forge, its
+ * handle appears on every commit it authored, and hiding it from search while
+ * showing it on a pull request would be theatre. That is a deliberate decision
+ * rather than an omission, and it is why this projection is the only thing
+ * standing between the users table and the index.
+ */
+export interface UserDocument {
+  id: string
+  handle: string
+  name: string
+  avatar_url: string
+}
+
+export async function userDocuments(input: readonly any[]): Promise<UserDocument[]> {
+  if (input.length === 0)
+    return []
+
+  const rows = input.map((row: any) =>
+    (row?._attributes ?? (typeof row?.toJSON === 'function' ? row.toJSON() : row)) as any,
+  )
+
+  return rows.map(row => ({
+    id: String(row.id),
+    handle: String(row.handle ?? ''),
+    name: String(row.name ?? ''),
+    avatar_url: String(row.avatar_url ?? ''),
+  }))
+}
+
+/** The user columns the projection needs. Deliberately four, and no more. */
+export const USER_COLUMNS = ['id', 'handle', 'name', 'avatar_url'] as const

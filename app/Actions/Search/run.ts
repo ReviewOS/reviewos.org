@@ -10,7 +10,7 @@
  * `documents.ts`. This is the composition.
  */
 
-import { ISSUE_INDEX, REPOSITORY_INDEX } from './documents'
+import { ISSUE_INDEX, PULL_INDEX, REPOSITORY_INDEX } from './documents'
 import { freeText, parseQuery, sortFor, valuesFor } from './query'
 import { filterToReadable } from './visibility'
 
@@ -59,16 +59,19 @@ export async function runSearch(input: {
   // issue row with `is_pull_request` set - so they share an index and differ
   // by one filter. Two indexes for one table would mean two projections and
   // two chances for them to disagree.
-  const onIssues = scope === 'issues' || scope === 'pulls'
-  const index = onIssues ? ISSUE_INDEX : REPOSITORY_INDEX
+  const onPulls = scope === 'pulls'
+  const onIssues = scope === 'issues' || onPulls
+  const index = onPulls ? PULL_INDEX : (scope === 'issues' ? ISSUE_INDEX : REPOSITORY_INDEX)
 
   let hits: any[] = []
   try {
     const answer = await engine.search(index, {
       query: freeText(parsed) || '*',
-      queryBy: onIssues
-        ? ['title', 'body', 'labels', 'author', 'repository']
-        : ['name', 'full_name', 'owner', 'description', 'topics'],
+      queryBy: onPulls
+        ? ['title', 'body', 'author', 'repository', 'head_branch']
+        : onIssues
+          ? ['title', 'body', 'labels', 'author', 'repository']
+          : ['name', 'full_name', 'owner', 'description', 'topics'],
       filter_by: onIssues ? issueFilters(parsed, scope) : filtersFor(parsed),
       sort: onIssues ? issueSort(parsed) : sortClause(parsed),
       // Over-fetched, so the visibility filter has room to remove without
@@ -232,7 +235,10 @@ function sortClause(parsed: ReturnType<typeof parseQuery>): string | undefined {
  * by `is_pull_request`. That is what the tabs mean.
  */
 function issueFilters(parsed: ReturnType<typeof parseQuery>, scope: string): string | undefined {
-  const clauses: string[] = [scope === 'pulls' ? 'is_pull_request:=true' : 'is_pull_request:=false']
+  // Two corpora now, so the scope is the index rather than a filter. Issues
+  // still exclude anything flagged as a pull request, for a database that
+  // predates the split and set the column.
+  const clauses: string[] = scope === 'pulls' ? [] : ['is_pull_request:=false']
 
   const is = valuesFor(parsed, 'is')
   const state = valuesFor(parsed, 'state')
@@ -255,7 +261,7 @@ function issueFilters(parsed: ReturnType<typeof parseQuery>, scope: string): str
   if (notLabels.length > 0)
     clauses.push(`labels:!=[${notLabels.map(escape).join(',')}]`)
 
-  return clauses.join(' && ')
+  return clauses.length > 0 ? clauses.join(' && ') : undefined
 }
 
 /** Most recently updated first, which is what an issue list means by "active". */

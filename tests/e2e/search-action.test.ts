@@ -11,7 +11,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-const created = { ownerId: 0, outsiderId: 0, outsiderToken: '', publicId: 0, privateId: 0, publicIssueId: 0, privateIssueId: 0, handle: '', term: '' }
+const created = { ownerId: 0, outsiderId: 0, outsiderToken: '', publicId: 0, privateId: 0, publicIssueId: 0, privateIssueId: 0, publicPullId: 0, privatePullId: 0, handle: '', term: '' }
 
 let available = false
 let db: any
@@ -132,11 +132,49 @@ beforeAll(async () => {
     .execute()
 
   await engine.addDocuments('issues', await issueDocuments(issueRows))
+
+  // A pull request in each repository, carrying the same term. Pull requests
+  // are their own table, not issues with a flag - which is what this scope
+  // searched at first, finding nothing for every query.
+  const { pullDocuments } = await import('../../app/Actions/Search/documents')
+
+  for (const [key, repositoryId] of [['publicPullId', created.publicId], ['privatePullId', created.privateId]] as const) {
+    const row: any = await db
+      .insertInto('pull_requests')
+      .values({
+        repository_id: repositoryId,
+        number: 1,
+        title: `${created.term} in the pull request`,
+        body: 'a body',
+        author_id: created.ownerId,
+        state: 'open',
+        head_branch: 'feature',
+        base_branch: 'main',
+        head_sha: 'a'.repeat(40),
+        base_sha: 'b'.repeat(40),
+      })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    created[key] = Number(row?.id)
+  }
+
+  const pullRows = await db
+    .selectFrom('pull_requests')
+    .select(['id', 'repository_id', 'number', 'title', 'body', 'author_id', 'external_author', 'state', 'draft', 'base_branch', 'head_branch', 'changed_files', 'created_at', 'updated_at'])
+    .where('id', 'in', [created.publicPullId, created.privatePullId])
+    .execute()
+
+  await engine.addDocuments('pull_requests', await pullDocuments(pullRows))
   await new Promise(resolve => setTimeout(resolve, 800))
 }, 120_000)
 
 afterAll(async () => {
   try {
+    const pulls = [created.publicPullId, created.privatePullId].filter(Boolean)
+    if (db && pulls.length > 0)
+      await db.deleteFrom('pull_requests').where('id', 'in', pulls).execute()
+
     const issues = [created.publicIssueId, created.privateIssueId].filter(Boolean)
     if (db && issues.length > 0)
       await db.deleteFrom('issues').where('id', 'in', issues).execute()
@@ -280,14 +318,37 @@ describe('the issues scope', () => {
     expect(hit.state).toBe('open')
   })
 
-  test('the pulls scope does not return issues', async () => {
+  test('the pulls scope finds pull requests, which is what it is for', async () => {
     if (!available)
       return
 
-    // Same rows, split by `is_pull_request`. That is what the tabs mean, and
-    // getting it backwards shows issues under "pull requests" forever.
+    // The assertion this scope did not have. It only checked that issues were
+    // absent, which is trivially true when the scope returns nothing at all -
+    // and it did, for every query, because it searched the issues table for
+    // rows flagged `is_pull_request` and nothing sets that column.
     const { body } = await search(created.term, created.outsiderToken, 'pulls')
 
+    expect(body.results.map((r: any) => r.id)).toContain(created.publicPullId)
     expect(body.results.map((r: any) => r.id)).not.toContain(created.publicIssueId)
+  })
+
+  test('a pull request in a private repository does not reach a stranger', async () => {
+    if (!available)
+      return
+
+    const { body } = await search(created.term, created.outsiderToken, 'pulls')
+
+    expect(body.results.map((r: any) => r.id)).not.toContain(created.privatePullId)
+  })
+
+  test('and its owner sees it', async () => {
+    if (!available)
+      return
+
+    const { createToken } = await import('@stacksjs/auth')
+    const issued: any = await createToken(created.ownerId, 'owner pull search')
+    const { body } = await search(created.term, String(issued?.plainTextToken ?? issued?.token ?? issued), 'pulls')
+
+    expect(body.results.map((r: any) => r.id)).toContain(created.privatePullId)
   })
 })
