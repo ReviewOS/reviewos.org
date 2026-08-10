@@ -23,6 +23,114 @@ That prints the configuration problems and the state of the database, the queue
 and repository storage. It exits non-zero when something is fatal, so it works
 in a start script without anybody parsing its output.
 
+## One host, end to end
+
+Most instances are one machine, and that is what this section is. Everything
+below assumes the compose file in this repository, a domain pointed at the host,
+and nothing else.
+
+**1. TLS, in front.** Terminate it at a reverse proxy rather than in the
+application. Caddy is two lines and gets a certificate on its own:
+
+```
+forge.example.com {
+  reverse_proxy localhost:3000
+}
+```
+
+Set `APP_URL=forge.example.com` to match. The application reads
+`x-forwarded-proto` to decide whether to mark the session cookie `Secure`, which
+Caddy and nginx both send by default - and getting that wrong is a login form
+that appears to work and returns you signed out.
+
+**2. Bring it up, then check it.**
+
+```sh
+docker compose up -d
+docker compose exec app bun run --bun ./buddy migrate
+docker compose exec app bun run --bun ./buddy instance:check
+```
+
+**3. Make the first account, then close the door.** Registration is open by
+default so the first person can get in - the first account is exempt from the
+closed setting for the same reason, otherwise an instance closed before anybody
+signed up is one nobody can administer. Register through the interface, then:
+
+```sh
+docker compose exec -T postgres psql -U postgres reviewos \
+  -c "UPDATE users SET is_admin = true WHERE handle = 'you'"
+```
+
+and turn registration off from the settings API, or leave it open if this is a
+public instance.
+
+**4. Back it up on a timer**, because a backup somebody runs by hand is a backup
+that stopped in March. A `systemd` timer or a cron line, calling the two
+commands in [Backup](#backup) together - and **rehearse the restore the same
+day**, which is its own section and is the only part of this page that people
+skip and regret.
+
+```
+0 3 * * *  cd /srv/reviewos && ./backup.sh >> /var/log/reviewos-backup.log 2>&1
+```
+
+**5. Watch two things.** `/api/health` for whether it is serving, and
+`/api/metrics` for whether it is coping. Both are described below. If you run
+nothing else, run something that alerts on the health endpoint going 503 - the
+instance takes itself out of rotation on a failed database or an unwritable
+repository volume, and that is the signal worth waking up for.
+
+## What it costs to run
+
+Measured on this instance rather than estimated, because sizing guidance from
+guesses is how people either over-provision by ten times or discover the real
+number during their first bad afternoon. **The machine: 11 cores, 18 GiB.** The
+data: 313 repositories, 719 accounts, 688 pull requests, 198 MB of git on disk,
+a 17 MB database.
+
+| What | Measured |
+|---|---|
+| Boot to serving | 88ms |
+| Resident memory, idle after boot | 259 MB |
+| Resident memory, after a hundred requests | 389 MB |
+| `/api/health` | 1.1ms p50, 2.9ms p95 |
+| A server-rendered page | 31ms p50, 106ms p95 |
+| Ref advertisement, 2,489 refs, 190 MiB pack | 17-19ms warm, 44ms cold |
+| A 20-commit diff on that repository | 42-57ms |
+| A full clone of it, pack generated fresh | 5.2s of one core |
+
+What those numbers mean for a machine:
+
+- **Memory is the first thing you will run out of, and it is the application
+  rather than git.** Budget 512 MB for the web process and another 512 MB for
+  the worker, and note that the figure above climbs from 259 to 389 MB across a
+  hundred requests - that is a runtime settling, not a leak, but plan for the
+  higher number and not the lower. **1 GB total is the floor; 2 GB is
+  comfortable for a team.**
+- **Cores matter only for clones.** Everything the interface does is
+  milliseconds; a full clone of a large repository is five seconds of one core,
+  and the cost is roughly linear in pack size. Two cores serve a team without
+  thinking about it. If your instance hosts one very large repository that CI
+  clones on every build, that is the workload to size for - and the fix is a
+  shallow clone in CI rather than a bigger machine.
+- **Disk is git plus a rounding error.** The database here is 17 MB against
+  198 MB of repositories, and it grows with *activity* rather than with code:
+  roughly 24 KB per repository including its issues, pull requests and reviews.
+  Take your repositories' size, double it for growth and packfile churn, and add
+  a gigabyte for everything else.
+- **The queue is idle almost always.** Its work is notifications, webhook
+  deliveries and mirror syncs, all of which are waiting on somebody else's
+  server rather than computing. Concurrency 4 on one core is not a bottleneck;
+  the health endpoint reports queue depth so you can see it if it ever becomes
+  one.
+
+A rough shape, then: **2 cores and 2 GB for a team of twenty**, and the first
+thing to increase is memory. An instance with a hundred people doing code review
+on it is not meaningfully more expensive than one with twenty - the reads are
+milliseconds and they cache - but one with CI cloning a large repository a
+hundred times an hour is, and that is a bandwidth and core question rather than
+a memory one.
+
 ## What holds state
 
 **Two directories and one database.** Everything else in a deployment is

@@ -82,8 +82,45 @@ promise, so the operational story is a feature and not an afterthought.
 
   Without a worker the instance looks fine and silently stops doing anything asynchronous, so the
   health endpoint reports a stalled queue as degraded with "is a worker running?".
-- [ ] Deployment to a single host, which is what most instances will be
-- [ ] Sizing guidance from measurement, not guesses
+- [x] Deployment to a single host, which is what most instances will be
+
+  Five steps in `docs/self-hosting.md`, in the order they bite: TLS at a reverse
+  proxy in front rather than in the application; up and migrated and checked;
+  the first account and then closing the door behind it; a backup on a timer,
+  because one somebody runs by hand is one that stopped in March; and the two
+  things worth watching.
+
+  The bit that is easy to get wrong and expensive to debug is the proxy. The
+  application reads `x-forwarded-proto` to decide whether the session cookie is
+  marked `Secure`, so a proxy that does not send it produces a login form that
+  appears to work and returns you signed out - which reads as a broken product
+  rather than as a missing header.
+- [x] Sizing guidance from measurement, not guesses
+
+  Measured on this instance, and the numbers are in the guide with what they
+  were measured on: 11 cores, 18 GiB, 313 repositories, 719 accounts, 198 MB of
+  git, a 17 MB database.
+
+  Boot to serving is 88ms. Resident memory is 259 MB idle and 389 MB after a
+  hundred requests. `/api/health` is 1.1ms at the median, a rendered page 31ms.
+  A ref advertisement over 2,489 refs on a 190 MiB pack is 17-19ms warm and 44ms
+  cold; a twenty-commit diff on that repository is 42-57ms; **a full clone of it
+  is 5.2 seconds of one core**, and that last number is the only one that sizes
+  a machine.
+
+  So the guidance is memory first - 1 GB floor, 2 GB comfortable - and cores
+  only for clones. The database grows with *activity* rather than with code, at
+  roughly 24 KB per repository including its issues and reviews, so disk is git
+  plus a rounding error. An instance with a hundred reviewers is not
+  meaningfully dearer than one with twenty; one with CI cloning a large
+  repository a hundred times an hour is, and the fix there is a shallow clone
+  rather than a bigger machine.
+
+  One measurement was thrown away rather than reported: a local `git clone` of
+  that repository takes 94ms, because git hardlinks the objects. Quoting it
+  would have understated the real cost by fifty times. The 5.2 seconds is
+  `--no-local`, which makes git generate the pack the way it does for a network
+  clone.
 
 ## Configuration
 
