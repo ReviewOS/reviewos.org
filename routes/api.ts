@@ -396,6 +396,11 @@ route.put('/repos/watches', 'Actions/Repo/WatchAction').middleware('auth')
 // with, because the same credential should read a file and a clone.
 route.get('/repos/tree', 'Actions/Browse/TreeAction')
 route.get('/repos/blob', 'Actions/Browse/BlobAction')
+
+// A window of one file's lines, so a forty thousand line file is readable at
+// all. The page renders its first window and asks for the rest as the reader
+// moves, which is the same arrangement the diff surface uses on a large file.
+route.get('/repos/blob/rows', 'Actions/Browse/BlobRowsAction')
 route.get('/repos/commits', 'Actions/Browse/CommitsAction')
 route.get('/repos/commit', 'Actions/Browse/CommitAction')
 route.get('/repos/branches', 'Actions/Browse/BranchesAction')

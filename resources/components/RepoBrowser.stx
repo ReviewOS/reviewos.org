@@ -11,7 +11,7 @@
  * files costs the browser nothing.
  */
 import { mirrorFor, repositoryForView, summarizeMirror } from '../functions/repo'
-import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
+import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
 import { setStatus } from '../functions/http'
 
@@ -67,9 +67,41 @@ const ref = String(addressed.ref || (repoRow ? (repoRow.default_branch ?? 'HEAD'
 const listing = repoRow ? await listTree(diskPath, ref, requestedPath) : { ok: false, entries: [], error: null }
 const isDirectory = listing.ok
 
-const blob = (repoRow && requestedPath && !isDirectory)
-  ? await readBlob(diskPath, ref, requestedPath)
+const isFile = Boolean(repoRow && requestedPath && !isDirectory)
+const wantsMarkdown = isFile && isMarkdown(requestedPath)
+
+/*
+ * A window of the file, not the file.
+ *
+ * `readBlob` refuses anything over half a megabyte and hands back every line of
+ * whatever it does read - so a 700 KB file could not be looked at at all, and a
+ * 400 KB one arrived as thirty thousand table rows in one document, which is
+ * the failure the diff engine exists to avoid, sitting untouched on the other
+ * half of the product. `readBlobWindow` counts the lines as git writes them and
+ * keeps only the ones being shown.
+ *
+ * `from` is a line number carried in the query, so a link into the middle of a
+ * large file lands there - a plain link, which is what keeps the rest of the
+ * file reachable with no script running.
+ *
+ * Markdown still reads whole: it is rendered as a document rather than as
+ * numbered lines, and half a document is not a window into it.
+ */
+/*
+ * `typeof` rather than `fromLine ?? '1'`, and the difference is the whole page.
+ *
+ * A prop nobody passed is an *undeclared* identifier here, not an undefined
+ * one, so naming it throws a ReferenceError inside the server script's IIFE -
+ * which takes every other variable with it and renders the not-found branch of
+ * a page that is perfectly fine. `index.stx` renders this component without a
+ * line number, and that is a legitimate way to call it.
+ */
+const windowFrom = Number(typeof fromLine === 'undefined' ? '1' : String(fromLine || '1'))
+const source = (isFile && !wantsMarkdown)
+  ? await readBlobWindow(diskPath, ref, requestedPath, { from: Number.isFinite(windowFrom) ? windowFrom : 1 })
   : null
+
+const blob = wantsMarkdown ? await readBlob(diskPath, ref, requestedPath) : null
 
 const entries = isDirectory ? sortEntries(listing.entries) : []
 const crumbs = breadcrumbs(repositoryName, requestedPath)
@@ -83,9 +115,7 @@ const readme = readmeEntry
 
 // Highlighting happens here, not in the browser: a large file tokenised
 // client-side is jank exactly when someone is trying to read code.
-const sourceLines = (blob && blob.ok && blob.text !== null && !blob.binary && !blob.tooLarge && !isMarkdown(requestedPath))
-  ? blob.text.replace(/\n$/, '').split('\n')
-  : []
+const sourceLines = (source && !source.error && !source.binary && !source.tooLarge) ? source.lines : []
 const highlighted = sourceLines.length > 0 ? await highlightLines(sourceLines, requestedPath) : []
 const language = sourceLines.length > 0 ? languageFor(requestedPath) : null
 
@@ -127,6 +157,29 @@ const base = `/${ownerHandle}/${repositoryName}`
 
 // Rows and links, shaped where they can be tested. What the components below
 // receive is already decided: a name, a link or none, and one piece of text.
+/*
+ * Where the neighbouring windows of a large file live.
+ *
+ * A plain URL with a line number in it, so the rest of the file is reachable
+ * with nothing running - and so a link *into* a file lands where it says. Built
+ * here because this is where the ref and the path have already been resolved
+ * out of one another.
+ */
+const windowUrl = `${base}/tree/${joinRefAndPath(ref, requestedPath)}`
+
+/*
+ * The window's numbers as strings, here rather than in the attribute.
+ *
+ * `String(...)` in an interpolation is a helper that is not in template scope:
+ * it throws, and the attribute it was in disappears into an HTML comment. The
+ * component then sees no `total`, decides the file is not windowed, and renders
+ * two thousand rows of a twelve thousand line file with nothing saying so -
+ * which is the exact failure this feature exists to prevent, produced by the
+ * feature itself.
+ */
+const sourceFrom = `${source?.from ?? 1}`
+const sourceTotal = `${source?.total ?? 0}`
+
 const rows = treeRows(entries, base, ref, requestedPath, formatSize, shortSha)
 const branchLinks = refLinks(branches, base, ref, requestedPath)
 const tagLinks = refLinks(tags, base, ref, requestedPath)
@@ -134,13 +187,14 @@ const tagLinks = refLinks(tags, base, ref, requestedPath)
 // Which of the ways a file is not shown applies, decided once. The template
 // asking `!blob || !blob.ok` and then `blob.binary` in sequence is the same
 // decision spread over four branches, and the fourth one is easy to leave out.
-const fileState = !blob || !blob.ok
+const read = source ?? blob
+const fileState = !read || ('error' in read && read.error) || ('ok' in read && !read.ok)
   ? 'missing'
-  : blob.binary
+  : read.binary
     ? 'binary'
-    : blob.tooLarge
+    : read.tooLarge
       ? 'too-large'
-      : isMarkdown(requestedPath) ? 'markdown' : 'source'
+      : wantsMarkdown ? 'markdown' : 'source'
 
 // A page that renders "no such repository" under a 200 tells a crawler, a
 // cache and an uptime check that the page is fine. Only the render knows, so
@@ -148,7 +202,7 @@ const fileState = !blob || !blob.ok
 // missing one does, which is the whole point of the check above.
 if (notFound)
   setStatus(404)
-const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedPath
+const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedPath
 </script>
 
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
@@ -266,9 +320,12 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !blob && !requestedP
             path="{{ requestedPath }}"
             refName="{{ ref }}"
             language="{{ language ?? '' }}"
-            size="{{ formatSize(blob?.size ?? null) }}"
+            size="{{ formatSize(read?.size ?? null) }}"
             state="{{ fileState }}"
             :lines="highlighted"
+            from="{{ sourceFrom }}"
+            total="{{ sourceTotal }}"
+            windowUrl="{{ windowUrl }}"
             :markdownHtml="blobMarkdownHtml" />
         @endif
       @endif

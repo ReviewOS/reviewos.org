@@ -4881,6 +4881,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/blob/rows
+   */
+  getReposBlobRows(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/blob/rows", {}, [], false, options)
+  },
+
+  /**
    * GET /api/repos/branches
    */
   getReposBranches(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

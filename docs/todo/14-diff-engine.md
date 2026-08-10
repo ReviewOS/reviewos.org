@@ -458,11 +458,45 @@ in the DOM.
   Not wired to a live update on purpose: a new head stays a banner. `live.ts` says why and it is
   right - every line number on screen may have moved and a draft anchored to one is anchored to the
   wrong line, so the reader chooses the reload.
-- [ ] A plain file through the same viewer, so browsing a thirty thousand line file in a repository
-      is windowed the way a thirty thousand row diff already is. The viewer is ready for it; what is
-      missing is a rows endpoint for a blob and the browse screen asking for one. Today
-      `RepoBrowser` renders the whole file server-side, which is the small-case decision the diff
-      surface makes too - and it has the same one failure mode at the top end.
+- [x] A plain file, windowed on the server, so a forty thousand line file is readable at all.
+
+  `readBlobWindow` counts the lines as git writes them to a pipe and keeps only the ones being
+  shown, so memory is the size of a window whatever the size of the file. That replaces two
+  behaviours worth naming: a file over half a megabyte could not be opened **at all** - the page
+  said "too large to display" - and one just under it arrived as thirty thousand table rows in a
+  single document, which is the failure this whole phase exists to prevent, sitting untouched on
+  the other half of the product.
+
+  The window is reachable with nothing running. `?from=` is a line number and the previous and next
+  windows are plain links, which matters most in exactly this case: a file too large to render whole
+  is where a reader is least likely to have waited for anything else to load. And the range is said
+  out loud - "Lines 1–2,000 of 12,000" - because a reader shown two thousand lines of a twelve
+  thousand line file and told nothing has been handed a different file from the one they asked for.
+
+  One renderer, from the start rather than after the drift: `renderBlobRows` is what the page
+  renders and what `GET /repos/blob/rows` answers with, and the rows carry `data-line`, so a
+  fetched window stitches onto a rendered one.
+
+  A request past the end lands on the last *window*, not the last line: a stale link to line 40,000
+  of a file that is now 12,000 long shows the end of the file rather than one row of it, which reads
+  as a file one line long.
+
+  Three stx traps in one afternoon, all the same shape - a thing that is not in scope throws, and
+  the block it was in disappears silently:
+
+  - A component's server script needs `<script server>`. Plain `<script>` is a client script: the
+    template rendered, the rows rendered, and every `{{ }}` from that script came out as literal
+    braces in the HTML.
+  - `String(...)` in an attribute interpolation is not in template scope. The attribute vanished,
+    the component saw no `total`, decided the file was not windowed, and rendered two thousand rows
+    of twelve thousand with nothing saying so - the exact failure the feature exists to prevent,
+    produced by the feature.
+  - `Math.min` and `toLocaleString()` in the markup, same result, in a block that only renders for a
+    windowed file - so it looked perfect on every file small enough not to need it.
+- [ ] And through the viewer, so it scrolls as one file rather than paging. The server half is done
+      and the endpoint is the one the client would use; what is left is mounting the viewer on the
+      browse screen and fetching windows as the reader moves, the way `mountDiffFiles` does for a
+      very large file in a diff.
 - [x] Estimated heights computed from hunk metadata alone, without rendering: header height, line
       height, hunk separator height, collapsed-context threshold, and whether the item is collapsed.
       A list of 40,000 files needs a total height before any of them has been measured.

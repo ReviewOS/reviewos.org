@@ -1,3 +1,21 @@
+<script server>
+/**
+ * Which line of a large file to show.
+ *
+ * A file past a window is rendered a window at a time, and `?from=` is how the
+ * rest of it is reached with nothing running. Read here, where the request is,
+ * and handed to the component as a prop - a component cannot reach the query
+ * itself, and `{{ query.from }}` in an attribute looks like it reads the query
+ * string and does not.
+ *
+ * Both spellings, because the two ways this application serves a page supply it
+ * differently: the dev server binds `query`, and `route.serve()` supplies it
+ * through `useRoute()` and binds nothing.
+ */
+const search: Record<string, string> = useRoute().query ?? {}
+const fromLine = String(search.from ?? '')
+</script>
+
 {{--
   A directory or file at an explicit ref.
 
@@ -11,5 +29,6 @@
     owner="{{ params.owner }}"
     repository="{{ params.repository }}"
     refName="{{ params.ref }}"
-    path="{{ params.path }}" />
+    path="{{ params.path }}"
+    fromLine="{{ fromLine }}" />
 @endsection

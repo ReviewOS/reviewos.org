@@ -28,7 +28,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Started (40/45) |
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Started (29/30) |
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | In progress (38/44) |
-| [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (137/170) |
+| [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (138/171) |
 | [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | Not started (0/189) |
 
 Phase 14 was written after reading Pierre's [DiffsHub](https://diffshub.com) and the Apache 2.0

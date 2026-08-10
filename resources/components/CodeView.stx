@@ -1,5 +1,5 @@
 {{--
-  One file.
+  One file, or a window of one.
 
   Highlighted on the server, which is why `lines` arrives as tokens rather than
   as text: a large file tokenised in the browser is jank exactly when somebody
@@ -10,9 +10,45 @@
   path that does not exist read the same to somebody who is trying to work out
   which of the two they are looking at.
 
-  The `@foreach` over tokens is written on one line on purpose: whitespace
-  between the spans would be whitespace in the code.
+  The rows come from `renderBlobRows`, which is also what the rows endpoint
+  answers with. One renderer, for the same reason the diff surface has one: the
+  first window is rendered into the page and the next arrives from a fetch, and
+  a second spelling of a row puts a seam exactly where somebody is reading.
 --}}
+<script server>
+import { renderBlobRows } from '../functions/browse'
+
+/*
+ * `typeof` on every prop that a caller may leave off. A prop nobody passed is
+ * an undeclared identifier in a component's server script, and naming one
+ * throws - which renders this file's "missing" branch on a file that is there.
+ */
+const firstLine = Number(typeof from === 'undefined' ? '1' : String(from || '1')) || 1
+const totalLines = Number(typeof total === 'undefined' ? '0' : String(total || '0')) || 0
+const rowsHref = typeof windowUrl === 'undefined' ? '' : String(windowUrl)
+const shown = typeof lines === 'undefined' || lines == null ? 0 : lines.length
+const lastLine = firstLine + shown - 1
+
+// Whether this is a window at all, or simply the file.
+const windowed = totalLines > shown
+const previousFrom = Math.max(1, firstLine - shown)
+const nextFrom = lastLine + 1
+
+/*
+ * Every number formatted here rather than in the template.
+ *
+ * `Math` and `toLocaleString` are not in template scope - a helper named in an
+ * interpolation is undefined, throws, and takes its whole block into an HTML
+ * comment. The block that carries these only renders for a windowed file, so
+ * the page looked perfect on every file small enough not to need it and
+ * collapsed on the ones this feature exists for.
+ */
+const firstLabel = firstLine.toLocaleString()
+const lastLabel = lastLine.toLocaleString()
+const totalLabel = totalLines.toLocaleString()
+const shownLabel = shown.toLocaleString()
+const remainingLabel = Math.min(shown, Math.max(0, totalLines - lastLine)).toLocaleString()
+</script>
 <div class="file panel">
   <header class="file-head">
     <span class="mono">{{ path }}</span>
@@ -33,21 +69,46 @@
   @elseif (state === 'markdown')
     <MarkdownContent :html="markdownHtml" />
   @else
-    <table class="source">
-      <tbody>
-        @foreach (lines as tokens, index)
-          <tr class="source-row">
-            <td class="mono source-num">{{ index + 1 }}</td>
-            <td class="mono source-code">@foreach (tokens as token)<span class="t-{{ token.type }}">{{ token.content }}</span>@endforeach</td>
-          </tr>
-        @endforeach
-      </tbody>
+    @if (windowed)
+      {{--
+        Said out loud, always. A reader shown two thousand lines of a forty
+        thousand line file and told nothing has been handed a different file
+        from the one they asked for, and the only clue is a scrollbar that ends
+        too soon.
+      --}}
+      <p class="file-window muted">
+        Lines {{ firstLabel }}–{{ lastLabel }} of {{ totalLabel }}
+      </p>
+    @endif
+
+    <table class="source" data-blob-window data-from="{{ firstLine }}" data-total="{{ totalLines }}">
+      <tbody>{!! renderBlobRows(typeof lines === 'undefined' || lines == null ? [] : lines, { from: firstLine }) !!}</tbody>
     </table>
+
+    @if (windowed)
+      <nav class="file-window-nav">
+        @if (firstLine > 1)
+          <a class="file-window-link" href="{{ rowsHref }}?from={{ previousFrom }}">← Previous {{ shownLabel }} lines</a>
+        @endif
+        @if (lastLine < totalLines)
+          <a class="file-window-link" href="{{ rowsHref }}?from={{ nextFrom }}">Next {{ remainingLabel }} lines →</a>
+        @endif
+      </nav>
+    @endif
   @endif
 </div>
 
 <style>
   .file { margin-top: 10px; overflow: hidden; }
+
+  /* Which slice of the file this is, and how to reach the rest without a
+    script. Plain links, because a file too large to render whole is exactly
+    the case where a reader may have given up waiting for anything else. */
+  .file-window { padding: 8px 14px; margin: 0; font-size: 12px; border-bottom: 1px solid var(--line); }
+  .file-window-nav { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; }
+  .file-window-nav:has(> :only-child) { justify-content: flex-end; }
+  .file-window-link { text-decoration: none; }
+  .file-window-link:hover { text-decoration: underline; }
 
   .file-head {
     display: flex;

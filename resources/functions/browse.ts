@@ -112,6 +112,8 @@ import type { TreeEntry as TreeEntryImpl } from '../../app/Actions/Browse/parse'
 import { branchNames as branchNamesImpl, commitDetail as commitDetailImpl, commitHistory as commitHistoryImpl, compareDiffText as compareDiffTextImpl, compareRefs as compareRefsImpl, lastCommit as lastCommitImpl, listTree as listTreeImpl, MAX_BLOB_BYTES as MAX_BLOB_BYTES_IMPL, readBlob as readBlobImpl, tagNames as tagNamesImpl } from '../../app/Actions/Browse/load'
 import { parseCompareRefs as parseCompareRefsImpl } from '../../app/Actions/Browse/compare'
 import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
+import { BLOB_WINDOW_LINES as BLOB_WINDOW_LINES_IMPL, readBlobWindow as readBlobWindowImpl } from '../../app/Actions/Browse/blobWindow'
+import { renderBlobRows as renderBlobRowsImpl } from '../../app/Actions/Browse/blobRows'
 // The list helpers. Every import in this file has to sit in this one block:
 // an `import` further down, after the `export const` re-bindings, is not
 // hoisted by stx's server-script transform, and every name from it arrives
@@ -136,6 +138,11 @@ export const parseCompareRefs = parseCompareRefsImpl
 /** The unified diff between two refs, in either compare mode. */
 export const compareDiffText = compareDiffTextImpl
 export const highlightLines = highlightLinesImpl
+/** One window of a large file, rather than all of it. See `blobWindow.ts`. */
+export const readBlobWindow = readBlobWindowImpl
+export const BLOB_WINDOW_LINES = BLOB_WINDOW_LINES_IMPL
+/** The rows of a file, from the one renderer the endpoint uses too. */
+export const renderBlobRows = renderBlobRowsImpl
 export const languageFor = languageForImpl
 export const MAX_BLOB_BYTES = MAX_BLOB_BYTES_IMPL
 export const listFilter = listFilterImpl
