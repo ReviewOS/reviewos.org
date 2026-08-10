@@ -442,6 +442,19 @@ the one moment where rejecting is still possible.
 - [x] **A trailing slash 404'd on pages that plainly exist.** `/{owner}/{repository}/` looked for
       `{owner}/{repository}//index.stx` and matched no dynamic route either. Fixed in stx 0.2.155;
       it is the same page
+- [x] `resources/views/[owner]/[repository]/tree/[ref]/[...path].stx` - a directory at a ref.
+
+      Held by `tests/e2e/browse-tree.test.ts`, written against a repository with a file that exists
+      only at the root and one that exists only inside a directory, because a page that renders the
+      *wrong* directory looks exactly like a page that works.
+
+      **One level deep is as far as it goes, and the reason is in the router rather than here.**
+      `@stacksjs/router` matches a catch-all against exactly one segment - `route.get('/probe/{rest}*')`
+      answers `/probe/a` and 404s `/probe/a/b`, with no view routing involved - so
+      `/tree/main/app/nested` is unreachable. Written up with the reproduction in
+      [phase 13](./13-mirroring.md), which is where it was first noticed and misattributed to stx's
+      parameter binding. The API is unaffected: `TreeAction` takes `path` as a query parameter, so
+      nothing routed carries the slashes.
 - [x] **Every issue page was broken, and looked like a missing issue.** The server script referred
       to `ownerHandle` and declared `owner`, so it threw on its first line, stx fell back to static
       extraction, and every variable rendered undefined - which lands on the "no such issue" branch.

@@ -158,10 +158,29 @@ documentation is markdown that the docs pipeline has to render anyway.
       (2488 refs, HEAD resolves, trees list)
 - [x] Browsable in the UI at `/stacks/stacks`: the tree renders its 33 root entries, the README
       below it, and the last commit
-- [ ] Navigating into a directory. The route and view exist, but stx-router bound route parameters
-      to the wrong capture groups when a pattern mixed a catch-all with ordinary segments, so
-      `/stacks/stacks/tree/main/app` renders the repository root. Fixed upstream in stx; this picks
-      it up on the next stx release
+- [ ] Navigating into a directory **more than one level deep**. The parameter-binding half of this
+      is fixed and picked up: `/{owner}/{repo}/tree/main/app` now renders `app` rather than the
+      repository root, held by `tests/e2e/browse-tree.test.ts`, which is the first test this route
+      has ever had.
+
+      What is left is a different bug one layer down, and it is not stx's.
+      **`@stacksjs/router` matches a catch-all against exactly one segment.** Declared by hand,
+      with no view routing in the picture:
+
+      ```ts
+      route.get('/probe/{rest}*', req => new Response(req.params.rest))
+      // GET /probe/a    -> 200 "a"
+      // GET /probe/a/b  -> 404
+      ```
+
+      Same for the `:rest*` spelling. So `/stacks/stacks/tree/main/app/nested` is a 404, and so is
+      every repository with a subdirectory inside a subdirectory - which is every real repository.
+
+      There is a workaround and it should not be taken. `%2F` survives matching, but the parameter
+      arrives **still percent-encoded** (`a%2Fb`), so every view would have to decode what the
+      router handed it, every browse URL in the product would become unreadable, and a URL copied
+      from GitHub would still 404. The fix belongs in the router, the same way `IN` on a write was
+      fixed in the query builder rather than around it.
 - [ ] Its markdown renders through the docs pipeline described in
       [07 - Marketing and docs](./07-marketing-docs.md)
 - [ ] Pull requests visible in the review screen, which is the actual test of whether any of this

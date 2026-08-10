@@ -673,8 +673,12 @@ this is where the claim is either true or marketing.
   `a...b` is the merge-base compare - what `b` proposes, the diff a pull request would show - and
   `a..b` is tip to tip, kept apart and labelled out loud with the honest way out one click away,
   because diffing against the tip is the most common way review UIs mislead and the two texts look
-  identical. One name compares against the default branch. The diff renders through the review
-  screen's own renderer, so a compare and the pull request it becomes cannot look different, and
+  identical. One name compares against the default branch. **A branch whose name contains a slash -
+  `feat/thing...main` - cannot be reached, and it is the router rather than this page:** a catch-all
+  matches exactly one segment, so the URL 404s before the view runs. The same bug that stops
+  `/tree/main/app/nested`, with the reproduction in [phase 13](./13-mirroring.md). The diff renders
+  through the review screen's own renderer, so a compare and the pull request it becomes cannot look
+  different, and
   the page carries the open-a-pull-request form (merge-base mode, signed-in, `pull:open`) - the
   address the push pipeline's stack offers point at, with a stacked base opening a stacked pull
   request through open-time detection. The e2e is built on a history where the two modes genuinely
