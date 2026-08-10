@@ -30,6 +30,10 @@ export default new Action({
     const email = String(request.get('email') ?? '').trim().toLowerCase()
     const password = String(request.get('password') ?? '')
     const offeredCode = String(request.get('code') ?? '').trim()
+    // The assertion a browser sends instead of a code, when this account has a
+    // passkey. Untouched here - `verifySecondFactor` is the one place that
+    // knows what a passkey has to prove.
+    const offeredPasskey = request.get('passkey')
 
     const { Auth } = await import('@stacksjs/auth')
 
@@ -44,18 +48,20 @@ export default new Action({
      */
     const challenged = challengedUser(cookieValue(request, CHALLENGE_COOKIE))
 
-    if (challenged && offeredCode && !password) {
+    if (challenged && (offeredCode || offeredPasskey) && !password) {
       const waiting: any = await db
         .selectFrom('users')
         .select(['id', 'two_factor_secret', 'two_factor_enabled'])
         .where('id', '=', challenged)
         .executeTakeFirst()
 
-      if (!waiting || !waiting.two_factor_enabled)
+      const { hasPasskey } = await import('./PasskeyAction')
+
+      if (!waiting || (!waiting.two_factor_enabled && !await hasPasskey(Number(waiting.id))))
         return refuse(request, 'Start again from the sign-in page.')
 
       const { verifySecondFactor } = await import('./twoFactor')
-      const check = await verifySecondFactor(waiting, offeredCode)
+      const check = await verifySecondFactor(waiting, offeredCode, offeredPasskey)
 
       if (!check.ok)
         return refuse(request, 'That code is not right.', { needsCode: true })
@@ -102,14 +108,29 @@ export default new Action({
          * and the cookie, so the password is never re-posted and no server-side
          * state has to be kept or expired.
          */
-        if (user && Boolean(user.two_factor_enabled)) {
+        /*
+         * A second factor is required when the account has *either* one.
+         *
+         * The first version asked only about `two_factor_enabled`, so somebody
+         * who registered a passkey and never turned on TOTP got a
+         * password-only sign-in - the passkey sat in their settings doing
+         * nothing, and the settings page said they were protected. A second
+         * factor that is listed and not asked for is worse than none, because
+         * it is believed.
+         */
+        const { hasPasskey } = await import('./PasskeyAction')
+        const needsSecondFactor = user
+          ? Boolean(user.two_factor_enabled) || await hasPasskey(Number(user.id))
+          : false
+
+        if (user && needsSecondFactor) {
           const { verifySecondFactor } = await import('./twoFactor')
           const offered = String(request.get('code') ?? '').trim()
 
-          if (!offered)
-            return challenge(request, Number(user.id))
+          if (!offered && !offeredPasskey)
+            return await challenge(request, Number(user.id))
 
-          const check = await verifySecondFactor(user, offered)
+          const check = await verifySecondFactor(user, offered, offeredPasskey)
 
           if (!check.ok) {
             // The same refusal whether the code was wrong or the challenge had
@@ -268,7 +289,7 @@ const CHALLENGE_TTL_MS = 5 * 60 * 1000
  * is reached only after `Auth.attempt` succeeded. A challenge handed out
  * earlier would be an oracle for which addresses have accounts.
  */
-function challenge(request: any, userId: number): Response {
+async function challenge(request: any, userId: number): Promise<Response> {
   const secure = isSecureRequest(request)
   const value = signChallenge(userId, Date.now() + CHALLENGE_TTL_MS)
   const cookie = sessionCookie(CHALLENGE_COOKIE, value, { maxAgeSeconds: CHALLENGE_TTL_MS / 1000, secure })
@@ -282,7 +303,25 @@ function challenge(request: any, userId: number): Response {
     })
   }
 
-  return new Response(JSON.stringify({ error: 'A two-factor code is required.', code_required: true }), {
+  /*
+   * The passkey options ride along with the challenge.
+   *
+   * So a browser learns in one round trip that a second factor is needed *and*
+   * gets what it needs to ask for an assertion. The alternative is a second
+   * request between the password and the prompt, which is a visible pause
+   * exactly where somebody is already waiting.
+   *
+   * Null when the account has no passkey, which is how the page knows to show
+   * the six-digit field instead.
+   */
+  const { issueAuthenticationChallenge } = await import('./PasskeyAction')
+  const passkeyOptions = await issueAuthenticationChallenge(userId).catch(() => null)
+
+  return new Response(JSON.stringify({
+    error: 'A two-factor code is required.',
+    code_required: true,
+    passkey_options: passkeyOptions,
+  }), {
     status: 401,
     headers: { 'Content-Type': 'application/json', 'Set-Cookie': cookie },
   })

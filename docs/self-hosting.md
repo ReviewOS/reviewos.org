@@ -615,7 +615,19 @@ they simply cannot reach that organization's repositories until they do. A
 requirement that locks people out of the page where they would satisfy it is a
 requirement that gets switched off.
 
-Passkeys are not implemented yet. TOTP is what ships.
+**Passkeys** work alongside TOTP, and are the better of the two: the signature
+carries the origin the browser is on, so a convincing copy of this sign-in page
+on another domain gets a signature that verifies against nothing. TOTP does not
+have that property - somebody who will type a password into a fake page will
+type six digits into it too.
+
+The one thing to get right is `APP_URL`. A passkey is bound to a domain, and one
+registered against the wrong `rpId` is *invisible* to the browser afterwards
+rather than broken loudly - which reads as "passkeys do not work here". Set it to
+exactly the address in the browser's bar, including the scheme.
+
+Either factor satisfies the requirement: somebody with a passkey is not also
+asked for six digits.
 
 ### Single sign-on
 

@@ -61,6 +61,8 @@ export type AuditEventName =
   | 'sso:signed-in'
   | 'sso:provisioned'
   | 'sso:deprovisioned'
+  | 'passkey:registered'
+  | 'passkey:removed'
   | 'two-factor:enabled'
   | 'two-factor:disabled'
   | 'two-factor:recovery-codes-reissued'
@@ -105,6 +107,8 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'sso:signed-in',
   'sso:provisioned',
   'sso:deprovisioned',
+  'passkey:registered',
+  'passkey:removed',
   'two-factor:enabled',
   'two-factor:disabled',
   'two-factor:recovery-codes-reissued',

@@ -730,14 +730,57 @@ already gone wrong and there is no second chance to have recorded it.
   worked. And the tests hit the sign-in throttle at ten attempts per five
   minutes, which is the limit doing its job - they reuse one challenge now,
   which is also what a browser retrying a mistyped code does.
-- [ ] Passkeys as the second factor, alongside TOTP
+- [x] Passkeys as the second factor, alongside TOTP
 
-  Deliberately split from the box above rather than left implied by it. The
-  WebAuthn ceremony is a browser API and a round trip through a platform
-  authenticator, and there is no way to exercise it here that would tell the
-  truth about whether it works - a test that stubs the browser half tests the
-  stub. The framework has the tables and the helpers; what is missing is the
-  registration and assertion flow and an honest way to verify it.
+  The only second factor that cannot be phished. TOTP stops a leaked password
+  and nothing else: somebody looking at a convincing copy of this sign-in page
+  will type their password *and* their six digits into it, and the person on the
+  other end has ninety seconds to use both. A passkey signature carries the
+  origin the browser is actually on, so the same copy on another domain produces
+  something that verifies against nothing.
+
+  **The honest way to verify it turned out not to need a browser.** The earlier
+  note here said a test that stubs the browser half tests the stub, and that is
+  still true - so nothing is stubbed. The test holds an ES256 key pair, builds
+  authenticator data byte for byte as a security key does, and signs. What is
+  under test is our verification, and it is exercised exactly as hardware would
+  exercise it.
+
+  **Three defects, and two of them were upstream.** `@stacksjs/ts-auth`
+  implements WebAuthn and neither ceremony could ever succeed:
+
+  - Its challenge check read `base64Decode(clientData.challenge)`, which
+    interprets the challenge bytes as UTF-8 text, and compared that to
+    `base64Encode(expected)`, a base64 string. For a random 32-byte challenge
+    those are never equal. Not sometimes wrong - never right. It also never
+    converted base64url, which is what the browser writes.
+  - It imported the credential public key as SPKI. An authenticator reports a
+    COSE key; `importKey('spki', ...)` throws on those bytes, the throw was
+    caught, and a genuine assertion read as a forgery.
+
+  Both are fixed in `~/Code/Libraries/ts-auth` and built there. This app's
+  `node_modules/@stacksjs/*` are published copies rather than links, so
+  `app/Actions/Auth/passkeys.ts` carries the verification until a release - the
+  same situation `app/Models/Job.ts` documents for the queue.
+
+  The third was mine and would have failed every real security key: an
+  authenticator emits a **DER** signature and `crypto.subtle.verify` wants raw
+  `r || s`. Handing DER straight to it returns `false` for a perfectly valid
+  signature - nothing throws, nothing logs, and every hardware key is reported
+  as a forgery.
+
+  Two things the sign-in path needed. A second factor is now required when the
+  account has *either* TOTP or a passkey - the first version asked only about
+  TOTP, so somebody who registered a passkey and nothing else got a
+  password-only sign-in while their settings page said they were protected,
+  which is worse than no second factor because it is believed. And the
+  authentication options ride along with the challenge, so a browser learns in
+  one round trip that a factor is needed and gets what it needs to ask for it.
+
+  The counter is checked: a value that did not advance is what a *cloned*
+  credential looks like. A permanent zero is allowed, because that is what a
+  synced passkey reports - "how many times has this been used" has no answer
+  across devices, and rejecting it would reject every modern passkey.
 - [x] Single sign-on for self-hosted instances: OIDC first, since it covers most identity providers
       with far less surface than SAML, with group-to-team mapping and just-in-time provisioning
 

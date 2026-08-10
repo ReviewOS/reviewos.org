@@ -166,7 +166,28 @@ export async function spendRecoveryCode(userId: number, code: string): Promise<b
 export async function verifySecondFactor(
   user: { id: number, two_factor_secret?: string | null },
   code: string,
-): Promise<{ ok: boolean, usedRecoveryCode?: boolean }> {
+  passkey?: unknown,
+): Promise<{ ok: boolean, usedRecoveryCode?: boolean, usedPasskey?: boolean }> {
+  /*
+   * A passkey first, when one was offered.
+   *
+   * It is the strongest of the three and the only one that cannot be phished -
+   * the signature is over the origin the browser is actually on, so a
+   * convincing copy of this sign-in page on another domain gets a signature
+   * that verifies against nothing. Somebody who has one should never be asked
+   * for six digits as well.
+   */
+  if (passkey) {
+    const { verifyPasskeyAssertion } = await import('./PasskeyAction')
+
+    if (await verifyPasskeyAssertion(user.id, passkey))
+      return { ok: true, usedPasskey: true }
+
+    // Falling through rather than returning: an assertion that failed is not a
+    // reason to refuse a correct code from the same person, and a browser that
+    // sends a stale assertion alongside a fresh code should not lock them out.
+  }
+
   const offered = String(code ?? '').trim()
 
   if (!offered)

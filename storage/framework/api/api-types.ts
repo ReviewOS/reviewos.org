@@ -16236,6 +16236,29 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/user/passkeys": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "operation"?: "list" | "options" | "register" | "remove"; "id"?: string; "credential"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/user/profile": {
     get?: never
     put?: never

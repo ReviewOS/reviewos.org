@@ -6001,6 +6001,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/user/passkeys
+   */
+  postUserPasskeys(input?: { body?: { "operation"?: "list" | "options" | "register" | "remove"; "id"?: string; "credential"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/passkeys", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/user/profile
    */
   postUserProfile(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

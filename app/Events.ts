@@ -108,6 +108,8 @@ export default {
   'sso:signed-in': ['RecordAudit'],
   'sso:provisioned': ['RecordAudit'],
   'sso:deprovisioned': ['RecordAudit'],
+  'passkey:registered': ['RecordAudit'],
+  'passkey:removed': ['RecordAudit'],
   'two-factor:enabled': ['RecordAudit'],
   'two-factor:disabled': ['RecordAudit'],
   'two-factor:recovery-codes-reissued': ['RecordAudit'],

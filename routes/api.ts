@@ -266,6 +266,16 @@ route.post('/user/two-factor', 'Actions/Auth/TwoFactorAction').middleware('auth'
  */
 route.get('/auth/sso', 'Actions/Auth/SsoAction')
 
+/*
+ * Passkeys: registering one, listing them, removing one.
+ *
+ * Signing in with one is on the login route beside the TOTP code, because it is
+ * the same question at the same moment. Behind `auth` because every operation
+ * here acts on the caller - an endpoint that could remove somebody else's
+ * passkey would be an endpoint that removes a second factor.
+ */
+route.post('/user/passkeys', 'Actions/Auth/PasskeyAction').middleware('auth')
+
 route.post('/user/keys', 'Actions/Keys/AddSshKeyAction').middleware('auth')
 route.delete('/user/keys', 'Actions/Keys/DeleteSshKeyAction').middleware('auth')
 route.post('/user/gpg-keys', 'Actions/Keys/AddGpgKeyAction').middleware('auth')
