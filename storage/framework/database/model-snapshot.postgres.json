@@ -7614,10 +7614,96 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "repository_languages",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "language",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 60
+          },
+          {
+            "name": "bytes",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "percent",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "repository_languages_repo_index",
+            "columns": [
+              "repository_id",
+              "bytes"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "repository_languages_language_index",
+            "columns": [
+              "language",
+              "bytes"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "c5b95b705077225403cd023ce92e22ecbdb25f8008384546f87cc7da2be9732d",
+  "hash": "9def201979032c16412c75177a8107141679e6686f71272c6ecff9e735cbd69f",
   "dialect": "postgres",
-  "updatedAt": "2026-08-10T16:34:22.875Z"
+  "updatedAt": "2026-08-10T19:29:03.136Z"
 }

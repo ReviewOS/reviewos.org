@@ -163,6 +163,24 @@ async function reindex(repositoryId: number): Promise<void> {
   catch (error) {
     console.error('[push] could not queue a reindex:', error)
   }
+
+  /*
+   * And a re-measure of what the repository is written in.
+   *
+   * Here rather than on a schedule, because a language breakdown is only wrong
+   * in one direction - a repository that has just changed - and the push is
+   * exactly when that happened. Separately caught, so a failure to queue one
+   * does not stop the other: they are two independent conveniences and neither
+   * is worth failing a push that is already written to disk.
+   */
+  try {
+    const MeasureLanguagesJob = (await import('./MeasureLanguagesJob')).default
+
+    await MeasureLanguagesJob.dispatch({ repositoryId })
+  }
+  catch (error) {
+    console.error('[push] could not queue a language measurement:', error)
+  }
 }
 
 /**

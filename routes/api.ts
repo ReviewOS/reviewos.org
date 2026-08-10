@@ -425,6 +425,14 @@ route.get('/repos/blame', 'Actions/Browse/BlameAction')
  * needs an index and is deliberately not this.
  */
 route.get('/repos/search', 'Actions/Browse/SearchCodeAction')
+
+/*
+ * What is happening on this instance: trending, recently active, and the
+ * languages and topics to browse by. Public repositories only, enforced in the
+ * reads - an explore page is the one surface where a visibility mistake is not
+ * a leak to one person but a listing.
+ */
+route.get('/explore', 'Actions/Explore/ExploreAction')
 route.get('/repos/compare', 'Actions/Browse/CompareAction')
 
 // Releases. A release is a tag plus what somebody wanted to say about it, so

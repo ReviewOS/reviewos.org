@@ -3495,6 +3495,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/explore
+   */
+  getExplore(input?: { "topic"?: string; "language"?: string; "days"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/explore", input ?? {}, ["topic", "language", "days"], false, options)
+  },
+
+  /**
    * GET /api/feed
    */
   getFeed(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

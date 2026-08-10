@@ -42,12 +42,63 @@ because that is what actually listens.
 
 ## Explore
 
-- [ ] `app/Actions/Explore/TrendingAction.ts` - stars gained over a window, not total stars, so new
+- [x] `app/Actions/Explore/TrendingAction.ts` - stars gained over a window, not total stars, so new
       work can surface
-- [ ] Browse by topic and by language
-- [ ] Recently active repositories
-- [ ] `resources/views/explore.stx`
-- [ ] Language detection per repository from file extensions, stored as a breakdown
+
+  `ExploreAction`, one endpoint rather than four - the page asks one question
+  and four endpoints would be four places the public-only rule has to be right.
+
+  Gained rather than total is the whole reason it exists: a list by total stars
+  is the same list every week and shows nobody anything they did not know.
+  Counted from `stars.created_at`, which is what makes a window possible at all
+  and the reason that table keeps a row per star rather than a counter. The
+  window is bounded at ninety days, because "trending over three years" is the
+  all-time list wearing a disguise.
+- [x] Browse by topic and by language
+
+  Both, as filters on the same page and endpoint, so a filtered view is a URL
+  somebody can link to. Ordered differently on purpose: by topic is by stars,
+  by language is by *how much of that language the repository contains* - the
+  question "what Rust is on this instance" is better answered by the Rust
+  repositories than by the popular ones with a build script in it.
+- [x] Recently active repositories
+
+  From `pushed_at`, which both the push path and the mirror sync write. Returned
+  *alongside* trending rather than as a fallback for it: on a young instance
+  nothing has gained a star this week, and a page that quietly showed recently
+  active under a heading saying "trending" would be lying about what the
+  instance knows. Two lists, two empty states, and the page decides what to
+  hide.
+- [x] `resources/views/explore.stx`
+
+  Server-rendered from the same reads the endpoint calls, for the reason
+  `search.stx` gives: a page that reimplemented the visibility filter would be
+  a second answer to "who may see this", and only one of the two would ever be
+  audited. Here it matters most - explore is the surface where a mistake is a
+  listing rather than a leak to one person, so the test asserts the private
+  repository is absent from the HTML as well as from the JSON.
+
+  Checked in a browser in both themes, which is how the missing half was found:
+  the first version referenced a dozen `explore-*` classes that did not exist
+  and rendered as a stack of unstyled text. Every colour and radius is a theme
+  variable now, so the dark rendering is right rather than accidentally
+  readable.
+- [x] Language detection per repository from file extensions, stored as a breakdown
+
+  A breakdown table rather than a `language` column, which makes "browse by
+  language" a join rather than a scan and stops a repository with a frontend and
+  a backend having to pick one.
+
+  **Bytes, not files.** Forty small YAML files and one large Go program is a Go
+  repository, and counting files says it is YAML - configuration and lock files
+  outnumber source files in most modern projects. Vendored trees, build output
+  and lock files are excluded, and unidentified files leave the numerator rather
+  than being pooled, so the percentages describe the code that *is* identified
+  and add to a hundred. "43% Other" is not information anybody can act on.
+
+  Measured by `MeasureLanguagesJob` on the same push that queues the reindex,
+  from one `git ls-tree -r --long` rather than a walk that asks git per object -
+  on a repository with forty thousand files that is forty thousand processes.
 
 ## Code search
 
@@ -84,6 +135,12 @@ Deliberately separate. This is where forges either invest heavily or ship someth
   is not a search.
 - [ ] Instance-wide code search only after the above, and only with a decision recorded here about
       the index
+
+  A gate rather than a deliverable, and it stays open because the thing it gates
+  is not built. The decision it asks for is recorded on the first box of this
+  section: a trigram index is a subsystem with its own storage, staleness and
+  failure modes, and in-repository search is useful without it. This box gets
+  ticked by somebody who builds the index, not by somebody who decides not to.
 - [x] Regex support, path filters, and language filters
 
   **Literal by default**, which matters more than it sounds: somebody searching
