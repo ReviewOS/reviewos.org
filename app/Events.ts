@@ -104,6 +104,7 @@ export default {
   'token:revoked': ['RecordAudit'],
   'key:added': ['RecordAudit'],
   'key:removed': ['RecordAudit'],
+  'session:revoked': ['RecordAudit'],
   'branch:protection-changed': ['RecordAudit'],
   'branch:protection-removed': ['RecordAudit'],
   'push:protection-bypassed': ['RecordAudit'],

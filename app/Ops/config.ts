@@ -204,6 +204,41 @@ export function inspect(
   }
 
   /*
+   * The idle-session limit, when somebody has set one.
+   *
+   * Absent means no limit, which is the default and a legitimate choice. What
+   * is not legitimate is `AUTH_IDLE_TIMEOUT=30m` or `AUTH_IDLE_TIMEOUT=1800`
+   * from somebody who meant milliseconds: both coerce to "off" or to a limit
+   * that logs everybody out every two seconds, and the first is a hardening
+   * control that reads as configured and does nothing.
+   */
+  const idle = value('AUTH_IDLE_TIMEOUT')
+  if (idle) {
+    const parsed = Number(idle)
+
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      findings.push({
+        variable: 'AUTH_IDLE_TIMEOUT',
+        severity: 'fatal',
+        problem: `is ${JSON.stringify(idle)}, which is not a number of milliseconds`,
+        fix: 'Use milliseconds, as a plain number. 1800000 is thirty minutes.',
+      })
+    }
+    else if (parsed > 0 && parsed < 60_000) {
+      // A minute is already aggressive. Below it, the most likely explanation
+      // is seconds where milliseconds were meant - and the symptom is everybody
+      // being signed out constantly, which reads as the product being broken
+      // rather than as a setting.
+      findings.push({
+        variable: 'AUTH_IDLE_TIMEOUT',
+        severity: 'warning',
+        problem: `is ${parsed}ms, which signs people out after ${Math.round(parsed / 1000)} seconds`,
+        fix: 'This value is in milliseconds. 1800000 is thirty minutes.',
+      })
+    }
+  }
+
+  /*
    * Mail. A warning rather than fatal, because an instance with no mail is a
    * perfectly reasonable private deployment - but somebody should know, since
    * password resets and review notifications both go out this way and their

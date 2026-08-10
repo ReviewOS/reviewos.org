@@ -57,6 +57,7 @@ export type AuditEventName =
   | 'token:revoked'
   | 'key:added'
   | 'key:removed'
+  | 'session:revoked'
   // Protected branches and the rules on them.
   | 'branch:protection-changed'
   | 'branch:protection-removed'
@@ -91,6 +92,7 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'token:revoked',
   'key:added',
   'key:removed',
+  'session:revoked',
   'branch:protection-changed',
   'branch:protection-removed',
   'push:protection-bypassed',

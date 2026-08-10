@@ -63,6 +63,33 @@ export default {
   refreshTokenExpiry: env.AUTH_REFRESH_TOKEN_EXPIRY || 30 * 24 * 60 * 60 * 1000,
 
   /**
+   * How long a session may go **unused** before it stops working.
+   *
+   * Distinct from `tokenExpiry` above, and the distinction is the whole point:
+   * that one bounds how long a session may live, this one bounds how long it
+   * may live untouched. An absolute limit alone lets a browser left open on a
+   * machine somebody walked away from keep working for its full term, which is
+   * the case an idle limit is for.
+   *
+   * **Off by default here, deliberately.** This is a policy about a
+   * deployment's physical security rather than a property of the software, and
+   * a self-hosted instance on somebody's home server has a different answer
+   * from one in a shared office. An idle timeout imposed by surprise reads to
+   * the person it logs out as being logged out at random, which is how people
+   * come to distrust a product's sign-in.
+   *
+   * `AUTH_IDLE_TIMEOUT=1800000` is thirty minutes, which is the number most
+   * offices land on. `docs/self-hosting.md` says so beside the other values an
+   * operator sets.
+   */
+  // Coerced rather than passed through: an environment variable is a string,
+  // and a hardening control that quietly reads as `NaN` is one nobody notices
+  // is off. `buddy instance:check` warns when this is set to something that is
+  // not a positive number of milliseconds, so a typo is reported rather than
+  // silently meaning "no limit".
+  idleTimeout: Number(env.AUTH_IDLE_TIMEOUT ?? 0) || 0,
+
+  /**
    * The token rotation time in hours (default: 24 hours).
    */
   tokenRotation: env.AUTH_TOKEN_ROTATION || 24,

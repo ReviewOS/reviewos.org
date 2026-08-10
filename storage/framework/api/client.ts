@@ -5973,6 +5973,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/user/sessions
+   */
+  postUserSessions(input?: { body?: { "operation"?: "list" | "revoke" | "revoke-others"; "id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/sessions", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/user/tokens
    */
   getUserTokens(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

@@ -227,6 +227,15 @@ route.post('/orgs/members/remove', 'Actions/Org/RemoveMemberAction').middleware(
 // Keys the caller pushes with, and signs with. Both are listed by the settings
 // page rather than by an endpoint: it reads them server-side, so a list route
 // would exist only to be a second way to get the same rows wrong.
+/*
+ * The browsers signed in as you, and the button that ends one.
+ *
+ * One endpoint for the list and the revocation, like the audit log's two
+ * formats: a second is a second place the ownership check has to be right, and
+ * a list of where an account signs in from is a list of where a person is.
+ */
+route.post('/user/sessions', 'Actions/Auth/SessionsAction').middleware('auth')
+
 route.post('/user/keys', 'Actions/Keys/AddSshKeyAction').middleware('auth')
 route.delete('/user/keys', 'Actions/Keys/DeleteSshKeyAction').middleware('auth')
 route.post('/user/gpg-keys', 'Actions/Keys/AddGpgKeyAction').middleware('auth')

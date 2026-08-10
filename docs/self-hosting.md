@@ -58,6 +58,7 @@ The values that have to be right:
 | `DB_HOST` | `127.0.0.1` | `postgres` inside compose, which is the service name. |
 | `DB_PORT` | `5432` | A stray space or quote here reads as a connection refused, which sends people to look at the network. |
 | `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `reviewos` / `postgres` / - | Postgres has exactly one role in the pantry-managed local cluster, so `postgres` is not a placeholder. |
+| `AUTH_IDLE_TIMEOUT` | `0` (off) | How long a session may go **unused** before it stops working, in milliseconds. Distinct from how long it may live at all: an absolute limit alone lets a browser left open on a machine somebody walked away from keep working for its full term. `1800000` is thirty minutes. A value that is not a number stops the instance rather than quietly meaning "off". |
 | `MAIL_HOST` and friends | none | Absent means no password reset and no notification email can be sent, silently. Fine for an invite-only instance, and worth knowing. |
 | `SEARCH_HOST` / `SEARCH_KEY` | - | Meilisearch. The instance works without it; the search page is empty. |
 
@@ -471,6 +472,27 @@ Three things about a deployment, in the order they bite:
   leaking a password.
 - **The backup is a security control.** It contains every private repository on
   the instance, so encrypt it before it leaves the host.
+
+### Sessions
+
+Everybody can see the browsers signed in as them, and end one, from their own
+settings. The list records what each browser called itself and where it
+connected from, because a list you cannot recognise a row in is a list where
+"revoke" is guesswork - which is why "somebody is signed in as me on a laptop I
+sold" has no answer in most self-hosted software.
+
+Two things an operator decides:
+
+- `AUTH_TOKEN_EXPIRY` - how long a session may live at all.
+- `AUTH_IDLE_TIMEOUT` - how long it may live unused. Off by default, because
+  this is a policy about your building rather than about the software, and one
+  imposed by surprise reads to the person it logs out as being logged out at
+  random.
+
+A password reset ends every session, including the one that asked for it. That
+is deliberate: the usual reason to reset a password is that somebody else may
+have had it, and handing back a fresh session at the end would undo the one
+useful thing the reset just did for every device except this one.
 
 ### Keeping the dependencies honest
 

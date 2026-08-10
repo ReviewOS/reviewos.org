@@ -42,8 +42,24 @@ export default new Action({
           .where('email', '=', email)
           .executeTakeFirst()
 
-        if (user)
-          result = await Auth.loginUsingId(Number(user.id))
+        if (user) {
+          /*
+           * The device, recorded on the session row.
+           *
+           * So `SessionsAction` can show somebody a list they can recognise -
+           * without this the page is a column of identical timestamps and
+           * "revoke" is guesswork. Untrusted, both of them: a user agent is a
+           * string a client chose and an address is what the nearest trusted
+           * proxy saw. Nothing authorises on either; they are there to be read
+           * by the person the session belongs to.
+           */
+          result = await Auth.loginUsingId(Number(user.id), {
+            userAgent: String(request?.headers?.get?.('user-agent') ?? '') || null,
+            ipAddress: String(request?.headers?.get?.('x-forwarded-for') ?? '').split(',')[0]?.trim()
+              || String(request?.headers?.get?.('x-real-ip') ?? '').trim()
+              || null,
+          })
+        }
       }
     }
     catch {

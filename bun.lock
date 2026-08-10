@@ -5,20 +5,20 @@
     "": {
       "name": "reviewos",
       "dependencies": {
-        "@stacksjs/actions": "^0.70.347",
-        "@stacksjs/database": "^0.70.347",
-        "@stacksjs/events": "^0.70.351",
-        "@stacksjs/orm": "^0.70.347",
-        "@stacksjs/queue": "^0.70.347",
-        "@stacksjs/search-engine": "^0.70.347",
-        "@stacksjs/server": "^0.70.351",
+        "@stacksjs/actions": "^0.70.352",
+        "@stacksjs/database": "^0.70.352",
+        "@stacksjs/events": "^0.70.352",
+        "@stacksjs/orm": "^0.70.352",
+        "@stacksjs/queue": "^0.70.352",
+        "@stacksjs/search-engine": "^0.70.352",
+        "@stacksjs/server": "^0.70.352",
         "@stacksjs/stx": "0.2.162",
         "@stacksjs/ts-ssh": "^0.1.0",
         "buddy-bot": "^0.9.27",
         "bun-query-builder": "^0.2.25",
         "mermaid": "^11.16.1",
         "pickier": "^0.1.49",
-        "stacks": "^0.70.347",
+        "stacks": "^0.70.352",
         "ts-git-lfs": "^0.1.1",
         "ts-pantry": "^0.11.19",
         "ts-syntax-highlighter": "^0.2.13",
@@ -64,29 +64,29 @@
 
     "@mermaid-js/parser": ["@mermaid-js/parser@1.2.0", "", { "dependencies": { "@chevrotain/types": "~11.1.2" } }, "sha512-oYPyv8A4As1yH5Bx+04iQEQxXuIQDe0GKCNSRgao6z8AM9jixXIfP0vsppRLvGf+nKIOb9/LdpWA4YuJiVvESA=="],
 
-    "@stacksjs/actions": ["@stacksjs/actions@0.70.347", "", { "dependencies": { "@stacksjs/bumpx": "^0.2.6", "@stacksjs/bunpress": "^0.1.18", "@stacksjs/config": "0.70.347", "@stacksjs/logsmith": "^0.2.3", "@stacksjs/registry": "0.70.347", "@stacksjs/stx": "^0.2.148", "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/ts-md": "^0.1.1" }, "peerDependencies": { "pickier": "^0.1.35" }, "optionalPeers": ["pickier"] }, "sha512-7EvXkr8FlmR8/bgc8fK7fiVG2L5PhSkNCcNTT97YToTkmZHM/JVvq+F9eOl+pXFUSxaxkIR9FdiIlsuJNgi9Fg=="],
+    "@stacksjs/actions": ["@stacksjs/actions@0.70.352", "", { "dependencies": { "@stacksjs/bumpx": "^0.2.6", "@stacksjs/bunpress": "^0.1.18", "@stacksjs/config": "0.70.352", "@stacksjs/logsmith": "^0.2.3", "@stacksjs/registry": "0.70.352", "@stacksjs/stx": "^0.2.148", "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/ts-md": "^0.1.1" }, "peerDependencies": { "pickier": "^0.1.35" }, "optionalPeers": ["pickier"] }, "sha512-SGR4yoM0OifLjkS0sB/5AMS/Bphzmbjjnl1AXqAhdcnLNeq27zwi7nJzG7XU1NP8PhnjuAUlYq7ylTJ3ira32Q=="],
 
-    "@stacksjs/ai": ["@stacksjs/ai@0.70.347", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103" }, "peerDependencies": { "@anthropic-ai/claude-agent-sdk": "^0.2.79" }, "optionalPeers": ["@anthropic-ai/claude-agent-sdk"] }, "sha512-xWCMUJw6WNnKK4fgUiTiB+e5+hGouZih5SBM3I78QXgczRwMYO5NWJVA/szxQIlR2Ogxi1vqcF5CamGSId2ffg=="],
+    "@stacksjs/ai": ["@stacksjs/ai@0.70.352", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103" }, "peerDependencies": { "@anthropic-ai/claude-agent-sdk": "^0.2.79" }, "optionalPeers": ["@anthropic-ai/claude-agent-sdk"] }, "sha512-0GgvvuyJraGLqOHhNPn4iGPyEgPwAiM4Y8FclKaKcDNcmomTk2JzMzZhSfTnQ+PNDIUZ6l4Cp67EN05mCJ+ytg=="],
 
-    "@stacksjs/alias": ["@stacksjs/alias@0.70.347", "", {}, "sha512-PUL9w3XJixNy6aILpZA90KDkVjgdgPHCvPJTLOIqnUNXSGbUO/net4fNapYOMZO5x19wFiWvEv3dYanhGuB8yg=="],
+    "@stacksjs/alias": ["@stacksjs/alias@0.70.352", "", {}, "sha512-yz98qVhwgtdarDDjsSuAX+RURCEc48xDteTLT/4BxgTXIVL9eRJ7Mistau3/blV3q0JjmLbEirIf/rof4T6+Eg=="],
 
-    "@stacksjs/analytics": ["@stacksjs/analytics@0.70.347", "", {}, "sha512-k7ldTJDeTyPnV5LV/jhxNNergNZwcmdTtJG/nyaZd9wkvtCX6/8WViAQIqIkOoTkkPEBHVcbzQKof4EwZUvL2w=="],
+    "@stacksjs/analytics": ["@stacksjs/analytics@0.70.352", "", {}, "sha512-+eiooww7H54tmwPXme5IpCMbWlt8gFTqKe33mdj0N5N+AXxTBYJdbQZ7GSYrGBj5hLDleiEZfbatuxHYLXYFVQ=="],
 
-    "@stacksjs/api": ["@stacksjs/api@0.70.347", "", {}, "sha512-i8PgJgM/7jBImcMKZqR+mlz0RSgAW0ac2H+MvE9EB+NhNFACEOuFdkRUhHgig9Y3fZOIz7XVPpOHbT2a1ydqpg=="],
+    "@stacksjs/api": ["@stacksjs/api@0.70.352", "", {}, "sha512-VRYDdJnBwFkFtDVTGwlbyiHAC/uckMWbc3eadDEJqIPh/S5jeqg2jCmTDFQ8Vqg4rp1vk6n0Pu1LXY+Zr1//HA=="],
 
-    "@stacksjs/arrays": ["@stacksjs/arrays@0.70.347", "", {}, "sha512-5e4Y4hW6o0qnunlxBB7Bmtj8FSAUzTLv/lMKNTdNmCft4ARPu/KYv5l15MPdQBxIqN8oottyZ3PPkDHaOifJIQ=="],
+    "@stacksjs/arrays": ["@stacksjs/arrays@0.70.352", "", {}, "sha512-bthsjORUja9dajodsWGu+UNnhSWVCobhwh8ER5964ZxOWS7Q1a+dknq11/u+wr4g3rgQMo4hN6xM6DSAUzjmDA=="],
 
-    "@stacksjs/audio": ["@stacksjs/audio@0.70.347", "", { "dependencies": { "@ts-audio/core": "^0.1.1", "ts-video-player": "^0.1.0" } }, "sha512-3iCt9zZE1emkWvWNhy3X2YDAFJDM1ItVuPxQy2ciLP3Bx7t9CV2BQioskVU1afOPiMSWjva/wZy7cDmU1GPgNA=="],
+    "@stacksjs/audio": ["@stacksjs/audio@0.70.352", "", { "dependencies": { "@ts-audio/core": "^0.1.1", "ts-video-player": "^0.1.0" } }, "sha512-Tzt7TV3b351tn2aChgxPUVtoxlSNQfbPaVZrd5dmfJw1piHK176FjVps+jar9FLwTkQF+aQEjukIOXZ0174jwg=="],
 
-    "@stacksjs/auth": ["@stacksjs/auth@0.70.347", "", { "dependencies": { "@stacksjs/bun-router": "^0.0.21", "@stacksjs/ts-auth": "^0.4.3" } }, "sha512-SZdF6C+HY7Q/eyGCDdrhvHRSM8PYQhM/OGiuY6VLBMdjtbeLC7kvKCgX+RBmHBp2z/G/VlZCE0owLLt6GPzCLA=="],
+    "@stacksjs/auth": ["@stacksjs/auth@0.70.352", "", { "dependencies": { "@stacksjs/bun-router": "^0.0.21", "@stacksjs/ts-auth": "^0.4.3" } }, "sha512-I7Apdq+bp1BMZ2xlqumnN9lEOYg0+3tRtExjAyBrHhBGTU0lnsDNZmf1SeCTcNzj/qXz2c8yAyaNfOCys76ghQ=="],
 
-    "@stacksjs/browser": ["@stacksjs/browser@0.70.347", "", { "dependencies": { "@stacksjs/composables": "0.70.347", "@stacksjs/stx": "^0.2.148", "bun-query-builder": "^0.2.25" }, "peerDependencies": { "@stripe/stripe-js": "^9.10.0" }, "optionalPeers": ["@stripe/stripe-js"] }, "sha512-co9cUmCQ/A65YVvja/x4O5lNj+eEdZVv0awtmDoez3L4m8Tt/Koi02v5QSrYyUENDHpS1tKxRpIAdnUZqCJILw=="],
+    "@stacksjs/browser": ["@stacksjs/browser@0.70.352", "", { "dependencies": { "@stacksjs/composables": "0.70.352", "@stacksjs/stx": "^0.2.148", "bun-query-builder": "^0.2.25" }, "peerDependencies": { "@stripe/stripe-js": "^9.10.0" }, "optionalPeers": ["@stripe/stripe-js"] }, "sha512-8odv837wJ8VV50vV15nJVLp1X/e7NnWcjiEG3e5e7qfQjHKli9aVQ1bzWzDw+SHkhGYst6sH53m+wf9macGrMA=="],
 
-    "@stacksjs/browser-extension": ["@stacksjs/browser-extension@0.70.347", "", { "dependencies": { "ts-pantry": "^0.11.0" }, "peerDependencies": { "web-ext": ">=8" }, "optionalPeers": ["web-ext"] }, "sha512-OYppSRp/T9hE5EWaJjAZq4xG8nOM9QLjNJR8R36u0REAn6XoHlTpdB5rfSlyd0bHT5S6ZRkU84cHm+htFxXhmw=="],
+    "@stacksjs/browser-extension": ["@stacksjs/browser-extension@0.70.352", "", { "dependencies": { "ts-pantry": "^0.11.0" }, "peerDependencies": { "web-ext": ">=8" }, "optionalPeers": ["web-ext"] }, "sha512-MEv62674H9kahJTHHvKj49MkK22163z3VIZfIYm33tJQb/YfG4dketan7BvAT6UQrIPNQ2eaTNO1Y6zorPU8+w=="],
 
-    "@stacksjs/buddy": ["@stacksjs/buddy@0.70.347", "", { "dependencies": { "@stacksjs/actions": "^0.70.347", "@stacksjs/ai": "^0.70.347", "@stacksjs/alias": "^0.70.347", "@stacksjs/arrays": "^0.70.347", "@stacksjs/auth": "^0.70.347", "@stacksjs/build": "^0.70.347", "@stacksjs/cache": "^0.70.347", "@stacksjs/clapp": "^0.2.12", "@stacksjs/cli": "^0.70.347", "@stacksjs/cloud": "^0.70.347", "@stacksjs/collections": "^0.70.347", "@stacksjs/config": "^0.70.347", "@stacksjs/database": "^0.70.347", "@stacksjs/desktop-build": "^0.70.347", "@stacksjs/dns": "^0.70.347", "@stacksjs/dnsx": "^0.2.3", "@stacksjs/email": "^0.70.347", "@stacksjs/enums": "^0.70.347", "@stacksjs/error-handling": "^0.70.347", "@stacksjs/events": "^0.70.347", "@stacksjs/git": "^0.70.347", "@stacksjs/gitit": "^0.2.5", "@stacksjs/health": "^0.70.347", "@stacksjs/httx": "^0.1.10", "@stacksjs/image": "^0.70.347", "@stacksjs/lint": "^0.70.347", "@stacksjs/logging": "^0.70.347", "@stacksjs/notifications": "^0.70.347", "@stacksjs/objects": "^0.70.347", "@stacksjs/orm": "^0.70.347", "@stacksjs/path": "^0.70.347", "@stacksjs/payments": "^0.70.347", "@stacksjs/realtime": "^0.70.347", "@stacksjs/router": "^0.70.347", "@stacksjs/rpx": "^0.11.42", "@stacksjs/search-engine": "^0.70.347", "@stacksjs/security": "^0.70.347", "@stacksjs/server": "^0.70.347", "@stacksjs/skills": "^0.70.347", "@stacksjs/storage": "^0.70.347", "@stacksjs/strings": "^0.70.347", "@stacksjs/testing": "^0.70.347", "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/tunnel": "^0.70.347", "@stacksjs/types": "^0.70.347", "@stacksjs/ui": "^0.70.347", "@stacksjs/utils": "^0.70.347", "@stacksjs/validation": "^0.70.347", "ajv": "^8.20.0", "ajv-formats": "^3.0.1", "ts-pantry": "^0.11.0" }, "bin": { "stacks": "dist/cli.js", "buddy": "dist/cli.js", "bud": "dist/cli.js" } }, "sha512-OGgKYZ3OmsbnOe1QV1pYndbm8YNmLG2WmMMFsHuxZa7SQ/0COUSZkPCAEsvVJmQnXLCeq+NIC+qpibdkQhtvig=="],
+    "@stacksjs/buddy": ["@stacksjs/buddy@0.70.352", "", { "dependencies": { "@stacksjs/actions": "^0.70.352", "@stacksjs/ai": "^0.70.352", "@stacksjs/alias": "^0.70.352", "@stacksjs/arrays": "^0.70.352", "@stacksjs/auth": "^0.70.352", "@stacksjs/build": "^0.70.352", "@stacksjs/cache": "^0.70.352", "@stacksjs/clapp": "^0.2.12", "@stacksjs/cli": "^0.70.352", "@stacksjs/cloud": "^0.70.352", "@stacksjs/collections": "^0.70.352", "@stacksjs/config": "^0.70.352", "@stacksjs/database": "^0.70.352", "@stacksjs/desktop-build": "^0.70.352", "@stacksjs/dns": "^0.70.352", "@stacksjs/dnsx": "^0.2.3", "@stacksjs/email": "^0.70.352", "@stacksjs/enums": "^0.70.352", "@stacksjs/error-handling": "^0.70.352", "@stacksjs/events": "^0.70.352", "@stacksjs/git": "^0.70.352", "@stacksjs/gitit": "^0.2.5", "@stacksjs/health": "^0.70.352", "@stacksjs/httx": "^0.1.10", "@stacksjs/image": "^0.70.352", "@stacksjs/lint": "^0.70.352", "@stacksjs/logging": "^0.70.352", "@stacksjs/notifications": "^0.70.352", "@stacksjs/objects": "^0.70.352", "@stacksjs/orm": "^0.70.352", "@stacksjs/path": "^0.70.352", "@stacksjs/payments": "^0.70.352", "@stacksjs/realtime": "^0.70.352", "@stacksjs/router": "^0.70.352", "@stacksjs/rpx": "^0.11.42", "@stacksjs/search-engine": "^0.70.352", "@stacksjs/security": "^0.70.352", "@stacksjs/server": "^0.70.352", "@stacksjs/skills": "^0.70.352", "@stacksjs/storage": "^0.70.352", "@stacksjs/strings": "^0.70.352", "@stacksjs/testing": "^0.70.352", "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/tunnel": "^0.70.352", "@stacksjs/types": "^0.70.352", "@stacksjs/ui": "^0.70.352", "@stacksjs/utils": "^0.70.352", "@stacksjs/validation": "^0.70.352", "ajv": "^8.20.0", "ajv-formats": "^3.0.1", "ts-pantry": "^0.11.0" }, "bin": { "stacks": "dist/cli.js", "buddy": "dist/cli.js", "bud": "dist/cli.js" } }, "sha512-Rv64kSKbaa+5NYIUIO6tcCRjkdUwnUNyxdqDdEBqpQRTXohcXV4hiXAEEw6w25tiZVHYCsEyouyJ66War4/QxQ=="],
 
-    "@stacksjs/build": ["@stacksjs/build@0.70.347", "", {}, "sha512-N8aC3BnBiKZTd5YLJ0RlDaUcZTnjhBs/1dhaxZUr2Pi7QYCSioP20u3cOokw5rHvOQS9DxpLTaXhckM2DtO+9w=="],
+    "@stacksjs/build": ["@stacksjs/build@0.70.352", "", {}, "sha512-6r4VhYl/1uOroAbs5nNPp4L3Ae1EEC4hT8g9m+j4sjhtBdcKwT94CUymU1jVcAhhy7q0DbiCOHiE6zyfrcJYLg=="],
 
     "@stacksjs/bumpx": ["@stacksjs/bumpx@0.2.14", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "@stacksjs/logsmith": "^0.2.6", "bunfig": "^0.15.6" }, "bin": { "bumpx": "./dist/bin/cli.js" } }, "sha512-oXmnW19QEjCGaa4VCCnlMgPSNd7uuFes/A5zBKYHDvCvwGAPuhhg3M3hYDvIAe+jOh2Te1yFs9IfvG84kQmBBg=="],
 
@@ -96,149 +96,149 @@
 
     "@stacksjs/bunpress": ["@stacksjs/bunpress@0.1.21", "", { "dependencies": { "@stacksjs/stx": "^0.2.82", "@stacksjs/ts-cloud": "^0.7.51", "@stacksjs/ts-md": "^0.1.1", "bunfig": "^0.15.6" }, "bin": { "bunpress": "./dist/bin/cli.js" } }, "sha512-F44YG7rylrrrDasCK0RLUvOCuMFzXiJPM+Y22FgLc1dq1nYlRmZ+wk/3IRndWVGIiCyy0FsWKDka7ktk345SAA=="],
 
-    "@stacksjs/cache": ["@stacksjs/cache@0.70.347", "", { "dependencies": { "@stacksjs/ts-cache": "^0.1.5" } }, "sha512-py+wwE0kX5IZQpTGdZ3uYWVDH5CYUfFznNQqxRIJWWwV5TeDKA8TaQkgKk0TG2bPSRj/z11EEJ10Gm9jtGiViw=="],
+    "@stacksjs/cache": ["@stacksjs/cache@0.70.352", "", { "dependencies": { "@stacksjs/ts-cache": "^0.1.5" } }, "sha512-wfMWAGfj6vJHkblm8xQyLEOFpqcFkXL/qD9ki5OknEF9676zw8YTJN3j+QAcDiMOahCIgdaBkCdWh8MOYw+5uQ=="],
 
-    "@stacksjs/calendar-api": ["@stacksjs/calendar-api@0.70.347", "", { "dependencies": { "@stacksjs/stx": "^0.2.148" } }, "sha512-gq7bnBRWoSfQ3AmQ/znxOI1ugcTdFzaflJe2JXZe1cgmCpgLSDIgBSsp3fIsf/FK+WJmw5at5HPFFHzCYej4KQ=="],
+    "@stacksjs/calendar-api": ["@stacksjs/calendar-api@0.70.352", "", { "dependencies": { "@stacksjs/stx": "^0.2.148" } }, "sha512-0ubR0+8lGiz0AkoUEdXipQVN3pqt3VxeIKxoZH2RI7vHddEPBgZkuS8J3ZZXlNLWZkzWA4BUWNTsUbi4o65JfQ=="],
 
-    "@stacksjs/charts": ["@stacksjs/charts@0.70.347", "", { "dependencies": { "@ts-charts/format": "^0.2.6", "@ts-charts/scale": "^0.2.6", "@ts-charts/shape": "^0.2.6" } }, "sha512-wcxLxU7xshXTUlGqX6/LEVxou7uFKaFroagLdZbufbO6IZUod/hmmbh/o6FGx55zD9tYSEImA6o22OJS1LGgrQ=="],
+    "@stacksjs/charts": ["@stacksjs/charts@0.70.352", "", { "dependencies": { "@ts-charts/format": "^0.2.6", "@ts-charts/scale": "^0.2.6", "@ts-charts/shape": "^0.2.6" } }, "sha512-Mk76OdoMIFm13XCd+Cjy+YQFvt0I4H0DMQ+5oUVei1mskjjVtRr05ysgX9EvtT+MimJwsuAy5eyCCIols7AMQA=="],
 
-    "@stacksjs/chat": ["@stacksjs/chat@0.70.347", "", {}, "sha512-z8Nv7sffzBxc457c93ZF+XEzcwb3vYQQyDoy9dQMCRQVV0tA7GxhbbhqXK2n2dRNZYKRXfk8AuC2GDKuV2Mjdg=="],
+    "@stacksjs/chat": ["@stacksjs/chat@0.70.352", "", {}, "sha512-Sr9nqW7toKVAlafKFABeOzvmVmTFBPLCxoM1snEIL9f2NAe4yRh6qN8nuaiymn1Qf/NXo+7xrLAfCWs7GYl1CA=="],
 
     "@stacksjs/clapp": ["@stacksjs/clapp@0.2.12", "", {}, "sha512-EzCjl9cfKNMe7UPONHSSAffyfFVrbLzcEVx2i6HYLnJkcka5HFf1vPvOMkErCC10WDX+2Z1BOMTdsTXP1MqIbQ=="],
 
     "@stacksjs/clarity": ["@stacksjs/clarity@0.3.31", "", { "dependencies": { "bunfig": "^0.15.6" }, "bin": { "clarity": "./dist/bin/cli.js" } }, "sha512-lMw327fKgABG7+cPwtJoiEFlrC9foxrMYKRWIagqEtNHKzgxBR17hOAXH27D4hgLDLvkQFUCNDY4kcWXCt62fQ=="],
 
-    "@stacksjs/cli": ["@stacksjs/cli@0.70.347", "", { "dependencies": { "@stacksjs/clapp": "^0.2.12" } }, "sha512-mWxk67m3FvoZ359XdKXo7tFKZ5EscxnccWztLpSew0g1bv3FdP7C2AqIlbersK5u5VebvCZyf45vGHE9wpWn5g=="],
+    "@stacksjs/cli": ["@stacksjs/cli@0.70.352", "", { "dependencies": { "@stacksjs/clapp": "^0.2.12" } }, "sha512-uPIobIi9q/d9opXNXS3+OI3qer2Z61+0eVbfJ+cOrwv9/wjYd6G9O42JfZWuvAqaErwq7VDPtYePLOohrz5qYA=="],
 
-    "@stacksjs/cloud": ["@stacksjs/cloud@0.70.347", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/ts-xml": "^0.1.0" } }, "sha512-tIRsYnvPrAHov2iSYsWAh48brBWURlQIxchqn7Kw4NKqzPUHm9NV/aXBohSWVfw0wnMN/01gLij0tSm197seow=="],
+    "@stacksjs/cloud": ["@stacksjs/cloud@0.70.352", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/ts-xml": "^0.1.0" } }, "sha512-EfjStmHqKaXXtYbHIcpNPE/yMdUD011rPoHgB+L/7NPWQvdUnMwAFnegzMTSPOdkFJEBxCX6QKWpu6BH9cBUhg=="],
 
-    "@stacksjs/cms": ["@stacksjs/cms@0.70.347", "", { "dependencies": { "ts-slug": "^0.1.0", "ts-spreadsheets": "^0.2.0" } }, "sha512-Z1TuAYrD+lfi/qx8QUM4XzSciK7UjQj734zf5PLuKhFfw2V8wH+G4EFDZkM55/thDc6oOSAfn8Iog2OoApikmw=="],
+    "@stacksjs/cms": ["@stacksjs/cms@0.70.352", "", { "dependencies": { "ts-slug": "^0.1.0", "ts-spreadsheets": "^0.2.0" } }, "sha512-GzxN+kUHzmYWEbtxcio4O7eYiz0tNEj2H5k+v2X4eGOlykItKtehXHBvbTfk0vi7DxdJXAbuzUyGMl/ZysIUuA=="],
 
-    "@stacksjs/collections": ["@stacksjs/collections@0.70.347", "", { "dependencies": { "ts-collect": "^0.4.3" } }, "sha512-e3UsaAcpXlH4us4t42EaUiR4Eyz7T8EnzL0TrlIxwrI389CxH8JIeXXH79JY3/f4giZFPxy7FRyXF+cqBFypDw=="],
+    "@stacksjs/collections": ["@stacksjs/collections@0.70.352", "", { "dependencies": { "ts-collect": "^0.4.3" } }, "sha512-NFQcoXu4tYPFPWe9K1EiHGUghpbqCvrIZO3fKZomhRVxJp8VXwc2UB6vG2s0MOAtZgJ3GGi54C6hIO/YaXpzeA=="],
 
-    "@stacksjs/commerce": ["@stacksjs/commerce@0.70.347", "", { "dependencies": { "ts-spreadsheets": "^0.2.0" } }, "sha512-uTkekp/YbkOsXeos4+XMfFR/jct1s8uLAf/KvZqOKFP4p8OnGDAJFUNgOjmJWr3ETM89l5ZApXPUh8zjrZlx+g=="],
+    "@stacksjs/commerce": ["@stacksjs/commerce@0.70.352", "", { "dependencies": { "ts-spreadsheets": "^0.2.0" } }, "sha512-/2caO5HaV1wacwnN1zdReaT51hXgk98/9CKzOMWlulIWeitephAkIbjOIdjuGy/3Qh2z/pc5p7nBHW7rMHp4Wg=="],
 
     "@stacksjs/components": ["@stacksjs/components@0.2.154", "", { "dependencies": { "@cwcss/crosswind": "^0.2.14", "@iconify-json/f7": "^1.2.2", "@stacksjs/stx": "0.2.153", "bun-plugin-stx": "0.2.153", "ts-syntax-highlighter": "^0.2.1" } }, "sha512-KCyV2vW8f/Mis1uW0sWtZGydhBXy55w9mcJvXo5wJij4cVWrji/WqewXkGl2B3VIRs0ZhqF2U9cBpD+RADMYYA=="],
 
-    "@stacksjs/composables": ["@stacksjs/composables@0.70.347", "", { "dependencies": { "@stacksjs/datetime": "0.70.347", "@stacksjs/stx": "^0.2.148" } }, "sha512-MGxFSMY2osjZRLrMvRexuOnQlGkjv5gyG0S+Q/GAkFHfL5to9hbvAXWgTcr0Ej3hRTMeh4U05nuAHxCZWuvNFw=="],
+    "@stacksjs/composables": ["@stacksjs/composables@0.70.352", "", { "dependencies": { "@stacksjs/datetime": "0.70.352", "@stacksjs/stx": "^0.2.148" } }, "sha512-4FksqDScuZIA24AOGg4b4z8t1U5KCgBGnlBd+kvLkjFsxovInHgHDYNpeZ/kAaXe3CyqZ5wyozx5A2WRArksMw=="],
 
-    "@stacksjs/config": ["@stacksjs/config@0.70.347", "", { "dependencies": { "ts-pantry": "^0.11.0" } }, "sha512-qlETocpOUQv0EqmaJ6JHeC5eT71Vaj45qmoFf7gAFxAKSUW/oJNWGTDl5lIbpzTxixZSq0cPE3rdoxCk10SM8w=="],
+    "@stacksjs/config": ["@stacksjs/config@0.70.352", "", { "dependencies": { "ts-pantry": "^0.11.0" } }, "sha512-iEYMLzC+F46EWtGT6kPZsDc4pN2xjXs1gr597CH89CbhbKgLNoq75NlWnzzKyxhgzd0Q43fK0pahMCysHlHOJg=="],
 
-    "@stacksjs/cron": ["@stacksjs/cron@0.70.347", "", {}, "sha512-YoD5NzvDGwrbp8M2lWU+bvRbzxuwqjUfWh0tUlyJoi//dDNDUWxM1JrrG7UaNqT+hQY2j2+f+NLMpkEDXDDs/w=="],
+    "@stacksjs/cron": ["@stacksjs/cron@0.70.352", "", {}, "sha512-T27PWN5dqDAP6861jX46gJFInIwnECjL9RFMPLWvtccGwGdXHScn8do2ZZKKNRMOGf3yKyM4GL2P+3mg2ewtDg=="],
 
-    "@stacksjs/database": ["@stacksjs/database@0.70.347", "", { "dependencies": { "@stacksjs/ts-validation": "^0.5.0", "bun-query-builder": "^0.2.25", "dynamodb-tooling": "^0.3.2" } }, "sha512-SB2BEe4orS32xjUXJNYTcft8biqxdCcGbZ2SehFdu/aBYmKNI/YY2dSUCsBzjfP3B9+Jm8okL8hNhiGEz70CEw=="],
+    "@stacksjs/database": ["@stacksjs/database@0.70.352", "", { "dependencies": { "@stacksjs/ts-validation": "^0.5.0", "bun-query-builder": "^0.2.25", "dynamodb-tooling": "^0.3.2" } }, "sha512-9szJJ5/Cni7/oF2gHRLmWQUyVIsHV2QtCtzG4BB/lHP+9HBV/bG5kmFanH0VfT1MxmhInttBTmBSNqZY5EwH6A=="],
 
-    "@stacksjs/datetime": ["@stacksjs/datetime@0.70.347", "", {}, "sha512-fOM3K83dmTrfWWpzFupgjHf1DV9FWu7ijNTv9129ty5eWJ9eMPXjBDIvtMjMogVUEj60kOb2TlY2M6vrKCg8ow=="],
+    "@stacksjs/datetime": ["@stacksjs/datetime@0.70.352", "", {}, "sha512-1gc0TYErBlr6XlUakkrbhWorFieVFf4cSOBpgdHmOzcxB6eLcy8A55JF/P2lFlYzTX/g4bHNZa6PStq5Yhu1dw=="],
 
-    "@stacksjs/defaults": ["@stacksjs/defaults@0.70.347", "", { "dependencies": { "@iconify-json/f7": "^1.2.2", "@iconify-json/hugeicons": "^1.2.27", "@stacksjs/sanitizer": "^0.2.113" } }, "sha512-hjAEgLhTnKUUNTCZ/koJXORGf/Is4uNGD2lbbxl1DMnKqWSaMnSrRIQQf23IhV3rphvbAGqhuMkhaT73BKdXzQ=="],
+    "@stacksjs/defaults": ["@stacksjs/defaults@0.70.352", "", { "dependencies": { "@iconify-json/f7": "^1.2.2", "@iconify-json/hugeicons": "^1.2.27", "@stacksjs/sanitizer": "^0.2.113" } }, "sha512-IYyuUoNaBbFTFRPafQTFDy3ENNZFArH2ymq/ihzT5PuaoB/YJ43f/XIX+83SjvlBVVvorT2GpVhbwj7z+htV5Q=="],
 
     "@stacksjs/desktop": ["@stacksjs/desktop@0.2.162", "", { "dependencies": { "craft-native": ">=0.0.55" } }, "sha512-bDHYHy4kGyx72OUsRUjm5XgmLQ3KowX7ER838GhnpZtrdhgD3K5laFNNJq+KBS34H39SuRzts2wt1C3+i/u5Zw=="],
 
-    "@stacksjs/desktop-build": ["@stacksjs/desktop-build@0.70.347", "", {}, "sha512-2NMiYRzbxhmY16UnusLUIkYQe+kaDg/81/MabgAhMBjn8vqvs10Ega9UCnBCQSRTvoQTN19pOIeLqfgWIPAmWg=="],
+    "@stacksjs/desktop-build": ["@stacksjs/desktop-build@0.70.352", "", {}, "sha512-w7eF7I3r+hnkyALOhBFtCnZwXLMXYDOLz5rmrLfKu/X3i2+jPOb1qeZStsWcjsue+a159S3mHq057rtyLneF7A=="],
 
-    "@stacksjs/dns": ["@stacksjs/dns@0.70.347", "", { "dependencies": { "@stacksjs/dnsx": "^0.2.3", "@stacksjs/ts-cloud": "^0.7.103" } }, "sha512-rolENXABSQF+s1STBUShYm646tUc14hNYuMuZjLontLUMdW0VfH2nbW5wqBIh3gm+BB8/cgyOhTVSwqD6McHvA=="],
+    "@stacksjs/dns": ["@stacksjs/dns@0.70.352", "", { "dependencies": { "@stacksjs/dnsx": "^0.2.3", "@stacksjs/ts-cloud": "^0.7.103" } }, "sha512-nsOxkX+5nJcvPwm/Q0R93ylNGn/qPdlnaC9YfbD3edcW9FxJ2T6OiFd44Iqf3ks9cGo8ELD7vIczOC1o8HOZDA=="],
 
     "@stacksjs/dnsx": ["@stacksjs/dnsx@0.2.3", "", { "bin": { "dnsx": "./dist/bin/cli.js" } }, "sha512-KoubPLapgNSEOoTJNEL3BV1WIhSHz70Kzyf2i2EM9ZViaNOeHrUOIwG8qRX9D+L/5Njh45LmAG+vwkaJalD1ng=="],
 
-    "@stacksjs/docs": ["@stacksjs/docs@0.70.347", "", { "dependencies": { "@stacksjs/bunpress": "^0.1.18" } }, "sha512-accsfyH9djsPZlP/6QMXxDqHf4j7lY65CKACqrwAY62djyscSiPHL51K2TpS9+a4XvXB5E5dhyFYsgSm4pRSSg=="],
+    "@stacksjs/docs": ["@stacksjs/docs@0.70.352", "", { "dependencies": { "@stacksjs/bunpress": "^0.1.18" } }, "sha512-Fd9DNgcqBq1yVbbOJTDMXy8nBE7FIm27Bq5y4YfHESiti5Vvw2Apjrowxff2EpLeaQC2teCKhBkupVlfSrR5jQ=="],
 
     "@stacksjs/dtsx": ["@stacksjs/dtsx@0.11.2", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0" }, "bin": { "dtsx": "./dist/bin/cli.js" } }, "sha512-r2KkpKV80wV55jpCh3lHgmvulCvQMBFf8KEzbtqwF36rx7NqYonn6w8TJ63MTPPHwOqLzNXA1oRSY4S+z2kTMQ=="],
 
-    "@stacksjs/email": ["@stacksjs/email@0.70.347", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103" } }, "sha512-TEAczVgHc+nKmFgz0P9/OtPjxAMaFBd14HiXpfXCbqkzFN9DRvsmAl2d4WE6esrhcsNcYZgxJHVe04clwzTSlg=="],
+    "@stacksjs/email": ["@stacksjs/email@0.70.352", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103" } }, "sha512-+FuTEF/vmWJ/L6H2xWljSNbgejUquxj95GpFSHy0hZN9ZdpikiYcix50w8ZV3lUcKYWjaC9TgfFtVnJ6pGYoSg=="],
 
-    "@stacksjs/enums": ["@stacksjs/enums@0.70.347", "", {}, "sha512-SxEof1zWhRqbAVEDa1Di/PrWFrpu6g8fgqzRPr8nhUw2+6fIyGnS5+sw7TUAgEOoxYFhW6RdKBTyPNekb9ePYA=="],
+    "@stacksjs/enums": ["@stacksjs/enums@0.70.352", "", {}, "sha512-ecoSLk+egEZ82ASOIqyRGk6H/wT7m7ZURELjolw/ViRd5BytOo0JZXeEndH8EGMeASThscHVaS9CCsvA3UNyZA=="],
 
-    "@stacksjs/env": ["@stacksjs/env@0.70.347", "", {}, "sha512-NYFv59wapKvIz6HKKLNe/bFFiEKx5fNDN7Geo6rerjOH+/zadSPeAb6Rmmi/rJbUi8ei1XG43gWrq0ayOxzj5Q=="],
+    "@stacksjs/env": ["@stacksjs/env@0.70.352", "", {}, "sha512-H2YJareHTrtlD8lpJv81CSBsCrwEFhpW0mMRrk5dNDVbMRkIGCUHo25Oxgf6q7G7n0uv5DTS2haSVCNYcQ/H7w=="],
 
-    "@stacksjs/error-handling": ["@stacksjs/error-handling@0.70.347", "", { "dependencies": { "@stacksjs/stx": "^0.2.148", "ts-error-handling": "^0.1.1", "ts-syntax-highlighter": "^0.2.1" } }, "sha512-fGtB4m4WthRTp1XdVUO2+kG/Lj5mm5h5RrM+WLvsQqb/8u7/tSb0fsRiG9nTZ3F5RcqGwIFcNTEfo+Z6/Ntvqw=="],
+    "@stacksjs/error-handling": ["@stacksjs/error-handling@0.70.352", "", { "dependencies": { "@stacksjs/stx": "^0.2.148", "ts-error-handling": "^0.1.1", "ts-syntax-highlighter": "^0.2.1" } }, "sha512-FoppAxk92RpNDfhQLpXGJDJ4aphMtwZ4nBTEAm8/5tWBcXKfDF3wqI1DGnylVkTJQnLngvoCJSe0R/FdzMzp1A=="],
 
-    "@stacksjs/events": ["@stacksjs/events@0.70.351", "", {}, "sha512-nf5wfpoh+1mGqVNPtwwOs20/79yaLFh+w5Vhm6WwGDpKZthZi9P+HVG2kbUdrzz4/lret+pIcSBl1joJZM1uiA=="],
+    "@stacksjs/events": ["@stacksjs/events@0.70.352", "", {}, "sha512-Trx6iD/97JMwY/WZbIqRVWp/W6tH84HZxIj8jSxQ4O3ykpzccXirP6rKrgWUmqcUtCuOUOkZGNFMhXugkrpNEg=="],
 
-    "@stacksjs/faker": ["@stacksjs/faker@0.70.347", "", {}, "sha512-GQ6DTjmfIqTbF3p7L73pIdi+vP1esKsIbwABQqsDLi1QUHRM9joDXr+9iFM37Rj+QIQrsU3Cy1snSCMKB20kUQ=="],
+    "@stacksjs/faker": ["@stacksjs/faker@0.70.352", "", {}, "sha512-q1xDTvXlkXjdpDiljeTlZ/K4i3+PXs8aIDJdCh+jFOrPYgHPEc/dtsTGrMUyJP9EpuypR8kAHmoqwsn9Vqqlzw=="],
 
-    "@stacksjs/feature-flags": ["@stacksjs/feature-flags@0.70.347", "", {}, "sha512-/eVdtPmT8l6WM+VR3v+yqjbEKmfZYpXWRAaiBuDJeL+fmquy+RtTuraoCtmOqDNmVlTR5MsTrOSfmzhIUPD4gQ=="],
+    "@stacksjs/feature-flags": ["@stacksjs/feature-flags@0.70.352", "", {}, "sha512-sGuthA6nuRFQdp1mP/yhJjMZK8UNnnOi9uNPfKGBH3H26gS7qEhWS2RPTb13itqcfHyaO/OjKNXA8HK2dBTGzQ=="],
 
-    "@stacksjs/git": ["@stacksjs/git@0.70.347", "", { "dependencies": { "cz-git": "^1.13.1" } }, "sha512-2LdyNMLhKBNsTqY7dGGzSv0ye/f0h7FjRAbk9GvEcDZW4SakxLvGPVAjdXl8Lwlpx1piWuaTt4q/XfTH3Ly80Q=="],
+    "@stacksjs/git": ["@stacksjs/git@0.70.352", "", { "dependencies": { "cz-git": "^1.13.1" } }, "sha512-A4We8iNEQUIItZdRRyagCeqq9ZxtCY1c9mJ3uUY7RsnqFNMlC5Ac88dtUyhXvBBcsfKZIGR94ezGs06cQmR1LA=="],
 
-    "@stacksjs/github": ["@stacksjs/github@0.70.347", "", {}, "sha512-tC8JEFAHYiccNtsRjPhEvz6qLlryQ3XO/H3QInGf4elasMJCQwrFo+n3ZYBhjh8IPQXDEsCxnvq5cNBBhZsW+g=="],
+    "@stacksjs/github": ["@stacksjs/github@0.70.352", "", {}, "sha512-LvxcoxgxO8C7rSLUY5017LMZ1EsQrNp3F5s+0+U02MfQqLgwqRjUEQyV8J3oj+6aF8ko4naUvpdVa7yd9aQ4OQ=="],
 
     "@stacksjs/gitit": ["@stacksjs/gitit@0.2.5", "", { "bin": { "gitit": "dist/bin/cli.js" } }, "sha512-HI9L1EsWTXG4JxqMlEjujDWovH5UnYqP6Uv9Pll74+vLGEH2OK6FRfarNQgRHBkMyzBx2fjutAHOXrPSCTN8eQ=="],
 
     "@stacksjs/gitlint": ["@stacksjs/gitlint@0.1.7", "", { "bin": { "gitlint": "./dist/bin/cli.js" } }, "sha512-7d43l2r5gSLXK8YKflvkwZvN/huoJqbUSmDN+OY3CGHjb4ItimV6GJ/8JyFJwGI7tDEc5VgNGL0JYyIbk2IQ6g=="],
 
-    "@stacksjs/health": ["@stacksjs/health@0.70.347", "", {}, "sha512-zRjTDikMS1mKTYzFz71ub7h3Tw9z2tQ8YZfbBb5ezfHfLC9g9ykSSlwNMCabO2Pzc3TfRDcu1uonZ8y/RMynnA=="],
+    "@stacksjs/health": ["@stacksjs/health@0.70.352", "", {}, "sha512-HTmXWpg2AUnOWMhUgOFCfVeqaZv616ubr73I7XCySwCDGFDO5OwmUuahh1HgNY98U1NDQGJc7h3rozemxMnBxQ=="],
 
-    "@stacksjs/http": ["@stacksjs/http@0.70.347", "", { "dependencies": { "@stacksjs/httx": "^0.1.10" } }, "sha512-jh3VGXpO0H6waAschaqWVzMm00TcMm6r/Ic2SIOl/xtkDyLOMPqwN3KOfThvJzDK0x4dSCqur9Z2JQPeQe6Xtw=="],
+    "@stacksjs/http": ["@stacksjs/http@0.70.352", "", { "dependencies": { "@stacksjs/httx": "^0.1.10" } }, "sha512-ZKbrNFX0pxKVqRIV5sxxn5tPYztiJdJ2mi+K+oHlIvlxVqKBdqyH1DWDzGhO427dps7GA0uoRNTxWndsrFEoYA=="],
 
     "@stacksjs/httx": ["@stacksjs/httx@0.1.11", "", { "dependencies": { "ts-error-handling": "^0.1.0" }, "bin": { "httx": "./dist/bin/cli.js", "http": "./dist/bin/cli.js", "https": "./dist/bin/cli.js" } }, "sha512-7Ml5D1NpTl4qadeNNFh0CFXjNnv4rb1+9d2MC159FElVo3SbAGWGpobSnwrjg/SZK10rc9mpeOU3l2LPqvJ9uQ=="],
 
-    "@stacksjs/i18n": ["@stacksjs/i18n@0.70.347", "", { "dependencies": { "@stacksjs/ts-i18n": "^0.1.9" } }, "sha512-ApQWOF4b2huNjcJ1mtAQ6xwHaWxY8X1JHMoZBj/42/njN7ktLtMvCHut8ITQ78JRBXh9QO5Eq5bGmH6+zHVUEw=="],
+    "@stacksjs/i18n": ["@stacksjs/i18n@0.70.352", "", { "dependencies": { "@stacksjs/ts-i18n": "^0.1.9" } }, "sha512-4DyQ7VHmXkq83KBxE58Hwvim9tkXj5j885RoYvp+BEy+0FnL7wjksfsNrTbzyrKRTkOJA1nhzqWGtVvh9SmAGA=="],
 
-    "@stacksjs/image": ["@stacksjs/image@0.70.347", "", { "dependencies": { "@stacksjs/types": "0.70.347", "ts-images": "^0.2.8" } }, "sha512-BoT2mzExplPBBUV+C8jsStA9/J4z2FXkin6I+VbMwK01q94gaL6pZHtJYj8HrYZirT5H1Vy8frSVEDFlZoAOUQ=="],
+    "@stacksjs/image": ["@stacksjs/image@0.70.352", "", { "dependencies": { "@stacksjs/types": "0.70.352", "ts-images": "^0.2.8" } }, "sha512-MVp+HYcZa43s4LuJJVmaBPHr7AEsM2fY5RB+kU9MUE4K7+ZnGHlfv1dCRSNTRqdAIkBpHVBOxmt+j+Pzq7oYDA=="],
 
-    "@stacksjs/lint": ["@stacksjs/lint@0.70.347", "", { "dependencies": { "pickier": "^0.1.49" } }, "sha512-Sbc7eBHm0SA3sjv4w1D97FTTpCixhFr63eUgJJUMharrEfAHwQm0e66yTGNX8pDS2ULNGQMKSvYwhHhMqRfZyg=="],
+    "@stacksjs/lint": ["@stacksjs/lint@0.70.352", "", { "dependencies": { "pickier": "^0.1.49" } }, "sha512-vtvr4CFj6+75MSNxMgSS8Y5brthdOVe49mHeU1AjIDNE7gDHTYKEarOo44u4C9i5eVYebicz9XENI5eI2fXAXg=="],
 
-    "@stacksjs/logging": ["@stacksjs/logging@0.70.347", "", { "dependencies": { "@stacksjs/clarity": "^0.3.31" } }, "sha512-1W4O4OLCh3xGLDVl63aXi1s+dhuqvpxFp2tiU8F1XF5717Ef50Gp4YOGDR+ABH0VRHD7vRKQWX88sELw6Ve5aQ=="],
+    "@stacksjs/logging": ["@stacksjs/logging@0.70.352", "", { "dependencies": { "@stacksjs/clarity": "^0.3.31" } }, "sha512-sXn9O/3HFRxQaYA+w15HlS0Ku7sTiczrnNeeKFxBknYsV3+MayytYjGSmZEfgqdKemFN6MqX/eN0/0g4JTgS6g=="],
 
     "@stacksjs/logsmith": ["@stacksjs/logsmith@0.2.11", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "bunfig": "^0.15.6", "pickier": "^0.1.9" }, "bin": { "@stacksjs/logsmith": "./dist/bin/cli.js", "logsmith": "./dist/bin/cli.js" } }, "sha512-wqqAxewpsHVDzpC+IRy+yYyGXGlv1j5GCqYTh8fL7d3LLhnRPN72PEQywM357burtORvdkFHfOzk3Ih1SMvuiw=="],
 
-    "@stacksjs/newsletter": ["@stacksjs/newsletter@0.70.347", "", {}, "sha512-jkdtG6FcbIYhR4Fa/h7teyUawJEJhnlrAdH5AnzeqinheFMjWXZqlsAmYRGUl9zz5i+8+3wF1vV6bzE5V5Fksg=="],
+    "@stacksjs/newsletter": ["@stacksjs/newsletter@0.70.352", "", {}, "sha512-/3CXWAT3dgNvQ9/5Xyfzg5fOP9iKp7NDIUr7AB4xp6dokobJnZAevVRqcl6f/veoQ1nII6N5kau29yFmDDKZAg=="],
 
-    "@stacksjs/notifications": ["@stacksjs/notifications@0.70.347", "", {}, "sha512-2USpWthNRtDvEIVJQPt6d3axxT1qrfcZau7gi0sGxRiMdfl9CFinEuYcZeB1EJ7nCNrvAzcMmq8iaOnfkCAXkQ=="],
+    "@stacksjs/notifications": ["@stacksjs/notifications@0.70.352", "", {}, "sha512-z5CkaBvN6kCNrWNUiiYCx4H1E0FGnAzvuHD2+NT8tr12I7HAUMC+xHfJysrpclFtfNpyRGfEcwmP+trIVwbgVw=="],
 
-    "@stacksjs/objects": ["@stacksjs/objects@0.70.347", "", {}, "sha512-viFO1378KzHrpeik+doA/j4X9bIgiBZPcMT50VbyVl6cY0tJiYne5imkyUu5JhXEl4oipOtGtlg/uIly3g7XEw=="],
+    "@stacksjs/objects": ["@stacksjs/objects@0.70.352", "", {}, "sha512-5LlCSlUAq7SynXpFwusB79icktdyRk+VmnHlPF6oNlOYN05cR+c3FEbZyJ17jj/yt9+zY54s9HZyrR2cTO2u9Q=="],
 
-    "@stacksjs/orm": ["@stacksjs/orm@0.70.347", "", { "dependencies": { "@stacksjs/ts-validation": "^0.5.0", "bun-query-builder": "^0.2.25" } }, "sha512-M3tP+KzozGyYYMdNMR9aXnfBQ0GqMvmUYWeLBuyssep/VN7Ysd7Tx7j/+EBSbxbUx+0FPhKhxTktlK4ZgWg5Rw=="],
+    "@stacksjs/orm": ["@stacksjs/orm@0.70.352", "", { "dependencies": { "@stacksjs/ts-validation": "^0.5.0", "bun-query-builder": "^0.2.25" } }, "sha512-F+0vVbB+/56NwlB3pf1TDXB54Yzbvz2DZmrsgVC3NU5jfhgtGAcC94ugflVRWlraYypzvyezuv/jip9yH9LiEg=="],
 
-    "@stacksjs/path": ["@stacksjs/path@0.70.347", "", {}, "sha512-IENNrYqjghPU2Af1qzMSvWGIx7cTU1NKRcokz1S7KGAjQewbobtU2TtuZqy2PRfmu0iV+xwjP8cvrPBgwiw3/Q=="],
+    "@stacksjs/path": ["@stacksjs/path@0.70.352", "", {}, "sha512-sX6jJGUn40Vbk4MJAJCv96NOnRJLWCidzrC/toinF6l1MxNBfBWk5tC6Hv7709aixLaKHRS6NKVK1sECPjXDow=="],
 
-    "@stacksjs/payments": ["@stacksjs/payments@0.70.347", "", { "peerDependencies": { "@stripe/stripe-js": "^9.10.0", "stripe": "22.3.2" }, "optionalPeers": ["@stripe/stripe-js", "stripe"] }, "sha512-0LBpanfLb6cag03z1ef+w8xzMbVhTdZHPv0krRKvtSKWrsqQpLnceajqtMaUJ77XPeBl+9I97UbQm+Sosfj8dg=="],
+    "@stacksjs/payments": ["@stacksjs/payments@0.70.352", "", { "peerDependencies": { "@stripe/stripe-js": "^9.10.0", "stripe": "22.3.2" }, "optionalPeers": ["@stripe/stripe-js", "stripe"] }, "sha512-Yy6XBxnKDoGXHPAgj8qM5jTGQ3A5cNJ6S35M97AM9ZF7413XatEtAQj71A5jGV5+T8mpDCbWqWKDmXwYhRXK7Q=="],
 
-    "@stacksjs/push": ["@stacksjs/push@0.70.347", "", {}, "sha512-MyvesYou0XGhG2VWGkN8ZjXWDKx4+lwiO+A+QHJEARIHtpuojcuygrcp8XawYwZEOrcTQfiZdj75X+AeWjsR3g=="],
+    "@stacksjs/push": ["@stacksjs/push@0.70.352", "", {}, "sha512-eruHv8A8qIZMueUYlL6cS3PcaymdAUv+TrLv1RYN7Iu9necKWzuQEOSYrzvJVTOvbU+L2OQzgkJOGhU8tHmk/w=="],
 
-    "@stacksjs/query-builder": ["@stacksjs/query-builder@0.70.347", "", { "dependencies": { "bun-query-builder": "^0.2.25" } }, "sha512-ceacuStVV5TpDQ3HFezjYKmi4o3excEA0D21436mPXcvg2c8fZUyFhlDS231yu7ihVgSw3LdduB3wNLwUBl41Q=="],
+    "@stacksjs/query-builder": ["@stacksjs/query-builder@0.70.352", "", { "dependencies": { "bun-query-builder": "^0.2.25" } }, "sha512-WwkhziXInxNiyzrXSOd2WVfSKwcSeV8KnptJcCFe75sK5uvim0ExS+riFkcTLapd/8Bt1yKV7ZaCyGHFCJTmLg=="],
 
-    "@stacksjs/queue": ["@stacksjs/queue@0.70.347", "", { "dependencies": { "@stacksjs/bun-queue": "^0.1.8" } }, "sha512-8eYXUS/n/3SkVug0tSC9rKNJd0S+VVxShxlLY1VNyqdhwaDYA01vm/Gthxldw5nSeQA/scvfPQAC4Yqi2aHrdw=="],
+    "@stacksjs/queue": ["@stacksjs/queue@0.70.352", "", { "dependencies": { "@stacksjs/bun-queue": "^0.1.8" } }, "sha512-f+AG+yD46n153CLGMQmxr53p7f1LgDvr4v2NsKCs+Nu/XHPV6TJXHGDP8ya4HYAUpNl67Duj0w2YiEXdbZoRXw=="],
 
-    "@stacksjs/realtime": ["@stacksjs/realtime@0.70.347", "", { "dependencies": { "ts-broadcasting": "^0.0.9" } }, "sha512-UxWtpLTLIAqqr4AcvnnKBZaJC1wi8oI4MhFnCfZF4OOQfgFOa/UHb5IF+L3Y/KDNozz9JnTv3d4Zk6YseO5Jrw=="],
+    "@stacksjs/realtime": ["@stacksjs/realtime@0.70.352", "", { "dependencies": { "ts-broadcasting": "^0.0.9" } }, "sha512-FpF1ITBFf/jFuW6t1VkmfdgF9yHbDbb5ktgc4kOIKhbHIRa1fQ5+OPux3kzVtsUcz0LNmMy6PR8jQxt23ZgxFg=="],
 
-    "@stacksjs/registry": ["@stacksjs/registry@0.70.347", "", { "dependencies": { "@stacksjs/types": "0.70.347" } }, "sha512-4qjp0Z8g1XcLCTCLGM0IKA/Y11TXUpVQR/sizL5cyJTv0U1R6/HksNWQ4sEDYwzMJcRewxLL/XszhKk8lQ1fgQ=="],
+    "@stacksjs/registry": ["@stacksjs/registry@0.70.352", "", { "dependencies": { "@stacksjs/types": "0.70.352" } }, "sha512-tnMwNALrOd0TFhw4y7TMd+BFR7yVl5o4CJ1ZMerWO1FUq9yasNUOZaEMLcSVyzrAAMnFsqW3iFDBTnkdQtv7KQ=="],
 
-    "@stacksjs/repl": ["@stacksjs/repl@0.70.347", "", {}, "sha512-N8AOdgu0Ba8Gvkd7KG7zEWsFgPyRnczUNhsm5Ut80E3DY98faP8VVy4sWVQlsxxH9X9EkI0viigoTWpzXh0PzQ=="],
+    "@stacksjs/repl": ["@stacksjs/repl@0.70.352", "", {}, "sha512-zkB7ss0uwxBC47+QqrYS29rkVXj3f9n8lxhYVMcMwZ+KmiwLeWwvAFDhurgfTBLf1UqtioJ2yl7UtITVUKk+wQ=="],
 
-    "@stacksjs/router": ["@stacksjs/router@0.70.347", "", { "dependencies": { "@stacksjs/bun-router": "^0.0.21", "@stacksjs/collections": "0.70.347", "ts-rate-limiter": "^0.4.2" } }, "sha512-TQxdVIyX1EI3azE8txUxgFMP6Jznh/TRdX6mZrUeCLzXH/TILFQOLhahiLWwpKfiUoz7kKxPZCv/1XuFm6ENhw=="],
+    "@stacksjs/router": ["@stacksjs/router@0.70.352", "", { "dependencies": { "@stacksjs/bun-router": "^0.0.21", "@stacksjs/collections": "0.70.352", "ts-rate-limiter": "^0.4.2" } }, "sha512-UdczWwBEyWoJBCpxIR4x3Cuwwn1R0RXcjVsWb+cy7a9AJxsVRepjuDTrvu4bA3NlqxL7cnb2uwxCTk+EnAqHEQ=="],
 
     "@stacksjs/rpx": ["@stacksjs/rpx@0.11.44", "", { "dependencies": { "@stacksjs/clapp": "^0.2.10", "@stacksjs/tlsx": "^0.13.13" }, "bin": { "rpx": "./dist/bin/cli.js", "reverse-proxy": "./dist/bin/cli.js" } }, "sha512-zYyeL2NIjxJIvDNaQG1zuR3OmqI4JrOVU/Uu5/w7Uxf1GUhDS7aXy5p77ARlbltKgik+sBZTL9JpZH871NNq+w=="],
 
     "@stacksjs/sanitizer": ["@stacksjs/sanitizer@0.2.162", "", {}, "sha512-+hFP3WoyDT+93A/wHueM+MtoEA/f4/r47iJllYMlGHzBlbTgaRfLht9cQ8iGH549NesaHeh54UMs1Pf1ZEP9zw=="],
 
-    "@stacksjs/scheduler": ["@stacksjs/scheduler@0.70.347", "", {}, "sha512-DPPUPwZTAIrsCoKlOuG1jSx9vE3OfHPCEDp98OHiDSYdAnaGseUl79YZzjTO/Yp294qhvV9GseuAiPHoXl7y3w=="],
+    "@stacksjs/scheduler": ["@stacksjs/scheduler@0.70.352", "", {}, "sha512-6FNVQkl5/9LhbHfhD3Er2BNt7XLfRVlc9vKS2hICZqO0g431y2gjabqL6n3LoC5TaF2dZz+lui7IXJa1h8P6bQ=="],
 
-    "@stacksjs/search-engine": ["@stacksjs/search-engine@0.70.347", "", { "peerDependencies": { "meilisearch": "^0.59.0" }, "optionalPeers": ["meilisearch"] }, "sha512-h1Y5J0eBDUxOJv00tmtAAkiVx2CHHzp8gMaQWrKgQcPDSsIc7GO8EMrCMi5FJzovtky4Du0ZgpR4q+n0WQ6HTQ=="],
+    "@stacksjs/search-engine": ["@stacksjs/search-engine@0.70.352", "", { "peerDependencies": { "meilisearch": "^0.59.0" }, "optionalPeers": ["meilisearch"] }, "sha512-Is1ZJquiLaGBmwGV7NFqkW9g09N89SpLeKz02G+KIl2yktzhwkwlNBOu5BxZVjeL2nG5jYBqToEOGcBl+VzP8w=="],
 
-    "@stacksjs/security": ["@stacksjs/security@0.70.347", "", { "dependencies": { "ts-security-crypto": "0.0.2" } }, "sha512-kf6h5+iOZA3A7jUw/EP2m4nqCTkGj0UxjxsniM59gQmGYa3+z9vEOI9mnOJTNSSVo/MWxbPOb54fFxBow251Wg=="],
+    "@stacksjs/security": ["@stacksjs/security@0.70.352", "", { "dependencies": { "ts-security-crypto": "0.0.2" } }, "sha512-wCsr1NZ/hKfHi1Usrb4CdGc7/2Mf3MrJO8XonN1BzTi1zzzh6/wVnvhbVBx/Ace3mZZdnRK6AOYWxiHCXhSwig=="],
 
-    "@stacksjs/server": ["@stacksjs/server@0.70.351", "", { "dependencies": { "bun-plugin-auto-imports": "^0.4.0" } }, "sha512-bVOb0zcVsa9cFEMS2KxoL0/YXO3N2kwjqEjAT5BZ3k/bWB95GOIohgNQEx4MqoaoEqfapt/jt12btKl16z6EOg=="],
+    "@stacksjs/server": ["@stacksjs/server@0.70.352", "", { "dependencies": { "bun-plugin-auto-imports": "^0.4.0" } }, "sha512-JTaruJ/how8eO5XyjfTO21tos4swDqYQFnTfxq6gjbb2R3yQsBmgZzGTuAolCQVXqqW31o2EV75qfeCFCta+0w=="],
 
-    "@stacksjs/shell": ["@stacksjs/shell@0.70.347", "", {}, "sha512-2+XbqQAx9RA+q98EnL3vzO0syun21Swnk+lK8ZHxYJmIAYLdzjwKlLDqBtzCrLlXZCm5ZvhdfiFsc+jT3q7Hzw=="],
+    "@stacksjs/shell": ["@stacksjs/shell@0.70.352", "", {}, "sha512-Ibq6zD291bd8IPeLiuXEM85BnQ7ehjZSUijPyjOj4nMBV6nbeOjHXMwZ+ElvgfwJOzuYT+joWyGokv+E/39KyQ=="],
 
-    "@stacksjs/skills": ["@stacksjs/skills@0.70.347", "", { "dependencies": { "@stacksjs/path": "0.70.347", "@stacksjs/storage": "0.70.347" } }, "sha512-4zxD/GV8dzC2Q+Phcuk87D9TU/gt2reocvU1Ep2PHdCA65y8hYiDjwLUUEK4XAcLYrzA8o8efw7O56KMRxVtwg=="],
+    "@stacksjs/skills": ["@stacksjs/skills@0.70.352", "", { "dependencies": { "@stacksjs/path": "0.70.352", "@stacksjs/storage": "0.70.352" } }, "sha512-Y4MDgFtWmvdLiW0/4U6TUzQ4m4mFytsjC98cgyUgqkw+bhuxDFqrGQ2hQEyWTF/iHBut5F7ImAB+HIb14sj2LQ=="],
 
-    "@stacksjs/slug": ["@stacksjs/slug@0.70.347", "", { "dependencies": { "ts-slug": "^0.1.0" } }, "sha512-iEjttoJA1citx2gr1cfSyQZkGiZRau20H0Yb9shThHEkcD6+CpP6UWtIPg5Su6Z3IJY8t6+ufGLazn6eNIU3Dg=="],
+    "@stacksjs/slug": ["@stacksjs/slug@0.70.352", "", { "dependencies": { "ts-slug": "^0.1.0" } }, "sha512-hTGtpRA36bisQYsOncueHWubNcGvfUMCJ3Xw8ZyKLo/WNWbUWTPrhI4Id3lu8XBgI4+G1SErWewyxR10UDcCUg=="],
 
-    "@stacksjs/sms": ["@stacksjs/sms@0.70.347", "", {}, "sha512-/U7iH9g0Goiwhq8vT6+bV9Z5NNrdx0W6GTnQzD8DSkcM4OMsl+RtYdRoMu0JI3+1duxsjtL92UCJNoo/4G/Pig=="],
+    "@stacksjs/sms": ["@stacksjs/sms@0.70.352", "", {}, "sha512-vP31dw1xWSOQXoZNAJsHgnSicFwZthx3S3Xf0+reXf3Il5tYuYeDJsahCHj48X6WxjUmopFHumZ50j2GjZgITA=="],
 
-    "@stacksjs/socials": ["@stacksjs/socials@0.70.347", "", { "dependencies": { "@stacksjs/composables": "0.70.347" } }, "sha512-Oz0QJnLLM2olDNqXUvxaXWGvpt+HAvr28yts8IwKFXu+aAcwuyzds2mFh9pcB2kbjGkvYiyN+CefpRNyki5u/A=="],
+    "@stacksjs/socials": ["@stacksjs/socials@0.70.352", "", { "dependencies": { "@stacksjs/composables": "0.70.352" } }, "sha512-fgi192+VQ/Y8NDpP39IjvuVaRoaF/jwNb0UD9gaso8Bzqo8R/riS9VjIPAw6gAYZR38gW4k/WBXiHbHYpLVp4w=="],
 
-    "@stacksjs/storage": ["@stacksjs/storage@0.70.347", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103", "ts-images": "^0.2.8" } }, "sha512-ns4d6zj3FrwNGXiNzZjR2xxAEZCbxTK0idrDSZfWNhI9R9MKAhnKaddszwc8sC8CHAfyFQMypsQphS06no/NfQ=="],
+    "@stacksjs/storage": ["@stacksjs/storage@0.70.352", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103", "ts-images": "^0.2.8" } }, "sha512-EMqZIvWBvV++vFsuPi7I3AjlNe1d9xxM3oQLdZGNHntPEOFr1GYHQplNhc7K35drNe5lqHhUafTmFC3e0j27zQ=="],
 
-    "@stacksjs/strings": ["@stacksjs/strings@0.70.347", "", {}, "sha512-2isYI0W/fXxmHMrCZsIj4a6bu7i4XKjZ0LgA0pBaSlPCgXNJ58c5xrDBJxRI0+yINSdmtGlqVifgJqNpS3AJHQ=="],
+    "@stacksjs/strings": ["@stacksjs/strings@0.70.352", "", {}, "sha512-lTfN4yFvVAf0U7eyoc+BglF8kyiU02QkDtIk7+ak61sRNji94ujweCHskxQVzcGoQ8YPi9KpXHR5/Z0TUBbBLw=="],
 
     "@stacksjs/stx": ["@stacksjs/stx@0.2.162", "", { "dependencies": { "@cwcss/crosswind": "^0.2.14", "@stacksjs/clapp": "^0.2.0", "@stacksjs/desktop": "0.2.162", "@stacksjs/sanitizer": "0.2.162", "@stacksjs/ts-i18n": "^0.1.11", "bun-plugin-stx": "0.2.162", "bunfig": "^0.15.17", "stx-router": "0.2.162", "ts-broadcasting": "^0.0.9", "ts-images": "^0.1.9", "ts-syntax-highlighter": "^0.2.1" }, "bin": { "stx": "./dist/cli.js" } }, "sha512-4OGoMz0YirqavvGjgkuNiWoxlFk2/sKGO6G6gWC2JTUjR5RAnsm1tOqJa4X/ovbAAmZlYSr0Sa8eZ2xbGwgoMg=="],
 
-    "@stacksjs/testing": ["@stacksjs/testing@0.70.347", "", { "dependencies": { "@stacksjs/auth": "0.70.347", "@stacksjs/ts-cloud": "^0.7.103" } }, "sha512-RThv6faS6KmtCZKzKJppIXfJaXjzndshrbCQYM7BosKuptDGMpUJlODwXR/QThbCV40nBWZJaQsWgz7FfC7Waw=="],
+    "@stacksjs/testing": ["@stacksjs/testing@0.70.352", "", { "dependencies": { "@stacksjs/auth": "0.70.352", "@stacksjs/ts-cloud": "^0.7.103" } }, "sha512-B4+K7/oLTHAhaU6Vj952kYM4U7+TLqfKtY146Sa5l096Hu83nvmn9Ehp+0K9M8sS6rOm3UjHzIV1m7qoe3KAZQ=="],
 
-    "@stacksjs/tinker": ["@stacksjs/tinker@0.70.347", "", {}, "sha512-Cgp/fHVzb2XqabDD8Jjq5rqJ/Qr7LYQGSxAe6c6FFZf9AS7mX1E/6BzjFKD38npmPusGCl6BoszvWErWPlrzoA=="],
+    "@stacksjs/tinker": ["@stacksjs/tinker@0.70.352", "", {}, "sha512-XZ4o+DmaauouGPaojnUGR8MZX1Rs9MECkiP4e88UwXuI1SLeOMOEWZK4XxLPRkXQX/zWwc2SYNcZMho5nd97qQ=="],
 
     "@stacksjs/tlsx": ["@stacksjs/tlsx@0.13.14", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0" }, "bin": { "tlsx": "./dist/bin/cli.js" } }, "sha512-3nrdRaHAQ7CzjZSiofC4DldE3RRYr8pNElOTl2tuzzrGIyepl3KxL2WzQ40qYJkWzl+zYkXgeQc/emsh11EMyw=="],
 
@@ -276,19 +276,19 @@
 
     "@stacksjs/ts-xml": ["@stacksjs/ts-xml@0.1.0", "", { "bin": { "bin-name": "./dist/bin/cli.js" } }, "sha512-YB7FSlFcPqopUOmjK1Qqr5E6QaarerIFJzWfUXOO/EuR1qX+IRRKxOKbWRmCvN72Mnchz8EfXhlvxEK+Zz/mQQ=="],
 
-    "@stacksjs/tunnel": ["@stacksjs/tunnel@0.70.347", "", { "dependencies": { "localtunnels": "^0.2.11" } }, "sha512-tGjT5Q6YRWfi3jUNbNIyg090ortHh2cjwcL2vpGcEczhcovzv1RrC8OyyMQLFSEEAWddt+gXL4N8UaSUNvfXOg=="],
+    "@stacksjs/tunnel": ["@stacksjs/tunnel@0.70.352", "", { "dependencies": { "localtunnels": "^0.2.11" } }, "sha512-sisDvaJL4ytCqVqr8BISE/D1NjW3m2SUKyyiLKhwMTM9KLcUxiD+BIRqruSLtm3n/lswrKcaWJ9n6pmUDTXEjw=="],
 
-    "@stacksjs/types": ["@stacksjs/types@0.70.347", "", { "dependencies": { "@stacksjs/bunpress": "^0.1.18", "@stacksjs/clapp": "^0.2.12", "@stacksjs/stx": "^0.2.148", "@stacksjs/ts-validation": "^0.5.0", "bun-query-builder": "^0.2.25" }, "peerDependencies": { "meilisearch": "^0.59.0" }, "optionalPeers": ["meilisearch"] }, "sha512-cot2ms5Bhq3mUmsR8WtZUb0sYhDa2lBUsjv0di+XFNoLTL7j89OwxYdNg9OioMfP9Za8Ekh2rbjd9kZJVpc9qQ=="],
+    "@stacksjs/types": ["@stacksjs/types@0.70.352", "", { "dependencies": { "@stacksjs/bunpress": "^0.1.18", "@stacksjs/clapp": "^0.2.12", "@stacksjs/stx": "^0.2.148", "@stacksjs/ts-validation": "^0.5.0", "bun-query-builder": "^0.2.25" }, "peerDependencies": { "meilisearch": "^0.59.0" }, "optionalPeers": ["meilisearch"] }, "sha512-xseO1jPabvP2JB77wt4Gx4JqT0O4ChM8j8vIp9sXEpIpMdraM321cUn64OsQjp4albHKpNzBnOzCnKdh7EfqoQ=="],
 
-    "@stacksjs/ui": ["@stacksjs/ui@0.70.347", "", { "dependencies": { "@cwcss/crosswind": "^0.2.14", "@stacksjs/components": "^0.2.148" } }, "sha512-wsKX4syXd2DEtnl5hrvUkwnOY5i10Wf3k5a2lzE8lLo24xng6K0imI7njDDWhmmclI+COX3LMYKNL/z9iVS3hw=="],
+    "@stacksjs/ui": ["@stacksjs/ui@0.70.352", "", { "dependencies": { "@cwcss/crosswind": "^0.2.14", "@stacksjs/components": "^0.2.148" } }, "sha512-VpoiJM44xmqmmqQfUraRlgmJsWaiHKCXR793mBeXyZuVnLqkHPzr0gAxL52J5lV0P1nIG/5CEUWxlxXew3oZuA=="],
 
-    "@stacksjs/utils": ["@stacksjs/utils@0.70.347", "", { "dependencies": { "@stacksjs/browser": "0.70.347" } }, "sha512-LDreunXgpAuvePpzyT02fR3aBbC6cc48pve3H8JvLf9+1Sy93pGbhGDznRLmvdI4AALSuJOVwsUQQCr4TjwaQg=="],
+    "@stacksjs/utils": ["@stacksjs/utils@0.70.352", "", { "dependencies": { "@stacksjs/browser": "0.70.352" } }, "sha512-g3H2un5IpMUnGpwpaABW8WZax0kyBny0Y4yOmphoQDTckTUZGzJRKk5G63wedx4sf+hgcR4ZgBXDck+adwMYwg=="],
 
-    "@stacksjs/validation": ["@stacksjs/validation@0.70.347", "", { "dependencies": { "@stacksjs/ts-validation": "^0.5.0" } }, "sha512-+uYpoRFtxRCY5qrM5C/JtdErdHm4WT+IuS2FFJDdJlQ50sWVf+wsjqUN2u51/e2/l7CWUpG4VUFeWLyanOic6w=="],
+    "@stacksjs/validation": ["@stacksjs/validation@0.70.352", "", { "dependencies": { "@stacksjs/ts-validation": "^0.5.0" } }, "sha512-dh0Jo4oMM1zcilLW/anx7SwHPY/RAkhYCe4L1Q2wNiGfCANh1BYYhUDGmwVIFx8aOQgdEAI7oOobnlGIRbRoVQ=="],
 
-    "@stacksjs/video": ["@stacksjs/video@0.70.347", "", { "dependencies": { "ts-video-player": "^0.1.0", "ts-videos": "^0.1.1" } }, "sha512-WtxiW1TbOcv0S2BBtsgtERzub6VRwmIvpABdhq7babW1k+gcDjecK3zSVqbCkakXiY2vSFScLGQHRyzyyhvziA=="],
+    "@stacksjs/video": ["@stacksjs/video@0.70.352", "", { "dependencies": { "ts-video-player": "^0.1.0", "ts-videos": "^0.1.1" } }, "sha512-68mafCHYDwGc2+RLNaRG7mA7uQCY7jtJBiyfMm/z8gJMnsI7FvNQkVQZUSur7rPjlrI+HKEItEx7W2jqSZ30sA=="],
 
-    "@stacksjs/whois": ["@stacksjs/whois@0.70.347", "", {}, "sha512-fHVhdIqFJ4mUJRS4wYXRsAIReZr+Yx8jUzhihLT8kJTBG0h9JJNA9oGYODYDF2OqVoTXtE47GzT3oxExDuAjuA=="],
+    "@stacksjs/whois": ["@stacksjs/whois@0.70.352", "", {}, "sha512-7S/qVIcgl2AHHLA9VseQtR3OJU1IQ2LiMegkiOpGcLLeKmzXEUJpAy3cNNLKzl9aqomZxf+qTFqAK3BlPqRCIg=="],
 
     "@ts-audio/aac": ["@ts-audio/aac@0.1.1", "", { "peerDependencies": { "@ts-audio/core": "0.1.1" } }, "sha512-o0A42KdIMEa9rd1ltignqBy+SsctLaa4npxILsLuDIpdkIHk2Dv9VZi3WC20w10bbodFCcfN+RgLkFdLHC0CBQ=="],
 
@@ -630,7 +630,7 @@
 
     "sisteransi": ["sisteransi@1.0.5", "", {}, "sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg=="],
 
-    "stacks": ["stacks@0.70.347", "", { "dependencies": { "@stacksjs/actions": "^0.70.347", "@stacksjs/ai": "^0.70.347", "@stacksjs/alias": "^0.70.347", "@stacksjs/analytics": "^0.70.347", "@stacksjs/api": "^0.70.347", "@stacksjs/arrays": "^0.70.347", "@stacksjs/audio": "^0.70.347", "@stacksjs/auth": "^0.70.347", "@stacksjs/browser": "^0.70.347", "@stacksjs/browser-extension": "^0.70.347", "@stacksjs/buddy": "^0.70.347", "@stacksjs/build": "^0.70.347", "@stacksjs/cache": "^0.70.347", "@stacksjs/calendar-api": "^0.70.347", "@stacksjs/charts": "^0.70.347", "@stacksjs/chat": "^0.70.347", "@stacksjs/cli": "^0.70.347", "@stacksjs/cloud": "^0.70.347", "@stacksjs/cms": "^0.70.347", "@stacksjs/collections": "^0.70.347", "@stacksjs/commerce": "^0.70.347", "@stacksjs/composables": "^0.70.347", "@stacksjs/config": "^0.70.347", "@stacksjs/cron": "^0.70.347", "@stacksjs/database": "^0.70.347", "@stacksjs/datetime": "^0.70.347", "@stacksjs/defaults": "^0.70.347", "@stacksjs/desktop": "^0.70.232", "@stacksjs/dns": "^0.70.347", "@stacksjs/docs": "^0.70.347", "@stacksjs/email": "^0.70.347", "@stacksjs/enums": "^0.70.347", "@stacksjs/env": "^0.70.347", "@stacksjs/error-handling": "^0.70.347", "@stacksjs/events": "^0.70.347", "@stacksjs/faker": "^0.70.347", "@stacksjs/feature-flags": "^0.70.347", "@stacksjs/git": "^0.70.347", "@stacksjs/github": "^0.70.347", "@stacksjs/health": "^0.70.347", "@stacksjs/http": "^0.70.347", "@stacksjs/i18n": "^0.70.347", "@stacksjs/image": "^0.70.347", "@stacksjs/lint": "^0.70.347", "@stacksjs/logging": "^0.70.347", "@stacksjs/newsletter": "^0.70.347", "@stacksjs/notifications": "^0.70.347", "@stacksjs/objects": "^0.70.347", "@stacksjs/orm": "^0.70.347", "@stacksjs/path": "^0.70.347", "@stacksjs/payments": "^0.70.347", "@stacksjs/push": "^0.70.347", "@stacksjs/query-builder": "^0.70.347", "@stacksjs/queue": "^0.70.347", "@stacksjs/realtime": "^0.70.347", "@stacksjs/registry": "^0.70.347", "@stacksjs/repl": "^0.70.347", "@stacksjs/router": "^0.70.347", "@stacksjs/scheduler": "^0.70.347", "@stacksjs/search-engine": "^0.70.347", "@stacksjs/security": "^0.70.347", "@stacksjs/server": "^0.70.347", "@stacksjs/shell": "^0.70.347", "@stacksjs/skills": "^0.70.347", "@stacksjs/slug": "^0.70.347", "@stacksjs/sms": "^0.70.347", "@stacksjs/socials": "^0.70.347", "@stacksjs/storage": "^0.70.347", "@stacksjs/strings": "^0.70.347", "@stacksjs/testing": "^0.70.347", "@stacksjs/tinker": "^0.70.347", "@stacksjs/tlsx": "^0.13.0", "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/tunnel": "^0.70.347", "@stacksjs/types": "^0.70.347", "@stacksjs/ui": "^0.70.347", "@stacksjs/utils": "^0.70.347", "@stacksjs/validation": "^0.70.347", "@stacksjs/video": "^0.70.347", "@stacksjs/whois": "^0.70.347", "better-dx": "^0.2.17", "bun-query-builder": "^0.2.22" } }, "sha512-sFKkIxCoeUNmsT8ywxIHeYtdPcCSHc1fxSX+cT2K+hcs3m6+pYYoOaiiLExk0XPmqYfN/UNMgaRhRbSClvOBVA=="],
+    "stacks": ["stacks@0.70.352", "", { "dependencies": { "@stacksjs/actions": "^0.70.352", "@stacksjs/ai": "^0.70.352", "@stacksjs/alias": "^0.70.352", "@stacksjs/analytics": "^0.70.352", "@stacksjs/api": "^0.70.352", "@stacksjs/arrays": "^0.70.352", "@stacksjs/audio": "^0.70.352", "@stacksjs/auth": "^0.70.352", "@stacksjs/browser": "^0.70.352", "@stacksjs/browser-extension": "^0.70.352", "@stacksjs/buddy": "^0.70.352", "@stacksjs/build": "^0.70.352", "@stacksjs/cache": "^0.70.352", "@stacksjs/calendar-api": "^0.70.352", "@stacksjs/charts": "^0.70.352", "@stacksjs/chat": "^0.70.352", "@stacksjs/cli": "^0.70.352", "@stacksjs/cloud": "^0.70.352", "@stacksjs/cms": "^0.70.352", "@stacksjs/collections": "^0.70.352", "@stacksjs/commerce": "^0.70.352", "@stacksjs/composables": "^0.70.352", "@stacksjs/config": "^0.70.352", "@stacksjs/cron": "^0.70.352", "@stacksjs/database": "^0.70.352", "@stacksjs/datetime": "^0.70.352", "@stacksjs/defaults": "^0.70.352", "@stacksjs/desktop": "^0.70.232", "@stacksjs/dns": "^0.70.352", "@stacksjs/docs": "^0.70.352", "@stacksjs/email": "^0.70.352", "@stacksjs/enums": "^0.70.352", "@stacksjs/env": "^0.70.352", "@stacksjs/error-handling": "^0.70.352", "@stacksjs/events": "^0.70.352", "@stacksjs/faker": "^0.70.352", "@stacksjs/feature-flags": "^0.70.352", "@stacksjs/git": "^0.70.352", "@stacksjs/github": "^0.70.352", "@stacksjs/health": "^0.70.352", "@stacksjs/http": "^0.70.352", "@stacksjs/i18n": "^0.70.352", "@stacksjs/image": "^0.70.352", "@stacksjs/lint": "^0.70.352", "@stacksjs/logging": "^0.70.352", "@stacksjs/newsletter": "^0.70.352", "@stacksjs/notifications": "^0.70.352", "@stacksjs/objects": "^0.70.352", "@stacksjs/orm": "^0.70.352", "@stacksjs/path": "^0.70.352", "@stacksjs/payments": "^0.70.352", "@stacksjs/push": "^0.70.352", "@stacksjs/query-builder": "^0.70.352", "@stacksjs/queue": "^0.70.352", "@stacksjs/realtime": "^0.70.352", "@stacksjs/registry": "^0.70.352", "@stacksjs/repl": "^0.70.352", "@stacksjs/router": "^0.70.352", "@stacksjs/scheduler": "^0.70.352", "@stacksjs/search-engine": "^0.70.352", "@stacksjs/security": "^0.70.352", "@stacksjs/server": "^0.70.352", "@stacksjs/shell": "^0.70.352", "@stacksjs/skills": "^0.70.352", "@stacksjs/slug": "^0.70.352", "@stacksjs/sms": "^0.70.352", "@stacksjs/socials": "^0.70.352", "@stacksjs/storage": "^0.70.352", "@stacksjs/strings": "^0.70.352", "@stacksjs/testing": "^0.70.352", "@stacksjs/tinker": "^0.70.352", "@stacksjs/tlsx": "^0.13.0", "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/tunnel": "^0.70.352", "@stacksjs/types": "^0.70.352", "@stacksjs/ui": "^0.70.352", "@stacksjs/utils": "^0.70.352", "@stacksjs/validation": "^0.70.352", "@stacksjs/video": "^0.70.352", "@stacksjs/whois": "^0.70.352", "better-dx": "^0.2.17", "bun-query-builder": "^0.2.22" } }, "sha512-6AKIaSqKoW1RNr2yrieLdJFOBchorOZjfPOx3MM1u5x0RIU62EOy+gxECdC6s8S+WIDH9gEjUhQJ0OLTCbB/+A=="],
 
     "stacks-framework": ["stacks-framework@workspace:storage/framework"],
 
@@ -690,10 +690,6 @@
 
     "uuid": ["uuid@14.0.1", "", { "bin": { "uuid": "dist-node/bin/uuid" } }, "sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew=="],
 
-    "@stacksjs/buddy/@stacksjs/events": ["@stacksjs/events@0.70.347", "", {}, "sha512-3w5m9DFLLpHJ6bX3ZJfZn2rSGgY3pofhGjhxrS9JNvN7wZM7Nydip4Rz95qBONUn4Vg8f4s5mTlGTz7kggaSFg=="],
-
-    "@stacksjs/buddy/@stacksjs/server": ["@stacksjs/server@0.70.347", "", { "dependencies": { "bun-plugin-auto-imports": "^0.4.0" } }, "sha512-rB2z6byiGm3/5BQnHylpmuTFmWgkMQGo7zSqt+LVJf+v8uHaZfx/28YzFcF3Bfo1WFmXvb/1ZFLpiP5IZejwZQ=="],
-
     "@stacksjs/bunpress/@stacksjs/ts-cloud": ["@stacksjs/ts-cloud@0.7.95", "", { "dependencies": { "@stacksjs/ts-xml": "^0.1.0", "@ts-cloud/aws-types": "0.7.95", "@ts-cloud/core": "0.7.95" }, "bin": { "cloud": "./dist/bin/cli.js" } }, "sha512-lnL4IT/XAmeYCw1sY2+JHSI3vUMCmJnu3YZ8eR2CtqLFgLjeUnDo71Zoi/5pPAIuWw6TmiPEwJPnMU8oanLnoQ=="],
 
     "@stacksjs/components/ts-syntax-highlighter": ["ts-syntax-highlighter@0.2.7", "", { "bin": { "ts-syntax-highlighter": "./dist/bin/cli.js" } }, "sha512-EXKkI1Q6/Fk0jkHSBbbpKpsllhuo6hgYilsIlRJNFPxCw5ctnIkdP7rp+xtmJMG3e/7SU220cBE1VoqXCiHPLw=="],
@@ -718,13 +714,7 @@
 
     "d3-sankey/d3-shape": ["d3-shape@1.3.7", "", { "dependencies": { "d3-path": "1" } }, "sha512-EUkvKjqPFUAZyOlhY5gzCxCeI0Aep04LwIRpsZ/mLFelJiUfnK56jo5JMDSE7yyP2kLSb6LtF+S5chMk7uqPqw=="],
 
-    "hello-world-fx/stacks": ["stacks@0.70.317", "", { "dependencies": { "@stacksjs/actions": "^0.70.317", "@stacksjs/ai": "^0.70.317", "@stacksjs/alias": "^0.70.317", "@stacksjs/analytics": "^0.70.317", "@stacksjs/api": "^0.70.317", "@stacksjs/arrays": "^0.70.317", "@stacksjs/audio": "^0.70.317", "@stacksjs/auth": "^0.70.317", "@stacksjs/browser": "^0.70.317", "@stacksjs/browser-extension": "^0.70.317", "@stacksjs/buddy": "^0.70.317", "@stacksjs/build": "^0.70.317", "@stacksjs/cache": "^0.70.317", "@stacksjs/calendar-api": "^0.70.317", "@stacksjs/charts": "^0.70.317", "@stacksjs/chat": "^0.70.317", "@stacksjs/cli": "^0.70.317", "@stacksjs/cloud": "^0.70.317", "@stacksjs/cms": "^0.70.317", "@stacksjs/collections": "^0.70.317", "@stacksjs/commerce": "^0.70.317", "@stacksjs/composables": "^0.70.317", "@stacksjs/config": "^0.70.317", "@stacksjs/cron": "^0.70.317", "@stacksjs/database": "^0.70.317", "@stacksjs/datetime": "^0.70.317", "@stacksjs/defaults": "^0.70.317", "@stacksjs/desktop": "^0.70.232", "@stacksjs/dns": "^0.70.317", "@stacksjs/docs": "^0.70.317", "@stacksjs/email": "^0.70.317", "@stacksjs/enums": "^0.70.317", "@stacksjs/env": "^0.70.317", "@stacksjs/error-handling": "^0.70.317", "@stacksjs/events": "^0.70.317", "@stacksjs/faker": "^0.70.317", "@stacksjs/feature-flags": "^0.70.317", "@stacksjs/git": "^0.70.317", "@stacksjs/github": "^0.70.317", "@stacksjs/health": "^0.70.317", "@stacksjs/http": "^0.70.317", "@stacksjs/i18n": "^0.70.317", "@stacksjs/image": "^0.70.317", "@stacksjs/lint": "^0.70.317", "@stacksjs/logging": "^0.70.317", "@stacksjs/newsletter": "^0.70.317", "@stacksjs/notifications": "^0.70.317", "@stacksjs/objects": "^0.70.317", "@stacksjs/orm": "^0.70.317", "@stacksjs/path": "^0.70.317", "@stacksjs/payments": "^0.70.317", "@stacksjs/push": "^0.70.317", "@stacksjs/query-builder": "^0.70.317", "@stacksjs/queue": "^0.70.317", "@stacksjs/realtime": "^0.70.317", "@stacksjs/registry": "^0.70.317", "@stacksjs/repl": "^0.70.317", "@stacksjs/router": "^0.70.317", "@stacksjs/scheduler": "^0.70.317", "@stacksjs/search-engine": "^0.70.317", "@stacksjs/security": "^0.70.317", "@stacksjs/server": "^0.70.317", "@stacksjs/shell": "^0.70.317", "@stacksjs/skills": "^0.70.317", "@stacksjs/slug": "^0.70.317", "@stacksjs/sms": "^0.70.317", "@stacksjs/socials": "^0.70.317", "@stacksjs/storage": "^0.70.317", "@stacksjs/strings": "^0.70.317", "@stacksjs/testing": "^0.70.317", "@stacksjs/tinker": "^0.70.317", "@stacksjs/tlsx": "^0.13.0", "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/tunnel": "^0.70.317", "@stacksjs/types": "^0.70.317", "@stacksjs/ui": "^0.70.317", "@stacksjs/utils": "^0.70.317", "@stacksjs/validation": "^0.70.317", "@stacksjs/video": "^0.70.317", "@stacksjs/whois": "^0.70.317", "better-dx": "^0.2.17", "bun-query-builder": "^0.2.22" } }, "sha512-A9DC8UgWVh4EJXXXlIr1Ykh0jgXROwXk5EJY0RHs1t2A6zlzYfRbIBLUyve5xllOl82uIjfslCBtagq9CMpceQ=="],
-
     "stacks/@stacksjs/desktop": ["@stacksjs/desktop@0.70.232", "", {}, "sha512-g/C/NbtUeA5SsiaK7u9BC+zMxQdrCyKmvAMIl7B+SVUBfZSs8cRyF+3XJuu2qBlTiYeUVYYD7o4JJzK08xm55g=="],
-
-    "stacks/@stacksjs/events": ["@stacksjs/events@0.70.347", "", {}, "sha512-3w5m9DFLLpHJ6bX3ZJfZn2rSGgY3pofhGjhxrS9JNvN7wZM7Nydip4Rz95qBONUn4Vg8f4s5mTlGTz7kggaSFg=="],
-
-    "stacks/@stacksjs/server": ["@stacksjs/server@0.70.347", "", { "dependencies": { "bun-plugin-auto-imports": "^0.4.0" } }, "sha512-rB2z6byiGm3/5BQnHylpmuTFmWgkMQGo7zSqt+LVJf+v8uHaZfx/28YzFcF3Bfo1WFmXvb/1ZFLpiP5IZejwZQ=="],
 
     "@stacksjs/bunpress/@stacksjs/ts-cloud/@ts-cloud/aws-types": ["@ts-cloud/aws-types@0.7.95", "", {}, "sha512-UTXRb/nYGGmlAHl8Xf43Sx1bDU26yi2KuGJzfcLx1wez9RfZGp296LKJGZYAYngN6Vvb2i3X/Ehfq8j3dxEchA=="],
 
@@ -738,198 +728,10 @@
 
     "d3-sankey/d3-shape/d3-path": ["d3-path@1.0.9", "", {}, "sha512-VLaYcn81dtHVTjEHd8B+pbe9yHWpXKZUC87PzoFmsFrJqgFwDe/qxfp5MlfsfM1V5E/iVt0MmEbWQ7FVIXh/bg=="],
 
-    "hello-world-fx/stacks/@stacksjs/actions": ["@stacksjs/actions@0.70.317", "", { "dependencies": { "@stacksjs/bumpx": "^0.2.6", "@stacksjs/bunpress": "^0.1.18", "@stacksjs/config": "0.70.317", "@stacksjs/logsmith": "^0.2.3", "@stacksjs/registry": "0.70.317", "@stacksjs/stx": "^0.2.148", "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/ts-md": "^0.1.1" }, "peerDependencies": { "pickier": "^0.1.35" }, "optionalPeers": ["pickier"] }, "sha512-CVRD0gAYDwmgwt+vUL/QEtwTM39Gw70UjR38m9qO1LXCP+YhTSK9PX1BnSeLwGMIKpesjMn4vXAp9p25oW8jQg=="],
-
-    "hello-world-fx/stacks/@stacksjs/ai": ["@stacksjs/ai@0.70.317", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103" }, "peerDependencies": { "@anthropic-ai/claude-agent-sdk": "^0.2.79" }, "optionalPeers": ["@anthropic-ai/claude-agent-sdk"] }, "sha512-1ZPieKqbQcKEtJR/QJhjmXQON0Dg7tHWJZWsscidzcLuUc06NSJiWFReBGMmYcxajfzuGS195tFKbPwsMbSjww=="],
-
-    "hello-world-fx/stacks/@stacksjs/alias": ["@stacksjs/alias@0.70.317", "", {}, "sha512-5Xv6rxVWSw/1mZ/zevlarwMLmOPqb0Q6VE4V5Rc1VdGLy4l3NWxqUoh9xb3MOF9OMn7sG2D/sXYOgqYXhpdRgA=="],
-
-    "hello-world-fx/stacks/@stacksjs/analytics": ["@stacksjs/analytics@0.70.317", "", {}, "sha512-+U7zsBmUkIZsM8jd5letl5BUaT4sT7Pd24SCM2bOJHI5nhcMz5ttnbY9H+V9DBX8VN86swYH3kuSy0vFhXKOew=="],
-
-    "hello-world-fx/stacks/@stacksjs/api": ["@stacksjs/api@0.70.317", "", {}, "sha512-gEBZixP9xrzeO2jULDmJeCnYPQtqST/WUNzvWQKvn8kpt0fjPwpIbbmmcqT12k8ZD3JQeDLD0Bz/JUaMbzGCrw=="],
-
-    "hello-world-fx/stacks/@stacksjs/arrays": ["@stacksjs/arrays@0.70.317", "", {}, "sha512-iBc1UITS4B2plNydkfsVkaz+8ijLx/nQ6zOdWUeqm87wNABisDfx0TTV78SojUexRJVi24rmp/w5HHmLDfXGkw=="],
-
-    "hello-world-fx/stacks/@stacksjs/audio": ["@stacksjs/audio@0.70.317", "", { "dependencies": { "@ts-audio/core": "^0.1.1", "ts-video-player": "^0.1.0" } }, "sha512-0xcYYZBmMnqvuK1MtWIDGVFcsVcP9XMRWwT8IQH1SZ0OZECypTNAfMov/Vq8ynCVjPH1vwznODqJ7JDdqbyE5g=="],
-
-    "hello-world-fx/stacks/@stacksjs/auth": ["@stacksjs/auth@0.70.317", "", { "dependencies": { "@stacksjs/bun-router": "^0.0.21", "@stacksjs/ts-auth": "^0.4.3" } }, "sha512-bvS2tx+hnKOIeQdeay2wYpFOm2+IeMb6yb0vMaVvNjCBJTdggSot/LBczdh+TFcvsNHuvogICzQVd8fEOJwTRQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/browser": ["@stacksjs/browser@0.70.317", "", { "dependencies": { "@stacksjs/composables": "0.70.317", "@stacksjs/stx": "^0.2.148", "bun-query-builder": "^0.2.25" }, "peerDependencies": { "@stripe/stripe-js": "^9.10.0" }, "optionalPeers": ["@stripe/stripe-js"] }, "sha512-mx3KjqrXYrQQk6x9IROgdCWdZhIWfKh7O/R3BUq87+Y4eDUYEgBIqeCZFZOhujbiR4lC+yLxwPPJJ43npDzF3g=="],
-
-    "hello-world-fx/stacks/@stacksjs/browser-extension": ["@stacksjs/browser-extension@0.70.317", "", { "dependencies": { "ts-pantry": "^0.11.0" }, "peerDependencies": { "web-ext": ">=8" }, "optionalPeers": ["web-ext"] }, "sha512-SnukDXlIsfrVBxU6hiz1ymHeUS6vSnUDlWvEdtuv/pgHOKemLijqHhIkVXkYAl/oV3+JIzXwFLrl0azLB3UPUQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/buddy": ["@stacksjs/buddy@0.70.317", "", { "dependencies": { "@stacksjs/actions": "^0.70.317", "@stacksjs/ai": "^0.70.317", "@stacksjs/alias": "^0.70.317", "@stacksjs/arrays": "^0.70.317", "@stacksjs/auth": "^0.70.317", "@stacksjs/build": "^0.70.317", "@stacksjs/cache": "^0.70.317", "@stacksjs/clapp": "^0.2.12", "@stacksjs/cli": "^0.70.317", "@stacksjs/cloud": "^0.70.317", "@stacksjs/collections": "^0.70.317", "@stacksjs/config": "^0.70.317", "@stacksjs/database": "^0.70.317", "@stacksjs/desktop-build": "^0.70.317", "@stacksjs/dns": "^0.70.317", "@stacksjs/dnsx": "^0.2.3", "@stacksjs/email": "^0.70.317", "@stacksjs/enums": "^0.70.317", "@stacksjs/error-handling": "^0.70.317", "@stacksjs/events": "^0.70.317", "@stacksjs/git": "^0.70.317", "@stacksjs/gitit": "^0.2.5", "@stacksjs/health": "^0.70.317", "@stacksjs/httx": "^0.1.10", "@stacksjs/image": "^0.70.317", "@stacksjs/lint": "^0.70.317", "@stacksjs/logging": "^0.70.317", "@stacksjs/notifications": "^0.70.317", "@stacksjs/objects": "^0.70.317", "@stacksjs/orm": "^0.70.317", "@stacksjs/path": "^0.70.317", "@stacksjs/payments": "^0.70.317", "@stacksjs/realtime": "^0.70.317", "@stacksjs/router": "^0.70.317", "@stacksjs/rpx": "^0.11.42", "@stacksjs/search-engine": "^0.70.317", "@stacksjs/security": "^0.70.317", "@stacksjs/server": "^0.70.317", "@stacksjs/skills": "^0.70.317", "@stacksjs/storage": "^0.70.317", "@stacksjs/strings": "^0.70.317", "@stacksjs/testing": "^0.70.317", "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/tunnel": "^0.70.317", "@stacksjs/types": "^0.70.317", "@stacksjs/ui": "^0.70.317", "@stacksjs/utils": "^0.70.317", "@stacksjs/validation": "^0.70.317", "ajv": "^8.20.0", "ajv-formats": "^3.0.1", "ts-pantry": "^0.11.0" }, "bin": { "stacks": "dist/cli.js", "buddy": "dist/cli.js", "bud": "dist/cli.js" } }, "sha512-gS6s7RhclTSqeweIdVxhoI1HVGqpd1izyZpf5ckw0fGfdwjLjC9uN0Vymsg4QNmPwWhYAEdtKFX3GI1ZB7o6Hg=="],
-
-    "hello-world-fx/stacks/@stacksjs/build": ["@stacksjs/build@0.70.317", "", {}, "sha512-dfulkuMcG6x6JK4tHuac/Qxy3kDGk2g1mRG1ULA1mprgcvwgL2UC5GrGqTWSuRYzESfLMFU1JU8axenN5exYpw=="],
-
-    "hello-world-fx/stacks/@stacksjs/cache": ["@stacksjs/cache@0.70.317", "", { "dependencies": { "@stacksjs/ts-cache": "^0.1.5" } }, "sha512-iWkaj2GHxOSzG/MrVQywqKQyhaBm2Coy1p2S1LGlntoaHEidOEUuypFTyn3pR6jo8o/DRBJxbpY2DcnTv6kfmQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/calendar-api": ["@stacksjs/calendar-api@0.70.317", "", { "dependencies": { "@stacksjs/stx": "^0.2.148" } }, "sha512-zC1gAQmsNcsJ5gZOPDA7p7+yRQqDNAJ+lKFjHCW0etkwpisSBZ+OTj2Qzjn+qWmm1CsH/VZxVnMxDL8Y4C4vmQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/charts": ["@stacksjs/charts@0.70.317", "", { "dependencies": { "@ts-charts/format": "^0.2.6", "@ts-charts/scale": "^0.2.6", "@ts-charts/shape": "^0.2.6" } }, "sha512-FukFRqpBGbFh3iv42DpgbOdKBTvSAF/lbRYljyGwdGZHfFk92thYB/z5KnWrPdSNLqNTFA36NhJ7dsbXtdSerQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/chat": ["@stacksjs/chat@0.70.317", "", {}, "sha512-AUOBP6i7tjfBG/UjuSMyVcXAAfyO2eVCO8mDvImDmBnN6w4B9HREod9faVakdJKxmB588nMlrLwDT/kCZyodWw=="],
-
-    "hello-world-fx/stacks/@stacksjs/cli": ["@stacksjs/cli@0.70.317", "", { "dependencies": { "@stacksjs/clapp": "^0.2.12" } }, "sha512-qWrCe/l4oLamLquLgqhonax8oal4z4LUPEHL6DlgwDZPSMHkTsNNL0f5dK36Tu6f7L5UUFAKGvE6f0ykBifuhg=="],
-
-    "hello-world-fx/stacks/@stacksjs/cloud": ["@stacksjs/cloud@0.70.317", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103", "@stacksjs/ts-xml": "^0.1.0" } }, "sha512-D8rwuC3yNG5IHa/DRjUAYRz1flCsuWh1PLyhdesDGx+5PKSMaO20RoTto8ct6pmwq9BhW6g11DAM+gfZhyf94w=="],
-
-    "hello-world-fx/stacks/@stacksjs/cms": ["@stacksjs/cms@0.70.317", "", { "dependencies": { "ts-slug": "^0.1.0", "ts-spreadsheets": "^0.2.0" } }, "sha512-UU6afjsSsEjVeLqPgXMD5CMU4scZHCDG7kbnnQ/a9CBk1wZj4sC2SQTiNS0Z+NLJWiyCyBmvhnRODd27QXimUA=="],
-
-    "hello-world-fx/stacks/@stacksjs/collections": ["@stacksjs/collections@0.70.317", "", { "dependencies": { "ts-collect": "^0.4.3" } }, "sha512-Bo1oOTH8IRbOCzXBXIpg6i+hC/aDRm7/zzHEjzHYzR2Pa2xAzx8lniuu2FSyMkPJDOQCTWllAgafkewM1B8vVA=="],
-
-    "hello-world-fx/stacks/@stacksjs/commerce": ["@stacksjs/commerce@0.70.317", "", { "dependencies": { "ts-spreadsheets": "^0.2.0" } }, "sha512-x3ESSv0x62+4tDLI14rgcl6MgoGSMJyS1a9bbQrdI7kCdTz4OEZxW6WypNknDDXSTkGfPWXf+jReFR/10p9Xyw=="],
-
-    "hello-world-fx/stacks/@stacksjs/composables": ["@stacksjs/composables@0.70.317", "", { "dependencies": { "@stacksjs/datetime": "0.70.317", "@stacksjs/stx": "^0.2.148" } }, "sha512-pans1jI8r9ic+xkomSTHoyZ7Q8KnAbTprrr0lvYAKcW64be/gCNe5a5z5d4cl+YZ92teL7RcTU2QCPAF097dEw=="],
-
-    "hello-world-fx/stacks/@stacksjs/config": ["@stacksjs/config@0.70.317", "", { "dependencies": { "ts-pantry": "^0.11.0" } }, "sha512-z6Y+iHu7jzGtkDPeXUb2HjhOm11OTWx8m/f0LOBYiOYhdFYtMPThYonk4x/sFRp9Ur4eazT/63kFs5rZVAqckw=="],
-
-    "hello-world-fx/stacks/@stacksjs/cron": ["@stacksjs/cron@0.70.317", "", {}, "sha512-lOyxwbNnjlXQ0dDQ9PW60qK+XLpySZSI6o5u00RI64PDJL1kmZJcSxXjDTrxPUJ9Ifg/ASam5JWxWzC5hauI0g=="],
-
-    "hello-world-fx/stacks/@stacksjs/database": ["@stacksjs/database@0.70.317", "", { "dependencies": { "@stacksjs/ts-validation": "^0.5.0", "bun-query-builder": "^0.2.25", "dynamodb-tooling": "^0.3.2" } }, "sha512-8QoIw+3KpJilZAiV3FBbdrJkgHJ1/PYblHKCzztgjB7cpd8LEP0aSMsMGjwt2DUc8vVlxTyZT3qu4fyeesz4CA=="],
-
-    "hello-world-fx/stacks/@stacksjs/datetime": ["@stacksjs/datetime@0.70.317", "", {}, "sha512-jwy1yTPoqCG6DJNV/wpwDjRWlRCXvPC/G1gi1uC0C8xqYt3TSdpatFS2IEWo5qHmgmn4TfWGLC482DDASJvR7Q=="],
-
-    "hello-world-fx/stacks/@stacksjs/defaults": ["@stacksjs/defaults@0.70.317", "", { "dependencies": { "@iconify-json/f7": "^1.2.2", "@iconify-json/hugeicons": "^1.2.27", "@stacksjs/sanitizer": "^0.2.113" } }, "sha512-6S3OMiTzGxHa5wTSEGropiFn7f9S3ALc6D7e45zSe/ZcgVVOp1ISMyen4JFxAnYLZDzC37ZarkqaOGEK5uU7+w=="],
-
-    "hello-world-fx/stacks/@stacksjs/desktop": ["@stacksjs/desktop@0.70.232", "", {}, "sha512-g/C/NbtUeA5SsiaK7u9BC+zMxQdrCyKmvAMIl7B+SVUBfZSs8cRyF+3XJuu2qBlTiYeUVYYD7o4JJzK08xm55g=="],
-
-    "hello-world-fx/stacks/@stacksjs/dns": ["@stacksjs/dns@0.70.317", "", { "dependencies": { "@stacksjs/dnsx": "^0.2.3", "@stacksjs/ts-cloud": "^0.7.103" } }, "sha512-Kkr6bMFjjbAKm5C3iTK3zUhG3NBiUrX5oZW/+6QCvtZQmvZwyiDQ8Zoomiy8wBKfD5T/4cdBsQRk0ZAAYBf47Q=="],
-
-    "hello-world-fx/stacks/@stacksjs/docs": ["@stacksjs/docs@0.70.317", "", { "dependencies": { "@stacksjs/bunpress": "^0.1.18" } }, "sha512-Y1O96SyyrisB2eO/zFSWYeT6ZZulnw4FHq9I+FgP/VYjA70R0XXHUESvyMLlj2pUWFAfp10x/CKCq3kxDTuxlw=="],
-
-    "hello-world-fx/stacks/@stacksjs/email": ["@stacksjs/email@0.70.317", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103" } }, "sha512-2ImnkbEjdWwiAy87BzfEgDfWJuWzfqOyvaUQcFQTaNv47HUhNhEDYvcDxjvq22S51japKdfxQU/XPCs08k0Cvw=="],
-
-    "hello-world-fx/stacks/@stacksjs/enums": ["@stacksjs/enums@0.70.317", "", {}, "sha512-G99P7tiJS+EwgUpL/T7e7Yu6RpsCyAHaMejTK0rzguRC+aOTvTR9Shk5/I2kYcGE+THzwT2wqptfdAnW+Iiubg=="],
-
-    "hello-world-fx/stacks/@stacksjs/env": ["@stacksjs/env@0.70.317", "", {}, "sha512-e/wPu16ef91xXy3ORBF+52mEVxtUcB3hwtOwgS7XwUQZcvioXBFfFN2SJ9J0dbFZ82OVvoPf8QhZzhs3KhLyAg=="],
-
-    "hello-world-fx/stacks/@stacksjs/error-handling": ["@stacksjs/error-handling@0.70.317", "", { "dependencies": { "@stacksjs/stx": "^0.2.148", "ts-error-handling": "^0.1.1", "ts-syntax-highlighter": "^0.2.1" } }, "sha512-Ak7ePQGF2sq222iCxuXOtQbQjds0HEDJ/sCk3uwPc8M8j/P8okhQRy31lLlcVmtUOOTQ9W/kflPln8j5Zvahzw=="],
-
-    "hello-world-fx/stacks/@stacksjs/events": ["@stacksjs/events@0.70.317", "", {}, "sha512-QRWwO/cUKB8qXi77h61tKS7cLJS5yK2mZgogjwEcVkHFce/T7p/M+/MWtOtmYNzz+dKPInjdMc4pVT+q8/+wAg=="],
-
-    "hello-world-fx/stacks/@stacksjs/faker": ["@stacksjs/faker@0.70.317", "", {}, "sha512-XEs7QgMHmYSb3wcfrW5n8bIK/5ajg52JzTWVyBMbZDsGjz5pUwCRguf1ZKgR7sPxaE4Vv+4Qqh0KAbiKjt0dHQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/feature-flags": ["@stacksjs/feature-flags@0.70.317", "", {}, "sha512-NKCIw36dCuqP+bwbX2j82YH/6mlROx+knv5RfAIwN8mYvrMfxa6NahlFVfEB0L2suCbycR+Gr2pWkxktyHlRtg=="],
-
-    "hello-world-fx/stacks/@stacksjs/git": ["@stacksjs/git@0.70.317", "", { "dependencies": { "cz-git": "^1.13.1" } }, "sha512-h4KLUVvZDJWQfcwRtcqY4Co04k81lf/9UE7epb4SqnO8vYcrlx5KJeYl+QfmfWYKU8RrMN+fpwGo9ticbfpMJw=="],
-
-    "hello-world-fx/stacks/@stacksjs/github": ["@stacksjs/github@0.70.317", "", {}, "sha512-LOg1Imd2mI6zXpOgAOtho8evdmmUmROiVH8ZG4hZYBpGs2RqZImxjAaQ7Y9lVOiDk0BO9tk9c8LUb53glam3bA=="],
-
-    "hello-world-fx/stacks/@stacksjs/health": ["@stacksjs/health@0.70.317", "", {}, "sha512-mF/SqTR1E+AskUMusd8gnBucvzdE1sHodsizLJYWRZjonz9zBafstfEo3W4EFIp7frtE36vYCA/Dp4cc5GohaA=="],
-
-    "hello-world-fx/stacks/@stacksjs/http": ["@stacksjs/http@0.70.317", "", { "dependencies": { "@stacksjs/httx": "^0.1.10" } }, "sha512-IbM//CW7OJow2Gj61jIsRuULDv58SGtKWR4W6tjucgUyj6Ft3Dv6kRmIRxKyIJ0yxwirPIIblSYSadHQIg9hUA=="],
-
-    "hello-world-fx/stacks/@stacksjs/i18n": ["@stacksjs/i18n@0.70.317", "", { "dependencies": { "@stacksjs/ts-i18n": "^0.1.9" } }, "sha512-OllN7eCI0MnlchMtm3MfM6jQVJlfJKHhBAfsLqd56crFwBOUdXxaLk73GcTfbe7SNQT5xTAwoIpbmItsECEurw=="],
-
-    "hello-world-fx/stacks/@stacksjs/image": ["@stacksjs/image@0.70.317", "", { "dependencies": { "@stacksjs/types": "0.70.317", "ts-images": "^0.2.7" } }, "sha512-xNmDd4DRocGmbIsfrbxttoJg/a5kA1ABhDp3SAxpGZZDXhpGJclG/2mN6HIND6wMs96QoV6MGXoZ/6yfx8Qy1Q=="],
-
-    "hello-world-fx/stacks/@stacksjs/lint": ["@stacksjs/lint@0.70.317", "", { "dependencies": { "pickier": "^0.1.49" } }, "sha512-NrJMeDKj5LkjVaP1+6OQrhL9bChV1gu3Z+8xClJxFkZP2djeUSxvgLHDS63tlGFLoOYKoiGZc2EzeaBQQOFLrQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/logging": ["@stacksjs/logging@0.70.317", "", { "dependencies": { "@stacksjs/clarity": "^0.3.31" } }, "sha512-OLWFN3eHMiHZaL3NbQ7uCqAAVyzJ9qxjDdYvuON/s2cVumAYxXSImZnVuTgYR7DKXMc1zGtKRbxZmoJ5SgCvng=="],
-
-    "hello-world-fx/stacks/@stacksjs/newsletter": ["@stacksjs/newsletter@0.70.317", "", {}, "sha512-qjYhOaxjYCkl+NR2jhrG6IJa5TXrTWx1MMKzBvRL4vXdCwjlOsWdE+wF2bnLvZuibmb384h2QHDuHa+rWwhGww=="],
-
-    "hello-world-fx/stacks/@stacksjs/notifications": ["@stacksjs/notifications@0.70.317", "", {}, "sha512-uOZPf9+f7HOh7rh4Wk7flNptSiwv9nqjpGwqvUgPB5X94uXsYtPT1jmru5rml6ApkWEX6uqdTYuwAVnJKWbKCQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/objects": ["@stacksjs/objects@0.70.317", "", {}, "sha512-rN59EgW57a+dIOdh28VnbdJfn26/A5M/RqiqEC2ifDxxAlp6iN+F6k8qS6LjhJFLvS2Yq3HPdt/6sp4ygF+4jA=="],
-
-    "hello-world-fx/stacks/@stacksjs/orm": ["@stacksjs/orm@0.70.317", "", { "dependencies": { "@stacksjs/ts-validation": "^0.5.0", "bun-query-builder": "^0.2.25" } }, "sha512-lL6pyPDSiolk6ArVDJgzfwWxDIAa71UzFeMDfE06CjKiRFSzUqEa03jKPK4S55wTqwKXg3lqdfbsmzJzq3U7PQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/path": ["@stacksjs/path@0.70.317", "", {}, "sha512-AcE1VpwifQUO0KrfFHeWeIaLAGfCOcmMkvwjEW+FqUraga8AM5oB2iTlziNwEA4L6oTvru5KBXA9n4HNDqUkdg=="],
-
-    "hello-world-fx/stacks/@stacksjs/payments": ["@stacksjs/payments@0.70.317", "", { "peerDependencies": { "@stripe/stripe-js": "^9.10.0", "stripe": "22.3.2" }, "optionalPeers": ["@stripe/stripe-js", "stripe"] }, "sha512-6U+HTwtz66up1SzBn3zceL+o9E0xtE1VgRi8SSH80TI8VMhGTy4Kgg6l+OMah4ilfl/yp3Q8N8HIgMODJBvTHw=="],
-
-    "hello-world-fx/stacks/@stacksjs/push": ["@stacksjs/push@0.70.317", "", {}, "sha512-8QdFXxcGAmcZq0uX3RM1OHWEsmu+TZWZxxUsPHFmdZSzmq6tG39Ofx1Ct1L4zufX5a6cKMfNRwGJ0M0MVuInaQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/query-builder": ["@stacksjs/query-builder@0.70.317", "", { "dependencies": { "bun-query-builder": "^0.2.25" } }, "sha512-PwcK/FJxHwXCTov/VfRP0wWGVPvDETTRX21Am/itK1cFKJo/n4E93+O4dGJr5630zOUgq1r0QUVhCNFInuFffA=="],
-
-    "hello-world-fx/stacks/@stacksjs/queue": ["@stacksjs/queue@0.70.317", "", { "dependencies": { "@stacksjs/bun-queue": "^0.1.8" } }, "sha512-r5XHLxCwm9hKPk2hiAhTIEdLInPdxwFM/gnCqHpPel7s/5enOzjCfucmMZS6+VgMypZdX9dH0s0uwMG60CcPnw=="],
-
-    "hello-world-fx/stacks/@stacksjs/realtime": ["@stacksjs/realtime@0.70.317", "", { "dependencies": { "ts-broadcasting": "^0.0.9" } }, "sha512-GJ9BBRlDhaeRligMGBCmgWiUa6pYkTXKAZOUGtvwfbnVjWxx6DHIUXPqvnf5cZLpzOhjiL4wWLOfvl4ag/Ymxg=="],
-
-    "hello-world-fx/stacks/@stacksjs/registry": ["@stacksjs/registry@0.70.317", "", { "dependencies": { "@stacksjs/types": "0.70.317" } }, "sha512-+gaaBORQvt/ETYJXiXfW3k+najjxDjuzcxzStNV3FGFEdBFXVtlGvc2mZh+emTdM7BKptGChIxxpV68cO1j2rw=="],
-
-    "hello-world-fx/stacks/@stacksjs/repl": ["@stacksjs/repl@0.70.317", "", {}, "sha512-jSoa0aFD/DuzN0+wQuI+sTGKCbJvLkKxTNgd1/A3I1yz/hm5W8opKDyfBs/i+Zx7S9VxMDeHIORGFObIB+hlUg=="],
-
-    "hello-world-fx/stacks/@stacksjs/router": ["@stacksjs/router@0.70.317", "", { "dependencies": { "@stacksjs/bun-router": "^0.0.21", "@stacksjs/collections": "0.70.317", "ts-rate-limiter": "^0.4.2" } }, "sha512-aMj301dX9F5VLTEIvVw3ZtFHTx7XZSi39RavyAHJ3krOLs7Un87doJcrLJGI+XfHBORtEEPdfsJEuE7gkmXeMA=="],
-
-    "hello-world-fx/stacks/@stacksjs/scheduler": ["@stacksjs/scheduler@0.70.317", "", {}, "sha512-bd6HE+ER4VnlWTUoThoV1q616zy/Pj+wFBI+vmAgd+396W+RaVkyF6QcjZgyqj2TwXwQUq9aGUEfStaBKPCaew=="],
-
-    "hello-world-fx/stacks/@stacksjs/search-engine": ["@stacksjs/search-engine@0.70.317", "", { "peerDependencies": { "meilisearch": "^0.59.0" }, "optionalPeers": ["meilisearch"] }, "sha512-/4dVGUqkdiUcQHu6NhOPPpiBFApCyY9J8HF8NzWyW9VMFjZVsU4ru38LVWioqbX8ISaVYIZY2jCyOAkB/Kp0HQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/security": ["@stacksjs/security@0.70.317", "", { "dependencies": { "ts-security-crypto": "0.0.2" } }, "sha512-gtNPWR4++tnLOUKHfw1G/SHNghMjuHyUezM/oC9baETk5eRswXOkez5Nm9BECByHIz6h2HkBQAkwPvFpdJOmTA=="],
-
-    "hello-world-fx/stacks/@stacksjs/server": ["@stacksjs/server@0.70.317", "", { "dependencies": { "bun-plugin-auto-imports": "^0.4.0" } }, "sha512-UG9c4TsMansq3C6evQLRJCqW8hCR4H9mcr8ZOLOY8wDkAUV+sycCM2KsuAILL+6AVB/2hRf4CSR3lIOD1hjyBg=="],
-
-    "hello-world-fx/stacks/@stacksjs/shell": ["@stacksjs/shell@0.70.317", "", {}, "sha512-/oDvNUOIRo+hIXpD25jJxMX2rj+zXf7BR2Pjz8wGcrDJS2u40RbYagV5aWIsu7ZH4HyzrVTKaRFllp/IfAWO7w=="],
-
-    "hello-world-fx/stacks/@stacksjs/skills": ["@stacksjs/skills@0.70.317", "", { "dependencies": { "@stacksjs/path": "0.70.317", "@stacksjs/storage": "0.70.317" } }, "sha512-7pKIn4Vxi7F8ssvIuP76wPtLeplYs3ZqtP09JSSfBmfdWrpalO1PLZwfA2rYan9ekny+5ftxMcw5jzraonFWTw=="],
-
-    "hello-world-fx/stacks/@stacksjs/slug": ["@stacksjs/slug@0.70.317", "", { "dependencies": { "ts-slug": "^0.1.0" } }, "sha512-PZC2znrHipb8Dnm5MiYGpx/ESQCy3aue9V4+HR7Jn/krCkiLa8/snHvRRKEBG0R8LoiQ898dw5P8ekCnrzn3Bw=="],
-
-    "hello-world-fx/stacks/@stacksjs/sms": ["@stacksjs/sms@0.70.317", "", {}, "sha512-a38OabTHXT8vTLCdYn8LbQyFaMfYkA2Z+Nyhfk99jqGQI6IHBqVrCU3PkLDAzxGlSQoxPTpwN6m4zAj7/GOGjA=="],
-
-    "hello-world-fx/stacks/@stacksjs/socials": ["@stacksjs/socials@0.70.317", "", { "dependencies": { "@stacksjs/composables": "0.70.317" } }, "sha512-jbf9Ry04vF1NrUNGcTLOf/NgYJSO+F1pjXg+lXaSC9MR/SEtfniX+OTQiGV/U8UwKHt89VAZPKtXPK+UFgXMGA=="],
-
-    "hello-world-fx/stacks/@stacksjs/storage": ["@stacksjs/storage@0.70.317", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.103", "ts-images": "^0.2.7" } }, "sha512-JDGhUqkLmTRrjfFdZd/X/q5h+SgoEj0DDVVrsceLzhFPVUHZ0XbcuJXYqbnkyOLGOu2ROTBSoLrjORECX40C7A=="],
-
-    "hello-world-fx/stacks/@stacksjs/strings": ["@stacksjs/strings@0.70.317", "", {}, "sha512-E1hjUBAHaEHifbgzCqxkJUF9WR4l2kMCzhcr6f+lvO24SftS8l9wi2/dtexnWahdEQqAz0IpeC0Ds533+UWhRg=="],
-
-    "hello-world-fx/stacks/@stacksjs/testing": ["@stacksjs/testing@0.70.317", "", { "dependencies": { "@stacksjs/auth": "0.70.317", "@stacksjs/ts-cloud": "^0.7.103" } }, "sha512-6fbfLlglnfRtu6W5dYcvhQ8hu9Ek8Fo2tN7+Sfux/oS6WRVwcu/KObZ/jfIfbQ3dVDqW/zYNfYKiA3ETqmF/ow=="],
-
-    "hello-world-fx/stacks/@stacksjs/tinker": ["@stacksjs/tinker@0.70.317", "", {}, "sha512-SN9y00fU8DIwIAz9z+7kDhmJOm8IQNy/ycUkHer6F1OQ6nCu70qatuQfihuI9I3uBh6cDLcM3Xyn8JLBFW9joQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/tunnel": ["@stacksjs/tunnel@0.70.317", "", { "dependencies": { "localtunnels": "^0.2.11" } }, "sha512-V3PIeKWyRKJvJNAPuJe7prPrN6Mok6C2cALUNlsrOJqKrnzD1m9VflrA+nBGdlHgJKt5p/OGwB/qUeUCuFRyYg=="],
-
-    "hello-world-fx/stacks/@stacksjs/types": ["@stacksjs/types@0.70.317", "", { "dependencies": { "@stacksjs/bunpress": "^0.1.18", "@stacksjs/clapp": "^0.2.12", "@stacksjs/stx": "^0.2.148", "@stacksjs/ts-validation": "^0.5.0", "bun-query-builder": "^0.2.25" }, "peerDependencies": { "meilisearch": "^0.59.0" }, "optionalPeers": ["meilisearch"] }, "sha512-b07NgWUqDUTsd2b5aDPXkaVcFz0wKK8WmMZRj+ceLwLKowFq3pQ7IAKmkZ/hM/BA+koJ/n+jqgoNBoH1iFKfDA=="],
-
-    "hello-world-fx/stacks/@stacksjs/ui": ["@stacksjs/ui@0.70.317", "", { "dependencies": { "@cwcss/crosswind": "^0.2.14", "@stacksjs/components": "^0.2.148" } }, "sha512-OyTuW0GahRYZSHC40rTxon2g+uKVSJoW35CyqHwqTC1TelDBw8ueu33by/USG0VBFggfOCgYvwoCh60HRMFIpw=="],
-
-    "hello-world-fx/stacks/@stacksjs/utils": ["@stacksjs/utils@0.70.317", "", { "dependencies": { "@stacksjs/browser": "0.70.317" } }, "sha512-Tq5FNzfVpmnfE9BRXZ3s1hiwZGZtYmyMLzxqk9JAzxo6Aln/85p4F2+q8rp3RzZUNAJ4fwx6Nt5USfew1Dj57A=="],
-
-    "hello-world-fx/stacks/@stacksjs/validation": ["@stacksjs/validation@0.70.317", "", { "dependencies": { "@stacksjs/ts-validation": "^0.5.0" } }, "sha512-UytUy/CgL67JFbylu5H+tpFDOnYK+N0LvCrRztfi9ir7Ni6gu2Kuz3ApJT2ohxANPZpoQk4gWSf2HqF1ZcROUA=="],
-
-    "hello-world-fx/stacks/@stacksjs/video": ["@stacksjs/video@0.70.317", "", { "dependencies": { "ts-video-player": "^0.1.0", "ts-videos": "^0.1.1" } }, "sha512-vNC1BJs0CjQZWpAgQFQOgk7U4GxEqWCbIa+292BMqSQLpO1Wv07u4pbV3DPgHC9kR2a00OX+gCJnLOIW5siV0A=="],
-
-    "hello-world-fx/stacks/@stacksjs/whois": ["@stacksjs/whois@0.70.317", "", {}, "sha512-4Ndx3KxiqxujsI8vcLeI7WhUQ2iDkl4PyXMNR7G3xIm5yy0fBEnv+mgvU0hDbA7R0JNPKZGJ3MQJyVc43+mJeQ=="],
-
     "better-dx/buddy-bot/ts-pantry/@stacksjs/ts-cloud": ["@stacksjs/ts-cloud@0.7.95", "", { "dependencies": { "@stacksjs/ts-xml": "^0.1.0", "@ts-cloud/aws-types": "0.7.95", "@ts-cloud/core": "0.7.95" }, "bin": { "cloud": "./dist/bin/cli.js" } }, "sha512-lnL4IT/XAmeYCw1sY2+JHSI3vUMCmJnu3YZ8eR2CtqLFgLjeUnDo71Zoi/5pPAIuWw6TmiPEwJPnMU8oanLnoQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/browser-extension/ts-pantry": ["ts-pantry@0.11.12", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.26", "bunfig": "^0.15.6", "ts-web-scraper": "^0.1.1" }, "bin": { "ts-pantry": "./dist/bin/cli.js" } }, "sha512-146XCJbLqS3/smBcB0pdaHwz2iuVORE6D0sAB+SsoMObms/4R7gCqIHv0T/wVEbV/42TEz0GVsLfMJ5eZ94gxw=="],
-
-    "hello-world-fx/stacks/@stacksjs/buddy/@stacksjs/desktop-build": ["@stacksjs/desktop-build@0.70.317", "", {}, "sha512-gtlV18rep0MUW6QChC9Ko+0KYsOjNpG/wBQ11ERZrP4YPXldkv0zWOT666AhckTYqxJWSl2ilV0Un02tJNoMyA=="],
-
-    "hello-world-fx/stacks/@stacksjs/buddy/ts-pantry": ["ts-pantry@0.11.12", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.26", "bunfig": "^0.15.6", "ts-web-scraper": "^0.1.1" }, "bin": { "ts-pantry": "./dist/bin/cli.js" } }, "sha512-146XCJbLqS3/smBcB0pdaHwz2iuVORE6D0sAB+SsoMObms/4R7gCqIHv0T/wVEbV/42TEz0GVsLfMJ5eZ94gxw=="],
-
-    "hello-world-fx/stacks/@stacksjs/config/ts-pantry": ["ts-pantry@0.11.12", "", { "dependencies": { "@stacksjs/ts-cloud": "^0.7.26", "bunfig": "^0.15.6", "ts-web-scraper": "^0.1.1" }, "bin": { "ts-pantry": "./dist/bin/cli.js" } }, "sha512-146XCJbLqS3/smBcB0pdaHwz2iuVORE6D0sAB+SsoMObms/4R7gCqIHv0T/wVEbV/42TEz0GVsLfMJ5eZ94gxw=="],
-
-    "hello-world-fx/stacks/@stacksjs/defaults/@stacksjs/sanitizer": ["@stacksjs/sanitizer@0.2.159", "", {}, "sha512-Szc7SSEFQ11hxUhZLASXZF0hSIxIZdsCPBfqPlibUDZrKWstOlq/rfvFPwiw5VEgzvEr8clWYIsQKI1XqiatpA=="],
-
-    "hello-world-fx/stacks/@stacksjs/image/ts-images": ["ts-images@0.2.7", "", { "dependencies": { "@stacksjs/ts-avif": "^0.1.0", "@stacksjs/ts-bmp": "^0.1.0", "@stacksjs/ts-png": "^0.1.2", "@stacksjs/ts-svg": "^0.1.1", "@stacksjs/ts-webp": "^0.1.0", "ts-gif": "^0.1.2", "ts-jpeg": "^0.3.1" }, "bin": { "imgx": "./dist/bin/cli.js" } }, "sha512-cmbGGCa24bRozRGKJrFfhLUAcyBJ0Hjpxe2ETpw4QnedmtDRFdyPKYE4O7ugTKWMQh2XUAOeqLjDm6p9WJylZQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/storage/ts-images": ["ts-images@0.2.7", "", { "dependencies": { "@stacksjs/ts-avif": "^0.1.0", "@stacksjs/ts-bmp": "^0.1.0", "@stacksjs/ts-png": "^0.1.2", "@stacksjs/ts-svg": "^0.1.1", "@stacksjs/ts-webp": "^0.1.0", "ts-gif": "^0.1.2", "ts-jpeg": "^0.3.1" }, "bin": { "imgx": "./dist/bin/cli.js" } }, "sha512-cmbGGCa24bRozRGKJrFfhLUAcyBJ0Hjpxe2ETpw4QnedmtDRFdyPKYE4O7ugTKWMQh2XUAOeqLjDm6p9WJylZQ=="],
 
     "better-dx/buddy-bot/ts-pantry/@stacksjs/ts-cloud/@ts-cloud/aws-types": ["@ts-cloud/aws-types@0.7.95", "", {}, "sha512-UTXRb/nYGGmlAHl8Xf43Sx1bDU26yi2KuGJzfcLx1wez9RfZGp296LKJGZYAYngN6Vvb2i3X/Ehfq8j3dxEchA=="],
 
     "better-dx/buddy-bot/ts-pantry/@stacksjs/ts-cloud/@ts-cloud/core": ["@ts-cloud/core@0.7.95", "", { "dependencies": { "@ts-cloud/aws-types": "0.7.95" } }, "sha512-Isktn2zKi208ZnWzyU0ct0dKzpXG5Z7yAvAE9aUhvT4mmTBSQlyckxSCgi4Dp04dg2UbNK2rfCTm30epYnXlIQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/browser-extension/ts-pantry/@stacksjs/ts-cloud": ["@stacksjs/ts-cloud@0.7.95", "", { "dependencies": { "@stacksjs/ts-xml": "^0.1.0", "@ts-cloud/aws-types": "0.7.95", "@ts-cloud/core": "0.7.95" }, "bin": { "cloud": "./dist/bin/cli.js" } }, "sha512-lnL4IT/XAmeYCw1sY2+JHSI3vUMCmJnu3YZ8eR2CtqLFgLjeUnDo71Zoi/5pPAIuWw6TmiPEwJPnMU8oanLnoQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/buddy/ts-pantry/@stacksjs/ts-cloud": ["@stacksjs/ts-cloud@0.7.95", "", { "dependencies": { "@stacksjs/ts-xml": "^0.1.0", "@ts-cloud/aws-types": "0.7.95", "@ts-cloud/core": "0.7.95" }, "bin": { "cloud": "./dist/bin/cli.js" } }, "sha512-lnL4IT/XAmeYCw1sY2+JHSI3vUMCmJnu3YZ8eR2CtqLFgLjeUnDo71Zoi/5pPAIuWw6TmiPEwJPnMU8oanLnoQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/config/ts-pantry/@stacksjs/ts-cloud": ["@stacksjs/ts-cloud@0.7.95", "", { "dependencies": { "@stacksjs/ts-xml": "^0.1.0", "@ts-cloud/aws-types": "0.7.95", "@ts-cloud/core": "0.7.95" }, "bin": { "cloud": "./dist/bin/cli.js" } }, "sha512-lnL4IT/XAmeYCw1sY2+JHSI3vUMCmJnu3YZ8eR2CtqLFgLjeUnDo71Zoi/5pPAIuWw6TmiPEwJPnMU8oanLnoQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/browser-extension/ts-pantry/@stacksjs/ts-cloud/@ts-cloud/aws-types": ["@ts-cloud/aws-types@0.7.95", "", {}, "sha512-UTXRb/nYGGmlAHl8Xf43Sx1bDU26yi2KuGJzfcLx1wez9RfZGp296LKJGZYAYngN6Vvb2i3X/Ehfq8j3dxEchA=="],
-
-    "hello-world-fx/stacks/@stacksjs/browser-extension/ts-pantry/@stacksjs/ts-cloud/@ts-cloud/core": ["@ts-cloud/core@0.7.95", "", { "dependencies": { "@ts-cloud/aws-types": "0.7.95" } }, "sha512-Isktn2zKi208ZnWzyU0ct0dKzpXG5Z7yAvAE9aUhvT4mmTBSQlyckxSCgi4Dp04dg2UbNK2rfCTm30epYnXlIQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/buddy/ts-pantry/@stacksjs/ts-cloud/@ts-cloud/aws-types": ["@ts-cloud/aws-types@0.7.95", "", {}, "sha512-UTXRb/nYGGmlAHl8Xf43Sx1bDU26yi2KuGJzfcLx1wez9RfZGp296LKJGZYAYngN6Vvb2i3X/Ehfq8j3dxEchA=="],
-
-    "hello-world-fx/stacks/@stacksjs/buddy/ts-pantry/@stacksjs/ts-cloud/@ts-cloud/core": ["@ts-cloud/core@0.7.95", "", { "dependencies": { "@ts-cloud/aws-types": "0.7.95" } }, "sha512-Isktn2zKi208ZnWzyU0ct0dKzpXG5Z7yAvAE9aUhvT4mmTBSQlyckxSCgi4Dp04dg2UbNK2rfCTm30epYnXlIQ=="],
-
-    "hello-world-fx/stacks/@stacksjs/config/ts-pantry/@stacksjs/ts-cloud/@ts-cloud/aws-types": ["@ts-cloud/aws-types@0.7.95", "", {}, "sha512-UTXRb/nYGGmlAHl8Xf43Sx1bDU26yi2KuGJzfcLx1wez9RfZGp296LKJGZYAYngN6Vvb2i3X/Ehfq8j3dxEchA=="],
-
-    "hello-world-fx/stacks/@stacksjs/config/ts-pantry/@stacksjs/ts-cloud/@ts-cloud/core": ["@ts-cloud/core@0.7.95", "", { "dependencies": { "@ts-cloud/aws-types": "0.7.95" } }, "sha512-Isktn2zKi208ZnWzyU0ct0dKzpXG5Z7yAvAE9aUhvT4mmTBSQlyckxSCgi4Dp04dg2UbNK2rfCTm30epYnXlIQ=="],
   }
 }

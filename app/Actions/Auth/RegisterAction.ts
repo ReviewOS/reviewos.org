@@ -125,7 +125,14 @@ export default new Action({
         .executeTakeFirst()
 
       if (created?.id)
-        result = await Auth.loginUsingId(Number(created.id))
+        // The device, for the same reason `LoginAction` records it: a session
+        // list somebody can recognise a row in. A registration is a sign-in.
+        result = await Auth.loginUsingId(Number(created.id), {
+          userAgent: String(request?.headers?.get?.('user-agent') ?? '') || null,
+          ipAddress: String(request?.headers?.get?.('x-forwarded-for') ?? '').split(',')[0]?.trim()
+            || String(request?.headers?.get?.('x-real-ip') ?? '').trim()
+            || null,
+        })
     }
     catch (error) {
       // The unique index firing lands here, which is the race above losing.

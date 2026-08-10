@@ -401,8 +401,47 @@ promise, so the operational story is a feature and not an afterthought.
   The first-visit seeding defect this box would otherwise have found was already
   fixed and written up in [phase 1](./01-foundation.md); re-checked here against
   a live server rather than taken on trust.
-- [ ] Session handling: rotation on privilege change, absolute and idle expiry, sessions listed and
+- [x] Session handling: rotation on privilege change, absolute and idle expiry, sessions listed and
       revocable by the user
+
+  **The list is the part that needed building, and it needed two columns first.**
+  `oauth_access_tokens` recorded nothing anybody could recognise a row by, so
+  the page would have been a column of identical timestamps - and a page nobody
+  can act on is a page nobody builds, which is why this question has no answer
+  in most self-hosted software. Stacks 0.70.352 adds `user_agent` and
+  `ip_address` to that table, written by the sign-in path from the request;
+  `app/Actions/Auth/sessions.ts` turns the first into "Chrome on macOS", which
+  is what somebody actually reads.
+
+  The row you are reading is marked as current. That is not decoration: revoke
+  is a frightening button to press when you cannot tell whether you are about to
+  sign yourself out, and somebody who presses it once by mistake never presses
+  it again. "Sign out everywhere else" keeps the browser pressing it for the
+  same reason - the person who has just realised something is wrong should not
+  be thrown out of the page where they are dealing with it.
+
+  Your own, always, and there is no parameter that could say otherwise. A list
+  of where an account signs in from is a list of where a person is.
+
+  **Idle expiry** is `config.auth.idleTimeout`, also new upstream. It is a
+  different control from `tokenExpiry` and both are needed: one bounds how long
+  a session may live, the other how long it may live *untouched*, and an
+  absolute limit alone lets a browser left open on a machine somebody walked
+  away from keep working for its full term. Off by default here, because it is a
+  policy about a deployment's physical security rather than a property of the
+  software - and `buddy instance:check` refuses to start on
+  `AUTH_IDLE_TIMEOUT=30m` and warns about `1800`, because a hardening control
+  that coerces to "off" is one nobody notices is off.
+
+  **Rotation** was already right and is recorded here rather than rebuilt. A
+  password reset revokes every session and token, including the one that asked -
+  the usual reason to reset a password is that somebody else may have had it, so
+  handing back a fresh session would undo the only useful thing the reset did.
+  Session fixation has no purchase: there is no pre-authentication session to
+  fix, since the token is minted at sign-in.
+
+  A revocation is in the audit log, with what was ended and whether it was the
+  current browser.
 - [ ] A pass with the `stacks-security-audit` skill before the first public instance
 
 ### The audit log
