@@ -162,6 +162,19 @@ vocabulary, and it is discoverable without reading the source.
 
   Verified by deleting an operation from the document and watching it fail by name, rather than
   trusting that a green test was testing anything.
+
+  **It answered differently depending on what ran before it, which is the one thing a parity check
+  cannot do.** `route.routes` is a single table shared by the whole process, and `route.serve()`
+  adds the 65 file-based views to it - so run alone the test passed, and run after any e2e file that
+  boots a server it failed, naming `GET /`, `GET /features` and `GET /{owner}/{repository}` as
+  undocumented API. They are pages. They answer HTML, no generated client wants them, and the
+  document is right not to carry them.
+
+  Resetting the table does not work: `importRoutes()` is guarded against running twice, so clearing
+  it and re-importing leaves it empty and the test passes by describing nothing. It reads the table
+  from a child process now (`tests/helpers/declaredRoutes.ts`), which is the honest definition
+  anyway - **the API surface is what `routes/` declares**, not what happens to be registered by the
+  time this file runs.
 - [ ] Long-running resources, including CI workflow runs, expose their state machine and control
       operations through the same public actions used by the interface and CLI. No UI-only pause,
       retry, cancellation, log, or approval path.
