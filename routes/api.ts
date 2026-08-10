@@ -416,6 +416,15 @@ route.get('/repos/commit', 'Actions/Browse/CommitAction')
 route.get('/repos/branches', 'Actions/Browse/BranchesAction')
 route.get('/repos/tags', 'Actions/Browse/TagsAction')
 route.get('/repos/blame', 'Actions/Browse/BlameAction')
+/*
+ * Code search, in one repository, at a ref.
+ *
+ * `git grep` against the tree, so the answer is the code as it is on that ref
+ * rather than as it was when an indexer last ran - which for a review tool is
+ * the difference between an answer and a plausible one. Instance-wide search
+ * needs an index and is deliberately not this.
+ */
+route.get('/repos/search', 'Actions/Browse/SearchCodeAction')
 route.get('/repos/compare', 'Actions/Browse/CompareAction')
 
 // Releases. A release is a tag plus what somebody wanted to say about it, so

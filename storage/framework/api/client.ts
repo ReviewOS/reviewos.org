@@ -5343,6 +5343,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/search
+   */
+  getReposSearch(input: { "owner": string; "repository"?: string; "q": string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/search", input ?? {}, ["owner", "repository", "q", "ref"], false, options)
+  },
+
+  /**
    * POST /api/repos/settings
    */
   postReposSettings(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

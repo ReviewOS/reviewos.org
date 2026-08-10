@@ -20,7 +20,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (95/95) |
 | [05 - Notifications and webhooks](./05-notifications-webhooks.md) | Delivery, subscriptions, webhooks | Done (52/52) |
-| [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (10/20) |
+| [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (14/20) |
 | [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress (21/45) |
 | [08 - Migration](./08-migration.md) | Importing from GitHub and other forges | Done (16/16) |
 | [09 - Checks and CI](./09-checks-ci.md) | Checks, durable execution, runner providers, deployments | Started (12/120) |
