@@ -428,6 +428,34 @@ in the DOM.
 - [ ] A viewer that owns a list of items (a file diff or a plain file), each with a stable id and a
       `version` that increments when anything about it changes. Item identity plus version is what
       decides whether a mounted item needs re-rendering.
+
+  **Half of this landed and the half that did not is worth naming precisely.**
+
+  `reconcileList` in `app/Actions/Pull/viewport.ts` is the decision, pure and tested like everything
+  else in that file: items carry an `id` (the path, which survives a rename arriving late because a
+  rename reports the *new* path) and a `version`, and a change to the list produces what to keep,
+  what to render again, what to release, which measurements carry across, and where the reader's
+  anchor moved to. `DiffViewer.setFiles` applies it.
+
+  What that buys is the case a position-addressed list gets silently wrong: **inserting one item at
+  the top renames every item below it.** The host mounted for `src/app.ts` starts showing
+  `src/api.ts`, its measured height belongs to neither, and the anchor points at whatever moved into
+  the slot the reader was in - a correct render of the wrong thing, which no screenshot flags.
+  Appending cannot show it, and appending is all a manifest stream does, which is how the list got
+  this far without identity.
+
+  It has no caller yet, and that is the honest state. The obvious one - restricting the diff to the
+  files that changed since the reader last looked, which today filters only the tree beside it -
+  needs something else first: **every call site addresses a file by the server's index**
+  (`viewer.refresh(index)`, `setRows`, `growBy`, the markup map, the row fetch queue), and that
+  equals its position in the list only because the stream appends in order. Filtering breaks that
+  equality everywhere at once. The next step is an id-to-position map inside the viewer so the
+  server's index stays the vocabulary at the edges, and positions stay private.
+
+  Not wired to a live update on purpose: a new head is [deliberately a banner rather than a
+  refresh](./14-diff-engine.md) - `live.ts` says why, and it is right. Every line number on screen
+  may have moved and a draft anchored to one is anchored to the wrong line, so the reader chooses
+  the reload.
 - [x] Estimated heights computed from hunk metadata alone, without rendering: header height, line
       height, hunk separator height, collapsed-context threshold, and whether the item is collapsed.
       A list of 40,000 files needs a total height before any of them has been measured.

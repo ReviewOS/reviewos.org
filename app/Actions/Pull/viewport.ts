@@ -134,6 +134,178 @@ export interface ViewportFile {
   measured?: number
 }
 
+/**
+ * An item in the list, addressed by what it *is* rather than by where it sits.
+ *
+ * Everything else in this file works on positions, which is right for a frame -
+ * a scroll is arithmetic over offsets - and wrong for a *change*. A list
+ * addressed only by position says that the third item is the third item, so
+ * inserting one at the top silently renames every item below it: the host
+ * mounted for `src/app.ts` now belongs to `src/api.ts`, its measured height
+ * belongs to neither, and the reader's anchor points at whatever moved into
+ * the slot they were reading.
+ *
+ * Appending cannot show this, and appending is all a manifest stream does,
+ * which is why the list has got this far without identity. A re-fetch does not
+ * append: "since I last looked" answers with a different set of files, a push
+ * arriving mid-review changes which files exist, and a filter shows a subset.
+ * All three are the same shape and all three are wrong by a whole file today.
+ *
+ * `version` is the other half. Identity says *this is the same item*; version
+ * says *and it has changed since you rendered it* - a fold opened, the rows
+ * arrived after the record, a comment landed. Without it the only way to know
+ * is to re-render everything, which throws away every measured height, or to
+ * ask each caller to remember to invalidate, which is the same bug waiting for
+ * the next caller.
+ */
+export interface ListItem extends ViewportFile {
+  /**
+   * Stable for the life of one item. A file's path, in this product: it
+   * survives a rename arriving late in a stream, because a rename reports the
+   * *new* path and carries the old one alongside it.
+   */
+  id: string
+  /** Bumped by whoever changes the item. Equal means "what you rendered is still right". */
+  version: number
+}
+
+export interface ReconcilePlan {
+  /** Mounted hosts that survive, and where they move to. `from` and `to` may be equal. */
+  keep: Array<{ from: number, to: number }>
+  /**
+   * Mounted items that are still here and are no longer what was rendered.
+   * The host stays and moves with them; its contents do not.
+   */
+  rerender: Array<{ from: number, to: number }>
+  /** Old indexes whose item is gone. Their hosts go back to the pool. */
+  release: number[]
+  /** The mounted set, translated to the new list. What the next frame plans against. */
+  mounted: Set<number>
+  /**
+   * Measurements carried across, aligned to the new list.
+   *
+   * Carried where the version is unchanged, dropped where it is not: what was
+   * measured was the other content, and a stale measurement is worse than an
+   * estimate because the estimate at least knows the row count.
+   */
+  measured: Array<number | undefined>
+  /**
+   * The reader's anchor, moved to wherever its item went.
+   *
+   * Null when the item they were reading is not in the new list at all, which
+   * is the one case where there is nothing honest to do but let the caller
+   * decide - the alternative is landing them at the same *position*, which is
+   * a different file with the same index and looks like the page jumped.
+   */
+  anchor: ScrollAnchor | null
+}
+
+/**
+ * What changes when the list itself changes.
+ *
+ * Pure, and separated from the frame planning above for the same reason
+ * everything else here is: the failures are off-by-one and they are invisible
+ * in a screenshot. A host that keeps its element but shows another file's rows
+ * looks exactly like a correct render of the wrong thing.
+ *
+ * Duplicate ids are resolved by first occurrence, in list order, and the later
+ * one is treated as a new item. Ids are the caller's to keep unique - a diff
+ * cannot contain one path twice - and a plan that threw here would turn a
+ * cosmetic mistake into a blank page.
+ */
+export function reconcileList(
+  previous: readonly ListItem[],
+  next: readonly ListItem[],
+  state: { mounted?: ReadonlySet<number>, anchor?: ScrollAnchor | null } = {},
+): ReconcilePlan {
+  const mounted = state.mounted ?? new Set<number>()
+  const anchor = state.anchor ?? null
+
+  const previousById = new Map<string, number>()
+  for (let index = 0; index < previous.length; index++) {
+    if (!previousById.has(previous[index]!.id))
+      previousById.set(previous[index]!.id, index)
+  }
+
+  const keep: Array<{ from: number, to: number }> = []
+  const rerender: Array<{ from: number, to: number }> = []
+  const nextMounted = new Set<number>()
+  const measured: Array<number | undefined> = new Array(next.length)
+  const survived = new Set<number>()
+  const seen = new Set<string>()
+
+  for (let to = 0; to < next.length; to++) {
+    const item = next[to]!
+    if (seen.has(item.id))
+      continue
+
+    seen.add(item.id)
+
+    const from = previousById.get(item.id)
+    if (from == null)
+      continue
+
+    survived.add(from)
+
+    const unchanged = previous[from]!.version === item.version
+    // The item's own measurement wins if it brought one; otherwise inherit what
+    // the previous list had measured for it, which is the whole point.
+    measured[to] = item.measured ?? (unchanged ? previous[from]!.measured : undefined)
+
+    if (!mounted.has(from))
+      continue
+
+    nextMounted.add(to)
+
+    if (unchanged)
+      keep.push({ from, to })
+    else
+      rerender.push({ from, to })
+  }
+
+  const release: number[] = []
+  for (const index of mounted) {
+    if (!survived.has(index))
+      release.push(index)
+  }
+
+  release.sort((a, b) => a - b)
+
+  return {
+    keep,
+    rerender,
+    release,
+    mounted: nextMounted,
+    measured,
+    anchor: movedAnchor(previous, next, anchor),
+  }
+}
+
+/**
+ * The anchor, following its item rather than its index.
+ *
+ * The offset inside the item is kept as it was: the reader is a certain
+ * distance into a file, and that is true wherever the file has moved to. It
+ * gets clamped to the item's height later, by `restoreAnchor`, which is where
+ * the new layout is known.
+ */
+function movedAnchor(
+  previous: readonly ListItem[],
+  next: readonly ListItem[],
+  anchor: ScrollAnchor | null,
+): ScrollAnchor | null {
+  if (anchor == null)
+    return null
+
+  const item = previous[anchor.index]
+  if (!item)
+    return null
+
+  const to = next.findIndex(candidate => candidate.id === item.id)
+
+  return to === -1 ? null : { index: to, offset: anchor.offset }
+}
+
 export interface ViewportOptions {
   layout?: 'unified' | 'split'
   metrics?: HeightMetrics

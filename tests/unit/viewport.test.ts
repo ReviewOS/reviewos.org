@@ -8,9 +8,11 @@ import { describe, expect, test } from 'bun:test'
 import { DEFAULT_HEIGHT_METRICS, layoutList } from '../../app/Actions/Pull/metrics'
 import {
   captureAnchor,
+  type ListItem,
   measuredLayout,
   planFrame,
   planMounts,
+  reconcileList,
   restoreAnchor,
   scrollBehaviourFor,
   scrollTargetFor,
@@ -19,6 +21,14 @@ import {
 } from '../../app/Actions/Pull/viewport'
 
 const rows = (count: number) => ({ unified: count, split: count })
+
+function item(id: string, options: Partial<ListItem> = {}): ListItem {
+  return { id, version: 0, rows: rows(10), collapsed: false, ...options }
+}
+
+function items(...ids: string[]): ListItem[] {
+  return ids.map(id => item(id))
+}
 
 function files(count: number, lines = 10): ViewportFile[] {
   return Array.from({ length: count }, () => ({ rows: rows(lines), collapsed: false }))
@@ -520,5 +530,152 @@ describe('scroll anchoring across every change that moves things', () => {
     const restored = restoreAnchor(after, anchor)
     expect(restored).toBeGreaterThanOrEqual(after.offsets[readingIn]!)
     expect(restored).toBeLessThanOrEqual(after.offsets[readingIn]! + after.heights[readingIn]!)
+  })
+})
+
+/**
+ * A list that changes shape, rather than one that only grows.
+ *
+ * Every test above addresses the list by position, which is what a frame does
+ * and is right for a frame. These are about the other event: the set of items
+ * changing under a reader who is in the middle of it. Appending cannot show any
+ * of this - and appending is all a manifest stream does, which is how the list
+ * got this far without identity - but a re-fetch is not an append. "Since I
+ * last looked" answers with a different set, a push mid-review changes which
+ * files exist, and a filter shows a subset.
+ */
+describe('reconcileList', () => {
+  test('appending disturbs nothing that is already mounted', () => {
+    const before = items('a', 'b')
+    const after = items('a', 'b', 'c', 'd')
+
+    const plan = reconcileList(before, after, { mounted: new Set([0, 1]) })
+
+    expect(plan.keep).toEqual([{ from: 0, to: 0 }, { from: 1, to: 1 }])
+    expect(plan.rerender).toEqual([])
+    expect(plan.release).toEqual([])
+    expect([...plan.mounted]).toEqual([0, 1])
+  })
+
+  /**
+   * The bug identity exists for. Inserting at the top renumbers everything
+   * below, so a list addressed by position hands `b`'s mounted element to `a`
+   * and shows one file's rows under another file's header - a correct render of
+   * the wrong thing, which no screenshot flags.
+   */
+  test('an item inserted above keeps every mounted host with its own item', () => {
+    const before = items('a', 'b', 'c')
+    const after = items('new', 'a', 'b', 'c')
+
+    const plan = reconcileList(before, after, { mounted: new Set([0, 1, 2]) })
+
+    expect(plan.keep).toEqual([{ from: 0, to: 1 }, { from: 1, to: 2 }, { from: 2, to: 3 }])
+    expect(plan.release).toEqual([])
+    expect([...plan.mounted]).toEqual([1, 2, 3])
+  })
+
+  test('and carries their measured heights with them', () => {
+    const before = [item('a', { measured: 400 }), item('b', { measured: 250 })]
+    const after = items('new', 'a', 'b')
+
+    const plan = reconcileList(before, after)
+
+    expect(plan.measured).toEqual([undefined, 400, 250])
+  })
+
+  /**
+   * The other half: same item, different content. What was measured was the
+   * other content, so the measurement goes with it - an estimate at least knows
+   * the new row count, and a stale height is a scrollbar that lies.
+   */
+  test('a version bump re-renders in place and drops the stale measurement', () => {
+    const before = [item('a', { measured: 400 }), item('b', { measured: 250 })]
+    const after = [item('a', { version: 1, measured: undefined }), item('b', { measured: 250 })]
+
+    const plan = reconcileList(before, after, { mounted: new Set([0, 1]) })
+
+    expect(plan.rerender).toEqual([{ from: 0, to: 0 }])
+    expect(plan.keep).toEqual([{ from: 1, to: 1 }])
+    expect(plan.measured).toEqual([undefined, 250])
+  })
+
+  test('an item that is gone releases its host, and one that arrives is left to the frame', () => {
+    const before = items('a', 'b', 'c')
+    const after = items('a', 'c', 'd')
+
+    const plan = reconcileList(before, after, { mounted: new Set([0, 1, 2]) })
+
+    // `b` is gone: its host goes back to the pool. `c` moved up. `d` is new and
+    // mounts only if the next frame decides it is in range - reconciling is not
+    // the place to decide what is on screen.
+    expect(plan.release).toEqual([1])
+    expect(plan.keep).toEqual([{ from: 0, to: 0 }, { from: 2, to: 1 }])
+    expect([...plan.mounted]).toEqual([0, 1])
+  })
+
+  test('an item that moved but was never mounted asks for nothing', () => {
+    const plan = reconcileList(items('a', 'b'), items('b', 'a'), { mounted: new Set() })
+
+    expect(plan.keep).toEqual([])
+    expect(plan.rerender).toEqual([])
+    expect(plan.release).toEqual([])
+  })
+
+  /**
+   * The reader's place is in a *file*, not at a scroll offset. Ten files
+   * arriving above them moves that file down the list, and an anchor that
+   * stayed on index 3 would land them in a file they have never seen.
+   */
+  test('the anchor follows the item the reader was in', () => {
+    const before = items('a', 'b', 'c')
+    const after = items('x', 'y', 'a', 'b', 'c')
+
+    const plan = reconcileList(before, after, { anchor: { index: 1, offset: 120 } })
+
+    expect(plan.anchor).toEqual({ index: 3, offset: 120 })
+  })
+
+  test('and is dropped, rather than guessed at, when that item is gone', () => {
+    const plan = reconcileList(items('a', 'b'), items('a'), { anchor: { index: 1, offset: 120 } })
+
+    // Keeping index 1 would land the reader in whatever moved into the slot,
+    // which reads as the page having jumped on its own.
+    expect(plan.anchor).toBeNull()
+  })
+
+  test('a list replaced entirely keeps nothing and releases everything', () => {
+    const plan = reconcileList(items('a', 'b'), items('c', 'd'), { mounted: new Set([0, 1]) })
+
+    expect(plan.keep).toEqual([])
+    expect(plan.release).toEqual([0, 1])
+    expect([...plan.mounted]).toEqual([])
+  })
+
+  test('an emptied list is a plan, not a crash', () => {
+    const plan = reconcileList(items('a', 'b'), [], { mounted: new Set([0, 1]), anchor: { index: 0, offset: 10 } })
+
+    expect(plan.release).toEqual([0, 1])
+    expect(plan.measured).toEqual([])
+    expect(plan.anchor).toBeNull()
+  })
+
+  test('a duplicate id resolves to the first, and the second is simply new', () => {
+    const before = [item('a', { measured: 300 })]
+    const after = [item('a'), item('a')]
+
+    const plan = reconcileList(before, after, { mounted: new Set([0]) })
+
+    expect(plan.keep).toEqual([{ from: 0, to: 0 }])
+    expect(plan.measured).toEqual([300, undefined])
+  })
+
+  test('reconciling twice over the same list asks for no work the second time', () => {
+    const list = items('a', 'b', 'c')
+    const first = reconcileList(list, list, { mounted: new Set([0, 1, 2]) })
+    const second = reconcileList(list, list, { mounted: first.mounted })
+
+    expect(second.rerender).toEqual([])
+    expect(second.release).toEqual([])
+    expect(second.keep).toEqual([{ from: 0, to: 0 }, { from: 1, to: 1 }, { from: 2, to: 2 }])
   })
 })

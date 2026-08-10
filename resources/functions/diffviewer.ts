@@ -23,8 +23,10 @@ import { DEFAULT_HEIGHT_METRICS } from '../../app/Actions/Pull/metrics'
 import {
   captureAnchor,
   DEFAULT_OVERSCAN,
+  type ListItem,
   measuredLayout,
   planFrame,
+  reconcileList,
   type ScrollAlignment,
   scrollBehaviourFor,
   scrollTargetFor,
@@ -496,6 +498,20 @@ export interface DiffFileEntry {
    * `rows` above is the effective (folded) count; unfolding adds these back.
    */
   folds?: Array<{ hunk: number, rows: RowCounts }>
+  /**
+   * What this file *is*, for a list that changes rather than only grows.
+   *
+   * Defaults to the path, which is the right answer here: it is unique within a
+   * diff and it survives a rename arriving late in a stream, because a rename
+   * reports the new path and carries the old one in `from`.
+   */
+  id?: string
+  /**
+   * Bumped by whoever changes the file, so `setFiles` can tell a file that
+   * moved from a file that moved *and* changed. Absent means zero; a caller
+   * that never changes a file in place never has to think about it.
+   */
+  version?: number
 }
 
 export interface DiffViewerOptions {
@@ -544,6 +560,27 @@ export interface DiffViewerOptions {
 export interface DiffViewer {
   /** Append files. Safe to call repeatedly while the manifest streams in. */
   addFiles: (files: readonly DiffFileEntry[]) => void
+  /**
+   * Replace the list with another one, keeping whatever the two have in common.
+   *
+   * For the changes that are not appends. "Since I last looked" answers with a
+   * different set of files, a push arriving mid-review changes which files
+   * exist, and a filter shows a subset - and all three used to mean rebuilding
+   * the viewer, which drops every measured height, every mounted element, and
+   * the reader's place.
+   *
+   * Files are matched by `id` (their path, unless the caller says otherwise).
+   * A file present in both keeps its element and its measured height; one whose
+   * `version` moved keeps its element and is rendered again; one that is gone
+   * has its element pooled; one that is new is left to the next frame, which is
+   * what decides what is on screen. The reader's anchor follows its *file*, so
+   * ten files arriving above them is not a page that jumps.
+   *
+   * Appending still goes through `addFiles`, which is O(what arrived) rather
+   * than O(the whole list) - a manifest stream calls it once per batch and a
+   * large compare has forty thousand files.
+   */
+  setFiles: (files: readonly DiffFileEntry[]) => void
   setLayout: (layout: 'unified' | 'split') => void
   setCollapsed: (index: number, collapsed: boolean) => void
   /**
@@ -898,6 +935,23 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
   resizeObserver?.observe(scroller)
 
   /** Take an anchor now, so a change that moves things can put the reader back. */
+  /**
+   * The list as identified items, for a reconcile.
+   *
+   * Built from the two arrays the viewer keeps rather than stored as a third:
+   * `entries` is what a file *is* and `geometry` is what it *measures*, and a
+   * third copy of the same list is a third thing to keep in step.
+   */
+  function listItems(): ListItem[] {
+    return entries.map((entry, index) => ({
+      id: entry.id ?? entry.path,
+      version: entry.version ?? 0,
+      rows: geometry[index]!.rows,
+      collapsed: geometry[index]!.collapsed,
+      measured: geometry[index]!.measured,
+    }))
+  }
+
   function anchorNow(): void {
     const { layout: current } = planFrame(
       geometry,
@@ -918,6 +972,78 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
         geometry.push({ rows: file.rows, collapsed: file.collapsed })
       }
 
+      schedule()
+    },
+
+    setFiles(files) {
+      const before = listItems()
+
+      // Taken against the list as it stands: the anchor is an index into the
+      // *old* list, and the plan is what moves it to the new one.
+      anchorNow()
+
+      const after: ListItem[] = files.map(file => ({
+        id: file.id ?? file.path,
+        version: file.version ?? 0,
+        rows: file.rows,
+        collapsed: file.collapsed,
+      }))
+
+      const plan = reconcileList(before, after, { mounted: new Set(hosts.keys()), anchor })
+
+      // Released first, and by old index, while `hosts` still means what it
+      // meant when the plan was made. Re-keying underneath a release would look
+      // up the wrong element and leave the right one in the document forever.
+      for (const index of plan.release)
+        release(index)
+
+      const moved = new Map<number, HTMLElement>()
+      for (const { from, to } of plan.keep) {
+        const host = hosts.get(from)
+        if (host)
+          moved.set(to, host)
+      }
+
+      for (const { from, to } of plan.rerender) {
+        const host = hosts.get(from)
+        if (host)
+          moved.set(to, host)
+      }
+
+      hosts.clear()
+      for (const [index, host] of moved)
+        hosts.set(index, host)
+
+      entries.length = 0
+      entries.push(...files)
+
+      geometry.length = 0
+      for (let index = 0; index < after.length; index++) {
+        geometry.push({
+          rows: after[index]!.rows,
+          collapsed: after[index]!.collapsed,
+          measured: plan.measured[index],
+        })
+      }
+
+      // The hosts that survived are pointing at their file again, which matters
+      // for anything reading `data-file-index` off an element - a selection, an
+      // open comment box, the file tree's idea of what is on screen.
+      for (const [index, host] of hosts) {
+        host.dataset.fileIndex = String(index)
+        host.dataset.path = entries[index]?.path ?? ''
+      }
+
+      // Rendered after the remap, so a file whose content changed is drawn from
+      // its new record rather than its old one.
+      for (const { to } of plan.rerender) {
+        const host = hosts.get(to)
+        const entry = entries[to]
+        if (host && entry)
+          renderFile(entry, host)
+      }
+
+      anchor = plan.anchor
       schedule()
     },
 
