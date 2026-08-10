@@ -1138,8 +1138,29 @@ already used it.
   push would unmark every file including the ones it did not touch. Doing it properly means asking
   git whether *this file* changed between the two shas, which is the incremental diff in phase 4.
 
-- [ ] Show a tick as stale when that file changed since it was read. Needs the per-file question
+- [x] Show a tick as stale when that file changed since it was read. Needs the per-file question
       above, and `head_sha` is already on the row for it.
+
+  Asked per file, which is the whole difficulty. `GET /repos/pulls/review-state/stale` groups the
+  reviewer's ticks by the head each was made at - the expensive axis, since it is one streamed diff
+  per distinct sha and ticks cluster by review round - and compares each against the head's
+  fingerprints, path by path. A file whose proposal is byte for byte what they read keeps its tick
+  through any number of pushes and rebases underneath it.
+
+  **Marked, never unticked.** Which of two hundred files somebody has got through is the one thing
+  they cannot reconstruct, so the interface says "this one moved" and leaves the decision with them.
+  The strike-through comes off and the row returns to full strength, because a stale tick marks one
+  of the few files in a long list that still wants reading.
+
+  "Cannot tell" is rendered as a different claim from "changed", and it has to be: a force push
+  leaves the commit somebody read unreachable, and reporting that as unchanged is the interface
+  telling a reviewer they have read something nobody can confirm they read. Dotted rather than
+  solid, and a `STALE_TICK_HEAD_LIMIT` of eight rounds per request, with anything beyond it counted
+  in the answer rather than silently left ticked.
+
+  The test that matters is the one a one-line implementation fails: two files ticked at the same
+  head, a push changing one of them, and **only that one** goes stale. Checked by writing the naive
+  version - the head moved, so unmark everything - and watching six of the twenty-six cases fail.
 - [x] A mobile presentation: an overlay rather than a column
 
 ## Theming

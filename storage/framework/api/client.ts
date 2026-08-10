@@ -5224,6 +5224,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/pulls/review-state/stale
+   */
+  getReposPullsReviewStateStale(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/review-state/stale", {}, [], false, options)
+  },
+
+  /**
    * PUT /api/repos/pulls/review-state/viewed
    */
   putReposPullsReviewStateViewed(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

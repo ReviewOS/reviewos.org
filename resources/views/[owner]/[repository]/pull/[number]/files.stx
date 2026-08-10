@@ -151,6 +151,14 @@ const draftUrl = `/api/repos/pulls/review-state/draft?${diffQuery}`
  */
 const sinceUrl = `/api/repos/pulls/review-state/since?${diffQuery}`
 
+/**
+ * Which of this reader's ticks have stopped being true.
+ *
+ * The same deferral and for the same reason: it streams the pull request's diff
+ * once per round the reader ticked in, and nobody is waiting on the answer.
+ */
+const staleUrl = `/api/repos/pulls/review-state/stale?${diffQuery}`
+
 /** Where one file's interdiff is asked for, when the reader wants it. */
 const interdiffUrl = `/api/repos/pulls/diff/interdiff?${diffQuery}`
 
@@ -292,6 +300,7 @@ const blameUrl = `/api/repos/pulls/diff/blame?${diffQuery}`
         data-viewed-url="{{ viewedUrl }}"
         data-draft-url="{{ draftUrl }}"
         data-since-url="{{ sinceUrl }}"
+        data-stale-url="{{ staleUrl }}"
         data-interdiff-url="{{ interdiffUrl }}"
         data-blame-url="{{ blameUrl }}"
       >

@@ -221,6 +221,88 @@ export function compareProposals(before: Fingerprints, after: Fingerprints): Sin
   return { changed, added, removed, unchanged }
 }
 
+/** A file the reviewer has ticked, and the head they read it at. */
+export interface TickedFile {
+  path: string
+  headSha: string | null
+}
+
+export interface StaleTicks {
+  /** Ticks whose file no longer proposes what the reviewer read. */
+  stale: string[]
+  /**
+   * Ticks that cannot be checked rather than ticks that are fine.
+   *
+   * A force push can leave the sha somebody read unreachable, and a row written
+   * before `head_sha` existed carries no sha at all. Neither is evidence that
+   * the file is unchanged, and reporting them as fresh would be the interface
+   * telling a reviewer they have read something nobody can confirm they have.
+   */
+  unverifiable: string[]
+}
+
+/**
+ * Which ticks no longer describe the file in front of the reviewer.
+ *
+ * **Per file, and that is the whole difficulty.** The obvious implementation -
+ * the head moved, so unmark everything - clears the tick on every file the push
+ * did not touch, and looks exactly like the feature working. `head_sha` has
+ * been stored and deliberately unused for precisely that reason.
+ *
+ * The question asked instead is the one the incremental diff already answers:
+ * each head fingerprinted against **its own merge base**, compared per path. So
+ * a file is stale when what it proposes differs from what was read, whatever
+ * happened underneath it - and a rebase that did not touch a file leaves its
+ * digest identical and its tick alone.
+ *
+ * Pure over the maps, because the interesting cases are all about a path being
+ * on one side and not the other, and none of them need a repository.
+ */
+export function staleTicks(
+  ticked: readonly TickedFile[],
+  head: string,
+  atHead: Fingerprints,
+  atSha: ReadonlyMap<string, Fingerprints>,
+): StaleTicks {
+  const stale: string[] = []
+  const unverifiable: string[] = []
+
+  for (const tick of ticked) {
+    // Not in the diff any more. There is nothing left to re-read, and the
+    // sidebar has no row to mark, so it is neither.
+    if (!atHead.has(tick.path))
+      continue
+
+    // Read at the head they are looking at: the tick is exactly as good as it
+    // was when they made it, and no git ran to find that out.
+    if (tick.headSha != null && tick.headSha === head)
+      continue
+
+    if (tick.headSha == null) {
+      unverifiable.push(tick.path)
+      continue
+    }
+
+    const before = atSha.get(tick.headSha)
+    if (before == null) {
+      unverifiable.push(tick.path)
+      continue
+    }
+
+    const was = before.get(tick.path)
+
+    // Ticked when the pull request did not touch this file at all, and it does
+    // now: they have not read what it proposes, because it proposed nothing.
+    if (was === undefined || was !== atHead.get(tick.path))
+      stale.push(tick.path)
+  }
+
+  stale.sort()
+  unverifiable.sort()
+
+  return { stale, unverifiable }
+}
+
 /**
  * The head this reader was looking at last time, or null.
  *
@@ -316,4 +398,70 @@ export async function sinceLastLook(options: {
     return null
 
   return compareProposals(before, after)
+}
+
+/**
+ * How many distinct heads' worth of ticks are checked in one request.
+ *
+ * Each one is a full streamed diff of the pull request, so this is the cost
+ * ceiling. Ticks cluster by review round - a reviewer reads a batch of files at
+ * one head, comes back after a push and reads more - so a handful covers every
+ * real case, and a pull request with more rounds than this reports the rest as
+ * unverifiable rather than quietly leaving them ticked.
+ */
+export const STALE_TICK_HEAD_LIMIT = 8
+
+/**
+ * Which of this reviewer's ticks are stale, asked of the repository.
+ *
+ * The ticks are grouped by the head they were made at, because that is the
+ * expensive axis: one streamed diff per distinct sha, however many files were
+ * ticked at it. The head's own fingerprints are read once alongside them.
+ *
+ * `null` when the head itself cannot be read, which is the only case where
+ * there is no answer rather than an empty one.
+ */
+export async function staleTickedFiles(options: {
+  owner: string
+  repository: string
+  base: string
+  head: string
+  ticked: readonly TickedFile[]
+}): Promise<(StaleTicks & { checkedHeads: number, uncheckedHeads: number }) | null> {
+  const diskPath = diskPathFor(options.owner, options.repository)
+  if (!diskPath)
+    return null
+
+  const atHead = await fingerprintProposal(diskPath, options.base, options.head)
+  if (atHead === null)
+    return null
+
+  // Distinct, and the head itself is not among them: a tick made at the head
+  // is fresh by definition and costs nothing to say so.
+  const shas = [...new Set(
+    options.ticked
+      .map(tick => tick.headSha)
+      .filter((sha): sha is string => sha != null && sha !== options.head),
+  )]
+
+  const checked = shas.slice(0, STALE_TICK_HEAD_LIMIT)
+  const fingerprints = await Promise.all(
+    checked.map(sha => fingerprintProposal(diskPath, options.base, sha)),
+  )
+
+  const atSha = new Map<string, Fingerprints>()
+  for (let index = 0; index < checked.length; index++) {
+    const prints = fingerprints[index]
+    // A sha that cannot be read is left out of the map on purpose: the decision
+    // reports its ticks as unverifiable, which is what "the commit you read is
+    // gone" honestly is.
+    if (prints !== null)
+      atSha.set(checked[index]!, prints)
+  }
+
+  return {
+    ...staleTicks(options.ticked, options.head, atHead, atSha),
+    checkedHeads: checked.length,
+    uncheckedHeads: shas.length - checked.length,
+  }
 }

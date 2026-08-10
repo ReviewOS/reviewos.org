@@ -1391,6 +1391,32 @@
       .file-row.is-viewed .file-open { opacity: 0.5; }
       .file-row.is-viewed .file-name { text-decoration: line-through; }
 
+      /* A tick that has stopped being true: the file changed after it was read.
+        The strike-through comes off - it no longer describes the file - and the
+        row comes back to full strength, because this is one of the few files in
+        a long list that still wants reading. Marked, never unticked: which
+        files somebody has got through is theirs to keep. */
+      .file-row.is-stale .file-open { opacity: 1; }
+      .file-row.is-stale .file-name { text-decoration: none; }
+      .file-row.is-stale .file-viewed {
+        accent-color: var(--warning, #b7791f);
+        outline: 2px solid var(--warning, #b7791f);
+        outline-offset: 1px;
+        border-radius: 2px;
+      }
+
+      /* And one nobody can check, because the commit it was read at is gone -
+        a force push, usually. Dotted rather than solid: "cannot tell" is a
+        different claim from "changed", and rendering them the same way would
+        make the honest one look like the certain one. */
+      .file-row.is-unverifiable .file-open { opacity: 0.75; }
+      .file-row.is-unverifiable .file-name { text-decoration-style: dotted; }
+      .file-row.is-unverifiable .file-viewed {
+        outline: 1px dashed var(--muted);
+        outline-offset: 1px;
+        border-radius: 2px;
+      }
+
       .file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
       /* The directory dimmed and the filename bright, which is what a reader
         scans to tell two files called index.ts apart. `direction: rtl` keeps

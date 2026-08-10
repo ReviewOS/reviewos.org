@@ -139,6 +139,15 @@ export function createFileList(options: {
    * uses, so selecting a file still scrolls to the right one.
    */
   setRestriction: (paths: ReadonlySet<string> | null, label?: string) => void
+  /**
+   * Mark ticks that no longer describe the file, and ticks nobody can check.
+   *
+   * Shown rather than cleared. A tick is a reviewer's own record of what they
+   * have read, and unticking it for them throws away the one thing they cannot
+   * reconstruct - which of two hundred files they had got through. Saying "this
+   * one moved" leaves the decision where it belongs.
+   */
+  setStale: (stale: ReadonlySet<string>, unverifiable?: ReadonlySet<string>) => void
   destroy: () => void
 } {
   const { host, onSelect, store, onViewedChange } = options
@@ -188,6 +197,17 @@ export function createFileList(options: {
   // the number it uses.
   let shown: number[] = []
   let current = -1
+  /*
+   * The two ways a tick can have stopped meaning what it said, held together
+   * because they are answered together and read together. One object rather
+   * than two bindings: the linter reads an assignment inside the returned
+   * methods as no assignment at all and asks for `const`, which the next person
+   * would take and then wonder why marking never worked.
+   */
+  const marks: { stale: ReadonlySet<string>, unverifiable: ReadonlySet<string> } = {
+    stale: new Set(),
+    unverifiable: new Set(),
+  }
   let frame: number | null = null
   /** Set while the list is narrowed to a subset, null when it shows everything. */
   let restriction: ReadonlySet<string> | null = null
@@ -254,6 +274,13 @@ export function createFileList(options: {
       const directory = cut < 0 ? '' : file.path.slice(0, cut + 1)
       const name = cut < 0 ? file.path : file.path.slice(cut + 1)
       const isViewed = viewed.has(file.path)
+      // Only a ticked file can have a stale tick, and a file the reader has
+      // since unticked is a file they are already going to read.
+      const isStale = isViewed && marks.stale.has(file.path)
+      const isUnverifiable = isViewed && !isStale && marks.unverifiable.has(file.path)
+      const staleWhy = isStale
+        ? ' - changed since you read it'
+        : isUnverifiable ? ' - cannot tell whether it changed since you read it' : ''
 
       // The reason is on the row's tooltip as well as in the header, because
       // the sidebar is where a reviewer decides what to open and the header is
@@ -261,11 +288,12 @@ export function createFileList(options: {
       const why = file.mechanical ? ` (${mechanicalLabel(file.mechanical)})` : ''
 
       return `<div class="file-row${file.index === current ? ' is-current' : ''}${isViewed ? ' is-viewed' : ''}`
+        + `${isStale ? ' is-stale' : ''}${isUnverifiable ? ' is-unverifiable' : ''}`
         + `${file.mechanical ? ' is-mechanical' : ''}">`
         + `<input type="checkbox" class="file-viewed" data-file-index="${file.index}"`
         + ` aria-label="Mark ${escapeAttribute(file.path)} as viewed"${isViewed ? ' checked' : ''}>`
         + `<button type="button" class="file-open" data-file-index="${file.index}"`
-        + ` title="${escapeAttribute(file.path)}${escapeAttribute(why)}">`
+        + ` title="${escapeAttribute(file.path)}${escapeAttribute(why)}${escapeAttribute(staleWhy)}">`
         + `<span class="file-status file-status-${escapeAttribute(file.status)}" aria-hidden="true"></span>`
         + `<span class="file-name">`
         + (directory ? `<span class="file-dir">${escapeText(directory)}</span>` : '')
@@ -1513,6 +1541,7 @@ export function mountDiffFiles(): DiffViewer | null {
   const contextUrl = root.dataset.contextUrl
   const commentUrl = root.dataset.commentUrl
   const sinceUrl = root.dataset.sinceUrl
+  const staleUrl = root.dataset.staleUrl
   const interdiffUrl = root.dataset.interdiffUrl
   const blameUrl = root.dataset.blameUrl
 
@@ -3386,6 +3415,33 @@ export function mountDiffFiles(): DiffViewer | null {
     }
   }
 
+  /**
+   * Mark the ticks that have stopped being true.
+   *
+   * Asked for once the list is known, like the offer below it, and for the same
+   * reason: it costs the server a diff per round the reader ticked in and
+   * nobody is waiting on it. A failure leaves every tick as it was, which is
+   * the state the page was already showing.
+   */
+  async function markStaleTicks(): Promise<void> {
+    const url = staleUrl
+    if (!url || !fileList)
+      return
+
+    try {
+      const response = await fetch(url, { headers: { Accept: 'application/json' } })
+      if (!response.ok)
+        return
+
+      const answer = await response.json() as { stale?: string[], unverifiable?: string[] }
+
+      fileList.setStale(new Set(answer.stale ?? []), new Set(answer.unverifiable ?? []))
+    }
+    catch {
+      // Nothing to mark is the same outcome as not being able to ask.
+    }
+  }
+
   async function offerSinceLastLook(): Promise<void> {
     // Read here rather than captured, for the same reason `region` and `view`
     // are captured above: the guard at the top of `mountDiffFiles` does not
@@ -3496,6 +3552,7 @@ export function mountDiffFiles(): DiffViewer | null {
       restoreDraft()
       void revealSelection()
       void offerSinceLastLook()
+      void markStaleTicks()
       const counts = `${summary.files} files, +${summary.additions} -${summary.deletions}`
       say(truncatedFrom == null ? counts : `${counts} (rendered to file ${truncatedFrom})`, 'done')
     },

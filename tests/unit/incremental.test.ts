@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { compareProposals, patchSignature, pathInPatch } from '../../app/Actions/Pull/incremental'
+import { compareProposals, patchSignature, pathInPatch, staleTicks } from '../../app/Actions/Pull/incremental'
 
 /** A patch for one file, in the shape git actually writes it. */
 function patch(options: {
@@ -173,5 +173,96 @@ describe('compareProposals', () => {
       removed: [],
       unchanged: 0,
     })
+  })
+})
+
+/**
+ * A tick that no longer describes the file in front of the reviewer.
+ *
+ * The trap is stated on the box this implements: the head is one sha for the
+ * whole pull request, so "the head moved, unmark everything" clears the tick on
+ * every file the push did not touch - and looks exactly like the feature
+ * working. Every case below is about one file moving while another does not.
+ */
+describe('staleTicks', () => {
+  const prints = (entries: Record<string, string>) => new Map(Object.entries(entries))
+
+  const head = 'headsha'
+  const atHead = prints({ 'a.ts': 'one', 'b.ts': 'two-changed', 'c.ts': 'three' })
+  const earlier = prints({ 'a.ts': 'one', 'b.ts': 'two', 'c.ts': 'three' })
+  const at = new Map([['oldsha', earlier]])
+
+  test('only the file that actually moved goes stale', () => {
+    const result = staleTicks(
+      [{ path: 'a.ts', headSha: 'oldsha' }, { path: 'b.ts', headSha: 'oldsha' }],
+      head,
+      atHead,
+      at,
+    )
+
+    expect(result.stale).toEqual(['b.ts'])
+    expect(result.unverifiable).toEqual([])
+  })
+
+  test('a tick made at the current head is fresh without asking git anything', () => {
+    const result = staleTicks([{ path: 'b.ts', headSha: head }], head, atHead, new Map())
+
+    expect(result.stale).toEqual([])
+    expect(result.unverifiable).toEqual([])
+  })
+
+  /**
+   * The force-push case. The sha they read is unreachable, so nothing can be
+   * compared against it - and saying "unchanged" there is the interface telling
+   * somebody they have read a file nobody can confirm they have.
+   */
+  test('a tick made at a sha that is gone is unverifiable, not fresh', () => {
+    const result = staleTicks([{ path: 'a.ts', headSha: 'dropped' }], head, atHead, at)
+
+    expect(result.stale).toEqual([])
+    expect(result.unverifiable).toEqual(['a.ts'])
+  })
+
+  test('and so is a row written before the sha was recorded at all', () => {
+    const result = staleTicks([{ path: 'a.ts', headSha: null }], head, atHead, at)
+
+    expect(result.unverifiable).toEqual(['a.ts'])
+  })
+
+  test('a file the pull request no longer touches is neither', () => {
+    // There is no row in the sidebar to mark and nothing left to re-read.
+    const result = staleTicks([{ path: 'gone.ts', headSha: 'oldsha' }], head, atHead, at)
+
+    expect(result.stale).toEqual([])
+    expect(result.unverifiable).toEqual([])
+  })
+
+  test('a file the pull request did not touch when they ticked it is stale now', () => {
+    // Ticked when it proposed nothing, and it proposes something now: they have
+    // read the file, not the change.
+    const result = staleTicks([{ path: 'd.ts', headSha: 'oldsha' }], head, prints({ 'd.ts': 'new' }), at)
+
+    expect(result.stale).toEqual(['d.ts'])
+  })
+
+  test('ticks from several rounds are each judged against their own round', () => {
+    const twoRounds = new Map([
+      ['first', prints({ 'a.ts': 'one', 'b.ts': 'old' })],
+      ['second', prints({ 'a.ts': 'one', 'b.ts': 'two-changed' })],
+    ])
+
+    const result = staleTicks(
+      [{ path: 'b.ts', headSha: 'first' }, { path: 'a.ts', headSha: 'second' }],
+      head,
+      atHead,
+      twoRounds,
+    )
+
+    // `b.ts` moved after the first round; `a.ts` has not moved since either.
+    expect(result.stale).toEqual(['b.ts'])
+  })
+
+  test('nothing ticked is an empty answer rather than a special case', () => {
+    expect(staleTicks([], head, atHead, at)).toEqual({ stale: [], unverifiable: [] })
   })
 })

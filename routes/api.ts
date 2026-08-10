@@ -580,6 +580,11 @@ route.get('/repos/pulls/review-state', 'Actions/Pull/ReviewStateAction')
 // is which of its files an earlier conclusion no longer covers.
 route.get('/repos/pulls/review-state/since', 'Actions/Pull/SinceLastLookAction')
 
+// Which of this reviewer's ticks have stopped being true. Per file rather than
+// per push: the head is one sha for the whole pull request, so unmarking on any
+// push would clear the ticks on the files it did not touch.
+route.get('/repos/pulls/review-state/stale', 'Actions/Pull/StaleTicksAction')
+
 // Who has worked on the files this pull request changes. A suggestion and never
 // a request: asking somebody is a person's decision, and a queue filled with a
 // heuristic's guesses is a queue people stop reading.
