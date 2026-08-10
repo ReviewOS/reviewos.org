@@ -9443,6 +9443,29 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/instance/admin": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "operation"?: "stats" | "users" | "repositories" | "queue" | "promote" | "demote" | "retry-job"; "handle"?: string; "search"?: string; "id"?: number; "limit"?: number } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/instance/settings": {
     get?: never
     put?: never

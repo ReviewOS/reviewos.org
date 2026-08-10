@@ -72,6 +72,9 @@ export type AuditEventName =
   | 'organization:deleted'
   // Administrative action.
   | 'instance:setting-changed'
+  | 'admin:granted'
+  | 'admin:revoked'
+  | 'admin:job-retried'
   | 'audit:exported'
 
 /**
@@ -107,6 +110,9 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'repository:deleted',
   'organization:deleted',
   'instance:setting-changed',
+  'admin:granted',
+  'admin:revoked',
+  'admin:job-retried',
   'audit:exported',
 ] as const
 

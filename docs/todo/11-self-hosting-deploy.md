@@ -331,8 +331,46 @@ promise, so the operational story is a feature and not an afterthought.
     differing only in an id are the same error, or the suppression suppresses nothing.
   - A failed report never fails the request, and is not logged either: the caller is already handling
     an error, and a second line about the report of it is noise on the path somebody is reading.
-- [ ] Admin area: instance stats, user administration, repository administration, queue inspection,
+- [x] Admin area: instance stats, user administration, repository administration, queue inspection,
       failed job retry
+
+  `POST /api/instance/admin`, five reads and two writes behind one gate. One
+  endpoint rather than seven for the reason the audit log and the settings give:
+  a second is a second place the administrator check has to be right, and a
+  mistake in that gate on any one of them is every private repository on the
+  instance, readable by whoever noticed. A stranger gets a 404, so whether an
+  instance has an administration API is not confirmable by asking.
+
+  **The levers are deliberately two.** Promote or demote an administrator, and
+  retry a failed job. Deleting a repository, transferring one, revoking a token
+  all have endpoints with their own rules already, and duplicating them here
+  would be a second implementation of each rule that has to stay in step. An
+  administration page should mostly be a *window*.
+
+  Promotion is by handle rather than by id, because an id is a number somebody
+  can mistype into a different person and this is the most consequential control
+  in the product. The last administrator cannot demote themselves - nobody left
+  can promote a replacement, and the fix is an `UPDATE` in `psql`, which is
+  precisely the situation this page exists to prevent.
+
+  **`failed_jobs` did not exist.** `config/queue.ts` has named
+  `QUEUE_FAILED_DRIVER=database` with `table: 'failed_jobs'` since it was
+  written, and no migration ever created it - so a job that exhausted its
+  retries was written to a table that was not there. The write failed, the row
+  went nowhere, and the failure left no trace: a notification that never
+  arrived, a webhook that never fired, and a person concluding the feature was
+  slow rather than broken. "Failed job retry" had nothing to retry.
+
+  And the retry itself found the same shape of bug twice over. `jobs.available_at`
+  is an **integer** of epoch seconds, and the first version wrote an ISO string
+  into it - refused by Postgres, swallowed by a catch, and reported to the page
+  as "there was no such job". Exactly `token_usage_windows.window_started_ms`
+  again: a timestamp in an integer column, hidden by a catch that treated
+  failure as an ordinary answer. The catch logs now.
+
+  The pages are not built. This is the API an administration screen is made of,
+  tested end to end; what is missing is the screen, and saying so is better than
+  ticking a box on the strength of half of it.
 - [x] Rate limiting on the API, on git operations, and on authentication attempts
 
   `app/Middleware/Throttle.ts`, overriding the framework's, which keys on IP or account. That is the

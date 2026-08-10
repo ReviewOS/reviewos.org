@@ -3544,6 +3544,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/instance/admin
+   */
+  postInstanceAdmin(input?: { body?: { "operation"?: "stats" | "users" | "repositories" | "queue" | "promote" | "demote" | "retry-job"; "handle"?: string; "search"?: string; "id"?: number; "limit"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/instance/admin", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/instance/settings
    */
   postInstanceSettings(input?: { body?: { "key"?: string; "value"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

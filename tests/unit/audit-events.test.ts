@@ -13,6 +13,24 @@
 import { describe, expect, test } from 'bun:test'
 import { AUDIT_EVENTS } from '../../app/Audit/events'
 
+/**
+ * An `auditEvent` call, including the ternary form.
+ *
+ * `auditEvent(promote ? 'admin:granted' : 'admin:revoked', …)` is a natural way
+ * to write a pair that differ by one word, and a scanner that only matched a
+ * literal first argument reported both as unemitted - which would have pushed
+ * the code into two near-identical calls to satisfy the test. A test that
+ * dictates the shape of the code it checks is a test that has started making
+ * decisions it is not qualified to make.
+ */
+const EMITTED = /auditEvent\(\s*(?:[^,')]*\?\s*)?'([^']+)'(?:\s*:\s*'([^']+)')?/g
+
+function addNames(into: Set<string>, match: RegExpMatchArray): void {
+  for (const name of [match[1], match[2]])
+    if (name)
+      into.add(name)
+}
+
 /** Every string literal in the `AuditEventName` union, read from the file. */
 async function namesInType(): Promise<string[]> {
   const source = await Bun.file(new URL('../../app/Audit/events.ts', import.meta.url)).text()
@@ -63,8 +81,8 @@ describe('the audit catalogue', () => {
 
       const source = await Bun.file(path).text()
 
-      for (const match of source.matchAll(/auditEvent\(\s*'([^']+)'/g))
-        emitters.add(match[1]!)
+      for (const match of source.matchAll(EMITTED))
+        addNames(emitters, match)
 
       // `recordTokenAudit` passes its own `event` field through, so the token
       // events are emitted from there rather than named at a call site.
@@ -78,8 +96,8 @@ describe('the audit catalogue', () => {
     for await (const path of new Bun.Glob('routes/*.ts').scan({ cwd: process.cwd() })) {
       const source = await Bun.file(path).text()
 
-      for (const match of source.matchAll(/auditEvent\(\s*'([^']+)'/g))
-        emitters.add(match[1]!)
+      for (const match of source.matchAll(EMITTED))
+        addNames(emitters, match)
     }
 
     expect([...AUDIT_EVENTS].filter(name => !emitters.has(name))).toEqual([])
@@ -98,9 +116,11 @@ describe('the audit catalogue', () => {
 
       const source = await Bun.file(path).text()
 
-      for (const match of source.matchAll(/auditEvent\(\s*'([^']+)'/g)) {
-        if (!known.has(match[1]!))
-          strays.push({ path, event: match[1]! })
+      for (const match of source.matchAll(EMITTED)) {
+        for (const name of [match[1], match[2]].filter(Boolean) as string[]) {
+          if (!known.has(name))
+            strays.push({ path, event: name })
+        }
       }
     }
 

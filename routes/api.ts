@@ -65,6 +65,16 @@ route.get('/audit', 'Actions/Ops/AuditLogAction')
 route.post('/instance/settings', 'Actions/Ops/InstanceSettingsAction')
 
 /*
+ * The administration surface: what this instance is, and the few levers.
+ *
+ * One endpoint for five reads and two writes, because a second is a second
+ * place the administrator check has to be right - and a mistake in that gate on
+ * any one of them exposes every private repository here. A stranger gets a 404,
+ * so whether an instance has an administration API is not confirmable by asking.
+ */
+route.post('/instance/admin', 'Actions/Ops/AdminAction')
+
+/*
  * The OpenAPI document, at a stable public URL.
  *
  * Generating it is not publishing it: a document only somebody with the source

@@ -7104,10 +7104,92 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "failed_jobs",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "connection",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 100
+          },
+          {
+            "name": "queue",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 100
+          },
+          {
+            "name": "payload",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "exception",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "failed_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "failed_jobs_queue_index",
+            "columns": [
+              "queue",
+              "failed_at"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "3b6c26b6f3c38a06789117a7686cc0dc0032708e0db58fce75aa77b3b6a00419",
+  "hash": "33cae26e8ea3d848c995114416a43c31d07dc030e817a3a19fa920cf9892407b",
   "dialect": "postgres",
-  "updatedAt": "2026-08-10T04:12:09.371Z"
+  "updatedAt": "2026-08-10T04:32:58.773Z"
 }

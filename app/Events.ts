@@ -116,5 +116,8 @@ export default {
   'repository:deleted': ['RecordAudit'],
   'organization:deleted': ['RecordAudit'],
   'instance:setting-changed': ['RecordAudit'],
+  'admin:granted': ['RecordAudit'],
+  'admin:revoked': ['RecordAudit'],
+  'admin:job-retried': ['RecordAudit'],
   'audit:exported': ['RecordAudit'],
 } satisfies Events
