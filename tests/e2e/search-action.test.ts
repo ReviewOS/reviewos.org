@@ -45,6 +45,12 @@ beforeAll(async () => {
     if (!port)
       throw new Error('the router did not report a port')
 
+    // Like the database above: a machine with no search node skips rather than
+    // failing with a stack trace out of the driver.
+    const { searchEngineReachable } = await import('../helpers/searchEngine')
+    if (!await searchEngineReachable())
+      throw new Error('no search engine is running - `./buddy setup` starts one')
+
     available = true
   }
   catch (error) {

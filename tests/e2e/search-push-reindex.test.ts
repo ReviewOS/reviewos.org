@@ -26,10 +26,17 @@ beforeAll(async () => {
     await injectGlobalAutoImports()
     db = (globalThis as any).db
     await db.selectFrom('users').select(['id']).limit(1).execute()
+
+    // Same rule as the database: a machine with no search node skips rather
+    // than failing with a stack trace out of the driver.
+    const { searchEngineReachable } = await import('../helpers/searchEngine')
+    if (!await searchEngineReachable())
+      throw new Error('no search engine is running - `./buddy setup` starts one')
+
     available = true
   }
   catch (error) {
-    console.warn(`[search-push] skipping, no database: ${error instanceof Error ? error.message : String(error)}`)
+    console.warn(`[search-push] skipping: ${error instanceof Error ? error.message : String(error)}`)
     available = false
     return
   }
@@ -127,6 +134,45 @@ describe('indexing one repository', () => {
     if (!available)
       return
 
+    /*
+     * The rows this claim needs, made here rather than assumed.
+     *
+     * This asserted `indexed > 25` against whatever the machine happened to
+     * hold, which was true on a long-lived development database and false the
+     * first time anybody ran it against a fresh one - 15 repositories, one
+     * page, a failure that says nothing about paging. A test that needs
+     * twenty-six repositories to mean anything has to make twenty-six.
+     */
+    const filler: number[] = []
+
+    for (let index = 0; index < 30; index++) {
+      const row: any = await db
+        .insertInto('repositories')
+        .values({
+          owner_type: 'user',
+          owner_id: created.ownerId,
+          name: `${created.name}-page-${index}`,
+          description: 'one of the rows the paging claim needs',
+          visibility: 'public',
+          default_branch: 'main',
+          disk_path: `${created.handle}/${created.name}-page-${index}.git`,
+        })
+        .returning(['id'])
+        .executeTakeFirst()
+
+      filler.push(Number(row?.id))
+    }
+
+    try {
+      await rebuildReachesEveryRepository()
+    }
+    finally {
+      for (const id of filler)
+        await db.deleteFrom('repositories').where('id', '=', id).execute()
+    }
+  }, 60_000)
+
+  async function rebuildReachesEveryRepository(): Promise<void> {
     const total = (await db.selectFrom('repositories').select(['id']).execute()).length
 
     // Paged by id rather than offset, so a small chunk size must still reach
@@ -145,5 +191,5 @@ describe('indexing one repository', () => {
     // than stopping after one page of three.
     expect(result.indexed).toBeGreaterThanOrEqual(total)
     expect(result.indexed).toBeGreaterThan(25)
-  }, 30_000)
+  }
 })

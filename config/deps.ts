@@ -156,6 +156,12 @@ export const config: PantryConfig = {
          *
          * Idempotent: pantry writes a launchd agent with KeepAlive, so this
          * survives a reboot and re-running setup is a no-op.
+         *
+         * **`--port` does not do this on pantry 0.10.3.** The agent it writes
+         * still runs `--api-port 8108` and `pantry inspect typesense` reports
+         * 8108, so the reasoning above describes an intent rather than what
+         * happens. `.env.example` says 8108 because that is what listens; when
+         * pantry honours the flag, both move together or neither does.
          */
         args: ["start", "typesense", "--port", "8208"],
         description: "Typesense, on this project's own port and data directory",

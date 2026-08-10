@@ -2,8 +2,23 @@
 
 Finding things: within a repository, across an instance, and discovering what exists at all.
 
-Stacks ships a Meilisearch driver, which covers repositories, issues, and users well. Code search is
-a different problem and is scoped separately below.
+Stacks ships drivers for several engines; this instance runs **Typesense**, chosen in
+`config/search-engine.ts` for the reason written there - one binary and no JVM under it, which is
+what lets search be on by default on somebody's own box. Code search is a different problem and is
+scoped separately below.
+
+That choice had never reached the two files that make it real. `.env.example` still named
+`meilisearch` and its host and key, and `deps.yaml` - which is generated from `config/deps.ts` *and*
+from sniffing `.env` - never carried `typesense.org`, so a fresh checkout installed no search node
+at all and the five search e2e tests failed against nothing. They skip themselves now when no node
+is reachable, the way every other e2e here skips when its dependency is missing, because a stack
+trace out of the driver reads like the product is broken rather than like the machine is missing a
+service.
+
+One caveat worth knowing before debugging a port: `pantry start typesense --port 8208`, which
+`config/deps.ts` runs at setup, does **not** move the port on pantry 0.10.3 - the service still
+binds Typesense's default 8108, and `pantry inspect` confirms it. The env values above say 8108
+because that is what actually listens.
 
 ## Indexing
 

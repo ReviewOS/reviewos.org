@@ -10,8 +10,10 @@ dependencies:
   gnupg.org: ^2.4.8
   git-lfs: ^3.7.1
   postgresql.org: ^17.10
+  typesense.org: ^30.2.0
 
 services:
   enabled: true
   autoStart:
     - postgres
+    - typesense

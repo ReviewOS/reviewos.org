@@ -43,7 +43,9 @@ export interface DeclaredRoute {
 let pending: Promise<DeclaredRoute[]> | null = null
 
 export async function declaredRoutes(): Promise<DeclaredRoute[]> {
-  pending ??= enumerate()
+  // Spelled out rather than `??=`, which the linter reads as never assigning.
+  if (!pending)
+    pending = enumerate()
 
   return await pending
 }
