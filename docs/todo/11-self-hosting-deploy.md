@@ -918,15 +918,43 @@ already gone wrong and there is no second chance to have recorded it.
       let the binary walk the tree. A `cd` currently costs ~14ms inside a project and ~22ms outside,
       almost all of it that floor rather than the hook. `:` and `true` cost ~0.8ms, so the cost is
       specific to some commands rather than dispatch as a whole, and is worth profiling.
-- [ ] den's `eval` parses its argument as a command chain, which has no representation for a
-      function definition, so `eval "$(tool init)"` defines nothing and reports nothing. That is how
-      almost every shell integration is loaded. The pantry hook is sourced from a file instead,
-      which works, but `eval` should carry function definitions.
-- [ ] den mis-parses a long quoted assignment when the file is `source`d: the first word of the
-      value runs as a command. The current hook has no such line, so nothing is broken today.
-- [ ] den crashes on a multi-line `if` or `case` inside a function body in a sourced file. The
-      one-line forms work, which is what the pantry hook is written to, but the crash should not
-      happen.
+- [x] den's `eval` carries function definitions, so `eval "$(tool init)"` - how almost every shell
+      integration is loaded - works.
+
+      Two bugs stacked, and the first one is why the second was never reached. A line that merely
+      *contained* `()` was taken for a function definition, so `eval "hi() { echo hi; }"` was read
+      as defining a function called `eval "hi` and **eval never ran at all**. Fixed by asking
+      whether the text before the parens is one valid name, in the four places that each had their
+      own copy of the test. Underneath that, `eval` really did parse its argument as a single
+      command chain; it now runs it as shell input through the same path `source` uses, which is
+      also what POSIX describes.
+
+      Verified with the real shape rather than a toy: a script printing two function definitions,
+      loaded with `eval "$(faketool init)"`, then called.
+- [x] den mis-parses a long quoted assignment when the file is `source`d: the first word of the
+      value runs as a command.
+
+      Does not reproduce - fixed by earlier work on den rather than by anything here. Checked with
+      a long value whose first word is a real command (`HOOK="echo this-should-not-run; ..."`) and
+      with a long `export` of a PATH-like string: both survive `source` intact and neither runs.
+      Ticked on that evidence rather than on the absence of a report.
+- [x] den crashes on a multi-line `if` or `case` inside a function body in a sourced file.
+
+      **It never crashed, and the description hid two real bugs behind a wrong word.** What looked
+      like a crash was the debug allocator printing a leak with a stack trace, on stderr, after the
+      function had already run correctly: the function path parsed `if`/`while`/`until`/`for`/`case`
+      and never freed the parse, where the top-level path had always freed it. Five missing
+      `defer`s.
+
+      Behind that was the one that mattered, and it was silent. A control-flow operand inside a
+      function body is expanded by a different path than a command's arguments, and that path saw
+      only the environment - so `$1` had nothing to resolve to, `case "$1"` matched the empty
+      string, and the branch taken was `*`. A function dispatching on its first argument quietly
+      did the wrong thing. Sourcing had nothing to do with either; both reproduce from `-c`.
+
+      Both fixed upstream with regression tests. One-line function bodies through `-c` and through
+      a script file argument are still wrong in a separate way - the function is defined with an
+      empty body - which is noted here rather than fixed, because it is not what this box was for.
 - [x] Raise the bun floor in `config/deps.ts` back to `^1.3.14` once a ts-pantry release carries
       the newer versions.
 
