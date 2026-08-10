@@ -1,4 +1,5 @@
 import type { CLI } from '@stacksjs/types'
+import { randomBytes } from 'node:crypto'
 import process from 'node:process'
 
 // Imported rather than relied on as a global: `db` is a server auto-import, and
@@ -172,8 +173,20 @@ async function upsertMirror(
   remote: { owner: string, name: string },
   options: MirrorOptions,
 ): Promise<void> {
+  /*
+   * A generated webhook secret, printed once.
+   *
+   * Webhook-driven sync fails closed without one - `MirrorWebhookAction`
+   * ignores a delivery it cannot verify rather than trusting it - so a mirror
+   * created without a secret would silently fall back to the interval sweep.
+   * Generating it here means the fast path works by default and the operator
+   * has something to paste into the upstream's hook settings.
+   */
+  const webhookSecret = randomBytes(32).toString('hex')
+
   const row = {
     repository_id: repositoryId,
+    webhook_secret: webhookSecret,
     direction: 'pull',
     provider: 'github',
     remote_url: `https://github.com/${remote.owner}/${remote.name}.git`,
@@ -191,13 +204,31 @@ async function upsertMirror(
     .executeTakeFirst()
 
   if (existing) {
+    /*
+     * An existing mirror keeps the secret it already has.
+     *
+     * Rotating it on every `mirror:add` would break the hook already
+     * configured upstream, and the symptom is the worst kind: deliveries keep
+     * arriving, keep failing verification, and the mirror quietly falls back to
+     * the interval - slower, and with nothing saying why.
+     */
+    const { webhook_secret: _fresh, ...rest } = row as Record<string, unknown>
+
     await db
       .updateTable('repository_mirrors')
-      .set(row as any)
+      .set(rest as any)
       .where('id', '=', Number(existing.id))
       .execute()
+
     return
   }
 
   await db.insertInto('repository_mirrors').values(row as any).execute()
+
+  console.log('')
+  console.log('Webhook secret (shown once):')
+  console.log(`  ${webhookSecret}`)
+  console.log('')
+  console.log('Paste it into the upstream repository\'s webhook settings. Without it,')
+  console.log('deliveries are ignored and the mirror falls back to its interval.')
 }

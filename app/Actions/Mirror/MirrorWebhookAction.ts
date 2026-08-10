@@ -63,13 +63,49 @@ export default new Action({
     if (!mirror)
       return response.json({ ok: true, ignored: 'no mirror for this repository' })
 
-    // Verified against the mirror's own secret, so one repository's hook cannot
-    // trigger another's sync. An unverified hook is refused rather than
-    // synced-anyway: the endpoint is public, and a sync is work someone else
-    // could otherwise make us do.
-    const secret = String(mirror.credential_ref ?? '')
-    if (secret && !verifySignature(raw, secret, signature))
+    /*
+     * Verified against the mirror's own secret, and **no secret means no
+     * sync.**
+     *
+     * This used to read `if (secret && !verifySignature(...))`, and the secret
+     * it read was `credential_ref` - a column documented as a *reference* to a
+     * credential rather than one, holding a readable name that looks up an
+     * environment variable, and set by nothing. So the guard was skipped on
+     * every mirror on every instance, and this unauthenticated endpoint would
+     * queue a `git fetch` against an upstream for anybody who could name a
+     * mirrored repository. Remote owner and name are public knowledge for
+     * exactly the repositories people mirror.
+     *
+     * Two changes, and the second matters more than the first. The secret is
+     * its own column now, generated rather than named. And an absent one fails
+     * *closed*: the hook is ignored and the interval sweep still keeps the
+     * mirror current, so the cost of a misconfiguration is latency rather than
+     * an open door. A guard that switches itself off when unconfigured is not a
+     * guard - it is a guard-shaped hole, and this was one.
+     */
+    const secret = String(mirror.webhook_secret ?? '')
+
+    if (!secret) {
+      return response.json({
+        ok: true,
+        ignored: 'this mirror has no webhook secret, so deliveries are not trusted',
+      })
+    }
+
+    if (!verifySignature(raw, secret, signature))
       return response.json({ error: 'Bad signature' }, 401)
+
+    /*
+     * Imported, not reached for as a global.
+     *
+     * This line read `MirrorSyncJob.dispatch(...)` against the server
+     * auto-import, and threw `ReferenceError: MirrorSyncJob is not defined` -
+     * so the one statement that does the work in this endpoint failed with a
+     * 500 whenever anything reached it. Every other action in this codebase
+     * imports its job explicitly; this was the one that did not, and nothing
+     * noticed because two other faults meant nothing ever got this far.
+     */
+    const MirrorSyncJob = (await import('../../Jobs/MirrorSyncJob')).default
 
     await MirrorSyncJob.dispatch({ mirrorId: Number(mirror.id) })
 

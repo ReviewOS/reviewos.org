@@ -4881,6 +4881,15 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": false
+          },
+          {
+            "name": "webhook_secret",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
           }
         ],
         "indexes": [
@@ -7019,7 +7028,7 @@
       }
     ]
   },
-  "hash": "afec6884f824710a0e7eeddfc3549f299662afd41d11365395c4bbcabe5dde13",
+  "hash": "dfb95bd2ce285518e54236ac71223e50dde69ab18bfbff64b50ddfd41f98579f",
   "dialect": "postgres",
-  "updatedAt": "2026-08-10T01:14:23.273Z"
+  "updatedAt": "2026-08-10T04:00:48.342Z"
 }

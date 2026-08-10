@@ -580,7 +580,22 @@ route.post('/repos/webhooks/redeliver', 'Actions/Webhook/RedeliverAction').middl
 // Mirrors. The webhook is deliberately unauthenticated at the route level: an
 // upstream forge has no session here, and the request is verified instead by
 // its signature against the mirror's own secret inside the action.
-route.post('/mirrors/webhook', 'Actions/Mirror/MirrorWebhookAction')
+/*
+ * `skipCsrf`, and throttled tighter than the API default.
+ *
+ * The exemption is required and was missing: an upstream forge posting a
+ * delivery has no cookie and no way to carry a token, so every real delivery
+ * was answered 403 - the endpoint had never worked for the only caller it
+ * exists for. It is safe for the reason the other exemptions are: there is no
+ * ambient credential here, and the signature over the body is the whole
+ * authorization.
+ *
+ * The throttle is because this is the one unauthenticated endpoint that queues
+ * work, and the work is a `git fetch` against somebody else's server. Sixty a
+ * minute is far more than any real forge sends and far less than a loop needs
+ * to be interesting.
+ */
+route.post('/mirrors/webhook', 'Actions/Mirror/MirrorWebhookAction').skipCsrf().middleware('throttle:60,1m')
 // For the person who does not want to wait for the interval. Behind
 // `repository:settings` in the action, because a sync spends somebody else's
 // rate limit - a public mirror anybody could trigger is a way to get this
