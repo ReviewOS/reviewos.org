@@ -336,7 +336,37 @@ promise, so the operational story is a feature and not an afterthought.
 
   No bounty, said plainly. Promising money this project cannot reliably pay would be worse than
   offering none.
-- [ ] Dependency scanning through buddy-bot
+- [x] Dependency scanning through buddy-bot
+
+  The tool side was already there - buddy-bot queries OSV.dev for every declared
+  dependency version, separates an update that resolves an advisory into its own
+  pull request created first, and labels it. What was missing was every part of
+  the integration, and all four failures were the quiet kind.
+
+  **Two config files, one of them read.** `config/buddy-bot.ts` came in with the
+  template and bunfig never looked at it - it searches for `<name>.config.*`, so
+  a file at `config/buddy-bot.ts` is not a candidate under any of its paths. The
+  root `buddy-bot.config.ts` was the live one, and the two disagreed about
+  strategy, grouping and the repository. Deleted the dead one rather than
+  reconciling them: two files where one silently wins is worse than one in the
+  less conventional place, because the next person edits the one that reads
+  better and nothing happens.
+
+  **The wrong repository.** Both files said owner `stacksjs`, so every lookup and
+  every pull request was aimed at somewhere this project does not live.
+
+  **Two bots.** `.github/renovate.json` sat beside it, also inherited, against an
+  instruction in `AGENTS.md` that predates both. Two bots on one repository is
+  two pull requests per update, neither aware of the other.
+
+  **The security block was never written down.** Its defaults are what this
+  project wants, which is exactly why it needed saying: "the default is on" is
+  not something anybody can see from this repository, and the whole reason that
+  config file exists is that implicit choices were being made.
+
+  Verified rather than assumed: `bunx buddy-bot scan` resolves
+  `ReviewOS/reviewos.org`, runs the advisory lookup in about 280ms, and reports
+  nothing vulnerable in the current tree.
 - [ ] CSRF on state-changing routes, and correct exemptions for token-authenticated API calls
 - [ ] Session handling: rotation on privilege change, absolute and idle expiry, sessions listed and
       revocable by the user

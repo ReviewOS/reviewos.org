@@ -76,7 +76,7 @@
     "@stacksjs/server": "^0.70.351",
     "@stacksjs/stx": "0.2.162",
     "@stacksjs/ts-ssh": "^0.1.0",
-    "buddy-bot": "^0.9.26",
+    "buddy-bot": "^0.9.27",
     "bun-query-builder": "^0.2.25",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.49",

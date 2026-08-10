@@ -1,22 +1,77 @@
 import type { BuddyBotConfig } from 'buddy-bot'
 
 /**
- * Dependency updates for this repository.
+ * Dependency updates and advisory scanning for this repository.
  *
  * buddy-bot ran here on defaults, which is why this file exists: the workflow
  * in `.github/workflows/buddy-bot.yml` has been calling `bunx buddy-bot` with
  * nothing to read, so every choice below was being made implicitly and none of
  * them were written down.
  *
- * The shape of this project makes three of those choices non-obvious, and each
- * one has already gone wrong at least once.
+ * The shape of this project makes several of those choices non-obvious, and
+ * each one has already gone wrong at least once.
+ *
+ * ## Here, and not in `config/`
+ *
+ * There was a second copy at `config/buddy-bot.ts`, from the template this
+ * project started from, and **buddy-bot never read it**: bunfig looks for
+ * `<name>.config.*`, so a file called `config/buddy-bot.ts` is not a candidate
+ * under any of its search paths. Two config files where one silently wins is
+ * worse than one in the less conventional place, because the next person edits
+ * the one that reads better and nothing happens. That copy is gone.
+ *
+ * ## One bot, not two
+ *
+ * `.github/renovate.json` sat beside it, also inherited. Two bots on one
+ * repository is not redundancy - it is two pull requests per update, neither
+ * aware of the other, both going stale while somebody decides. That is gone
+ * too; `AGENTS.md` has said buddy-bot is the one this project uses since
+ * before either file was looked at.
  */
 export default {
   repository: {
     provider: 'github',
-    owner: 'stacksjs',
+    /*
+     * `ReviewOS`, which it was not.
+     *
+     * It said `stacksjs`, carried in from the template and never changed, so
+     * every lookup and every pull request was aimed at a repository that does
+     * not exist. The failure mode is the quiet one: nothing appears here, and
+     * nothing says why.
+     */
+    owner: 'ReviewOS',
     name: 'reviewos.org',
     baseBranch: 'main',
+  },
+
+  /*
+   * Advisory scanning, and the half of this file that is not about churn.
+   *
+   * Every declared dependency version is checked against OSV.dev, and an update
+   * that resolves a known vulnerability is separated into its own pull request
+   * created *first*. That ordering is the point rather than a nicety: a
+   * security fix sitting behind twenty routine bumps is a security fix waiting
+   * for somebody to have an afternoon.
+   *
+   * OSV rather than `npm audit` - it covers npm and Packagist from one query,
+   * needs no registry credential, and is where GitHub's own advisories land. It
+   * is also a network call, which is why it can be switched off: an air-gapped
+   * build should still be able to run the update side.
+   *
+   * `minimumSeverity: 'low'`, meaning everything. Filtering here decides on
+   * somebody else's behalf which vulnerabilities in a *forge* are not worth
+   * reading about, and the severity is on the pull request for whoever does
+   * decide.
+   *
+   * These are buddy-bot's defaults. Written out anyway, because "the default is
+   * on" is not something anybody can see from this repository, and the whole
+   * reason this file exists is that implicit choices were being made.
+   */
+  security: {
+    enabled: true,
+    prioritize: true,
+    label: 'security',
+    minimumSeverity: 'low',
   },
 
   packages: {

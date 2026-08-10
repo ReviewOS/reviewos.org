@@ -472,6 +472,33 @@ Three things about a deployment, in the order they bite:
 - **The backup is a security control.** It contains every private repository on
   the instance, so encrypt it before it leaves the host.
 
+### Keeping the dependencies honest
+
+`buddy-bot.config.ts` configures both halves, and both run from
+`.github/workflows/buddy-bot.yml`:
+
+- **Updates**, grouped so a fast-moving first-party tree does not produce a
+  pull request per package per day.
+- **Advisories**, from OSV.dev. Every declared version is checked against the
+  aggregated database, and an update that resolves a known vulnerability is
+  split into its own pull request created *first* - a security fix behind twenty
+  routine bumps is a security fix waiting for somebody to have an afternoon.
+
+```sh
+bunx --bun buddy-bot scan          # what is outdated, and what has an advisory
+bunx --bun buddy-bot security      # static analysis of the workflow files themselves
+```
+
+The advisory query is a network call to `api.osv.dev` and nothing else - no
+registry credential, no telemetry, no account. Set `security.enabled: false` if
+this instance builds air-gapped; the update side still works from a local
+registry mirror.
+
+If you fork this to run your own instance, change `repository.owner` and
+`repository.name` first. Ours said `stacksjs` for a while, inherited from the
+template, which meant every pull request was aimed at a repository that does not
+exist - and the failure mode is that nothing appears and nothing says why.
+
 ---
 
 *The compose file is validated (`docker compose config`) but the image in this
