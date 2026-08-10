@@ -570,7 +570,68 @@ already gone wrong and there is no second chance to have recorded it.
       with far less surface than SAML, with group-to-team mapping and just-in-time provisioning
 - [ ] Deprovisioning that actually revokes: removing someone upstream ends their sessions and their
       tokens' reach, rather than leaving a credential that outlives the account
-- [ ] Sign-in notifications for a new device or location, and a visible list of active sessions
+
+  **The tokens' reach half holds, and is now demonstrated rather than asserted.**
+  `tests/e2e/deprovisioning.test.ts` gives somebody a valid token and a genuine
+  grant, reads a private repository with it, takes the grant away, and reads
+  again: refused on the very next request. Three routes into access are covered
+  because they fail differently - a collaborator row deleted, an organization
+  role demoted, and a membership removed - and the middle one matters most,
+  since a derived permission with the row still present is exactly the shape a
+  cache gets wrong.
+
+  The token is deliberately left alone throughout, and the last assertion checks
+  it still works elsewhere. If it had been revoked, the test would pass for the
+  wrong reason: the reach ended, not the credential, and those are different
+  repairs.
+
+  This is the kind of claim every forge makes and few can demonstrate, because
+  the wrong version passes every functional test - access works when it should,
+  and the only difference is a window of minutes after a removal that nobody
+  exercises by hand.
+
+  **The box stays open on the sessions half**, and honestly: "removing someone
+  *upstream*" presupposes an upstream, which is the SSO item below. Ending
+  somebody's sessions when they leave an organization would be wrong - they
+  still have an account and other repositories - so the version that makes sense
+  is an identity provider saying the person is gone, and there is nothing yet to
+  say it. It goes in with OIDC.
+- [x] Sign-in notifications for a new device or location, and a visible list of active sessions
+
+  The list is the box above. This is the other half, and it is the only signal a
+  person gets between a password leaking and the damage being visible - the one
+  notification in this product that is not about the product.
+
+  **What counts as new is the whole design, and it fails in two directions that
+  are not symmetric.** Missing a real sign-in costs somebody that signal.
+  Firing on their own laptop every fortnight costs them the habit of reading it,
+  and then they miss the real one anyway. So the browser is compared *coarsely*
+  - "Chrome on macOS", the same description the session list shows - and the
+  address *exactly*. Chrome ships a major version every four weeks and the
+  number is in the user-agent string, so a raw comparison would make every
+  update look like an intruder; an address alone moves when a phone walks
+  between two rooms and is shared by everybody in an office. Both together give
+  one notice per network per browser, which somebody can recognise and an
+  attacker cannot avoid without also being on their network.
+
+  Read from the token rows rather than a table of known devices: a second table
+  is one more thing to keep in step with revocation, and the rows already answer
+  the question. A revoked session still counts as seen - revoking says "not
+  now", not "I have never used that laptop".
+
+  Inbox rather than email, and that is a decision rather than a first step. The
+  inbox is the channel that works when mail is misconfigured, which on a
+  self-hosted instance is most of them, and a security notice that depends on
+  the subsystem operators most often skip is a security notice that does not
+  exist.
+
+  It cannot fail a sign-in. Everything runs after the session exists and every
+  failure is swallowed, including the "is this new" query itself - which answers
+  *known* when the database will not respond, because an instance that emails on
+  every sign-in has taught somebody to ignore the one that mattered within a
+  week. The wording deliberately avoids "suspicious": most of these are the
+  person themselves on a new laptop, and language that starts by alarming them
+  is language they stop reading.
 
 ## Developer environment
 

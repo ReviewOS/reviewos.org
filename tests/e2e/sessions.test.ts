@@ -168,6 +168,7 @@ afterAll(async () => {
   try {
     if (db && created.userId) {
       await db.deleteFrom('audit_events').where('actor_id', '=', created.userId).execute()
+      await db.deleteFrom('notifications').where('user_id', '=', created.userId).execute()
       await db.deleteFrom('oauth_access_tokens').where('user_id', '=', created.userId).execute()
       await db.deleteFrom('users').where('id', '=', created.userId).execute()
     }
@@ -355,4 +356,74 @@ describe('signing out everywhere else', () => {
     expect(await stillSignedIn(third)).toBe(false)
     expect(await stillSignedIn(created.laptop)).toBe(true)
   }, 30_000)
+})
+
+describe('a sign-in from somewhere new', () => {
+  test('leaves a notice, and signing in again from the same place does not', async () => {
+    if (!available)
+      return
+
+    const db = (globalThis as any).db
+
+    const notices = async (): Promise<any[]> => db
+      .selectFrom('notifications')
+      .selectAll()
+      .where('user_id', '=', created.userId)
+      .where('type', '=', 'auth:new-device')
+      .orderBy('id', 'desc')
+      .execute()
+
+    const before = (await notices()).length
+
+    // A browser this account has never used, from an address it has never
+    // connected from.
+    const stranger = 'Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0'
+    const answer = await fetch(`http://127.0.0.1:${port}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': stranger,
+        'x-csrf-token': created.csrf.token,
+        'Cookie': created.csrf.cookie,
+        'x-forwarded-for': '198.51.100.22',
+      },
+      body: JSON.stringify({ email: `${created.handle}@example.com`, password: created.password }),
+    })
+
+    await answer.text()
+    expect(answer.status).toBeLessThan(400)
+
+    const after = await notices()
+    expect(after.length).toBe(before + 1)
+
+    const data = JSON.parse(String(after[0].data))
+    expect(data.title).toContain('Firefox on Linux')
+    expect(data.title).toContain('198.51.100.22')
+    // Somewhere to go. A notice with no action is one people read and forget.
+    expect(data.url).toBe('/settings/sessions')
+
+    /*
+     * The same device again, and *nothing* this time. This is the half that
+     * decides whether the feature survives contact with a real person: a
+     * warning on every sign-in is a warning nobody reads, and then the one that
+     * mattered arrives in the same envelope as the eleven that did not.
+     */
+    const again = await fetch(`http://127.0.0.1:${port}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': stranger,
+        'x-csrf-token': created.csrf.token,
+        'Cookie': created.csrf.cookie,
+        'x-forwarded-for': '198.51.100.22',
+      },
+      body: JSON.stringify({ email: `${created.handle}@example.com`, password: created.password }),
+    })
+
+    await again.text()
+
+    expect((await notices()).length).toBe(before + 1)
+  }, 60_000)
 })

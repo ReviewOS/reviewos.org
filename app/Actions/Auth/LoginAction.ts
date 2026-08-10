@@ -32,6 +32,17 @@ export default new Action({
 
     const { Auth } = await import('@stacksjs/auth')
 
+    // The device, read once and used twice: written onto the session below, and
+    // compared against every earlier session to decide whether this is somewhere
+    // new.
+    const device = {
+      userAgent: String(request?.headers?.get?.('user-agent') ?? '') || null,
+      ipAddress: String(request?.headers?.get?.('x-forwarded-for') ?? '').split(',')[0]?.trim()
+        || String(request?.headers?.get?.('x-real-ip') ?? '').trim()
+        || null,
+    }
+
+    let signedInUserId = 0
     let result: any = null
 
     try {
@@ -41,6 +52,8 @@ export default new Action({
           .select(['id'])
           .where('email', '=', email)
           .executeTakeFirst()
+
+        signedInUserId = Number(user.id)
 
         if (user) {
           /*
@@ -53,12 +66,7 @@ export default new Action({
            * proxy saw. Nothing authorises on either; they are there to be read
            * by the person the session belongs to.
            */
-          result = await Auth.loginUsingId(Number(user.id), {
-            userAgent: String(request?.headers?.get?.('user-agent') ?? '') || null,
-            ipAddress: String(request?.headers?.get?.('x-forwarded-for') ?? '').split(',')[0]?.trim()
-              || String(request?.headers?.get?.('x-real-ip') ?? '').trim()
-              || null,
-          })
+          result = await Auth.loginUsingId(Number(user.id), device)
         }
       }
     }
@@ -70,6 +78,27 @@ export default new Action({
 
     if (!result?.token)
       return refuse(request, 'Incorrect email or password.')
+
+    /*
+     * A notice, when this account has not been signed into from here before.
+     *
+     * After the session exists and never able to fail it: refusing to sign
+     * somebody in because a notification could not be written is a worse
+     * outcome than the notification not arriving, and it is the outcome that
+     * gets the feature removed.
+     *
+     * The new session is excluded from the comparison by id - it is not
+     * evidence of itself - which is why this runs here rather than before the
+     * login, where the answer would be right for a different reason and stop
+     * being right the moment somebody reorders these lines.
+     */
+    const { noticeSignIn } = await import('./newDevice')
+
+    await noticeSignIn({
+      userId: signedInUserId,
+      tokenId: await tokenIdOf(String(result.token)),
+      ...device,
+    })
 
     const name = await sessionCookieName()
 
@@ -105,6 +134,33 @@ export default new Action({
     })
   },
 })
+
+/**
+ * The id of the session row a plaintext token hashes to.
+ *
+ * So the session that was just created can be excluded from "have we seen this
+ * device before" - without it, every sign-in matches itself and nobody is ever
+ * told about anything. Recomputed here rather than imported from the auth
+ * package, because the hashing helper's shape has changed twice and a silent
+ * mismatch would turn this feature off rather than break it visibly.
+ */
+async function tokenIdOf(plaintext: string): Promise<number | null> {
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plaintext))
+    const hashed = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
+
+    const row: any = await db
+      .selectFrom('oauth_access_tokens')
+      .select(['id'])
+      .where('token', '=', hashed)
+      .executeTakeFirst()
+
+    return row ? Number(row.id) : null
+  }
+  catch {
+    return null
+  }
+}
 
 /**
  * The same answer for every reason it did not work.
