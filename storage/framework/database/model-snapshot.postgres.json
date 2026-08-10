@@ -7186,10 +7186,113 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "sso_identities",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "user_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "issuer",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "subject",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "email",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "groups",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "last_seen_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "sso_identities_subject_index",
+            "columns": [
+              "issuer",
+              "subject"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "sso_identities_user_index",
+            "columns": [
+              "user_id"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "33cae26e8ea3d848c995114416a43c31d07dc030e817a3a19fa920cf9892407b",
+  "hash": "33a7c39fc5d1d62dd565a2e18030dbe42445366e83505cd9cdeecacc03094590",
   "dialect": "postgres",
-  "updatedAt": "2026-08-10T04:32:58.773Z"
+  "updatedAt": "2026-08-10T05:27:40.829Z"
 }

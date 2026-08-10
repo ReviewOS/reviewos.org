@@ -617,6 +617,35 @@ requirement that gets switched off.
 
 Passkeys are not implemented yet. TOTP is what ships.
 
+### Single sign-on
+
+OIDC, configured from the environment because a client secret in the database is
+a client secret in every backup:
+
+| Variable | Meaning |
+|---|---|
+| `SSO_ISSUER` | The provider's issuer URL. Discovery is read from `<issuer>/.well-known/openid-configuration`. |
+| `SSO_CLIENT_ID` / `SSO_CLIENT_SECRET` | What the provider issued you. |
+| `SSO_REDIRECT_URI` | Defaults to `<APP_URL>/api/auth/sso`. Register the same value at the provider. |
+| `SSO_SCOPES` | Extra scopes beyond `openid email profile` - usually `groups`. |
+| `SSO_TEAM_ORGANIZATION` | The handle of the one organization whose teams the provider manages. Unset means no group mapping. |
+
+Send people to `/api/auth/sso`. Accounts are provisioned on first sign-in and
+matched on the provider's `sub` forever after, so a person keeps their history
+through an email change. An address is used only once, when linking a provider
+account to a local one that already exists, and only if the provider says it
+verified it.
+
+**Group mapping removes as well as adds.** A group named `platform` puts
+somebody on the `platform` team of the organization you named; a token that
+stops carrying the group takes them off it. That is the point of federating -
+one place to change access - and it is why `SSO_TEAM_ORGANIZATION` has to be set
+deliberately rather than defaulting to something.
+
+When somebody leaves, `deprovision` on the administration endpoint ends every
+session and every token they hold. The account stays, because their reviews and
+comments are part of the repository's history rather than their property.
+
 ### Keeping the dependencies honest
 
 `buddy-bot.config.ts` configures both halves, and both run from

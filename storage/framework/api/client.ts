@@ -289,6 +289,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/auth/sso
+   */
+  getAuthSso(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/auth/sso", {}, [], false, options)
+  },
+
+  /**
    * GET /api/auth/verify
    */
   getAuthVerify(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -3546,7 +3553,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/instance/admin
    */
-  postInstanceAdmin(input?: { body?: { "operation"?: "stats" | "users" | "repositories" | "queue" | "promote" | "demote" | "retry-job"; "handle"?: string; "search"?: string; "id"?: number; "limit"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postInstanceAdmin(input?: { body?: { "operation"?: "stats" | "users" | "repositories" | "queue" | "promote" | "demote" | "retry-job" | "deprovision"; "handle"?: string; "search"?: string; "id"?: number; "limit"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/instance/admin", input ?? {}, [], true, options)
   },
 

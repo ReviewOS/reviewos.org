@@ -255,6 +255,17 @@ route.post('/user/sessions', 'Actions/Auth/SessionsAction').middleware('auth')
  */
 route.post('/user/two-factor', 'Actions/Auth/TwoFactorAction').middleware('auth')
 
+/*
+ * Single sign-on, both legs on one route.
+ *
+ * A GET, because both are navigations: the browser is sent to the provider and
+ * the provider sends it back. Unauthenticated by definition - it is how
+ * somebody becomes authenticated - and everything it trusts is either signed by
+ * the provider or signed by us in the handshake cookie, so there is no ambient
+ * credential for a forged request to spend.
+ */
+route.get('/auth/sso', 'Actions/Auth/SsoAction')
+
 route.post('/user/keys', 'Actions/Keys/AddSshKeyAction').middleware('auth')
 route.delete('/user/keys', 'Actions/Keys/DeleteSshKeyAction').middleware('auth')
 route.post('/user/gpg-keys', 'Actions/Keys/AddGpgKeyAction').middleware('auth')

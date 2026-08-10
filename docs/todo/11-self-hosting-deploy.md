@@ -738,9 +738,57 @@ already gone wrong and there is no second chance to have recorded it.
   truth about whether it works - a test that stubs the browser half tests the
   stub. The framework has the tables and the helpers; what is missing is the
   registration and assertion flow and an honest way to verify it.
-- [ ] Single sign-on for self-hosted instances: OIDC first, since it covers most identity providers
+- [x] Single sign-on for self-hosted instances: OIDC first, since it covers most identity providers
       with far less surface than SAML, with group-to-team mapping and just-in-time provisioning
-- [ ] Deprovisioning that actually revokes: removing someone upstream ends their sessions and their
+
+  Discovery, PKCE, state, nonce, code exchange, and an `id_token` verified
+  against the provider's JWKS - written directly rather than on
+  `@stacksjs/socials`, which is OAuth2: get a token, call a provider endpoint,
+  read a profile. OIDC's whole point is the opposite, the identity arrives *in*
+  a token you verify yourself, and a client built on a "fetch the profile"
+  abstraction ends up trusting the token endpoint's response without checking
+  the signature - the one mistake that makes single sign-on worse than a
+  password.
+
+  **Keyed on `sub`, never on email.** An address changes on a marriage, on a
+  domain rename, and is recycled to a *different person* after somebody leaves.
+  Matching on email gets all three wrong: the first two strand a review history
+  behind a duplicate account, the third hands a new joiner the leaver's account.
+  Email is consulted exactly once - at linking, and only when the provider says
+  it verified it - so an existing instance turning single sign-on on does not
+  give everybody a second empty account.
+
+  **Tested against a conforming provider served on localhost**: a discovery
+  document, a JWKS, and a token endpoint minting real RS256 tokens from a key
+  pair generated in `beforeAll`. Not a stub of the thing under test - the thing
+  under test is the verification, and this exercises it as a company's Okta
+  would. Every negative case is a check a well-behaved provider never triggers
+  and an attacker relies on: a token signed with an unpublished key, one minted
+  for a *different application at the same provider* (the confused deputy, and
+  the check people miss), one from another issuer, an expired one, one answering
+  a different sign-in, and a callback carrying a state this browser never sent.
+
+  Two bugs it found in itself, both the same shape - something that looked right
+  and silently did nothing:
+
+  - **Group mapping joined people to other organizations' teams.** A team slug
+    is unique *within* an organization, not across the instance, and the first
+    version matched every team with a matching slug. A probe found seven teams
+    on this instance, two of them called `platform`. It is scoped to one named
+    organization now, and that scoping is a correctness requirement rather than
+    a convenience.
+  - **`revokeEverything` orphaned refresh tokens.** `oauth_refresh_tokens` has
+    no `user_id` - it hangs off the access token - so deleting by `user_id`
+    there throws, was caught and logged, and the access tokens were deleted
+    anyway. A refresh token outliving its session is precisely the
+    credential-outlives-the-account failure, left in place by the function named
+    after preventing it.
+
+  The mapping removes as well as adds, which is the half usually missing:
+  somebody moves off a team at the provider, the group leaves their token, and
+  an add-only mapping leaves their access here untouched - which throws away the
+  entire point of federating, quietly, because everything still works.
+- [x] Deprovisioning that actually revokes: removing someone upstream ends their sessions and their
       tokens' reach, rather than leaving a credential that outlives the account
 
   **The tokens' reach half holds, and is now demonstrated rather than asserted.**
@@ -762,12 +810,23 @@ already gone wrong and there is no second chance to have recorded it.
   and the only difference is a window of minutes after a removal that nobody
   exercises by hand.
 
-  **The box stays open on the sessions half**, and honestly: "removing someone
-  *upstream*" presupposes an upstream, which is the SSO item below. Ending
-  somebody's sessions when they leave an organization would be wrong - they
-  still have an account and other repositories - so the version that makes sense
-  is an identity provider saying the person is gone, and there is nothing yet to
-  say it. It goes in with OIDC.
+  **The sessions half is now in too**, since there is an upstream to be removed
+  from. `revokeEverything` ends every session, every refresh token and every
+  personal access token, and `deprovision` on the administration endpoint calls
+  it by handle. The account survives: deleting it would take a review history
+  and every comment with it, and "this person has left" is not the same
+  statement as "this work never happened".
+
+  Driven by an operator or a script rather than by the provider, and that is a
+  stated limitation rather than a stopgap. Automatic deprovisioning needs the
+  provider to *tell* us, which means SCIM or back-channel logout - each a
+  protocol with its own surface, and each pointless without something to call.
+  This is that something.
+
+  Ending sessions when somebody merely leaves an *organization* would still be
+  wrong, and does not happen: they keep their account and their other
+  repositories, and only their reach into that organization ends. The two halves
+  fail differently and both are needed.
 - [x] Sign-in notifications for a new device or location, and a visible list of active sessions
 
   The list is the box above. This is the other half, and it is the only signal a

@@ -864,6 +864,31 @@
         }
       }
     },
+    "/api/auth/sso": {
+      "get": {
+        "summary": "/api/auth/sso",
+        "operationId": "get__api_auth_sso",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/api/auth/verify": {
       "get": {
         "summary": "/api/auth/verify",
@@ -14121,7 +14146,8 @@
                       "queue",
                       "promote",
                       "demote",
-                      "retry-job"
+                      "retry-job",
+                      "deprovision"
                     ]
                   },
                   "handle": {

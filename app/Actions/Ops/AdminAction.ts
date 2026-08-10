@@ -33,7 +33,7 @@ export default new Action({
   method: 'POST',
 
   validations: {
-    operation: { rule: schema.enum(['stats', 'users', 'repositories', 'queue', 'promote', 'demote', 'retry-job']) },
+    operation: { rule: schema.enum(['stats', 'users', 'repositories', 'queue', 'promote', 'demote', 'retry-job', 'deprovision']) },
     handle: { rule: schema.string() },
     search: { rule: schema.string() },
     id: { rule: schema.number() },
@@ -67,6 +67,9 @@ export default new Action({
     if (operation === 'promote' || operation === 'demote')
       return await changeAdmin(request, user, operation === 'promote')
 
+    if (operation === 'deprovision')
+      return await deprovision(request, user)
+
     if (operation !== 'retry-job')
       return response.json({ error: `Unknown operation: ${operation}` }, 422)
 
@@ -92,6 +95,52 @@ export default new Action({
     return response.json({ retried })
   },
 })
+
+/**
+ * End everything somebody can sign in with, because they have left.
+ *
+ * The other half of the deprovisioning box: taking a grant away already ends
+ * the *reach* of a credential on the next request, and this ends the credential
+ * itself - every session, every refresh token, every personal access token.
+ *
+ * **Here rather than driven by the identity provider**, and that is a
+ * deliberate limitation rather than a stopgap. Automatic deprovisioning needs
+ * the provider to tell us somebody is gone, which means SCIM or back-channel
+ * logout - each a protocol with its own surface, and each pointless without
+ * something to call. This is that something: an endpoint an operator, a script,
+ * or a future SCIM handler calls with a handle.
+ *
+ * The account is not deleted. Deleting it would take their review history and
+ * every comment they wrote along with it, and "this person has left" is not the
+ * same statement as "this work never happened".
+ */
+async function deprovision(request: any, actor: { id: number }): Promise<Response> {
+  const handle = String(request.get('handle') ?? '').trim().toLowerCase()
+
+  if (!handle)
+    return response.json({ error: 'Which account?' }, 422)
+
+  const target: any = await db
+    .selectFrom('users')
+    .select(['id', 'handle'])
+    .where('handle', '=', handle)
+    .executeTakeFirst()
+
+  if (!target)
+    return response.json({ error: 'No such account' }, 404)
+
+  const { revokeEverything } = await import('../Auth/provision')
+  const revoked = await revokeEverything(Number(target.id))
+
+  await auditEvent('sso:deprovisioned', {
+    subject: { type: 'user', id: Number(target.id) },
+    actorId: actor.id,
+    ...await auditFrom(request),
+    detail: { handle, ...revoked },
+  })
+
+  return response.json({ handle, ...revoked })
+}
 
 /**
  * Make somebody an administrator, or stop them being one.
