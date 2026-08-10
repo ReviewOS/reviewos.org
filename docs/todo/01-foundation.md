@@ -87,7 +87,7 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   to notice. The reset deliberately leaves every session revoked, including this one: the usual
   reason to reset a password is that somebody else may have had it.
 
-  Three upstream gaps came out of building it, all of the same shape - the framework shipping a
+  Four upstream gaps came out of building it, all of the same shape - the framework shipping a
   feature and not the thing it needs:
 
   - `email_verifications` did not exist. `core/auth/src/email-verification.ts` had been writing to
@@ -102,6 +102,23 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
     branch that looks entirely right. Fixed in stx 0.2.159.
   - `.middleware(['auth', 'orgCan:…'])` pushed the array in whole and failed at boot with
     `input.split is not a function` from inside a case converter. Fixed in Stacks 0.70.314.
+  - **`password_resets` has no `expires_at`, and `@stacksjs/auth` writes one.** The table is a
+    framework guarantee - `migrateAuthTables` creates it, before the model migrations run, with
+    `id, email, token, created_at` - while `passwordResets().sendEmail` inserts
+    `{ email, token, expires_at }`. So every request died on `column "expires_at" ... does not
+    exist`, the action swallowed it *by design* so an unknown address and a dead transport stay
+    indistinguishable, and the reader got "if that address has an account, a link is on its way"
+    with no token written and every link that followed invalid. `email_verifications`, created by
+    the same function twenty lines away, has the column. `0000000077-alter-password_resets-columns`
+    adds it here; the real fix is upstream, and it is the only hand-written file in a corpus that is
+    otherwise generated, because no model owns a table the framework creates.
+
+  What kept it hidden is worth more than the bug, and it is the pattern this roadmap already names.
+  **All five tests on this path asserted a refusal or the flat answer** - unknown address, missing
+  address, never-issued token, too-short password - and a reset that cannot write a token refuses
+  exactly as convincingly as one that can. Not one issued a real token and used it. The file's own
+  header claimed it tested "that a request for a real address writes a row"; nothing did. There are
+  now two that do, and both fail against the old schema while the other twelve pass.
 - [x] `resources/views/[owner]/index.stx` - profile: repositories, activity, contribution summary
 
   **Fourteen links in this product already pointed here and there was no page.** Every commit

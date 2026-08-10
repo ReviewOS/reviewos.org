@@ -15,7 +15,7 @@
 // there is not one. It needs no git and no mail transport - a send that fails
 // is swallowed on purpose, for exactly the reason above.
 
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 
 const created = { userId: 0, email: '', token: '' }
 
@@ -113,6 +113,24 @@ beforeAll(async () => {
   }
 }, 120_000)
 
+/*
+ * The endpoint is `throttle:5,15m`, and five requests is fewer than this flow
+ * takes to test honestly - ask, ask again for an address with no account, send
+ * a malformed one, refuse a bad token, then use a real one. Without this the
+ * sixth test onwards reads 429 and the file looks like the reset broke.
+ *
+ * Resetting rather than raising the limit: the limit is the right one and
+ * `tests/e2e/throttle.test.ts` owns testing that it holds. The buckets are
+ * process-local, so this only affects the server this file started.
+ */
+beforeEach(async () => {
+  if (!available)
+    return
+
+  const { resetBuckets } = await import('../../app/Middleware/Throttle')
+  resetBuckets()
+})
+
 afterAll(async () => {
   const db = (globalThis as any).db
 
@@ -137,6 +155,44 @@ describe('asking for a reset link', () => {
 
     expect(asked.status).toBe(200)
     expect(asked.json?.sent).toBe(true)
+  })
+
+  /*
+   * The row is the evidence, exactly as it is for verification below - and the
+   * assertion this file's own header claimed to make while making it nowhere.
+   *
+   * Password reset was broken here for as long as the schema has been built
+   * from the models, and every test in this file passed anyway. `sendEmail`
+   * writes `expires_at`, the framework's own `password_resets` table did not
+   * have that column, and the action swallows the failure on purpose so that an
+   * unknown address and a dead transport cannot be told apart. So a reader got
+   * a cheerful "if that address has an account, a link is on its way", no token
+   * was ever written, and every link that followed was invalid.
+   *
+   * Nothing above catches it, because a request that writes nothing and a
+   * request that writes a token answer identically - which is the whole design.
+   * Only the row tells them apart.
+   */
+  test('and writes the token row the rest of the flow needs', async () => {
+    if (!available)
+      return
+
+    const asked = await post('/api/auth/password/reset', { email: created.email, operation: 'request' })
+
+    expect(asked.status).toBe(200)
+
+    const rows: any[] = await (globalThis as any).db
+      .selectFrom('password_resets')
+      .select(['email', 'expires_at'])
+      .where('email', '=', created.email)
+      .execute()
+
+    expect(rows).toHaveLength(1)
+    // And it expires. A token row with no expiry is a permanent key to the
+    // account, and the framework falls back to `created_at` when the column is
+    // missing rather than saying so.
+    expect(rows[0]?.expires_at).toBeTruthy()
+    expect(new Date(String(rows[0]?.expires_at)).getTime()).toBeGreaterThan(Date.now())
   })
 
   test('and for one that does not', async () => {
@@ -183,6 +239,82 @@ describe('using a reset link', () => {
     })
 
     expect(used.status).toBe(422)
+  })
+
+  /*
+   * The case the other four do not cover: a token that is real.
+   *
+   * Every other test on this path asserts a refusal or the flat answer, and a
+   * reset that cannot write a token refuses exactly as convincingly as one that
+   * can. A suite made of refusals cannot tell a working flow from a broken one.
+   *
+   * The token is planted rather than mailed, because the framework does not
+   * hand `createResetToken` out and this test has no mailbox - so the row is
+   * written the way `sendEmail` writes it, with the same hash and the same
+   * expiry encoding, and everything after it is the product's own path.
+   *
+   * Its own user, because a successful reset revokes every session and token
+   * the account has, which would sign the rest of this file out.
+   */
+  test('and accepts one that was really issued, exactly once', async () => {
+    if (!available)
+      return
+
+    const { makeHash } = await import('@stacksjs/security')
+    const { sqlDateTime } = await import('@stacksjs/database')
+    const db = (globalThis as any).db
+
+    const handle = unique('pwu')
+    const email = `${handle}@example.com`
+    const row: any = await db
+      .insertInto('users')
+      .values({ name: 'Reset User', email, handle, password: 'unusable' })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    const userId = Number(row?.id)
+    const plain = 'the-token-a-mail-would-have-carried'
+
+    await db.insertInto('password_resets').values({
+      email,
+      token: await makeHash(plain, { algorithm: 'bcrypt' }),
+      expires_at: sqlDateTime(new Date(Date.now() + 60 * 60 * 1000)),
+    }).execute()
+
+    try {
+      const used = await post('/api/auth/password/reset', {
+        email,
+        operation: 'reset',
+        token: plain,
+        password: 'a-long-enough-password',
+      })
+
+      expect(used.status).toBe(200)
+      expect(used.json?.reset).toBe(true)
+
+      // The password actually changed, and to a hash rather than to the string
+      // that was sent.
+      const after: any = await db.selectFrom('users').select(['password']).where('id', '=', userId).executeTakeFirst()
+
+      expect(String(after?.password ?? '')).not.toBe('unusable')
+      expect(String(after?.password ?? '')).not.toBe('a-long-enough-password')
+      expect(String(after?.password ?? '').length).toBeGreaterThan(20)
+
+      // And the token is spent. A reset link that still works after it has been
+      // used is a second key left under the mat.
+      const twice = await post('/api/auth/password/reset', {
+        email,
+        operation: 'reset',
+        token: plain,
+        password: 'another-long-enough-password',
+      })
+
+      expect(twice.status).toBe(422)
+    }
+    finally {
+      await db.deleteFrom('password_resets').where('email', '=', email).execute()
+      await db.deleteFrom('users').where('id', '=', userId).execute()
+    }
   })
 
   test('refuses a password under the floor before it touches the token', async () => {
