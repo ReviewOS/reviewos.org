@@ -160,6 +160,69 @@ afterAll(async () => {
   catch { /* already down */ }
 })
 
+/**
+ * What the browser tab says.
+ *
+ * The layout read `{{ title ?? 'ReviewOS' }}`, which wants a *variable* called
+ * title while `@section('title', …)` sets a section - so the seven pages that
+ * declared one were ignored, and every other page named an identifier that does
+ * not exist. On a page carrying a component with a client script - the clone
+ * box, which is on every repository page - the interpolation was not evaluated
+ * at all, and the template source itself went into the tab, the bookmark and
+ * any link preview that scraped one.
+ *
+ * The leftover-braces assertion is the general one: it fails for any expression
+ * in the document's head that stops being evaluated, whatever the reason.
+ */
+describe('the name of the page', () => {
+  const titleOf = (html: string) => /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? ''
+
+  test('a repository page is named for its repository', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}`)
+
+    expect(titleOf(html)).toBe(`${created.handle}/${created.name}`)
+  })
+
+  test('and a file is named for the file', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}/tree/main/app`)
+
+    expect(titleOf(html)).toBe(`app · ${created.handle}/${created.name}`)
+  })
+
+  test('a page that names itself nothing is still called something', async () => {
+    if (!available)
+      return
+
+    const html = await page('/login')
+
+    // Not empty, and not the template's own source.
+    expect(titleOf(html).length).toBeGreaterThan(0)
+    expect(titleOf(html)).not.toContain('{{')
+  })
+
+  test('and no page leaves an unevaluated expression in its head', async () => {
+    if (!available)
+      return
+
+    for (const path of [`/${created.handle}/${created.name}`, `/${created.handle}/${created.name}/branches`, '/login']) {
+      const html = await page(path)
+      // stx's own runtime sits in the head and has `{{` inside a string
+      // literal, so the assertion is about the markup rather than the scripts.
+      const head = html
+        .slice(0, html.indexOf('</head>'))
+        .replace(/<script[\s\S]*?<\/script>/g, '')
+
+      expect(head).not.toContain('{{')
+    }
+  })
+})
+
 describe('browsing into a directory', () => {
   test('the root lists what is at the root', async () => {
     if (!available)

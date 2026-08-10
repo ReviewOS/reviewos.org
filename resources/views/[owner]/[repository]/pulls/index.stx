@@ -52,6 +52,8 @@ const loadLines = loadRows.map(row => ({
 
 @layout('app')
 
+@section('title', `Pull requests · ${params.owner}/${params.repository}`)
+
 @section('content')
   <RepoList
     owner="{{ params.owner }}"

@@ -24,6 +24,8 @@ const fromLine = String(search.from ?? '')
 --}}
 @layout('app')
 
+@section('title', `${params.path ? `${params.path} · ` : ''}${params.owner}/${params.repository}`)
+
 @section('content')
   <RepoBrowser
     owner="{{ params.owner }}"

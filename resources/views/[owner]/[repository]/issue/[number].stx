@@ -301,6 +301,8 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
 
 @layout('app')
 
+@section('title', `#${params.number} · ${params.owner}/${params.repository}`)
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (!issue)

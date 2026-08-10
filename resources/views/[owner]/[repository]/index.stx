@@ -6,6 +6,8 @@
 --}}
 @layout('app')
 
+@section('title', `${params.owner}/${params.repository}`)
+
 @section('content')
   <RepoBrowser owner="{{ params.owner }}" repository="{{ params.repository }}" refName="" path="" />
 @endsection

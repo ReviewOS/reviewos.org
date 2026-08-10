@@ -20,6 +20,8 @@ const pageNumberParam = String(search.page ?? '')
 
 @layout('app')
 
+@section('title', `Issues · ${params.owner}/${params.repository}`)
+
 @section('content')
   <RepoList
     owner="{{ params.owner }}"

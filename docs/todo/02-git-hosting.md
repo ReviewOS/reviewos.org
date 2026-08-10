@@ -439,6 +439,23 @@ the one moment where rejecting is still possible.
       200, which tells a crawler, a cache and an uptime check that the page is fine. `stx` gained
       `setResponseStatus()` (0.2.155) and the render cache now carries the status with the HTML, so
       a cached not-found page does not go back to 200 on its second request
+- [x] **Every page in the product had the wrong name, and most had no name at all.** The layout
+      read `{{ title ?? 'ReviewOS' }}`, which wants a *variable* called title, while a page sets one
+      with `@section('title', …)` - so the seven pages that declared a title were ignored, and the
+      other fifty-four named an identifier that does not exist.
+
+      Where it got worse is the part worth keeping. On a page carrying a component with a client
+      script - `CloneUrlBox`, which is on every repository page - that interpolation is not
+      evaluated at all, so **the template's own source went into the browser tab**: every
+      repository, tree, blob and settings page was called `{{ title ?? 'ReviewOS' }}` in the tab, in
+      a bookmark, and in anything that scraped a link preview. Found by chasing what looked like a
+      render failure while building the windowed blob view, and reproduced down to the one
+      component.
+
+      `@yield('title', 'ReviewOS')`, the way the marketing layout already did it, and the repository
+      surface names itself: `owner/repo`, `path · owner/repo`, `Branches · owner/repo`. The
+      regression test asserts no *markup* in a document's head is left unevaluated, which fails for
+      any expression that stops being evaluated rather than only for this one.
 - [x] **A trailing slash 404'd on pages that plainly exist.** `/{owner}/{repository}/` looked for
       `{owner}/{repository}//index.stx` and matched no dynamic route either. Fixed in stx 0.2.155;
       it is the same page
