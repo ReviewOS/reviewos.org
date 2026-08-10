@@ -367,6 +367,23 @@ Two upstream fixes are waiting on that:
   autofix then offers to rename them to `_name` while the body still says `name`. Comments are now
   blanked before the scanners run (`maskCommentText`). Until pickier is picked up here, one comment
   in `app/Actions/Markdown/render.ts` is written without an apostrophe, and says why.
+- **pickier**, again: the four markdown *errors* `./buddy lint` reports on this repository are all
+  false positives, and all three causes are fixed upstream. They fire on the shape these roadmap
+  files are written in, which is why they were found here.
+
+  - `no-space-in-links` matched link text with `.*?`, which runs past its own closing bracket - so
+    the `[ ]` of a task item paired with a real link's `](url)` later on the line and reported the
+    whole line as link text starting with a space. Every task list item with a link on it.
+  - `emphasis-style` masked inline code one line at a time, and a code span may legally wrap a line
+    inside a paragraph. Neither half has balanced backticks, so nothing is masked and the
+    underscores in the command leak out as emphasis. Prose wrapped at eighty columns produces this
+    constantly, and it is invisible in the source because it renders correctly.
+  - `emphasis-style` also read `snake_case` identifiers in prose as emphasis. CommonMark says `_`
+    cannot open emphasis after an alphanumeric, which is the rule that makes `snake_case` text - so
+    a line listing `review_requested, mentioned, team_mention` read as one emphasised span.
+
+  With the fixed pickier this repository lints with **zero errors**. Until it is released here,
+  those four are noise to be ignored rather than markdown to be rewritten.
 
 ## Deliberately not doing yet
 
