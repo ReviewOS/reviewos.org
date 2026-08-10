@@ -599,6 +599,16 @@ route.post('/repos/pulls/live', 'Actions/Pull/LiveStateAction')
 // to its code. One endpoint for create, update and delete, because all three
 // share the rule that decides whether a URL may be called at all - and that
 // rule is the security boundary of the whole feature.
+/*
+ * The dashboard feed, which existed as an action and was registered nowhere.
+ *
+ * `DashboardFeedAction` was written, keyset paginated, and unreachable - the
+ * page rendered its own first page from the same module and nothing served the
+ * second. Found by the parity check rather than by a person, which is the point
+ * of having one.
+ */
+route.get('/feed', 'Actions/Feed/DashboardFeedAction').middleware('auth')
+
 route.post('/repos/webhooks', 'Actions/Webhook/ManageWebhookAction').middleware('auth')
 
 // Sending a recorded delivery again. The stored payload is replayed byte for

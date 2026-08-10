@@ -34,6 +34,44 @@ export default new Action({
     const { repository, user } = auth.context
     const operation = String(request.get('operation') ?? 'create').trim().toLowerCase()
 
+    if (operation === 'deliveries') {
+      /*
+       * The delivery log, which the settings page has always shown and no
+       * endpoint served.
+       *
+       * `deliveries.ts` opens by saying it is "pure over plain rows, so the
+       * page and the endpoint cannot disagree" - and there was no endpoint. The
+       * parity check found it. The log answers one question and it is always
+       * the same one, "you never called my endpoint", so an agent debugging its
+       * own webhook needed exactly this and had to read HTML for it.
+       */
+      const id = Number(request.get('id'))
+      const existing = await owned(id, Number(repository.id))
+
+      if (!existing)
+        return response.json({ error: 'No such webhook' }, 404)
+
+      const { foldAttempts, health, parseDelivery } = await import('./deliveries')
+
+      const rows: any[] = await db
+        .selectFrom('webhook_deliveries')
+        .selectAll()
+        .where('webhook_id', '=', id)
+        .orderBy('id', 'desc')
+        .limit(Math.min(Math.max(1, Number(request.get('limit')) || 50), 200))
+        .execute()
+
+      const deliveries = foldAttempts(rows.map(row => parseDelivery(row)))
+
+      return response.json({
+        deliveries,
+        // The same summary the page shows. Two implementations of "is this
+        // webhook healthy" would eventually disagree, and the one somebody
+        // reads in a script would be the wrong one.
+        health: health(deliveries),
+      })
+    }
+
     if (operation === 'delete') {
       const id = Number(request.get('id'))
       const existing = await owned(id, Number(repository.id))

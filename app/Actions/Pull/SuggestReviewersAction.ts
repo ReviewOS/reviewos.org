@@ -66,13 +66,27 @@ export default new Action({
       alreadyInvolved(pullRequest.id, Number(row?.author_id ?? 0)),
     ])
 
+    /*
+     * The load figures travel with the suggestions.
+     *
+     * `reviewerLoadFor` was reachable from the pulls page and from no endpoint -
+     * the parity check found it - and it belongs here rather than on a route of
+     * its own: "who has worked on these files" and "how much is each of them
+     * already carrying" are two halves of one decision, and an agent choosing a
+     * reviewer that made two calls would sometimes act on a stale half.
+     */
+    const { loadPhrase, reviewerLoadFor } = await import('./reviewerLoad')
+    const now = Date.now()
+    const loads = await reviewerLoadFor(Number(repository.id))
+
     return response.json({
       suggestions: suggestReviewers({
         contributions,
         load,
         exclude,
-        now: Date.now(),
+        now,
       }),
+      reviewer_load: loads.map(row => ({ ...row, phrase: loadPhrase(row, now) })),
     })
   },
 })

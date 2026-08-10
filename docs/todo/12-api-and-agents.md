@@ -18,9 +18,39 @@ vocabulary, and it is discoverable without reading the source.
 
 ## Parity
 
-- [ ] Every interface action has an API equivalent, because both call the same action in
+- [x] Every interface action has an API equivalent, because both call the same action in
       `app/Actions/`. Where the interface reaches somewhere the API cannot, that is a bug filed
       against this list, not a design decision.
+
+  **Checked mechanically now**, in `tests/unit/api-parity.test.ts`: every module
+  under `app/Actions/` that a `.stx` file imports must also be reachable from a
+  registered route. That is the honest shadow of the rule - it cannot tell
+  whether an endpoint's answer is as *complete* as a page's, but it catches the
+  shape every violation so far has had, which is a page reaching into server
+  code no route reaches.
+
+  It found three on its first run, none of which anybody had noticed:
+
+  - **`Feed/DashboardFeedAction` was registered nowhere.** Written, keyset
+    paginated, with a docstring explaining that it exists to serve the second
+    page of the feed - and unreachable. The page rendered its own first page
+    from the same module and nothing served the rest.
+  - **The webhook delivery log had no endpoint.** `deliveries.ts` opens by
+    saying it is "pure over plain rows, so the page and the endpoint cannot
+    disagree", and there was no endpoint. It answers one question - "you never
+    called my endpoint" - so an agent debugging its own webhook had to read
+    HTML for it.
+  - **`reviewerLoadFor` had one caller and it was a view.** The same shape as
+    the review queue, which is the violation that prompted this box. It travels
+    with the suggestions now rather than getting a route of its own: who has
+    worked on these files and how much each is carrying are two halves of one
+    decision, and an agent making two calls would sometimes act on a stale half.
+
+  The checker itself had a bug worth recording, because it was the same class:
+  it matched only `from '...'` and this codebase reaches for dependencies with
+  `await import(...)` as often - so it reported two endpoints as missing that
+  had just been written. A checker that cries wolf is a checker somebody
+  deletes.
 
   Two of those bugs are fixed. Building the MCP tools meant checking that each one pointed at a real
   route, and two of five did not: reading one pull request, and the review queue. `reviewQueue()`
@@ -135,6 +165,21 @@ vocabulary, and it is discoverable without reading the source.
 - [ ] Long-running resources, including CI workflow runs, expose their state machine and control
       operations through the same public actions used by the interface and CLI. No UI-only pause,
       retry, cancellation, log, or approval path.
+
+  **Half of this holds and is worth writing down.** `operations` carries a real
+  state machine - `queued`, `running`, `succeeded`, `failed`, `cancelled` - and
+  both reading one and cancelling it are public actions
+  (`ShowOperationAction`, `CancelOperationAction`), with no separate path for
+  the interface. Failed jobs gained the other control operation with the
+  administration surface: a retry that moves the row rather than copying it.
+  The parity check above is what will keep a UI-only control path from
+  appearing later, since one would show up as a view reaching a module no route
+  reaches.
+
+  **The CI clause cannot be closed because there is no CI.** No workflow model,
+  no runner, no log stream. Ticking this on the strength of the operations half
+  would mean the next person reads "control operations are exposed" and
+  believes it covers workflow runs. It goes in with CI.
 
 ## Built for a program, not a person with curl
 

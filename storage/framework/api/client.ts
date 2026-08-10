@@ -3495,6 +3495,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/feed
+   */
+  getFeed(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/feed", {}, [], false, options)
+  },
+
+  /**
    * GET /api/gift-cards
    */
   getGiftCards(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

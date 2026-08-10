@@ -13879,6 +13879,31 @@
         }
       }
     },
+    "/api/feed": {
+      "get": {
+        "summary": "/api/feed",
+        "operationId": "get__api_feed",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/api/gift-cards": {
       "get": {
         "summary": "/api/gift-cards",
