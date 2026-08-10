@@ -15,10 +15,17 @@
  * The cursor is an optimisation on top of that, not the correctness argument.
  */
 
-export type ImportStage = 'git' | 'labels' | 'milestones' | 'issues' | 'pulls' | 'reviews' | 'releases' | 'done'
+export type ImportStage = 'git' | 'labels' | 'milestones' | 'issues' | 'pulls' | 'comments' | 'reviews' | 'releases' | 'done'
 
-/** The stages in the order they run, which is the order they depend on. */
-export const IMPORT_STAGES: readonly ImportStage[] = ['git', 'labels', 'milestones', 'issues', 'pulls', 'reviews', 'releases', 'done']
+/**
+ * The stages in the order they run, which is the order they depend on.
+ *
+ * Comments come after both issues and pull requests because a comment has to
+ * find the thing it hangs off. Running them earlier would file every comment
+ * under "not imported" and produce a problems list the length of the
+ * repository.
+ */
+export const IMPORT_STAGES: readonly ImportStage[] = ['git', 'labels', 'milestones', 'issues', 'pulls', 'comments', 'reviews', 'releases', 'done']
 
 export interface ImportProgress {
   stage: ImportStage
@@ -63,9 +70,10 @@ const WEIGHTS: Record<ImportStage, number> = {
   git: 40,
   labels: 2,
   milestones: 2,
-  issues: 20,
-  pulls: 20,
-  reviews: 12,
+  issues: 18,
+  pulls: 16,
+  comments: 10,
+  reviews: 8,
   releases: 4,
   done: 0,
 }
@@ -95,8 +103,9 @@ const DESCRIPTIONS: Record<ImportStage, string> = {
   git: 'Cloning the repository',
   labels: 'Importing labels',
   milestones: 'Importing milestones',
-  issues: 'Importing issues and their comments',
+  issues: 'Importing issues',
   pulls: 'Importing pull requests',
+  comments: 'Importing the conversations',
   reviews: 'Importing reviews and review threads',
   releases: 'Importing releases',
   done: 'Finished',

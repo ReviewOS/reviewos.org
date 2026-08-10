@@ -16,6 +16,10 @@ export default defineModel({
 
   indexes: [
     { name: 'issue_comments_subject_index', columns: ['commentable_type', 'commentable_id'] },
+    // The import's idempotency key. Without it, a resumed import cannot tell
+    // "the same comment again" from "a new comment", and duplicates every row
+    // it re-reads.
+    { name: 'issue_comments_external_index', columns: ['external_id'] },
   ],
 
   traits: {
@@ -90,6 +94,23 @@ export default defineModel({
      */
     external_author: {
       order: 7,
+      fillable: true,
+      validation: { rule: schema.string().max(120) },
+      factory: () => null,
+    },
+
+    /**
+     * The id this comment had wherever it was imported from.
+     *
+     * **What makes an import resumable.** A comment carries no other stable
+     * identity: two people can write the same words on the same issue in the
+     * same minute, so matching on body and time would collapse them into one,
+     * and matching on nothing duplicates every comment the importer re-reads
+     * after an interruption. `review_comments` has had this column since it was
+     * written and it is the same argument.
+     */
+    external_id: {
+      order: 8,
       fillable: true,
       validation: { rule: schema.string().max(120) },
       factory: () => null,

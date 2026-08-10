@@ -31,11 +31,33 @@ decides whether an evaluation ends in a migration or a shrug.
   change upstream.
 - [x] Issues with their comments, labels, milestones, and state
 
-  Issues, labels and state. A pull request appears in GitHub's issues endpoint
-  too, and importing it there as well would produce a second row with the same
-  number - `onlyIssues` is what stops that, and the fixture includes one to
-  prove it does. Issue *comments* and milestones are still to come; the row
-  count in the summary says which of them arrived.
+  Issues, their comments, labels, milestones and state. A pull request appears
+  in GitHub's issues endpoint too, and importing it there as well would produce
+  a second row with the same number - `onlyIssues` is what stops that, and the
+  fixture includes one to prove it does.
+
+  **The comments are the reason to migrate at all.** A repository whose issues
+  arrived without them has kept the questions and lost every answer, which is a
+  worse artefact than a link to the old forge. They are fetched as one
+  collection rather than per issue: two thousand issues would otherwise be two
+  thousand requests against an hourly limit.
+
+  GitHub files comments on pull requests under `/issues/comments` as well, and
+  here those are separate tables - so the number is looked up in both. Attached
+  to the wrong one, a comment appears on an unrelated conversation that happens
+  to share a number, which is the shape of mistake nobody reviews for because it
+  looks like ordinary data.
+
+  `issue_comments` gained an `external_id`, because a comment carries no other
+  stable identity: two people can write the same words on the same issue in the
+  same minute, so matching on body and time would collapse them, and matching on
+  nothing duplicates every comment a resumed import re-reads. `review_comments`
+  has had the column since it was written and it is the same argument.
+
+  Milestones are keyed on their title within the repository - which is what an
+  issue references, what a person searches for, and what GitHub itself treats as
+  the identity in every url it prints. Closed ones are imported too: that is
+  where most of a repository's history is filed.
 - [x] Pull requests with their reviews and review threads, anchored to the same lines. Review
       threads are the part other importers drop; keeping them is most of the value here.
 
@@ -116,7 +138,23 @@ decides whether an evaluation ends in a migration or a shrug.
 
 - [ ] Gitea and Forgejo, which share an API shape
 - [ ] GitLab
-- [ ] Plain git URL import, with no metadata, for everything else
+- [x] Plain git URL import, with no metadata, for everything else
+
+  `buddy import:git <url>`. The escape hatch that makes the other importers
+  optional: somebody moving off a forge nobody has written an importer for -
+  Bitbucket, cgit, a bare repository on a server being decommissioned - gets
+  their history in today, with one command.
+
+  Synchronous rather than queued, because there is one step and no rate limit,
+  and a job would add a worker dependency and a progress row to something whose
+  whole duration is one `git clone`.
+
+  It says what it did not bring. An operator who ran this expecting a full
+  migration and found empty issue lists would reasonably conclude the product is
+  broken, so the last line of output names what a git URL does not carry. The
+  default branch is read from the clone rather than assumed: a repository whose
+  branch is `master` or `trunk` and is recorded as `main` shows an empty file
+  list on its own front page.
 
 ## Mirroring
 
@@ -128,6 +166,31 @@ step in a migration.
 
 ## Exporting
 
-- [ ] Full export of a repository and its metadata as an archive
-- [ ] Documented, stable export format, so leaving is possible. A forge that is hard to leave is a
+- [x] Full export of a repository and its metadata as an archive
+
+  `buddy export:repository owner/name`. A directory rather than an archive:
+  tarring it is one command somebody already knows, and a directory can be
+  inspected, diffed and partially copied, which is what people actually do with
+  an export before they trust it.
+
+  `git/` is a real bare repository - `git clone` against it works - so the most
+  important half needs no tooling at all to read.
+- [x] Documented, stable export format, so leaving is possible. A forge that is hard to leave is a
       forge people are right to distrust.
+
+  **Nothing is referenced by a local id.** A comment names its issue by
+  `number`, because a number is what the repository's own history refers to and
+  an id is a fact about our database that means nothing anywhere else. People
+  are handles; an imported author nobody claimed keeps the name they had at the
+  source; and where there is neither, the field is `null` rather than
+  `"unknown"`, because filling it would be inventing a person.
+
+  The manifest carries a `format` version. A format nobody can date is a format
+  nobody can write a reader for two years from now.
+
+  Review anchors survive the round trip - file, line and side - which would be
+  perverse to lose on the way out given the importer exists to keep them on the
+  way in. The writer lives in `app/Actions/Import/export.ts` rather than in the
+  command, so the test runs the real thing: an export whose only caller is a CLI
+  entry point is an export nothing exercises, and this is the feature whose
+  entire purpose is being trustworthy.

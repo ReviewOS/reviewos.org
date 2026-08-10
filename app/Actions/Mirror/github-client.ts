@@ -196,6 +196,18 @@ export class GitHubClient {
     return this.collect<any>(`/repos/${owner}/${name}/labels`)
   }
 
+  /**
+   * Every comment on every issue in the repository, in one collection.
+   *
+   * `/issues/comments` rather than a call per issue. A repository with two
+   * thousand issues would otherwise cost two thousand requests against an hourly
+   * limit, which is the difference between an import that finishes in an
+   * afternoon and one that does not finish.
+   */
+  issueComments(owner: string, name: string) {
+    return this.collect<any>(`/repos/${owner}/${name}/issues/comments`)
+  }
+
   milestones(owner: string, name: string) {
     // `state=all` for the same reason issues are: a closed milestone is what
     // most of a repository's history is filed under.

@@ -1639,6 +1639,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "external_id",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
           }
         ],
         "indexes": [
@@ -1656,6 +1665,13 @@
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "issue_comments_external_index",
+            "columns": [
+              "external_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -7292,7 +7308,7 @@
       }
     ]
   },
-  "hash": "33a7c39fc5d1d62dd565a2e18030dbe42445366e83505cd9cdeecacc03094590",
+  "hash": "8adff40df2555a709c837d1050f7270a5eac5356e3e871a42435d7597a00c04e",
   "dialect": "postgres",
-  "updatedAt": "2026-08-10T05:27:40.829Z"
+  "updatedAt": "2026-08-10T15:41:04.010Z"
 }

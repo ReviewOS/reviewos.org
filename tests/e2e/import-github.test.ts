@@ -121,6 +121,36 @@ const FIXTURE = {
     { name: 'bug', color: 'd73a4a', description: 'Something is wrong' },
     { name: 'documentation', color: '0075ca', description: 'Docs' },
   ],
+  milestones: [
+    { title: 'v2', description: 'The rounding release', state: 'open', due_on: '2026-03-01T00:00:00Z' },
+    { title: 'v1', description: 'Shipped', state: 'closed', due_on: null },
+  ],
+  issueComments: [
+    {
+      id: 9001,
+      issue_url: 'https://api.github.com/repos/acme/api/issues/7',
+      body: 'I can reproduce this with two items at 0.005.',
+      user: { login: 'bob', id: 2 },
+      created_at: '2026-01-02T12:00:00Z',
+    },
+    {
+      id: 9002,
+      issue_url: 'https://api.github.com/repos/acme/api/issues/7',
+      body: 'Same, and it is worse with tax. See https://github.com/acme/api/issues/3.',
+      user: { login: 'stranger', id: 99 },
+      created_at: '2026-01-02T13:00:00Z',
+    },
+    // A comment on the pull request, which GitHub also files under `/issues/`.
+    // Attached to the wrong table it would appear on an unrelated conversation
+    // that happens to share a number.
+    {
+      id: 9003,
+      issue_url: 'https://api.github.com/repos/acme/api/issues/9',
+      body: 'Rebased.',
+      user: { login: 'alice', id: 1 },
+      created_at: '2026-01-06T09:00:00Z',
+    },
+  ],
 }
 
 beforeAll(async () => {
@@ -192,7 +222,10 @@ beforeAll(async () => {
           return page(FIXTURE.labels)
 
         if (path === '/repos/acme/api/milestones')
-          return page([])
+          return page(FIXTURE.milestones)
+
+        if (path === '/repos/acme/api/issues/comments')
+          return page(FIXTURE.issueComments)
 
         return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } })
       },
@@ -294,6 +327,12 @@ afterAll(async () => {
         await db.deleteFrom('review_threads').where('pull_request_id', '=', Number(pull.id)).execute()
       }
 
+      const issues: any[] = await db.selectFrom('issues').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+
+      for (const subject of [...pulls.map((one: any) => ['pull_request', Number(one.id)]), ...issues.map((one: any) => ['issue', Number(one.id)])])
+        await db.deleteFrom('issue_comments').where('commentable_type', '=', subject[0]).where('commentable_id', '=', subject[1]).execute()
+
+      await db.deleteFrom('milestones').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('pull_requests').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('issues').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('repository_labels').where('repository_id', '=', created.repositoryId).execute()
@@ -528,8 +567,86 @@ describe('importing a repository', () => {
     // "68%" of an import tells nobody whether the thing they are waiting for
     // has arrived. The summary names what came in.
     expect(String(result.summary)).toContain('issues')
+    expect(String(result.summary)).toContain('comments')
     expect(String(result.summary)).toContain('review threads')
   }, 60_000)
+  test('milestones arrive, open and closed', async () => {
+    if (!available)
+      return
+
+    // A closed milestone is what most of a repository's history is filed under,
+    // so importing only the open ones would lose the filing rather than a
+    // detail of it.
+    const rows: any[] = await (globalThis as any).db
+      .selectFrom('milestones')
+      .select(['title', 'state'])
+      .where('repository_id', '=', created.repositoryId)
+      .orderBy('title', 'asc')
+      .execute()
+
+    expect(rows.map(row => `${row.title}:${row.state}`)).toEqual(['v1:closed', 'v2:open'])
+  }, 60_000)
+
+  test('the conversation arrives, on the right subject', async () => {
+    if (!available)
+      return
+
+    /*
+     * **The reason to migrate at all.** A repository whose issues came without
+     * their comments has kept the questions and lost every answer, which is a
+     * worse artefact than a link to the old forge.
+     */
+    const db = (globalThis as any).db
+
+    const issue: any = await db
+      .selectFrom('issues')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', 7)
+      .executeTakeFirst()
+
+    const onIssue: any[] = await db
+      .selectFrom('issue_comments')
+      .selectAll()
+      .where('commentable_type', '=', 'issue')
+      .where('commentable_id', '=', Number(issue.id))
+      .orderBy('id', 'asc')
+      .execute()
+
+    expect(onIssue.length).toBe(2)
+    expect(String(onIssue[0].body)).toContain('0.005')
+
+    // Attribution follows the same rule as everywhere else: named, not
+    // reassigned.
+    expect(String(onIssue[1].external_author)).toBe('stranger')
+
+    // And the reference in it came home, because that repository is here.
+    expect(String(onIssue[1].body)).toContain('/acme/api/issues/3')
+
+    /*
+     * The comment on #9 belongs to the pull request, not to an issue. GitHub
+     * files both under `/issues/comments`, and putting it on the wrong table
+     * would attach it to an unrelated conversation that happens to share a
+     * number - the shape of mistake nobody reviews for, because it looks like
+     * ordinary data.
+     */
+    const pull: any = await db
+      .selectFrom('pull_requests')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .executeTakeFirst()
+
+    const onPull: any[] = await db
+      .selectFrom('issue_comments')
+      .selectAll()
+      .where('commentable_type', '=', 'pull_request')
+      .where('commentable_id', '=', Number(pull.id))
+      .execute()
+
+    expect(onPull.length).toBe(1)
+    expect(String(onPull[0].body)).toBe('Rebased.')
+  }, 60_000)
+
   test('running it again changes nothing', async () => {
     if (!available)
       return
@@ -545,11 +662,18 @@ describe('importing a repository', () => {
     const count = async (table: string): Promise<number> =>
       (await db.selectFrom(table).select(['id']).where('repository_id', '=', created.repositoryId).execute()).length
 
-    const before = { issues: await count('issues'), pulls: await count('pull_requests') }
+    const comments = async (): Promise<number> =>
+      (await db.selectFrom('issue_comments').select(['id']).whereNotNull('external_id').execute()).length
+
+    const before = { issues: await count('issues'), pulls: await count('pull_requests'), comments: await comments() }
 
     await runImport(`alice=${created.ownerHandle}`)
 
-    expect({ issues: await count('issues'), pulls: await count('pull_requests') }).toEqual(before)
+    // Comments are the row most likely to duplicate, because they have no
+    // number of their own - which is why `external_id` was added to the table
+    // rather than matching on body and time, two of which can legitimately
+    // collide.
+    expect({ issues: await count('issues'), pulls: await count('pull_requests'), comments: await comments() }).toEqual(before)
 
     /*
      * And the report says so. A second run that claimed to have imported
@@ -562,4 +686,70 @@ describe('importing a repository', () => {
     expect(String(JSON.parse(String(row.result)).summary)).toContain('no metadata')
   }, 120_000)
 
+})
+
+describe('and back out again', () => {
+  test('the export is readable without this codebase', async () => {
+    if (!available)
+      return
+
+    /*
+     * A forge that is hard to leave is a forge people are right to distrust,
+     * and the trust is not earned by *having* an export - it is earned by
+     * having one somebody can read without the code that wrote it.
+     *
+     * So this runs the real writer and reads the files back the way a stranger
+     * would: numbers rather than our ids, handles rather than user ids, and a
+     * `git/` directory that is a real repository.
+     */
+    const { mkdtemp, readFile } = await import('node:fs/promises')
+    const { tmpdir } = await import('node:os')
+    const { writeExport, EXPORT_FORMAT } = await import('../../app/Actions/Import/export')
+
+    const destination = await mkdtemp(join(tmpdir(), 'reviewos-export-'))
+    const written = await writeExport(created.ownerHandle, created.name, destination)
+
+    // A format nobody can date is a format nobody can write a reader for two
+    // years from now.
+    expect(written.format).toBe(EXPORT_FORMAT)
+    expect(written.counts.issues).toBe(2)
+    expect(written.counts.review_threads).toBe(1)
+
+    // The most important half needs no tooling: a clone of the exported
+    // directory is a working repository.
+    const { runGit } = await import('../../app/Actions/Git/git')
+    const log = await runGit(join(destination, 'git'), ['log', '--oneline', 'main'])
+
+    expect(log.ok).toBe(true)
+    expect(log.stdout).toContain('Add the cart total')
+
+    const issues = JSON.parse(await readFile(join(destination, 'issues.json'), 'utf8'))
+
+    /*
+     * Keyed by the number people refer to, not by our row id - which means
+     * nothing outside this database - and the conversation travels with it.
+     */
+    expect(issues.map((one: any) => one.number)).toEqual([7, 8])
+    expect(issues[0].comments.length).toBe(2)
+
+    /*
+     * An author nobody claimed keeps the name they had. An export that filled
+     * that gap with "unknown" would be inventing a person, and one that wrote a
+     * local user id would be exporting a fact about our database.
+     */
+    expect(issues[1].author).toBe('stranger')
+    expect(issues[0].author).toBe(created.ownerHandle)
+
+    const pulls = JSON.parse(await readFile(join(destination, 'pull-requests.json'), 'utf8'))
+
+    expect(pulls[0].number).toBe(9)
+
+    // And the review anchor survives the round trip. Losing it on the way out
+    // would be perverse, given the importer exists to keep it on the way in.
+    expect(pulls[0].review_threads[0].path).toBe('src/cart.ts')
+    expect(pulls[0].review_threads[0].line).toBe(42)
+    expect(pulls[0].review_threads[0].comments.length).toBe(2)
+
+    await rm(destination, { recursive: true, force: true })
+  }, 120_000)
 })

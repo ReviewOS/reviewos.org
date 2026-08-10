@@ -11,7 +11,7 @@ import { repositoryPath } from '../Actions/Git/storage'
 import { buildThreads, mapIssue, mapLabel, mapPull, mapReviewComment, onlyIssues } from '../Actions/Mirror/github'
 import { GitHubClient } from '../Actions/Mirror/github-client'
 import { issueRow, pullNumberOf, pullRow, reviewCommentRow, threadRow } from '../Actions/Mirror/metadata'
-import { recountOpenIssues } from '../Actions/Repo/counters'
+import { recountComments, recountOpenIssues } from '../Actions/Repo/counters'
 
 /**
  * Bring a GitHub repository here, with its history and its conversations.
@@ -118,9 +118,10 @@ async function runStage(progress: ImportProgress, context: StageContext): Promis
   const handlers: Record<ImportStage, (p: ImportProgress, c: StageContext) => Promise<void>> = {
     git: importGit,
     labels: importLabels,
-    milestones: skip,
+    milestones: importMilestones,
     issues: importIssues,
     pulls: importPulls,
+    comments: importIssueComments,
     reviews: importReviews,
     releases: skip,
     done: skip,
@@ -235,6 +236,170 @@ async function importLabels(progress: ImportProgress, context: StageContext): Pr
 
     record(progress, 'labels')
   }
+}
+
+/**
+ * Milestones, which are what most of a repository's history is filed under.
+ *
+ * Keyed on the title within the repository. There is no external id column on
+ * `milestones` and adding one would be the third table to carry it - the title
+ * is what an issue references, what a person searches for, and what GitHub
+ * itself treats as the milestone's identity in every url it prints.
+ */
+async function importMilestones(progress: ImportProgress, context: StageContext): Promise<void> {
+  const db = (globalThis as any).db
+  const page = await context.client.milestones(context.owner, context.name)
+
+  if (!page.ok)
+    throw new Error(page.error ?? 'the milestones could not be read')
+
+  for (const raw of page.items) {
+    const title = String((raw as any).title ?? '').trim()
+
+    if (!title)
+      continue
+
+    const values = {
+      repository_id: context.repositoryId,
+      title,
+      description: String((raw as any).description ?? '') || null,
+      due_on: (raw as any).due_on ? String((raw as any).due_on) : null,
+      state: String((raw as any).state ?? 'open') === 'closed' ? 'closed' : 'open',
+    }
+
+    const existing: any = await db
+      .selectFrom('milestones')
+      .select(['id'])
+      .where('repository_id', '=', context.repositoryId)
+      .where('title', '=', title)
+      .executeTakeFirst()
+
+    if (existing) {
+      await db.updateTable('milestones').set(values as any).where('id', '=', Number(existing.id)).execute()
+
+      continue
+    }
+
+    await db.insertInto('milestones').values(values as any).execute()
+    record(progress, 'milestones')
+  }
+}
+
+/**
+ * Every comment on every issue and pull request.
+ *
+ * **The conversation, which is the reason to migrate at all.** A repository
+ * whose issues arrived without their comments has kept the questions and lost
+ * every answer, and that is not a partial import - it is a worse artefact than
+ * a link to the old forge.
+ *
+ * Fetched as one collection rather than per issue: a repository with two
+ * thousand issues would otherwise cost two thousand requests against an hourly
+ * limit.
+ */
+async function importIssueComments(progress: ImportProgress, context: StageContext): Promise<void> {
+  const db = (globalThis as any).db
+  const page = await context.client.issueComments(context.owner, context.name)
+
+  if (!page.ok)
+    throw new Error(page.error ?? 'the issue comments could not be read')
+
+  const linked = await linkMapFor(page.items.map(raw => (raw as any).user), context)
+  const imported = await importedRepositories()
+  const touched = new Set<number>()
+
+  for (const raw of page.items) {
+    const externalId = String((raw as any).id ?? '')
+    const number = issueNumberOf(raw)
+
+    if (!externalId || !number)
+      continue
+
+    /*
+     * The subject, which may be an issue or a pull request.
+     *
+     * GitHub files both under `/issues/comments`, and here they are separate
+     * tables - so the number is looked up in both, issues first. A comment
+     * attached to the wrong one would appear on an unrelated conversation that
+     * happens to share a number, which is the shape of mistake nobody reviews
+     * for because it looks like ordinary data.
+     */
+    const issue: any = await db
+      .selectFrom('issues')
+      .select(['id'])
+      .where('repository_id', '=', context.repositoryId)
+      .where('number', '=', number)
+      .executeTakeFirst()
+
+    const pull: any = issue
+      ? null
+      : await db
+          .selectFrom('pull_requests')
+          .select(['id'])
+          .where('repository_id', '=', context.repositoryId)
+          .where('number', '=', number)
+          .executeTakeFirst()
+
+    if (!issue && !pull) {
+      noteProblem(progress, `a comment refers to #${number}, which was not imported`)
+
+      continue
+    }
+
+    const seen: any = await db
+      .selectFrom('issue_comments')
+      .select(['id'])
+      .where('external_id', '=', externalId)
+      .executeTakeFirst()
+
+    if (seen)
+      continue
+
+    const login = String((raw as any).user?.login ?? '').toLowerCase()
+    const authorId = linked.get(login) ?? null
+
+    await db.insertInto('issue_comments').values({
+      commentable_type: issue ? 'issue' : 'pull_request',
+      commentable_id: Number(issue?.id ?? pull?.id),
+      author_id: authorId,
+      // Named rather than reassigned when nobody claimed them, exactly as the
+      // issues and reviews are.
+      external_author: authorId ? null : (String((raw as any).user?.login ?? '') || null),
+      external_id: externalId,
+      body: rewriteReferences(String((raw as any).body ?? ''), imported),
+    } as any).execute()
+
+    record(progress, 'comments')
+    touched.add(Number(issue?.id ?? pull?.id))
+  }
+
+  /*
+   * The comment counters, once per subject rather than once per comment.
+   *
+   * An invariant test in this codebase says anything writing comments must
+   * recount them, and it caught this: without it every imported issue would
+   * show a comment count of zero beside a conversation that is plainly there,
+   * which reads as a broken page rather than a stale number.
+   *
+   * Batched to the end because an issue with forty comments would otherwise be
+   * forty recounts of the same row.
+   */
+  for (const subjectId of touched)
+    await recountComments(subjectId).catch(() => undefined)
+}
+
+/**
+ * The issue or pull request number a comment hangs off, from its url.
+ *
+ * GitHub gives `issue_url` and nothing else usable: there is no `issue_number`
+ * field, and the `html_url` carries a fragment that is the comment's own id
+ * rather than the subject's.
+ */
+function issueNumberOf(comment: unknown): number {
+  const url = String((comment as any)?.issue_url ?? '')
+  const match = /\/issues\/(\d+)(?:$|[?#])/.exec(url)
+
+  return match ? Number(match[1]) : 0
 }
 
 async function importIssues(progress: ImportProgress, context: StageContext): Promise<void> {
