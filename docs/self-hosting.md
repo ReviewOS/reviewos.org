@@ -658,6 +658,25 @@ When somebody leaves, `deprovision` on the administration endpoint ends every
 session and every token they hold. The account stays, because their reviews and
 comments are part of the repository's history rather than their property.
 
+### Mirroring a private repository
+
+A mirror's credential is never stored on its row. `credential_ref` names one:
+
+```sh
+# The mirror was added with `--credential acme`
+export MIRROR_TOKEN_ACME=ghp_...
+# or, with a secret manager
+export MIRROR_TOKEN_ACME_FILE=/run/secrets/acme-mirror
+```
+
+A mirror with no reference uses `GITHUB_TOKEN`, which is what a single-owner
+instance mirroring its own repositories has. A public repository needs neither.
+
+The token reaches git in the remote URL rather than a config file, because a
+config file is in every backup - and the error messages git prints are redacted
+before they are stored, so an expired token does not end up on the mirror's
+page.
+
 ### Keeping the dependencies honest
 
 `buddy-bot.config.ts` configures both halves, and both run from

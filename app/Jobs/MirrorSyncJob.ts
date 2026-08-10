@@ -98,7 +98,19 @@ async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason
       return { ok: false, reason: 'repository not found' }
 
     const diskPath = String(repository.disk_path ?? '')
-    const outcome = await fetchMirror(diskPath, String(mirror.remote_url))
+
+    /*
+     * The credential, which the git side never had.
+     *
+     * The metadata sync resolved a token and this did not, so a private mirror
+     * imported its issues perfectly and cloned nothing - which reads as "the
+     * repository is empty" rather than as "the credential never reached git".
+     * A public mirror resolves to null and the URL is unchanged, so the path
+     * that already worked is untouched.
+     */
+    const { authenticatedUrl, mirrorToken, redact } = await import('../Actions/Mirror/credentials')
+    const token = await mirrorToken(mirror.credential_ref)
+    const outcome = await fetchMirror(diskPath, authenticatedUrl(String(mirror.remote_url), token))
 
     if (!outcome.ok) {
       const failures = Number(mirror.failure_count ?? 0) + 1
@@ -106,7 +118,15 @@ async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason
       await db
         .updateTable('repository_mirrors')
         .set({
-          last_error: outcome.error,
+          /*
+           * Redacted before it is stored.
+           *
+           * git echoes the remote URL in most of its failures, and this column
+           * is shown in the interface - so the ordinary first failure of a
+           * private mirror, a 403 from an expired token, would otherwise write
+           * a live credential into the database and onto a page.
+           */
+          last_error: redact(outcome.error ?? '', token),
           failure_count: failures,
           // Giving up is a statement, not a silence: last_error stays so the
           // interface can say the mirror stopped and why.

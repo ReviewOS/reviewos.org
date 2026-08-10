@@ -62,7 +62,7 @@ export default new Job({
       return { ok: false, reason: 'mirror does not name a remote repository' }
 
     const repositoryId = Number(mirror.repository_id)
-    const client = new GitHubClient({ token: resolveToken(mirror.credential_ref) })
+    const client = new GitHubClient({ token: await resolveToken(mirror.credential_ref) })
 
     // Who upstream maps to a local user. Read once: the alternative is a query
     // per row, and an import of two thousand issues would spend longer in the
@@ -178,11 +178,19 @@ async function linkedAccounts(): Promise<Map<string, number>> {
  * The mirror row stores a name, never a secret: a token copied into the
  * database is a token in every backup and every dump anyone takes of it.
  */
-function resolveToken(credentialRef: string | null | undefined): string | null {
-  const ref = String(credentialRef ?? '').trim()
-  if (!ref) return process.env.GITHUB_TOKEN ?? null
+/**
+ * The token this mirror uses, from the shared resolver.
+ *
+ * Delegated rather than duplicated. This function and the git fetch each had
+ * their own idea of where a credential comes from - except the git one had none
+ * at all - and one implementation is what stops them drifting again. It also
+ * gains the `_FILE` form for free, which is what an operator with a secret
+ * manager already produces.
+ */
+async function resolveToken(credentialRef: string | null | undefined): Promise<string | null> {
+  const { mirrorToken } = await import('../Actions/Mirror/credentials')
 
-  return process.env[`MIRROR_TOKEN_${ref.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`] ?? null
+  return await mirrorToken(credentialRef)
 }
 
 async function writeIssues(present: MappedIssue[], repositoryId: number) {

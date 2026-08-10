@@ -140,8 +140,35 @@ there?
 
 - [x] A public repository mirrors with no credential at all, and that path is tested, because it is
       the one someone will try first
-- [ ] Private repositories use a stored token or GitHub App installation, encrypted at rest,
+- [x] Private repositories use a stored token or GitHub App installation, encrypted at rest,
       referenced by the mirror rather than copied into it
+
+  Referenced, and never stored: `credential_ref` names an environment variable
+  or the file one points at, so a database dump, a backup, or a support export
+  of the mirrors table carries nothing anybody can use. That is a stronger
+  property than encrypting a column, whose key travels with the same instance
+  the ciphertext does - so the box is satisfied by not having the secret rather
+  than by protecting it.
+
+  **The git side had no credential at all.** The metadata sync resolved a token
+  and the fetch did not, so a private mirror imported its issues perfectly and
+  cloned nothing - which reads as "the repository is empty" rather than as "the
+  credential never reached git". One resolver now, used by both, which is what
+  stops them drifting again; the metadata half gained the `_FILE` form for free.
+
+  **And the error message was going to leak it.** git is handed the credential
+  in the remote URL - the alternative is a config file, where it lives in every
+  backup - and git echoes that URL in most of its failures. The mirror row
+  stores the last error and the interface shows it, so the ordinary first
+  failure of a private mirror, a 403 from an expired token, would have written a
+  live credential into the database and onto a page. Everything recording a git
+  failure goes through `redact` now, which removes both the URL form and any
+  bare occurrence of the token, because git does not always quote the whole URL.
+
+  GitHub App installations are not implemented. A token is what somebody
+  mirroring a private repository has today, and an App is a second credential
+  shape with its own refresh cycle - worth doing when somebody needs the higher
+  rate limit, and not worth claiming now.
 - [x] A revoked credential is named as such and says what to do, rather than showing the raw error.
       It is the one failure with a different fix from all the others - every other is "wait or
       retry", this one is "go and issue a new token" - and they read identically in a log
