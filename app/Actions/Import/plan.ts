@@ -122,7 +122,7 @@ export function describeProgress(progress: ImportProgress): string {
 
 /** What was imported, in the order somebody checks it. */
 export function summarize(progress: ImportProgress): string {
-  const parts = ['issues', 'pull_requests', 'comments', 'reviews', 'review_threads', 'releases']
+  const parts = ['issues', 'pull_requests', 'comments', 'reviews', 'review_threads', 'releases', 'assets', 'milestones']
     .filter(key => (progress.counts[key] ?? 0) > 0)
     .map(key => `${progress.counts[key]} ${key.replace(/_/g, ' ')}`)
 

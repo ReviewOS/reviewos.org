@@ -4,6 +4,8 @@ import { dirname } from 'node:path'
 import process from 'node:process'
 import type { ExternalAuthor, LocalAccount } from '../Actions/Import/attribution'
 import { buildLinkMap, parseClaims, rewriteReferences } from '../Actions/Import/attribution'
+import type { ForgeKind } from '../Actions/Import/forges'
+import { FORGES, pullNumber } from '../Actions/Import/forges'
 import type { ImportProgress, ImportStage } from '../Actions/Import/plan'
 import { describeProgress, emptyProgress, isFinished, nextStage, noteProblem, record, summarize } from '../Actions/Import/plan'
 import { runGit } from '../Actions/Git/git'
@@ -63,15 +65,27 @@ export default new Job({
     const progress: ImportProgress = payload?.progress ?? emptyProgress()
     const claims = parseClaims(String(payload?.claims ?? ''))
 
+    /*
+     * Which forge, and how to talk to it.
+     *
+     * Gitea and Forgejo answer GitHub's shape closely enough to share this
+     * client - `app/Actions/Import/forges.ts` holds the handful of places they
+     * genuinely differ, and each of those is a parameter here rather than an
+     * assumption in the code.
+     */
+    const forge: ForgeKind = payload?.forge === 'gitea' ? 'gitea' : 'github'
+    const shape = FORGES[forge]
+
     const client = new GitHubClient({
-      token: String(process.env.GITHUB_TOKEN ?? '') || null,
+      token: String(payload?.token ?? process.env.GITHUB_TOKEN ?? '') || null,
       baseUrl: String(payload?.baseUrl ?? '') || undefined,
+      authorization: shape.authorization,
     })
 
     await report(operationId, progress)
 
     try {
-      await runStage(progress, { client, owner, name, repositoryId, claims, source: payload?.source })
+      await runStage(progress, { client, owner, name, repositoryId, claims, forge, source: payload?.source })
     }
     catch (error) {
       /*
@@ -110,6 +124,7 @@ interface StageContext {
   name: string
   repositoryId: number
   claims: Map<string, string>
+  forge: ForgeKind
   source: string
 }
 
@@ -123,7 +138,7 @@ async function runStage(progress: ImportProgress, context: StageContext): Promis
     pulls: importPulls,
     comments: importIssueComments,
     reviews: importReviews,
-    releases: skip,
+    releases: importReleases,
     done: skip,
   }
 
@@ -464,14 +479,30 @@ async function importPulls(progress: ImportProgress, context: StageContext): Pro
   const linked = await linkMapFor(page.items.map(raw => (raw as any).user), context)
   const imported = await importedRepositories()
 
-  for (const raw of page.items) {
+  /*
+   * The number, normalised before anything reads it.
+   *
+   * GitHub says `number` and Gitea says `index`, and the mapper this import
+   * shares with the mirror knows only the first - so a Gitea pull request
+   * arrived with no number and was dropped entirely, silently, which is how the
+   * first version of this passed its own tests and imported nothing.
+   *
+   * Translated once here rather than branched on at every use, the same way the
+   * per-review comments are given a `pull_request_url` above.
+   */
+  const items = page.items.map(raw => ({ ...(raw as any), number: pullNumber(raw) }))
+
+  for (const raw of items) {
     const pull = mapPull(raw, linked)
 
     if (!pull)
       continue
 
+    const number = Number(raw.number) || pull.number
+
     const values = {
       ...pullRow(pull, context.repositoryId),
+      number,
       body: rewriteReferences(String(pull.body ?? ''), imported),
     }
 
@@ -479,7 +510,7 @@ async function importPulls(progress: ImportProgress, context: StageContext): Pro
       .selectFrom('pull_requests')
       .select(['id'])
       .where('repository_id', '=', context.repositoryId)
-      .where('number', '=', pull.number)
+      .where('number', '=', number)
       .executeTakeFirst()
 
     if (existing) {
@@ -505,7 +536,9 @@ async function importPulls(progress: ImportProgress, context: StageContext): Pro
  */
 async function importReviews(progress: ImportProgress, context: StageContext): Promise<void> {
   const db = (globalThis as any).db
-  const page = await context.client.reviewComments(context.owner, context.name)
+  const page = FORGES[context.forge].hasRepositoryWideReviewComments
+    ? await context.client.reviewComments(context.owner, context.name)
+    : await reviewCommentsPerPull(context)
 
   if (!page.ok)
     throw new Error(page.error ?? 'the review comments could not be read')
@@ -594,6 +627,45 @@ async function importReviews(progress: ImportProgress, context: StageContext): P
 }
 
 /**
+ * Review comments gathered a pull request at a time.
+ *
+ * For Gitea and Forgejo, which have no repository-wide list. Each comment is
+ * given the `pull_request_url` shape the rest of this import reads, so the code
+ * after this point does not have to know which forge it came from - one
+ * translation here beats a branch at every use.
+ */
+async function reviewCommentsPerPull(context: StageContext): Promise<{ ok: boolean, items: any[], error: string | null }> {
+  const db = (globalThis as any).db
+  const items: any[] = []
+
+  const pulls: any[] = await db
+    .selectFrom('pull_requests')
+    .select(['number'])
+    .where('repository_id', '=', context.repositoryId)
+    .execute()
+
+  for (const pull of pulls) {
+    const index = Number(pull.number)
+    const reviews = await context.client.pullReviews(context.owner, context.name, index)
+
+    if (!reviews.ok)
+      return { ok: false, items, error: reviews.error }
+
+    for (const review of reviews.items) {
+      const comments = await context.client.reviewComments(context.owner, context.name, index, Number((review as any).id))
+
+      if (!comments.ok)
+        return { ok: false, items, error: comments.error }
+
+      for (const comment of comments.items)
+        items.push({ ...(comment as any), pull_request_url: `/pulls/${index}` })
+    }
+  }
+
+  return { ok: true, items, error: null }
+}
+
+/**
  * The `login -> local user id` map for this page's authors.
  *
  * Built per stage rather than once, because the authors differ per stage and
@@ -610,6 +682,150 @@ async function linkMapFor(authors: readonly unknown[], context: StageContext): P
     claims: context.claims,
     authors: authors.filter(Boolean) as ExternalAuthor[],
   })
+}
+
+/**
+ * Releases, and the files attached to them.
+ *
+ * The assets are the part that matters and the part that is easy to skip. A
+ * release without its binary is a tag with a paragraph attached: every link in
+ * a changelog, every install script, and every "download the previous version"
+ * request points at a file that is no longer anywhere. Downloading them is slow
+ * and worth it.
+ *
+ * Each asset is fetched, checksummed and stored the same way an upload through
+ * the interface is, so a downloaded asset and an uploaded one are the same kind
+ * of row - there is no import-only path to keep working.
+ */
+async function importReleases(progress: ImportProgress, context: StageContext): Promise<void> {
+  const db = (globalThis as any).db
+  const page = await context.client.releases(context.owner, context.name)
+
+  if (!page.ok)
+    throw new Error(page.error ?? 'the releases could not be read')
+
+  const linked = await linkMapFor(page.items.map(raw => (raw as any).author), context)
+  const imported = await importedRepositories()
+
+  for (const raw of page.items) {
+    const tag = String((raw as any).tag_name ?? '').trim()
+
+    if (!tag)
+      continue
+
+    const login = String((raw as any).author?.login ?? '').toLowerCase()
+
+    const values = {
+      repository_id: context.repositoryId,
+      tag_name: tag,
+      /*
+       * The framework's own columns on this table, filled in rather than left
+       * null - `version` is not null, and a release's version *is* its tag.
+       * `ManageReleaseAction` writes exactly these, and an imported release
+       * that skipped them would be a row the dashboard renders differently
+       * from one published here.
+       */
+      version: tag.slice(0, 50),
+      status: (raw as any).draft ? 'draft' : 'published',
+      name: String((raw as any).name ?? tag),
+      notes: rewriteReferences(String((raw as any).body ?? ''), imported),
+      is_prerelease: Boolean((raw as any).prerelease),
+      target_sha: String((raw as any).target_commitish ?? '') || null,
+      published_at: (raw as any).published_at ? String((raw as any).published_at) : null,
+      user_id: linked.get(login) ?? null,
+      // `releases.author` is a plain string on this table, so an unmapped
+      // author is recorded there rather than lost - the same rule as everywhere
+      // else, using the column this table happens to have.
+      author: String((raw as any).author?.login ?? '') || null,
+    }
+
+    // Keyed on the tag, which is the release's identity everywhere: in git, in
+    // a changelog, and in every url that points at it.
+    const existing: any = await db
+      .selectFrom('releases')
+      .select(['id'])
+      .where('repository_id', '=', context.repositoryId)
+      .where('tag_name', '=', tag)
+      .executeTakeFirst()
+
+    const releaseId = existing
+      ? Number(existing.id)
+      : Number((await db.insertInto('releases').values(values as any).returning(['id']).executeTakeFirst())?.id)
+
+    if (existing)
+      await db.updateTable('releases').set(values as any).where('id', '=', releaseId).execute()
+    else
+      record(progress, 'releases')
+
+    for (const asset of (raw as any).assets ?? [])
+      await importAsset(progress, releaseId, asset, context)
+  }
+}
+
+/**
+ * One file from a release, downloaded and stored.
+ *
+ * Skipped rather than fatal when it fails. A release with nine of its ten
+ * assets is worth having, and a migration that stopped on a single 404 from a
+ * file somebody deleted upstream years ago would never finish - the problem is
+ * recorded so an operator can fetch it by hand.
+ */
+async function importAsset(progress: ImportProgress, releaseId: number, asset: any, context: StageContext): Promise<void> {
+  const db = (globalThis as any).db
+  const name = String(asset?.name ?? '').trim()
+  const url = String(asset?.browser_download_url ?? asset?.url ?? '')
+
+  if (!name || !url)
+    return
+
+  const existing: any = await db
+    .selectFrom('release_assets')
+    .select(['id'])
+    .where('release_id', '=', releaseId)
+    .where('name', '=', name)
+    .executeTakeFirst()
+
+  if (existing)
+    return
+
+  try {
+    const answer = await fetch(url, { headers: { Accept: 'application/octet-stream' } })
+
+    if (!answer.ok)
+      throw new Error(`the download answered ${answer.status}`)
+
+    const bytes = new Uint8Array(await answer.arrayBuffer())
+
+    const { assetPath, checksumOf, decideAsset, newAssetKey } = await import('../Actions/Release/assets')
+    const decision = decideAsset(name, bytes.byteLength)
+
+    if (!decision.ok)
+      throw new Error(decision.error)
+
+    const key = newAssetKey()
+    const path = assetPath(key)
+
+    if (!path)
+      throw new Error('the asset key did not resolve to a path')
+
+    await mkdir(dirname(path), { recursive: true })
+    await Bun.write(path, bytes)
+
+    await db.insertInto('release_assets').values({
+      release_id: releaseId,
+      name: decision.name,
+      storage_path: path,
+      content_type: String(asset?.content_type ?? 'application/octet-stream'),
+      size_bytes: bytes.byteLength,
+      checksum: checksumOf(bytes),
+      download_count: 0,
+    }).execute()
+
+    record(progress, 'assets')
+  }
+  catch (error) {
+    noteProblem(progress, `${context.owner}/${context.name} ${name}: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 /** Accounts that linked a GitHub identity themselves, which outranks any guess. */

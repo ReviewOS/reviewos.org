@@ -21,6 +21,15 @@ export interface GitHubClientOptions {
    * and the backoff are exercised rather than stubbed past.
    */
   baseUrl?: string
+  /**
+   * How the token is presented, for forges that do not say `Bearer`.
+   *
+   * Gitea and Forgejo want `token abc` for an access token issued from their
+   * settings page. Sending `Bearer` there is answered as *unauthenticated*
+   * rather than rejected, so a private repository silently imports as empty -
+   * which is why this is a parameter and not an assumption.
+   */
+  authorization?: (token: string) => string
 }
 
 export interface PageResult<T> {
@@ -95,11 +104,13 @@ export class GitHubClient {
   private token: string | null
   private fetchImpl: typeof fetch
   private baseUrl: string
+  private authorization: (token: string) => string
 
   constructor(options: GitHubClientOptions = {}) {
     this.token = options.token ?? null
     this.fetchImpl = options.fetchImpl ?? fetch
     this.baseUrl = (options.baseUrl ?? API).replace(/\/$/, '')
+    this.authorization = options.authorization ?? (token => `Bearer ${token}`)
   }
 
   private headers(): Record<string, string> {
@@ -110,7 +121,7 @@ export class GitHubClient {
       // otherwise indistinguishable from a permission failure.
       'user-agent': 'ReviewOS-Mirror',
     }
-    if (this.token) headers.authorization = `Bearer ${this.token}`
+    if (this.token) headers.authorization = this.authorization(this.token)
     return headers
   }
 
@@ -188,12 +199,35 @@ export class GitHubClient {
     return this.collect<any>(`/repos/${owner}/${name}/pulls?state=all&sort=created&direction=asc`)
   }
 
-  reviewComments(owner: string, name: string) {
+  /**
+   * Review comments: the whole repository's, or one review's.
+   *
+   * The repository-wide form is GitHub's and is one request for everything.
+   * Gitea and Forgejo have no equivalent, so a caller there passes the pull
+   * request and the review and pays a request per review. Same method, because
+   * the caller's question is the same and only the cost differs.
+   */
+  reviewComments(owner: string, name: string, index?: number, reviewId?: number) {
+    if (index !== undefined && reviewId !== undefined)
+      return this.collect<any>(`/repos/${owner}/${name}/pulls/${index}/reviews/${reviewId}/comments`)
+
     return this.collect<any>(`/repos/${owner}/${name}/pulls/comments?sort=created&direction=asc`)
   }
 
   labels(owner: string, name: string) {
     return this.collect<any>(`/repos/${owner}/${name}/labels`)
+  }
+
+  /**
+   * The reviews on one pull request, for forges with no repository-wide list.
+   *
+   * Gitea and Forgejo have no equivalent of GitHub's `/pulls/comments`, so a
+   * repository's reviews cost one request per pull request there. That is a
+   * different cost model rather than a different field name, and it is why the
+   * import asks the forge shape rather than assuming.
+   */
+  pullReviews(owner: string, name: string, index: number) {
+    return this.collect<any>(`/repos/${owner}/${name}/pulls/${index}/reviews`)
   }
 
   /**
@@ -206,6 +240,11 @@ export class GitHubClient {
    */
   issueComments(owner: string, name: string) {
     return this.collect<any>(`/repos/${owner}/${name}/issues/comments`)
+  }
+
+  /** Releases, newest first, each carrying its assets inline. */
+  releases(owner: string, name: string) {
+    return this.collect<any>(`/repos/${owner}/${name}/releases`)
   }
 
   milestones(owner: string, name: string) {

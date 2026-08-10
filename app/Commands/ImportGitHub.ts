@@ -4,6 +4,8 @@ import process from 'node:process'
 // Imported rather than relied on as a global: `db` is a server auto-import, and
 // a buddy command does not run through the preloader that injects those.
 import { db } from '@stacksjs/database'
+import type { ForgeKind } from '../Actions/Import/forges'
+import { apiBase, FORGES } from '../Actions/Import/forges'
 import { repositoryPath } from '../Actions/Git/storage'
 
 /**
@@ -18,7 +20,18 @@ import { repositoryPath } from '../Actions/Git/storage'
  */
 export default function (cli: CLI) {
   cli
-    .command('import:github <source>', 'Import a GitHub repository, with its issues and reviews')
+    .command('import:github <source>', 'Import from GitHub, Gitea or Forgejo, with issues and reviews')
+    /*
+     * The forge, and the host it is on.
+     *
+     * Gitea and Forgejo answer GitHub's API shape closely enough to share this
+     * importer - what they do not share is the `/api/v1` prefix, the `token`
+     * authorization form, and a repository-wide review comment endpoint. Each
+     * of those is handled; none of them is guessed, because a wrong guess
+     * imports nothing and reports success.
+     */
+    .option('--forge <kind>', 'github, or gitea for Gitea and Forgejo', { default: 'github' })
+    .option('--host <url>', 'The instance, for a self-hosted forge: https://codeberg.org', { default: '' })
     .option('--owner <handle>', 'The user or organization to own it here', { default: '' })
     .option('--name <name>', 'The name to give it here', { default: '' })
     .option('--private', 'Make the imported repository private', { default: false })
@@ -43,6 +56,22 @@ async function start(source: string, options: any): Promise<void> {
 
   if (!remoteOwner || !remoteName)
     throw new Error('Name the repository as owner/name, for example acme/api')
+
+  const forge = String(options.forge ?? 'github').trim().toLowerCase() as ForgeKind
+
+  if (!FORGES[forge])
+    throw new Error(`Unknown forge: ${options.forge}. Use github, or gitea for Gitea and Forgejo.`)
+
+  const host = String(options.host ?? '').trim()
+
+  /*
+   * A self-hosted forge has to say where it is. Defaulting to a guess would
+   * mean an import that fetches nothing from the wrong host and reports success
+   * on an empty repository, which is the failure this whole phase is written
+   * against.
+   */
+  if (forge !== 'github' && !host)
+    throw new Error('Say where the instance is with --host, for example --host https://codeberg.org')
 
   const ownerHandle = String(options.owner ?? '').trim().toLowerCase() || remoteOwner.toLowerCase()
   const name = String(options.name ?? '').trim() || remoteName
@@ -105,15 +134,17 @@ async function start(source: string, options: any): Promise<void> {
     operationId: Number(operation?.id),
     source: `${remoteOwner}/${remoteName}`,
     claims: String(options.map ?? ''),
+    forge,
+    baseUrl: host ? apiBase(host, forge) : undefined,
   })
 
-  console.log(`Importing github.com/${source} into ${ownerHandle}/${name}`)
+  console.log(`Importing ${FORGES[forge].label} ${source} into ${ownerHandle}/${name}`)
   console.log(`  Watch it: GET /api/operations/${operation?.id}`)
   console.log('')
   console.log('The repository is clonable as soon as the git stage finishes, which is first.')
   console.log('Issues and reviews arrive after it.')
 
-  if (!process.env.GITHUB_TOKEN)
+  if (forge === 'github' && !process.env.GITHUB_TOKEN)
     console.log('\nNo GITHUB_TOKEN is set. Public repositories will work, at sixty API calls an hour.')
 }
 

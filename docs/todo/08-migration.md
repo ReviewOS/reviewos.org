@@ -71,7 +71,24 @@ decides whether an evaluation ends in a migration or a shrug.
   by `in_reply_to`, and handed the whole repository's comments at once it would
   chain them across pull requests that share an id space - a thread that never
   existed.
-- [ ] Releases and their assets
+- [x] Releases and their assets
+
+  **The assets are the part that matters and the part that is easy to skip.** A
+  release without its binary is a tag with a paragraph attached: every link in a
+  changelog, every install script and every "download the previous version"
+  request points at a file that is no longer anywhere.
+
+  Each one is downloaded, checksummed and stored the way an upload through the
+  interface stores it, so there is no import-only path to keep working. A single
+  asset that fails is recorded and skipped rather than fatal - a release with
+  nine of its ten is worth having, and a migration that stopped on a file
+  somebody deleted upstream years ago would never finish.
+
+  Keyed on the tag, which is a release's identity in git, in a changelog and in
+  every url pointing at it. The framework's own columns on this table are filled
+  in rather than left null: `version` is not null, and an imported release that
+  skipped it would be a row the dashboard renders differently from one published
+  here.
 - [x] Map GitHub users to local accounts where handles or emails match, and record an unmapped
       attribution otherwise rather than silently reassigning authorship
 
@@ -136,7 +153,36 @@ decides whether an evaluation ends in a migration or a shrug.
 
 ## Importing from other forges
 
-- [ ] Gitea and Forgejo, which share an API shape
+- [x] Gitea and Forgejo, which share an API shape
+
+  One importer, because they answer GitHub's shape closely enough to share the
+  client - and `app/Actions/Import/forges.ts` for the handful of places they do
+  not. **An importer written as though they were identical works against
+  whatever fixture it was built with and then loses data on a real instance**,
+  which is the worst outcome available because the migration looks like it
+  worked.
+
+  What actually differs, each asserted rather than assumed:
+
+  - **A pull request is numbered `index`, not `number`.** This one is silent:
+    the mapper shared with the mirror knows only `number`, so a Gitea pull
+    request arrived with no number and was dropped entirely. The first version
+    of this passed its own tests and imported nothing. It is normalised at the
+    boundary now, translated once rather than branched on at every use.
+  - **The API is under `/api/v1`**, which is not the address people paste -
+    they paste the web interface, because that is the address they know. Both
+    spellings resolve, and pasting the API address does not double the prefix.
+  - **A token is `token abc`, not `Bearer abc`.** Gitea answers a wrong scheme
+    as *unauthenticated* rather than rejecting it, so a private repository
+    imports as empty and reports success.
+  - **There is no repository-wide review comment list**, so reviews cost a
+    request per pull request. A different cost model rather than a different
+    field name.
+
+  Forgejo is a fork of Gitea with a deliberately compatible API, so it is one
+  entry rather than two. Tested against a fixture that answers the Gitea shape
+  and refuses any request that arrives without the prefix - if the prefix were
+  assumed rather than applied, the test fails rather than passing quietly.
 - [ ] GitLab
 - [x] Plain git URL import, with no metadata, for everything else
 

@@ -37,6 +37,9 @@ const scratch = join(
   `reviewos-import-${Buffer.from(crypto.getRandomValues(new Uint8Array(4))).toString('hex')}`,
 )
 
+/** The bytes of the one asset that exists, so the checksum has something to be. */
+const ASSET_BYTES = new TextEncoder().encode('a release artefact, pretend it is a tarball\n')
+
 function unique(prefix: string): string {
   return `${prefix}${Buffer.from(crypto.getRandomValues(new Uint8Array(5))).toString('hex')}`
 }
@@ -120,6 +123,23 @@ const FIXTURE = {
   labels: [
     { name: 'bug', color: 'd73a4a', description: 'Something is wrong' },
     { name: 'documentation', color: '0075ca', description: 'Docs' },
+  ],
+  releases: [
+    {
+      tag_name: 'v1.2.0',
+      name: 'Rounding fixes',
+      body: 'Fixes #7.',
+      prerelease: false,
+      target_commitish: 'main',
+      published_at: '2026-02-01T10:00:00Z',
+      author: { login: 'alice', id: 1 },
+      assets: [
+        { name: 'checkout-1.2.0.tar.gz', content_type: 'application/gzip', browser_download_url: 'ASSET_URL' },
+        // A file somebody deleted upstream years ago. A migration that stopped
+        // on it would never finish.
+        { name: 'gone.bin', content_type: 'application/octet-stream', browser_download_url: 'MISSING_URL' },
+      ],
+    },
   ],
   milestones: [
     { title: 'v2', description: 'The rounding release', state: 'open', due_on: '2026-03-01T00:00:00Z' },
@@ -227,6 +247,26 @@ beforeAll(async () => {
         if (path === '/repos/acme/api/issues/comments')
           return page(FIXTURE.issueComments)
 
+        if (path === '/repos/acme/api/releases') {
+          // The asset urls point back at this server, so the download is a real
+          // download rather than a mocked one.
+          return page(FIXTURE.releases.map(release => ({
+            ...release,
+            assets: release.assets.map(asset => ({
+              ...asset,
+              browser_download_url: asset.browser_download_url === 'ASSET_URL'
+                ? `http://127.0.0.1:${apiPort}/download/checkout.tar.gz`
+                : `http://127.0.0.1:${apiPort}/download/missing`,
+            })),
+          })))
+        }
+
+        if (path === '/download/checkout.tar.gz')
+          return new Response(ASSET_BYTES, { headers: { 'Content-Type': 'application/gzip' } })
+
+        if (path === '/download/missing')
+          return new Response('gone', { status: 404 })
+
         return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } })
       },
     })
@@ -332,6 +372,18 @@ afterAll(async () => {
       for (const subject of [...pulls.map((one: any) => ['pull_request', Number(one.id)]), ...issues.map((one: any) => ['issue', Number(one.id)])])
         await db.deleteFrom('issue_comments').where('commentable_type', '=', subject[0]).where('commentable_id', '=', subject[1]).execute()
 
+      const releases: any[] = await db.selectFrom('releases').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+
+      for (const release of releases) {
+        const assets: any[] = await db.selectFrom('release_assets').select(['storage_path']).where('release_id', '=', Number(release.id)).execute()
+
+        for (const asset of assets)
+          await rm(String(asset.storage_path), { force: true }).catch(() => undefined)
+
+        await db.deleteFrom('release_assets').where('release_id', '=', Number(release.id)).execute()
+      }
+
+      await db.deleteFrom('releases').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('milestones').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('pull_requests').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('issues').where('repository_id', '=', created.repositoryId).execute()
@@ -647,6 +699,57 @@ describe('importing a repository', () => {
     expect(String(onPull[0].body)).toBe('Rebased.')
   }, 60_000)
 
+  test('releases arrive with the files attached to them', async () => {
+    if (!available)
+      return
+
+    /*
+     * **The assets are the part that matters and the part that is easy to
+     * skip.** A release without its binary is a tag with a paragraph attached:
+     * every link in a changelog, every install script and every "download the
+     * previous version" request points at a file that is no longer anywhere.
+     */
+    const db = (globalThis as any).db
+    const release: any = await db
+      .selectFrom('releases')
+      .selectAll()
+      .where('repository_id', '=', created.repositoryId)
+      .executeTakeFirst()
+
+    expect(release).toBeDefined()
+    expect(String(release.tag_name)).toBe('v1.2.0')
+    expect(String(release.notes)).toContain('#7')
+
+    const assets: any[] = await db
+      .selectFrom('release_assets')
+      .selectAll()
+      .where('release_id', '=', Number(release.id))
+      .execute()
+
+    // One of the two. The other is a 404 upstream, and a migration that stopped
+    // on a file somebody deleted years ago would never finish.
+    expect(assets.length).toBe(1)
+    expect(String(assets[0].name)).toBe('checkout-1.2.0.tar.gz')
+    expect(Number(assets[0].size_bytes)).toBe(ASSET_BYTES.byteLength)
+
+    // Stored the way an upload through the interface stores one, checksum and
+    // all, so there is no import-only path to keep working.
+    const { checksumOf } = await import('../../app/Actions/Release/assets')
+    expect(String(assets[0].checksum)).toBe(checksumOf(ASSET_BYTES))
+
+    const onDisk = await Bun.file(String(assets[0].storage_path)).arrayBuffer()
+    expect(new Uint8Array(onDisk).byteLength).toBe(ASSET_BYTES.byteLength)
+
+    // And the one that failed is reported rather than silently missing.
+    const operation: any = await db
+      .selectFrom('operations')
+      .select(['result'])
+      .where('id', '=', created.operationId)
+      .executeTakeFirst()
+
+    expect(String(JSON.parse(String(operation.result)).problems ?? [])).toContain('gone.bin')
+  }, 120_000)
+
   test('running it again changes nothing', async () => {
     if (!available)
       return
@@ -751,5 +854,140 @@ describe('and back out again', () => {
     expect(pulls[0].review_threads[0].comments.length).toBe(2)
 
     await rm(destination, { recursive: true, force: true })
+  }, 120_000)
+})
+
+describe('importing from Gitea, which is the same shape until it is not', () => {
+  test('reads the index, the /api/v1 prefix and the per-review comments', async () => {
+    if (!available)
+      return
+
+    /*
+     * A second fixture that answers the *Gitea* shape, because the differences
+     * are exactly the kind that pass a GitHub fixture and lose data on a real
+     * instance:
+     *
+     * - a pull request numbered `index` rather than `number`;
+     * - the API under `/api/v1`;
+     * - no repository-wide review comment list, so reviews come one pull
+     *   request at a time.
+     *
+     * If any of those were assumed rather than handled, this import would
+     * succeed and produce a pull request numbered zero with no review on it.
+     */
+    const db = (globalThis as any).db
+
+    const gitea = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch(request: Request) {
+        const path = new URL(request.url).pathname
+        const json = (items: unknown) => Response.json(items)
+
+        // Everything lives under the prefix. A request that arrives without it
+        // is the importer having failed to apply `apiBase`.
+        if (!path.startsWith('/api/v1'))
+          return new Response('the prefix was not applied', { status: 400 })
+
+        const route = path.slice('/api/v1'.length)
+
+        if (route === '/repos/acme/api/issues')
+          return json([])
+
+        if (route === '/repos/acme/api/pulls')
+          return json([{ index: 4, title: 'From Gitea', body: '', state: 'open', user: { login: 'alice' }, head: { ref: 'work', sha: 'c'.repeat(40) }, base: { ref: 'main', sha: 'd'.repeat(40) }, created_at: '2026-02-02T10:00:00Z' }])
+
+        if (route === '/repos/acme/api/pulls/4/reviews')
+          return json([{ id: 77 }])
+
+        if (route === '/repos/acme/api/pulls/4/reviews/77/comments')
+          return json([{ id: 8801, path: 'src/cart.ts', line: 9, side: 'RIGHT', body: 'From a Gitea review.', user: { login: 'bob' }, created_at: '2026-02-02T11:00:00Z', in_reply_to_id: null }])
+
+        return json([])
+      },
+    })
+
+    const name = unique('gitearepo')
+    const { repositoryPath } = await import('../../app/Actions/Git/storage')
+    const resolved = repositoryPath(created.ownerHandle, name)
+
+    const repository: any = await db
+      .insertInto('repositories')
+      .values({
+        owner_type: 'user',
+        owner_id: created.ownerId,
+        name,
+        visibility: 'public',
+        default_branch: 'main',
+        disk_path: resolved.relative!,
+      })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    const repositoryId = Number(repository?.id)
+
+    try {
+      const job = (await import('../../app/Jobs/ImportRepositoryJob')).default
+      const { emptyProgress, isFinished } = await import('../../app/Actions/Import/plan')
+
+      let progress = emptyProgress()
+
+      // Straight to the metadata: the git stage would clone, and what is under
+      // test here is the API shape rather than the clone.
+      progress.stage = 'labels'
+
+      for (let guard = 0; guard < 20 && !isFinished(progress); guard += 1) {
+        await job.handle({
+          repositoryId,
+          operationId: 0,
+          source: 'acme/api',
+          forge: 'gitea',
+          baseUrl: `http://127.0.0.1:${gitea.port}/api/v1`,
+          progress,
+        })
+
+        const { nextStage } = await import('../../app/Actions/Import/plan')
+        progress = { ...progress, stage: nextStage(progress.stage), page: 1 }
+      }
+
+      const pull: any = await db
+        .selectFrom('pull_requests')
+        .selectAll()
+        .where('repository_id', '=', repositoryId)
+        .executeTakeFirst()
+
+      // `index`, not `number`. Read wrongly this is a pull request numbered
+      // zero, and nothing fails because a zero is a number.
+      expect(pull).toBeDefined()
+      expect(Number(pull.number)).toBe(4)
+
+      const thread: any = await db
+        .selectFrom('review_threads')
+        .selectAll()
+        .where('pull_request_id', '=', Number(pull.id))
+        .executeTakeFirst()
+
+      // And the review, which had to be fetched a pull request at a time
+      // because Gitea has no repository-wide list.
+      expect(thread).toBeDefined()
+      expect(String(thread.path)).toBe('src/cart.ts')
+      expect(Number(thread.line)).toBe(9)
+    }
+    finally {
+      const pulls: any[] = await db.selectFrom('pull_requests').select(['id']).where('repository_id', '=', repositoryId).execute()
+
+      for (const one of pulls) {
+        const threads: any[] = await db.selectFrom('review_threads').select(['id']).where('pull_request_id', '=', Number(one.id)).execute()
+
+        for (const thread of threads)
+          await db.deleteFrom('review_comments').where('review_thread_id', '=', Number(thread.id)).execute()
+
+        await db.deleteFrom('review_threads').where('pull_request_id', '=', Number(one.id)).execute()
+      }
+
+      await db.deleteFrom('pull_requests').where('repository_id', '=', repositoryId).execute()
+      await db.deleteFrom('repositories').where('id', '=', repositoryId).execute()
+      gitea.stop()
+    }
   }, 120_000)
 })
