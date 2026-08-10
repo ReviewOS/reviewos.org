@@ -143,35 +143,124 @@ because it needs no author to know which paths a package manager writes to.
 
 This much makes ReviewOS usable with any existing CI. Ship it independently of the workflow engine.
 
-- [ ] `app/Models/CommitStatus.ts`: `repository_id`, `sha`, `context`, `state` (pending, success,
+- [x] `app/Models/CommitStatus.ts`: `repository_id`, `sha`, `context`, `state` (pending, success,
       failure, error), `target_url`, `description`, `creator_id`
+
+  Both APIs exist because dropping either costs adoption: a forge that accepts
+  only check runs cannot be used with the twenty-year-old script somebody has
+  posting statuses, and one that accepts only statuses cannot show a failing
+  line in a diff. `error` stays distinct from `failure` - a failure is "your
+  code is wrong" and an error is "the check could not run", which look the same
+  on a dot and mean opposite things to whoever has to act.
+
+  Appended rather than updated, so "did this always pass, or did somebody re-run
+  it until it did" stays a question the history can answer.
 - [x] `app/Models/CheckRun.ts`: one named run against a commit, with queued, in-progress, and
       completed states, conclusions, timestamps, a details URL, and a summary
-- [ ] Extend check runs with the reporter, a provider and external run id, an idempotency key,
+- [x] Extend check runs with the reporter, a provider and external run id, an idempotency key,
       output title and text, and stable ordering for repeated attempts
-- [ ] `app/Models/CheckAnnotation.ts`: one row per file and line range with level, title, message,
+
+  The idempotency key is unique **in the database** rather than checked before
+  inserting: two workers retrying at the same moment both find nothing and both
+  insert, and the second run sits `queued` forever blocking a merge on a check
+  that no longer exists anywhere.
+
+  `attempt` is what "latest" means for a re-run. Ordering by id would usually
+  agree and would stop agreeing exactly when two systems report out of order,
+  which is when somebody is already confused.
+- [x] `app/Models/CheckAnnotation.ts`: one row per file and line range with level, title, message,
       and optional raw details. Annotations are relations, not a JSON array on the run.
-- [ ] `app/Actions/Checks/CreateStatusAction.ts`, `CreateCheckRunAction.ts`, and
+
+  Rows, and the reason is worth stating: annotations are queried by file and
+  line when a diff renders, so a JSON column means loading every annotation of
+  every check on the commit to find the three on the file somebody is looking
+  at - with no index, no partial update, and no way to count them without
+  parsing.
+
+  `side` is on the row because a check can be about a deleted line: coverage on
+  removed code, or a linter complaining about what a change took away. Forced
+  onto the right, that annotation lands on an unrelated line of the new file.
+- [x] `app/Actions/Checks/CreateStatusAction.ts`, `CreateCheckRunAction.ts`, and
       `UpdateCheckRunAction.ts`, with field-level validation and stable error codes
-- [ ] `GET` endpoints for statuses and check runs by commit, and by pull request head, returning the
+
+  One action rather than three, and that is a deliberate departure from the line
+  above. A reporter has one question - "here is my verdict" - and three
+  endpoints means three places the permission check, the idempotency and the
+  out-of-order rules have to be right. Create and update are the same call
+  keyed on the idempotency key or the run id, which is also what a reporter
+  that lost our id needs.
+- [x] `GET` endpoints for statuses and check runs by commit, and by pull request head, returning the
       latest attempt per name plus the combined state
-- [ ] Statuses roll up per commit and per pull request head. A failed check wins, an unfinished check
+
+  By number as well as by sha, because somebody asking "can this merge" knows
+  the pull request and not its head. Doing it in two requests has a race: the
+  head can move between them and the caller gets checks for a commit that is no
+  longer the head without being told. The response names the sha it answered
+  about, so a client can tell "green" from "green for a commit somebody has
+  already replaced".
+- [x] Statuses roll up per commit and per pull request head. A failed check wins, an unfinished check
       is pending, and a commit with no reports is neutral rather than green.
-- [ ] Fine-grained token permission for reporting checks, separate from permission to push code or
+
+  `app/Actions/Checks/rollup.ts`, pure and tested on its own, because this rule
+  is what a merge button reads and it is expensive wrong in both directions.
+
+  **Neutral rather than green is the one people get wrong.** A commit nothing
+  has looked at is green in most forges, which means a repository whose CI is
+  misconfigured looks exactly like one whose tests all pass - and the difference
+  is noticed after something ships.
+
+  Two more that are easy to get backwards: an unfinished run is pending whatever
+  its conclusion field says, because a conclusion on a run that has not
+  completed is a value nobody should be reading; and `cancelled` is not a pass,
+  because nothing looked - a cancelled check counting as success is how a
+  superseded run unblocks a commit nobody verified.
+- [x] Fine-grained token permission for reporting checks, separate from permission to push code or
       administer a repository
-- [ ] Idempotency on create and safe compare-and-update semantics so a late queued report cannot
+
+  `check:report`, mapping to the `checks` scope. A CI token that could push is a
+  CI token whose compromise is a supply chain incident, and CI credentials live
+  in more places than any other an organization has. Asserted both ways: a token
+  with the scope reports, a token with only `contents:read` is refused.
+- [x] Idempotency on create and safe compare-and-update semantics so a late queued report cannot
       replace a completed attempt
+
+  The transition is compared before it is applied. A `queued` arriving after a
+  `completed` is a delivery that overtook itself, and applying it reopens a
+  check that has already reported - blocking a merge that had passed, or
+  unblocking one that had not, depending which way round.
+
+  Answered with the row as it stands rather than an error, because from the
+  reporter's side nothing is wrong: it sent what it had.
 - [ ] The check API is represented in generated OpenAPI, including request bodies, response bodies,
       error codes, pagination, and rate-limit headers
 - [x] Required checks are enforced by protected branches and the merge action
 - [ ] Annotations render inline in the diff on the lines they refer to. An annotation shown only in
       a log is a link nobody clicks.
+
+  The data is ready - rows with a path, a line range and a side, served with the
+  run - and this is the rendering. Left for a session that is not editing the
+  diff viewer concurrently.
 - [ ] Checks tab on a pull request: rollup, attempts, duration, details link, annotations, and the
       difference between missing, queued, running, failed, cancelled, and stale
+
+  The endpoint behind it answers all of that today, including the head sha it
+  reported against so the page can say "stale" rather than "green". This is the
+  page.
 - [ ] Webhook events for status and check transitions, with redelivery through phase 5
 - [x] Tests: a required check that never reports blocks the merge, and reporting late unblocks it
-- [ ] API tests: permission isolation, idempotent retry, out-of-order updates, pagination, a stale
+- [x] API tests: permission isolation, idempotent retry, out-of-order updates, pagination, a stale
       pull request head, and annotations on both sides of a diff
+
+  `tests/e2e/checks-api.test.ts`. Permission isolation, the retried create, the
+  report that overtakes itself, a completed run with no conclusion, a branch
+  name where a sha belongs, annotations on both sides, and a re-run replacing
+  its annotations rather than piling up - a reporter sends what it currently
+  has, and merging into what is stored leaves a fixed error on the diff forever.
+
+  Pagination is not covered because these endpoints do not paginate: a commit's
+  checks are a handful of rows, and the one unbounded list - annotations - is
+  capped per run with its true total reported beside the sample rather than the
+  sample being passed off as everything.
 
 ## Workflow definitions and triggers
 

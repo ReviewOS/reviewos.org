@@ -13082,6 +13082,42 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/checks": {
+    get: {
+    parameters: {
+      query: { "owner": string; "repository"?: string; "sha"?: string; "number"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: { content: { "application/json": { "owner": string; "repository"?: string; "sha": string; "kind"?: "status" | "check_run" } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/collaborators": {
     get?: never
     put?: never

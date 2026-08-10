@@ -4895,6 +4895,20 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/checks
+   */
+  getReposChecks(input: { "owner": string; "repository"?: string; "sha"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/checks", input ?? {}, ["owner", "repository", "sha", "number"], false, options)
+  },
+
+  /**
+   * POST /api/repos/checks
+   */
+  postReposChecks(input: { body: { "owner": string; "repository"?: string; "sha": string; "kind"?: "status" | "check_run" } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/checks", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/repos/collaborators
    */
   postReposCollaborators(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

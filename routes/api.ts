@@ -604,6 +604,18 @@ route.get('/repos/pulls/review-state/stale', 'Actions/Pull/StaleTicksAction')
 // a request: asking somebody is a person's decision, and a queue filled with a
 // heuristic's guesses is a queue people stop reading.
 route.get('/repos/pulls/suggested-reviewers', 'Actions/Pull/SuggestReviewersAction')
+
+/*
+ * Checks: what CI says about a commit, and what it says back.
+ *
+ * The reporting endpoint is behind `check:report`, which maps to the `checks`
+ * token scope rather than `contents` - reporting a verdict is not permission to
+ * push code, and a CI token that could push is a CI token whose compromise is a
+ * supply chain incident. CI credentials live in more places than any other an
+ * organization has.
+ */
+route.get('/repos/checks', 'Actions/Checks/ShowChecksAction')
+route.post('/repos/checks', 'Actions/Checks/ReportCheckAction').middleware('auth')
 route.put('/repos/pulls/review-state/viewed', 'Actions/Pull/MarkFileViewedAction').middleware('auth')
 route.put('/repos/pulls/review-state/draft', 'Actions/Pull/SaveReviewDraftAction').middleware('auth')
 
