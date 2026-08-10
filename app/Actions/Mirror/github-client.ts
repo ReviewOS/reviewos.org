@@ -11,6 +11,16 @@ export interface GitHubClientOptions {
   token?: string | null
   /** Injected in tests; defaults to global fetch. */
   fetchImpl?: typeof fetch
+  /**
+   * Where the API lives, for a fixture or a GitHub Enterprise instance.
+   *
+   * Defaults to the public API. Overriding the whole base rather than
+   * intercepting `fetch` is what lets a test drive this client against a
+   * fixture server that answers the *real* endpoints, paginates with a real
+   * `Link` header, and returns a real 403 for a rate limit - so the pagination
+   * and the backoff are exercised rather than stubbed past.
+   */
+  baseUrl?: string
 }
 
 export interface PageResult<T> {
@@ -84,10 +94,12 @@ export function nextPageUrl(headers: Headers): string | null {
 export class GitHubClient {
   private token: string | null
   private fetchImpl: typeof fetch
+  private baseUrl: string
 
   constructor(options: GitHubClientOptions = {}) {
     this.token = options.token ?? null
     this.fetchImpl = options.fetchImpl ?? fetch
+    this.baseUrl = (options.baseUrl ?? API).replace(/\/$/, '')
   }
 
   private headers(): Record<string, string> {
@@ -122,7 +134,7 @@ export class GitHubClient {
     const items: T[] = []
 
     const separator = path.includes('?') ? '&' : '?'
-    let url: string | null = `${API}${path}${separator}per_page=${perPage}`
+    let url: string | null = `${this.baseUrl}${path}${separator}per_page=${perPage}`
 
     for (let page = 1; page <= maxPages && url !== null; page++) {
       let response: Response
@@ -201,7 +213,7 @@ export class GitHubClient {
    */
   async repository(owner: string, name: string): Promise<any | null> {
     try {
-      const answer = await this.fetchImpl(`https://api.github.com/repos/${owner}/${name}`, {
+      const answer = await this.fetchImpl(`${this.baseUrl}/repos/${owner}/${name}`, {
         headers: this.headers(),
       })
 

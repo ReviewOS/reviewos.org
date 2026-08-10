@@ -42,6 +42,7 @@ export default {
 
   'inspire': 'Inspire',
   'seed:demo': 'SeedDemo',
+  'import:github': 'ImportGitHub',
   'mirror:add': 'MirrorAdd',
   'git:hooks': 'GitHooks',
   'git:scan': 'GitScan',

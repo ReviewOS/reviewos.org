@@ -340,6 +340,11 @@
       "version": "5.8.2",
       "source": "pantry"
     },
+    "typesense.org@30.2": {
+      "name": "typesense.org",
+      "version": "30.2",
+      "source": "pantry"
+    },
     "unbound.net@1.26.0": {
       "name": "unbound.net",
       "version": "1.26.0",
