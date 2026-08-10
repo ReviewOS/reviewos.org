@@ -367,7 +367,40 @@ promise, so the operational story is a feature and not an afterthought.
   Verified rather than assumed: `bunx buddy-bot scan` resolves
   `ReviewOS/reviewos.org`, runs the advisory lookup in about 280ms, and reports
   nothing vulnerable in the current tree.
-- [ ] CSRF on state-changing routes, and correct exemptions for token-authenticated API calls
+- [x] CSRF on state-changing routes, and correct exemptions for token-authenticated API calls
+
+  Default-on in the framework, which is the right polarity: a route somebody
+  forgot to protect is protected. What that leaves is the opposite failure - an
+  exemption added because a request was being refused, with the refusal treated
+  as the problem rather than as the point.
+
+  So the exemptions are a list in `tests/unit/csrf-coverage.test.ts`, with a
+  reason each, and a new `.skipCsrf()` fails that file until somebody adds it
+  and says why. Each reason has to answer one question - **what ambient
+  credential is this route spending?** - because that is the whole of what CSRF
+  defends. Fifteen exemptions across three files: the git wire protocol and LFS
+  (a git client holds no cookie), the MCP endpoint (it refuses a request with no
+  bearer before anything else runs), and RFC 8058 one-click unsubscribe (Gmail
+  posts cross-origin with no cookie, and the signed token in the path is the
+  whole authorization).
+
+  The test also refuses the *other* form of exemption. An action can carry
+  `skipCsrf: true` on itself, which exempts it on every route that reaches it -
+  including one added later by somebody who never saw the flag. Nothing here
+  uses it, and now nothing can without the test noticing: an exemption belongs
+  where the route is registered, which is the file people read when they ask
+  what is exposed.
+
+  `tests/e2e/csrf.test.ts` covers what the existing form test could not - a
+  signed-in session posting JSON, and the bearer exemption in both directions.
+  That exemption is the one place where a reasonable-sounding tightening
+  (require a token from everybody) breaks every API client, and a
+  reasonable-sounding loosening (accept any bearer) hands an attacker a way to
+  launder a cookie past the check.
+
+  The first-visit seeding defect this box would otherwise have found was already
+  fixed and written up in [phase 1](./01-foundation.md); re-checked here against
+  a live server rather than taken on trust.
 - [ ] Session handling: rotation on privilege change, absolute and idle expiry, sessions listed and
       revocable by the user
 - [ ] A pass with the `stacks-security-audit` skill before the first public instance
