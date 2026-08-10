@@ -19,6 +19,32 @@ function unique(prefix: string): string {
   return `${prefix}${Buffer.from(crypto.getRandomValues(new Uint8Array(5))).toString('hex')}`
 }
 
+async function run(cwd: string, ...args: string[]): Promise<string> {
+  const child = Bun.spawn(['git', ...args], {
+    cwd,
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: 'E2E',
+      GIT_AUTHOR_EMAIL: 'e2e@example.com',
+      GIT_COMMITTER_NAME: 'E2E',
+      GIT_COMMITTER_EMAIL: 'e2e@example.com',
+    },
+  })
+
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ])
+
+  if (code !== 0)
+    throw new Error(`git ${args.join(' ')} exited ${code}: ${stderr.trim()}`)
+
+  return stdout.trim()
+}
+
 beforeAll(async () => {
   try {
     const { injectGlobalAutoImports } = await import('@stacksjs/server')
@@ -79,6 +105,105 @@ afterAll(async () => {
       await db.deleteFrom('users').where('id', '=', created.ownerId).execute()
   }
   catch { /* a failed setup leaves less behind than it made */ }
+})
+
+describe('a push queues the reindex', () => {
+  /*
+   * The wire the rest of this file assumed.
+   *
+   * Everything below proves `IndexRepositoryJob` does the right thing when it
+   * runs. Nothing proved that a push runs it - and a push is the only event
+   * that can, because `ProcessPushJob` writes `pushed_at` with raw SQL on
+   * purpose so no model hook fires. If this call were deleted the whole file
+   * would stay green while "recently active" quietly meant "recently
+   * reindexed".
+   *
+   * Asserted on the dispatch rather than on the index, because whether the job
+   * then runs inline or waits for a worker is the queue driver's business:
+   * `sync` here, `database` in `.env.example`, and the claim being made -
+   * *queue* a reindex - is true under both.
+   */
+  test('for the repository that was pushed to', async () => {
+    if (!available)
+      return
+
+    const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join, resolve } = await import('node:path')
+    const { repositoryPath } = await import('../../app/Actions/Git/storage')
+    const { initBare } = await import('../../app/Actions/Git/git')
+    const pushJob = (await import('../../app/Jobs/ProcessPushJob')).default
+
+    const temp = mkdtempSync(join(tmpdir(), 'reviewos-push-index-'))
+    const name = unique('repo')
+    const resolved = repositoryPath(created.handle, name)
+    const diskPath = resolved.path!
+
+    const row: any = await db
+      .insertInto('repositories')
+      .values({
+        owner_type: 'user',
+        owner_id: created.ownerId,
+        name,
+        description: 'created by the push-queues-a-reindex test',
+        visibility: 'public',
+        default_branch: 'main',
+        disk_path: resolved.relative!,
+      })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    const repositoryId = Number(row?.id)
+
+    mkdirSync(resolve(diskPath, '..'), { recursive: true })
+    await initBare(diskPath, 'main')
+
+    const work = join(temp, 'seed')
+    mkdirSync(work)
+    await run(work, 'init', '--initial-branch=main')
+    writeFileSync(join(work, 'a.txt'), 'a\n')
+    await run(work, 'add', '.')
+    await run(work, 'commit', '-m', 'first')
+    const before = await run(work, 'rev-parse', 'HEAD')
+    await run(work, 'push', diskPath, 'main')
+
+    writeFileSync(join(work, 'b.txt'), 'b\n')
+    await run(work, 'add', '.')
+    await run(work, 'commit', '-m', 'second')
+    const after = await run(work, 'rev-parse', 'HEAD')
+    await run(work, 'push', diskPath, 'main')
+
+    const dispatched: any[] = []
+    const original = indexJob.dispatch.bind(indexJob)
+    indexJob.dispatch = async (payload: any) => {
+      dispatched.push(payload)
+
+      return await original(payload)
+    }
+
+    try {
+      const result: any = await pushJob.handle({
+        gitDir: diskPath,
+        updates: [{
+          before,
+          after,
+          ref: 'refs/heads/main',
+          kind: 'branch',
+          change: 'updated',
+          name: 'main',
+        }],
+      })
+
+      expect(result?.ok).toBe(true)
+      expect(dispatched).toEqual([{ repositoryId }])
+    }
+    finally {
+      indexJob.dispatch = original
+      await db.deleteFrom('repositories').where('id', '=', repositoryId).execute()
+      rmSync(diskPath, { recursive: true, force: true })
+      rmSync(temp, { recursive: true, force: true })
+    }
+  }, 60_000)
 })
 
 describe('indexing one repository', () => {

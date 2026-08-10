@@ -198,7 +198,14 @@ known to exactly one place.
         author is free text that anybody can set, and attributing a close to a local account on
         the strength of one would put words in somebody's mouth.
   - [x] Emit `push:received` for webhooks, notifications, and the activity feed
-  - [ ] Queue a search reindex. Waiting on phase 6: there is no index to reindex yet.
+  - [x] Queue a search reindex. Phase 6 built the index, and `ProcessPushJob` has dispatched
+        `IndexRepositoryJob` since; what was missing was anything proving it. The rest of
+        `tests/e2e/search-push-reindex.test.ts` exercises the job directly, so deleting the
+        dispatch left the file green while "recently active" quietly became "recently reindexed" -
+        the exact failure its own header describes. The dispatch is asserted now, and checked by
+        removing it and watching the test fail. Asserted on the dispatch rather than on the index
+        because whether the job runs inline or waits for a worker is the queue driver's business;
+        *queueing* it is what this box claims and it is true under both.
 - [x] Enforce protected branch rules at receive time, rejecting the push with a message git shows
       the user. A *pre*-receive hook, because receive time is the only moment where refusing is
       worth anything: once the ref is written the dropped commits are unreachable and everybody who
