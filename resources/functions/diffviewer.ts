@@ -393,6 +393,25 @@ export function createFileList(options: {
         viewport.scrollTop = top - viewport.clientHeight / 3
     },
     viewed: () => viewed,
+    /*
+     * Which ticks have stopped being true, and which cannot be checked.
+     *
+     * Declared on the returned type and called from the loader below, and never
+     * defined - so `fileList.setStale(...)` threw `setStale is not a function`
+     * and the whole "a tick that has stopped being true says so" feature was
+     * dead. Everything else it needs was already here: `marks` holds the state
+     * and the row renderer reads it.
+     *
+     * Nothing is unticked. A tick is a reviewer's own record of what they have
+     * read, and clearing it for them throws away the one thing they cannot
+     * reconstruct - which of two hundred files they had got through. Saying
+     * "this one moved" leaves the decision where it belongs.
+     */
+    setStale(stale, unverifiable = new Set()) {
+      marks.stale = stale
+      marks.unverifiable = unverifiable
+      schedule()
+    },
     focusSearch: () => toggleSearch(true),
     setRestriction(paths, label = '') {
       restriction = paths

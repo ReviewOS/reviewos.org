@@ -108,8 +108,17 @@ export async function repositoryDocuments(input: readonly any[]): Promise<Reposi
     ? await db.selectFrom('organizations').select(['id', 'handle']).where('id', 'in', [...new Set(orgIds)]).execute()
     : []
 
-  const userHandles = new Map(users.map((row: any) => [Number(row.id), String(row.handle)]))
-  const orgHandles = new Map(organizations.map((row: any) => [Number(row.id), String(row.handle)]))
+  /*
+   * Annotated, because an inferred `Map` from an array of pairs is not the map
+   * it looks like.
+   *
+   * `rows.map(row => [a, b])` infers `(number | string)[]`, not a tuple, so the
+   * `Map` comes out with a value type of `{}` - and the document's `owner`
+   * field, which is a string, is then unassignable. The map is what the
+   * annotation says it is; the inference just cannot see it.
+   */
+  const userHandles = new Map<number, string>(users.map((row: any) => [Number(row.id), String(row.handle)]))
+  const orgHandles = new Map<number, string>(organizations.map((row: any) => [Number(row.id), String(row.handle)]))
 
   const topicRows = await db
     .selectFrom('repo_topics')

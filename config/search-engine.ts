@@ -23,10 +23,19 @@ import { env } from '@stacksjs/env'
 export default {
   driver: 'typesense',
 
+  /*
+   * Coerced rather than passed through.
+   *
+   * An environment variable is a string, and `config/env.ts` declares none of
+   * these - so the typed `env` proxy widens them to `string | number | true`
+   * and assigning that to a `string` field is a type error. `String(...)` is
+   * the honest fix: whatever somebody put in `.env` is text, and reading it as
+   * text is what the client does with it anyway.
+   */
   typesense: {
-    host: env.TYPESENSE_HOST || '127.0.0.1',
-    port: Number(env.TYPESENSE_PORT || 8108),
-    protocol: env.TYPESENSE_PROTOCOL || 'http',
-    apiKey: env.TYPESENSE_API_KEY || '',
+    host: String(env.TYPESENSE_HOST ?? '') || '127.0.0.1',
+    port: Number(env.TYPESENSE_PORT ?? 0) || 8108,
+    protocol: String(env.TYPESENSE_PROTOCOL ?? '') || 'http',
+    apiKey: String(env.TYPESENSE_API_KEY ?? ''),
   },
 } satisfies SearchEngineConfig

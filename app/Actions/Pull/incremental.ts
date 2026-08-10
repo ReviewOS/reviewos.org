@@ -452,10 +452,17 @@ export async function staleTickedFiles(options: {
   const atSha = new Map<string, Fingerprints>()
   for (let index = 0; index < checked.length; index++) {
     const prints = fingerprints[index]
-    // A sha that cannot be read is left out of the map on purpose: the decision
-    // reports its ticks as unverifiable, which is what "the commit you read is
-    // gone" honestly is.
-    if (prints !== null)
+    /*
+     * A sha that cannot be read is left out of the map on purpose: the decision
+     * reports its ticks as unverifiable, which is what "the commit you read is
+     * gone" honestly is.
+     *
+     * Truthy rather than `!== null`. The array is the same length as `checked`,
+     * so `undefined` cannot occur - but the compiler cannot know that, and
+     * under `noUncheckedIndexedAccess` an index read is `T | undefined`. The
+     * narrower comparison left `undefined` in the type and broke the build.
+     */
+    if (prints)
       atSha.set(checked[index]!, prints)
   }
 
