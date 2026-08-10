@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
 import { fingerprintOf, parseSshPublicKey } from './ssh'
 
@@ -53,6 +55,20 @@ export default new Action({
       })
       .returning(['id'])
       .executeTakeFirst()
+
+    /*
+     * A key is a credential that can push, and it is the one credential with no
+     * expiry, no login notification and no session list. The fingerprint is
+     * public by design - it is on the settings page and in every log line the
+     * ssh daemon writes - so recording it is what lets somebody match "this key
+     * pushed that" to "this key was added then, by this account".
+     */
+    await auditEvent('key:added', {
+      subject: { type: 'ssh_key', id: Number(created?.id) },
+      actorId: user.id,
+      ...await auditFrom(request),
+      detail: { kind: 'ssh', title, fingerprint, key_type: parsed.type },
+    })
 
     return response.json({ id: Number(created?.id), title, fingerprint }, 201)
   },

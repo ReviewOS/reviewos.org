@@ -1,5 +1,7 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
 import { canInOrganization } from '../../Permissions'
+import { auditFrom } from '../Git/audit'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
 
@@ -64,6 +66,17 @@ export default new Action({
       .execute()
 
     await notifyOfInvitation({ organizationId, inviteeId, role, invitedBy: actor.handle })
+
+    // The invitation, not only the joining. Who was offered what is the half of
+    // the story that explains an account nobody remembers adding, and the
+    // acceptance on its own does not say who opened the door.
+    await auditEvent('member:invited', {
+      subject: { type: 'user', id: inviteeId },
+      actorId: actor.id,
+      ...await auditFrom(request),
+      organizationId,
+      detail: { handle, role },
+    })
 
     return response.json({ ok: true, handle, role, pending: true }, 201)
   },

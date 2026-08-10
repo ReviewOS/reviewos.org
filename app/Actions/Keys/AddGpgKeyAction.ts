@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
 import { readGpgKey } from './gpg'
 
@@ -54,6 +56,17 @@ export default new Action({
       })
       .returning(['id'])
       .executeTakeFirst()
+
+    // A GPG key cannot push, so this is not quite the credential an SSH key is.
+    // It is still an identity claim: it decides which commits this account is
+    // shown as having signed, and a key added quietly is signatures verified
+    // quietly.
+    await auditEvent('key:added', {
+      subject: { type: 'gpg_key', id: Number(created?.id) },
+      actorId: user.id,
+      ...await auditFrom(request),
+      detail: { kind: 'gpg', fingerprint: parsed.fingerprint, emails: parsed.emails },
+    })
 
     return response.json({
       id: Number(created?.id),

@@ -1,5 +1,7 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
 import { canInOrganization } from '../../Permissions'
+import { auditFrom } from '../Git/audit'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
 
 /**
@@ -75,6 +77,24 @@ export default new Action({
      * is the kind that survives a reorganisation and quietly grants somebody
      * something.
      */
+    /*
+     * Recorded before the row goes, and this is the one event whose own scope
+     * outlives its subject.
+     *
+     * `organization_id` is written even though the organization is about to
+     * stop existing, so the row is still found by the scope filter - by an
+     * instance administrator, since there is no longer an owner to read it.
+     * The alternative is a deletion that vanishes from the log along with the
+     * thing it deleted, which is the one gap this table cannot have.
+     */
+    await auditEvent('organization:deleted', {
+      subject: { type: 'organization', id: organizationId },
+      actorId: user.id,
+      ...await auditFrom(request),
+      organizationId,
+      detail: { handle },
+    })
+
     await db.deleteFrom('organizations').where('id', '=', organizationId).execute()
 
     return response.json({ deleted: true, handle })

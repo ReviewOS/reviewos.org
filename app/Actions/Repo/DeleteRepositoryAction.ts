@@ -1,7 +1,8 @@
 import { Action } from '@stacksjs/actions'
 import { mkdir, rename } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { recordAudit, tokenIdFor } from '../Git/audit'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
 import { recountForks } from './counters'
@@ -57,14 +58,12 @@ export default new Action({
     // Recorded before the row goes, because afterwards there is no id to look
     // up and no name to report. The audit row and the directory on disk are
     // between them the whole record of what happened.
-    await recordAudit({
-      action: 'repository.deleted',
+    await auditEvent('repository:deleted', {
       subject: { type: 'repository', id: Number(repository.id) },
       actorId: user?.id ?? null,
-      tokenId: await tokenIdFor(request),
+      ...await auditFrom(request),
       repositoryId: Number(repository.id),
       organizationId: repository.owner_type === 'organization' ? Number(repository.owner_id) : null,
-      userAgent: String(request?.headers?.get?.('user-agent') ?? '') || null,
       detail: { owner, name: repository.name, retired_to: retired, swept: swept.removed },
     })
 

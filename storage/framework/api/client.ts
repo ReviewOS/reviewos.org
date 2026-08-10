@@ -4860,6 +4860,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/collaborators
+   */
+  postReposCollaborators(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/collaborators", {}, [], false, options)
+  },
+
+  /**
    * GET /api/repos/commit
    */
   getReposCommit(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -5018,6 +5025,13 @@ export function createClient(config: ClientConfig) {
    */
   postReposMilestones(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos/milestones", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/repos/protected-branches
+   */
+  postReposProtectedBranches(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/protected-branches", {}, [], false, options)
   },
 
   /**

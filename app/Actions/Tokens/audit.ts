@@ -1,4 +1,4 @@
-import { recordAudit } from '../Git/audit'
+import { auditEvent } from '../../Audit/events'
 
 /**
  * The three things that happen to a token, recorded the same way each time.
@@ -9,11 +9,11 @@ import { recordAudit } from '../Git/audit'
  * and the question it has to answer two years in is "when did this get the
  * ability to write, and who gave it that".
  *
- * A thin wrapper over `recordAudit` rather than three call sites building their
- * own rows, because an audit log is worth exactly as much as its consistency: a
- * caller that assembles its own is one that eventually records a revocation
- * without saying who did it, and nothing reading the log can tell that from a
- * token its owner revoked themselves.
+ * A thin wrapper over `auditEvent` rather than three call sites building their
+ * own payloads, because an audit log is worth exactly as much as its
+ * consistency: a caller that assembles its own is one that eventually records a
+ * revocation without saying who did it, and nothing reading the log can tell
+ * that from a token its owner revoked themselves.
  *
  * **The secret is never in here, in any form.** Not the token, not a truncated
  * token, not a hash. The prefix identifies which token this is and is public by
@@ -21,7 +21,7 @@ import { recordAudit } from '../Git/audit'
  * be shipped somewhere central and read by people who are not administrators,
  * and it must never be a place where a credential can be recovered.
  *
- * Never throws, inherited from `recordAudit` and for the same reason: refusing
+ * Never throws, inherited from `auditEvent` and for the same reason: refusing
  * to issue a token because the log write failed is how audit logging gets
  * turned off.
  */
@@ -46,6 +46,14 @@ export type TokenEvent
     | 'token:first-used'
     | 'token:revoked'
 
+/*
+ * These three are also in `app/Audit/events.ts`, which is the closed list of
+ * everything the log records. Named again here so this file's own type says
+ * which three it covers, and checked against that list by the type of
+ * `auditEvent`: a fourth added here without being added there is a compile
+ * error rather than a row nobody finds.
+ */
+
 export interface TokenAudit {
   event: TokenEvent
   tokenId: number
@@ -69,9 +77,8 @@ export interface TokenAudit {
   ip?: string | null
 }
 
-export async function recordTokenAudit(entry: TokenAudit): Promise<boolean> {
-  return await recordAudit({
-    action: entry.event,
+export async function recordTokenAudit(entry: TokenAudit): Promise<void> {
+  await auditEvent(entry.event, {
     subject: { type: 'access_token', id: entry.tokenId },
     /*
      * The acting token, not only the subject one.

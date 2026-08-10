@@ -317,6 +317,22 @@ route.post('/repos/delete', 'Actions/Repo/DeleteRepositoryAction').middleware('a
 route.post('/repos/transfer', 'Actions/Repo/TransferRepositoryAction').middleware('auth')
 route.post('/repos/forks', 'Actions/Repo/ForkRepositoryAction').middleware('auth')
 
+// Protected branch rules. Its own endpoint rather than a field on settings: a
+// repository has many rules and one settings row, so they do not share a shape,
+// and the rung they need is the same one only because removing a protection is
+// as consequential as deleting the repository it protects.
+//
+// The enforcement has been in place since phase 2 and this is the half that
+// lets anybody turn it on. A rule that can only be inserted by hand into the
+// database is a feature that exists in the tests.
+route.post('/repos/protected-branches', 'Actions/Repo/ManageProtectedBranchAction').middleware('auth')
+
+// Direct collaborators. The team grant above only covers repositories an
+// organization owns, which leaves out what a self-hosted instance is mostly
+// made of: one person's repository and one other person who needs to push to
+// it. `repo_collaborators` was read by the access checks and written by nothing.
+route.post('/repos/collaborators', 'Actions/Repo/ManageCollaboratorAction').middleware('auth')
+
 // Following a repository. Starring toggles, because the page cannot know
 // whether the star it drew has been pressed since it was drawn. Watching does
 // not, because it has three answers and the middle one is the one people want.

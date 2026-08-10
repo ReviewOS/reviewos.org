@@ -2,7 +2,8 @@ import { Action } from '@stacksjs/actions'
 import { mkdir, rename } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { canInOrganization } from '../../Permissions'
-import { recordAudit, tokenIdFor } from '../Git/audit'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { repositoryPath } from '../Git/storage'
 import { organizationRoleOf, resolveOwner } from '../Identity/lookup'
 import { authorizeRepository } from './authorize'
@@ -95,14 +96,12 @@ export default new Action({
     // The grants the old owner made, dropped on purpose. See the note above.
     await db.deleteFrom('repo_collaborators').where('repository_id', '=', Number(repository.id)).execute()
 
-    await recordAudit({
-      action: 'repository.transferred',
+    await auditEvent('repository:transferred', {
       subject: { type: 'repository', id: Number(repository.id) },
       actorId: user?.id ?? null,
-      tokenId: await tokenIdFor(request),
+      ...await auditFrom(request),
       repositoryId: Number(repository.id),
       organizationId: repository.owner_type === 'organization' ? Number(repository.owner_id) : null,
-      userAgent: String(request?.headers?.get?.('user-agent') ?? '') || null,
       detail: {
         name: repository.name,
         from: { kind: repository.owner_type, id: repository.owner_id, handle: fromHandle },

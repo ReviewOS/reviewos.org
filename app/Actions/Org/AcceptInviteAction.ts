@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
 
 /**
@@ -48,6 +50,17 @@ export default new Action({
     if (String(request.get('operation') ?? '') === 'decline') {
       await db.deleteFrom('org_members').where('id', '=', Number(invitation.id)).execute()
 
+      // A declined invitation is recorded as a removal rather than not at all.
+      // The pending row granted nothing, but somebody offered access and it is
+      // the offer that a reader is trying to account for.
+      await auditEvent('member:removed', {
+        subject: { type: 'user', id: user.id },
+        actorId: user.id,
+        ...await auditFrom(request),
+        organizationId,
+        detail: { role: String(invitation.role), declined: true },
+      })
+
       return response.json({ declined: true })
     }
 
@@ -56,6 +69,17 @@ export default new Action({
       .set({ joined_at: new Date().toISOString() })
       .where('id', '=', Number(invitation.id))
       .execute()
+
+    // The moment the role starts granting anything. Until now the row existed
+    // and `organizationRoleOf` answered null, so this - not the invitation - is
+    // when access began.
+    await auditEvent('member:joined', {
+      subject: { type: 'user', id: user.id },
+      actorId: user.id,
+      ...await auditFrom(request),
+      organizationId,
+      detail: { role: String(invitation.role) },
+    })
 
     return response.json({ ok: true, role: String(invitation.role) })
   },

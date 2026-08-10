@@ -90,6 +90,26 @@ them without also watching a chat channel, and that nobody has to mute the produ
   `push:received` is deliberately absent. Nobody is notified about a push directly - they are
   notified about what it did, which is a pull request opening or a check reporting.
 
+- [x] The listeners are actually registered, which they were not.
+
+  `app/Events.ts` was read at runtime by nothing and the framework's `discoverListeners` was
+  exported and called by nothing, so every listener above was registered nowhere. `dispatch`
+  returned normally, `emitter.all` was empty, and `Notify`, `DispatchWebhooks` and `RecordActivity`
+  had never run in this application - no inbox row, no webhook call, no feed entry, for as long as
+  nobody thought to check.
+
+  Every piece looked implemented, which is why this survived a whole phase being ticked. The tests
+  in this phase call the listener directly and say so in a comment - "the event bus is not what
+  these tests are about" - which was a reasonable decision that happened to test around the one
+  broken part.
+
+  Fixed upstream in Stacks 0.70.349: `registerAppListeners()` reads both conventions and the server
+  boot path calls it. `listensTo` now accepts an array, which is what made a listener over nine
+  events fail the shape check and be skipped; registration is deduplicated by (event, listener), so
+  a listener that both declares itself and is named in the map does not fire twice. Caught while
+  building the audit log, which is written the same way and would have been written the same amount
+  of not-at-all. `tests/e2e/audit-events.test.ts` goes through HTTP so that the next time this
+  breaks, something goes red.
 - [x] Events are emitted from actions, once, at the point the state actually changed.
 
   All nine, each *after* the write and never before: by the time `pr:merged` fires a branch has

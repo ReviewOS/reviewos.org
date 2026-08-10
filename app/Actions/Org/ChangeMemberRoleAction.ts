@@ -1,5 +1,7 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
 import { canInOrganization, wouldOrphanOrganization, type OrganizationRole } from '../../Permissions'
+import { auditFrom } from '../Git/audit'
 import { currentUser, organizationOwnerCount, organizationRoleOf } from '../Identity/lookup'
 
 /**
@@ -49,6 +51,17 @@ export default new Action({
       .where('organization_id', '=', organizationId)
       .where('user_id', '=', memberUserId)
       .execute()
+
+    // The role somebody held is as much of the record as the one they hold now:
+    // "was made an owner" and "was already an owner" are different sentences,
+    // and only one of them explains what happened next.
+    await auditEvent('member:role-changed', {
+      subject: { type: 'user', id: memberUserId },
+      actorId: actor.id,
+      ...await auditFrom(request),
+      organizationId,
+      detail: { from: memberRole, to: nextRole },
+    })
 
     return response.json({ ok: true, role: nextRole })
   },

@@ -1,5 +1,7 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
 import { canInOrganization, wouldOrphanOrganization } from '../../Permissions'
+import { auditFrom } from '../Git/audit'
 import { currentUser, organizationOwnerCount, organizationRoleOf } from '../Identity/lookup'
 
 /**
@@ -45,6 +47,17 @@ export default new Action({
       .where('organization_id', '=', organizationId)
       .where('user_id', '=', memberUserId)
       .execute()
+
+    // Whether they left or were removed, recorded as a fact rather than left to
+    // be inferred from the actor. They are the same row when somebody leaves,
+    // and reading a log should not require noticing that.
+    await auditEvent('member:removed', {
+      subject: { type: 'user', id: memberUserId },
+      actorId: actor.id,
+      ...await auditFrom(request),
+      organizationId,
+      detail: { role: memberRole, left: leavingSelf },
+    })
 
     return response.json({ ok: true })
   },

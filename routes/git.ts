@@ -6,7 +6,8 @@ import { GATE_ENDPOINT, HOOK_ENDPOINT, hookSecret, repositoryByGitDir, repositor
 import { refsToExclude, reportLines, safeQuarantine, scanUpdate } from '../app/Actions/Git/scan'
 import { instancePatterns, pushProtectionSettings } from '../app/Actions/Git/patterns'
 import { decideBypass, readBypass } from '../app/Actions/Git/bypass'
-import { recordAudit, tokenIdFor } from '../app/Actions/Git/audit'
+import { auditEvent } from '../app/Audit/events'
+import { auditFrom } from '../app/Actions/Git/audit'
 import { decidePush, rulesFor } from '../app/Actions/Git/protection'
 import { parseRefUpdates } from '../app/Actions/Git/push'
 import { isAncestor } from '../app/Actions/Mirror/fetch'
@@ -279,24 +280,22 @@ route.post(GATE_ENDPOINT, async (request: any) => {
     // nobody, which is the one thing the audit trail exists to prevent.
     const actorId = token?.userId ?? (payload?.actorId ? Number(payload.actorId) : null)
 
-    await recordAudit({
-      action: 'push.protection.bypassed',
+    await auditEvent('push:protection-bypassed', {
       subject: { type: 'repository', id: Number(repository.id) },
       actorId: Number.isFinite(actorId as number) ? actorId : null,
-      // A push over HTTP is always a token, never a session, so this is the
-      // line that says *which* credential overrode the protection.
-      tokenId: await tokenIdFor(request),
+      // The token, the address and the user agent in one line. A push over HTTP
+      // is always a token and never a session, so the first of those is what
+      // says *which* credential overrode the protection.
+      ...await auditFrom(request),
       // Scope, so this shows up when the repository's organization owner asks
       // what happened rather than only when an instance administrator does.
       repositoryId: Number(repository.id),
       organizationId: repository.owner_type === 'organization' ? Number(repository.owner_id) : null,
-      userAgent: String(request?.headers?.get?.('user-agent') ?? '') || null,
       reason: bypass.reason,
       detail: {
         refs: protection.map(one => one.ref),
         findings: protection.map(one => one.reason),
       },
-      ip: request.headers?.get?.('x-forwarded-for') ?? null,
     })
 
     return allow({ bypassed: true })

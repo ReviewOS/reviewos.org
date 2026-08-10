@@ -1,6 +1,8 @@
 import { Action } from '@stacksjs/actions'
 import { mkdir, rename } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
@@ -30,7 +32,7 @@ export default new Action({
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)
 
-    const { repository } = auth.context
+    const { repository, user } = auth.context
     const owner = String(request.get('owner') ?? '').trim().toLowerCase()
 
     const decision = decideSettings(repository as any, {
@@ -103,6 +105,32 @@ export default new Action({
     }
 
     await db.updateTable('repositories').set(changes).where('id', '=', Number(repository.id)).execute()
+
+    /*
+     * Visibility, and only visibility, out of everything this endpoint can
+     * change.
+     *
+     * A rename or a description is a product change with a history somebody can
+     * see; going public is a disclosure. Every private repository in an
+     * organization was private on somebody's understanding, and the question
+     * afterwards is always when it stopped being and who decided - which is not
+     * a question the repositories table can answer, since it holds only the
+     * state it is in now.
+     *
+     * Recording the whole settings payload instead would bury that one line
+     * under a stream of merge-strategy toggles, and a log people scroll past is
+     * a log nobody reads.
+     */
+    if (changes.visibility && changes.visibility !== repository.visibility) {
+      await auditEvent('repository:visibility-changed', {
+        subject: { type: 'repository', id: Number(repository.id) },
+        actorId: user?.id ?? null,
+        ...await auditFrom(request),
+        repositoryId: Number(repository.id),
+        organizationId: String(repository.owner_type) === 'organization' ? Number(repository.owner_id) : null,
+        detail: { from: String(repository.visibility ?? ''), to: String(changes.visibility), name: repository.name },
+      })
+    }
 
     return response.json({ id: Number(repository.id), ...changes })
   },

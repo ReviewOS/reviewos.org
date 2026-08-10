@@ -443,9 +443,14 @@ describe('exporting', () => {
     expect(answer.headers.get('Content-Type')).toContain('x-ndjson')
 
     const lines = (await answer.text()).trim().split('\n')
+    const rows = lines.map(line => JSON.parse(line))
 
-    expect(lines).toHaveLength(3)
-    expect(() => lines.map(line => JSON.parse(line))).not.toThrow()
+    // Four, not the three this organization had: taking a copy of the log is
+    // itself an auditable act, so the export records itself and then contains
+    // that record. Written before the stream starts rather than after it
+    // finishes, because a cancelled download is still a download that began.
+    expect(lines).toHaveLength(4)
+    expect(rows[0].action).toBe('audit:exported')
   })
 
   test('and respects the same scope as the reads', async () => {

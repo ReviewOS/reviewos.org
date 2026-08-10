@@ -55,7 +55,10 @@ describe('deleting a repository', () => {
 
   /** Afterwards there is no id to look up and no name to report. */
   it('writes the audit record before the row goes', () => {
-    const audited = code.indexOf('recordAudit(')
+    // `auditEvent` rather than `recordAudit`: the log is written by a listener
+    // now, so the action emits and the listener inserts. The ordering this
+    // asserts is unchanged and is the whole point - the emit is awaited.
+    const audited = code.indexOf('auditEvent(')
     const deleted = code.indexOf('deleteFrom(\'repositories\')')
 
     expect(audited).toBeGreaterThan(0)

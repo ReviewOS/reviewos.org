@@ -50,7 +50,13 @@ known to exactly one place.
       hundreds at once, and the upstream's closes between runs - and never recounted, so a mirrored
       repository read `0 open issues` however many it had. Nobody files that as a bug, because it
       looks exactly like a repository with no issues
-- [x] `app/Models/RepoCollaborator.ts`: `repository_id`, `user_id`, `permission`
+- [x] `app/Models/RepoCollaborator.ts`: `repository_id`, `user_id`, `permission`, and
+      `POST /api/repos/collaborators` to write one. The table was read by the access checks from the
+      start and written by nothing, so a personal repository could not be shared with anybody at all
+      - the team grant covers only repositories an organization owns, which leaves out what a
+      self-hosted instance is mostly made of. Behind `collaborator:manage`, the *admin* rung rather
+      than maintain, because this endpoint can hand somebody `admin` in one request where reaching
+      the same thing through a team takes a team to exist and somebody to be put in it.
 - [x] `app/Models/Star.ts`, `app/Models/Watch.ts` with a `subscription` level (all, participating,
       ignore)
 - [x] `app/Models/ProtectedBranch.ts`: pattern, required approvals, dismiss stale reviews, required
@@ -201,6 +207,18 @@ known to exactly one place.
       happened. The hook fails *open*: an unreachable application allows the push, because branch
       protection is a guard rail against a mistake and a forge that stops accepting pushes when its
       web process restarts is a forge people work around.
+- [x] Manage the rules, rather than only enforce them. `POST /api/repos/protected-branches`, behind
+      `branch:protect` - an ability that had been in `app/Permissions.ts` and `app/TokenScopes.ts`
+      since the permission table was written and was checked by nothing, because the endpoint it
+      described did not exist. Until this, the only way to protect a branch was an `INSERT` by hand,
+      which made the enforcement above a feature nobody could turn on. Upserted on the pattern, since
+      two rules for `main` would make the answer depend on which came back first and the enforcement
+      reads every match - so the looser of the two is the one somebody discovers. A pattern that
+      could never match a branch name is refused rather than stored: a rule that silently protects
+      nothing is worse than no rule, because the settings page shows it and everybody believes it.
+      Creating, changing and removing one are all in the audit log, and the removal is the one that
+      matters - a force push at an *unprotected* branch is an ordinary push and is recorded nowhere,
+      so "remove the rule, rewrite the history, put it back" leaves no trace unless the removal does.
 - [x] Tests: force push to a protected branch is rejected, and a push that closes an issue does.
       Both against real git, including one that proves git runs the hooks at all - it says nothing
       when it skips a hook it cannot execute, so a hook that never runs and a hook that always

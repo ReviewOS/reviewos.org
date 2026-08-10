@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
 
 /**
@@ -28,11 +30,30 @@ export default new Action({
     if (!Number.isInteger(id) || id <= 0)
       return response.json({ error: 'Which key?' }, 422)
 
+    // Read for the record, deleted by the same scoped statement as before. See
+    // the note in `DeleteSshKeyAction`: afterwards there is no fingerprint left
+    // to name.
+    const key: any = await db
+      .selectFrom('gpg_keys')
+      .select(['id', 'key_id'])
+      .where('id', '=', id)
+      .where('user_id', '=', user.id)
+      .executeTakeFirst()
+
     await db
       .deleteFrom('gpg_keys')
       .where('id', '=', id)
       .where('user_id', '=', user.id)
       .execute()
+
+    if (key) {
+      await auditEvent('key:removed', {
+        subject: { type: 'gpg_key', id },
+        actorId: user.id,
+        ...await auditFrom(request),
+        detail: { kind: 'gpg', fingerprint: String(key.key_id ?? '') },
+      })
+    }
 
     return response.json({ ok: true })
   },

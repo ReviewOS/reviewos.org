@@ -73,4 +73,43 @@ export default {
   'issue:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'comment:created': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'release:published': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
+
+  /*
+   * The security events, and none of the above.
+   *
+   * They are a separate family on purpose. A domain event is something a person
+   * did to the *product* - opened, merged, commented - and its audiences are an
+   * inbox, a webhook and a feed. These are things done to the *permissions and
+   * credentials* of the instance, and their audience is somebody reconstructing
+   * an incident. Nobody wants an inbox entry every time a key is added, and a
+   * feed that listed role changes would report who trusts whom to anybody who
+   * scrolls.
+   *
+   * `RecordAudit` declares its own `listensTo` from `app/Audit/events.ts`,
+   * which is the list that matters and the one a test checks. These lines exist
+   * because this file is where somebody looks to find out what is wired to
+   * what, and a family of twenty events that appears nowhere in it reads as a
+   * family that is not wired at all. Registration is deduplicated by (event,
+   * listener), so saying it twice does not write the row twice.
+   */
+  'member:invited': ['RecordAudit'],
+  'member:joined': ['RecordAudit'],
+  'member:role-changed': ['RecordAudit'],
+  'member:removed': ['RecordAudit'],
+  'collaborator:changed': ['RecordAudit'],
+  'collaborator:removed': ['RecordAudit'],
+  'team:access-changed': ['RecordAudit'],
+  'token:created': ['RecordAudit'],
+  'token:first-used': ['RecordAudit'],
+  'token:revoked': ['RecordAudit'],
+  'key:added': ['RecordAudit'],
+  'key:removed': ['RecordAudit'],
+  'branch:protection-changed': ['RecordAudit'],
+  'branch:protection-removed': ['RecordAudit'],
+  'push:protection-bypassed': ['RecordAudit'],
+  'repository:visibility-changed': ['RecordAudit'],
+  'repository:transferred': ['RecordAudit'],
+  'repository:deleted': ['RecordAudit'],
+  'organization:deleted': ['RecordAudit'],
+  'audit:exported': ['RecordAudit'],
 } satisfies Events

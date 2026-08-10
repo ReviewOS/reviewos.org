@@ -19357,6 +19357,31 @@
         }
       }
     },
+    "/api/repos/collaborators": {
+      "post": {
+        "summary": "/api/repos/collaborators",
+        "operationId": "post__api_repos_collaborators",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/api/repos/commit": {
       "get": {
         "summary": "/api/repos/commit",
@@ -19903,6 +19928,31 @@
       "post": {
         "summary": "/api/repos/milestones",
         "operationId": "post__api_repos_milestones",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/repos/protected-branches": {
+      "post": {
+        "summary": "/api/repos/protected-branches",
+        "operationId": "post__api_repos_protected_branches",
         "parameters": [],
         "responses": {
           "200": {

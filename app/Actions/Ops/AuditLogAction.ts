@@ -1,7 +1,9 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { apiError } from '../../Api/errors'
+import { auditEvent } from '../../Audit/events'
 import { exportAudit, mayReadAudit, searchAudit } from '../../Ops/audit'
+import { auditFrom } from '../Git/audit'
 import { currentActor } from '../Identity/lookup'
 
 /**
@@ -81,6 +83,28 @@ export default new Action({
        * should be able to export it without the process holding all of it, and
        * the generator already pages - so this is a pipe rather than a buffer.
        */
+      /*
+       * The export is itself an auditable act, and the read is not.
+       *
+       * Recording every page view of this endpoint would fill the log with the
+       * log being looked at, and drown the events somebody came here to find.
+       * Taking a *copy* of the whole thing is different in kind: it leaves the
+       * instance, it is rare, and "who has a copy of this" is exactly the
+       * question an audit log should be able to answer about itself.
+       *
+       * Emitted before the stream starts rather than after it finishes. A
+       * cancelled download is still a download that began, and an export that
+       * only appears in the log once it completes is one that can be avoided by
+       * disconnecting.
+       */
+      await auditEvent('audit:exported', {
+        subject: { type: 'audit_log', id: scope.kind === 'organization' ? scope.organizationId : 0 },
+        actorId: user?.id ?? null,
+        ...await auditFrom(request),
+        organizationId: scope.kind === 'organization' ? scope.organizationId : null,
+        detail: { scope: scope.kind, filters: { ...query, scope: undefined } },
+      })
+
       const lines = exportAudit(query)
 
       const body = new ReadableStream({

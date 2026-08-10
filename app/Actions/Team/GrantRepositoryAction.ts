@@ -1,5 +1,7 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
 import { REPOSITORY_LEVELS, type RepositoryPermission } from '../../Permissions'
+import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from '../Repo/authorize'
 import { organizationRoleOf } from '../Identity/lookup'
 
@@ -57,6 +59,15 @@ export default new Action({
         .where('repository_id', '=', Number(repository.id))
         .execute()
 
+      await auditEvent('team:access-changed', {
+        subject: { type: 'team', id: teamId },
+        actorId: user.id,
+        ...await auditFrom(request),
+        repositoryId: Number(repository.id),
+        organizationId: Number(repository.owner_id),
+        detail: { revoked: true },
+      })
+
       return response.json({ revoked: true })
     }
 
@@ -103,6 +114,22 @@ export default new Action({
         .values({ team_id: teamId, repository_id: Number(repository.id), permission })
         .execute()
     }
+
+    /*
+     * A grant to a team reaches everybody in it, and everybody in every team
+     * beneath it, without any of them appearing anywhere on this repository.
+     * That is the point of teams and it is also why this line matters more than
+     * a direct grant would: nothing else in the product will ever name the
+     * people who just gained access.
+     */
+    await auditEvent('team:access-changed', {
+      subject: { type: 'team', id: teamId },
+      actorId: user.id,
+      ...await auditFrom(request),
+      repositoryId: Number(repository.id),
+      organizationId: Number(repository.owner_id),
+      detail: { permission, granted: !existing },
+    })
 
     return response.json({ team_id: teamId, repository_id: Number(repository.id), permission })
   },

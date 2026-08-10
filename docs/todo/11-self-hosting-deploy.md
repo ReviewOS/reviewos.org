@@ -292,11 +292,68 @@ already gone wrong and there is no second chance to have recorded it.
   about a repository this organization owns" is not a question a polymorphic subject can answer
   without joining to whichever table the subject happens to live in. A column that is sometimes null
   and cheap to filter beats a correct join nobody can write, on a table that only grows.
-- [ ] Written by listeners on domain events, the same way the activity feed is, rather than by a
+- [x] Written by listeners on domain events, the same way the activity feed is, rather than by a
       call added to each action and forgotten in the next one
-- [ ] Covers the things worth reconstructing: permission and role changes, token and key lifecycle,
+
+  `app/Audit/events.ts` is the catalogue, `app/Listeners/RecordAudit.ts` is the only writer, and an
+  action emits rather than inserts. The value is not indirection: it is that **the list of auditable
+  things is a list in one file**, so "is a role change recorded?" is a question that file answers
+  rather than a search through every action for a call that may not be there.
+
+  The event name *is* the `action` column, so a log line can be grepped for and lands on its
+  emitter. The two earliest events were written with dots, before there were enough of them for a
+  convention to be visible; they now use the colon everything else in this codebase does. No
+  instance exists yet, so consistency costs a handful of development rows now and would cost a
+  permanent split in the one table nobody can rewrite later.
+
+  Emitted with `dispatchAsync` rather than `dispatch`, which is the one place this differs from the
+  feed. A notification that arrives a moment after the response arrived; an audit row that has not
+  been written when the process is killed is a thing that did not happen as far as anybody
+  afterwards can tell.
+
+  **Writing this found that no listener in this application had ever run.** `app/Events.ts` was read
+  at runtime by nothing, `discoverListeners` was exported by the framework and called by nothing, and
+  a listener declaring an array of events failed the shape check and was skipped. So `Notify`,
+  `DispatchWebhooks` and `RecordActivity` were all registered nowhere: `dispatch` returned normally
+  and nothing happened, for as long as nobody thought to check. The notification tests call the
+  handler directly - deliberately, and reasonably - which is exactly why they never caught it. Fixed
+  upstream in Stacks 0.70.349 and 0.70.350: `registerAppListeners()` reads both conventions,
+  deduplicates by (event, listener) so a listener naming itself twice does not write two rows, and
+  passes the event name as a second argument so one handler can serve a family. `tests/e2e/audit-events.test.ts`
+  goes through HTTP for that reason - a test that calls the listener passes throughout the failure.
+- [x] Covers the things worth reconstructing: permission and role changes, token and key lifecycle,
       protected branch and rule changes, push protection bypasses, visibility changes, transfers and
       deletions, and administrative action
+
+  Twenty events. Roles and membership (invited, joined, role changed, removed), collaborators and
+  team grants, tokens and SSH, GPG and deploy keys, protected branch rules, push protection
+  bypasses, visibility, transfers, deletions.
+
+  Two of them needed the endpoint to exist first. **Protected branch rules were enforced and could
+  not be written** - the receive hook has refused force pushes since phase 2 and the only way to
+  create a rule was an `INSERT` by hand, so the protection was a feature nobody could turn on. **A
+  personal repository could not be shared with anybody**: `repo_collaborators` was read by the access
+  checks and written by nothing, and the team grant beside it only covers repositories an
+  organization owns. Both abilities - `branch:protect` and `collaborator:manage` - were already in
+  `app/Permissions.ts` and `app/TokenScopes.ts`, checked by nothing, waiting for the endpoints they
+  describe.
+
+  Where a delete used to be one scoped statement, it is now a read and then that same statement:
+  afterwards there is no fingerprint or rule left to name, and "a key was removed" answers none of
+  the questions somebody asks. The check the comment was written around - no window between the test
+  and the delete - is untouched.
+
+  Two judgements worth stating. **Only visibility is recorded out of everything the settings endpoint
+  can change**, because a rename is a product change with a visible history and going public is a
+  disclosure; recording the whole payload would bury the one line that matters under merge-strategy
+  toggles. And **the export is audited while the read is not** - filling the log with the log being
+  looked at drowns what somebody came for, but taking a copy is rare, leaves the instance, and is
+  precisely the question the log should answer about itself. It is emitted before the stream starts,
+  so a cancelled download still appears, and it therefore contains its own record.
+
+  Administrative action beyond that is the still-open admin area box. Adding an event nothing emits
+  would leave a reader of the catalogue believing the log answers a question it never will, so the
+  event goes in with the screen.
 - [x] Distinct from the activity feed. The feed is a product surface and hides what you cannot see;
       the audit log is a record and hides nothing from an owner.
 
