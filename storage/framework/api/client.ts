@@ -6015,6 +6015,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/user/two-factor
+   */
+  postUserTwoFactor(input?: { body?: { "operation"?: "status" | "begin" | "enable" | "disable" | "recovery-codes"; "code"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/two-factor", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/waitlist-products
    */
   getWaitlistProducts(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

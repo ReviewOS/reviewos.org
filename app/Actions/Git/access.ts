@@ -170,6 +170,41 @@ export interface RepositoryGrants {
   isSiteAdmin: boolean
 }
 
+/**
+ * Whether this person satisfies the organization's two-factor requirement.
+ *
+ * True when the organization does not require one, which is the common case and
+ * costs a single column read on a query the caller was making anyway.
+ *
+ * A database that will not answer is treated as *satisfied*. The alternative -
+ * failing closed on a read error - would take an organization's entire access
+ * away on a transient fault, and this check is a policy rather than the
+ * authentication itself: the person has still proved who they are.
+ */
+async function holdsRequiredFactor(organizationId: number, userId: number): Promise<boolean> {
+  try {
+    const organization: any = await db
+      .selectFrom('organizations')
+      .select(['require_two_factor'])
+      .where('id', '=', organizationId)
+      .executeTakeFirst()
+
+    if (!organization?.require_two_factor)
+      return true
+
+    const user: any = await db
+      .selectFrom('users')
+      .select(['two_factor_enabled'])
+      .where('id', '=', userId)
+      .executeTakeFirst()
+
+    return Boolean(user?.two_factor_enabled)
+  }
+  catch {
+    return true
+  }
+}
+
 /** The permissions a user holds on a repository, from every source. */
 export async function permissionOn(repository: GitRepositoryRow, userId: number | null): Promise<RepositoryGrants> {
   if (userId === null)
@@ -191,6 +226,23 @@ export async function permissionOn(repository: GitRepositoryRow, userId: number 
       .where('user_id', '=', userId)
       .executeTakeFirst()
     organizationRole = (membership?.role as 'owner' | 'admin' | 'member' | undefined) ?? null
+
+    /*
+     * An organization that requires a second factor withholds the role from
+     * members who do not hold one.
+     *
+     * Enforced here, where the role is derived, rather than at each of the
+     * dozens of places that ask what somebody may do - the one that gets
+     * written without the check is the one somebody finds.
+     *
+     * **The role is withheld, not the sign-in.** They can still sign in, still
+     * see their own account, and still turn the factor on, which is the whole
+     * point: blocking the sign-in locks somebody out of the page where they
+     * would fix it, and a requirement like that gets switched off again within
+     * a week.
+     */
+    if (organizationRole)
+      organizationRole = await holdsRequiredFactor(Number(repository.owner_id), userId) ? organizationRole : null
   }
 
   const user = await db.selectFrom('users').select(['is_admin']).where('id', '=', userId).executeTakeFirst()

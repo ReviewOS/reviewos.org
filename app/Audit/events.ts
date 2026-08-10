@@ -58,6 +58,9 @@ export type AuditEventName =
   | 'key:added'
   | 'key:removed'
   | 'session:revoked'
+  | 'two-factor:enabled'
+  | 'two-factor:disabled'
+  | 'two-factor:recovery-codes-reissued'
   // Protected branches and the rules on them.
   | 'branch:protection-changed'
   | 'branch:protection-removed'
@@ -93,6 +96,9 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'key:added',
   'key:removed',
   'session:revoked',
+  'two-factor:enabled',
+  'two-factor:disabled',
+  'two-factor:recovery-codes-reissued',
   'branch:protection-changed',
   'branch:protection-removed',
   'push:protection-bypassed',

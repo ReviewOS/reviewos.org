@@ -647,8 +647,59 @@ already gone wrong and there is no second chance to have recorded it.
 
 ### Account security
 
-- [ ] Two-factor authentication with TOTP and passkeys, recovery codes shown once, and an
-      organization setting that requires it of members
+- [x] Two-factor authentication with TOTP, recovery codes shown once, and an organization setting
+      that requires it of members
+
+  TOTP, because it is the one second factor that works on a self-hosted instance
+  with no accounts anywhere else: no vendor, no push service, no phone number,
+  and an authenticator app the person already has.
+
+  **Enrolment is two requests and the second is not optional.** `begin` writes a
+  secret and leaves the factor off; `enable` turns it on only after a code from
+  that secret verifies. Skipping that check is the commonest way this feature
+  locks people out - a wrong device clock, or a QR code photographed and never
+  scanned - and they find out at the next sign-in with no way back.
+
+  **Recovery codes decide whether anybody turns it on.** Everybody understands
+  the second factor; what stops them is losing the device. So ten are issued by
+  the same click that enables it, shown once, and hashed at rest - a database
+  dump containing usable recovery codes is a dump containing a way past
+  two-factor for every account, which is exactly what it was bought to prevent.
+  They read off a printed page without ambiguity: no `i`, `l`, `o`, `0` or `1`,
+  and case, spacing and the hyphen are all optional, because a code refused for
+  punctuation is a person locked out by punctuation.
+
+  **The sign-in challenge is a signed cookie, not a row.** A password with the
+  factor on gets a five-minute challenge and no session - issuing one and
+  withdrawing it later would mean a session that briefly worked. The second post
+  carries the code and the challenge, so the page never holds the password in a
+  hidden field and there is no server-side state to expire or to fail to
+  replicate.
+
+  **The organization requirement withholds the role rather than the sign-in.**
+  Enforced in `permissionOn`, where the role is derived, because the alternative
+  is a check at each of the dozens of places that ask what somebody may do - and
+  the one written without it is the one somebody finds. They can still sign in,
+  still see their account, and still turn the factor on, which is the point:
+  block the sign-in and you lock somebody out of the page where they would fix
+  it, and a requirement like that is switched off within the week.
+
+  Two things this cost. The recovery-code query first read
+  `where('used_at', 'is', null)`, which this query builder throws on - and the
+  obvious repair, `where('used_at', '=', null)`, compiles and matches nothing,
+  because `x = NULL` is never true. The second is the dangerous one: it looks
+  right and silently answers zero, which would have meant no recovery code ever
+  worked. And the tests hit the sign-in throttle at ten attempts per five
+  minutes, which is the limit doing its job - they reuse one challenge now,
+  which is also what a browser retrying a mistyped code does.
+- [ ] Passkeys as the second factor, alongside TOTP
+
+  Deliberately split from the box above rather than left implied by it. The
+  WebAuthn ceremony is a browser API and a round trip through a platform
+  authenticator, and there is no way to exercise it here that would tell the
+  truth about whether it works - a test that stubs the browser half tests the
+  stub. The framework has the tables and the helpers; what is missing is the
+  registration and assertion flow and an honest way to verify it.
 - [ ] Single sign-on for self-hosted instances: OIDC first, since it covers most identity providers
       with far less surface than SAML, with group-to-team mapping and just-in-time provisioning
 - [ ] Deprovisioning that actually revokes: removing someone upstream ends their sessions and their

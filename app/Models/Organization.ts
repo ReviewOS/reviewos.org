@@ -85,5 +85,29 @@ export default defineModel({
       },
       factory: faker => faker.internet.email().toLowerCase(),
     },
+
+    /**
+     * Whether members must hold a second factor to reach anything here.
+     *
+     * On the organization rather than on the instance, because it is an
+     * organization's decision: a company account and somebody's side project
+     * live on the same self-hosted forge and want different answers, and an
+     * instance-wide switch means the stricter one is imposed on everybody or
+     * nobody gets it.
+     *
+     * **Enforced by withholding the role, not by refusing the sign-in.**
+     * `permissionOn` reads this alongside the membership and answers `null` for
+     * a member without two-factor - so they can still sign in, still see their
+     * own account, and still turn the factor on. Blocking the sign-in instead
+     * would lock somebody out of the page where they would fix it, which is how
+     * a requirement like this ends up being switched off again.
+     */
+    require_two_factor: {
+      order: 7,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
   },
 } as const)

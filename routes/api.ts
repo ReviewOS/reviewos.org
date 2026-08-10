@@ -236,6 +236,15 @@ route.post('/orgs/members/remove', 'Actions/Org/RemoveMemberAction').middleware(
  */
 route.post('/user/sessions', 'Actions/Auth/SessionsAction').middleware('auth')
 
+/*
+ * The second factor: enrolling, disabling, and reissuing recovery codes.
+ *
+ * Behind `auth` because every operation acts on the caller and takes no user
+ * id - an endpoint that could turn off somebody else's second factor does not
+ * exist here to be forgotten.
+ */
+route.post('/user/two-factor', 'Actions/Auth/TwoFactorAction').middleware('auth')
+
 route.post('/user/keys', 'Actions/Keys/AddSshKeyAction').middleware('auth')
 route.delete('/user/keys', 'Actions/Keys/DeleteSshKeyAction').middleware('auth')
 route.post('/user/gpg-keys', 'Actions/Keys/AddGpgKeyAction').middleware('auth')

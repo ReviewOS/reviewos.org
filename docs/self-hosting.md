@@ -602,6 +602,21 @@ is deliberate: the usual reason to reset a password is that somebody else may
 have had it, and handing back a fresh session at the end would undo the one
 useful thing the reset just did for every device except this one.
 
+### Two-factor
+
+TOTP, from any authenticator app. Ten recovery codes are issued with it and
+shown once - store them somewhere that is not the device holding the app, which
+is the whole point of them.
+
+An organization can require it of its members. The requirement withholds the
+member's *role* rather than blocking the sign-in, so somebody who has not
+enrolled can still sign in and still reach the page where they would enrol -
+they simply cannot reach that organization's repositories until they do. A
+requirement that locks people out of the page where they would satisfy it is a
+requirement that gets switched off.
+
+Passkeys are not implemented yet. TOTP is what ships.
+
 ### Keeping the dependencies honest
 
 `buddy-bot.config.ts` configures both halves, and both run from
