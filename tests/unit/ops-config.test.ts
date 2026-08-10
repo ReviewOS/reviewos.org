@@ -170,13 +170,13 @@ describe('what it prints', () => {
 })
 
 describe('the idle-session limit', () => {
-  test('is fine when absent, which is the default', () => {
+  it('is fine when absent, which is the default', () => {
     // No limit is a legitimate choice, and the common one for a self-hosted
     // instance on somebody's own hardware.
     expect(inspect({}).findings.some(one => one.variable === 'AUTH_IDLE_TIMEOUT')).toBe(false)
   })
 
-  test('a value that is not a number is fatal', () => {
+  it('a value that is not a number is fatal', () => {
     /*
      * `AUTH_IDLE_TIMEOUT=30m` coerces to `NaN` and then to "off", so the
      * instance starts with a hardening control that reads as configured and
@@ -188,7 +188,7 @@ describe('the idle-session limit', () => {
     expect(finding?.fix).toContain('milliseconds')
   })
 
-  test('seconds where milliseconds were meant is warned about', () => {
+  it('seconds where milliseconds were meant is warned about', () => {
     // 1800 reads as "thirty minutes" to whoever typed it and means under two
     // seconds, which presents as everybody being signed out constantly - a
     // symptom nobody connects to a setting.
@@ -198,7 +198,7 @@ describe('the idle-session limit', () => {
     expect(finding?.problem).toContain('2 seconds')
   })
 
-  test('a real half-hour passes without comment', () => {
+  it('a real half-hour passes without comment', () => {
     expect(inspect({ AUTH_IDLE_TIMEOUT: '1800000' }).findings.some(one => one.variable === 'AUTH_IDLE_TIMEOUT')).toBe(false)
   })
 })
