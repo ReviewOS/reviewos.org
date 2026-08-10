@@ -787,11 +787,45 @@ already gone wrong and there is no second chance to have recorded it.
 - [ ] den crashes on a multi-line `if` or `case` inside a function body in a sourced file. The
       one-line forms work, which is what the pantry hook is written to, but the crash should not
       happen.
-- [ ] Raise the bun floor in `config/deps.ts` back to `^1.3.14` once a ts-pantry release carries
-      the newer versions. Its generated version union is a snapshot that stopped at 1.3.11, so the
-      exact floor does not typecheck even though pantry installs 1.3.14. The fix is committed
-      upstream and needs a release.
-- [ ] A `main` tag in the bun-query-builder repository shadows the `main` branch, so `git push origin
+- [x] Raise the bun floor in `config/deps.ts` back to `^1.3.14` once a ts-pantry release carries
+      the newer versions.
+
+  Done and verified rather than assumed: ts-pantry is at 0.11.21, whose generated
+  version union reaches 1.3.19, and `config/deps.ts` carries `^1.3.14` with the
+  comment explaining why it was ever held back. `buddy typecheck` is clean on it.
+- [x] A `main` tag in the bun-query-builder repository shadows the `main` branch, so `git push origin
       main` is ambiguous there. Delete the tag.
-- [ ] Seed data that produces a believable instance: several users, organizations, repositories with
+
+  Gone. `git ls-remote --tags` finds no `refs/tags/main` there any more, so the
+  ambiguity is resolved upstream. Checked rather than taken on trust, because a
+  roadmap line about somebody else's repository is exactly the kind that stays
+  ticked-open long after the thing was fixed.
+- [x] Seed data that produces a believable instance: several users, organizations, repositories with
       real history, open pull requests with reviews in progress
+
+  `buddy seed:demo --instance`. The flag is off by default because the
+  single-repository seed is what somebody demonstrating the review screen wants
+  and it takes a second; this one is for developing *against* - the review
+  queue, the organization pages, the stack view - and none of those are worth
+  looking at with one repository in them.
+
+  Four people, which is the smallest cast that produces every state at once: an
+  author, a reviewer who has asked for a change, one who has approved, and one
+  who has been asked and has not answered. Three cannot show all four and five
+  adds nothing a page renders differently. One owner and three members, because
+  an organization where everybody is an owner demonstrates nothing about
+  permissions and permissions are half of what an organization is.
+
+  **The stack is a real stack.** The second branch is committed off the *first
+  branch's* head rather than off main, which is the part a hand-written fixture
+  always gets wrong - branch off main and the second pull request's diff
+  contains the first one's change too, which is precisely the mess a stack
+  exists to avoid and precisely what the fixture would then be demonstrating.
+
+  Two things it cost. The seeded accounts need a password, because the column is
+  not null - and the first version hashed it with a helper that does not exist,
+  fell into a catch, and produced four accounts that looked right and could not
+  sign in. It hashes the way `RegisterAction` does now, and re-running the seed
+  repairs an account left behind by the broken version - but only where the
+  email matches the cast exactly, so a developer whose own account happens to be
+  called `ada` does not get their password reset by a demo command.

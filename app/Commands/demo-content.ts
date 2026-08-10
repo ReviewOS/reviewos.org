@@ -139,3 +139,135 @@ Each line is now rounded with its tax included and the total is the sum of those
 - The test covers three lines that each land on a half cent, which is the case
   that produced the original report
 `
+
+/*
+ * The second repository, and the reason there is one.
+ *
+ * A believable instance is not one repository with a good pull request in it -
+ * it is a *queue*. Somebody opening the review page should see work in several
+ * states at once, because that is what the page is for and it is the only way
+ * to tell whether the ordering, the badges and the empty states are right.
+ *
+ * So this is a different shape of change: a small service with a stack of two
+ * dependent pull requests on it, which is the case this product exists to make
+ * bearable and the one hardest to fake convincingly.
+ */
+
+export const SERVICE_README = `# notify
+
+Sending things to people. One entry point, one queue, and drivers behind an
+interface so the tests never touch a network.
+`
+
+export const SENDER_BEFORE = `import type { Message } from './types'
+
+/**
+ * Send one message.
+ *
+ * Retries are the caller's problem for now, which is fine while the only
+ * caller is a queue that already retries.
+ */
+export async function send(message: Message): Promise<boolean> {
+  const response = await fetch(message.endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(message.payload),
+  })
+
+  return response.ok
+}
+`
+
+export const SENDER_TIMEOUT = `import type { Message } from './types'
+
+/** How long a receiver has before we give up on it. */
+const TIMEOUT_MS = 10_000
+
+/**
+ * Send one message, with a deadline.
+ *
+ * An unbounded fetch is a worker held open for as long as somebody else's
+ * server feels like taking, and one slow receiver is enough to stop every
+ * delivery behind it.
+ */
+export async function send(message: Message): Promise<boolean> {
+  const response = await fetch(message.endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(message.payload),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  })
+
+  return response.ok
+}
+`
+
+export const SENDER_RETRY = `import type { Message } from './types'
+
+/** How long a receiver has before we give up on it. */
+const TIMEOUT_MS = 10_000
+
+/** Attempts, including the first. */
+const ATTEMPTS = 3
+
+/**
+ * Send one message, with a deadline and a few tries.
+ *
+ * Backing off between them, because a receiver that just refused a connection
+ * is a receiver that is about to refuse the next one - and three immediate
+ * attempts is one attempt with extra logging.
+ */
+export async function send(message: Message): Promise<boolean> {
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(message.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message.payload),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      })
+
+      if (response.ok)
+        return true
+    }
+    catch {
+      // A refused connection and a timeout are the same thing here: try again.
+    }
+
+    if (attempt < ATTEMPTS)
+      await Bun.sleep(2 ** attempt * 100)
+  }
+
+  return false
+}
+`
+
+export const SERVICE_TYPES = `export interface Message {
+  endpoint: string
+  payload: unknown
+}
+`
+
+export const TIMEOUT_BODY = `One slow receiver holds a worker open for as long as it likes, and everything
+behind it waits. Ten seconds is generous for an HTTP POST and short enough that
+a wedged endpoint costs one delivery rather than the queue.
+
+Stacked under it: the retry, which is the part that needs this to land first.
+`
+
+export const RETRY_BODY = `Three attempts with a backoff between them. Immediate retries are one attempt
+with extra logging - a receiver that just refused a connection refuses the next
+one too.
+
+Depends on the timeout above: without a deadline, "retry" means "wait forever,
+twice".
+`
+
+export const REVIEW_ASKING = `The deadline is right, and I would rather it came from config than a constant -
+this is exactly the number somebody needs to change at three in the morning
+without a deploy.
+`
+
+export const REVIEW_APPROVING = `Reads well. The backoff being exponential rather than fixed is the detail that
+matters here, and the comment says why, which I appreciate.
+`
