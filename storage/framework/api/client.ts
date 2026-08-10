@@ -3544,6 +3544,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/instance/settings
+   */
+  postInstanceSettings(input?: { body?: { "key"?: string; "value"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/instance/settings", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/labels
    */
   getLabels(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

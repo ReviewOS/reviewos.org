@@ -111,5 +111,6 @@ export default {
   'repository:transferred': ['RecordAudit'],
   'repository:deleted': ['RecordAudit'],
   'organization:deleted': ['RecordAudit'],
+  'instance:setting-changed': ['RecordAudit'],
   'audit:exported': ['RecordAudit'],
 } satisfies Events

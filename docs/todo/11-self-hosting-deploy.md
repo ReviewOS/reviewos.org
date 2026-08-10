@@ -108,9 +108,56 @@ promise, so the operational story is a feature and not an afterthought.
   have flagged every correctly configured instance - `config.app.url` is used as a *domain* here and
   this project's own default is `reviewos.localhost`. It warns about a *path* instead, which is
   somebody pasting a browser URL in and getting it twice in every link.
-- [ ] Secrets from the environment or a file, never committed
-- [ ] Instance settings that do not warrant a redeploy live in the database and are editable by an
+- [x] Secrets from the environment or a file, never committed
+
+  `app/Ops/secrets.ts`. Any variable can come from a file by naming it in `<NAME>_FILE`, which is
+  the convention Docker secrets, Kubernetes projected volumes, systemd credentials and every
+  mainstream secret manager already produce. Not supporting it means an operator with a secret
+  manager writes a shell wrapper that reads the file and exports the variable, which puts the
+  secret back in the environment it was trying to stay out of - readable by every process the user
+  runs, in `docker inspect`, and in the logs of anything that prints its own configuration while
+  somebody is debugging.
+
+  Three decisions, each one a quiet failure avoided. **The environment wins when both are set**,
+  because overriding a mounted secret for one run is the only reason both ever exist and a file
+  that silently won would make that override do nothing. **A trailing newline is stripped** - every
+  editor adds one, and a password with a newline fails to authenticate against a server that is
+  otherwise configured perfectly, which is a miserable hour because the value looks right
+  everywhere it is printed. A leading space is kept: it could be part of the secret, and nothing
+  produces one by accident.
+
+  **A file that is missing or empty is fatal at boot, naming the path.** Downstream it reads as
+  "the variable is not set", and setting the variable is exactly the wrong response to a mount that
+  did not happen - so the finding is passed to `inspect` as data and reported before every rule
+  that would otherwise be its symptom.
+- [x] Instance settings that do not warrant a redeploy live in the database and are editable by an
       admin
+
+  `app/Models/InstanceSetting.ts` for the rows, `app/Ops/settings.ts` for the catalogue,
+  `POST /api/instance/settings` for both halves of the endpoint.
+
+  The line between this and `config/` is not which is easier to edit - it is **who decides, and how
+  often**. How the deployment is built (the database, the queue driver, the credential patterns
+  this organization issues) stays in `config/`, versioned and identical on every replica. A policy
+  the person running the instance holds - whether strangers may sign up - belongs in a table,
+  because the alternative is that changing your mind means an SSH session and a restart.
+
+  Key and value with the catalogue in code, rather than a column per setting. A migration to make
+  something configurable is how somebody decides not to, which is the same argument the `action`
+  column on `AuditEvent` is written around. What it costs is parsing, paid once in the one file
+  that knows a key exists - so an unknown key is a type error rather than an `undefined` somebody
+  handles with `?? true`.
+
+  **Nothing here that nothing enforces**, and a test holds the line: every entry names the file
+  that acts on it and that file has to exist. A settings page with a switch that does nothing is
+  worse than no switch, because an administrator turns registration off, sees it off, and finds out
+  otherwise from a stranger's account. That rule cost `registration: invite` - this product has no
+  invitation flow for *registration*, so the mode would have been unusable - and it is why
+  `instance_name` is wired into both mail jobs rather than listed and left.
+
+  Rows are absent until set, and reading one gives the catalogue's default. Seeding every default
+  at install would freeze them: an upgrade that changed a default would leave every existing
+  instance on the old one, having never chosen it.
 
 ## Backup and restore
 
@@ -121,12 +168,31 @@ promise, so the operational story is a feature and not an afterthought.
   the repository snapshot has pull requests whose commits are not on disk, and the other way round
   has commits nothing references. **Neither reports an error.** Stopping the two application
   containers for the length of the snapshot is what makes them the same moment.
-- [ ] Restore procedure, written after actually performing one on a copy. An untested restore
+- [x] Restore procedure, written after actually performing one on a copy. An untested restore
       procedure is a hope, not a backup.
 
-  The procedure is written down and the consistency check it ends with is built and tested. The box
-  stays open on its own terms: nobody has yet run it end to end against a copy, and the whole point
-  of the sentence is that writing one is not the same as having done one.
+  Performed, against a copy, and it found two things - which is the entire argument for the
+  sentence.
+
+  **The consistency check could not be pointed at a copy.** It read `storage/repos` and nothing
+  else, so the only way to test a restore was to restore over the live instance first, which is the
+  opposite of a rehearsal. `instance:repos --root` now takes a directory, and with `DB_DATABASE`
+  naming the restored database the two halves are checked against each other with nothing at risk.
+
+  **`psql` exits 0 after a failed restore.** Restoring the dump a second time, over a database that
+  still had the schema, produced 517 errors - every `CREATE TYPE` and `CREATE TABLE` refused as
+  already existing - and still reported success, so a shell script would have carried on and an
+  operator would have believed it. The procedure now drops and recreates the target and passes
+  `-v ON_ERROR_STOP=1`, and the guide says why both are there.
+
+  The rehearsal itself: 408K of gzipped SQL and 187M of repositories, restored into
+  `reviewos_rehearsal` and `/tmp/rehearsal/repos`, checked with the command above. **283 rows, 314
+  problems - and the live pair reports exactly the same 314**, which is the result that matters:
+  the copy has the problems the original has, no more and no fewer. (Those 314 are this development
+  database's own, from e2e fixtures that insert a repository row with an invented `disk_path` and
+  never create the directory. On a real instance they would be the thing to worry about.) The guide
+  now says to make that comparison rather than to look for zero, since zero is not what a working
+  restore of a real instance necessarily produces.
 - [x] Repository consistency check after restore
 
   `buddy instance:repos`. Walks every repository row, confirms the directory is there and that `git`

@@ -14,6 +14,14 @@
  * fixes - restore the other half, or delete this one - and which is right
  * depends on which snapshot was the good one. A command that guessed would
  * eventually delete the only copy of something.
+ *
+ * ## The root is a parameter, and that came from actually using this
+ *
+ * It used to read `storage/repos` and nothing else, which meant the only way to
+ * check a restore was to restore *over the live instance first* - the exact
+ * opposite of what the guide asks for, which is a rehearsal against a copy
+ * before anybody needs one. A check that can only be run after the dangerous
+ * step is a check nobody runs at the moment it would help.
  */
 
 import { existsSync, readdirSync } from 'node:fs'
@@ -34,8 +42,20 @@ export interface RepositoryReport {
   problems: Problem[]
 }
 
-export async function checkRepositories(): Promise<RepositoryReport> {
+export interface CheckOptions {
+  /**
+   * Where the repositories are. Defaults to this instance's own.
+   *
+   * Pointed somewhere else to rehearse a restore: `DB_DATABASE` names the
+   * restored database and this names the restored directory, so the pair can be
+   * checked against each other without touching what is running.
+   */
+  root?: string
+}
+
+export async function checkRepositories(options: CheckOptions = {}): Promise<RepositoryReport> {
   const db = (globalThis as any).db
+  const root = options.root ?? REPOSITORY_ROOT
 
   const rows: any[] = await db
     .selectFrom('repositories')
@@ -58,7 +78,7 @@ export async function checkRepositories(): Promise<RepositoryReport> {
 
     expected.add(relative)
 
-    const path = join(REPOSITORY_ROOT, relative)
+    const path = join(root, relative)
 
     if (!existsSync(path)) {
       problems.push({ kind: 'missing-directory', what: relative, detail: path })
@@ -84,7 +104,7 @@ export async function checkRepositories(): Promise<RepositoryReport> {
    * person cleaning up disk space deletes it, and the row it needed was in the
    * half of the backup nobody restored.
    */
-  for (const path of directoriesUnder(REPOSITORY_ROOT)) {
+  for (const path of directoriesUnder(root)) {
     if (!expected.has(path))
       problems.push({ kind: 'orphan-directory', what: path, detail: 'on disk, with no repository row' })
   }

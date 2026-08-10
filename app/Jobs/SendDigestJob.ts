@@ -192,7 +192,11 @@ async function deliver(address: string, url: string, titles: readonly string[]):
     // Both halves, always. The text part is what a screen reader, a terminal
     // client and every spam filter reads, and an HTML-only message scores worse
     // and is unreadable in exactly the clients on-call people use.
-    const html = await render('digest', { title: subject, url, lines: titles })
+    // The instance's own name, for the reason `SendNotificationJob` gives: an
+    // email signed with this product's name, to somebody who has only heard of
+    // their employer's forge, reads as something they did not sign up for.
+    const { setting } = await import('../Ops/settings')
+    const html = await render('digest', { title: subject, url, lines: titles, appName: await setting('instance_name') })
 
     const result: any = await mail.send({
       to: address,

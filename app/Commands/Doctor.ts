@@ -3,6 +3,7 @@ import process from 'node:process'
 import { describe, inspect } from '../Ops/config'
 import { checkHealth } from '../Ops/health'
 import { checkRepositories } from '../Ops/repositories'
+import { resolveSecretFiles } from '../Ops/secrets'
 import { onSignals } from '../Ops/shutdown'
 
 /**
@@ -21,7 +22,13 @@ export default function (cli: CLI) {
     .command('instance:check', 'Check this instance\'s configuration and subsystems')
     .option('--config-only', 'Skip the subsystem checks, which need a database', { default: false })
     .action(async (options: { configOnly?: boolean }) => {
-      const verdict = inspect(process.env)
+      // Before the inspection, because a `DB_PASSWORD_FILE` that mounted
+      // correctly should not be reported as a missing `DB_PASSWORD`.
+      const secrets = resolveSecretFiles(process.env)
+      const verdict = inspect(process.env, { secrets })
+
+      if (secrets.resolved.length > 0)
+        console.log(`Read from files: ${secrets.resolved.join(', ')}`)
 
       console.log(describe(verdict))
 
@@ -57,8 +64,22 @@ export default function (cli: CLI) {
   cli
     .command('instance:repos', 'Check that the repository rows and the directories on disk agree')
     .option('--fix-nothing', 'Report only. This command never changes anything; the flag exists to say so.', { default: true })
-    .action(async () => {
-      const report = await checkRepositories()
+    /*
+     * Somewhere other than this instance's own repositories.
+     *
+     * For rehearsing a restore, which the guide asks for and which was
+     * impossible until this existed: with the root fixed at `storage/repos`,
+     * the only way to check a restored pair was to restore over the live
+     * instance first. Set `DB_DATABASE` to the restored database and this to
+     * the restored directory, and the two are checked against each other with
+     * nothing at risk.
+     */
+    .option('--root <path>', 'Check a different repositories directory, for rehearsing a restore')
+    .action(async (options: { root?: string }) => {
+      const report = await checkRepositories({ root: options.root })
+
+      if (options.root)
+        console.log(`Checking ${options.root} against the ${process.env.DB_DATABASE ?? 'configured'} database.\n`)
 
       for (const problem of report.problems)
         console.log(`${problem.kind === 'missing-directory' ? 'no directory' : problem.kind === 'unreadable' ? 'unreadable  ' : 'orphan dir  '}  ${problem.what}`)
@@ -96,7 +117,9 @@ export default function (cli: CLI) {
        * has to run before the socket opens rather than being a command somebody
        * remembers.
        */
-      const verdict = inspect(process.env)
+      // Resolved before anything reads configuration, so nothing downstream
+      // has to know a value might have come from a file.
+      const verdict = inspect(process.env, { secrets: resolveSecretFiles(process.env) })
       if (!verdict.ok) {
         console.error(describe(verdict))
         console.error('')

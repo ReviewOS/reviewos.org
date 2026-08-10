@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { setting } from '../../Ops/settings'
 import { checkHandle, normalizeHandle } from '../Identity/handles'
 import { isSecureRequest, safeRedirect, sessionCookie, sessionCookieName, wantsHtml } from './session'
 
@@ -29,6 +30,21 @@ export default new Action({
     const email = String(request.get('email') ?? '').trim().toLowerCase()
     const password = String(request.get('password') ?? '')
     const name = String(request.get('name') ?? '').trim()
+
+    /*
+     * Whether this instance takes new accounts at all, before anything else.
+     *
+     * First, so a closed instance does not tell a stranger which handles are
+     * taken on the way to refusing them - the checks below are all about the
+     * account being asked for, and every one of them is a small disclosure to
+     * somebody who is not allowed to have an account here.
+     *
+     * The *first* account is exempt: an instance closed before anybody has
+     * signed in is one nobody can administer, and the alternative is an
+     * install step involving `psql`.
+     */
+    if (await setting('registration') === 'closed' && !await isFirstAccount())
+      return refuse(request, 'This instance is not accepting new accounts.')
 
     const shape = checkHandle(handle)
     if (!shape.ok)
@@ -159,6 +175,25 @@ export default new Action({
  * refill them. Losing four fields because the fifth was wrong is how people
  * abandon a sign-up, and the password is deliberately not among them.
  */
+/**
+ * Whether there is nobody here yet.
+ *
+ * A count rather than a flag, because a flag would be a second thing to keep
+ * true. A database that will not answer is treated as *not* empty: the safe
+ * direction on a closed instance is to refuse, and a registration refused
+ * during an outage is one somebody retries.
+ */
+async function isFirstAccount(): Promise<boolean> {
+  try {
+    const row: any = await db.selectFrom('users').select(['id']).limit(1).executeTakeFirst()
+
+    return !row
+  }
+  catch {
+    return false
+  }
+}
+
 function refuse(request: any, message: string): Response {
   if (wantsHtml(request)) {
     const query = new URLSearchParams({

@@ -6952,10 +6952,74 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "instance_settings",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "key",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 60
+          },
+          {
+            "name": "value",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "updated_by_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "instance_settings_key_unique",
+            "columns": [
+              "key"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "7d904400e8bb069bef72e9ece8da9b95fd2e25c41c618197900009c612457db5",
+  "hash": "afec6884f824710a0e7eeddfc3549f299662afd41d11365395c4bbcabe5dde13",
   "dialect": "postgres",
-  "updatedAt": "2026-08-09T23:35:21.880Z"
+  "updatedAt": "2026-08-10T01:14:23.273Z"
 }

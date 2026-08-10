@@ -55,6 +55,16 @@ route.get('/metrics', 'Actions/Ops/MetricsAction')
 route.get('/audit', 'Actions/Ops/AuditLogAction')
 
 /*
+ * The settings an administrator changes without a deploy.
+ *
+ * One endpoint for the read and the write, because a second is a second place
+ * the administrator check has to be right - the same reasoning as the audit
+ * log's two formats. The read returns each setting with its definition, so a
+ * page built against it does not hard-code the list a second time.
+ */
+route.post('/instance/settings', 'Actions/Ops/InstanceSettingsAction')
+
+/*
  * The OpenAPI document, at a stable public URL.
  *
  * Generating it is not publishing it: a document only somebody with the source

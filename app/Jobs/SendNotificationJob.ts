@@ -211,11 +211,23 @@ async function send(
     // clients used by the people most likely to be on call.
     const link = absolute(payload.url)
 
+    /*
+     * The instance's own name in the footer, not this product's.
+     *
+     * An email signed "ReviewOS" to somebody who has only ever heard of their
+     * employer's forge reads as something they did not sign up for, and that is
+     * the judgement a spam filter is making too. `instance_settings` holds it
+     * because it is the first thing a self-hoster changes and the last thing
+     * they should have to redeploy for.
+     */
+    const { setting } = await import('../Ops/settings')
+
     const rendered = await render('notification', {
       title: payload.title,
       url: link,
       repository: payload.repository ?? '',
       reason: payload.reason ?? 'you are subscribed',
+      appName: await setting('instance_name'),
       unsubscribe,
     })
 

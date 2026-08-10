@@ -19,6 +19,8 @@
  * cannot be undone reliably.
  */
 
+import type { SecretResolution } from './secrets'
+
 export type Severity = 'fatal' | 'warning'
 
 export interface Finding {
@@ -43,9 +45,30 @@ export interface Verdict {
  * development over a mail password nobody set would teach people to bypass this
  * check, and a check people bypass is worse than no check.
  */
-export function inspect(env: Record<string, string | undefined>, options: { production?: boolean } = {}): Verdict {
+export function inspect(
+  env: Record<string, string | undefined>,
+  options: { production?: boolean, secrets?: SecretResolution } = {},
+): Verdict {
   const production = options.production ?? String(env.APP_ENV ?? '').toLowerCase() === 'production'
   const findings: Finding[] = []
+
+  /*
+   * A named secret file that could not be read, first and fatally.
+   *
+   * Passed in as data rather than resolved here, so this function stays pure
+   * over the object it is given. It is first in the list because every other
+   * finding below is downstream of it: a `DB_PASSWORD_FILE` that did not mount
+   * produces "DB_PASSWORD is not set", and fixing the variable is precisely the
+   * wrong response.
+   */
+  for (const problem of options.secrets?.problems ?? []) {
+    findings.push({
+      variable: `${problem.variable}_FILE`,
+      severity: 'fatal',
+      problem: `points at ${problem.file}, which ${problem.problem}`,
+      fix: 'Check the secret is mounted and readable by the user this process runs as, or set the variable directly.',
+    })
+  }
 
   const value = (name: string) => String(env[name] ?? '').trim()
 

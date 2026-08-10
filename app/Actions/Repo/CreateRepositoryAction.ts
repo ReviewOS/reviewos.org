@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { canInOrganization } from '../../Permissions'
+import { numberSetting, setting } from '../../Ops/settings'
 import { DEFAULT_LABELS } from '../Issue/labels'
 import { currentUser, organizationRoleOf, resolveOwner } from '../Identity/lookup'
 import { log } from '@stacksjs/logging'
@@ -47,6 +48,32 @@ export default new Action({
       return response.json({ error: 'Forbidden' }, 403)
     }
 
+    /*
+     * The per-account limit, on a personal repository only.
+     *
+     * An organization's repositories are the organization's, and counting them
+     * against whoever happened to press the button would make the limit depend
+     * on which member did - which is not a rule anybody could predict. A shared
+     * instance that wants to bound an organization wants a different setting,
+     * and there is no point inventing one nothing asks for.
+     */
+    const limit = await numberSetting('max_repositories_per_user')
+
+    if (limit > 0 && owner.kind === 'user') {
+      // `db.fn.count`, the shape `app/Actions/Repo/counters.ts` uses. The
+      // callback form other query builders take is not supported here, and it
+      // fails at runtime rather than at the type check.
+      const owned: any = await db
+        .selectFrom('repositories')
+        .select(db.fn.count('id').as('n'))
+        .where('owner_type', '=', 'user')
+        .where('owner_id', '=', owner.id)
+        .executeTakeFirst()
+
+      if (Number(owned?.n ?? 0) >= limit)
+        return response.json({ error: `This instance allows ${limit} repositories per account.` }, 422)
+    }
+
     const resolved = repositoryPath(owner.handle, name)
     if (!resolved.ok)
       return response.json({ error: 'That repository name cannot be used' }, 422)
@@ -62,7 +89,18 @@ export default new Action({
     if (clash)
       return response.json({ error: 'A repository with that name already exists' }, 409)
 
-    const visibility = String(request.get('visibility') ?? 'public')
+    /*
+     * The instance's default when the caller does not say, rather than `public`.
+     *
+     * A company instance almost always wants `private`, and getting it wrong
+     * once is a repository that was public for however long it took somebody to
+     * notice. A caller that names a visibility still gets what it asked for -
+     * this is a default, not a policy, and a policy that overrode an explicit
+     * request would break every client that sends one.
+     */
+    const asked = String(request.get('visibility') ?? '').trim()
+    const visibility = asked || await setting('default_repository_visibility')
+
     if (!['public', 'private', 'internal'].includes(visibility))
       return response.json({ error: 'Unknown visibility' }, 422)
 

@@ -65,6 +65,48 @@ The values that have to be right:
 what to do. It is the same check the boot path runs, so there is nothing to
 learn twice.
 
+### Secrets from a file
+
+Any variable can come from a file instead, by naming the file in `<NAME>_FILE`:
+
+```yaml
+services:
+  app:
+    environment:
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      APP_KEY_FILE: /run/secrets/app_key
+    secrets: [db_password, app_key]
+
+secrets:
+  db_password:
+    file: ./secrets/db_password
+  app_key:
+    file: ./secrets/app_key
+```
+
+This is the convention Docker secrets, Kubernetes projected volumes, systemd
+credentials and every mainstream secret manager already produce, so an operator
+who has one does not have to write a shell wrapper that reads the file and
+exports the variable - which puts the secret back in the environment it was
+trying to stay out of. An environment variable is readable by every process the
+user runs, appears in `docker inspect`, and reaches the logs of anything that
+prints its own configuration while somebody is debugging.
+
+Three things worth knowing:
+
+- **The environment wins when both are set.** Overriding a mounted secret for
+  one run is the reason both ever exist, and a file that quietly won would make
+  that override do nothing.
+- **A trailing newline is stripped.** Every editor adds one, and a password with
+  a newline on the end fails to authenticate against a server that is otherwise
+  configured perfectly.
+- **A file that is missing or empty stops the instance**, naming the path.
+  Downstream it would read as "the variable is not set", and setting the
+  variable is exactly the wrong response to a mount that did not happen.
+
+Nothing else changes: an instance started from a `.env` works as before, which
+is the common case on a single host.
+
 ## The queue
 
 Jobs run in their own process. `compose.yaml` runs one:
@@ -289,11 +331,23 @@ instead, and both are outside what this file can honestly describe.
 docker compose down
 docker volume rm reviewos_repos reviewos_uploads   # only when replacing them wholesale
 docker compose up -d postgres
-gunzip -c backup/db.sql.gz | docker compose exec -T postgres psql -U postgres reviewos
+
+# Into an EMPTY database, and stopping at the first error. Both matter - see below.
+docker compose exec -T postgres dropdb -U postgres --if-exists reviewos
+docker compose exec -T postgres createdb -U postgres reviewos
+gunzip -c backup/db.sql.gz | docker compose exec -T postgres psql -U postgres -v ON_ERROR_STOP=1 reviewos
+
 docker compose up -d
 tar -xzf backup/repos.tar.gz -C /var/lib/docker/volumes/reviewos_repos/_data
 docker compose exec app bun run --bun ./buddy instance:check
 ```
+
+**`-v ON_ERROR_STOP=1`, and an empty target.** Without the flag `psql` reports
+every error and still exits 0, so a restore that skipped half its tables looks
+exactly like one that worked. Restoring over a database that still has the
+schema is the usual way to produce those errors: a rehearsal here did it and
+counted 517 of them - every `CREATE TYPE` and `CREATE TABLE` refused as already
+existing - with a successful exit status and a shell script that carried on.
 
 Then check that the repositories and the database agree:
 
@@ -306,8 +360,30 @@ can read it, and reports rows with no directory and directories with no row.
 Both are ordinary after a restore from mismatched snapshots, and both are
 invisible until somebody clones.
 
-**An untested restore procedure is a hope, not a backup.** Run the above against
-a copy before you need it, on the same day you set the backup up.
+### Rehearsing it
+
+**An untested restore procedure is a hope, not a backup.** Do it against a copy
+before you need it, on the same day you set the backup up - restore into a
+different database and a different directory, and check the pair without
+touching what is running:
+
+```sh
+createdb -U postgres reviewos_rehearsal
+gunzip -c backup/db.sql.gz | psql -U postgres -v ON_ERROR_STOP=1 reviewos_rehearsal
+mkdir -p /tmp/rehearsal/repos && tar -xzf backup/repos.tar.gz -C /tmp/rehearsal/repos
+
+DB_DATABASE=reviewos_rehearsal ./buddy instance:repos --root /tmp/rehearsal/repos
+```
+
+Compare that against `./buddy instance:repos` on the live pair. **The two counts
+should be identical** - the restored copy should have exactly the problems the
+original has, no more and no fewer. A restored copy with *more* problems means
+the two halves of the backup came from different moments; one with fewer means
+the dump is not of the instance you think it is.
+
+`--root` exists because of this: the check used to read `storage/repos` and
+nothing else, so the only way to test a restore was to restore over the live
+instance first, which is the opposite of a rehearsal.
 
 ### Retention and offsite
 
