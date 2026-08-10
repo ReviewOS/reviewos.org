@@ -249,21 +249,23 @@ describe('browsing into a directory', () => {
   })
 
   /*
-   * Two levels down is a 404, and the catch-all is not what is broken about it.
+   * Two levels down is where a catch-all earns its name, and it used to be a
+   * 404 for a reason that was not the parameter binding above.
    *
-   * `@stacksjs/router` matches a catch-all against exactly one segment,
-   * whatever the spelling: `/probe/{rest}*` and `/probe2/:rest*` declared by
-   * hand answer `/probe/a` and 404 `/probe/a/b`, with no view routing in the
-   * picture. So this is not the parameter-binding bug that
-   * [phase 13](../../docs/todo/13-mirroring.md) blamed - that one is fixed, and
-   * the test above proves it - and every repository with a subdirectory inside
-   * a subdirectory is unreachable until the router is fixed.
+   * bun-router only ever implemented the *unnamed* catch-all. A bare `/files/*`
+   * matched the whole remaining path and bound it to `wildcard`; the named
+   * spelling `{path}*` fell through to the branch that builds a pattern for a
+   * mixed segment like `user-{id}`, and that pattern is tested against one
+   * already-split segment. So it answered `/app` and refused `/app/nested`.
    *
-   * Left as a todo rather than an assertion of the wrong behaviour: a test that
-   * demands a 404 here would have to be found and reversed by whoever fixes it,
-   * and would read like the 404 is intended.
+   * Which spelling is used here is not a choice: file-based routing emits
+   * `{path}*` for a `[...path]` file, so every view declared by a file got the
+   * half-working one, and every repository with a directory inside a directory
+   * was unreachable. Fixed in bun-router, in `route-compiler.ts` (the pattern
+   * the server matches with) and `route-trie.ts` (the pre-compiled index),
+   * because a catch-all that stops at the first separator is not a catch-all.
    */
-  test.todo('and so does one two levels down, which is where a catch-all earns its name', async () => {
+  test('and so does one two levels down, which is where a catch-all earns its name', async () => {
     if (!available)
       return
 
@@ -274,4 +276,21 @@ describe('browsing into a directory', () => {
     expect(html).not.toContain('deep.ts')
   })
 
+  /*
+   * A file, not a directory, and its name carries a dot.
+   *
+   * The catch-all has to hand the view the path that was asked for. An
+   * extension is the case where a path is most likely to be rewritten on the
+   * way through - a static-asset guess, an implicit `.html` - and a rewritten
+   * one reaches the view as a file that does not exist at this ref.
+   */
+  test('and a file deep in the tree arrives with the name it was asked for', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}/tree/main/app/nested/deeper.ts`)
+
+    expect(html).not.toContain('deeper.ts.html')
+    expect(html).toContain('export const deeper')
+  })
 })

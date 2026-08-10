@@ -185,29 +185,51 @@ documentation is markdown that the docs pipeline has to render anyway.
       (2488 refs, HEAD resolves, trees list)
 - [x] Browsable in the UI at `/stacks/stacks`: the tree renders its 33 root entries, the README
       below it, and the last commit
-- [ ] Navigating into a directory **more than one level deep**. The parameter-binding half of this
-      is fixed and picked up: `/{owner}/{repo}/tree/main/app` now renders `app` rather than the
-      repository root, held by `tests/e2e/browse-tree.test.ts`, which is the first test this route
-      has ever had.
+- [x] Navigating into a directory **more than one level deep**. Both halves are fixed and both are
+      held by `tests/e2e/browse-tree.test.ts`: `/{owner}/{repo}/tree/main/app` renders `app` rather
+      than the repository root, and `.../app/nested` renders `nested`.
 
-      What is left is a different bug one layer down, and it is not stx's.
-      **`@stacksjs/router` matches a catch-all against exactly one segment.** Declared by hand,
-      with no view routing in the picture:
+      The second half was in the router, and the earlier note here named it slightly wrong. It is
+      not that a catch-all matches one segment; it is that **only the unnamed catch-all was ever
+      implemented**. A bare `/files/*` matched the whole remaining path and bound it to `wildcard`,
+      including alongside named parameters - `/{owner}/{repo}/tree/{ref}/*` worked. The *named*
+      spelling `{path}*` fell through to the branch that compiles a mixed segment like `user-{id}`,
+      whose pattern is tested against one already-split segment, so it answered `/app` and refused
+      `/app/nested`.
 
-      ```ts
-      route.get('/probe/{rest}*', req => new Response(req.params.rest))
-      // GET /probe/a    -> 200 "a"
-      // GET /probe/a/b  -> 404
-      ```
+      Which spelling is in play was never a choice: file-based routing converts a `[...path]` file
+      to `{path}*`, so every view declared by a file got the half-working one. That is why the top
+      level looked fine and every real repository was unreachable one directory down.
 
-      Same for the `:rest*` spelling. So `/stacks/stacks/tree/main/app/nested` is a 404, and so is
-      every repository with a subdirectory inside a subdirectory - which is every real repository.
+      Fixed in bun-router rather than around it, in the two places that have to agree:
+      `route-compiler.ts`, which builds the pattern the server matches with, and `route-trie.ts`,
+      which builds the pre-compiled index. A catch-all now comes off the path before the static
+      text is regex-escaped - escaping `*` had been compiling it into a literal asterisk no request
+      carries - and binds to its own name, or to `wildcard` when it has none. Held upstream by
+      `test/catch-all-routes.test.ts`, whose two bug cases fail without the change.
 
-      There is a workaround and it should not be taken. `%2F` survives matching, but the parameter
-      arrives **still percent-encoded** (`a%2Fb`), so every view would have to decode what the
-      router handed it, every browse URL in the product would become unreadable, and a URL copied
-      from GitHub would still 404. The fix belongs in the router, the same way `IN` on a write was
-      fixed in the query builder rather than around it.
+      The `:rest*` spelling is still not matched, and that is left alone deliberately: bun-router
+      documents `{name}` parameters and a bare `*`, and inventing a second parameter syntax to fix
+      a route nobody can write from the documentation is not a fix.
+- [ ] Viewing a **file** whose name carries an extension, under `./buddy dev`. The route is right
+      and the served product is right - `tests/e2e/browse-tree.test.ts` asks `route.serve()` for
+      `app/nested/deeper.ts` and gets the file - but the stx dev server is a second boot path with
+      its own router, and there a request for `package.json` or `index.ts` arrives at the view as
+      `package.json.html`, which is a file that does not exist at that ref.
+
+      Diagnosed rather than guessed: stx's `getRoute` dropped every catch-all candidate whenever
+      the request path carried a non-page extension. That guard is stacksjs/stx#1841, and it is
+      protecting something real - `getRoute` runs before the publicDir handler, so an unguarded
+      catch-all shadows `/images/logo.jpg`. But the extension is a guess about intent, and it is
+      the wrong question for an app whose catch-all legitimately serves paths with dots in them.
+      A code browser is exactly that app, and so is a docs site addressing `guide.md`.
+
+      Fixed upstream by asking the disk instead of the extension: a catch-all is dropped when
+      publicDir *really holds* that file. Same protection, one stat, and `#1841`'s own tests plus
+      new ones for the traversal and NUL cases hold it (`packages/bun-plugin/test/routes-catch-all.test.ts`).
+      Unticked here because it is unverified *in this app*: the local stx checkout is 0.2.173
+      against the 0.2.157 this project has installed, and a dist swap across that gap kills the
+      dev server on boot. It needs a published bun-plugin-stx and an upgrade, then a look.
 - [ ] Its markdown renders through the docs pipeline described in
       [07 - Marketing and docs](./07-marketing-docs.md)
 - [ ] Pull requests visible in the review screen, which is the actual test of whether any of this

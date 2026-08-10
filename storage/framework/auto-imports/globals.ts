@@ -10,14 +10,37 @@ Object.assign(globalThis, autoImports)
 
 // TypeScript declarations
 declare global {
+  const pushState: typeof autoImports.pushState
+  const enablePush: typeof autoImports.enablePush
+  const disablePush: typeof autoImports.disablePush
+  const testPush: typeof autoImports.testPush
+  const pushSupported: typeof autoImports.pushSupported
   const viewerFromCookies: typeof autoImports.viewerFromCookies
+  const cookieJarFromHeader: typeof autoImports.cookieJarFromHeader
   const ownersForCreate: typeof autoImports.ownersForCreate
+  const organizationRoleOf: typeof autoImports.organizationRoleOf
+  const organizationsFor: typeof autoImports.organizationsFor
+  const peopleIn: typeof autoImports.peopleIn
+  const watchPullRequest: typeof autoImports.watchPullRequest
+  const setStatus: typeof autoImports.setStatus
+  const setHeader: typeof autoImports.setHeader
+  const mirrorFor: typeof autoImports.mirrorFor
   const repositoryPath: typeof autoImports.repositoryPath
   const findRepositoryByPath: typeof autoImports.findRepositoryByPath
   const repositoryForView: typeof autoImports.repositoryForView
   const cloneUrlFor: typeof autoImports.cloneUrlFor
+  const sshCloneUrlFor: typeof autoImports.sshCloneUrlFor
   const LICENSES: typeof autoImports.LICENSES
   const GITIGNORES: typeof autoImports.GITIGNORES
+  const verifySignature: typeof autoImports.verifySignature
+  const keysFor: typeof autoImports.keysFor
+  const hasExpired: typeof autoImports.hasExpired
+  const deployKeysFor: typeof autoImports.deployKeysFor
+  const tokensFor: typeof autoImports.tokensFor
+  const scopableRepositories: typeof autoImports.scopableRepositories
+  const summarizeMirror: typeof autoImports.summarizeMirror
+  const runSearch: typeof autoImports.runSearch
+  const SEARCHABLE_SCOPES: typeof autoImports.SEARCHABLE_SCOPES
   const renderMarkdown: typeof autoImports.renderMarkdown
   const renderMarkdownHighlighted: typeof autoImports.renderMarkdownHighlighted
   const buildStack: typeof autoImports.buildStack
@@ -36,6 +59,9 @@ declare global {
   const compareTags: typeof autoImports.compareTags
   const isDraft: typeof autoImports.isDraft
   const looksLikePrerelease: typeof autoImports.looksLikePrerelease
+  const draftFromServer: typeof autoImports.draftFromServer
+  const viewedFromServer: typeof autoImports.viewedFromServer
+  const createReviewStore: typeof autoImports.createReviewStore
   const threadsAt: typeof autoImports.threadsAt
   const formatCount: typeof autoImports.formatCount
   const relativeTime: typeof autoImports.relativeTime
@@ -48,8 +74,11 @@ declare global {
   const mapLine: typeof autoImports.mapLine
   const reviewIsStale: typeof autoImports.reviewIsStale
   const approvalsSatisfied: typeof autoImports.approvalsSatisfied
+  const machineAccountsAmong: typeof autoImports.machineAccountsAmong
   const pullRequestDiff: typeof autoImports.pullRequestDiff
   const commitsOnBranch: typeof autoImports.commitsOnBranch
+  const changedPathsFor: typeof autoImports.changedPathsFor
+  const commitDiff: typeof autoImports.commitDiff
   const mergeBlockers: typeof autoImports.mergeBlockers
   const isMergeStrategy: typeof autoImports.isMergeStrategy
   const requirementsSatisfied: typeof autoImports.requirementsSatisfied
@@ -69,6 +98,12 @@ declare global {
   const loadReviewThreads: typeof autoImports.loadReviewThreads
   const anchorThreads: typeof autoImports.anchorThreads
   const threadSlotFor: typeof autoImports.threadSlotFor
+  const branchExists: typeof autoImports.branchExists
+  const crossFileMoves: typeof autoImports.crossFileMoves
+  const moveNotes: typeof autoImports.moveNotes
+  const loadCoverage: typeof autoImports.loadCoverage
+  const linesFor: typeof autoImports.linesFor
+  const mountBlobWindow: typeof autoImports.mountBlobWindow
   const streamDiffManifest: typeof autoImports.streamDiffManifest
   const createFileList: typeof autoImports.createFileList
   const firstBatchSize: typeof autoImports.firstBatchSize
@@ -86,6 +121,8 @@ declare global {
   const summarizeAll: typeof autoImports.summarizeAll
   const subjectKey: typeof autoImports.subjectKey
   const pressed: typeof autoImports.pressed
+  const csrfToken: typeof autoImports.csrfToken
+  const writeHeaders: typeof autoImports.writeHeaders
   const featuresIn: typeof autoImports.featuresIn
   const featureBySlug: typeof autoImports.featureBySlug
   const useCaseBySlug: typeof autoImports.useCaseBySlug
@@ -110,7 +147,12 @@ declare global {
   const commitHistory: typeof autoImports.commitHistory
   const commitDetail: typeof autoImports.commitDetail
   const compareRefs: typeof autoImports.compareRefs
+  const parseCompareRefs: typeof autoImports.parseCompareRefs
+  const compareDiffText: typeof autoImports.compareDiffText
   const highlightLines: typeof autoImports.highlightLines
+  const readBlobWindow: typeof autoImports.readBlobWindow
+  const BLOB_WINDOW_LINES: typeof autoImports.BLOB_WINDOW_LINES
+  const renderBlobRows: typeof autoImports.renderBlobRows
   const languageFor: typeof autoImports.languageFor
   const MAX_BLOB_BYTES: typeof autoImports.MAX_BLOB_BYTES
   const listFilter: typeof autoImports.listFilter
@@ -131,6 +173,7 @@ declare global {
   const treeRows: typeof autoImports.treeRows
   const refLinks: typeof autoImports.refLinks
   const commitRows: typeof autoImports.commitRows
+  const signatureBadge: typeof autoImports.signatureBadge
   const issueStateLabel: typeof autoImports.issueStateLabel
   const issueStatePill: typeof autoImports.issueStatePill
   const labelColor: typeof autoImports.labelColor
