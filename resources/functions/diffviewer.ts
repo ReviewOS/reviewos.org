@@ -26,6 +26,7 @@ import {
   type ListItem,
   measuredLayout,
   planFrame,
+  positionsByKey,
   reconcileList,
   type ScrollAlignment,
   scrollBehaviourFor,
@@ -166,6 +167,22 @@ export function createFileList(options: {
   const count = header.querySelector<HTMLElement>('.file-list-count')!
 
   let files: readonly DiffFileEntry[] = []
+  /*
+   * The diff's numbering, translated to this list's.
+   *
+   * The rows and the filter work in positions - a sidebar is a virtualized list
+   * like any other - and everything crossing this boundary speaks the number
+   * the diff uses, because that is what the viewer beside it answers to. Equal
+   * while the list is the whole diff in order, and not equal the moment either
+   * side shows a subset.
+   */
+  let positions = new Map<number, number>()
+
+  function fileFor(index: number): DiffFileEntry | undefined {
+    const position = positions.get(index)
+
+    return position == null ? undefined : files[position]
+  }
   // The positions that survive the current filter, in diff order. Positions
   // rather than files, so everything downstream still addresses the diff by
   // the number it uses.
@@ -187,6 +204,7 @@ export function createFileList(options: {
 
   function refilter(): void {
     shown = filterFiles(files, search.value, restriction)
+    positions = positionsByKey(files.map(file => file.index))
   }
 
   /** How many files the reader has left to read, said plainly. */
@@ -242,11 +260,11 @@ export function createFileList(options: {
       // only visible once they have.
       const why = file.mechanical ? ` (${mechanicalLabel(file.mechanical)})` : ''
 
-      return `<div class="file-row${index === current ? ' is-current' : ''}${isViewed ? ' is-viewed' : ''}`
+      return `<div class="file-row${file.index === current ? ' is-current' : ''}${isViewed ? ' is-viewed' : ''}`
         + `${file.mechanical ? ' is-mechanical' : ''}">`
-        + `<input type="checkbox" class="file-viewed" data-file-index="${index}"`
+        + `<input type="checkbox" class="file-viewed" data-file-index="${file.index}"`
         + ` aria-label="Mark ${escapeAttribute(file.path)} as viewed"${isViewed ? ' checked' : ''}>`
-        + `<button type="button" class="file-open" data-file-index="${index}"`
+        + `<button type="button" class="file-open" data-file-index="${file.index}"`
         + ` title="${escapeAttribute(file.path)}${escapeAttribute(why)}">`
         + `<span class="file-status file-status-${escapeAttribute(file.status)}" aria-hidden="true"></span>`
         + `<span class="file-name">`
@@ -271,7 +289,7 @@ export function createFileList(options: {
   const onChange = (event: Event) => {
     const box = (event.target as HTMLElement | null)?.closest<HTMLInputElement>('.file-viewed')
     const index = box?.dataset.fileIndex
-    const file = index == null ? undefined : files[Number(index)]
+    const file = index == null ? undefined : fileFor(Number(index))
     if (box == null || file == null)
       return
 
@@ -336,7 +354,8 @@ export function createFileList(options: {
       // be off screen: scrolling a sidebar somebody is reading is worse than
       // letting them lose their place in it. Measured in the *filtered* list,
       // because that is what is on screen.
-      const row = shown.indexOf(index)
+      const position = positions.get(index)
+      const row = position == null ? -1 : shown.indexOf(position)
       if (row < 0)
         return
 
@@ -628,8 +647,16 @@ export interface DiffViewer {
   growBy: (index: number, pixels: number) => void
   collapseAll: (collapsed: boolean) => void
   scrollToFile: (index: number, target?: ScrollToOptions) => void
-  /** The files, in diff order. */
+  /** The files, in list order. */
   files: () => readonly DiffFileEntry[]
+  /**
+   * One file, by the number the diff calls it.
+   *
+   * The array `files()` returns is in *list* order, so indexing it directly is
+   * only right while the list is the whole diff in order. This is the lookup
+   * that stays right when it is not.
+   */
+  fileFor: (index: number) => DiffFileEntry | null
   /**
    * Where a file's top sits in the list, or null if there is no such file.
    *
@@ -733,6 +760,27 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
   const geometry: ViewportFile[] = []
   const hosts = new Map<number, HTMLElement>()
   const pool: HTMLElement[] = []
+  /*
+   * The diff's numbering, translated to this list's.
+   *
+   * Every caller addresses a file by its index in the whole diff - the number
+   * the manifest, the row fetches, the file tree and the selection all use -
+   * and this list holds positions. The two are the same number while the list
+   * is the whole diff in diff order, which is what an append-only stream
+   * produces and is why nothing has needed this until now. A list showing a
+   * subset breaks the equality at every call site at once, so the translation
+   * is here, once.
+   */
+  let positions = new Map<number, number>()
+
+  /** The position of a file, by the number the diff calls it. */
+  function slotOf(index: number): number | undefined {
+    return positions.get(index)
+  }
+
+  function reindex(): void {
+    positions = positionsByKey(entries.map(entry => entry.index))
+  }
 
   let layout = options.layout ?? 'unified'
   const overscan = options.overscan ?? DEFAULT_OVERSCAN
@@ -827,7 +875,7 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
         remeasured = true
       }
 
-      onMeasure?.(index, host)
+      onMeasure?.(entries[index]?.index ?? index, host)
     }
 
     if (remeasured) {
@@ -845,12 +893,15 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
 
     afterRender?.()
 
-    const mountedIndexes = [...hosts.keys()]
-    if (onVisibleChange && mountedIndexes.length > 0) {
-      onVisibleChange(
-        Math.min(...mountedIndexes),
-        Math.max(...mountedIndexes) + 1,
-      )
+    const mountedSlots = [...hosts.keys()]
+    if (onVisibleChange && mountedSlots.length > 0) {
+      // Reported in the diff's numbering, like everything else this viewer
+      // hands out: the file tree receives it and addresses the diff back.
+      const first = entries[Math.min(...mountedSlots)]?.index
+      const last = entries[Math.max(...mountedSlots)]?.index
+
+      if (first != null && last != null)
+        onVisibleChange(first, last + 1)
     }
   }
 
@@ -865,7 +916,9 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
 
     const host = pooled ?? createHost()
     counters.mounts++
-    host.dataset.fileIndex = String(index)
+    // The diff's number rather than the position: everything that reads this
+    // attribute passes it back into a method that expects the diff's number.
+    host.dataset.fileIndex = String(entry.index)
     host.dataset.path = entry.path
 
     renderFile(entry, host)
@@ -972,6 +1025,7 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
         geometry.push({ rows: file.rows, collapsed: file.collapsed })
       }
 
+      reindex()
       schedule()
     },
 
@@ -1026,12 +1080,16 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
         })
       }
 
+      reindex()
+
       // The hosts that survived are pointing at their file again, which matters
       // for anything reading `data-file-index` off an element - a selection, an
-      // open comment box, the file tree's idea of what is on screen.
-      for (const [index, host] of hosts) {
-        host.dataset.fileIndex = String(index)
-        host.dataset.path = entries[index]?.path ?? ''
+      // open comment box, the file tree's idea of what is on screen. The
+      // attribute carries the diff's number, not the position, because that is
+      // what every reader of it passes back in.
+      for (const [slot, host] of hosts) {
+        host.dataset.fileIndex = String(entries[slot]?.index ?? slot)
+        host.dataset.path = entries[slot]?.path ?? ''
       }
 
       // Rendered after the remap, so a file whose content changed is drawn from
@@ -1068,7 +1126,8 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     },
 
     remeasure(index) {
-      const file = geometry[index]
+      const slot = slotOf(index)
+      const file = slot == null ? undefined : geometry[slot]
       if (!file)
         return
 
@@ -1081,12 +1140,13 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     },
 
     growBy(index, pixels) {
-      const file = geometry[index]
-      if (!file || !(pixels > 0))
+      const slot = slotOf(index)
+      const file = slot == null ? undefined : geometry[slot]
+      if (!file || slot == null || !(pixels > 0))
         return
 
       anchorNow()
-      file.measured = (file.measured ?? measuredLayout(geometry, { layout }).heights[index] ?? 0) + pixels
+      file.measured = (file.measured ?? measuredLayout(geometry, { layout }).heights[slot] ?? 0) + pixels
       schedule()
     },
 
@@ -1103,8 +1163,9 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     },
 
     refresh(index) {
-      const host = hosts.get(index)
-      const entry = entries[index]
+      const slot = slotOf(index)
+      const host = slot == null ? undefined : hosts.get(slot)
+      const entry = slot == null ? undefined : entries[slot]
       if (!host || !entry)
         return
 
@@ -1115,38 +1176,40 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     },
 
     setCollapsed(index, collapsed) {
-      const entry = entries[index]
-      if (!entry || entry.collapsed === collapsed)
+      const slot = slotOf(index)
+      const entry = slot == null ? undefined : entries[slot]
+      if (!entry || slot == null || entry.collapsed === collapsed)
         return
 
       anchorNow()
       entry.collapsed = collapsed
-      geometry[index]!.collapsed = collapsed
+      geometry[slot]!.collapsed = collapsed
       // What it measured was the other state, and measurements now win over
       // estimates whether a file is folded or not.
-      geometry[index]!.measured = undefined
+      geometry[slot]!.measured = undefined
 
       // Re-rendered rather than hidden with CSS, so a collapsed file is not
       // holding the markup of the eight thousand lines it is not showing.
-      if (hosts.has(index))
-        release(index)
+      if (hosts.has(slot))
+        release(slot)
 
       schedule()
     },
 
     setRows(index, rows) {
-      const entry = entries[index]
-      if (!entry)
+      const slot = slotOf(index)
+      const entry = slot == null ? undefined : entries[slot]
+      if (!entry || slot == null)
         return
 
       anchorNow()
       entry.rows = rows
-      geometry[index]!.rows = rows
+      geometry[slot]!.rows = rows
       // What it measured was the shorter file.
-      geometry[index]!.measured = undefined
+      geometry[slot]!.measured = undefined
 
-      if (hosts.has(index))
-        release(index)
+      if (hosts.has(slot))
+        release(slot)
 
       schedule()
     },
@@ -1167,6 +1230,10 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
     },
 
     scrollToFile(index, target = {}) {
+      const slot = slotOf(index)
+      if (slot == null)
+        return
+
       const { layout: current } = planFrame(
         geometry,
         new Set(hosts.keys()),
@@ -1174,7 +1241,7 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
         { layout, overscan },
       )
 
-      const top = scrollTargetFor(current, scroller.clientHeight, { ...target, index })
+      const top = scrollTargetFor(current, scroller.clientHeight, { ...target, index: slot })
       if (top == null)
         return
 
@@ -1199,8 +1266,16 @@ export function createDiffViewer(options: DiffViewerOptions): DiffViewer {
       return entries
     },
 
+    fileFor(index) {
+      const slot = slotOf(index)
+
+      return slot == null ? null : entries[slot] ?? null
+    },
+
     positionOf(index) {
-      return measuredLayout(geometry, { layout }).offsets[index] ?? null
+      const slot = slotOf(index)
+
+      return slot == null ? null : measuredLayout(geometry, { layout }).offsets[slot] ?? null
     },
 
     stats() {
@@ -1448,6 +1523,19 @@ export function mountDiffFiles(): DiffViewer | null {
    * cached markup.
    */
   let sinceChanged: Set<string> | null = null
+  /*
+   * Every file the manifest has sent, which is not the same as every file the
+   * list is showing.
+   *
+   * The viewer holds what is on screen; restricting it to the files that moved
+   * since the reader last looked means the rest have to be kept somewhere to
+   * come back to. Kept here rather than re-fetched: the manifest is the
+   * expensive part of opening a large diff, and a filter is not a reason to ask
+   * for it again.
+   */
+  const allFiles: DiffFileEntry[] = []
+  /** The paths the list is narrowed to, or null when it shows the whole diff. */
+  let restriction: ReadonlySet<string> | null = null
 
   /**
    * Where the reader's progress through this pull request is kept.
@@ -1590,7 +1678,7 @@ export function mountDiffFiles(): DiffViewer | null {
    * which hunks the reader opened.
    */
   function openFold(index: number, hunk: number): void {
-    const file = viewer.files()[index]
+    const file = viewer.fileFor(index)
     const fold = file?.folds?.find(entry => entry.hunk === hunk)
     if (!file || !fold)
       return
@@ -1659,7 +1747,7 @@ export function mountDiffFiles(): DiffViewer | null {
      * on a later frame.
      */
     onMeasure(index, host) {
-      const file = viewer.files()[index]
+      const file = viewer.fileFor(index)
       const held = windows.get(index)?.held
       if (file == null || held == null || !windowed(file))
         return
@@ -1753,7 +1841,7 @@ export function mountDiffFiles(): DiffViewer | null {
    * to be mounted at the moment.
    */
   function scheduleWindowFetch(index: number): void {
-    const file = viewer.files()[index]
+    const file = viewer.fileFor(index)
     if (file == null || !windowed(file) || rowsUrl == null)
       return
 
@@ -1898,13 +1986,12 @@ export function mountDiffFiles(): DiffViewer | null {
     if (rowsUrl == null || wanted.size === 0)
       return
 
-    const files = viewer.files()
     const batch = [...wanted].slice(0, ROW_FETCH_BATCH)
     const query = new URLSearchParams()
 
     for (const index of batch) {
       wanted.delete(index)
-      const file = files[index]
+      const file = viewer.fileFor(index)
       if (!file)
         continue
 
@@ -1928,7 +2015,7 @@ export function mountDiffFiles(): DiffViewer | null {
     // list uses.
     const indexByPath = new Map<string, number>()
     for (const index of batch) {
-      const file = files[index]
+      const file = viewer.fileFor(index)
       if (file)
         indexByPath.set(file.path, index)
     }
@@ -1982,7 +2069,7 @@ export function mountDiffFiles(): DiffViewer | null {
     const toggle = target?.closest<HTMLElement>('.diff-toggle')
     if (toggle) {
       event.preventDefault()
-      const file = viewer.files()[Number(index)]
+      const file = viewer.fileFor(Number(index))
       if (file)
         viewer.setCollapsed(Number(index), !file.collapsed)
       return
@@ -2013,7 +2100,7 @@ export function mountDiffFiles(): DiffViewer | null {
     if (comment) {
       event.preventDefault()
       const cell = comment.closest<HTMLElement>('.gutter.num[data-line]')
-      const path = viewer.files()[Number(index)]?.path
+      const path = viewer.fileFor(Number(index))?.path
       if (cell != null && path != null) {
         // A comment started from a line that is already inside the selection is
         // about the selection: the reader picked a range and then asked to talk
@@ -2033,7 +2120,7 @@ export function mountDiffFiles(): DiffViewer | null {
       // for a row that may not be mounted, and a shift-click has to extend
       // rather than navigate.
       event.preventDefault()
-      selectLine(viewer.files()[Number(index)]?.path, gutterCell, event.shiftKey)
+      selectLine(viewer.fileFor(Number(index))?.path, gutterCell, event.shiftKey)
     }
   })
 
@@ -2504,9 +2591,13 @@ export function mountDiffFiles(): DiffViewer | null {
 
   /** Fetch a file's rows again, discarding what was cached for it. */
   async function reloadFile(path: string): Promise<void> {
-    const index = viewer.files().findIndex(file => file.path === path)
-    if (index < 0)
+    // The caches below are keyed by the diff's number, like every other map on
+    // this page, so the file is looked up rather than positioned.
+    const file = viewer.files().find(entry => entry.path === path)
+    if (file == null)
       return
+
+    const index = file.index
 
     markup.delete(index)
     asked.delete(index)
@@ -2567,14 +2658,16 @@ export function mountDiffFiles(): DiffViewer | null {
           return
 
         const files = viewer.files()
-        const index = files.findIndex(entry => entry.path === target.path)
+        const file = files.find(entry => entry.path === target.path)
 
         // Not in the list yet. Later batches will call this again, so give up
         // on this attempt rather than waiting on a file that may not be coming.
-        if (index < 0)
+        if (file == null)
           return
 
-        if (files[index]!.collapsed) {
+        const index = file.index
+
+        if (file.collapsed) {
           viewer.setCollapsed(index, false)
           await nextFrame()
           continue
@@ -2657,7 +2750,7 @@ export function mountDiffFiles(): DiffViewer | null {
     if (contextUrl == null || control.dataset.busy === 'true')
       return
 
-    const file = viewer.files()[index]
+    const file = viewer.fileFor(index)
     const from = Number(control.dataset.expandFrom)
     const to = Number(control.dataset.expandTo)
     const offset = Number(control.dataset.expandOffset ?? 0)
@@ -3011,29 +3104,41 @@ export function mountDiffFiles(): DiffViewer | null {
     }
   })
 
-  /** The file the reader is looking at: the first one at or below the top. */
+  /**
+   * The file the reader is looking at: the first one at or below the top.
+   *
+   * Answered as a *position*, because its callers do arithmetic on it - the
+   * next file, the previous file - and "one more than this file's number in the
+   * diff" is not the next file in a list showing a subset. The translation back
+   * to the diff's numbering happens in `goToFile`, at the edge.
+   */
   function currentFile(): number {
+    const positions = positionsByKey(viewer.files().map(file => file.index))
     const mounted = [...region.querySelectorAll<HTMLElement>('.diff-file-host')]
-      .map(host => ({ index: Number(host.dataset.fileIndex), top: host.getBoundingClientRect().top }))
-      .filter(entry => Number.isFinite(entry.index))
-      .sort((a, b) => a.index - b.index)
+      .map(host => ({ at: positions.get(Number(host.dataset.fileIndex)), top: host.getBoundingClientRect().top }))
+      .filter((entry): entry is { at: number, top: number } => entry.at != null)
+      .sort((a, b) => a.at - b.at)
 
     const edge = view.getBoundingClientRect().top
     // A tolerance, because the file at the top is usually a pixel or two above
     // it rather than exactly on it.
     const visible = mounted.find(entry => entry.top >= edge - 4)
 
-    return visible?.index ?? mounted[mounted.length - 1]?.index ?? 0
+    return visible?.at ?? mounted[mounted.length - 1]?.at ?? 0
   }
 
-  function goToFile(index: number): void {
+  /** Takes a position in the list; speaks to the viewer in the diff's numbering. */
+  function goToFile(position: number): void {
     const files = viewer.files()
-    const clamped = Math.max(0, Math.min(index, files.length - 1))
+    const clamped = Math.max(0, Math.min(position, files.length - 1))
+    const file = files[clamped]
+    if (file == null)
+      return
 
-    if (files[clamped]?.collapsed)
-      viewer.setCollapsed(clamped, false)
+    if (file.collapsed)
+      viewer.setCollapsed(file.index, false)
 
-    viewer.scrollToFile(clamped)
+    viewer.scrollToFile(file.index)
   }
 
   /**
@@ -3078,7 +3183,7 @@ export function mountDiffFiles(): DiffViewer | null {
         host: listHost,
         store: reviewStore,
         onSelect: (index) => {
-          const file = viewer.files()[index]
+          const file = viewer.fileFor(index)
           if (file?.collapsed)
             viewer.setCollapsed(index, false)
           viewer.scrollToFile(index)
@@ -3086,9 +3191,9 @@ export function mountDiffFiles(): DiffViewer | null {
         // Marking a file read folds it away, which is the point of marking it:
         // the next unread file moves up to where the reader is looking.
         onViewedChange: (path, isViewed) => {
-          const index = viewer.files().findIndex(file => file.path === path)
-          if (index >= 0)
-            viewer.setCollapsed(index, isViewed)
+          const file = viewer.files().find(entry => entry.path === path)
+          if (file != null)
+            viewer.setCollapsed(file.index, isViewed)
         },
       })
     : null
@@ -3121,15 +3226,17 @@ export function mountDiffFiles(): DiffViewer | null {
   let treeTime = performance.now()
 
   const refreshFileList = (force = false) => {
-    const files = viewer.files()
     const now = performance.now()
 
-    if (!force && files.length - treeAt < TREE_EVERY_FILES && now - treeTime < TREE_EVERY_MS)
+    if (!force && allFiles.length - treeAt < TREE_EVERY_FILES && now - treeTime < TREE_EVERY_MS)
       return
 
-    treeAt = files.length
+    treeAt = allFiles.length
     treeTime = now
-    fileList?.setFiles(files)
+    // Everything, not what the diff is currently showing: the sidebar does its
+    // own narrowing, and "2 of 40" is a sentence it can only write if it knows
+    // about the 40.
+    fileList?.setFiles(allFiles)
   }
 
   /**
@@ -3200,7 +3307,7 @@ export function mountDiffFiles(): DiffViewer | null {
 
     for (const host of region.querySelectorAll<HTMLElement>('.diff-file-host')) {
       const index = Number(host.dataset.fileIndex)
-      const file = viewer.files()[index]
+      const file = viewer.fileFor(index)
       if (!file || !sinceChanged.has(file.path))
         continue
 
@@ -3224,7 +3331,7 @@ export function mountDiffFiles(): DiffViewer | null {
    * file is remeasured in place.
    */
   async function openInterdiff(index: number, control: HTMLElement): Promise<void> {
-    const file = viewer.files()[index]
+    const file = viewer.fileFor(index)
     if (!file || !interdiffUrl)
       return
 
@@ -3330,15 +3437,35 @@ export function mountDiffFiles(): DiffViewer | null {
     control.addEventListener('click', () => {
       const on = control.getAttribute('aria-pressed') !== 'true'
       control.setAttribute('aria-pressed', on ? 'true' : 'false')
-      fileList.setRestriction(on ? changed : null)
+
+      restriction = on ? changed : null
+      fileList.setRestriction(restriction)
+
+      /*
+       * And the diff itself, which is the point.
+       *
+       * Narrowing only the sidebar left the reader scrolling past forty
+       * unchanged files to reach the three that moved - the list said "3 of 43"
+       * while showing all 43. `setFiles` keeps what the two lists have in
+       * common: the files that survive keep their element, their measured
+       * height and their fetched rows, and the reader's place follows the file
+       * they were in rather than the position it used to occupy. Nothing is
+       * re-downloaded in either direction, because the caches are keyed by the
+       * diff's number and every file kept its number.
+       */
+      viewer.setFiles(restriction == null ? allFiles : allFiles.filter(file => restriction!.has(file.path)))
     })
   }
 
   void streamDiffManifest(manifestUrl, {
     onFiles(files) {
-      viewer.addFiles(files)
+      allFiles.push(...files)
+      // A file arriving while the list is narrowed joins the list only if it
+      // belongs to what the reader asked to see. It is in `allFiles` either
+      // way, so turning the filter off shows it without another request.
+      viewer.addFiles(restriction == null ? files : files.filter(file => restriction!.has(file.path)))
       refreshFileList()
-      say(`${viewer.files().length} files…`)
+      say(`${allFiles.length} files…`)
     },
     onRows(index, html) {
       markup.set(index, { html, layout: servedLayout })

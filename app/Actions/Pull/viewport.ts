@@ -282,6 +282,34 @@ export function reconcileList(
 }
 
 /**
+ * Where each item sits, by the number the caller addresses it with.
+ *
+ * The list holds a *position* - first, second, third - and everything outside
+ * it speaks the diff's own numbering, which is the file's index in the whole
+ * diff. Those are the same number only while the list is the whole diff in
+ * order, which is true right up until something shows a subset: the files that
+ * changed since the reader last looked, a search, one directory of a large
+ * compare.
+ *
+ * When they diverge, every call addressing a file by the diff's number lands on
+ * whatever happens to be in that slot - which is a different file, rendered
+ * perfectly. So the translation lives here, once, rather than at each of the
+ * dozen call sites that would each have to remember.
+ *
+ * Later positions win for a repeated key, matching how a list would overwrite
+ * one: the caller's numbers are unique in every real use, and a plan that threw
+ * would turn a mistake in a filter into a blank screen.
+ */
+export function positionsByKey(keys: readonly number[]): Map<number, number> {
+  const positions = new Map<number, number>()
+
+  for (let position = 0; position < keys.length; position++)
+    positions.set(keys[position]!, position)
+
+  return positions
+}
+
+/**
  * The anchor, following its item rather than its index.
  *
  * The offset inside the item is kept as it was: the reader is a certain

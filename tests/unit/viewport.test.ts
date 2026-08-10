@@ -12,6 +12,7 @@ import {
   measuredLayout,
   planFrame,
   planMounts,
+  positionsByKey,
   reconcileList,
   restoreAnchor,
   scrollBehaviourFor,
@@ -677,5 +678,106 @@ describe('reconcileList', () => {
     expect(second.rerender).toEqual([])
     expect(second.release).toEqual([])
     expect(second.keep).toEqual([{ from: 0, to: 0 }, { from: 1, to: 1 }, { from: 2, to: 2 }])
+  })
+})
+
+/**
+ * The diff's numbering, and the list's.
+ *
+ * Everything outside the viewer addresses a file by its index in the whole diff
+ * - the number the manifest, the row fetches and the file tree all use - and
+ * the list holds positions. They are the same number only while the list is the
+ * whole diff in order, which stops being true the moment anything shows a
+ * subset.
+ */
+describe('positionsByKey', () => {
+  test('the whole diff in order is the identity, which is why nothing noticed', () => {
+    expect([...positionsByKey([0, 1, 2, 3]).entries()]).toEqual([[0, 0], [1, 1], [2, 2], [3, 3]])
+  })
+
+  test('a subset maps the diff\'s numbers onto the positions it kept', () => {
+    // Files 2, 5 and 9 of a diff survive a filter: three positions, and the
+    // numbers the rest of the product still calls them by.
+    const positions = positionsByKey([2, 5, 9])
+
+    expect(positions.get(2)).toBe(0)
+    expect(positions.get(5)).toBe(1)
+    expect(positions.get(9)).toBe(2)
+  })
+
+  test('a file the list is not showing has no position at all', () => {
+    // Undefined rather than 0, which is a real file and the one at the top.
+    expect(positionsByKey([2, 5, 9]).get(3)).toBeUndefined()
+  })
+
+  test('an empty list maps nothing', () => {
+    expect(positionsByKey([]).size).toBe(0)
+  })
+
+  test('a repeated key resolves to the later position, as a list would', () => {
+    expect(positionsByKey([4, 4]).get(4)).toBe(1)
+  })
+})
+
+/**
+ * The filter, as the screen actually performs it.
+ *
+ * "Changed since you looked" used to narrow the sidebar and leave the diff
+ * whole: the list said "3 of 43" while the reader scrolled past forty unchanged
+ * files to reach the three that moved. Narrowing both halves is a list that
+ * changes shape under somebody in the middle of reading it, which is the case
+ * every position-addressed list gets wrong.
+ */
+describe('narrowing the diff to what changed, and putting it back', () => {
+  const whole = Array.from({ length: 43 }, (_, index) => item(`file-${index}.ts`, { measured: 200 + index }))
+  const changed = new Set(['file-7.ts', 'file-19.ts', 'file-31.ts'])
+
+  test('the files that survive keep their element and their measured height', () => {
+    const narrowed = whole.filter(file => changed.has(file.id))
+
+    // The reader is inside file 19, with 7, 19 and 31 mounted around them.
+    const plan = reconcileList(whole, narrowed, {
+      mounted: new Set([7, 19, 31]),
+      anchor: { index: 19, offset: 140 },
+    })
+
+    expect(plan.keep).toEqual([{ from: 7, to: 0 }, { from: 19, to: 1 }, { from: 31, to: 2 }])
+    expect(plan.release).toEqual([])
+    expect(plan.measured).toEqual([207, 219, 231])
+
+    // And they are still reading file 19, which is now the second row rather
+    // than the twentieth.
+    expect(plan.anchor).toEqual({ index: 1, offset: 140 })
+  })
+
+  test('everything else is released rather than left in the document', () => {
+    const narrowed = whole.filter(file => changed.has(file.id))
+    const plan = reconcileList(whole, narrowed, { mounted: new Set([4, 5, 6, 7]) })
+
+    expect(plan.release).toEqual([4, 5, 6])
+    expect([...plan.mounted]).toEqual([0])
+  })
+
+  test('turning it off restores the whole diff without disturbing what is on screen', () => {
+    const narrowed = whole.filter(file => changed.has(file.id))
+    const back = reconcileList(narrowed, whole, {
+      mounted: new Set([0, 1, 2]),
+      anchor: { index: 1, offset: 140 },
+    })
+
+    expect(back.keep).toEqual([{ from: 0, to: 7 }, { from: 1, to: 19 }, { from: 2, to: 31 }])
+    expect(back.release).toEqual([])
+    expect(back.anchor).toEqual({ index: 19, offset: 140 })
+  })
+
+  test('a file arriving while narrowed does not appear until the filter is lifted', () => {
+    // The manifest is still streaming. The new file is not in the narrowed
+    // list, so nothing about the mounted set changes.
+    const narrowed = whole.filter(file => changed.has(file.id))
+    const plan = reconcileList(narrowed, narrowed, { mounted: new Set([0, 1, 2]) })
+
+    expect(plan.rerender).toEqual([])
+    expect(plan.release).toEqual([])
+    expect(plan.keep.length).toBe(3)
   })
 })

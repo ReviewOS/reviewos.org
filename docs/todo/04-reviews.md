@@ -334,8 +334,15 @@ this is where the claim is either true or marketing.
 
   Answered as a *list of files*, not a diff. The reviewer already has the diff on screen; what they
   are missing is which of its three hundred files their earlier conclusion no longer covers. So the
-  endpoint returns paths and the sidebar filters what is already there, which also means no second
+  endpoint returns paths and the screen filters what is already there, which also means no second
   copy of the patch crosses the wire.
+
+  It narrowed only the *sidebar* until the viewer learned to hold a subset - the list said "3 of 43"
+  while the diff beside it still showed all 43, so the reader scrolled past forty unchanged files to
+  reach the three that moved. Both halves narrow together now, and nothing is re-fetched in either
+  direction: a file that survives the filter keeps its element, its measured height and the rows
+  already downloaded for it, and the reader's place follows the file they were reading rather than
+  the position it used to occupy. Written up in [phase 14](./14-diff-engine.md#virtualization-the-list-is-the-product).
 
   `git diff lastSeen head` is the obvious implementation and it is wrong twice over. Two tips
   compared directly carry every commit that landed on the base in between, so a reviewer who looked

@@ -425,37 +425,44 @@ Two of those found real bugs on the first run, which is the argument for writing
 This is the core of it. One scroll region contains every file; only what is near the viewport exists
 in the DOM.
 
-- [ ] A viewer that owns a list of items (a file diff or a plain file), each with a stable id and a
+- [x] A viewer that owns a list of items (a file diff or a plain file), each with a stable id and a
       `version` that increments when anything about it changes. Item identity plus version is what
       decides whether a mounted item needs re-rendering.
-
-  **Half of this landed and the half that did not is worth naming precisely.**
 
   `reconcileList` in `app/Actions/Pull/viewport.ts` is the decision, pure and tested like everything
   else in that file: items carry an `id` (the path, which survives a rename arriving late because a
   rename reports the *new* path) and a `version`, and a change to the list produces what to keep,
-  what to render again, what to release, which measurements carry across, and where the reader's
-  anchor moved to. `DiffViewer.setFiles` applies it.
+  what to render again in place, what to release, which measurements carry across, and where the
+  reader's anchor moved to. `DiffViewer.setFiles` applies it.
 
-  What that buys is the case a position-addressed list gets silently wrong: **inserting one item at
+  What it buys is the case a position-addressed list gets silently wrong: **inserting one item at
   the top renames every item below it.** The host mounted for `src/app.ts` starts showing
   `src/api.ts`, its measured height belongs to neither, and the anchor points at whatever moved into
   the slot the reader was in - a correct render of the wrong thing, which no screenshot flags.
   Appending cannot show it, and appending is all a manifest stream does, which is how the list got
   this far without identity.
 
-  It has no caller yet, and that is the honest state. The obvious one - restricting the diff to the
-  files that changed since the reader last looked, which today filters only the tree beside it -
-  needs something else first: **every call site addresses a file by the server's index**
-  (`viewer.refresh(index)`, `setRows`, `growBy`, the markup map, the row fetch queue), and that
-  equals its position in the list only because the stream appends in order. Filtering breaks that
-  equality everywhere at once. The next step is an id-to-position map inside the viewer so the
-  server's index stays the vocabulary at the edges, and positions stay private.
+  **Two numberings, kept apart.** Everything outside the viewer addresses a file by its index in the
+  whole diff - the manifest, the row fetches, the markup cache, the sidebar, the selection - and the
+  list holds positions. Those were the same number until something showed a subset. They are now
+  translated once, at the viewer's edge (`positionsByKey`, `slotOf`, `fileFor`), rather than at the
+  dozen call sites that would each have had to remember; the same rule is applied inside the sidebar,
+  which had the identical confusion in its own rows. Every element carries the diff's number in
+  `data-file-index`, and `j`/`k` do their arithmetic in positions and translate on the way out,
+  because "one more than this file's number in the diff" is not the next file in a narrowed list.
 
-  Not wired to a live update on purpose: a new head is [deliberately a banner rather than a
-  refresh](./14-diff-engine.md) - `live.ts` says why, and it is right. Every line number on screen
-  may have moved and a draft anchored to one is anchored to the wrong line, so the reader chooses
-  the reload.
+  A plain file is supported by the viewer rather than exercised by it: items are opaque to it -
+  heights come from row counts and rendering is a callback - so nothing about a diff is assumed.
+  Nothing mounts a plain file through it yet; that is the box below.
+
+  Not wired to a live update on purpose: a new head stays a banner. `live.ts` says why and it is
+  right - every line number on screen may have moved and a draft anchored to one is anchored to the
+  wrong line, so the reader chooses the reload.
+- [ ] A plain file through the same viewer, so browsing a thirty thousand line file in a repository
+      is windowed the way a thirty thousand row diff already is. The viewer is ready for it; what is
+      missing is a rows endpoint for a blob and the browse screen asking for one. Today
+      `RepoBrowser` renders the whole file server-side, which is the small-case decision the diff
+      surface makes too - and it has the same one failure mode at the top end.
 - [x] Estimated heights computed from hunk metadata alone, without rendering: header height, line
       height, hunk separator height, collapsed-context threshold, and whether the item is collapsed.
       A list of 40,000 files needs a total height before any of them has been measured.
