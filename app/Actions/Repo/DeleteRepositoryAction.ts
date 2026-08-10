@@ -62,6 +62,9 @@ export default new Action({
       subject: { type: 'repository', id: Number(repository.id) },
       actorId: user?.id ?? null,
       tokenId: await tokenIdFor(request),
+      repositoryId: Number(repository.id),
+      organizationId: repository.owner_type === 'organization' ? Number(repository.owner_id) : null,
+      userAgent: String(request?.headers?.get?.('user-agent') ?? '') || null,
       detail: { owner, name: repository.name, retired_to: retired, swept: swept.removed },
     })
 

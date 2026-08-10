@@ -56,6 +56,14 @@ export interface TokenAudit {
   actorId?: number | null
   /** The credential the request carried, when the actor used one. */
   actingTokenId?: number | null
+  /**
+   * The organization, for a machine account's token.
+   *
+   * A machine account belongs to an organization, so its token's lifecycle is
+   * that organization's business - and the owner reading their own audit log is
+   * exactly who should see a token being issued to their agent.
+   */
+  organizationId?: number | null
   reason?: string | null
   detail?: Record<string, unknown>
   ip?: string | null
@@ -80,6 +88,7 @@ export async function recordTokenAudit(entry: TokenAudit): Promise<boolean> {
     // the token acting - and passing null there is deliberate rather than an
     // omission.
     actorId: entry.actorId === undefined ? entry.ownerId : entry.actorId,
+    organizationId: entry.organizationId ?? null,
     reason: entry.reason ?? null,
     detail: {
       owner_id: entry.ownerId,

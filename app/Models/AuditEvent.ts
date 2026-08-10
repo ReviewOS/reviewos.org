@@ -34,6 +34,14 @@ export default defineModel({
     // repository, and what has this person been doing.
     { name: 'audit_events_subject_index', columns: ['subject_type', 'subject_id', 'created_at'] },
     { name: 'audit_events_actor_index', columns: ['actor_id', 'created_at'] },
+    /*
+     * The scope read: an organization owner asking what happened in their own
+     * organization. Without this it is a sequential scan of a table that only
+     * ever grows, on the one page whose whole purpose is to be looked at after
+     * something went wrong.
+     */
+    { name: 'audit_events_organization_index', columns: ['organization_id', 'created_at'] },
+    { name: 'audit_events_repository_index', columns: ['repository_id', 'created_at'] },
   ],
 
   traits: {
@@ -116,9 +124,35 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * The organization and repository this concerns, when it concerns one.
+     *
+     * Denormalised out of the polymorphic subject on purpose, and the reason is
+     * the reading rather than the writing: **an organization owner may read
+     * their own scope**, and "every event whose subject is a repository owned
+     * by this organization" is not a query a polymorphic subject can answer
+     * without joining to whichever table the subject happens to live in.
+     *
+     * A column that is sometimes null and cheap to filter beats a correct join
+     * nobody can write, on a table that only grows.
+     */
+    organization_id: {
+      order: 6,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    repository_id: {
+      order: 7,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
     /** Who, when there is no local account - a token owner, a remote name. */
     external_actor: {
-      order: 6,
+      order: 8,
       fillable: true,
       validation: { rule: schema.string().max(120) },
       factory: () => null,
@@ -132,7 +166,7 @@ export default defineModel({
      * to write them.
      */
     reason: {
-      order: 7,
+      order: 11,
       fillable: true,
       type: 'text',
       validation: { rule: schema.string() },
@@ -147,15 +181,32 @@ export default defineModel({
      * with a column per action is a table that is mostly null.
      */
     detail: {
-      order: 8,
+      order: 12,
       fillable: true,
       type: 'text',
       validation: { rule: schema.string() },
       factory: () => null,
     },
 
-    ip_address: {
+    /**
+     * What the request said it was.
+     *
+     * Kept because it is the fastest way to tell a person from a script after
+     * the fact, and because a change made by something calling itself
+     * `curl/8.4` at 3am is a different story from one made by a browser.
+     *
+     * Not to be trusted, obviously - it is a string a client chose - which is
+     * why it sits beside `access_token_id` rather than instead of it.
+     */
+    user_agent: {
       order: 9,
+      fillable: true,
+      validation: { rule: schema.string().max(255) },
+      factory: () => null,
+    },
+
+    ip_address: {
+      order: 10,
       fillable: true,
       validation: { rule: schema.string().max(45) },
       factory: () => null,

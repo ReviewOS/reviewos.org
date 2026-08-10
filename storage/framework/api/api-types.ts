@@ -513,6 +513,29 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/audit": {
+    get: {
+    parameters: {
+      query?: { "organization_id"?: number; "actor_id"?: number; "owner"?: string; "repo"?: string; "action"?: string; "since"?: string; "until"?: string; "limit"?: number; "before"?: number; "format"?: "json" | "jsonl" }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/auth/login": {
     get?: never
     put?: never

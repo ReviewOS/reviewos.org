@@ -286,6 +286,11 @@ route.post(GATE_ENDPOINT, async (request: any) => {
       // A push over HTTP is always a token, never a session, so this is the
       // line that says *which* credential overrode the protection.
       tokenId: await tokenIdFor(request),
+      // Scope, so this shows up when the repository's organization owner asks
+      // what happened rather than only when an instance administrator does.
+      repositoryId: Number(repository.id),
+      organizationId: repository.owner_type === 'organization' ? Number(repository.owner_id) : null,
+      userAgent: String(request?.headers?.get?.('user-agent') ?? '') || null,
       reason: bypass.reason,
       detail: {
         refs: protection.map(one => one.ref),

@@ -735,6 +735,31 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "organization_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "user_agent",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 255
           }
         ],
         "indexes": [
@@ -761,6 +786,22 @@
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "audit_events_organization_index",
+            "columns": [
+              "organization_id",
+              "created_at"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "audit_events_repository_index",
+            "columns": [
+              "repository_id",
+              "created_at"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -6914,7 +6955,7 @@
       }
     ]
   },
-  "hash": "d1bca78b7994d06a61b81cdeb6e43a354baea62fd1d4cef6859c9caf6358a33b",
+  "hash": "7d904400e8bb069bef72e9ece8da9b95fd2e25c41c618197900009c612457db5",
   "dialect": "postgres",
-  "updatedAt": "2026-08-09T03:38:55.490Z"
+  "updatedAt": "2026-08-09T23:35:21.880Z"
 }

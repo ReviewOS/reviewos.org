@@ -281,19 +281,61 @@ promise, so the operational story is a feature and not an afterthought.
 One log, not a per-feature afterthought, because the question it answers is asked after something has
 already gone wrong and there is no second chance to have recorded it.
 
-- [ ] `app/Models/AuditEvent.ts`: `actor_id`, `access_token_id`, `action`, polymorphic subject,
+- [x] `app/Models/AuditEvent.ts`: `actor_id`, `access_token_id`, `action`, polymorphic subject,
       `organization_id`, `repository_id`, `ip`, `user_agent`, `metadata`, `created_at`
+
+  All of them, with `metadata` keeping the name `detail` it already had - renaming a column every
+  reader and writer already uses, to match a word in this list, is churn rather than clarity.
+
+  `organization_id` and `repository_id` are denormalised out of the polymorphic subject on purpose,
+  and the reason is the *reading*: an organization owner reads their own scope, and "every event
+  about a repository this organization owns" is not a question a polymorphic subject can answer
+  without joining to whichever table the subject happens to live in. A column that is sometimes null
+  and cheap to filter beats a correct join nobody can write, on a table that only grows.
 - [ ] Written by listeners on domain events, the same way the activity feed is, rather than by a
       call added to each action and forgotten in the next one
 - [ ] Covers the things worth reconstructing: permission and role changes, token and key lifecycle,
       protected branch and rule changes, push protection bypasses, visibility changes, transfers and
       deletions, and administrative action
-- [ ] Distinct from the activity feed. The feed is a product surface and hides what you cannot see;
+- [x] Distinct from the activity feed. The feed is a product surface and hides what you cannot see;
       the audit log is a record and hides nothing from an owner.
-- [ ] Append-only in the interface and in the API, exportable as JSON lines, and streamable to an
+
+  Different tables, different readers, different rule. An event about a private repository is in that
+  repository's organization owner's log whether or not they could open the repository page - which is
+  the whole point, and is why the two could not share an implementation.
+- [x] Append-only in the interface and in the API, exportable as JSON lines, and streamable to an
       external collector for instances that need retention beyond the database
-- [ ] Searchable by actor, subject, repository and time range, and readable by organization owners
+
+  **Append-only is the absence of a route rather than a setting.** A setting called append-only is
+  one somebody turns off; a table with no endpoint that writes to it outside `recordAudit` is one
+  nobody can quietly correct. A test asserts that POST, PUT, PATCH and DELETE all refuse.
+
+  `?format=jsonl` streams JSON lines, one object per line, so `grep` works on it and an import
+  elsewhere is a loop rather than a parser. Streamed through a generator rather than assembled: an
+  instance with a year of history should be able to export it without holding it all at once. Same
+  endpoint as the JSON read, deliberately - a second endpoint is a second place the scope check has
+  to be right.
+
+  Streaming to an external collector is left to that: an operator pipes the export where they want
+  it. Building a push integration would be inventing a protocol when `curl` already exists.
+- [x] Searchable by actor, subject, repository and time range, and readable by organization owners
       for their own scope rather than only by an instance administrator
+
+  `GET /api/audit`. Paged by keyset rather than offset, because this table is written to while
+  somebody reads it and offset paging over a table being written to silently skips rows - on the one
+  page whose entire purpose is completeness.
+
+  An owner reading their own organization is the point. Without it, reading the log means asking an
+  administrator to grep for you, which is why most instances have an audit log nobody has ever read.
+  A *member* cannot: an audit log records what members do, and handing it to every member is handing
+  everybody a record of everybody. Refusals are 404 rather than 403, because 403-versus-404 on an
+  organization id is a membership oracle.
+
+  The time range caught a trap worth recording. `created_at` holds the **database's** wall clock, the
+  suite runs in UTC, and the Postgres here is in Pacific - so an unconverted bound returned nothing,
+  and nothing reads as "it did not happen", which is precisely the conclusion this table exists to
+  prevent. The offset is measured with `LOCALTIMESTAMP` rather than assumed from the process, because
+  the two agree only by convention.
 
 ### Account security
 

@@ -26,6 +26,17 @@ export interface AuditEntry {
    */
   tokenId?: number | null
   externalActor?: string | null
+  /**
+   * The scope this belongs to, for the reads rather than the writes.
+   *
+   * An organization owner may read their own log, and "every event about a
+   * repository this organization owns" is not a question the polymorphic
+   * subject can answer without knowing which table the subject lives in.
+   */
+  organizationId?: number | null
+  repositoryId?: number | null
+  /** What the client called itself. Untrusted, and the fastest way to tell a script from a person. */
+  userAgent?: string | null
   reason?: string | null
   detail?: unknown
   ip?: string | null
@@ -41,6 +52,9 @@ export async function recordAudit(entry: AuditEntry): Promise<boolean> {
         subject_id: entry.subject?.id ?? null,
         actor_id: entry.actorId ?? null,
         access_token_id: entry.tokenId ?? null,
+        organization_id: entry.organizationId ?? null,
+        repository_id: entry.repositoryId ?? null,
+        user_agent: entry.userAgent?.slice(0, 255) ?? null,
         external_actor: entry.externalActor?.slice(0, 120) ?? null,
         reason: entry.reason ?? null,
         // Serialized here rather than at the call site, so every row's `detail`
@@ -112,5 +126,24 @@ export async function tokenIdFor(request: any): Promise<number | null> {
     // An audit row with the actor and no token is worth writing; one that
     // failed to be written because the lookup threw is not.
     return null
+  }
+}
+
+/**
+ * The parts of an audit entry a request can supply on its own.
+ *
+ * Spread into a `recordAudit` call so a caller writes one line rather than
+ * four, and so a new field added here reaches every call site at once instead
+ * of reaching the ones somebody remembered.
+ */
+export async function auditFrom(request: any): Promise<{ tokenId: number | null, ip: string | null, userAgent: string | null }> {
+  return {
+    tokenId: await tokenIdFor(request),
+    // The first entry of `x-forwarded-for`: the client as the nearest trusted
+    // proxy saw it. The rest of that list is whatever the client claimed.
+    ip: String(request?.headers?.get?.('x-forwarded-for') ?? '').split(',')[0]?.trim()
+      || String(request?.headers?.get?.('x-real-ip') ?? '').trim()
+      || null,
+    userAgent: String(request?.headers?.get?.('user-agent') ?? '').trim() || null,
   }
 }

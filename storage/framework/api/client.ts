@@ -254,6 +254,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/audit
+   */
+  getAudit(input?: { "organization_id"?: number; "actor_id"?: number; "owner"?: string; "repo"?: string; "action"?: string; "since"?: string; "until"?: string; "limit"?: number; "before"?: number; "format"?: "json" | "jsonl" }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/audit", input ?? {}, ["organization_id", "actor_id", "owner", "repo", "action", "since", "until", "limit", "before", "format"], false, options)
+  },
+
+  /**
    * POST /api/auth/login
    */
   postAuthLogin(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

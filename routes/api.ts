@@ -40,6 +40,21 @@ route.get('/health', 'Actions/Ops/HealthAction')
 route.get('/metrics', 'Actions/Ops/MetricsAction')
 
 /*
+ * The audit log, read-only.
+ *
+ * **There is no write route, and that absence is the append-only guarantee.** A
+ * setting called append-only is one somebody turns off; a table with no
+ * endpoint that writes to it outside `recordAudit` is one nobody can quietly
+ * correct.
+ *
+ * An instance administrator reads everything; an organization owner reads their
+ * own organization by passing `organization_id`. Everybody else gets a 404 -
+ * the same answer as for an organization that does not exist, because
+ * 403-versus-404 here is a membership oracle.
+ */
+route.get('/audit', 'Actions/Ops/AuditLogAction')
+
+/*
  * The OpenAPI document, at a stable public URL.
  *
  * Generating it is not publishing it: a document only somebody with the source
