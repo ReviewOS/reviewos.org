@@ -493,10 +493,27 @@ in the DOM.
     produced by the feature.
   - `Math.min` and `toLocaleString()` in the markup, same result, in a block that only renders for a
     windowed file - so it looked perfect on every file small enough not to need it.
-- [ ] And through the viewer, so it scrolls as one file rather than paging. The server half is done
-      and the endpoint is the one the client would use; what is left is mounting the viewer on the
-      browse screen and fetching windows as the reader moves, the way `mountDiffFiles` does for a
-      very large file in a diff.
+- [x] And scrolled rather than paged, so a large file reads as one file.
+
+  `mountBlobWindow` keeps two spacer rows standing in for what is not mounted, sized so the
+  document's height is the whole file's height at every scroll position - otherwise the scrollbar
+  describes two thousand lines of a forty thousand line file, and the end keeps moving further away
+  as the reader approaches it.
+
+  **It shares the arithmetic rather than the viewer**, and that distinction is the honest version of
+  this box. `app/Actions/Pull/window.ts` decides which rows are visible, which window covers them
+  with room either side, and whether the one in hand still does - the same module the diff viewer
+  windows a very large file with, so a fix to either surface is a fix to both. What it does *not*
+  use is `createDiffViewer`, because that virtualizes a *list* and a file is one item: the part a
+  blob needs is the windowing inside an item, which is exactly what `window.ts` is.
+
+  The links stay in the markup and are hidden once the script is running. They are the path for a
+  reader with nothing to run it, and leaving them visible would be two ways through one file, one of
+  which reloads the page and loses their place.
+
+  The one piece of arithmetic that can be wrong while everything looks right is the seam between a
+  row index and a line number - the client windows in rows, the endpoint answers in lines - so it is
+  one exported function with its own test rather than a `+ 1` at four call sites.
 - [x] Estimated heights computed from hunk metadata alone, without rendering: header height, line
       height, hunk separator height, collapsed-context threshold, and whether the item is collapsed.
       A list of 40,000 files needs a total height before any of them has been measured.

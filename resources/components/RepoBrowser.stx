@@ -180,6 +180,19 @@ const windowUrl = `${base}/tree/${joinRefAndPath(ref, requestedPath)}`
 const sourceFrom = `${source?.from ?? 1}`
 const sourceTotal = `${source?.total ?? 0}`
 
+/*
+ * Where the browser asks for another window.
+ *
+ * Built here, with the encoding done in the script: `encodeURIComponent` in an
+ * interpolation is a helper that is not in template scope, and the block it
+ * appears in disappears - which is how the mode bar on the review screen went
+ * missing once already.
+ */
+const blobRowsUrl = isFile
+  ? `/api/repos/blob/rows?owner=${encodeURIComponent(ownerHandle)}&repo=${encodeURIComponent(repositoryName)}`
+    + `&ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(requestedPath)}`
+  : ''
+
 const rows = treeRows(entries, base, ref, requestedPath, formatSize, shortSha)
 const branchLinks = refLinks(branches, base, ref, requestedPath)
 const tagLinks = refLinks(tags, base, ref, requestedPath)
@@ -325,6 +338,7 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
             :lines="highlighted"
             from="{{ sourceFrom }}"
             total="{{ sourceTotal }}"
+            rowsUrl="{{ blobRowsUrl }}"
             windowUrl="{{ windowUrl }}"
             :markdownHtml="blobMarkdownHtml" />
         @endif

@@ -26,6 +26,7 @@ import { renderBlobRows } from '../functions/browse'
 const firstLine = Number(typeof from === 'undefined' ? '1' : String(from || '1')) || 1
 const totalLines = Number(typeof total === 'undefined' ? '0' : String(total || '0')) || 0
 const rowsHref = typeof windowUrl === 'undefined' ? '' : String(windowUrl)
+const rowsEndpoint = typeof rowsUrl === 'undefined' ? '' : String(rowsUrl)
 const shown = typeof lines === 'undefined' || lines == null ? 0 : lines.length
 const lastLine = firstLine + shown - 1
 
@@ -81,7 +82,7 @@ const remainingLabel = Math.min(shown, Math.max(0, totalLines - lastLine)).toLoc
       </p>
     @endif
 
-    <table class="source" data-blob-window data-from="{{ firstLine }}" data-total="{{ totalLines }}">
+    <table class="source" data-blob-window data-from="{{ firstLine }}" data-total="{{ totalLines }}" data-rows-url="{{ rowsEndpoint }}">
       <tbody>{!! renderBlobRows(typeof lines === 'undefined' || lines == null ? [] : lines, { from: firstLine }) !!}</tbody>
     </table>
 

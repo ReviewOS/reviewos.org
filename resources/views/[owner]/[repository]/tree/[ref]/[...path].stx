@@ -26,6 +26,21 @@ const fromLine = String(search.from ?? '')
 
 @section('title', `${params.path ? `${params.path} · ` : ''}${params.owner}/${params.repository}`)
 
+{{--
+  Imported by its path from the project root rather than relatively: a
+  `<script client>` block is composed into the layout before it is bundled, so
+  a relative import resolves against `resources/views/layouts/`.
+
+  It does nothing on a directory, on a small file, or without a rows endpoint -
+  the module returns before it touches anything - so this costs a page that is
+  not a large file one function call.
+--}}
+<script client>
+import { mountBlobWindow } from '@/resources/functions/blobviewer'
+
+mountBlobWindow()
+</script>
+
 @section('content')
   <RepoBrowser
     owner="{{ params.owner }}"

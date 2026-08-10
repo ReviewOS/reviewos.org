@@ -232,6 +232,48 @@ describe('a file too large to render whole', () => {
   }, 30_000)
 })
 
+describe('what the page hands the browser', () => {
+  test('the table says where it is, how long the file is, and where to ask', async () => {
+    if (!available)
+      return
+
+    const { html } = await page(`/${created.handle}/${created.name}/tree/main/big.ts`)
+
+    // The three things `mountBlobWindow` needs. Asserted as markup because they
+    // are markup: a missing attribute leaves the module returning early, which
+    // is a page that quietly stays paged.
+    expect(html).toContain('data-blob-window')
+    expect(html).toContain(`data-total="${LINES}"`)
+    expect(html).toContain('data-from="1"')
+    expect(html).toContain('/api/repos/blob/rows?owner=')
+  }, 30_000)
+
+  test('and the links stay in the markup, because they are the path without a script', async () => {
+    if (!available)
+      return
+
+    const { html } = await page(`/${created.handle}/${created.name}/tree/main/big.ts`)
+
+    // `mountBlobWindow` hides these once it is running. They have to be in the
+    // document for it to hide them, and they have to work for a reader who has
+    // nothing to run it.
+    expect(html).toContain('class="file-window-nav"')
+    expect(html).toContain('?from=2001')
+  }, 30_000)
+
+  test('and the page carries the script that takes over', async () => {
+    if (!available)
+      return
+
+    const { html } = await page(`/${created.handle}/${created.name}/tree/main/big.ts`)
+
+    // Whatever shape the bundler gives it, the mount has to reach the page: a
+    // view that renders the attributes and ships no script is a file that
+    // silently stays paged.
+    expect(/mountBlobWindow|blobviewer/.test(html)).toBe(true)
+  }, 30_000)
+})
+
 describe('the rows endpoint', () => {
   test('answers for a window in the middle, as rows', async () => {
     if (!available)
