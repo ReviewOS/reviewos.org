@@ -991,3 +991,213 @@ describe('importing from Gitea, which is the same shape until it is not', () => 
     }
   }, 120_000)
 })
+
+describe('importing from GitLab, which is a different vocabulary', () => {
+  test('reads iid, notes, discussions and the encoded project path', async () => {
+    if (!available)
+      return
+
+    /*
+     * A GitLab-shaped fixture. Everything here is a place the importer can be
+     * confidently wrong and lose data while reporting success:
+     *
+     * - the project is addressed by an encoded path, so `/projects/acme/api`
+     *   would be a different endpoint answering 404;
+     * - issues and merge requests are numbered by `iid`, and reading `id`
+     *   gives plausible-looking numbers that break every cross reference;
+     * - a merged merge request is `merged`, not merely closed;
+     * - review comments live in a discussion's `position`, and a comment on a
+     *   deleted line has only `old_line`.
+     */
+    const db = (globalThis as any).db
+
+    const gitlab = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch(request: Request) {
+        const url = new URL(request.url)
+        const path = url.pathname
+        const json = (items: unknown) => Response.json(items, { headers: { 'x-next-page': '' } })
+
+        // The encoded form, and only the encoded form. An unencoded path would
+        // arrive here as `/api/v4/projects/acme/api` and is refused loudly
+        // rather than answered.
+        const project = '/api/v4/projects/acme%2Fapi'
+
+        if (path.startsWith('/api/v4/projects/acme/api'))
+          return new Response('the project path was not encoded', { status: 400 })
+
+        if (path === `${project}/issues`) {
+          return json([{
+            id: 4318,
+            iid: 3,
+            title: 'From GitLab',
+            description: 'A follow-up to #1.',
+            state: 'opened',
+            author: { username: 'alice' },
+            labels: ['bug'],
+            created_at: '2026-03-01T10:00:00Z',
+          }])
+        }
+
+        if (path === `${project}/merge_requests`) {
+          return json([{
+            id: 9001,
+            iid: 5,
+            title: 'A merge request',
+            description: '',
+            state: 'merged',
+            merged_at: '2026-03-02T10:00:00Z',
+            author: { username: 'bob' },
+            source_branch: 'work',
+            target_branch: 'main',
+            sha: 'e'.repeat(40),
+            diff_refs: { base_sha: 'f'.repeat(40) },
+            created_at: '2026-03-02T09:00:00Z',
+          }])
+        }
+
+        if (path === `${project}/merge_requests/5/discussions`) {
+          return json([{
+            id: 'abc',
+            notes: [
+              { id: 7001, body: 'On a deleted line.', author: { username: 'alice' }, created_at: '2026-03-02T11:00:00Z', position: { old_path: 'src/cart.ts', new_line: null, old_line: 17 } },
+              { id: 7002, body: 'Agreed.', author: { username: 'bob' }, created_at: '2026-03-02T12:00:00Z', position: { old_path: 'src/cart.ts', new_line: null, old_line: 17 } },
+            ],
+          }])
+        }
+
+        if (path === `${project}/issues/3/notes`) {
+          return json([
+            { id: 8001, body: 'changed milestone to v2', system: true, author: { username: 'alice' } },
+            { id: 8002, body: 'A real comment.', system: false, author: { username: 'bob' }, created_at: '2026-03-01T11:00:00Z' },
+          ])
+        }
+
+        return json([])
+      },
+    })
+
+    const name = unique('gitlabrepo')
+    const { repositoryPath } = await import('../../app/Actions/Git/storage')
+    const resolved = repositoryPath(created.ownerHandle, name)
+
+    const repository: any = await db
+      .insertInto('repositories')
+      .values({
+        owner_type: 'user',
+        owner_id: created.ownerId,
+        name,
+        visibility: 'public',
+        default_branch: 'main',
+        disk_path: resolved.relative!,
+      })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    const repositoryId = Number(repository?.id)
+
+    try {
+      const job = (await import('../../app/Jobs/ImportRepositoryJob')).default
+      const { emptyProgress, isFinished, nextStage } = await import('../../app/Actions/Import/plan')
+
+      let progress = emptyProgress()
+      progress.stage = 'labels'
+
+      for (let guard = 0; guard < 20 && !isFinished(progress); guard += 1) {
+        await job.handle({
+          repositoryId,
+          operationId: 0,
+          source: 'acme/api',
+          forge: 'gitlab',
+          baseUrl: `http://127.0.0.1:${gitlab.port}/api/v4`,
+          progress,
+        })
+
+        progress = { ...progress, stage: nextStage(progress.stage), page: 1 }
+      }
+
+      const issue: any = await db
+        .selectFrom('issues')
+        .selectAll()
+        .where('repository_id', '=', repositoryId)
+        .executeTakeFirst()
+
+      // `iid`, not `id`. Read wrongly this issue is number 4,318 in a
+      // repository whose highest is 3, and every `#3` in its history breaks.
+      expect(Number(issue.number)).toBe(3)
+
+      const pull: any = await db
+        .selectFrom('pull_requests')
+        .selectAll()
+        .where('repository_id', '=', repositoryId)
+        .executeTakeFirst()
+
+      expect(Number(pull.number)).toBe(5)
+
+      // Merged, not merely closed - the single thing anybody opens a closed
+      // pull request to find out.
+      expect(String(pull.state)).toBe('merged')
+
+      const thread: any = await db
+        .selectFrom('review_threads')
+        .selectAll()
+        .where('pull_request_id', '=', Number(pull.id))
+        .executeTakeFirst()
+
+      /*
+       * A comment on a deleted line, which has only `old_line`. Reading
+       * `new_line` here gives null, and an anchorless review comment is the
+       * exact loss this importer exists to prevent.
+       */
+      expect(thread).toBeDefined()
+      expect(String(thread.path)).toBe('src/cart.ts')
+      expect(Number(thread.line)).toBe(17)
+
+      const comments: any[] = await db
+        .selectFrom('review_comments')
+        .select(['body'])
+        .where('review_thread_id', '=', Number(thread.id))
+        .execute()
+
+      // Both notes of the discussion, in one thread rather than two - GitLab
+      // groups by discussion and records no reply chain within it.
+      expect(comments.length).toBe(2)
+
+      const notes: any[] = await db
+        .selectFrom('issue_comments')
+        .selectAll()
+        .where('commentable_type', '=', 'issue')
+        .where('commentable_id', '=', Number(issue.id))
+        .execute()
+
+      // The system note is gone and the real one is here. Imported, "changed
+      // milestone to v2" reads as though a person wrote it.
+      expect(notes.length).toBe(1)
+      expect(String(notes[0].body)).toBe('A real comment.')
+    }
+    finally {
+      const pulls: any[] = await db.selectFrom('pull_requests').select(['id']).where('repository_id', '=', repositoryId).execute()
+      const issues: any[] = await db.selectFrom('issues').select(['id']).where('repository_id', '=', repositoryId).execute()
+
+      for (const one of pulls) {
+        const threads: any[] = await db.selectFrom('review_threads').select(['id']).where('pull_request_id', '=', Number(one.id)).execute()
+
+        for (const thread of threads)
+          await db.deleteFrom('review_comments').where('review_thread_id', '=', Number(thread.id)).execute()
+
+        await db.deleteFrom('review_threads').where('pull_request_id', '=', Number(one.id)).execute()
+        await db.deleteFrom('issue_comments').where('commentable_type', '=', 'pull_request').where('commentable_id', '=', Number(one.id)).execute()
+      }
+
+      for (const one of issues)
+        await db.deleteFrom('issue_comments').where('commentable_type', '=', 'issue').where('commentable_id', '=', Number(one.id)).execute()
+
+      await db.deleteFrom('pull_requests').where('repository_id', '=', repositoryId).execute()
+      await db.deleteFrom('issues').where('repository_id', '=', repositoryId).execute()
+      await db.deleteFrom('repository_labels').where('repository_id', '=', repositoryId).execute()
+      await db.deleteFrom('repositories').where('id', '=', repositoryId).execute()
+      gitlab.stop()
+    }
+  }, 120_000)
+})

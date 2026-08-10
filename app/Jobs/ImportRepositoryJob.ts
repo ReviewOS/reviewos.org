@@ -4,7 +4,7 @@ import { dirname } from 'node:path'
 import process from 'node:process'
 import type { ExternalAuthor, LocalAccount } from '../Actions/Import/attribution'
 import { buildLinkMap, parseClaims, rewriteReferences } from '../Actions/Import/attribution'
-import type { ForgeKind } from '../Actions/Import/forges'
+import type { ForgeKind, ImportSource } from '../Actions/Import/forges'
 import { FORGES, pullNumber } from '../Actions/Import/forges'
 import type { ImportProgress, ImportStage } from '../Actions/Import/plan'
 import { describeProgress, emptyProgress, isFinished, nextStage, noteProblem, record, summarize } from '../Actions/Import/plan'
@@ -73,14 +73,29 @@ export default new Job({
      * genuinely differ, and each of those is a parameter here rather than an
      * assumption in the code.
      */
-    const forge: ForgeKind = payload?.forge === 'gitea' ? 'gitea' : 'github'
+    const forge: ForgeKind = FORGES[payload?.forge as ForgeKind] ? payload.forge : 'github'
     const shape = FORGES[forge]
+    const token = String(payload?.token ?? process.env.GITHUB_TOKEN ?? '') || null
 
-    const client = new GitHubClient({
-      token: String(payload?.token ?? process.env.GITHUB_TOKEN ?? '') || null,
-      baseUrl: String(payload?.baseUrl ?? '') || undefined,
-      authorization: shape.authorization,
-    })
+    /*
+     * GitLab gets an adapter rather than the same client with options.
+     *
+     * It shares none of GitHub's paths - a repository is a project addressed by
+     * an encoded path, comments are notes on a subject, review threads are
+     * discussions with a position - and threading that through as flags would
+     * produce a client that is two clients with a switch, which is the shape
+     * nobody can safely change.
+     */
+    const client: ImportSource = forge === 'gitlab'
+      ? new (await import('../Actions/Import/gitlab-client')).GitLabClient({
+          token,
+          baseUrl: String(payload?.baseUrl ?? ''),
+        })
+      : new GitHubClient({
+          token,
+          baseUrl: String(payload?.baseUrl ?? '') || undefined,
+          authorization: shape.authorization,
+        })
 
     await report(operationId, progress)
 
@@ -119,7 +134,7 @@ export default new Job({
 })
 
 interface StageContext {
-  client: GitHubClient
+  client: ImportSource
   owner: string
   name: string
   repositoryId: number

@@ -30,7 +30,7 @@ export default function (cli: CLI) {
      * of those is handled; none of them is guessed, because a wrong guess
      * imports nothing and reports success.
      */
-    .option('--forge <kind>', 'github, or gitea for Gitea and Forgejo', { default: 'github' })
+    .option('--forge <kind>', 'github, gitea (also Forgejo), or gitlab', { default: 'github' })
     .option('--host <url>', 'The instance, for a self-hosted forge: https://codeberg.org', { default: '' })
     .option('--owner <handle>', 'The user or organization to own it here', { default: '' })
     .option('--name <name>', 'The name to give it here', { default: '' })
@@ -60,7 +60,7 @@ async function start(source: string, options: any): Promise<void> {
   const forge = String(options.forge ?? 'github').trim().toLowerCase() as ForgeKind
 
   if (!FORGES[forge])
-    throw new Error(`Unknown forge: ${options.forge}. Use github, or gitea for Gitea and Forgejo.`)
+    throw new Error(`Unknown forge: ${options.forge}. Use github, gitea (also Forgejo), or gitlab.`)
 
   const host = String(options.host ?? '').trim()
 
@@ -71,7 +71,7 @@ async function start(source: string, options: any): Promise<void> {
    * against.
    */
   if (forge !== 'github' && !host)
-    throw new Error('Say where the instance is with --host, for example --host https://codeberg.org')
+    throw new Error('Say where the instance is with --host, for example --host https://gitlab.com')
 
   const ownerHandle = String(options.owner ?? '').trim().toLowerCase() || remoteOwner.toLowerCase()
   const name = String(options.name ?? '').trim() || remoteName

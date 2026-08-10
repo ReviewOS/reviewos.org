@@ -183,7 +183,52 @@ decides whether an evaluation ends in a migration or a shrug.
   entry rather than two. Tested against a fixture that answers the Gitea shape
   and refuses any request that arrives without the prefix - if the prefix were
   assumed rather than applied, the test fails rather than passing quietly.
-- [ ] GitLab
+- [x] GitLab
+
+  **An adapter rather than parameters**, because GitLab is not a variation on
+  GitHub's API - it is a different vocabulary for the same ideas. Gitea needed
+  four settings; GitLab shares none of the paths, so `gitlab-client.ts`
+  translates and nothing after it knows which forge the data came from.
+
+  | Here | GitHub | GitLab |
+  |---|---|---|
+  | the number in `#123` | `number` | `iid` |
+  | a proposed change | pull request | merge request |
+  | a comment | comment | note |
+  | a review thread | review comment | discussion |
+  | open | `open` | `opened` |
+  | who wrote it | `user.login` | `author.username` |
+  | a repository | `owner/name` | a project by encoded path |
+
+  **`iid` is the one that would do the most damage.** Every GitLab object has
+  both: `id` is unique across the instance, `iid` is the number in the URL and
+  in `#123`. Reading `id` gives a repository whose issues are numbered 4,318 and
+  4,319 where the highest was 12, and every cross reference in its own history
+  breaks quietly, because the numbers are still plausible.
+
+  Four more that are silent when wrong:
+
+  - **A merged merge request is `merged`, not closed.** GitLab has three states
+    where GitHub has two and a timestamp, and recording a merge as a close loses
+    the single thing anybody opens a closed pull request to find out.
+  - **A review comment on a deleted line has only `old_line`.** Reading
+    `new_line` gives null - an anchorless comment, which is the exact loss this
+    importer exists to prevent.
+  - **A note with no `position` is not a review comment.** It is an ordinary
+    comment on the merge request, and filing it as a review comment puts a
+    general remark on an arbitrary line of an arbitrary file.
+  - **System notes are dropped.** "Changed the milestone" and "mentioned in
+    commit abc" are notes; imported, they bury every real comment under machine
+    chatter that reads as though a person wrote it.
+
+  The project path is one encoded segment - `acme%2Fapi`, and subgroups have
+  more slashes - so the fixture refuses an unencoded path loudly rather than
+  answering it. `/projects/acme/api` is a different endpoint that answers 404,
+  which looks like the repository does not exist.
+
+  The job's client is typed as an `ImportSource` rather than `any`, so a client
+  that stops satisfying the surface is a compile error instead of a stage that
+  quietly returns nothing.
 - [x] Plain git URL import, with no metadata, for everything else
 
   `buddy import:git <url>`. The escape hatch that makes the other importers

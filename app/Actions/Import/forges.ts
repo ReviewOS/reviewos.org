@@ -29,7 +29,35 @@
  * difference that is wrong fails rather than silently importing nothing.
  */
 
-export type ForgeKind = 'github' | 'gitea'
+export type ForgeKind = 'github' | 'gitea' | 'gitlab'
+
+/** What a page of anything looks like, whichever forge answered. */
+export interface SourcePage {
+  ok: boolean
+  items: any[]
+  error: string | null
+  truncated?: boolean
+}
+
+/**
+ * What the import needs from a forge, and nothing else.
+ *
+ * Both clients satisfy this: `GitHubClient` speaks GitHub's API directly and
+ * reaches Gitea with a base URL and an authorization form, and `GitLabClient`
+ * translates a different vocabulary into the same answers. Naming the surface
+ * here rather than typing the job's client as `any` is what makes a client that
+ * stops satisfying it a compile error instead of a stage that returns nothing.
+ */
+export interface ImportSource {
+  issues: (owner: string, name: string) => Promise<SourcePage>
+  pulls: (owner: string, name: string) => Promise<SourcePage>
+  labels: (owner: string, name: string) => Promise<SourcePage>
+  milestones: (owner: string, name: string) => Promise<SourcePage>
+  releases: (owner: string, name: string) => Promise<SourcePage>
+  issueComments: (owner: string, name: string) => Promise<SourcePage>
+  reviewComments: (owner: string, name: string, index?: number, reviewId?: number) => Promise<SourcePage>
+  pullReviews: (owner: string, name: string, index: number) => Promise<SourcePage>
+}
 
 export interface ForgeShape {
   kind: ForgeKind
@@ -49,6 +77,22 @@ export const FORGES: Record<ForgeKind, ForgeShape> = {
     label: 'GitHub',
     apiPrefix: '',
     authorization: token => `Bearer ${token}`,
+    hasRepositoryWideReviewComments: true,
+  },
+  /*
+   * GitLab is not a variation on GitHub's API, it is a different vocabulary
+   * for the same ideas - so it has an adapter rather than parameters, in
+   * `gitlab-client.ts`. The entry here exists so the command can name it and
+   * the base URL rule is written down in one place.
+   */
+  gitlab: {
+    kind: 'gitlab',
+    label: 'GitLab',
+    apiPrefix: '/api/v4',
+    // A personal access token from the settings page. GitLab also takes
+    // `Bearer` for an OAuth token, and the wrong one is answered as
+    // unauthenticated rather than rejected.
+    authorization: token => token,
     hasRepositoryWideReviewComments: true,
   },
   gitea: {
