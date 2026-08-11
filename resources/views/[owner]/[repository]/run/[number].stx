@@ -1,0 +1,281 @@
+<script server>
+/**
+ * One workflow run: its jobs, and what each of them is waiting for.
+ *
+ * The graph is the interesting part of this screen. A job that is blocked says
+ * *what it is blocked on*, because "blocked" on its own sends somebody to read
+ * the workflow file to find out - and the answer is already in the row.
+ *
+ * Two commits are shown when they differ. `head_sha` is what the run is about
+ * and `definition_sha` is where the workflow came from, and they are the same
+ * for an ordinary push and deliberately not for a fork's pull request. A reader
+ * who cannot see the difference cannot tell a run of their code from a run of
+ * their code by somebody else's workflow.
+ */
+import { repositoryForView } from '../../../../functions/repo'
+import { relativeTime, shortSha } from '../../../../functions/browse'
+import { runDuration, runIsFinished, runLabel, runTone } from '../../../../functions/runs'
+import { setStatus } from '../../../../functions/http'
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+const runNumber = Number(params.number)
+
+const serveContext = __stxServeContext
+
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
+
+if (!repoRow)
+  setStatus(404)
+
+const run: any = repoRow && Number.isFinite(runNumber)
+  ? await db
+      .selectFrom('workflow_runs')
+      .selectAll()
+      .where('repository_id', '=', Number(repoRow.id))
+      .where('number', '=', runNumber)
+      .executeTakeFirst()
+  : null
+
+// A missing run under a 200 tells a crawler and a cache the page is fine.
+if (repoRow && !run)
+  setStatus(404)
+
+const jobRows: any[] = run
+  ? await db
+      .selectFrom('workflow_jobs')
+      .selectAll()
+      .where('workflow_run_id', '=', Number(run.id))
+      .orderBy('position')
+      .execute()
+  : []
+
+// Every step in the run in one query rather than one per job.
+const stepRows: any[] = jobRows.length > 0
+  ? await db
+      .selectFrom('workflow_steps')
+      .selectAll()
+      .where('workflow_job_id', 'in', jobRows.map(job => Number(job.id)))
+      .orderBy('position')
+      .execute()
+  : []
+
+const stepsByJob = new Map<number, any[]>()
+for (const step of stepRows) {
+  const jobId = Number(step.workflow_job_id)
+  const held = stepsByJob.get(jobId)
+  if (held)
+    held.push(step)
+  else
+    stepsByJob.set(jobId, [step])
+}
+
+const version: any = run
+  ? await db
+      .selectFrom('workflow_versions')
+      .select(['id', 'workflow_id', 'source_path', 'source_sha'])
+      .where('id', '=', Number(run.workflow_version_id))
+      .executeTakeFirst()
+  : null
+
+const workflow: any = version
+  ? await db
+      .selectFrom('workflows')
+      .select(['id', 'name', 'path'])
+      .where('id', '=', Number(version.workflow_id))
+      .executeTakeFirst()
+  : null
+
+const jobs = jobRows.map((job) => {
+  const needs = String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
+
+  return {
+    jobId: String(job.job_id),
+    name: job.name ? String(job.name) : String(job.job_id),
+    state: String(job.state),
+    label: runLabel(String(job.state)),
+    tone: runTone(String(job.state)),
+    needs,
+    // Said out loud rather than left for the reader to infer from a state.
+    waitingOn: String(job.state) === 'blocked' && needs.length > 0 ? needs.join(', ') : '',
+    runsOn: String(job.runs_on ?? '').split('\n').map(line => line.trim()).filter(Boolean).join(', '),
+    runner: job.runner_id ? String(job.runner_id) : '',
+    duration: runDuration(job.started_at, job.finished_at),
+    steps: (stepsByJob.get(Number(job.id)) ?? []).map(step => ({
+      name: step.name ? String(step.name) : `Step ${Number(step.position) + 1}`,
+      state: String(step.state),
+      label: runLabel(String(step.state)),
+      tone: runTone(String(step.state)),
+      attempts: Number(step.attempts ?? 0),
+    })),
+  }
+})
+
+const ref = String(run?.event_ref ?? '')
+const branch = ref.startsWith('refs/heads/')
+  ? ref.slice('refs/heads/'.length)
+  : ref.startsWith('refs/tags/') ? ref.slice('refs/tags/'.length) : ref
+
+const headSha = run?.head_sha ? String(run.head_sha) : ''
+const definitionSha = run?.definition_sha ? String(run.definition_sha) : ''
+const definitionDiffers = Boolean(headSha && definitionSha && headSha !== definitionSha)
+
+const base = `/${ownerHandle}/${repositoryName}`
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repoRow || !run)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such workflow run</h1>
+        <p class="muted" style="margin-top: 8px;">
+          <a href="{{ base }}/runs">All runs</a>
+        </p>
+      </div>
+    @else
+      <header class="repo-head">
+        <h1 class="repo-title">
+          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
+        </h1>
+      </header>
+
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+
+      <div class="panel run-head">
+        <div class="run-head-main">
+          <h2 class="run-title">
+            {{ workflow ? workflow.name : 'Workflow' }} <span class="muted">#{{ run.number }}</span>
+          </h2>
+
+          <p class="muted run-head-meta">
+            <span class="run-dot run-{{ runTone(String(run.state)) }}" aria-hidden="true"></span>
+            {{ runLabel(String(run.state)) }}
+            · {{ run.event }}
+            @if (branch)
+              · {{ branch }}
+            @endif
+            @if (headSha)
+              · <code>{{ shortSha(headSha) }}</code>
+            @endif
+            @if (runDuration(run.started_at, run.finished_at))
+              · {{ runDuration(run.started_at, run.finished_at) }}
+            @endif
+          </p>
+
+          @if (run.conclusion_reason)
+            <p class="muted" style="margin-top: 8px; font-size: 13px;">{{ run.conclusion_reason }}</p>
+          @endif
+        </div>
+      </div>
+
+      @if (definitionDiffers)
+        <div class="panel notice">
+          The workflow that ran came from <code>{{ shortSha(definitionSha) }}</code>, not from the
+          commit under test. That is how a pull request from a fork runs: the definition is the base
+          branch's, so a fork cannot supply its own.
+        </div>
+      @endif
+
+      @if (!run.trusted)
+        <div class="panel notice">
+          This run is untrusted, so it gets no secrets. A run from a fork stays untrusted until
+          somebody with write access approves the exact commit.
+        </div>
+      @endif
+
+      <div class="jobs">
+        @foreach (jobs as job)
+          <article class="panel job">
+            <header class="job-head">
+              <span class="run-dot run-{{ job.tone }}" aria-hidden="true"></span>
+              <h3 class="job-name">{{ job.name }}</h3>
+              <span class="muted job-state">{{ job.label }}</span>
+              @if (job.duration)
+                <span class="muted job-time">{{ job.duration }}</span>
+              @endif
+            </header>
+
+            <p class="muted job-meta">
+              @if (job.waitingOn)
+                Waiting for {{ job.waitingOn }}
+              @elseif (job.runsOn)
+                Runs on {{ job.runsOn }}
+              @endif
+              @if (job.runner)
+                · {{ job.runner }}
+              @endif
+            </p>
+
+            @if (job.steps.length > 0)
+              <ol class="steps">
+                @foreach (job.steps as step)
+                  <li class="step">
+                    <span class="run-dot run-{{ step.tone }}" aria-hidden="true"></span>
+                    <span class="step-name">{{ step.name }}</span>
+                    <span class="muted step-state">
+                      {{ step.label }}@if (step.attempts > 1) · attempt {{ step.attempts }}@endif
+                    </span>
+                  </li>
+                @endforeach
+              </ol>
+            @endif
+          </article>
+        @endforeach
+      </div>
+
+      @if (!runIsFinished(String(run.state)))
+        <p class="muted" style="margin-top: 14px; font-size: 12.5px;">
+          Nothing on this instance executes a run. Jobs wait here until a runner you provide takes
+          them.
+        </p>
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+  .run-head { padding: 18px 20px; margin-top: 16px; }
+  .run-head-main { display: flex; flex-direction: column; gap: 4px; }
+  .run-title { font-size: 18px; font-weight: 600; margin: 0; }
+  .run-head-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; margin: 0; }
+
+  .notice {
+    padding: 12px 16px;
+    margin-top: 12px;
+    font-size: 13px;
+    border-color: var(--warn, #bf8700);
+  }
+
+  .run-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; background: var(--muted); display: inline-block; }
+  .run-good { background: var(--good, #2da44e); }
+  .run-bad { background: var(--bad, #cf222e); }
+  .run-warn { background: var(--warn, #bf8700); }
+  .run-running { background: var(--accent); }
+
+  .jobs { display: grid; gap: 10px; margin-top: 14px; }
+  .job { padding: 14px 18px; }
+
+  .job-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .job-name { font-size: 15px; font-weight: 550; margin: 0; }
+  .job-state { font-size: 12.5px; }
+  .job-time { font-size: 12.5px; margin-left: auto; }
+  .job-meta { font-size: 12.5px; margin: 6px 0 0; }
+
+  .steps { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-field, 10px);
+    font-size: 13px;
+  }
+
+  .step-name { flex: 1; min-width: 0; }
+  .step-state { font-size: 12px; }
+</style>

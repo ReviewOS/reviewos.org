@@ -473,8 +473,26 @@ decisions.
       most artifacts exist
 - [ ] Run metadata: string key/value pairs any job in a run can read or write, with
       compare-and-set so two parallel jobs cannot lose a write
-- [ ] Run and job state machines exposed exactly as phase 9 defines them, with the interface, API,
+- [x] Run and job state machines exposed exactly as phase 9 defines them, with the interface, API,
       and webhooks reading the same states rather than three vocabularies
+
+      The run list and the run page, at `/{owner}/{repository}/runs` and `/run/{number}`. One
+      mapping in `resources/functions/runs.ts` turns a state into a word and a tone, and **the word
+      is the state, capitalised** - the way this goes wrong is not a disagreement about data, it is
+      a screen inventing a friendlier synonym, and then "Stopping" is in the interface while
+      `cancelling` is in the API and somebody has to know they are the same thing.
+
+      Colour is the second signal and never the only one: the state is written beside the dot,
+      because a green dot and a red dot are the same shape to a reader who cannot tell those two
+      colours apart.
+
+      A blocked job says **what it is waiting for**, from the row it already has. "Blocked" alone
+      sends somebody to open the workflow file to find out something the page knows. And the two
+      commits are shown when they differ - what the run is about, and where its workflow came from -
+      because a reader who cannot see that difference cannot tell a run of their code from a run of
+      their code by somebody else's workflow.
+
+      Webhooks for run transitions are not wired; the box's third vocabulary has no consumer yet.
 - [ ] A dependency graph view: what ran, what is running, what is blocked and on what, and the
       critical path through the run
 - [ ] Timing on every job: queue time, run time, and the difference between them, because a slow run
