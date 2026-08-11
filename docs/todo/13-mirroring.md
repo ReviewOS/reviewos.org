@@ -211,7 +211,7 @@ documentation is markdown that the docs pipeline has to render anyway.
       The `:rest*` spelling is still not matched, and that is left alone deliberately: bun-router
       documents `{name}` parameters and a bare `*`, and inventing a second parameter syntax to fix
       a route nobody can write from the documentation is not a fix.
-- [ ] Viewing a **file** whose name carries an extension, under `./buddy dev`. The route is right
+- [x] Viewing a **file** whose name carries an extension, under `./buddy dev`. The route is right
       and the served product is right - `tests/e2e/browse-tree.test.ts` asks `route.serve()` for
       `app/nested/deeper.ts` and gets the file - but the stx dev server is a second boot path with
       its own router, and there a request for `package.json` or `index.ts` arrives at the view as
@@ -224,12 +224,26 @@ documentation is markdown that the docs pipeline has to render anyway.
       the wrong question for an app whose catch-all legitimately serves paths with dots in them.
       A code browser is exactly that app, and so is a docs site addressing `guide.md`.
 
-      Fixed upstream by asking the disk instead of the extension: a catch-all is dropped when
-      publicDir *really holds* that file. Same protection, one stat, and `#1841`'s own tests plus
-      new ones for the traversal and NUL cases hold it (`packages/bun-plugin/test/routes-catch-all.test.ts`).
-      Unticked here because it is unverified *in this app*: the local stx checkout is 0.2.173
-      against the 0.2.157 this project has installed, and a dist swap across that gap kills the
-      dev server on boot. It needs a published bun-plugin-stx and an upgrade, then a look.
+      Fixed upstream by asking the disk instead of the extension: a route is dropped when publicDir
+      *really holds* that file. Same protection, one stat. Released as stx 0.2.174, and this project
+      moved off its 0.2.157 pins to take it - `/storage/framework/core/router/src/index.ts` now
+      renders its source in the dev server instead of reporting `index.ts.html` missing, and the
+      e2e suite is 734 green on the new version.
+
+      **Verifying it in the browser is what turned up the bigger bug, and it was not the one this
+      box is about.** `/js/mermaid.js` answered with 72KB of HTML instead of the 3.4MB bundle, on
+      the served boot as well as the dev server - so every mermaid diagram in this product was
+      silently not drawing, and the fallback leaves the diagram source on screen, which reads as
+      "no diagram here" rather than as a failure.
+
+      The cause is this forge's route shape. `[owner]` claims every one-segment path and
+      `[owner]/[repository]` every two-segment one, so **the entire publicDir was unreachable** -
+      and 0.2.174's disk check did not help, because it only dropped `[...catch-all]` candidates.
+      That restriction assumed a shallow route tree; an app whose routes start at the root does not
+      have one. In stx 0.2.175 a real file at exactly the requested path wins over *any* dynamic
+      route, and `/js/mermaid.js` serves 3,493,222 bytes of `application/javascript` - the file's
+      own size - while `/stacks/stacks` still renders the repository and `/favicon.ico`, which
+      publicDir genuinely does not have, still falls through to the page.
 - [ ] Its markdown renders through the docs pipeline described in
       [07 - Marketing and docs](./07-marketing-docs.md)
 - [ ] Pull requests visible in the review screen, which is the actual test of whether any of this
