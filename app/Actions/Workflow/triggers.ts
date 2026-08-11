@@ -1,0 +1,224 @@
+/**
+ * Whether a push starts a run.
+ *
+ * All of it is a decision over data the caller already has - a ref, a list of
+ * changed paths, a set of filters - so none of it touches the database or git.
+ * That is deliberate: this runs on every push to every repository, and it is
+ * also the thing most likely to be wrong in a way nobody notices, because a
+ * filter that matches too little produces *no* run and there is nothing on
+ * screen to look at.
+ *
+ * The patterns are GitHub's, because the format is. Three characters matter and
+ * the difference between two of them is the one people get wrong:
+ *
+ * - `*` matches within a path segment and stops at `/`
+ * - `**` crosses separators
+ * - `?` is one character
+ *
+ * So `docs/*` does not match `docs/api/index.md` and `docs/**` does. Getting
+ * that backwards is the single most common CI filter bug, and it is silent in
+ * the direction that skips the run.
+ */
+
+/** A filter as it comes off a workflow version: one pattern per line. */
+export function patternsFrom(stored: string | null | undefined): string[] {
+  return String(stored ?? '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+}
+
+/**
+ * Does one glob match one path?
+ *
+ * Compiled to a regular expression rather than walked, because the same handful
+ * of patterns run against every changed path in a push and a compiled pattern
+ * is reusable where a walk is not.
+ */
+export function globMatches(pattern: string, value: string): boolean {
+  return compile(pattern).test(value)
+}
+
+const cache = new Map<string, RegExp>()
+
+function compile(pattern: string): RegExp {
+  const cached = cache.get(pattern)
+  if (cached)
+    return cached
+
+  let expression = '^'
+
+  for (let index = 0; index < pattern.length; index++) {
+    const character = pattern[index]!
+
+    if (character === '*') {
+      // `**` crosses separators; a single `*` stops at one. The trailing `/`
+      // of `docs/**/` is consumed with it so `docs/**` matches `docs/a` as
+      // well as `docs/a/b`.
+      if (pattern[index + 1] === '*') {
+        index++
+        if (pattern[index + 1] === '/')
+          index++
+        expression += '.*'
+      }
+      else {
+        expression += '[^/]*'
+      }
+      continue
+    }
+
+    if (character === '?') {
+      expression += '[^/]'
+      continue
+    }
+
+    expression += character.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+  }
+
+  const compiled = new RegExp(`${expression}$`)
+  cache.set(pattern, compiled)
+  return compiled
+}
+
+/**
+ * Does a ref pass a set of name filters?
+ *
+ * **No filters means yes**, which is Actions' rule and the one that matters:
+ * `on: push` with no `branches:` runs on every branch, and reading an empty
+ * list as "matches nothing" would silently disable every workflow that did not
+ * name one.
+ *
+ * A leading `!` excludes. Actions' own precedence applies: if any negative
+ * pattern matches, the ref is out, whatever the positive ones say.
+ */
+export function refMatches(patterns: readonly string[], name: string): boolean {
+  if (patterns.length === 0)
+    return true
+
+  const negative = patterns.filter(pattern => pattern.startsWith('!')).map(pattern => pattern.slice(1))
+  const positive = patterns.filter(pattern => !pattern.startsWith('!'))
+
+  if (negative.some(pattern => globMatches(pattern, name)))
+    return false
+
+  // Only exclusions were given, and none matched: everything else is included.
+  if (positive.length === 0)
+    return true
+
+  return positive.some(pattern => globMatches(pattern, name))
+}
+
+/**
+ * Does a push touch anything a path filter cares about?
+ *
+ * One changed path matching is enough - a push is a set of changes and a
+ * workflow that watches `src/**` wants to run when any of it moved.
+ *
+ * **An empty `paths:` means yes; an empty list of changed paths means no.**
+ * Those look similar and are opposites. The first is "this workflow does not
+ * filter by path". The second is a push that changed nothing this workflow
+ * watches, and running then is how a repository gets a green tick for a diff
+ * that never happened.
+ */
+export function pathsMatch(patterns: readonly string[], changed: readonly string[]): boolean {
+  if (patterns.length === 0)
+    return true
+
+  const negative = patterns.filter(pattern => pattern.startsWith('!')).map(pattern => pattern.slice(1))
+  const positive = patterns.filter(pattern => !pattern.startsWith('!'))
+
+  return changed.some((path) => {
+    if (negative.some(pattern => globMatches(pattern, path)))
+      return false
+
+    return positive.length === 0 || positive.some(pattern => globMatches(pattern, path))
+  })
+}
+
+/** The trigger state a dispatch decision needs, as stored on a version. */
+export interface VersionTriggers {
+  on_push?: boolean | null
+  push_branches?: string | null
+  push_tags?: string | null
+  push_paths?: string | null
+}
+
+export interface PushEvent {
+  /** The full ref, `refs/heads/main` or `refs/tags/v1.0.0`. */
+  ref: string
+  /** Paths this push changed. Empty when nothing is known about them. */
+  changed?: readonly string[]
+  /** A deletion introduces no commits and starts nothing. */
+  deleted?: boolean
+}
+
+export interface TriggerDecision {
+  run: boolean
+  /** Why, in words, for the interface and for a test to assert on. */
+  reason: string
+}
+
+/** `refs/heads/main` → `main`, `refs/tags/v1` → `v1`, anything else → null. */
+export function refName(ref: string): { kind: 'branch' | 'tag', name: string } | null {
+  if (ref.startsWith('refs/heads/'))
+    return { kind: 'branch', name: ref.slice('refs/heads/'.length) }
+
+  if (ref.startsWith('refs/tags/'))
+    return { kind: 'tag', name: ref.slice('refs/tags/'.length) }
+
+  return null
+}
+
+/**
+ * Should this push start a run of this workflow version?
+ *
+ * Returns the reason as well as the answer, because "no" is the outcome nobody
+ * can see. A workflow that did not run leaves nothing on the screen to inspect,
+ * and "no workflow matched this push" with no explanation is the support
+ * question this product would otherwise generate forever.
+ */
+export function pushStartsRun(version: VersionTriggers, event: PushEvent): TriggerDecision {
+  if (!version.on_push)
+    return { run: false, reason: 'the workflow does not trigger on push' }
+
+  if (event.deleted)
+    return { run: false, reason: 'the ref was deleted, and a deletion introduces no commits' }
+
+  const ref = refName(event.ref)
+  if (!ref)
+    return { run: false, reason: `${event.ref} is neither a branch nor a tag` }
+
+  const branches = patternsFrom(version.push_branches)
+  const tags = patternsFrom(version.push_tags)
+
+  if (ref.kind === 'tag') {
+    // A workflow that names branches and not tags is asking for branches. Tags
+    // are opted into, which is Actions' behaviour and the safe direction: the
+    // alternative runs every release tag through a workflow written for `main`.
+    if (tags.length === 0)
+      return { run: false, reason: 'the push was a tag, and this workflow filters on branches' }
+
+    if (!refMatches(tags, ref.name))
+      return { run: false, reason: `tag ${ref.name} does not match this workflow's tag filter` }
+  }
+  else {
+    if (!refMatches(branches, ref.name))
+      return { run: false, reason: `branch ${ref.name} does not match this workflow's branch filter` }
+  }
+
+  const paths = patternsFrom(version.push_paths)
+  if (paths.length > 0) {
+    const changed = event.changed ?? []
+
+    // Nothing known about what changed, and a filter that needs to know. Run
+    // it: a missed run on a push that did touch the paths is a broken product,
+    // and an extra run on one that did not is a wasted minute.
+    if (changed.length === 0)
+      return { run: true, reason: 'this push changed nothing we can see, and the workflow filters on paths' }
+
+    if (!pathsMatch(paths, changed))
+      return { run: false, reason: 'nothing this push changed matches the path filter' }
+  }
+
+  return { run: true, reason: `push to ${ref.kind} ${ref.name}` }
+}

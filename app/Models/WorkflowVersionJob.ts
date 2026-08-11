@@ -1,0 +1,99 @@
+import { defineModel } from '@stacksjs/orm'
+import { schema } from '@stacksjs/validation'
+
+/**
+ * One job in a workflow's definition.
+ *
+ * The definition, not the run. `WorkflowJob` in the run models is a job that
+ * happened; this is the row that says what one *would* be, and the two are kept
+ * apart under different names because a run has to remain readable after the
+ * definition has moved on. Collapsing them is how a completed run starts
+ * showing steps it never executed.
+ *
+ * `needs` is stored as written rather than as edges between rows. The graph is
+ * read whole, per run, and never queried across workflows - and the validator
+ * has already refused a `needs` naming a job that does not exist, so a row-level
+ * foreign key would be enforcing a rule that cannot be violated by the time
+ * anything gets here.
+ */
+export default defineModel({
+  name: 'WorkflowVersionJob',
+  table: 'workflow_version_jobs',
+  primaryKey: 'id',
+  autoIncrement: true,
+
+  indexes: [
+    { name: 'workflow_version_jobs_version_index', columns: ['workflow_version_id', 'position'] },
+  ],
+
+  traits: {
+    useTimestamps: true,
+    useSeeder: { count: 0 },
+  },
+
+  belongsTo: [{ model: 'WorkflowVersion', onDelete: 'cascade' }],
+
+  attributes: {
+    workflow_version_id: {
+      order: 1,
+      fillable: true,
+      validation: { rule: schema.number().required() },
+      factory: () => null,
+    },
+
+    /** The key in `jobs:`, which is what `needs:` refers to. */
+    job_id: {
+      order: 2,
+      fillable: true,
+      validation: { rule: schema.string().required().max(100) },
+      factory: () => 'test',
+    },
+
+    /** Declaration order, so the interface lists them as the author wrote them. */
+    position: {
+      order: 3,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number() },
+      factory: () => 0,
+    },
+
+    name: {
+      order: 4,
+      fillable: true,
+      validation: { rule: schema.string().max(200) },
+      factory: () => null,
+    },
+
+    /** Runner labels, one per line. */
+    runs_on: {
+      order: 5,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => 'ubuntu-latest',
+    },
+
+    /** Job ids this waits on, one per line. */
+    needs: {
+      order: 6,
+      fillable: true,
+      validation: { rule: schema.string().max(1000) },
+      factory: () => null,
+    },
+
+    /** The `if:` expression, stored unevaluated. Nothing here runs it. */
+    condition: {
+      order: 7,
+      fillable: true,
+      validation: { rule: schema.string().max(1000) },
+      factory: () => null,
+    },
+
+    timeout_minutes: {
+      order: 8,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+  },
+})

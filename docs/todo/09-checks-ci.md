@@ -275,10 +275,40 @@ run is inspected.
 - [ ] Neither front door can express something the other cannot represent in the run. A capability
       reachable only from the SDK becomes a screen that renders differently depending on how a
       workflow was written, which is how two products grow inside one.
-- [ ] `Workflow` and immutable `WorkflowVersion` models: owner, repository scope, source commit and
+- [x] `Workflow` and immutable `WorkflowVersion` models: owner, repository scope, source commit and
       path, content digest, trigger policy, state, and the normalized step graph
-- [ ] Normalize jobs, steps, dependencies, triggers, and input declarations into related rows. A
+
+      Two models rather than one because a run points at a *version*, so inspecting a run from six
+      months ago shows the workflow as it ran instead of whatever is in the default branch today.
+      The content digest is what keeps that cheap: a push that does not touch the file produces the
+      same digest and reuses the version, where per-commit versions would give a repository with a
+      daily push a version a day, all identical.
+
+      `repository_id` is nullable, because an owner-wide workflow carries no repository - that is
+      the case the column exists for. It is still declared as a `belongsTo` purely for the cascade:
+      without the relation the generator emits a bare `REFERENCES` with no `ON DELETE`, and then a
+      repository that once had a workflow cannot be deleted at all.
+
+      Regenerating after that change produced an `ALTER` rather than the tables, because
+      `storage/framework/database/model-snapshot.postgres.json` had already recorded them from the
+      first run. The snapshot is the generator's idea of the current schema, and deleting migration
+      files does not move it - restoring it and regenerating gives the four `CREATE`s.
+- [x] Normalize jobs, steps, dependencies, triggers, and input declarations into related rows. A
       workflow-sized JSON blob would make querying, authorization, and migrations harder.
+
+      `WorkflowVersionJob` and `WorkflowVersionStep`, named apart from the run-side `WorkflowJob`
+      and `WorkflowStep` further down this phase. The two pairs describe different things - what a
+      job *would* be, and one that *happened* - and collapsing them is how a finished run starts
+      showing steps it never executed.
+
+      Triggers are columns on the version rather than the parsed YAML, because dispatch reads them
+      on every push and a blob would mean parsing every workflow in the repository to find out
+      whether any of them cared. `on_pull_request_target` is its own column for the reason given
+      above: it is the same event with the opposite trust, and folding it into `on_pull_request`
+      hides the dangerous one at the point where it is being decided.
+
+      `command` and `uses` are inert text, and the model says so on the column rather than only in
+      the parser - a column called `command` invites somebody downstream to be helpful with it.
 - [x] Validate a definition without running it, returning errors with a file location and a concrete
       fix. Invalid workflow code must never reach a runner.
 
@@ -310,8 +340,36 @@ run is inspected.
       folded into it. It is the same event with the opposite trust - the workflow comes from the
       base branch and runs with the base repository's secrets against a fork's code - and that is
       the one fact the fork policy in [the threat model](../ci-threat-model.md) needs.
-- [ ] Triggers for push, pull request, tag, schedule, manual/API dispatch, and repository events,
+- [x] Triggers for push, pull request, tag, schedule, manual/API dispatch, and repository events,
       each with repository, ref, and path filters
+
+      The push half is decided by `app/Actions/Workflow/triggers.ts`, over data the caller already
+      has - a ref, the changed paths, the stored filters - so it touches neither git nor the
+      database. Pull request, schedule and dispatch are recorded on the version and dispatch for
+      them is not wired yet.
+
+      Every rule here is one whose wrong answer is **silent**, which is why they are tested one at a
+      time. A filter that matches too little produces no run, and a run that does not exist leaves
+      nothing on screen: the bug arrives weeks later as "CI didn't run", from somebody who assumed
+      they had configured it wrong.
+
+      - `*` stops at a separator and `**` crosses one, so `docs/*` does not match `docs/api/x.md`.
+        Getting that backwards is the most common CI filter bug and it fails towards skipping.
+      - **No filter means every ref.** Reading an empty `branches:` as "matches nothing" would
+        disable every workflow that never named one, which is most of them.
+      - An empty *path filter* and an empty *change set* look alike and are opposites: the first is
+        a workflow that does not filter by path, the second is a push that touched nothing it
+        watches.
+      - Tags are opted into. A workflow naming branches and not tags is asking for branches;
+        the other reading sends every release tag through a workflow written for `main`.
+      - An exclusion beats an inclusion, which is Actions' precedence.
+
+      Where the changed paths are unknown and the workflow filters on them, it runs. A missed run on
+      a push that did touch them is a broken product; an extra run on one that did not is a wasted
+      minute - and it is *visible*, which the missed one never is.
+
+      Every refusal carries a reason, for the same asymmetry: "no workflow matched this push" with
+      no explanation is a support question this product would otherwise generate forever.
 - [ ] Push triggers consume the same `push:received` event emitted by phase 2. There is no second
       receive pipeline just for CI.
 - [ ] Owner-managed reusable workflows can target many repositories, while a repository may also
