@@ -1446,6 +1446,52 @@ export interface ManifestStreamOptions {
  *   failure this one exists for: the page is not repainting, so nothing the
  *   reader does gets a response, and the batching looks like it is working.
  */
+/**
+ * What to tell the reader when the manifest request fails.
+ *
+ * Not the response body. A failure here is JSON from our own error handler -
+ * `{"success":false,"message":"Not Found","path":"/api/repos/pulls/diff/manifest","request_id":…}` -
+ * and the status line writes whatever string it is given, so that lands in the
+ * middle of the page: a route, a method and a request id where a sentence
+ * should be, in the one place somebody came to read code. It can also be a
+ * proxy's HTML error page, which is the same failure with more of it.
+ *
+ * The body is still worth reading rather than discarding. Our own handler puts
+ * a usable sentence in `message`, so that wins when there is one; `Not Found`
+ * is the status repeated back and explains nothing, so it does not.
+ */
+export async function describeFailure(response: Response): Promise<string> {
+  const fallback = response.status === 404
+    ? 'This diff is no longer available. It may have been rebased away, or the pull request removed.'
+    : `The diff could not be loaded (${response.status}).`
+
+  let body = ''
+  try {
+    body = await response.text()
+  }
+  catch {
+    return fallback
+  }
+
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>
+    const message = typeof parsed.message === 'string'
+      ? parsed.message
+      : typeof parsed.error === 'string' ? parsed.error : ''
+
+    // Length-capped because a sentence is the point: a stack trace or a page
+    // of text in `message` is the raw-body problem wearing a field name.
+    if (message && message.length <= 200 && message.trim().toLowerCase() !== 'not found')
+      return message
+  }
+  catch {
+    // Not JSON at all - an HTML error page from a proxy, or plain text. There
+    // is nothing in it worth putting on the page.
+  }
+
+  return fallback
+}
+
 export async function streamDiffManifest(
   url: string,
   handlers: ManifestStreamHandlers,
@@ -1455,7 +1501,7 @@ export async function streamDiffManifest(
   const response = await fetch(url, { signal, headers: { Accept: 'application/x-ndjson' } })
 
   if (!response.ok) {
-    handlers.onError?.(await response.text())
+    handlers.onError?.(await describeFailure(response))
     return
   }
 

@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, test } from 'bun:test'
-import { readNdjson, streamDiffManifest } from '../../resources/functions/diffviewer'
+import { describeFailure, readNdjson, streamDiffManifest } from '../../resources/functions/diffviewer'
 
 /** A Response whose body arrives in pieces, with a pause between them. */
 function streaming(chunks: string[], pauseMs = 0): Response {
@@ -139,10 +139,65 @@ describe('a stream that is aborted, then retried', () => {
         onError: (message) => { error = message },
       })
 
-      expect(error).toBe('no such pull request')
+      expect(error.length).toBeGreaterThan(0)
+      // The body is not the message: this one is plain text rather than our
+      // JSON, and there is nothing in it worth putting on the page.
+      expect(error).not.toBe('no such pull request')
     }
     finally {
       globalThis.fetch = original
     }
+  })
+})
+
+/**
+ * What the reader is told when the manifest cannot be fetched.
+ *
+ * The status line writes whatever string it is handed, so handing it the
+ * response body put `{"success":false,"message":"Not Found","path":…,
+ * "request_id":…}` in the middle of the page - a route, a method and a request
+ * id where a sentence belongs, on the screen somebody opened to read code.
+ */
+describe('describeFailure', () => {
+  test('does not put our own error JSON on the page', async () => {
+    const body = JSON.stringify({
+      success: false,
+      message: 'Not Found',
+      path: '/api/repos/pulls/diff/manifest',
+      method: 'GET',
+      request_id: '69b844df-9c2f-49bf-b43a-aabc5babac42',
+    })
+
+    const message = await describeFailure(new Response(body, { status: 404 }))
+
+    expect(message).not.toContain('request_id')
+    expect(message).not.toContain('/api/repos')
+    expect(message).not.toContain('{')
+    expect(message).toContain('no longer available')
+  })
+
+  test('but keeps a sentence the server actually wrote', async () => {
+    const body = JSON.stringify({ error: 'This pull request has no usable revisions' })
+
+    const message = await describeFailure(new Response(body, { status: 422 }))
+
+    expect(message).toBe('This pull request has no usable revisions')
+  })
+
+  test('carries the status when there is nothing better to say', async () => {
+    const message = await describeFailure(new Response('', { status: 500 }))
+
+    expect(message).toContain('500')
+  })
+
+  // A proxy in front of the app answers in HTML, and that is the raw-body
+  // problem with more of it: markup rendered as text across the status line.
+  test('and never repeats an HTML error page back', async () => {
+    const message = await describeFailure(
+      new Response('<html><body><h1>502 Bad Gateway</h1></body></html>', { status: 502 }),
+    )
+
+    expect(message).not.toContain('<')
+    expect(message).toContain('502')
   })
 })
