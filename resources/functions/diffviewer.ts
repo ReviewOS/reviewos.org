@@ -1446,6 +1446,56 @@ export interface ManifestStreamOptions {
  *   failure this one exists for: the page is not repainting, so nothing the
  *   reader does gets a response, and the batching looks like it is working.
  */
+/** A gap between hunks, as its expand control describes it. */
+export interface HunkGap {
+  /** First hidden line, in the new side's numbering. */
+  from: number
+  /** Last hidden line, in the new side's numbering. */
+  to: number
+  /** `newStart - oldStart` for the hunk below the gap. */
+  offset: number
+}
+
+/**
+ * Which gap hides a line, or -1.
+ *
+ * A gap's range is in the **new** side's numbering, because that is what the
+ * server renders it from. A line on the old side sits at a different number,
+ * and the offset the control carries is exactly the difference - so an old-side
+ * line has to be moved into the control's numbering before it is compared.
+ *
+ * Not doing that is a bug with no symptom at the point of failure: nothing
+ * throws and nothing is logged, the reveal loop simply never finds a gap to
+ * expand, spends its rounds, and gives up. A reader following a link to a
+ * removed line inside a collapsed region gets a page that does nothing, which
+ * reads as a dead link rather than as a diff that has not been expanded yet.
+ *
+ * Separated from the DOM so the arithmetic can be tested, which is where the
+ * side and the offset are: the element lookup around it has nothing to get
+ * wrong.
+ */
+export function gapCovering(
+  gaps: readonly HunkGap[],
+  side: 'left' | 'right',
+  line: number,
+): number {
+  for (let index = 0; index < gaps.length; index++) {
+    const gap = gaps[index]!
+    if (!Number.isFinite(gap.from) || !Number.isFinite(gap.to))
+      continue
+
+    // The old side is numbered `offset` behind the new one.
+    const probe = side === 'left'
+      ? line + (Number.isFinite(gap.offset) ? gap.offset : 0)
+      : line
+
+    if (probe >= gap.from && probe <= gap.to)
+      return index
+  }
+
+  return -1
+}
+
 /**
  * What to tell the reader when the manifest request fails.
  *
@@ -2788,7 +2838,7 @@ export function mountDiffFiles(): DiffViewer | null {
 
         // The rows are still on their way, or the line is inside a gap. Asking
         // for the gap is the only one of those this can act on.
-        const control = expandControlCovering(host, target.from)
+        const control = expandControlCovering(host, target.side, target.from)
         if (control == null) {
           await nextFrame()
           continue
@@ -2821,16 +2871,20 @@ export function mountDiffFiles(): DiffViewer | null {
    * the control carries is exactly the difference - so the check is done in the
    * control's own numbering after undoing that offset.
    */
-  function expandControlCovering(host: HTMLElement, line: number): HTMLElement | null {
-    for (const control of host.querySelectorAll<HTMLElement>('.hunk-expand')) {
-      const from = Number(control.dataset.expandFrom)
-      const to = Number(control.dataset.expandTo)
+  function expandControlCovering(
+    host: HTMLElement,
+    side: 'left' | 'right',
+    line: number,
+  ): HTMLElement | null {
+    const controls = [...host.querySelectorAll<HTMLElement>('.hunk-expand')]
 
-      if (Number.isFinite(from) && Number.isFinite(to) && line >= from && line <= to)
-        return control
-    }
+    const found = gapCovering(controls.map(control => ({
+      from: Number(control.dataset.expandFrom),
+      to: Number(control.dataset.expandTo),
+      offset: Number(control.dataset.expandOffset ?? 0),
+    })), side, line)
 
-    return null
+    return found === -1 ? null : controls[found] ?? null
   }
 
   /**

@@ -1344,7 +1344,25 @@ Beyond the per-section tests above, the shapes that catch virtualizer bugs speci
       therefore move nobody.
 - [x] Estimated heights within a tolerance of measured heights, so the scrollbar does not lie. The
       header estimate came out of that: it was 40 pixels against a real 61.
-- [ ] Range scroll to a line inside a collapsed hunk in a collapsed file
+- [x] Range scroll to a line inside a collapsed hunk in a collapsed file
+
+      Writing it found the bug it was for, and the doc comment above the code already described the
+      behaviour the code did not have: *"the check is done in the control's own numbering after
+      undoing that offset"*. It was not. `expandControlCovering` compared the raw line number
+      against the gap's range and never read `expandOffset` or the side at all.
+
+      A gap's range is in the **new** side's numbering. A line on the old side sits `offset` behind
+      it, so old line 80 in a gap covering new lines 90-119 was compared as 80, matched nothing, and
+      the reveal loop spent its twelve rounds finding no gap to expand. **Deleted lines only have an
+      old number**, so this was not an edge: it is half of what a reviewer follows a link to, and
+      the failure is silent - nothing throws, nothing logs, the page simply does not move, which
+      reads as a dead link.
+
+      The decision is now `gapCovering`, separate from the DOM, because the side and the offset are
+      the whole of it and the element lookup around them has nothing to get wrong. Nine cases,
+      including both ends of a range, a control whose `data-expand-*` did not parse (`Number()`
+      answers NaN and a NaN range must not swallow a line, nor hide the gap after it), and a missing
+      offset treated as no shift rather than as NaN.
 - [x] A stream that is aborted, retried, and completes, leaving no items from the first attempt.
       Writing it found that `yieldToBrowser` called `requestAnimationFrame` unguarded: the
       `setTimeout` behind it was written as the fallback for a backgrounded tab, but where the
