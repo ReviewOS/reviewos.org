@@ -913,11 +913,33 @@ already gone wrong and there is no second chance to have recorded it.
       `precmd`, `precmd_functions` and `PROMPT_COMMAND`, exports `$DEN_VERSION` so tools can detect
       it, and pantry generates a den-specific hook. Entering a project puts its dependencies on
       PATH; leaving it takes them off.
-- [ ] Speed up den's per-command dispatch. A `[` test costs about 5ms and a function call about
-      6ms, against microseconds in bash, which is why the den hook has to avoid shell-side work and
-      let the binary walk the tree. A `cd` currently costs ~14ms inside a project and ~22ms outside,
-      almost all of it that floor rather than the hook. `:` and `true` cost ~0.8ms, so the cost is
-      specific to some commands rather than dispatch as a whole, and is worth profiling.
+- [x] Speed up den's per-command dispatch.
+
+      **There was nothing to speed up. Every number in this box was measured against a Debug
+      build**, and `zig build` defaults to Debug, so that is what a checkout produces and what the
+      shell here was running - the login shell was a symlink straight into `zig-out/bin/`.
+
+      Same machine, same commands, 5000 iterations each:
+
+      | | Debug | ReleaseFast |
+      |---|---|---|
+      | `[ -n x ]` | ~9.6ms | ~34µs |
+      | `cd /tmp` | ~5.7ms | ~42µs |
+
+      That is the "microseconds in bash" this box was asking for, and it explains the shape that
+      made it look like a dispatch problem: `:` and `true` were cheap because they do almost no
+      work, while anything allocating paid the debug allocator on every allocation. The same
+      allocator is what prints leak traces to stderr mid-session, which is separately how the
+      `if`/`case` bug in this section got reported as a crash.
+
+      Fixed on the install side rather than in the build: den is built `-Doptimize=ReleaseFast` and
+      **copied** to `~/.local/bin/den` instead of symlinked into the build output, so an ordinary
+      `zig build` in the checkout can no longer swap the login shell under you. Making ReleaseFast
+      the build default was tried and reverted: all 50 test artifacts share that setting, and
+      running the suite without Zig's safety checks costs more than it saves.
+
+      The pantry hook's design still stands. Keeping shell-side work out of it was right for its
+      own reasons, and is why the hook never showed up in these measurements.
 - [x] den's `eval` carries function definitions, so `eval "$(tool init)"` - how almost every shell
       integration is loaded - works.
 
