@@ -105,6 +105,7 @@
     "@stacksjs/stx": "0.2.162",
     "@stacksjs/ts-ssh": "^0.1.0",
     "stx-router": "0.2.157",
-    "bun-plugin-stx": "0.2.157"
+    "bun-plugin-stx": "0.2.157",
+    "@stacksjs/bun-router": "^0.0.22"
   }
 }
