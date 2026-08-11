@@ -556,11 +556,48 @@ should not make its public workflow API describe one vendor's sandbox.
 
 - [ ] Versioned runner protocol for claim, heartbeat, log append, artifact upload, step completion,
       and cancellation acknowledgment
-- [ ] Runner registration, authentication, labels, capabilities, and scoping to an instance,
+- [x] Runner registration, authentication, labels, capabilities, and scoping to an instance,
       organization, repository, or selected workflow
+
+      The `Runner` model, with the token stored as a SHA-256 hash: a registration token in the
+      database in plain text is one in every backup, and a runner credential is a credential to
+      receive somebody's source code. Registration is administrative rather than self-service,
+      which is the whole posture of the runner side - a runner executes hostile code by design, and
+      what stops that being an instance compromise is that the instance hands work only to machines
+      an operator chose.
+
+      Scope is checked before labels, because it is the one that is not a scheduling mistake: a
+      runner registered for one repository being handed another's source is the instance giving
+      somebody else's private code to a machine its owner chose. **An unknown scope reaches
+      nothing**, so a scope added later cannot silently default to everything.
+
+      Selected-workflow scoping is not implemented; instance, organization and repository are.
 - [ ] Short-lived job credentials, bound to one attempt. Registration credentials never enter the
       job environment.
-- [ ] Leases with heartbeat expiry, at-least-once delivery, and idempotent completion reporting
+- [x] Leases with heartbeat expiry, at-least-once delivery, and idempotent completion reporting
+
+      Decided in `app/Actions/Runner/protocol.ts`, away from the database, so the cases that matter
+      can be tested at the boundary - and `now` is passed in rather than read, because a lease rule
+      that depends on a hidden clock cannot be.
+
+      **Only the lease holder, and only before the lease lapses.** A worker that lost its connection
+      is indistinguishable from one that never left, except by the lease, and without that rule it
+      can publish a success over a job that was cancelled and handed to somebody else: a green check
+      for work nobody did.
+
+      A lease that has lapsed makes the job claimable again, which is the only thing that recovers
+      work from a machine that died - it cannot be asked. A malformed lease timestamp reads as
+      expired rather than as forever, because the other way round one bad write holds a job for
+      good.
+
+      A repeat of a completion already recorded is accepted as a duplicate rather than refused.
+      Delivery is at-least-once, so a runner that did not hear the answer says it again, and
+      treating that as a conflict is how a correct runner retries forever. It is still refused when
+      it comes from a runner that does not hold the job.
+
+      `runs-on` matching needs **every** label rather than any: `[self-hosted, macos]` means both,
+      and matching on any is how a macOS build lands on a Linux box and fails confusingly instead of
+      waiting for the machine that could have run it.
 - [ ] Provider capabilities are discoverable, so the scheduler can reject an impossible job instead
       of leaving it queued forever
 - [ ] A provider cannot read another provider's job payloads, logs, caches, artifacts, or secrets
