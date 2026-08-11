@@ -411,7 +411,15 @@ run is inspected.
       cannot replace a trusted workflow and gain secrets.
 - [ ] Monorepository support: changed-path matching, working directory, shared setup jobs, and more
       than one deployable application per repository
-- [ ] Deduplicate trigger delivery so replaying a push webhook does not create a second run
+- [x] Deduplicate trigger delivery so replaying a push webhook does not create a second run
+
+      A unique index on (version, ref, head, event), not a check-then-insert: two deliveries
+      arriving together would both pass a check and both insert. The insert is attempted and a
+      collision is read as "somebody else already made this run", which is the right answer whether
+      the somebody else is a redelivery, a retried job, or a second scheduler.
+
+      Not cosmetic. Two runs for one commit are two builds competing to report a status for it, and
+      the one that lands last wins regardless of which was right.
 - [ ] Tests: branch and path filters, tag pushes, fork policy, reusable plus local workflows, an
       invalid graph, and the same event delivered twice
 
@@ -420,12 +428,48 @@ run is inspected.
 The database is the source of truth for orchestration. A runner may disappear after accepting work;
 the run must remain inspectable and resumable without trusting runner memory.
 
-- [ ] `WorkflowRun`, `WorkflowJob`, `WorkflowStep`, and `WorkflowStepAttempt` models, tied to one
+- [x] `WorkflowRun`, `WorkflowJob`, `WorkflowStep`, and `WorkflowStepAttempt` models, tied to one
       workflow version, repository, commit, trigger, actor or token, and optional pull request
-- [ ] Explicit run states: queued, running, waiting, paused, cancelling, cancelled, failed, and
+
+      `head_sha` and `definition_sha` are separate columns. They are the same commit for a push and
+      deliberately not for a fork's pull request, where the workflow is the base branch's - and
+      `trusted` is written at creation from that, rather than re-derived by whatever asks at
+      injection time. One place to look beats a rule every caller re-implements.
+
+      An attempt is a row rather than a counter, because a step that succeeded on its third try is
+      a different fact from a step that succeeded, and a counter cannot tell them apart. That
+      distinction is where phase 15's flaky-test verdicts come from, so the history has to exist
+      before anything can measure it.
+- [x] Explicit run states: queued, running, waiting, paused, cancelling, cancelled, failed, and
       succeeded, with terminal states that cannot move backwards
-- [ ] A dependency graph supports sequential jobs, fan-out, fan-in, conditional edges, and failure
+
+      The backwards rule is the one that matters, and it is not theoretical. The runner is somebody
+      else's machine executing hostile code by design, so the control plane cannot kill it - a late
+      message from a lapsed lease *will* arrive, and the only question is whether it is refused or
+      quietly believed. **A cancelled run turning green satisfies a branch protection rule with a
+      check nobody ran**, and it is silent: the row simply says something else than it did.
+
+      `cancelling` keeps its way out to *every* terminal state rather than only to `cancelled`,
+      because cancellation is cooperative first and a job that finished in the moment between the
+      request and the acknowledgement really did finish. Forcing it would be the control plane
+      overwriting something that happened.
+
+      A run's state is derived from its jobs rather than accumulated, so a control plane that
+      restarted mid-run reaches the same answer as one that watched every transition. A failure
+      while other jobs are still running is still `running`: the rest may be cancelled by policy,
+      and "failed" now is a verdict the run has not reached.
+- [x] A dependency graph supports sequential jobs, fan-out, fan-in, conditional edges, and failure
       policies without encoding orchestration in queue timing
+
+      `blocked` is a state rather than an absence, which is what keeps the graph out of the queue: a
+      job waiting on `needs:` is not queued and nothing should hand it out. Modelling it as "queued
+      but ignored" is exactly how orchestration ends up living in dispatch order.
+
+      `unreachableJobs` exists for the other half. A job whose dependency failed can never run, and
+      leaving it `blocked` forever means the run never reaches a terminal state - a run that never
+      finishes is one holding a pull request's checks open with nothing to show. A dependency that
+      is not in the run at all counts as failed rather than as satisfied, so "the graph is missing a
+      job" cannot become "run it anyway".
 - [ ] Each step persists its inputs, output metadata, attempt count, timestamps, timeout, retry
       policy, and error before the next step becomes eligible
 - [ ] Retry policies support limits, delay, and constant, linear, or exponential backoff

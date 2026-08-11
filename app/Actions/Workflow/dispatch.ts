@@ -1,0 +1,217 @@
+/**
+ * Turn a push into runs.
+ *
+ * Reads the versions a repository has, asks [the trigger
+ * rules](./triggers.ts) which of them care, and writes a run and its jobs for
+ * each. Nothing is executed and nothing is handed to a runner: the jobs land in
+ * `blocked` or `queued`, and what picks them up is the execution plane, which
+ * by [the threat model](../../../docs/ci-threat-model.md) is not this instance
+ * unless an operator has provided one.
+ *
+ * **A redelivered event must not produce a second run.** The unique index on
+ * (version, ref, head, event) is what enforces that, rather than a
+ * check-then-insert: two deliveries arriving at once would both pass a check
+ * and both insert. The insert is attempted and a collision is read as "somebody
+ * else already made this run", which is the correct outcome either way.
+ */
+
+import { db } from '@stacksjs/database'
+import type { PushEvent } from './triggers'
+import { pushStartsRun } from './triggers'
+
+export interface DispatchResult {
+  /** Runs created by this delivery, not runs that exist. */
+  created: number[]
+  /** Versions that matched but already had a run for this push. */
+  duplicates: number
+  /** Why each version did not run, for the interface and for support. */
+  skipped: Array<{ versionId: number, reason: string }>
+}
+
+/** The latest version of each active workflow in a repository. */
+async function currentVersions(repositoryId: number): Promise<any[]> {
+  return db
+    .selectFrom('workflow_versions')
+    // Four arguments, with the operator: the three-argument form this query
+    // builder does not have fails at runtime rather than at typecheck.
+    .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    .select([
+      'workflow_versions.id as id',
+      'workflow_versions.workflow_id as workflow_id',
+      'workflow_versions.on_push as on_push',
+      'workflow_versions.push_branches as push_branches',
+      'workflow_versions.push_tags as push_tags',
+      'workflow_versions.push_paths as push_paths',
+      'workflow_versions.source_sha as source_sha',
+    ])
+    .where('workflows.repository_id', '=', repositoryId)
+    .where('workflows.state', '=', 'active')
+    // Newest first, then one per workflow below: a workflow edited twice in one
+    // push has two versions and only the last one is current.
+    .orderBy('workflow_versions.id', 'desc')
+    .execute()
+}
+
+function newestPerWorkflow(rows: readonly any[]): any[] {
+  const seen = new Set<number>()
+  const newest: any[] = []
+
+  for (const row of rows) {
+    const workflowId = Number(row.workflow_id)
+    if (seen.has(workflowId))
+      continue
+
+    seen.add(workflowId)
+    newest.push(row)
+  }
+
+  return newest
+}
+
+/**
+ * The next run number for a repository.
+ *
+ * Per repository rather than per workflow or per instance, because "run 42" is
+ * how somebody refers to one out loud and a number that restarts per workflow
+ * makes two runs called 42 in the same conversation.
+ *
+ * Read then written, which can collide under two simultaneous pushes. The
+ * collision is not silent - the insert fails and the caller sees it - and the
+ * alternative is a sequence per repository, which is a row nobody else needs.
+ * Worth revisiting when runs are frequent enough for it to matter.
+ */
+async function nextNumber(repositoryId: number): Promise<number> {
+  const row: any = await db
+    .selectFrom('workflow_runs')
+    .select(['number'])
+    .where('repository_id', '=', repositoryId)
+    .orderBy('number', 'desc')
+    .limit(1)
+    .executeTakeFirst()
+
+  return Number(row?.number ?? 0) + 1
+}
+
+export interface DispatchInput {
+  repositoryId: number
+  event: PushEvent
+  /** The commit the push left on the ref. */
+  headSha: string
+  /** Who pushed, when that is known. */
+  actorId?: number | null
+}
+
+/**
+ * Create the runs a push should start.
+ *
+ * Every version is considered and every refusal is returned rather than
+ * dropped. A run that did not happen leaves nothing on screen, so the reason is
+ * the only thing that can ever explain it.
+ */
+export async function dispatchPush(input: DispatchInput): Promise<DispatchResult> {
+  const result: DispatchResult = { created: [], duplicates: 0, skipped: [] }
+
+  const versions = newestPerWorkflow(await currentVersions(input.repositoryId))
+
+  for (const version of versions) {
+    const decision = pushStartsRun(version, input.event)
+
+    if (!decision.run) {
+      result.skipped.push({ versionId: Number(version.id), reason: decision.reason })
+      continue
+    }
+
+    const created = await createRun(input, version)
+
+    if (created === null)
+      result.duplicates++
+    else
+      result.created.push(created)
+  }
+
+  return result
+}
+
+/**
+ * One run, or null when this delivery has already produced it.
+ *
+ * A push to the repository's own branch is trusted: the code and the workflow
+ * are both from the repository, and whoever pushed has write access. A fork's
+ * pull request is a different path and is not this one - it is untrusted, and
+ * it is deliberately not implemented here rather than approximated.
+ */
+async function createRun(input: DispatchInput, version: any): Promise<number | null> {
+  try {
+    const run: any = await db
+      .insertInto('workflow_runs')
+      .values({
+        workflow_version_id: Number(version.id),
+        repository_id: input.repositoryId,
+        number: await nextNumber(input.repositoryId),
+        state: 'queued',
+        event: 'push',
+        event_ref: input.event.ref,
+        head_sha: input.headSha,
+        // For a push these are the same commit. They are stored separately
+        // because for a fork's pull request they are not, and a reader must be
+        // able to see which commit supplied the workflow.
+        definition_sha: String(version.source_sha ?? input.headSha),
+        trusted: true,
+        actor_id: input.actorId ?? null,
+      } as any)
+      .returning(['id'])
+      .executeTakeFirst()
+
+    const runId = Number(run?.id)
+    await createJobs(runId, Number(version.id))
+
+    return runId
+  }
+  catch (error) {
+    // The unique index did its job: this push already has a run for this
+    // version. Any other failure is not a duplicate and is worth raising.
+    if (isDuplicate(error))
+      return null
+
+    throw error
+  }
+}
+
+/** Postgres says 23505 for a unique violation; drivers wrap it differently. */
+function isDuplicate(error: unknown): boolean {
+  const text = error instanceof Error ? `${error.message}` : String(error)
+  return text.includes('23505') || text.toLowerCase().includes('duplicate key')
+}
+
+/**
+ * The run's jobs, copied from the definition.
+ *
+ * Copied rather than referenced, because the run has to stay readable when the
+ * definition changes - and because a job's state belongs to the run, not to the
+ * workflow. A job with no `needs` is queued immediately; the rest wait.
+ */
+async function createJobs(runId: number, versionId: number): Promise<void> {
+  const definition: any[] = await db
+    .selectFrom('workflow_version_jobs')
+    .select(['job_id', 'name', 'position', 'runs_on', 'needs'])
+    .where('workflow_version_id', '=', versionId)
+    .orderBy('position')
+    .execute()
+
+  for (const job of definition) {
+    const needs = String(job.needs ?? '').trim()
+
+    await db
+      .insertInto('workflow_jobs')
+      .values({
+        workflow_run_id: runId,
+        job_id: job.job_id,
+        name: job.name,
+        position: Number(job.position ?? 0),
+        state: needs.length > 0 ? 'blocked' : 'queued',
+        needs: job.needs,
+        runs_on: job.runs_on,
+      } as any)
+      .execute()
+  }
+}

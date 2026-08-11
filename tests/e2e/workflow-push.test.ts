@@ -295,3 +295,95 @@ describe('pushing a workflow file', () => {
     expect(paths).not.toContain('.github/workflows/second.yml')
   })
 })
+
+describe('and the runs it starts', () => {
+  async function runsHere(): Promise<any[]> {
+    return db
+      .selectFrom('workflow_runs')
+      .select(['id', 'number', 'state', 'event', 'event_ref', 'head_sha', 'trusted'])
+      .where('repository_id', '=', created.repositoryId)
+      .orderBy('id')
+      .execute()
+  }
+
+  test('a push to the default branch queues a run', async () => {
+    if (!available)
+      return
+
+    await push('src/again.ts', 'export const again = 2\n')
+
+    const runs = await waitFor(runsHere, found => found.length > 0)
+
+    expect(runs.length).toBeGreaterThan(0)
+    expect(runs[0].state).toBe('queued')
+    expect(runs[0].event).toBe('push')
+    expect(runs[0].event_ref).toBe('refs/heads/main')
+    // A push to the repository's own branch: the code and the workflow are
+    // both from the repository, and whoever pushed has write access.
+    expect(runs[0].trusted).toBe(true)
+  })
+
+  test('with the jobs the definition describes, waiting rather than running', async () => {
+    if (!available)
+      return
+
+    const runs = await runsHere()
+    const jobs: any[] = await db
+      .selectFrom('workflow_jobs')
+      .select(['job_id', 'state'])
+      .where('workflow_run_id', '=', Number(runs[0].id))
+      .execute()
+
+    expect(jobs.map(job => job.job_id)).toEqual(['test'])
+    // No `needs`, so it is ready to be handed out - and nothing hands it out,
+    // because this instance has no execution plane.
+    expect(jobs[0].state).toBe('queued')
+  })
+
+  /*
+   * The property the unique index exists for. A webhook redelivery, a retried
+   * job, or two schedulers reading at once must not turn one push into two
+   * runs - and a duplicated run is not a cosmetic problem, it is two builds
+   * competing to report a status for the same commit.
+   */
+  test('the same push delivered twice makes one run, not two', async () => {
+    if (!available)
+      return
+
+    const { syncFromPush } = await import('../../app/Listeners/SyncWorkflows')
+    const { runGit } = await import('../../app/Actions/Git/git')
+    const head = (await runGit(created.diskPath, ['rev-parse', 'refs/heads/main'])).stdout.trim()
+
+    const delivery = {
+      repositoryId: created.repositoryId,
+      owner: created.handle,
+      defaultBranch: 'main',
+      updates: [{
+        kind: 'branch',
+        name: 'main',
+        change: 'updated',
+        ref: 'refs/heads/main',
+        before: head,
+        after: head,
+      }],
+    }
+
+    // The count after the *first* delivery is the baseline. Taking it before
+    // would be asserting that this head already has a run, which it may not -
+    // and then the test would fail on the first delivery doing its job.
+    await syncFromPush(delivery)
+    const afterFirst = (await runsHere()).length
+
+    await syncFromPush(delivery)
+
+    expect((await runsHere()).length).toBe(afterFirst)
+  })
+
+  test('and run numbers are per repository, so a person can say "run 2"', async () => {
+    if (!available)
+      return
+
+    const runs = await runsHere()
+    expect(runs.map(run => Number(run.number))).toEqual(runs.map((_, index) => index + 1))
+  })
+})

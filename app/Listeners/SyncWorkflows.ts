@@ -11,17 +11,20 @@ import { syncWorkflowFile } from '../Actions/Workflow/sync'
  * one reads a tree and writes definitions; a failure here must not cost a
  * notification.
  *
- * **Only the default branch.** The workflow definition comes from the trusted
- * ref - that is the fork rule in [the threat
- * model](../../docs/ci-threat-model.md) - and syncing from whatever branch
- * happened to move would let anybody with push access to any branch replace the
- * definitions the instance holds. A push to a feature branch may still *start*
- * a run later, but the workflow it runs is the one on the default branch.
+ * **Definitions come from the default branch only.** That is the fork rule in
+ * [the threat model](../../docs/ci-threat-model.md): syncing from whatever
+ * branch happened to move would let anybody with push access to any branch
+ * replace the definitions the instance holds.
  *
- * Nothing here starts anything. Registering a definition is not scheduling
- * work, and the run models this would dispatch into do not exist yet - so the
- * honest behaviour is to keep the definitions current and stop, rather than to
- * half-implement dispatch where a missing run is invisible.
+ * **Runs are created for every branch that moved.** A push to a feature branch
+ * is a push somebody expects CI on, and only running the default branch would
+ * make the feature look broken to anybody working the way people actually work.
+ * The two rules are different on purpose: where the workflow comes from is a
+ * trust question, and which pushes it responds to is not.
+ *
+ * Creating a run is still not executing one. The jobs land in `blocked` or
+ * `queued` and wait for an execution plane, which by the threat model is not
+ * this instance unless an operator has provided one.
  */
 export default {
   listensTo: ['push:received'],
@@ -87,6 +90,12 @@ export async function syncFromPush(event: any): Promise<void> {
         sha: String(moved.after),
       }).catch(() => null)
     }
+
+    // Definitions first, then what they say to do with this push - in that
+    // order, so a workflow added by this very push can run on it. The other
+    // order is the one where adding CI to a repository does nothing until the
+    // next commit, which reads as CI being broken.
+    await dispatchForPush(repository, event)
   }
   catch {
     // An event is a consequence of somebody's push and must never be able to
@@ -132,4 +141,42 @@ async function ownerHandle(repository: any): Promise<string> {
     .executeTakeFirst()
 
   return String(row?.handle ?? '')
+}
+
+/**
+ * Start the runs this push should start.
+ *
+ * Every branch that moved, not only the default one. The *definitions* come
+ * from the default branch - that is the fork rule - but a push to a feature
+ * branch is a push somebody expects CI on, and only running the default branch
+ * would make the whole feature look broken to anybody working the way people
+ * actually work.
+ */
+async function dispatchForPush(repository: any, event: any): Promise<void> {
+  const { dispatchPush } = await import('../Actions/Workflow/dispatch')
+
+  const updates = Array.isArray(event?.updates) ? event.updates : []
+
+  const branches = updates.filter((update: any) =>
+    update?.kind === 'branch' && update?.change !== 'deleted' && update?.after)
+
+  // A tag push is a push too, and a workflow can ask for tags.
+  const tags = updates.filter((update: any) =>
+    update?.kind === 'tag' && update?.change !== 'deleted' && update?.after)
+
+  for (const update of [...branches, ...tags]) {
+    await dispatchPush({
+      repositoryId: Number(repository.id),
+      headSha: String(update.after),
+      event: {
+        ref: String(update.ref),
+        // The changed paths are not known here. `pushStartsRun` errs towards
+        // running when a workflow filters on paths and nothing is known, which
+        // is the visible failure rather than the invisible one.
+        changed: [],
+        deleted: update.change === 'deleted',
+      },
+    }).catch(() => null)
+  }
+
 }
