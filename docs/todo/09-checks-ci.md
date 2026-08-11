@@ -279,8 +279,37 @@ run is inspected.
       path, content digest, trigger policy, state, and the normalized step graph
 - [ ] Normalize jobs, steps, dependencies, triggers, and input declarations into related rows. A
       workflow-sized JSON blob would make querying, authorization, and migrations harder.
-- [ ] Validate a definition without running it, returning errors with a file location and a concrete
+- [x] Validate a definition without running it, returning errors with a file location and a concrete
       fix. Invalid workflow code must never reach a runner.
+
+      `app/Actions/Workflow/parse.ts`. Source text in, a normalized graph or a list of errors out,
+      and **nothing in it executes, resolves or fetches**: a `run:` body is a string going in and a
+      string coming out, and `uses:` is a reference it records rather than goes and looks up. That
+      is what makes it safe to run against a fork's pull request, which is the only way a forge can
+      tell a contributor their workflow is broken instead of running it to find out.
+
+      Every problem is reported in one pass rather than the first one thrown, because somebody
+      fixing a workflow file wants the list - a validator that reveals one problem per push is one
+      people work around by pushing. Errors carry a line and a fix: `runs_on` is reported as not a
+      job key *and* as a missing runner, with "hyphenated, not camel case", because that is the
+      typo, not a schema violation to look up.
+
+      Line numbers are found textually rather than by carrying a second YAML parser for positions,
+      and `lineOf` says so: a key repeated at two nesting levels can match the outer one, so it is a
+      pointer into a file the author has open rather than a claim about the document tree.
+
+      **Checked against this repository's own eight workflows, which is what caught the first
+      version being wrong.** It rejected `pull_request_target` and `workflow_call` as unknown
+      triggers - both valid Actions, one a reusable workflow that no event starts and the other the
+      most security-sensitive trigger there is. Recognised is now the bar rather than dispatched: an
+      event this instance does not run yet is recorded and the workflow stands, because refusing a
+      valid file is exactly how the format stops being one a repository can arrive with. A
+      misspelled event is still an error.
+
+      `pull_request_target` is kept apart from `pull_request` in the normalized triggers rather than
+      folded into it. It is the same event with the opposite trust - the workflow comes from the
+      base branch and runs with the base repository's secrets against a fork's code - and that is
+      the one fact the fork policy in [the threat model](../ci-threat-model.md) needs.
 - [ ] Triggers for push, pull request, tag, schedule, manual/API dispatch, and repository events,
       each with repository, ref, and path filters
 - [ ] Push triggers consume the same `push:received` event emitted by phase 2. There is no second
@@ -377,8 +406,24 @@ should not make its public workflow API describe one vendor's sandbox.
 Running repository code is not approved merely because the control plane exists. These boxes are a
 gate, in order.
 
-- [ ] Decide the isolation boundary first: container, microVM, a remote provider, or self-hosted
+- [x] Decide the isolation boundary first: container, microVM, a remote provider, or self-hosted
       runners only. Publish the threat model and what the boundary does not protect.
+
+      Published as [the CI threat model](../ci-threat-model.md). **The decision is that ReviewOS
+      does not execute repository code by default, and its default deployment never will**: the
+      instance ships a control plane and a runner protocol, and execution happens on machines the
+      operator explicitly provides.
+
+      The reason is specific to this product rather than borrowed. The documented default deployment
+      is one host, and on one host a container shares a kernel with the process holding every
+      private repository on the instance - so a kernel privilege escalation is not a sandbox escape,
+      it is instance compromise. Where an operator does opt in, a microVM is the only boundary in
+      which running a public repository's fork pull requests is defensible, and **container mode is
+      documented as not a security boundary** rather than sold as one.
+
+      The consequence for everything above it: the control plane has to be complete and useful with
+      no execution plane at all, or the default becomes a mode nobody runs. That is already this
+      phase's shape, and it is why those boxes are not blocked by this gate.
 - [ ] Ephemeral workspace per job, immutable base image, read-only source checkout where possible,
       no host socket, no sibling process visibility, and no repository storage mounted into a job
 - [ ] Network policy with a safe default and explicit egress controls. A sandbox with unrestricted

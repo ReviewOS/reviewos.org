@@ -23,7 +23,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (19/20) |
 | [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress (21/45) |
 | [08 - Migration](./08-migration.md) | Importing from GitHub and other forges | Done (16/16) |
-| [09 - Checks and CI](./09-checks-ci.md) | Checks, durable execution, runner providers, deployments | Started (12/120) |
+| [09 - Checks and CI](./09-checks-ci.md) | Checks, durable execution, runner providers, deployments | Started (14/120) |
 | [10 - Federation](./10-federation.md) | Research: ActivityPub / ForgeFed versus AT Protocol | Research (0/13) |
 | [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Done (45/45) |
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Started (29/30) |
