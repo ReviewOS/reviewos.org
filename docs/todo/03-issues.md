@@ -96,6 +96,20 @@ One pipeline, used by issues, pull requests, reviews, releases, and repository f
       repository only, issues only. No actor is recorded, because a commit's author is free text
       that anybody can set and attributing a close to a local account on the strength of one would
       put words in somebody's mouth.
+
+  Held end to end by `tests/e2e/commit-closes-issue.test.ts`, which was worth writing even though
+  every piece already had unit tests: those cover the parser, and the parser was never the risk.
+  A real commit is pushed into a real bare repository and the job the hook dispatches is run, for
+  `closes`, a capitalised `Fixes`, a past-tense `resolved:` with its colon, and two issues named in
+  one message - and for the three that must *not* close anything: a bare `#104` mention, a keyword
+  inside a code span, and a reference naming another repository.
+
+  Writing it found nothing wrong with the feature and something wrong with the test. Handing the
+  job a literal `{ ref, before, after }` produces a payload with no `kind`, which `branchUpdates`
+  filters on, so the job accepts it, finds no branches, reads no commits and returns success having
+  done nothing. It looked like it passed, because the repository's real post-receive hook had
+  raced it to the close. The payload is built through `parseRefUpdates` now, the same way the hook
+  builds it.
 - [x] Task lists that can be ticked directly from the rendered issue, on the body and on comments.
       The edit lands in the markdown source character for character - the rendered checkbox is a
       view of the document, not the document - so nothing else in somebody's writing moves. Each
