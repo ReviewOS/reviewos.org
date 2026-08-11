@@ -195,6 +195,18 @@ export interface MappedPull {
   draft: boolean
   headRef: string | null
   baseRef: string | null
+  /**
+   * The commits the branch names pointed at when the import ran.
+   *
+   * Carried because a branch name is not a diff. A mirrored pull request whose
+   * row has only `head_branch` and `base_branch` renders as a page with a
+   * title, an author and "0 files, +0 -0" - which reads as a pull request that
+   * changes nothing rather than as one nobody has the commits for. Both refs
+   * arrive in the same API response as the names, so not reading them cost an
+   * extra field and nothing else.
+   */
+  headSha: string | null
+  baseSha: string | null
   attribution: Attribution
   createdAt: string | null
   mergedAt: string | null
@@ -211,6 +223,8 @@ export function mapPull(pull: GitHubPull, linked: ReadonlyMap<string, number>): 
     draft: Boolean(pull.draft),
     headRef: pull.head?.ref ?? null,
     baseRef: pull.base?.ref ?? null,
+    headSha: pull.head?.sha ?? null,
+    baseSha: pull.base?.sha ?? null,
     attribution: attribute(pull.user, linked),
     createdAt: pull.created_at ?? null,
     mergedAt: pull.merged_at ?? null,

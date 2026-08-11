@@ -152,6 +152,32 @@ describe('mapPull', () => {
   it('carries the draft flag, which changes what the screen offers', () => {
     expect(mapPull({ number: 1, draft: true }, linked)?.draft).toBe(true)
   })
+
+  /*
+   * A branch name is not a diff. These arrive in the same response as the
+   * names and were being dropped, so an imported pull request rendered with a
+   * title, an author and "0 files, +0 -0" - which reads as a change that
+   * touches nothing rather than as one whose commits nobody looked up. The
+   * branches are not fetched into a mirror either: the commits land under
+   * `refs/pull/<n>/head` and are reachable by sha and by nothing else.
+   */
+  it('carries the head and base shas, without which there is nothing to diff', () => {
+    const mapped = mapPull({
+      number: 901,
+      head: { ref: 'feature', sha: 'a'.repeat(40) },
+      base: { ref: 'main', sha: 'b'.repeat(40) },
+    }, linked)
+
+    expect(mapped?.headSha).toBe('a'.repeat(40))
+    expect(mapped?.baseSha).toBe('b'.repeat(40))
+  })
+
+  it('and leaves them null when the response omits them', () => {
+    const mapped = mapPull({ number: 902, head: { ref: 'feature' } }, linked)
+
+    expect(mapped?.headSha).toBeNull()
+    expect(mapped?.baseSha).toBeNull()
+  })
 })
 
 describe('commentSide and commentLine', () => {

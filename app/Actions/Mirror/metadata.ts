@@ -100,6 +100,12 @@ export function pullRow(pull: MappedPull, repositoryId: number): Record<string, 
     draft: pull.draft,
     head_branch: pull.headRef,
     base_branch: pull.baseRef,
+    // Without these the review screen has nothing to diff: the branch names
+    // are upstream's, and the branches themselves are not fetched into a
+    // mirror - the commits arrive under `refs/pull/<n>/head`, which is
+    // reachable by sha and by nothing else here.
+    head_sha: pull.headSha,
+    base_sha: pull.baseSha,
     author_id: pull.attribution.userId,
     external_author: pull.attribution.userId === null ? pull.attribution.displayName : null,
     merged_at: pull.mergedAt,

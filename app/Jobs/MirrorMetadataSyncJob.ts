@@ -478,7 +478,7 @@ async function writeLabels(
     return { created: 0, updated: 0 }
 
   const existing: any[] = await db
-    .selectFrom('labels')
+    .selectFrom('repository_labels')
     .select(['id', 'name', 'color', 'description'])
     .where('repository_id', '=', repositoryId)
     .execute()
@@ -493,7 +493,7 @@ async function writeLabels(
 
     if (!found) {
       try {
-        await db.insertInto('labels').values({
+        await db.insertInto('repository_labels').values({
           repository_id: repositoryId,
           name: label.name,
           color: label.color,
@@ -512,7 +512,7 @@ async function writeLabels(
       continue
 
     await db
-      .updateTable('labels')
+      .updateTable('repository_labels')
       .set({ color: label.color, description: label.description })
       .where('id', '=', Number(found.id))
       .execute()

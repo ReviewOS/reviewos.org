@@ -247,7 +247,37 @@ documentation is markdown that the docs pipeline has to render anyway.
 - [ ] Its markdown renders through the docs pipeline described in
       [07 - Marketing and docs](./07-marketing-docs.md)
 - [ ] Pull requests visible in the review screen, which is the actual test of whether any of this
-      was worth building
+      was worth building.
+
+      **Two thirds of the way, and the last third is named rather than guessed at.** Running this
+      against the live repository is what found all of it; none of it was visible from the code.
+
+      `stacks/stacks` now carries 1807 pull requests, 484 issues, 404 labels and 4 review threads,
+      and a pull request page renders its title, state, author, branches and description from the
+      import. Two things had to be fixed to get that far, and both had been ticked above.
+
+      **The metadata sync had never run.** It queried a table called `labels`; the table is
+      `repository_labels`, which is what every other caller in the codebase uses. The job died on
+      its first query, so *no* mirrored metadata has ever been imported - the issues, pull requests,
+      review threads and labels boxes above were all ticked on unit tests over the mappers.
+
+      **The importer dropped the commits.** `mapPull` read `head.ref` and `base.ref` and ignored
+      `head.sha` and `base.sha`, which arrive in the same response, so every imported pull request
+      had `head_sha` and `base_sha` null. A branch name is not a diff: the page rendered
+      "0 files, +0 -0", which reads as a change that touches nothing rather than as one whose
+      commits nobody looked up. Both are carried now, with tests.
+
+      What is left is a real design decision, not a missing line. GitHub's `base.sha` is the tip of
+      the base branch *when the pull request was opened*, and a mirror never fetches it - the head
+      arrives under `refs/pull/<n>/head` and nothing brings the historical base along. So
+      `git diff <base>...<head>` fails outright: *fatal: Invalid symmetric difference expression*,
+      verified for #1816, whose head object is present and whose base object is not.
+
+      The fix belongs at the import rather than in `streamMergeBaseDiff`, which has twelve callers
+      and no idea what the base branch is. For a mirror the base to diff against is arguably the
+      *local* tip of the base branch anyway, because that is the state a reader here can see, and
+      the merge base is then computed from something the repository actually has. That is a change
+      to what the importer records, and it wants its own pass rather than the end of a long one.
 
 ## Verified against the live repository
 
