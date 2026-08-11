@@ -14753,6 +14753,75 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/workflow-runs": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "state"?: string; "branch"?: string; "sha"?: string; "workflow"?: number; "per_page"?: number; "cursor"?: string }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/workflow-runs/cancel": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "reason"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/workflow-runs/show": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "number"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/requests": {
     get: {
     parameters: {

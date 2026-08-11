@@ -66,6 +66,7 @@ export const REPOSITORY_ABILITY_SCOPES = {
   'repository:push': { scope: 'contents', level: 'write' },
   'pull:merge': { scope: 'contents', level: 'write' },
   'check:report': { scope: 'checks', level: 'write' },
+  'workflow:cancel': { scope: 'checks', level: 'write' },
 
   'issue:open': { scope: 'issues', level: 'write' },
   'issue:comment': { scope: 'issues', level: 'write' },

@@ -690,3 +690,23 @@ route.post('/mirrors/webhook', 'Actions/Mirror/MirrorWebhookAction').skipCsrf().
 // rate limit - a public mirror anybody could trigger is a way to get this
 // instance's token banned by whoever it belongs to.
 route.post('/mirrors/sync', 'Actions/Mirror/SyncNowAction').middleware('auth')
+
+/*
+ * Workflow runs.
+ *
+ * The control plane's read surface, and the one lifecycle action that already
+ * has something to act on. No `auth` middleware on the reads, for the same
+ * reason the diff endpoints have none: a public repository's runs are public,
+ * and `authorizeRepository` inside each action answers 404 rather than 403 to
+ * anybody who cannot read a private one - a 403 would confirm the repository
+ * exists.
+ *
+ * `repository` and `workflow run` in the paths, not provider vocabulary. These
+ * are the names the interface, the CLI and the API all use.
+ */
+route.get('/repos/workflow-runs', 'Actions/Workflow/ListWorkflowRunsAction')
+route.get('/repos/workflow-runs/show', 'Actions/Workflow/ShowWorkflowRunAction')
+
+// Write access, checked in the action: anybody who can see a run is not
+// therefore somebody who can stop it.
+route.post('/repos/workflow-runs/cancel', 'Actions/Workflow/CancelWorkflowRunAction').middleware('auth')

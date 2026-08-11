@@ -56,6 +56,12 @@ export const REPOSITORY_ABILITIES = {
   // write, and phase 09 wants it separate from permission to push code: a
   // reporter that can only report cannot also rewrite history.
   'check:report': 'write',
+  // Stopping a run is a separate power from reporting one. A CI integration
+  // that publishes results has no business cancelling somebody's build, and a
+  // person who can cancel one need not be able to report a passing check -
+  // which is the more dangerous of the two, because it satisfies a branch
+  // protection rule.
+  'workflow:cancel': 'write',
   // Managing the label and milestone *sets* is a heavier power than applying
   // them: deleting a label strips it from every issue that carried it, and
   // deleting a milestone empties it. Applying one stays at triage above.

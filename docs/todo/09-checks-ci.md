@@ -491,11 +491,55 @@ the run must remain inspectable and resumable without trusting runner memory.
 - [ ] List workflows, get one workflow, list versions, get one version, and return its normalized
       graph
 - [ ] Dispatch a workflow with caller-supplied inputs and an idempotency key
-- [ ] List runs by repository, workflow, commit, pull request, status, trigger, and time using cursor
+- [x] List runs by repository, workflow, commit, pull request, status, trigger, and time using cursor
       pagination with stable ordering
-- [ ] Get a run with its jobs, steps, attempts, check rollup, trigger, workflow version, and timing
+
+      Through the same cursor helpers every other list endpoint uses, rather than a second idea of
+      "after" written here - two definitions of it is how a cursor skips a row in one endpoint and
+      repeats it in another, and the bug reads as a database problem. Ordered by `created_at` with
+      the id as tiebreaker, because two runs from one push share a timestamp to the second and
+      without the id they straddle a page boundary with one never returned.
+
+      A branch is accepted as `main` as well as `refs/heads/main`: the first is what somebody types,
+      the second is what a link built from an event carries.
+- [x] Get a run with its jobs, steps, attempts, check rollup, trigger, workflow version, and timing
+
+      Whole, rather than as three endpoints a client stitches. A run is tens of jobs and tens of
+      steps, the screen that shows one needs all of it, and three round trips buy nothing but a
+      chance for the three to disagree about what state the run was in. Steps come back in one
+      query for the whole run rather than one per job.
+
+      Addressed by the run's **number** - what a person says out loud and what a link carries -
+      rather than by its database id. The workflow version is included so a reader can tell which
+      definition ran, and whether it is the one in the branch today.
+
+      Attempts and the check rollup are not in the response yet: nothing produces attempts until
+      something executes a step, and there is no rollup to report. Listed here rather than
+      pretended.
 - [ ] Read logs incrementally from a cursor, with plain text and structured event representations
 - [ ] Pause, resume, cancel, retry from the start, and retry from a named step
+
+      **Cancel is done; the other four are not.** Cancelling is the one that has something to act on
+      while nothing executes, and it is the one the state machine exists for.
+
+      A run goes to `cancelling`, not straight to `cancelled`: the jobs are on machines this
+      instance does not control, and saying they have stopped before they have is a screen telling
+      somebody work has ended while it is still running and still costing them. Jobs that never
+      started are cancelled outright - there is nothing to ask to stop - and running ones have their
+      **lease revoked at the moment of the request** rather than when a runner acknowledges it,
+      which is what stops a worker that already lost its connection publishing a success over a run
+      somebody cancelled.
+
+      The update is guarded on the state that was read, so two cancellations arriving together, or a
+      run that finished in between, cannot have one overwrite what happened. Cancelling a run that
+      already finished is not an error and does not answer 409: it is an ordinary thing to do - two
+      people on the same screen, a click that arrived late - and it answers with the state, which is
+      the truth.
+
+      Cancelling needed a permission that did not exist. `workflow:cancel` is its own ability rather
+      than `check:report`, because a CI integration that publishes results has no business stopping
+      somebody's build, and a person who can stop one need not be able to report a passing check -
+      which is the more dangerous of the two, since that is what satisfies a branch protection rule.
 - [ ] Send a typed event to one waiting run, idempotently, and record who or what sent it
 - [ ] The interface, CLI, webhooks, and provider integrations call the same actions as the public API
 - [ ] Every endpoint has a fine-grained token requirement, generated OpenAPI, stable errors, rate
