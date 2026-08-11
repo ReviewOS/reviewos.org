@@ -116,6 +116,10 @@ export default {
   'branch:protection-changed': ['RecordAudit'],
   'branch:protection-removed': ['RecordAudit'],
   'push:protection-bypassed': ['RecordAudit'],
+  // Dispatched by `ProcessPushJob` and, until now, listened to by nobody.
+  // `SyncWorkflows` keeps the workflow definitions current from the default
+  // branch - the trusted ref - and starts nothing.
+  'push:received': ['SyncWorkflows'],
   'repository:visibility-changed': ['RecordAudit'],
   'repository:transferred': ['RecordAudit'],
   'repository:deleted': ['RecordAudit'],

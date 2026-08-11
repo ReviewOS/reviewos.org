@@ -370,8 +370,31 @@ run is inspected.
 
       Every refusal carries a reason, for the same asymmetry: "no workflow matched this push" with
       no explanation is a support question this product would otherwise generate forever.
-- [ ] Push triggers consume the same `push:received` event emitted by phase 2. There is no second
+- [x] Push triggers consume the same `push:received` event emitted by phase 2. There is no second
       receive pipeline just for CI.
+
+      `app/Listeners/SyncWorkflows.ts`, a fourth listener beside the ones that notify, deliver
+      webhooks and record activity. **`push:received` had no listeners at all before this** - it was
+      dispatched by `ProcessPushJob` and nobody was on the other end.
+
+      Only the default branch. The definition comes from the trusted ref, so syncing from whatever
+      branch happened to move would let anybody with push access to any branch replace the
+      definitions the instance holds. It registers and starts nothing: the run models do not exist
+      yet, and half-implementing dispatch is exactly where a missing run becomes invisible.
+
+      Two things had to be found by running it rather than by reading it, and both fail the same
+      silent way. Discovery scans `app/Listeners` for a default export of `{ listensTo, handle }` and
+      **skips anything else** - a bare exported function registers nothing and looks identical to a
+      listener that is wired and does nothing. And `repositories.disk_path` is not one shape:
+      `mirror:add` stores an absolute path while the checkout path stores one relative to the
+      repository root, so handing the column to git works for some repositories and finds nothing
+      for others. Nothing for others, because a missing directory is also how git says "this commit
+      has no `.github/workflows`", which is the ordinary answer. The owner and name are the source
+      of truth now, as the diff actions already treat them.
+
+      The end-to-end test polls rather than asserting immediately, because `dispatch` is
+      fire-and-forget and must be: a push is answered when the refs move, not when everything
+      downstream has finished thinking about it.
 - [ ] Owner-managed reusable workflows can target many repositories, while a repository may also
       define its own workflows. Both are visible in the resulting run.
 - [ ] A workflow can be **owned entirely by the organization and carried by no repository at all**,
