@@ -110,7 +110,14 @@ async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason
      */
     const { authenticatedUrl, mirrorToken, redact } = await import('../Actions/Mirror/credentials')
     const token = await mirrorToken(mirror.credential_ref)
-    const outcome = await fetchMirror(diskPath, authenticatedUrl(String(mirror.remote_url), token))
+    // The provider decides whether pull request heads come across, and under
+    // what name: they are not on any branch, so without it the mirror has the
+    // proposals' titles and none of their commits.
+    const outcome = await fetchMirror(
+      diskPath,
+      authenticatedUrl(String(mirror.remote_url), token),
+      { provider: String(mirror.provider ?? '') },
+    )
 
     if (!outcome.ok) {
       const failures = Number(mirror.failure_count ?? 0) + 1

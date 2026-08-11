@@ -246,7 +246,7 @@ documentation is markdown that the docs pipeline has to render anyway.
       publicDir genuinely does not have, still falls through to the page.
 - [ ] Its markdown renders through the docs pipeline described in
       [07 - Marketing and docs](./07-marketing-docs.md)
-- [ ] Pull requests visible in the review screen, which is the actual test of whether any of this
+- [x] Pull requests visible in the review screen, which is the actual test of whether any of this
       was worth building.
 
       **Two thirds of the way, and the last third is named rather than guessed at.** Running this
@@ -267,17 +267,31 @@ documentation is markdown that the docs pipeline has to render anyway.
       "0 files, +0 -0", which reads as a change that touches nothing rather than as one whose
       commits nobody looked up. Both are carried now, with tests.
 
-      What is left is a real design decision, not a missing line. GitHub's `base.sha` is the tip of
-      the base branch *when the pull request was opened*, and a mirror never fetches it - the head
-      arrives under `refs/pull/<n>/head` and nothing brings the historical base along. So
-      `git diff <base>...<head>` fails outright: *fatal: Invalid symmetric difference expression*,
-      verified for #1816, whose head object is present and whose base object is not.
+      **The diffs render.** Of the 15 open pull requests on `stacks/stacks`, 14 produce a file list
+      and one is legitimately empty; none error. Before this, every one of them failed.
 
-      The fix belongs at the import rather than in `streamMergeBaseDiff`, which has twelve callers
-      and no idea what the base branch is. For a mirror the base to diff against is arguably the
-      *local* tip of the base branch anyway, because that is the state a reader here can see, and
-      the merge base is then computed from something the repository actually has. That is a change
-      to what the importer records, and it wants its own pass rather than the end of a long one.
+      Two things were wrong and only the first was visible from the code.
+
+      `base.sha` is the base branch's tip *when the pull request was opened*, and a mirror never
+      holds it, so `git diff <base>...<head>` died with *fatal: Invalid symmetric difference
+      expression*. `resolveBaseShas` now records a base this repository can actually show:
+      upstream's when the object is present, the local tip of the base branch when it is not, and
+      null when neither resolves - which is honest, rather than a row pointing at something the
+      page cannot render. Both lookups are batched, because two thousand pull requests would
+      otherwise be two thousand `cat-file` processes per sweep.
+
+      Fixing that exposed the second, which no amount of reading would have found: **the mirror
+      never fetched pull request heads at all.** The refspec was `+refs/heads/*` and `+refs/tags/*`,
+      and a proposal's commits are not on a branch of the repository being mirrored - they are on a
+      fork. The 1765 `refs/pull/*` refs here came from the initial clone and had been frozen ever
+      since, so any pull request pushed to after that day pointed at a commit the mirror did not
+      have. `proposalRefspec` adds them, per forge: `refs/pull/*/head` for GitHub, Gitea and
+      Forgejo, `refs/merge-requests/*/head` for GitLab, and nothing for a plain git remote, whose
+      server would reject a refspec it does not publish and fail the whole fetch with it.
+
+      The order matters and is now the one the sweep should use: fetch, then metadata. The reverse
+      records heads the repository is about to receive, and every actively-pushed pull request
+      spends the gap unrenderable.
 
 ## Verified against the live repository
 

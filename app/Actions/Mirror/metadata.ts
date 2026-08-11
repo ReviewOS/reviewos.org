@@ -88,7 +88,17 @@ export function issueRow(issue: MappedIssue, repositoryId: number): Record<strin
   }
 }
 
-export function pullRow(pull: MappedPull, repositoryId: number): Record<string, unknown> {
+/**
+ * `baseSha` is passed in rather than taken from the mapped pull, because the
+ * commit worth storing is the one this repository holds - see
+ * `resolveBaseShas`. Omitting the argument falls back to upstream's, which is
+ * what a caller with no repository on disk (a test of the mapping) wants.
+ */
+export function pullRow(
+  pull: MappedPull,
+  repositoryId: number,
+  baseSha?: string | null,
+): Record<string, unknown> {
   return {
     repository_id: repositoryId,
     number: pull.number,
@@ -105,7 +115,7 @@ export function pullRow(pull: MappedPull, repositoryId: number): Record<string, 
     // mirror - the commits arrive under `refs/pull/<n>/head`, which is
     // reachable by sha and by nothing else here.
     head_sha: pull.headSha,
-    base_sha: pull.baseSha,
+    base_sha: baseSha === undefined ? pull.baseSha : baseSha,
     author_id: pull.attribution.userId,
     external_author: pull.attribution.userId === null ? pull.attribution.displayName : null,
     merged_at: pull.mergedAt,

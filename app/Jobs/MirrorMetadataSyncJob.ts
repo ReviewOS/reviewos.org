@@ -1,6 +1,7 @@
 import { dispatch } from '@stacksjs/events'
 import { Job } from '@stacksjs/queue'
 import { GitHubClient } from '../Actions/Mirror/github-client'
+import { resolveBaseShas } from '../Actions/Mirror/bases'
 import type { MappedIssue, MappedPull } from '../Actions/Mirror/github'
 import { buildThreads, mapIssue, mapLabel, mapPull, mapRepository, mapReviewComment, onlyIssues } from '../Actions/Mirror/github'
 import {
@@ -62,6 +63,15 @@ export default new Job({
       return { ok: false, reason: 'mirror does not name a remote repository' }
 
     const repositoryId = Number(mirror.repository_id)
+
+    // The path on disk, for the one question the API cannot answer: which of
+    // the commits it names this repository actually holds.
+    const repositoryRow: any = await db
+      .selectFrom('repositories')
+      .select(['disk_path'])
+      .where('id', '=', repositoryId)
+      .executeTakeFirst()
+
     const client = new GitHubClient({ token: await resolveToken(mirror.credential_ref) })
 
     // Who upstream maps to a local user. Read once: the alternative is a query
@@ -86,9 +96,15 @@ export default new Job({
       .map(item => mapPull(item, linked))
       .filter((item): item is NonNullable<typeof item> => item !== null)
 
+    // Resolved against the repository on disk rather than trusted from
+    // upstream: see `resolveBaseShas`. A mirror does not hold the commit
+    // `base.sha` names, so storing it unchanged imports a pull request whose
+    // diff cannot be computed.
+    const bases = await resolveBaseShas(String(repositoryRow?.disk_path ?? ''), pulls)
+
     const written = {
       issues: await writeIssues(issues, repositoryId),
-      pulls: await writePulls(pulls, repositoryId),
+      pulls: await writePulls(pulls, repositoryId, bases),
       threads: await writeReviewThreads(commentsResult.items, repositoryId, linked),
       /*
        * The repository's own fields, and the labels and milestones under it.
@@ -215,7 +231,11 @@ async function writeIssues(present: MappedIssue[], repositoryId: number) {
   return { created: plan.create.length, updated: plan.update.length }
 }
 
-async function writePulls(present: MappedPull[], repositoryId: number) {
+async function writePulls(
+  present: MappedPull[],
+  repositoryId: number,
+  bases: Map<number, string | null>,
+) {
   if (present.length === 0) return { created: 0, updated: 0 }
 
   const rows: any[] = await db
@@ -227,11 +247,18 @@ async function writePulls(present: MappedPull[], repositoryId: number) {
   const existing = new Map(rows.map(r => [Number(r.number), { id: Number(r.id) }]))
   const plan = planByNumber(present, existing)
 
-  for (const item of plan.create)
-    await db.insertInto('pull_requests').values(pullRow(item, repositoryId) as any).execute()
+  for (const item of plan.create) {
+    await db.insertInto('pull_requests')
+      .values(pullRow(item, repositoryId, bases.get(item.number)) as any)
+      .execute()
+  }
 
-  for (const { id, incoming } of plan.update)
-    await db.updateTable('pull_requests').set(pullRow(incoming, repositoryId) as any).where('id', '=', id).execute()
+  for (const { id, incoming } of plan.update) {
+    await db.updateTable('pull_requests')
+      .set(pullRow(incoming, repositoryId, bases.get(incoming.number)) as any)
+      .where('id', '=', id)
+      .execute()
+  }
 
   return { created: plan.create.length, updated: plan.update.length }
 }
