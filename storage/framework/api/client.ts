@@ -5518,6 +5518,27 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/runner/claim
+   */
+  postRunnerClaim(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/runner/claim", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/runner/heartbeat
+   */
+  postRunnerHeartbeat(input: { body: { "job": number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/runner/heartbeat", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/runner/report
+   */
+  postRunnerReport(input: { body: { "job": number; "state"?: "succeeded" | "failed" | "cancelled"; "error"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/runner/report", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/search
    */
   getSearch(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

@@ -22263,6 +22263,128 @@
         }
       }
     },
+    "/api/runner/claim": {
+      "post": {
+        "summary": "/api/runner/claim",
+        "operationId": "post__api_runner_claim",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/runner/heartbeat": {
+      "post": {
+        "summary": "/api/runner/heartbeat",
+        "operationId": "post__api_runner_heartbeat",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "job": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "job"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runner/report": {
+      "post": {
+        "summary": "/api/runner/report",
+        "operationId": "post__api_runner_report",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "job": {
+                    "type": "number"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "succeeded",
+                      "failed",
+                      "cancelled"
+                    ]
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "job"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search": {
       "get": {
         "summary": "/api/search",

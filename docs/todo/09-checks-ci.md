@@ -574,10 +574,26 @@ should not make its public workflow API describe one vendor's sandbox.
 - [x] Versioned runner protocol for claim, heartbeat, log append, artifact upload, step completion,
       and cancellation acknowledgment
 
-      Claim, heartbeat and completion are implemented and held by
-      `tests/e2e/runner-claim.test.ts`. Log append, artifact upload and cancellation
+      Claim, heartbeat and completion are implemented, reachable over HTTP at `/api/runner/claim`,
+      `/api/runner/heartbeat` and `/api/runner/report`, and held by `tests/e2e/runner-claim.test.ts`
+      and `tests/e2e/runner-api.test.ts`. Log append, artifact upload and cancellation
       acknowledgment are not, and neither is protocol versioning - the box is ticked for the half
       that exists and says which half that is.
+
+      The status codes are part of the contract rather than decoration. **No work is a 200 with
+      `job: null`**, because a runner polling an idle instance is not making a mistake and an error
+      status for the common case fills a fleet's logs with red that means nothing. **A refused
+      heartbeat is a 409**, because it tells the runner to stop working - the lease lapsed or the
+      run was cancelled, and anything it reports afterwards will be refused anyway. **A duplicate
+      report is a 200**, because at-least-once delivery means a correct runner will say it twice,
+      and answering 409 to that is how one retries forever.
+
+      Adding the routes tripped two of this repository's own invariant tests, both correctly: the
+      OpenAPI document needed regenerating, and the CSRF exemption count is asserted exactly, so
+      three `skipCsrf` routes could not arrive without somebody writing down why they are exempt.
+      They are exempt because a runner is a machine with its own bearer token and there is no
+      browser, no cookie and no session anywhere in the conversation - nothing for a forged
+      cross-site post to ride.
 
       **The guard is in the `WHERE`, not in an `if`.** Reading a job, deciding it is free and then
       writing the lease is two statements with a gap in the middle, and the gap is exactly long
@@ -623,6 +639,10 @@ should not make its public workflow API describe one vendor's sandbox.
       Selected-workflow scoping is not implemented; instance, organization and repository are.
 - [ ] Short-lived job credentials, bound to one attempt. Registration credentials never enter the
       job environment.
+
+      Not done, and worth saying plainly: a runner currently authenticates every call with its
+      registration credential. That is the credential the threat model says must never reach a job
+      environment, so the per-attempt token has to exist before anything executes.
 - [x] Leases with heartbeat expiry, at-least-once delivery, and idempotent completion reporting
 
       Decided in `app/Actions/Runner/protocol.ts`, away from the database, so the cases that matter

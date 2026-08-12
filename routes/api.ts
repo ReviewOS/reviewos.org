@@ -710,3 +710,19 @@ route.get('/repos/workflow-runs/show', 'Actions/Workflow/ShowWorkflowRunAction')
 // Write access, checked in the action: anybody who can see a run is not
 // therefore somebody who can stop it.
 route.post('/repos/workflow-runs/cancel', 'Actions/Workflow/CancelWorkflowRunAction').middleware('auth')
+
+/**
+ * The runner protocol.
+ *
+ * A machine an operator registered, not a person: authenticated by the runner's
+ * own bearer credential, and `skipCsrf` because CSRF defends a browser carrying
+ * a session cookie and there is no browser and no cookie here. Leaving the
+ * check on would only mean a runner could never call these at all.
+ *
+ * Nothing on this surface executes anything. It hands out a description of work
+ * and records what came back - the executing is done on the operator's machine,
+ * which is the whole decision in `docs/ci-threat-model.md`.
+ */
+route.post('/runner/claim', 'Actions/Runner/ClaimJobAction').skipCsrf()
+route.post('/runner/heartbeat', 'Actions/Runner/HeartbeatAction').skipCsrf()
+route.post('/runner/report', 'Actions/Runner/ReportJobAction').skipCsrf()
