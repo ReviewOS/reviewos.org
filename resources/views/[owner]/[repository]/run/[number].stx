@@ -346,9 +346,9 @@ const base = `/${ownerHandle}/${repositoryName}`
   }
 
   .run-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; background: var(--muted); display: inline-block; }
-  .run-good { background: var(--good, #2da44e); }
-  .run-bad { background: var(--bad, #cf222e); }
-  .run-warn { background: var(--warn, #bf8700); }
+  .run-good { background: var(--ok); }
+  .run-bad { background: var(--bad); }
+  .run-warn { background: var(--warn); }
   .run-running { background: var(--accent); }
 
   .jobs { display: grid; gap: 10px; margin-top: 14px; }

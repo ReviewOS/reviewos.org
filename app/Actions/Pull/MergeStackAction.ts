@@ -1,5 +1,5 @@
 import { Action } from '@stacksjs/actions'
-import { requirementsSatisfied } from '../Checks/status'
+import { requirementsSatisfied, statusAsRun } from '../Checks/status'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from '../Repo/authorize'
 import { approvalsSatisfied, machineAccountsAmong } from './anchoring'
@@ -260,13 +260,28 @@ async function blockersFor(repository: any, row: any): Promise<string[]> {
         .where('head_sha', '=', row.head_sha)
         .execute()
 
+  // Statuses too: a required check is a name, and either reporting API may be
+  // the one answering to it. See `MergePullRequestAction` for what consulting
+  // only `check_runs` did to a repository whose CI posts statuses.
+  const statusRows = requiredChecks.length === 0
+    ? []
+    : await db
+        .selectFrom('commit_statuses')
+        .select(['context', 'state', 'created_at'])
+        .where('repository_id', '=', repository.id)
+        .where('sha', '=', row.head_sha)
+        .execute()
+
   const checks = requirementsSatisfied(
-    checkRows.map((entry: any) => ({
-      name: String(entry.name),
-      status: entry.status,
-      conclusion: entry.conclusion,
-      startedAt: Date.parse(String(entry.started_at ?? '')) || 0,
-    })),
+    [
+      ...statusRows.map((entry: any) => statusAsRun(entry)),
+      ...checkRows.map((entry: any) => ({
+        name: String(entry.name),
+        status: entry.status,
+        conclusion: entry.conclusion,
+        startedAt: Date.parse(String(entry.started_at ?? '')) || 0,
+      })),
+    ],
     requiredChecks,
   )
 

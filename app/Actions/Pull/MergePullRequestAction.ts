@@ -8,7 +8,7 @@ import { recountOpenIssues } from '../Repo/counters'
 import { updateWhereIn } from '../Support/rows'
 import { approvalsSatisfied, machineAccountsAmong } from './anchoring'
 import { allowedStrategies, defaultStrategy, isMergeStrategy, mayDeleteHeadBranch, mergeBlockers, mergeCommitMessage, retargetStack } from './merge'
-import { requirementsSatisfied } from '../Checks/status'
+import { requirementsSatisfied, statusAsRun } from '../Checks/status'
 
 /**
  * Merge a pull request.
@@ -146,13 +146,32 @@ export default new Action({
           .where('head_sha', '=', pullRequest.head_sha)
           .execute()
 
+    /*
+     * Statuses as well as runs, because a required check is a *name* and a
+     * branch rule cannot know which of the two reporting APIs answers to it.
+     * Consulting only `check_runs` meant a repository whose CI posts commit
+     * statuses - the older API, and what most existing integrations use - waited
+     * forever on a check that had already reported.
+     */
+    const checkStatuses = requiredChecks.length === 0
+      ? []
+      : await db
+          .selectFrom('commit_statuses')
+          .select(['context', 'state', 'created_at'])
+          .where('repository_id', '=', repository.id)
+          .where('sha', '=', pullRequest.head_sha)
+          .execute()
+
     const checkResult = requirementsSatisfied(
-      checkRuns.map((entry: any) => ({
-        name: String(entry.name),
-        status: entry.status,
-        conclusion: entry.conclusion,
-        startedAt: Date.parse(String(entry.started_at ?? '')) || 0,
-      })),
+      [
+        ...checkStatuses.map((entry: any) => statusAsRun(entry)),
+        ...checkRuns.map((entry: any) => ({
+          name: String(entry.name),
+          status: entry.status,
+          conclusion: entry.conclusion,
+          startedAt: Date.parse(String(entry.started_at ?? '')) || 0,
+        })),
+      ],
       requiredChecks,
     )
 

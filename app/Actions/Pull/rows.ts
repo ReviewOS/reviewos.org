@@ -132,6 +132,16 @@ export interface RenderRowsOptions {
    */
   threadsAt?: (line: DiffLine) => string
   /**
+   * Markup for a check's findings on this line, if any.
+   *
+   * A second slot rather than folding these into `threadsAt`, because they are
+   * different things with different rules: a thread is a person talking and
+   * stays until somebody resolves it, an annotation is a fact a tool reported
+   * and goes away the next time the tool runs without it. They render in that
+   * order too - the machine's finding first, then the conversation about it.
+   */
+  annotationsAt?: (line: DiffLine) => string
+  /**
    * Offer to show the lines between hunks.
    *
    * Off by default, because the control is only useful where something can act
@@ -520,6 +530,10 @@ function renderUnified(file: DiffFile, options: RenderRowsOptions): string {
         + `</tr>`,
       )
 
+      const notes = options.annotationsAt?.(line)
+      if (notes)
+        rows.push(`<tr class="thread-row"><td class="gutter" colspan="2"></td><td class="thread-cell">${notes}</td></tr>`)
+
       const threads = options.threadsAt?.(line)
       if (threads)
         rows.push(`<tr class="thread-row"><td class="gutter" colspan="2"></td><td class="thread-cell">${threads}</td></tr>`)
@@ -595,6 +609,10 @@ function renderSplit(file: DiffFile, options: RenderRowsOptions): string {
         // A thread belongs to one side. Rendered under the row that carries the
         // line it was written about, so a comment on a deletion does not appear
         // to be about the addition beside it.
+        const notes = (left ? options.annotationsAt?.(left) : '') || (right ? options.annotationsAt?.(right) : '')
+        if (notes)
+          rows.push(`<tr class="thread-row"><td class="gutter" colspan="4"><div class="thread-cell">${notes}</div></td></tr>`)
+
         const threads = (left ? options.threadsAt?.(left) : '') || (right ? options.threadsAt?.(right) : '')
         if (threads)
           rows.push(`<tr class="thread-row"><td class="gutter" colspan="4"><div class="thread-cell">${threads}</div></td></tr>`)
@@ -610,6 +628,10 @@ function renderSplit(file: DiffFile, options: RenderRowsOptions): string {
 
         if (rows.next()) {
           rows.push(`<tr class="line">${splitCell(line, 'old', options)}${splitCell(line, 'new', options)}</tr>`)
+
+          const notes = options.annotationsAt?.(line)
+          if (notes)
+            rows.push(`<tr class="thread-row"><td class="gutter" colspan="4"><div class="thread-cell">${notes}</div></td></tr>`)
 
           const threads = options.threadsAt?.(line)
           if (threads)

@@ -13,7 +13,7 @@
 import { repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
-import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, requirementsSatisfied, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists } from '../../../../functions/review'
+import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists, checksPanel, annotationsByLine, annotationsForLine, renderAnnotations } from '../../../../functions/review'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
@@ -183,6 +183,82 @@ catch {
   coverageByPath = new Map()
 }
 
+const protection = repoRow && pullRequest
+  ? await db
+      .selectFrom('protected_branches')
+      .selectAll()
+      .where('repository_id', '=', Number(repoRow.id))
+      .where('pattern', '=', pullRequest.base_branch)
+      .executeTakeFirst()
+  : undefined
+
+let requiredChecks: string[] = []
+try {
+  const parsed = JSON.parse(String(protection?.required_checks ?? '[]'))
+  if (Array.isArray(parsed))
+    requiredChecks = parsed.map(String)
+}
+catch {
+  requiredChecks = []
+}
+
+/*
+ * Every check on this head, and what each of them found.
+ *
+ * One read for two places: the checks tab lists them, and the diff hangs the
+ * annotations on the lines they are about. An annotation shown only in a log is
+ * a link nobody clicks - the tool already said which file and which lines, so
+ * it belongs where the reviewer is looking.
+ *
+ * Guarded to an empty panel on any failure, for the reason the coverage read
+ * above is: a throw in this script renders the whole page with every binding
+ * undefined, and a review screen that vanishes because CI reported oddly is a
+ * worse outcome than one with no checks section.
+ */
+let checks: any = null
+try {
+  if (pullRequest && repoRow) {
+    checks = await checksPanel({
+      repositoryId: Number(repoRow.id),
+      headSha: String(pullRequest.head_sha),
+      required: requiredChecks,
+    })
+  }
+}
+catch {
+  checks = null
+}
+
+// Keyed by file, side and line, so a row does not scan the whole list.
+const annotationIndex = annotationsByLine(checks?.annotations ?? [])
+const annotatedPaths = new Set((checks?.annotations ?? []).map((one: any) => String(one.path)))
+
+/*
+ * The rollup, as a sentence and a colour.
+ *
+ * Built here rather than in the template: an expression in a branch that throws
+ * takes the whole block into an HTML comment nobody reads, and the interesting
+ * case - no checks at all - is the one a template is most likely to get wrong.
+ *
+ * Neutral, not green. A commit nothing has looked at is the state a
+ * misconfigured CI leaves every commit in, and rendering it the same as one
+ * that passed is how nobody notices for a month.
+ */
+const checkEntries = checks?.entries ?? []
+const checksState = String(checks?.state ?? 'neutral')
+
+const checksTone = checksState === 'success'
+  ? 'good'
+  : checksState === 'failure' ? 'bad' : checksState === 'pending' ? 'warn' : 'muted'
+
+const checksHeadline = checksState === 'success'
+  ? 'Every check passed'
+  : checksState === 'failure'
+    ? `${checks?.counts?.failure ?? 0} of ${checkEntries.length} failed`
+    : checksState === 'pending'
+      ? `${checks?.counts?.pending ?? 0} still running`
+      : 'Nothing has reported on this commit'
+
 /*
  * Syntax highlighting, per file, keyed by side and line number.
  *
@@ -242,6 +318,12 @@ if (tab === 'files' && !commitMode) {
       hunkFolds: 'details',
       hunkNotes: crossNotes.get(files.indexOf(file)),
       uncoveredLines: coverageByPath.get(file.path),
+      // A check's findings, on the lines they name. Skipped entirely for a file
+      // nothing reported about, so the common case pays for one set lookup
+      // rather than a closure per line.
+      annotationsAt: annotatedPaths.has(file.path)
+        ? (line: any) => renderAnnotations(annotationsForLine(annotationIndex, file.path, line))
+        : undefined,
       threadsAt: threadSlotFor(fileThreads, file.path),
     })
   }
@@ -315,43 +397,23 @@ const descriptionHtml = pullRequest?.body
   ? await renderMarkdownHighlighted(String(pullRequest.body), markdownContext)
   : ''
 
-const protection = repoRow && pullRequest
-  ? await db
-      .selectFrom('protected_branches')
-      .selectAll()
-      .where('repository_id', '=', Number(repoRow.id))
-      .where('pattern', '=', pullRequest.base_branch)
-      .executeTakeFirst()
-  : undefined
-
-let requiredChecks: string[] = []
-try {
-  const parsed = JSON.parse(String(protection?.required_checks ?? '[]'))
-  if (Array.isArray(parsed))
-    requiredChecks = parsed.map(String)
-}
-catch {
-  requiredChecks = []
-}
-
-const checkRows = pullRequest && requiredChecks.length > 0
-  ? await db
-      .selectFrom('check_runs')
-      .select(['name', 'status', 'conclusion', 'started_at'])
-      .where('repository_id', '=', Number(repoRow!.id))
-      .where('head_sha', '=', pullRequest.head_sha)
-      .execute()
-  : []
-
-const checkResult = requirementsSatisfied(
-  checkRows.map((row: any) => ({
-    name: String(row.name),
-    status: row.status,
-    conclusion: row.conclusion,
-    startedAt: Date.parse(String(row.started_at ?? '')) || 0,
-  })),
-  requiredChecks,
-)
+/*
+ * The branch rule's verdict, from the panel loaded above rather than from a
+ * second pair of queries.
+ *
+ * It is computed there with `requirementsSatisfied` over both reporting APIs,
+ * which is exactly what the merge endpoint does - the page and the button have
+ * to agree about whether something is ready, and this is the disagreement that
+ * matters most because the page is where somebody decides to press it.
+ *
+ * The fallback is deliberately *not satisfied*: if the panel failed to load,
+ * this page knows nothing about the checks, and "nothing is known" must not
+ * render as "everything passed".
+ */
+const checkResult = checks?.required
+  ?? (requiredChecks.length === 0
+    ? { satisfied: true, failing: [], pending: [], missing: [] }
+    : { satisfied: false, failing: [], pending: [], missing: requiredChecks })
 
 /*
  * Which reviewers are machine accounts.
@@ -632,23 +694,59 @@ const statePill = pullRequest
           @if (tab === 'checks')
             <section class="panel" style="padding: 15px 17px;">
               <h2 class="side-heading">Checks</h2>
-              @if (requiredChecks.length === 0)
-                <p class="muted side-empty">No checks are required on this branch.</p>
+
+              {{-- The rollup, said in a sentence. "No checks" is its own answer
+                  and not a green one: a commit nothing has looked at is the
+                  state a misconfigured CI leaves every commit in, and it must
+                  not read the same as one that passed. --}}
+              <p class="checks-rollup checks-{{ checksTone }}">
+                <span class="run-dot run-{{ checksTone }}" aria-hidden="true"></span>
+                {{ checksHeadline }}
+              </p>
+
+              @if (checkEntries.length === 0)
+                <p class="muted side-empty">Nothing has reported on this commit.</p>
               @else
-                <ul class="check-list">
-                  @foreach (checkResult.failing as name)
-                    <li class="bad check"><span class="i-hugeicons-cancel-01" aria-hidden="true"></span>{{ name }}</li>
+                <ul class="checks-detail">
+                  @foreach (checkEntries as entry)
+                    <li class="checks-entry">
+                      <div class="checks-entry-head">
+                        <span class="run-dot run-{{ entry.tone }}" aria-hidden="true"></span>
+                        <span class="checks-name">{{ entry.name }}</span>
+                        @if (entry.required)
+                          <span class="checks-badge">Required</span>
+                        @endif
+                        <span class="muted checks-state">{{ entry.label }}</span>
+                      </div>
+
+                      <p class="muted checks-meta">
+                        @if (entry.duration)
+                          <span>{{ entry.duration }}</span>
+                        @endif
+                        @if (entry.attempt > 1)
+                          <span>attempt {{ entry.attempt }}</span>
+                        @endif
+                        @if (entry.stale)
+                          <span class="mono">{{ entry.staleSha.slice(0, 10) }}</span>
+                        @endif
+                        @if (entry.annotationCount > 0)
+                          <a href="?tab=files">{{ entry.annotationCount }} annotation@if (entry.annotationCount !== 1)s@endif in the diff</a>
+                        @endif
+                        @if (entry.detailsUrl)
+                          <a href="{{ entry.detailsUrl }}" rel="noreferrer nofollow noopener">Details</a>
+                        @endif
+                      </p>
+
+                      @if (entry.summary)
+                        <p class="checks-summary">{{ entry.summary }}</p>
+                      @endif
+                    </li>
                   @endforeach
-                  @foreach (checkResult.pending as name)
-                    <li class="check warn"><span class="i-hugeicons-time-quarter" aria-hidden="true"></span>{{ name }}</li>
-                  @endforeach
-                  @foreach (checkResult.missing as name)
-                    <li class="check warn"><span class="i-hugeicons-help-circle" aria-hidden="true"></span>{{ name }} has never reported</li>
-                  @endforeach
-                  @if (checkResult.satisfied)
-                    <li class="check ok"><span class="i-hugeicons-checkmark-circle-02" aria-hidden="true"></span>All required checks passed</li>
-                  @endif
                 </ul>
+              @endif
+
+              @if (requiredChecks.length === 0)
+                <p class="muted checks-note">No checks are required on this branch, so none of this blocks a merge.</p>
               @endif
             </section>
           @endif
@@ -945,6 +1043,43 @@ const statePill = pullRequest
   .check.ok span { color: var(--ok); }
   .check.bad span { color: var(--bad); }
   .check.warn span { color: var(--warn); }
+
+  /* The checks tab. The dot vocabulary is the run screen's, deliberately: a
+     reader who has learned what a colour means on one CI screen should not
+     have to learn it again on the other. */
+  .run-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; background: var(--muted); display: inline-block; }
+  .run-good { background: var(--ok); }
+  .run-bad { background: var(--bad); }
+  .run-warn { background: var(--warn); }
+
+  .checks-rollup { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 14px; font-weight: 600; }
+  .checks-detail { margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .checks-entry { padding-top: 12px; border-top: 1px solid var(--line); }
+  .checks-entry:first-child { padding-top: 0; border-top: 0; }
+  .checks-entry-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .checks-name { font-weight: 600; font-size: 13.5px; }
+  .checks-state { font-size: 13px; }
+  .checks-badge {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    color: var(--muted);
+  }
+  .checks-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12.5px; margin: 4px 0 0 17px; }
+  .checks-summary { font-size: 13px; margin: 5px 0 0 17px; }
+  .checks-note { font-size: 12.5px; margin-top: 12px; }
+
+  /* A check's findings, in the diff. Bordered on the left rather than boxed:
+     it sits under a line of code, and a box there reads as a second file. */
+  .annotations { display: flex; flex-direction: column; gap: 8px; padding: 8px 4px; }
+  .annotation { border-left: 3px solid var(--warn); padding-left: 10px; }
+  .annotation-bad { border-left-color: var(--bad); }
+  .annotation-muted { border-left-color: var(--line-strong); }
+  .annotation-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin: 0; font-size: 12.5px; }
+  .annotation-level { font-weight: 600; }
+  .annotation-title { font-weight: 600; }
+  .annotation-message { margin: 3px 0 0; font-size: 13px; white-space: pre-wrap; }
 
   .count-add { color: var(--ok); }
   .count-del { color: var(--bad); }

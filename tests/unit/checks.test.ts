@@ -13,6 +13,7 @@ import {
   requirementSummary,
   runPassed,
   staleRunsFor,
+  statusAsRun,
 } from '../../app/Actions/Checks/status'
 
 function run(name: string, conclusion: CheckRun['conclusion'], startedAt = 0, status: CheckRun['status'] = 'completed'): CheckRun {
@@ -209,5 +210,58 @@ describe('staleRunsFor', () => {
 
   test('does not re-mark something already stale', () => {
     expect(staleRunsFor([run('build', 'stale')], 'new', ['old'])).toEqual([])
+  })
+})
+
+
+describe('a commit status satisfying a required check', () => {
+  /*
+   * A required check is a *name*, and a branch rule cannot know which of the
+   * two reporting APIs answers to it. Until `statusAsRun` existed only
+   * `check_runs` were consulted, so a repository requiring `ci/build` while its
+   * CI posted `ci/build` as a commit status - the older API, and what most
+   * existing integrations use - waited forever, and the page said the check had
+   * never reported about one that had just reported.
+   */
+  test('counts, so CI posting statuses is not ignored forever', () => {
+    const result = requirementsSatisfied(
+      [statusAsRun({ context: 'ci/build', state: 'success', created_at: '2026-08-12T10:00:00Z' })],
+      ['ci/build'],
+    )
+
+    expect(result.satisfied).toBe(true)
+  })
+
+  test('a failing status blocks the same way a failing run does', () => {
+    const result = requirementsSatisfied(
+      [statusAsRun({ context: 'ci/build', state: 'error', created_at: '2026-08-12T10:00:00Z' })],
+      ['ci/build'],
+    )
+
+    expect(result.failing).toEqual(['ci/build'])
+  })
+
+  test('and a pending one is waited for rather than counted', () => {
+    const result = requirementsSatisfied(
+      [statusAsRun({ context: 'ci/build', state: 'pending', created_at: '2026-08-12T10:00:00Z' })],
+      ['ci/build'],
+    )
+
+    expect(result.pending).toEqual(['ci/build'])
+  })
+
+  test('the newer of a status and a run under one name wins', () => {
+    const result = requirementsSatisfied(
+      [
+        statusAsRun({ context: 'ci/build', state: 'error', created_at: '2026-08-12T10:00:00Z' }),
+        run('ci/build', 'success', Date.parse('2026-08-12T10:05:00Z')),
+      ],
+      ['ci/build'],
+    )
+
+    // Same rule as two runs: the latest report is the answer, whichever API it
+    // arrived through. Anything else makes the verdict depend on which table a
+    // reporter happened to write to.
+    expect(result.satisfied).toBe(true)
   })
 })

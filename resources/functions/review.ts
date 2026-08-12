@@ -135,6 +135,8 @@ import { threadSlotFor as threadSlotForImpl } from '../../app/Actions/Pull/threa
 import { branchExists as branchExistsImpl } from '../../app/Actions/Pull/restore'
 import { crossFileMoves as crossFileMovesImpl, moveNotes as moveNotesImpl } from '../../app/Actions/Pull/crossmoves'
 import { loadCoverage as loadCoverageImpl } from '../../app/Actions/Checks/coverage'
+import { checksPanel as checksPanelImpl } from '../../app/Actions/Checks/panel'
+import { annotationsByLine as annotationsByLineImpl, annotationsForLine as annotationsForLineImpl, renderAnnotations as renderAnnotationsImpl } from '../../app/Actions/Pull/annotations'
 import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
 import { blockedBy as blockedByImpl, buildStack as buildStackImpl, orphanMessage as orphanMessageImpl, orphanReason as orphanReasonImpl, stackSummary as stackSummaryImpl } from './stack'
 import { refreshMergeability as refreshMergeabilityImpl } from '../../app/Actions/Pull/refresh-mergeability'
@@ -159,6 +161,20 @@ export const commitDiff = commitDiffImpl
 export const mergeBlockers = mergeBlockersImpl
 export const isMergeStrategy = isMergeStrategyImpl
 export const requirementsSatisfied = requirementsSatisfiedImpl
+
+/**
+ * Every check on a commit, shaped for the checks tab.
+ *
+ * The rollup answers "may this merge"; this answers the questions a person
+ * has - which one failed, how long it took, where the output is, and whether
+ * the tick belongs to the commit they are looking at.
+ */
+export const checksPanel = checksPanelImpl
+
+/** Those annotations, keyed by the diff row they belong on. */
+export const annotationsByLine = annotationsByLineImpl
+export const annotationsForLine = annotationsForLineImpl
+export const renderAnnotations = renderAnnotationsImpl
 export const requirementSummary = requirementSummaryImpl
 export const combinedState = combinedStateImpl
 export const labelTextColor = labelTextColorImpl

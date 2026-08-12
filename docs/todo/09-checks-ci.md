@@ -233,19 +233,68 @@ This much makes ReviewOS usable with any existing CI. Ship it independently of t
   reporter's side nothing is wrong: it sent what it had.
 - [ ] The check API is represented in generated OpenAPI, including request bodies, response bodies,
       error codes, pagination, and rate-limit headers
+
+  **Half of this is there and the half that is missing is not ours to write.**
+  `storage/framework/api/openapi.json` carries `/api/repos/checks`, its query
+  parameters and its request body, all derived from the action's `validations`
+  rather than hand-maintained - so they cannot drift. What every operation in
+  the document gets is the same three responses: 200 with `{"type": "object"}`,
+  422 and 500.
+
+  So there is no response *body*, no 401/403/404 - which every repository
+  endpoint answers and a client has to handle - and no rate-limit headers. None
+  of that is expressible today: the generator in
+  `storage/framework/core/api/src/generate-openapi.ts` derives an operation from
+  the route and the action's validations, and an action has nowhere to declare
+  what it answers with. The fix belongs there, as optional response metadata on
+  `Action`, and it fixes the document for all 704 paths rather than for these
+  two. Pagination is genuinely not applicable here: a commit's checks are a
+  handful of rows, and the one unbounded list is capped with its true total
+  reported beside the sample.
 - [x] Required checks are enforced by protected branches and the merge action
-- [ ] Annotations render inline in the diff on the lines they refer to. An annotation shown only in
+- [x] Annotations render inline in the diff on the lines they refer to. An annotation shown only in
       a log is a link nobody clicks.
 
-  The data is ready - rows with a path, a line range and a side, served with the
-  run - and this is the rendering. Left for a session that is not editing the
-  diff viewer concurrently.
-- [ ] Checks tab on a pull request: rollup, attempts, duration, details link, annotations, and the
+  `app/Actions/Pull/annotations.ts`, hung on the diff through an
+  `annotationsAt` slot beside the one review threads already use - a separate
+  slot rather than a shared one, because they are different things: a thread is
+  a person talking and stays until somebody resolves it, an annotation is a fact
+  a tool reported and disappears the next time the tool runs without it. They
+  render in that order, the machine's finding first.
+
+  The placement rule is the threads' rule, for the threads' reason: a right-side
+  annotation matches the new line number and a left-side one matches the old,
+  and matching on both prints a finding about a deleted line under the line that
+  replaced it. A finding spanning five lines is placed once, on its last line -
+  repeating it would turn one warning into five, and a reviewer counting them
+  would get a number the tool never reported.
+
+  Only annotations from runs against the current head are hung: one from a
+  superseded run points at lines that may not exist any more.
+- [x] Checks tab on a pull request: rollup, attempts, duration, details link, annotations, and the
       difference between missing, queued, running, failed, cancelled, and stale
 
-  The endpoint behind it answers all of that today, including the head sha it
-  reported against so the page can say "stale" rather than "green". This is the
-  page.
+  The tab existed and listed the *required* names only, so a repository with no
+  branch rule was told "no checks are required on this branch" while six of them
+  were reporting. It lists every check now, from both reporting APIs, through
+  `app/Actions/Checks/panel.ts`.
+
+  The distinctions are the point of the screen. Cancelled is not failed, though
+  both block: telling somebody their check failed when a newer push cancelled it
+  sends them to read a log that says nothing. A completed run with no conclusion
+  says so rather than being read as anything. A required check that has never
+  reported says *that*, because it is the case a branch rule exists for. And a
+  report against an earlier commit is labelled with the commit it was about -
+  every forge shows that tick somewhere, and the tick is about code nobody is
+  merging.
+
+  **The page and the merge button now compute the verdict the same way, and
+  finding that out fixed a real one.** Required checks were matched against
+  `check_runs` alone, so a repository whose CI posts *commit statuses* - the
+  older API, and what most existing integrations use - waited forever on a check
+  that had already reported, while the page said it had never reported at all.
+  `statusAsRun` maps a status onto the same shape, and both merge actions read
+  both tables.
 - [ ] Webhook events for status and check transitions, with redelivery through phase 5
 - [x] Tests: a required check that never reports blocks the merge, and reporting late unblocks it
 - [x] API tests: permission isolation, idempotent retry, out-of-order updates, pagination, a stale

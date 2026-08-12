@@ -200,3 +200,30 @@ export function staleRunsFor(runs: readonly CheckRun[], headSha: string, runShas
 
   return indexes
 }
+
+/**
+ * A commit status, as a check run for the purpose of a branch rule.
+ *
+ * Required checks are named strings, and a branch rule cannot know which of the
+ * two reporting APIs will answer to a name. Until this existed, only
+ * `check_runs` were consulted - so a CI system posting under the *status* API,
+ * which is the older and simpler one and what most existing integrations use,
+ * satisfied nothing. A repository requiring `ci/build` while its CI posted
+ * `ci/build` as a status waited forever, and the page said "has never
+ * reported" about a check that had just reported.
+ *
+ * Mapped onto the existing shape rather than given a second rule of its own, so
+ * a status and a run under one name are compared by the same code. A status has
+ * no attempts, so recency is its timestamp - which is what `latestRuns` already
+ * expects for anything without one.
+ */
+export function statusAsRun(row: { context?: unknown, state?: unknown, created_at?: unknown }): CheckRun {
+  const state = String(row.state ?? 'pending')
+
+  return {
+    name: String(row.context ?? ''),
+    status: state === 'pending' ? 'in_progress' : 'completed',
+    conclusion: state === 'pending' ? null : state === 'success' ? 'success' : 'failure',
+    startedAt: Date.parse(String(row.created_at ?? '')) || 0,
+  }
+}
