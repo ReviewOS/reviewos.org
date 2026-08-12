@@ -55,7 +55,10 @@ export default new Job({
     for (const job of expired) {
       const result: any = await db
         .updateTable('workflow_jobs')
-        .set({ state: 'queued', runner_id: null, lease_expires_at: null } as any)
+        // The dead runner's credential goes with its lease. If it comes back
+        // it authenticates as nothing, which is the honest answer - the work is
+        // somebody else's now.
+        .set({ state: 'queued', runner_id: null, lease_expires_at: null, job_token_hash: null } as any)
         .where('id', '=', Number(job.id))
         // Guarded on the state and the holder it was read at, so a runner that
         // heartbeated between the read and the write keeps its job. The sweep

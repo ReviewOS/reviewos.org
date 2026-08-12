@@ -637,12 +637,32 @@ should not make its public workflow API describe one vendor's sandbox.
       nothing**, so a scope added later cannot silently default to everything.
 
       Selected-workflow scoping is not implemented; instance, organization and repository are.
-- [ ] Short-lived job credentials, bound to one attempt. Registration credentials never enter the
+- [x] Short-lived job credentials, bound to one attempt. Registration credentials never enter the
       job environment.
 
-      Not done, and worth saying plainly: a runner currently authenticates every call with its
-      registration credential. That is the credential the threat model says must never reach a job
-      environment, so the per-attempt token has to exist before anything executes.
+      A claim mints a random token, stores its SHA-256 on the job, and returns it once. Heartbeat
+      and report authenticate with **that** and no longer accept the registration credential, which
+      is the one an operator installs once and never rotates - the credential that must not be
+      travelling on every call, let alone reach a job environment.
+
+      **The token names the job**, so no job id is taken from the caller at all. "A credential used
+      against the wrong job" stops being a case defended against by hand and becomes one that
+      cannot be expressed.
+
+      It is minted per claim, so recovering a lapsed lease invalidates the dead runner's token in
+      the same write that hands the work on, and the sweep clears it for the same reason.
+
+      **It is deliberately not cleared on completion**, which was the first instinct and is wrong.
+      Delivery is at-least-once: a runner that did not hear the answer reports again with the same
+      credential, and a cleared token turns that into a 401 - leaving the runner unable to tell
+      whether its work was recorded, which is exactly the ambiguity the duplicate answer exists to
+      remove. Nothing is bought by clearing it, either: the job is terminal by then, `mayReport`
+      will not move a terminal job, and the token's entire remaining power is to be told "already
+      recorded".
+
+      A runner disabled mid-job stops being believed immediately rather than when its lease happens
+      to lapse, because turning one off is something an operator does *because* they want it to
+      stop.
 - [x] Leases with heartbeat expiry, at-least-once delivery, and idempotent completion reporting
 
       Decided in `app/Actions/Runner/protocol.ts`, away from the database, so the cases that matter

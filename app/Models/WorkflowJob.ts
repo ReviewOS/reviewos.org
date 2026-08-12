@@ -119,6 +119,30 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * SHA-256 of the credential minted for this claim.
+     *
+     * The registration token says "I am that machine" and is the one an
+     * operator installs once and never rotates. Using it to report results
+     * means the credential with the longest life and the widest reach is the
+     * one travelling on every call - and by [the threat
+     * model](../../docs/ci-threat-model.md) it must never reach a job
+     * environment at all.
+     *
+     * So a claim mints a token that is good for one job, expires with the
+     * lease, and is cleared when the job ends. A leaked one buys the attacker
+     * the job they already had, for as long as it was going to run.
+     *
+     * Hashed for the same reason the registration token is: a credential in
+     * the database in plain text is a credential in every backup.
+     */
+    job_token_hash: {
+      order: 10,
+      fillable: true,
+      validation: { rule: schema.string().max(64) },
+      factory: () => null,
+    },
+
     started_at: {
       order: 10,
       fillable: true,

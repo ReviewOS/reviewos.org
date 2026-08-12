@@ -81,3 +81,66 @@ export async function authenticateRunner(request: any): Promise<AuthenticatedRun
     },
   }
 }
+
+export interface AuthenticatedJob {
+  jobId: number
+  runner: RunnerFacts
+}
+
+/**
+ * The job a per-claim token belongs to, and the runner holding it.
+ *
+ * Everything after the claim authenticates this way rather than with the
+ * registration credential. The difference is what a leak costs: the
+ * registration token is installed once, never rotated, and reaches every job
+ * that machine may run, while this one is good for a single job and dies with
+ * its lease.
+ *
+ * **The token identifies the job.** No job id is taken from the caller, so
+ * there is no "token for job A, id for job B" to get wrong - the credential
+ * *is* the claim on that job, which is the property the wrong-job case in
+ * `protocol.ts` had to be defended against by hand.
+ */
+export async function authenticateJob(request: any): Promise<AuthenticatedJob | null> {
+  const token = bearerFrom(request)
+  if (!token)
+    return null
+
+  const job: any = await db
+    .selectFrom('workflow_jobs')
+    .select(['id', 'runner_id', 'state'])
+    .where('job_token_hash', '=', hashToken(token))
+    .executeTakeFirst()
+
+  if (!job?.runner_id)
+    return null
+
+  const runner: any = await db
+    .selectFrom('runners')
+    .select(['id', 'state', 'scope_type', 'scope_id', 'labels'])
+    .where('id', '=', Number(job.runner_id))
+    .executeTakeFirst()
+
+  // A runner disabled mid-job stops being believed immediately, rather than
+  // when its lease happens to lapse. Turning one off is something an operator
+  // does *because* they want it to stop.
+  if (!runner || String(runner.state) !== 'active')
+    return null
+
+  await db
+    .updateTable('runners')
+    .set({ last_seen_at: new Date().toISOString() })
+    .where('id', '=', Number(runner.id))
+    .execute()
+
+  return {
+    jobId: Number(job.id),
+    runner: {
+      id: Number(runner.id),
+      state: String(runner.state),
+      scopeType: String(runner.scope_type),
+      scopeId: runner.scope_id === null ? null : Number(runner.scope_id),
+      labels: splitLabels(runner.labels),
+    },
+  }
+}

@@ -99,6 +99,20 @@ export async function reportJob(
       // The lease is released with the result. Leaving it would let a
       // heartbeat from this runner keep a finished job looking held.
       lease_expires_at: null,
+
+      // The job token is **kept**, and that is deliberate.
+      //
+      // Clearing it here was the first instinct and it is wrong: delivery is
+      // at-least-once, so a runner that did not hear this answer will report
+      // again with the same credential, and a cleared token turns that into a
+      // 401. The runner then cannot tell whether its work was recorded, which
+      // is precisely the ambiguity the duplicate answer exists to remove.
+      //
+      // Nothing is bought by clearing it either. The job is terminal, and
+      // `mayReport` will not move a terminal job - so the token's entire
+      // remaining power is to be told "already recorded". It goes when the
+      // lease is reclaimed by the sweep, which is the case where the work
+      // really did move to somebody else.
     } as any)
     .where('id', '=', facts.id)
     .where('runner_id', '=', String(runner.id))

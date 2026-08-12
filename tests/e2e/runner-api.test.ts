@@ -230,18 +230,19 @@ describe('claiming over HTTP', () => {
 })
 
 describe('heartbeat and report over HTTP', () => {
-  async function claimOne(): Promise<number> {
+  /** Claim a job and keep the credential it was handed. */
+  async function claimOne(): Promise<{ id: number, token: string }> {
     await freshRun(`${Math.random().toString(16).slice(2)}`.padEnd(40, '0'))
     const answer = await call('/runner/claim', {})
-    return Number(answer.body.job.id)
+    return { id: Number(answer.body.job.id), token: String(answer.body.job.token) }
   }
 
   test('a heartbeat on a held job extends the lease', async () => {
     if (!available)
       return
 
-    const jobId = await claimOne()
-    const answer = await call('/runner/heartbeat', { job: jobId })
+    const job = await claimOne()
+    const answer = await call('/runner/heartbeat', {}, job.token)
 
     expect(answer.status).toBe(200)
     expect(answer.body.lease_expires_at).toBeTruthy()
@@ -252,22 +253,38 @@ describe('heartbeat and report over HTTP', () => {
    * right thing on the runner's side is to stop working - anything it reports
    * afterwards will be refused anyway.
    */
-  test('a heartbeat on a job this runner does not hold is refused', async () => {
+  test('a heartbeat with a credential that names no job is refused', async () => {
     if (!available)
       return
 
-    const answer = await call('/runner/heartbeat', { job: 999_999_999 })
+    // 401 rather than 409: the credential is gone, which is a different thing
+    // from holding one for work somebody took away.
+    const answer = await call('/runner/heartbeat', {}, 'job-not-a-real-token')
 
-    expect(answer.status).toBe(409)
-    expect(String(answer.body.error)).toContain('no longer yours')
+    expect(answer.status).toBe(401)
+  })
+
+  /*
+   * The separation this credential exists for. The registration token is
+   * installed once and never rotated; it must not be the thing travelling on
+   * every call, and it is no longer accepted for one.
+   */
+  test('the registration token cannot report a job', async () => {
+    if (!available)
+      return
+
+    await claimOne()
+    const answer = await call('/runner/report', { state: 'succeeded' }, TOKEN)
+
+    expect(answer.status).toBe(401)
   })
 
   test('a report records the result and says what the run became', async () => {
     if (!available)
       return
 
-    const jobId = await claimOne()
-    const answer = await call('/runner/report', { job: jobId, state: 'succeeded' })
+    const job = await claimOne()
+    const answer = await call('/runner/report', { state: 'succeeded' }, job.token)
 
     expect(answer.status).toBe(200)
     expect(answer.body.recorded).toBe(true)
@@ -284,44 +301,48 @@ describe('heartbeat and report over HTTP', () => {
     if (!available)
       return
 
-    const jobId = await claimOne()
+    const job = await claimOne()
 
-    const first = await call('/runner/report', { job: jobId, state: 'succeeded' })
-    const second = await call('/runner/report', { job: jobId, state: 'succeeded' })
+    const first = await call('/runner/report', { state: 'succeeded' }, job.token)
+    const second = await call('/runner/report', { state: 'succeeded' }, job.token)
 
     expect(first.body.duplicate).toBe(false)
     expect(second.status).toBe(200)
     expect(second.body.duplicate).toBe(true)
   })
 
-  test('a report on somebody else\'s job is refused', async () => {
+  /*
+   * One job's credential cannot speak for another. There is no job id in the
+   * request at all now - the token names the job - so the wrong-job case stops
+   * being something to defend against and becomes unexpressable.
+   */
+  test('a credential for one job cannot report another', async () => {
     if (!available)
       return
 
-    const jobId = await claimOne()
+    const first = await claimOne()
+    const second = await claimOne()
 
-    const token = `tok-${unique('s')}`
-    const row: any = await db.insertInto('runners').values({
-      name: unique('stranger'),
-      scope_type: 'instance',
-      token_hash: hashToken(token),
-      labels: 'ubuntu-latest',
-      state: 'active',
-    }).returning(['id']).executeTakeFirst()
-    created.runnerIds.push(Number(row.id))
+    const answer = await call('/runner/report', { state: 'succeeded' }, first.token)
 
-    const answer = await call('/runner/report', { job: jobId, state: 'succeeded' }, token)
+    // It reports *its own* job, not the other one.
+    expect(answer.status).toBe(200)
 
-    expect(answer.status).toBe(409)
-    expect(String(answer.body.error)).toContain('another runner')
+    const other: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['state'])
+      .where('id', '=', second.id)
+      .executeTakeFirst()
+
+    expect(other.state).toBe('running')
   })
 
   test('an unknown state is refused with a fix rather than recorded', async () => {
     if (!available)
       return
 
-    const jobId = await claimOne()
-    const answer = await call('/runner/report', { job: jobId, state: 'exploded' })
+    const job = await claimOne()
+    const answer = await call('/runner/report', { state: 'exploded' }, job.token)
 
     // Refused by the action's own `validations`, before the handler runs, and
     // the message already names the allowed values. A hand-written second copy

@@ -1,6 +1,5 @@
 import { Action } from '@stacksjs/actions'
-import { schema } from '@stacksjs/validation'
-import { authenticateRunner } from './authenticate'
+import { authenticateJob } from './authenticate'
 import { heartbeat } from './claim'
 
 /**
@@ -15,26 +14,24 @@ import { heartbeat } from './claim'
  * or a person cancelled the run - and the right response on the runner's side
  * is to stop working, because anything it reports afterwards will be refused
  * anyway. So it answers 409 with the reason rather than 200 with a shrug.
+ *
+ * Authenticated by the **job** token minted at claim rather than by the
+ * runner's registration credential, and the token names the job, so no id is
+ * taken from the caller. A token matching no job is a 401: the credential is
+ * gone, which is a different thing from holding one for work somebody took
+ * away.
  */
 export default new Action({
   name: 'RunnerHeartbeat',
   description: 'Extend the lease on a job a runner holds',
   method: 'POST',
 
-  validations: {
-    job: { rule: schema.number().required() },
-  },
-
   async handle(request: any) {
-    const runner = await authenticateRunner(request)
-    if (!runner)
-      return response.json({ error: 'Unknown runner' }, 401)
+    const held = await authenticateJob(request)
+    if (!held)
+      return response.json({ error: 'Unknown job credential' }, 401)
 
-    const jobId = Number(request.get('job'))
-    if (!Number.isInteger(jobId) || jobId <= 0)
-      return response.json({ error: 'A job id is required' }, 422)
-
-    const expires = await heartbeat(runner.facts, jobId)
+    const expires = await heartbeat(held.runner, held.jobId)
 
     if (!expires) {
       return response.json({

@@ -15,8 +15,20 @@
  */
 
 import { db } from '@stacksjs/database'
+import { hashToken } from './authenticate'
 import type { JobFacts, RunnerFacts } from './protocol'
 import { leaseUntil, mayClaim, splitLabels } from './protocol'
+
+/**
+ * A credential good for one job.
+ *
+ * Random rather than derived: a token computed from the job id and a secret is
+ * a token an attacker can compute too, given the id and a leak of the secret,
+ * and the id is not private.
+ */
+function mintJobToken(): string {
+  return `job-${Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString('hex')}`
+}
 
 export interface ClaimedJob {
   jobId: number
@@ -24,6 +36,15 @@ export interface ClaimedJob {
   repositoryId: number
   jobKey: string
   leaseExpiresAt: string
+  /**
+   * The credential for this claim, returned once and never stored in the clear.
+   *
+   * Everything after the claim is authenticated with this rather than with the
+   * registration token, which is the credential an operator installs once and
+   * never rotates. Handing the long-lived one to every call - and eventually to
+   * a job environment - is what the threat model forbids.
+   */
+  jobToken: string
 }
 
 /**
@@ -105,6 +126,7 @@ export async function claimNextJob(
       continue
 
     const expires = leaseUntil(now)
+    const token = mintJobToken()
 
     /*
      * The claim itself. Conditioned on the job still being where it was when it
@@ -121,6 +143,9 @@ export async function claimNextJob(
         runner_id: String(runner.id),
         lease_expires_at: expires,
         started_at: row.started_at ?? now.toISOString(),
+        // Minted per claim, so recovering a lapsed lease invalidates the dead
+        // runner's token in the same write that hands the work on.
+        job_token_hash: hashToken(token),
       } as any)
       .where('id', '=', facts.id)
 
@@ -143,6 +168,7 @@ export async function claimNextJob(
       repositoryId: facts.repositoryId,
       jobKey: String(row.job_id),
       leaseExpiresAt: expires,
+      jobToken: token,
     }
   }
 

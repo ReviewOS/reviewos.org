@@ -8418,6 +8418,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "job_token_hash",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 64
           }
         ],
         "indexes": [
@@ -9059,7 +9068,7 @@
       }
     ]
   },
-  "hash": "e09c44b3e9c6a46dddd35454d6659339b086f8f4cf3929ae916deb8e874bc3e3",
+  "hash": "66cc58a96ef3dae627a5bbc1e6b0f7795122fc360b11db120a905b8eacf330e7",
   "dialect": "postgres",
-  "updatedAt": "2026-08-11T22:45:16.435Z"
+  "updatedAt": "2026-08-12T05:28:55.814Z"
 }

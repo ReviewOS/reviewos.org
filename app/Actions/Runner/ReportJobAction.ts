@@ -1,6 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
-import { authenticateRunner } from './authenticate'
+import { authenticateJob } from './authenticate'
 import { reportJob } from './report'
 
 /**
@@ -19,6 +19,10 @@ import { reportJob } from './report'
  * A refusal, by contrast, is a real one: the lease lapsed, or the caller is not
  * the holder. Those are the cases where believing the runner would put a green
  * check on work nobody did.
+ *
+ * Authenticated by the job token from the claim, which names the job itself -
+ * so "a credential used against the wrong job" stops being a case to defend
+ * against and becomes one that cannot be expressed.
  */
 export default new Action({
   name: 'ReportJob',
@@ -26,19 +30,14 @@ export default new Action({
   method: 'POST',
 
   validations: {
-    job: { rule: schema.number().required() },
     state: { rule: schema.enum(['succeeded', 'failed', 'cancelled']) },
     error: { rule: schema.string() },
   },
 
   async handle(request: any) {
-    const runner = await authenticateRunner(request)
-    if (!runner)
-      return response.json({ error: 'Unknown runner' }, 401)
-
-    const jobId = Number(request.get('job'))
-    if (!Number.isInteger(jobId) || jobId <= 0)
-      return response.json({ error: 'A job id is required' }, 422)
+    const held = await authenticateJob(request)
+    if (!held)
+      return response.json({ error: 'Unknown job credential' }, 401)
 
     // No second check on `state`. The `validations` block above refuses
     // anything else before this runs, with "State Must be one of: succeeded,
@@ -46,8 +45,8 @@ export default new Action({
     // already enforces is unreachable code that drifts from the real one.
     const state = String(request.get('state') ?? '')
 
-    const outcome = await reportJob(runner.facts, {
-      jobId,
+    const outcome = await reportJob(held.runner, {
+      jobId: held.jobId,
       state: state as 'succeeded' | 'failed' | 'cancelled',
       error: request.get('error') ?? null,
     })

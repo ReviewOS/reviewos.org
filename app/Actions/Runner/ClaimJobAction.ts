@@ -15,8 +15,9 @@ import { claimNextJob } from './claim'
  * error status for the common case is how a fleet's logs fill with red that
  * means nothing.
  *
- * The response carries what the runner needs to do the work and nothing else.
- * In particular it carries no secret: a job's environment is assembled after
+ * The response carries what the runner needs to do the work and nothing else -
+ * including a credential minted for this claim alone, which is what everything
+ * afterwards authenticates with. It carries no *repository* secret: a job's environment is assembled after
  * the fork policy has been applied, and this endpoint predates any of that -
  * by [the threat model](../../../docs/ci-threat-model.md) an untrusted run
  * never receives one at all.
@@ -79,6 +80,10 @@ export default new Action({
         id: claimed.jobId,
         key: claimed.jobKey,
         lease_expires_at: claimed.leaseExpiresAt,
+        // Returned once, here, and never readable again: the column holds a
+        // hash. Everything the runner does about this job is authenticated
+        // with it rather than with the credential it registered with.
+        token: claimed.jobToken,
         run: {
           id: claimed.runId,
           number: Number(context?.run_number ?? 0),
