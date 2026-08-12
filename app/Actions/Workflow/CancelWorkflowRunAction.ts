@@ -4,6 +4,7 @@ import { schema } from '@stacksjs/validation'
 import type { RunState } from './states'
 import { canRunMove, isTerminalRun } from './states'
 import { announceRunIfMoved } from './announce'
+import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 
 /**
@@ -37,6 +38,26 @@ export default new Action({
     number: { rule: schema.number() },
     reason: { rule: schema.string() },
   },
+
+  responses: {
+    200: {
+      description: 'The run as it now stands. `cancelled` is false when it had already finished, which is not an error: cancelling something that ended a moment ago is an ordinary thing to do.',
+      schema: {
+        type: 'object',
+        properties: {
+          workflow_run: { type: 'object', properties: { number: { type: 'integer' }, state: { type: 'string' } } },
+          cancelled: { type: 'boolean' },
+          reason: { type: 'string' },
+        },
+      },
+    },
+    303: { description: 'A browser gets its run page back. The same action serves the interface, so it answers HTML callers with a redirect.' },
+    409: { description: 'The run is in a state that cannot be cancelled.' },
+    ...REPOSITORY_ERRORS,
+    422: { description: 'No run number was named.' },
+  },
+
+  responseHeaders: RATE_LIMIT_HEADERS,
 
   async handle(request: any) {
     // Write access, not read: stopping somebody's build is a change to the

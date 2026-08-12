@@ -231,26 +231,44 @@ This much makes ReviewOS usable with any existing CI. Ship it independently of t
 
   Answered with the row as it stands rather than an error, because from the
   reporter's side nothing is wrong: it sent what it had.
-- [ ] The check API is represented in generated OpenAPI, including request bodies, response bodies,
+- [x] The check API is represented in generated OpenAPI, including request bodies, response bodies,
       error codes, pagination, and rate-limit headers
 
-  **Half of this is there and the half that is missing is not ours to write.**
-  `storage/framework/api/openapi.json` carries `/api/repos/checks`, its query
-  parameters and its request body, all derived from the action's `validations`
-  rather than hand-maintained - so they cannot drift. What every operation in
-  the document gets is the same three responses: 200 with `{"type": "object"}`,
-  422 and 500.
+  The missing half was a framework gap, and it is filled upstream rather than
+  worked around here. `@stacksjs/api` derived an operation's *inputs* from the
+  action's `validations` - the same object the validator uses, so they cannot
+  drift - and could derive nothing about its outputs, so all 704 paths in the
+  document claimed a 200 of `{"type": "object"}` and knew of no failure but 422
+  and 500. A client generated from that has no branch for the 404 a private
+  repository answers, which is the one it meets first.
 
-  So there is no response *body*, no 401/403/404 - which every repository
-  endpoint answers and a client has to handle - and no rate-limit headers. None
-  of that is expressible today: the generator in
-  `storage/framework/core/api/src/generate-openapi.ts` derives an operation from
-  the route and the action's validations, and an action has nowhere to declare
-  what it answers with. The fix belongs there, as optional response metadata on
-  `Action`, and it fixes the document for all 704 paths rather than for these
-  two. Pagination is genuinely not applicable here: a commit's checks are a
-  handful of rows, and the one unbounded list is capped with its true total
-  reported beside the sample.
+  Stacks 0.70.369 gives an action `responses` and `responseHeaders`, merged over
+  those defaults rather than replacing them, and this repository uses them: the
+  checks endpoints, the run list, the run, the job log and the cancel all
+  document what they answer with, what they refuse with, and the
+  `X-RateLimit-*` headers every throttled response carries. Rate limits are on
+  the response rather than in it, so a document that omits them describes an API
+  that appears to have no limits until a client meets one.
+
+  Kept honest by two tests rather than by care. A unit test refuses a documented
+  status with no sentence, an endpoint that forgets its 401 or 404, and a header
+  name that is not one `app/Api/rate-limit.ts` actually sends - documenting a
+  header the API does not send is worse than documenting nothing, because a
+  client reads `undefined` and treats it as zero. And an end-to-end test asks
+  the endpoint what it really answers with and compares that against what the
+  action claims, which is the only way the prose stays true.
+
+  Pagination is documented where it exists - the run list's cursor, and `next`
+  being null on the last page rather than a cursor that returns nothing. The
+  checks endpoints do not paginate: a commit's checks are a handful of rows, and
+  the one unbounded list is capped with its true total beside the sample.
+
+  The note that stood here said the missing half was "not ours to write". It
+  was ours to write - one repository over, in
+  `storage/framework/core/api/src/generate-openapi.ts`, which is where a fix
+  helps every Stacks application rather than these two endpoints. Reaching for
+  a workaround here would have left the document wrong for all 704 paths and
+  right for six.
 - [x] Required checks are enforced by protected branches and the merge action
 - [x] Annotations render inline in the diff on the lines they refer to. An annotation shown only in
       a log is a link nobody clicks.

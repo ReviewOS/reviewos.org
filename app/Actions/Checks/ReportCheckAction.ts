@@ -1,6 +1,7 @@
 import type { CheckDetail } from '../../Webhooks/payloads'
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
+import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { notifyProgramsOnly } from '../../Notifications/emit'
 import { authorizeRepository } from '../Repo/authorize'
 
@@ -46,6 +47,40 @@ export default new Action({
     sha: { rule: schema.string().required() },
     kind: { rule: schema.enum(['status', 'check_run']) },
   },
+
+  responses: {
+    200: {
+      description: 'The run as it now stands. `ignored` is present when a late report was refused because a later one had already been recorded - which is not an error from the reporter\'s side, so it is not answered as one.',
+      schema: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          name: { type: 'string' },
+          status: { type: 'string', enum: ['queued', 'in_progress', 'completed'] },
+          conclusion: { type: 'string', nullable: true },
+          ignored: { type: 'string' },
+        },
+      },
+    },
+    201: {
+      description: 'A check run or commit status was created.',
+      schema: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          name: { type: 'string' },
+          context: { type: 'string', description: 'On a commit status, where a check run has a name.' },
+          status: { type: 'string' },
+          state: { type: 'string', description: 'On a commit status: pending, success, failure or error.' },
+          conclusion: { type: 'string', nullable: true },
+        },
+      },
+    },
+    ...REPOSITORY_ERRORS,
+    422: { description: 'A malformed sha, an unknown state, or a completed run with no conclusion.' },
+  },
+
+  responseHeaders: RATE_LIMIT_HEADERS,
 
   async handle(request: any) {
     /*

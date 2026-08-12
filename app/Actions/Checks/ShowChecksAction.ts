@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
+import { RATE_LIMIT_HEADERS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { fromCheckRun, fromStatus, rollup } from './rollup'
 
@@ -29,6 +30,42 @@ export default new Action({
     sha: { rule: schema.string() },
     number: { rule: schema.number() },
   },
+
+  /*
+   * What this answers with, for the generated document.
+   *
+   * The generator derives the *inputs* above and could derive nothing about
+   * the output, so every operation in the document claimed a 200 of
+   * `{"type": "object"}` and knew about no failure but 422 and 500 - and a
+   * client generated from that has no branch for the 404 a private repository
+   * answers, which is the one it will meet first.
+   *
+   * Written here rather than in a document kept in step by hand: this file is
+   * where the shape is decided, and a description a hundred lines from the code
+   * is one that is wrong within a month.
+   */
+  responses: {
+    200: {
+      description: 'Every check on the commit, and the one state that follows from them.',
+      schema: {
+        type: 'object',
+        properties: {
+          sha: { type: 'string', description: 'The commit these answers are about, so a client can tell "green" from "green for a commit somebody has replaced".' },
+          state: { type: 'string', enum: ['success', 'failure', 'pending', 'neutral'] },
+          counts: { type: 'object', description: 'How many checks are in each state.' },
+          statuses: { type: 'array', items: { type: 'object' } },
+          check_runs: { type: 'array', items: { type: 'object' } },
+        },
+      },
+    },
+    401: { description: 'No credential, or one this instance does not recognise.' },
+    404: {
+      description: 'No such repository, or one this caller may not see - deliberately the same answer, because distinguishing them tells a stranger that a private repository exists.',
+    },
+    422: { description: 'Neither a commit sha nor a pull request number was named.' },
+  },
+
+  responseHeaders: RATE_LIMIT_HEADERS,
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:read')

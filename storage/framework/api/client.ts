@@ -4904,14 +4904,14 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/checks
    */
-  getReposChecks(input: { "owner": string; "repository"?: string; "sha"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getReposChecks(input: { "owner": string; "repository"?: string; "sha"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<{ "sha"?: string; "state"?: "success" | "failure" | "pending" | "neutral"; "counts"?: Record<string, unknown>; "statuses"?: Array<Record<string, unknown>>; "check_runs"?: Array<Record<string, unknown>> }>> {
     return request(config, "GET", "/api/repos/checks", input ?? {}, ["owner", "repository", "sha", "number"], false, options)
   },
 
   /**
    * POST /api/repos/checks
    */
-  postReposChecks(input: { body: { "owner": string; "repository"?: string; "sha": string; "kind"?: "status" | "check_run" } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postReposChecks(input: { body: { "owner": string; "repository"?: string; "sha": string; "kind"?: "status" | "check_run" } }, options?: RequestOptions): Promise<ApiResult<{ "id"?: number; "name"?: string; "status"?: "queued" | "in_progress" | "completed"; "conclusion"?: string; "ignored"?: string }>> {
     return request(config, "POST", "/api/repos/checks", input ?? {}, [], true, options)
   },
 
@@ -5436,28 +5436,28 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/workflow-runs
    */
-  getReposWorkflowRuns(input?: { "owner"?: string; "repo"?: string; "state"?: string; "branch"?: string; "sha"?: string; "workflow"?: number; "per_page"?: number; "cursor"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getReposWorkflowRuns(input?: { "owner"?: string; "repo"?: string; "state"?: string; "branch"?: string; "sha"?: string; "workflow"?: number; "per_page"?: number; "cursor"?: string }, options?: RequestOptions): Promise<ApiResult<{ "workflow_runs"?: Array<Record<string, unknown>>; "next"?: string }>> {
     return request(config, "GET", "/api/repos/workflow-runs", input ?? {}, ["owner", "repo", "state", "branch", "sha", "workflow", "per_page", "cursor"], false, options)
   },
 
   /**
    * POST /api/repos/workflow-runs/cancel
    */
-  postReposWorkflowRunsCancel(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "reason"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postReposWorkflowRunsCancel(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "reason"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "workflow_run"?: { "number"?: number; "state"?: string }; "cancelled"?: boolean; "reason"?: string }>> {
     return request(config, "POST", "/api/repos/workflow-runs/cancel", input ?? {}, [], true, options)
   },
 
   /**
    * GET /api/repos/workflow-runs/log
    */
-  getReposWorkflowRunsLog(input: { "owner"?: string; "repo"?: string; "job": number; "after"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getReposWorkflowRunsLog(input: { "owner"?: string; "repo"?: string; "job": number; "after"?: number }, options?: RequestOptions): Promise<ApiResult<{ "chunks"?: Array<Record<string, unknown>>; "cursor"?: number }>> {
     return request(config, "GET", "/api/repos/workflow-runs/log", input ?? {}, ["owner", "repo", "job", "after"], false, options)
   },
 
   /**
    * GET /api/repos/workflow-runs/show
    */
-  getReposWorkflowRunsShow(input?: { "owner"?: string; "repo"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getReposWorkflowRunsShow(input?: { "owner"?: string; "repo"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<{ "workflow_run"?: Record<string, unknown> }>> {
     return request(config, "GET", "/api/repos/workflow-runs/show", input ?? {}, ["owner", "repo", "number"], false, options)
   },
 

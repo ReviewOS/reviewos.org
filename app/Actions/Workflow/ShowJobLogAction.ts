@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { readLog } from '../Runner/logs'
+import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 
 /**
@@ -28,6 +29,23 @@ export default new Action({
     job: { rule: schema.number().required() },
     after: { rule: schema.number() },
   },
+
+  responses: {
+    200: {
+      description: 'The job output after the cursor, and the cursor to pass next time. Unchanged when there is nothing new, rather than an empty page that looks like the end.',
+      schema: {
+        type: 'object',
+        properties: {
+          chunks: { type: 'array', items: { type: 'object' } },
+          cursor: { type: 'integer' },
+        },
+      },
+    },
+    ...REPOSITORY_ERRORS,
+    404: { description: 'No such repository, or a job that is not this one\'s - the job id is a number anybody can increment.' },
+  },
+
+  responseHeaders: RATE_LIMIT_HEADERS,
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:read')

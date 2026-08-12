@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
+import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 
 /**
@@ -24,6 +25,22 @@ export default new Action({
     repo: { rule: schema.string() },
     number: { rule: schema.number() },
   },
+
+  responses: {
+    200: {
+      description: 'One run, its jobs and their steps, plus the workflow version it ran - so a reader can tell it from the file as it is today.',
+      schema: {
+        type: 'object',
+        properties: {
+          workflow_run: { type: 'object' },
+        },
+      },
+    },
+    ...REPOSITORY_ERRORS,
+    404: { description: 'No such repository, or no run with that number.' },
+  },
+
+  responseHeaders: RATE_LIMIT_HEADERS,
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:read')

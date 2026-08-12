@@ -539,3 +539,51 @@ describe('the webhook a report sends', () => {
     expect(await deliveries(hook)).toEqual([])
   })
 })
+
+
+describe('the document and the endpoint agree', () => {
+  /*
+   * The rule a generated client depends on, and the one nothing else can check.
+   *
+   * `validations` cannot drift from the validator, because they are the same
+   * object. A documented *response* is prose somebody wrote next to the code,
+   * and prose is exactly what goes stale - so this asks the endpoint what it
+   * actually answers with and compares that against what the action claims.
+   *
+   * Top-level keys only. A deep comparison would fail on every optional field
+   * the fixture happens not to exercise, and a test that fails for being right
+   * is one somebody deletes.
+   */
+  test('every property the checks endpoint documents is one it sends', async () => {
+    if (!available)
+      return
+
+    const { default: action } = await import('../../app/Actions/Checks/ShowChecksAction')
+    const documented = Object.keys(((action as any).responses?.[200]?.schema?.properties ?? {}))
+
+    expect(documented.length).toBeGreaterThan(0)
+
+    const body = await show({ sha: created.sha })
+
+    for (const key of documented)
+      expect({ key, present: Object.prototype.hasOwnProperty.call(body, key) }).toEqual({ key, present: true })
+  })
+
+  test('and the statuses it documents are ones it can actually produce', async () => {
+    if (!available)
+      return
+
+    const { default: action } = await import('../../app/Actions/Checks/ShowChecksAction')
+    const documented = Object.keys((action as any).responses ?? {})
+
+    // 422 when neither a sha nor a number is named: the one refusal this
+    // endpoint has of its own, and it is documented, so it had better happen.
+    const answer = await fetch(
+      `http://127.0.0.1:${port}/api/repos/checks?owner=${created.ownerHandle}&repository=${created.name}`,
+      { headers: { Authorization: `Bearer ${created.readToken}`, Accept: 'application/json' } },
+    )
+
+    expect(documented).toContain(String(answer.status))
+    expect(answer.status).toBe(422)
+  })
+})

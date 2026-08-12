@@ -13115,7 +13115,9 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "sha"?: string; "state"?: "success" | "failure" | "pending" | "neutral"; "counts"?: Record<string, unknown>; "statuses"?: Array<Record<string, unknown>>; "check_runs"?: Array<Record<string, unknown>> } } }
+      "401": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -13130,7 +13132,11 @@ export interface paths {
     }
     requestBody: { content: { "application/json": { "owner": string; "repository"?: string; "sha": string; "kind"?: "status" | "check_run" } } }
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "id"?: number; "name"?: string; "status"?: "queued" | "in_progress" | "completed"; "conclusion"?: string; "ignored"?: string } } }
+      "201": { content: { "application/json": { "id"?: number; "name"?: string; "context"?: string; "status"?: string; "state"?: string; "conclusion"?: string } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -14763,7 +14769,10 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "workflow_runs"?: Array<Record<string, unknown>>; "next"?: string } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -14788,7 +14797,12 @@ export interface paths {
     }
     requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "reason"?: string } } }
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "workflow_run"?: { "number"?: number; "state"?: string }; "cancelled"?: boolean; "reason"?: string } } }
+      "303": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "409": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -14809,7 +14823,10 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "chunks"?: Array<Record<string, unknown>>; "cursor"?: number } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -14832,7 +14849,10 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "workflow_run"?: Record<string, unknown> } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }

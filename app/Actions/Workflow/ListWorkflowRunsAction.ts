@@ -3,6 +3,7 @@ import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { decodeCursor, isAfter, pageSize, toPage } from '../../Api/cursor'
 import { apiError } from '../../Api/errors'
+import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 
 const STATES = ['queued', 'running', 'waiting', 'paused', 'cancelling', 'cancelled', 'failed', 'succeeded']
@@ -34,6 +35,23 @@ export default new Action({
     per_page: { rule: schema.number() },
     cursor: { rule: schema.string() },
   },
+
+  responses: {
+    200: {
+      description: 'Runs, newest first, with the cursor for the next page. `next` is null on the last one rather than a cursor that returns nothing.',
+      schema: {
+        type: 'object',
+        properties: {
+          workflow_runs: { type: 'array', items: { type: 'object' } },
+          next: { type: 'string', nullable: true, description: 'Pass as `cursor` for the next page. Null when there is none.' },
+        },
+      },
+    },
+    ...REPOSITORY_ERRORS,
+    422: { description: 'A state this instance does not have, answered with the list of the ones it does.' },
+  },
+
+  responseHeaders: RATE_LIMIT_HEADERS,
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:read')
