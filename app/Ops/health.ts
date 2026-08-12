@@ -62,6 +62,7 @@ export async function checkHealth(options: { writeProbe?: boolean } = {}): Promi
 
   return summarize([
     await database(),
+    await databaseClock(),
     await queue(),
     await repositoryStorage(options.writeProbe !== false),
   ])
@@ -106,6 +107,66 @@ async function database(): Promise<Check> {
      * every page 500ing, health green.
      */
     await (globalThis as any).db.selectFrom('users').select(['id']).limit(1).execute()
+  })
+}
+
+/**
+ * Does a timestamp the database writes come back as the moment it happened?
+ *
+ * It does not, on any host whose Postgres session is not in UTC, and the
+ * failure is silent in the worst way: every "3 minutes ago" in the product is
+ * wrong by the offset, and wrong times look like times.
+ *
+ * The mechanism, because a check that only says "skewed" sends somebody to read
+ * this file. `created_at` is `timestamp` **without** time zone and defaults to
+ * `CURRENT_TIMESTAMP`, which returns the session's *local* wall clock. Storing
+ * it into a column with no zone drops the offset, so what lands is `08:59` from
+ * a machine seven hours behind UTC. The driver reads a zoneless timestamp back
+ * as UTC, and the row is now seven hours in the past.
+ *
+ * Nothing the application writes is affected: those are ISO UTC strings and
+ * round-trip exactly. It is only the columns the database fills in.
+ *
+ * Measured rather than read from `SHOW timezone`, because the setting is not
+ * the bug - the column type is - and a check that reads the setting would pass
+ * on a UTC database whose columns are still the wrong type, and fail on a
+ * correctly-typed database that happens to sit in Berlin.
+ */
+async function databaseClock(): Promise<Check> {
+  return await timed('database clock', async () => {
+    const db = (globalThis as any).db
+
+    /*
+     * `CURRENT_TIMESTAMP::timestamp` is exactly what a defaulted column stores:
+     * the cast drops the offset, the same way the column type does. Comparing
+     * that against this process's clock measures the bug directly, without
+     * writing anything and without depending on how old any row happens to be.
+     */
+    const rows: any = await db.raw`SELECT CURRENT_TIMESTAMP::timestamp AS stored`
+    const stored = Array.isArray(rows) ? rows[0]?.stored : rows?.stored
+    if (!stored)
+      return
+
+    const skewMinutes = Math.abs(Date.now() - new Date(stored as any).getTime()) / 60_000
+
+    // Fifteen minutes of slack covers a clock that is merely wrong; every real
+    // timezone offset is at least half an hour.
+    if (skewMinutes > 15) {
+      const hours = (skewMinutes / 60).toFixed(1)
+
+      /*
+       * Degraded, not failed, and the distinction is this file's own rule:
+       * only a failed check takes an instance out of rotation. Every timestamp
+       * being wrong by an offset is bad, and it is not a reason to stop serving
+       * a forge that is otherwise working - refusing traffic over it would turn
+       * a display bug into an outage.
+       */
+      return {
+        status: 'degraded' as const,
+        detail: `timestamps the database writes are ${hours} hours out: run Postgres with `
+          + 'timezone=UTC, or every "x ago" in the interface is wrong by that much',
+      }
+    }
   })
 }
 

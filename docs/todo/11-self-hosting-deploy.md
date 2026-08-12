@@ -907,6 +907,43 @@ already gone wrong and there is no second chance to have recorded it.
   person themselves on a new laptop, and language that starts by alarming them
   is language they stop reading.
 
+### The database clock, and every "x ago" in the product
+
+Found by noticing that a workflow run created seconds earlier said "7 hours ago", which is this
+machine's offset from UTC. Reproduced exactly: a row inserted now reads back 7.00 hours in the past.
+
+**The mechanism.** `created_at` is `timestamp` *without* time zone and defaults to
+`CURRENT_TIMESTAMP`, which returns the session's **local** wall clock. Postgres here reports
+`TimeZone: America/Los_Angeles`, so `CURRENT_TIMESTAMP` is `08:59:09-07`; storing that into a column
+with no zone drops the offset and keeps `08:59:09`, and the driver reads a zoneless timestamp back
+as UTC. The row is now seven hours in the past and nothing anywhere says so.
+
+**The blast radius is smaller than it looks, and worse than it sounds.** Everything the application
+writes is an ISO UTC string and round-trips exactly - measured, not assumed: `updated_at` written by
+the app came back with 0.00 hours of skew in the same row whose `created_at` was 7.00 out. It is
+only the columns the *database* fills in. Which is `created_at`, which is what almost every relative
+time on every screen reads.
+
+Nobody noticed because a server running UTC has no offset to lose. Any self-hoster on a machine set
+to their own timezone gets every timestamp wrong by it.
+
+- [x] `instance:check` and the health endpoint report it. `CURRENT_TIMESTAMP::timestamp` is exactly
+      what a defaulted column stores - the cast drops the offset the same way the column type
+      does - so comparing that against the process clock measures the bug directly, without writing
+      anything and without depending on how old any row happens to be. Reading `SHOW timezone`
+      instead would pass on a UTC database whose columns are still the wrong type, and fail on a
+      correctly-typed one that happens to sit in Berlin.
+
+      **Degraded, not failed.** Only a failed check takes an instance out of rotation, and an
+      instance whose clock is skewed is still serving a working forge - refusing traffic over a
+      display bug would turn it into an outage. The policy is tested rather than the probe, because
+      breaking the database of the server the suite runs against takes the suite with it.
+- [ ] The durable fix is `timestamptz` columns, so Postgres stores an absolute instant and the
+      session zone stops mattering. That is a change to the type the model generator emits, which
+      lives in `@stacksjs/orm` rather than here, plus a migration across every table that has a
+      timestamp. Until then the operational answer is to run the database in UTC, and the check
+      above is what stops that being folklore.
+
 ## Developer environment
 
 - [x] Pantry auto-activation under the `den` shell. den now runs `chpwd`, `chpwd_functions`,
