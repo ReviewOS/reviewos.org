@@ -110,8 +110,12 @@ async function upsertWorkflow(input: SyncInput, workflow: NormalizedWorkflow): P
     .where('owner_id', '=', input.ownerId)
     .where('path', '=', input.path)
 
+  // `whereNull`, not `where('repository_id', 'is', null)`: this builder binds
+  // the null as a parameter and Postgres answers with a syntax error. The same
+  // trap is written up in `Auth/twoFactor.ts` and `Pull/suggest.ts`, which is
+  // where it should have been read before being repeated here.
   query = input.repositoryId === null
-    ? query.where('repository_id', 'is', null as any)
+    ? query.whereNull('repository_id')
     : query.where('repository_id', '=', input.repositoryId)
 
   const found: any = await query.executeTakeFirst()

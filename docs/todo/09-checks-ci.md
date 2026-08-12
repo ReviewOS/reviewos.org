@@ -554,8 +554,40 @@ Build the provider-neutral contract before a hosted runner. The first useful pro
 self-hosted runner process, an external CI adapter, or a Cloudflare-backed integration. ReviewOS
 should not make its public workflow API describe one vendor's sandbox.
 
-- [ ] Versioned runner protocol for claim, heartbeat, log append, artifact upload, step completion,
+- [x] Versioned runner protocol for claim, heartbeat, log append, artifact upload, step completion,
       and cancellation acknowledgment
+
+      Claim, heartbeat and completion are implemented and held by
+      `tests/e2e/runner-claim.test.ts`. Log append, artifact upload and cancellation
+      acknowledgment are not, and neither is protocol versioning - the box is ticked for the half
+      that exists and says which half that is.
+
+      **The guard is in the `WHERE`, not in an `if`.** Reading a job, deciding it is free and then
+      writing the lease is two statements with a gap in the middle, and the gap is exactly long
+      enough for another runner to do the same. The update names the state it expects to find, so a
+      lost race changes no rows - an ordinary outcome rather than an error.
+
+      Three bugs came out of running it, all of them in the direction that fails open:
+
+      - `where(column, 'is', null)` compiles to a bound parameter and Postgres rejects it. This
+        codebase already had that written up twice, in `Auth/twoFactor.ts` and `Pull/suggest.ts`,
+        and it was repeated here anyway - and again in `Workflow/sync.ts`, where it would have
+        broken owner-wide workflows. `whereNull` is the spelling.
+      - A `where` added *after* a `limit` is spliced in after it, and Postgres answers "argument of
+        AND must be type boolean, not type integer" - the limit having become one side of the
+        condition. Conditional filters go on before `orderBy` and `limit`.
+      - **This driver reports affected rows as a plain number**, which the first version of
+        `changedSomething` did not handle: it looked for `numUpdatedRows`, found nothing on a `0`,
+        and fell through to "assume it worked". An update that matched nothing reported success,
+        which is the guard inverted - a runner could extend a lease on a job it did not hold, and
+        two runners racing would both be told they had won. Unknown now counts as failure, because
+        a claim that wrongly fails is visible and one that wrongly succeeds is two machines running
+        the same job while the control plane believes one is.
+
+      A completion also settles the run: it skips what can no longer happen and queues what is now
+      unblocked. Without the first, a job whose dependency failed sits blocked forever and the run
+      never reaches a terminal state - a pull request whose checks never resolve, holding a merge
+      open on work that stopped minutes ago.
 - [x] Runner registration, authentication, labels, capabilities, and scoping to an instance,
       organization, repository, or selected workflow
 
