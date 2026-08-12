@@ -938,11 +938,21 @@ to their own timezone gets every timestamp wrong by it.
       instance whose clock is skewed is still serving a working forge - refusing traffic over a
       display bug would turn it into an outage. The policy is tested rather than the probe, because
       breaking the database of the server the suite runs against takes the suite with it.
-- [ ] The durable fix is `timestamptz` columns, so Postgres stores an absolute instant and the
-      session zone stops mattering. That is a change to the type the model generator emits, which
-      lives in `@stacksjs/orm` rather than here, plus a migration across every table that has a
-      timestamp. Until then the operational answer is to run the database in UTC, and the check
-      above is what stops that being folklore.
+- [x] Fixed upstream, and **not** the way it looked. `timestamptz` was the obvious answer and is
+      wrong here: Stacks stores *naive UTC* - a zoneless column holding UTC wall clock - because
+      MySQL has nothing equivalent and one convention across drivers is worth more than the best
+      type on each. Changing the type broke five tests that exist to say exactly that, which is how
+      the convention got read rather than guessed at.
+
+      The bug was the **default**. `DEFAULT CURRENT_TIMESTAMP` is the session's local wall clock on
+      Postgres and MySQL, so the one value the database supplies for itself disagreed with every
+      value the ORM writes. `@stacksjs/database` now has `utcNow` - `(now() AT TIME ZONE 'utc')`,
+      `UTC_TIMESTAMP`, and SQLite's `CURRENT_TIMESTAMP`, which was already UTC - and its own tables
+      use it, with a test asserting no `DEFAULT CURRENT_TIMESTAMP` survives.
+
+      It reaches this instance on the next `@stacksjs/database` release, and only for tables created
+      after it: existing rows keep the values they have. The health check above is what says whether
+      a given instance is affected.
 
 ## Developer environment
 
