@@ -110,6 +110,60 @@ describe('action, so a receiver switches on one field', () => {
   })
 })
 
+describe('what a check reported', () => {
+  const check = {
+    name: 'ci/build',
+    sha: 'a'.repeat(40),
+    status: 'completed',
+    conclusion: 'failure',
+    attempt: 2,
+    details_url: 'https://ci.example.com/runs/9',
+    summary: 'two tests failed',
+  }
+
+  const reported = { ...subject, subjectType: 'repository' as const, check }
+
+  it('travels under its own key, with the fields a gate needs', () => {
+    const body: any = webhookPayload('check:reported', reported, at)
+
+    expect(body.check.name).toBe('ci/build')
+    expect(body.check.sha).toBe('a'.repeat(40))
+    expect(body.check.status).toBe('completed')
+    expect(body.check.conclusion).toBe('failure')
+    expect(body.check.attempt).toBe(2)
+    expect(body.check.details_url).toBe('https://ci.example.com/runs/9')
+  })
+
+  /*
+   * The transition is the field. A receiver waiting for a build to finish
+   * subscribes once and switches on `action`; flattening `queued`,
+   * `in_progress` and `completed` into one word would leave it re-reading the
+   * check on every hop to find out whether anything had happened.
+   */
+  it('puts the transition in action, not a single flattened word', () => {
+    expect(webhookPayload('check:reported', reported, at).action).toBe('completed')
+
+    expect(webhookPayload('check:reported', {
+      ...reported,
+      check: { ...check, status: 'in_progress', conclusion: null },
+    }, at).action).toBe('in_progress')
+  })
+
+  it('and the subject stays the repository, so nothing routing on it breaks', () => {
+    // A check is about a commit, and the commit is in `check.sha`. Stretching
+    // `subject.type` to a fourth value would break every receiver that switches
+    // on it today.
+    const body = webhookPayload('check:reported', reported, at)
+
+    expect(body.subject.type).toBe('repository')
+    expect(body.subject.url).toBe('/acme/api')
+  })
+
+  it('is absent from every event that is not one', () => {
+    expect((webhookPayload('pr:merged', subject, at) as any).check).toBeUndefined()
+  })
+})
+
 describe('the ping', () => {
   it('is the same envelope, so handling the envelope handles it for free', () => {
     const body = pingPayload({ id: 3, owner: 'acme', name: 'api' }, { handle: 'chris', id: 7 }, at)

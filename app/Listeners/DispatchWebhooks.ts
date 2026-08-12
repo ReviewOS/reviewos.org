@@ -36,6 +36,12 @@ export default {
     'issue:closed',
     'comment:created',
     'release:published',
+    // Both reporting APIs, kept apart: a check run carries attempts and output
+    // where a status carries neither, and a receiver that has to test for the
+    // presence of half a dozen keys to tell which it got is one that gets it
+    // wrong.
+    'check:reported',
+    'status:reported',
   ],
 
   async handle(payload: EventSubject & { event?: NotificationEvent }, eventName?: string): Promise<void> {

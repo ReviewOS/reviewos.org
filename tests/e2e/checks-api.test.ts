@@ -161,6 +161,15 @@ afterAll(async () => {
 
       await db.deleteFrom('check_runs').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('commit_statuses').where('repository_id', '=', created.repositoryId).execute()
+
+      // Deliveries first: they reference the webhook, and the repository
+      // cascade cannot remove a hook something still points at.
+      const hooks: any[] = await db.selectFrom('webhooks').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+
+      for (const hook of hooks)
+        await db.deleteFrom('webhook_deliveries').where('webhook_id', '=', Number(hook.id)).execute()
+
+      await db.deleteFrom('webhooks').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('pull_requests').where('repository_id', '=', created.repositoryId).execute()
       await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute()
     }
@@ -393,4 +402,140 @@ describe('annotations', () => {
     expect(run.annotations.total).toBe(1)
     expect(run.annotations.items[0].message).toBe('Better')
   }, 30_000)
+})
+
+
+describe('the webhook a report sends', () => {
+  /*
+   * The event a CI receiver exists for, and the one the roadmap left open: a
+   * deployment gate, a dashboard and a merge queue all wait on "a check said
+   * something about this commit", and until this existed the only way to find
+   * out was to poll the checks endpoint.
+   *
+   * Asserted through the real path - report over HTTP, listener, delivery row -
+   * because each half of it has failed on its own before: an event nothing
+   * listens to, and a listener no event reaches.
+   */
+  async function subscribe(events: string): Promise<number> {
+    const db = (globalThis as any).db
+
+    const row: any = await db.insertInto('webhooks').values({
+      repository_id: created.repositoryId,
+      // Unreachable deliberately. The delivery is refused and still recorded,
+      // and what this asserts is that the attempt was made.
+      url: 'http://127.0.0.1:1/hook',
+      secret: 'shhh',
+      events,
+      content_type: 'application/json',
+      active: true,
+      consecutive_failures: 0,
+    }).returning(['id']).executeTakeFirst()
+
+    return Number(row?.id)
+  }
+
+  async function deliveries(webhookId: number): Promise<any[]> {
+    return (globalThis as any).db
+      .selectFrom('webhook_deliveries')
+      .select(['event', 'payload'])
+      .where('webhook_id', '=', webhookId)
+      .where('attempt', '=', 1)
+      .orderBy('id', 'asc')
+      .execute()
+  }
+
+  /*
+   * Waited for rather than read once.
+   *
+   * The dispatch is deliberately fire-and-forget - a webhook is a consequence
+   * of somebody's report and must not be able to fail it - so the report's
+   * response arrives before the delivery is written. Asserting immediately
+   * tests the scheduler's luck, and it fails on a fast machine and passes on a
+   * slow one, which is the worst way round.
+   */
+  async function settled(webhookId: number, atLeast = 1): Promise<any[]> {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const rows = await deliveries(webhookId)
+
+      if (rows.length >= atLeast)
+        return rows
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    return await deliveries(webhookId)
+  }
+
+  test('carries the check, its transition, and the commit it is about', async () => {
+    if (!available)
+      return
+
+    const hook = await subscribe('check:reported')
+
+    await report({ name: 'webhook/build', status: 'completed', conclusion: 'success', attempt: 3 })
+
+    const sent = await settled(hook)
+    const body = JSON.parse(String(sent.at(-1)?.payload ?? '{}'))
+
+    expect(sent.at(-1)?.event).toBe('check:reported')
+    expect(body.check.name).toBe('webhook/build')
+    expect(body.check.sha).toBe(created.sha)
+    expect(body.check.conclusion).toBe('success')
+    expect(body.check.attempt).toBe(3)
+    // The transition, which is what a gate switches on.
+    expect(body.action).toBe('completed')
+    expect(body.repository.full_name).toBe(`${created.ownerHandle}/${created.name}`)
+  })
+
+  test('and a commit status is its own event rather than a check-shaped lie', async () => {
+    if (!available)
+      return
+
+    const hook = await subscribe('status:reported')
+
+    await report({ kind: 'status', context: 'webhook/legacy', state: 'success', target_url: 'https://ci.example.com/9' })
+
+    const sent = await settled(hook)
+    const body = JSON.parse(String(sent.at(-1)?.payload ?? '{}'))
+
+    expect(sent.at(-1)?.event).toBe('status:reported')
+    expect(body.check.name).toBe('webhook/legacy')
+    expect(body.check.conclusion).toBe('success')
+    expect(body.check.details_url).toBe('https://ci.example.com/9')
+  })
+
+  test('a webhook subscribed to something else hears nothing', async () => {
+    if (!available)
+      return
+
+    const hook = await subscribe('pr:opened')
+
+    await report({ name: 'webhook/quiet', status: 'completed', conclusion: 'success' })
+
+    // The same wait the positive cases get, so this is "nothing arrived" rather
+    // than "nothing had arrived yet".
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    expect(await deliveries(hook)).toEqual([])
+  })
+
+  /*
+   * A report that changed nothing sends nothing. A `queued` arriving after a
+   * `completed` is a delivery that overtook itself, and a webhook saying a
+   * finished check is queued again would have a merge queue reopen a gate that
+   * had already closed.
+   */
+  test('and a backward transition is silent', async () => {
+    if (!available)
+      return
+
+    const created_run = await report({ name: 'webhook/order', status: 'completed', conclusion: 'success' })
+    const hook = await subscribe('check:reported')
+
+    await report({ id: Number(created_run.body?.id), name: 'webhook/order', status: 'queued' })
+
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    expect(await deliveries(hook)).toEqual([])
+  })
 })

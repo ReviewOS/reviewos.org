@@ -65,6 +65,17 @@ export default {
    */
   'pr:synchronized': ['DispatchWebhooks'],
   'pr:ready_for_review': ['DispatchWebhooks'],
+  /*
+   * A check reported. Webhooks only, on the same reasoning and more so.
+   *
+   * Every transition of every check fires this - a repository with six checks
+   * and a busy morning would put a hundred entries in an inbox nobody would
+   * read afterwards - and it is the event a deployment gate, a dashboard or a
+   * merge queue exists to wait on. A feed of "ci/build is running" would bury
+   * the things somebody scrolls to find.
+   */
+  'check:reported': ['DispatchWebhooks'],
+  'status:reported': ['DispatchWebhooks'],
   'pr:merged': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'pr:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'review:requested': ['Notify', 'DispatchWebhooks'],

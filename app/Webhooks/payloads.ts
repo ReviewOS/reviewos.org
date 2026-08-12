@@ -68,6 +68,30 @@ export const WEBHOOK_EVENTS = [
   'issue:closed',
   'comment:created',
   'release:published',
+  /*
+   * A check said something about a commit.
+   *
+   * One event for every transition rather than three - `queued`, `in_progress`,
+   * `completed` travel in `action` - because a receiver that wants only the
+   * finished ones can look at one field, and a receiver that wants to know a
+   * build started would otherwise have to subscribe to an event that did not
+   * exist. It is what a deployment gate, a dashboard and a merge queue all
+   * wait on.
+   *
+   * Webhook-only, deliberately. Nobody wants an inbox entry per check
+   * transition, and a repository with six checks and a busy morning would send
+   * a hundred.
+   */
+  'check:reported',
+  /*
+   * The same, through the older commit-status API.
+   *
+   * Kept separate rather than folded into `check:reported`: the two carry
+   * different fields - a status has no attempts, no annotations and no
+   * output - and a receiver that has to test for the presence of half a dozen
+   * keys to find out which kind it got is one that gets it wrong.
+   */
+  'status:reported',
 ] as const
 
 export type WebhookEvent = typeof WEBHOOK_EVENTS[number]
@@ -121,6 +145,8 @@ export interface WebhookPayload extends Envelope {
   action: string
   /** The tag, for a release. Absent otherwise rather than empty. */
   tag?: string
+  /** What a check said. Absent on every event that is not one. */
+  check?: CheckDetail
 }
 
 /** What `action` each event means. */
@@ -136,6 +162,39 @@ const ACTIONS: Record<string, string> = {
   'issue:closed': 'closed',
   'comment:created': 'commented',
   'release:published': 'published',
+  /*
+   * The fallback only. A real check payload carries its transition here -
+   * `queued`, `in_progress`, `completed` - because that is the field a
+   * deployment gate switches on, and flattening three transitions into one
+   * word would make the event useless for the thing it exists for.
+   */
+  'check:reported': 'reported',
+  'status:reported': 'reported',
+}
+
+/**
+ * What a check reported, for the receivers that exist to act on it.
+ *
+ * Present only on `check:reported` and `status:reported`. A commit rather than
+ * an issue or a pull request is what these are about, and `subject` stays the
+ * repository rather than being stretched to mean a sha - a receiver routing on
+ * `subject.type` should not have to learn a fourth value to keep working.
+ */
+export interface CheckDetail {
+  /** The name a branch rule would match on. */
+  name: string
+  /** The commit it is about, in full. */
+  sha: string
+  /** `queued`, `in_progress` or `completed`; a status reports `completed`. */
+  status: string
+  /** Null until there is one. Never guessed from a status that has not finished. */
+  conclusion: string | null
+  /** 1 unless the reporter retried. Always 1 for a commit status. */
+  attempt: number
+  /** Where the run's output lives, on the reporter's side. Empty when unknown. */
+  details_url: string
+  /** One line, when the reporter sent one. */
+  summary: string
 }
 
 /**
@@ -147,7 +206,7 @@ const ACTIONS: Record<string, string> = {
  */
 export function webhookPayload(
   event: NotificationEvent | string,
-  subject: EventSubject & { detail?: string },
+  subject: EventSubject & { detail?: string, check?: CheckDetail },
   at: string,
 ): WebhookPayload {
   const owner = String(subject.owner ?? '')
@@ -175,8 +234,12 @@ export function webhookPayload(
       title: String(subject.title ?? ''),
       url: urlFor(owner, name, type, subject.number),
     },
-    action: ACTIONS[String(event)] ?? String(event),
+    // A check's action is its own state, which is the field a receiver
+    // switches on. Mapping it through ACTIONS would flatten three transitions
+    // into one word and make the event useless for the thing it exists for.
+    action: subject.check ? String(subject.check.status) : (ACTIONS[String(event)] ?? String(event)),
     ...(subject.detail ? { tag: String(subject.detail) } : {}),
+    ...(subject.check ? { check: subject.check } : {}),
   }
 }
 

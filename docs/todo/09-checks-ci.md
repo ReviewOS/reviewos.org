@@ -295,7 +295,30 @@ This much makes ReviewOS usable with any existing CI. Ship it independently of t
   that had already reported, while the page said it had never reported at all.
   `statusAsRun` maps a status onto the same shape, and both merge actions read
   both tables.
-- [ ] Webhook events for status and check transitions, with redelivery through phase 5
+- [x] Webhook events for status and check transitions, with redelivery through phase 5
+
+  `check:reported` and `status:reported`, emitted from the reporting endpoint
+  after the write. One event per transition rather than three, with `queued`,
+  `in_progress` and `completed` travelling in `action`: a receiver that only
+  wants finished checks reads one field, and a receiver that wants to know a
+  build *started* would otherwise have to subscribe to an event that did not
+  exist. It is what a deployment gate, a dashboard and a merge queue all wait
+  on, and until now the only way to find out was to poll.
+
+  The two reporting APIs stay separate events, because a check run carries
+  attempts and output where a status carries neither, and a receiver that has to
+  test for the presence of half a dozen keys to learn which kind arrived is one
+  that gets it wrong. Both carry a `check` object with the name, the full sha,
+  the status, the conclusion, the attempt and the details URL; `subject` stays
+  the repository, so nothing routing on `subject.type` has to learn a fourth
+  value.
+
+  Webhook-only, deliberately: a repository with six checks and a busy morning
+  would put a hundred entries in an inbox nobody would read afterwards.
+  Redelivery, signing and the delivery log come from phase 5 unchanged. A
+  backward transition - a `queued` that overtook a `completed` - is silent,
+  because it changed nothing and a webhook saying a finished check is queued
+  again would have a merge queue reopen a gate that had already closed.
 - [x] Tests: a required check that never reports blocks the merge, and reporting late unblocks it
 - [x] API tests: permission isolation, idempotent retry, out-of-order updates, pagination, a stale
       pull request head, and annotations on both sides of a diff

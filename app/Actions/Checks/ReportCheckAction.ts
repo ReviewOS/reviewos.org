@@ -1,5 +1,7 @@
+import type { CheckDetail } from '../../Webhooks/payloads'
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
+import { notifyProgramsOnly } from '../../Notifications/emit'
 import { authorizeRepository } from '../Repo/authorize'
 
 /**
@@ -67,10 +69,27 @@ export default new Action({
 
     const kind = String(request.get('kind') ?? 'check_run')
 
-    if (kind === 'status')
-      return await reportStatus(request, Number(repository.id), sha, user?.id ?? null)
+    /*
+     * Enough to name the repository in a webhook body, carried rather than
+     * looked up again: the payload says `owner/name`, and re-reading the row
+     * per report would be a query per check transition on a busy morning.
+     */
+    const about = {
+      repositoryId: Number(repository.id),
+      // The handle the caller addressed, which is what resolved this
+      // repository a moment ago. Re-deriving it from `owner_type` and
+      // `owner_id` would be a second query per check transition, and on a busy
+      // morning that is a query per transition per check.
+      owner: String(request.get('owner') ?? '').trim().toLowerCase(),
+      repository: String(repository.name),
+      actorId: user?.id ?? 0,
+      actorHandle: String(user?.handle ?? ''),
+    }
 
-    return await reportCheckRun(request, Number(repository.id), sha, user?.id ?? null)
+    if (kind === 'status')
+      return await reportStatus(request, about, sha, user?.id ?? null)
+
+    return await reportCheckRun(request, about, sha, user?.id ?? null)
   },
 })
 
@@ -82,7 +101,8 @@ export default new Action({
  * "did this always pass, or did somebody re-run it until it did" stays a
  * question the history can answer.
  */
-async function reportStatus(request: any, repositoryId: number, sha: string, creatorId: number | null): Promise<Response> {
+async function reportStatus(request: any, about: About, sha: string, creatorId: number | null): Promise<Response> {
+  const repositoryId = about.repositoryId
   const context = String(request.get('context') ?? '').trim()
   const state = String(request.get('state') ?? '').trim()
 
@@ -106,6 +126,19 @@ async function reportStatus(request: any, repositoryId: number, sha: string, cre
     .returning(['id'])
     .executeTakeFirst()
 
+  await announce(about, 'status:reported', {
+    name: context,
+    sha,
+    // A status has no lifecycle of its own: it *is* the report. `pending` is
+    // the one state that has not concluded, and calling it completed would tell
+    // a gate to act on a check that is still running.
+    status: state === 'pending' ? 'in_progress' : 'completed',
+    conclusion: state === 'pending' ? null : state === 'success' ? 'success' : 'failure',
+    attempt: 1,
+    details_url: String(request.get('target_url') ?? ''),
+    summary: String(request.get('description') ?? ''),
+  })
+
   return response.json({ id: Number(created?.id), context, state }, 201)
 }
 
@@ -119,7 +152,8 @@ const STATUS_ORDER: Record<string, number> = { queued: 0, in_progress: 1, comple
  * reporter that has our id sends it; one that has only its own key sends that;
  * one that has neither is creating.
  */
-async function reportCheckRun(request: any, repositoryId: number, sha: string, reporterId: number | null): Promise<Response> {
+async function reportCheckRun(request: any, about: About, sha: string, reporterId: number | null): Promise<Response> {
+  const repositoryId = about.repositoryId
   const name = String(request.get('name') ?? '').trim()
   const status = String(request.get('status') ?? 'queued').trim()
 
@@ -169,6 +203,16 @@ async function reportCheckRun(request: any, repositoryId: number, sha: string, r
 
     await writeAnnotations(request, Number(created?.id))
 
+    await announce(about, 'check:reported', {
+      name,
+      sha,
+      status,
+      conclusion,
+      attempt: Number(fields.attempt) || 1,
+      details_url: String(fields.details_url ?? ''),
+      summary: String(fields.summary ?? ''),
+    })
+
     return response.json({ id: Number(created?.id), name, status, conclusion }, 201)
   }
 
@@ -193,6 +237,16 @@ async function reportCheckRun(request: any, repositoryId: number, sha: string, r
 
   await db.updateTable('check_runs').set(fields as any).where('id', '=', Number(existing.id)).execute()
   await writeAnnotations(request, Number(existing.id))
+
+  await announce(about, 'check:reported', {
+    name,
+    sha,
+    status,
+    conclusion,
+    attempt: Number(fields.attempt) || 1,
+    details_url: String(fields.details_url ?? ''),
+    summary: String(fields.summary ?? ''),
+  })
 
   return response.json({ id: Number(existing.id), name, status, conclusion })
 }
@@ -246,4 +300,48 @@ async function writeAnnotations(request: any, checkRunId: number): Promise<void>
       raw_details: String(annotation?.raw_details ?? '') || null,
     } as any).execute()
   }
+}
+
+/** Who and what a report is about, carried from the authorized request. */
+interface About {
+  repositoryId: number
+  owner: string
+  repository: string
+  actorId: number
+  actorHandle: string
+}
+
+/**
+ * Tell the programs waiting on this commit.
+ *
+ * **After the write, never before**, like every other event in this codebase: a
+ * receiver that reads the check back the moment it hears about it must see what
+ * it was told, and the other order is a race that only appears under load and
+ * reads as the API lying.
+ *
+ * A backward transition is deliberately silent. It changed nothing, and an
+ * event saying a completed check is queued again would have a merge queue
+ * reopen a gate that had already closed.
+ *
+ * Never throws, and not awaited for its effect: a webhook is a consequence of
+ * somebody's report and must not be able to fail it. A CI system whose POST
+ * returns 500 because a receiver is down retries the report, and the second
+ * report is the duplicate the idempotency rules exist to absorb.
+ */
+async function announce(about: About, event: 'check:reported' | 'status:reported', check: CheckDetail): Promise<void> {
+  await notifyProgramsOnly(event, {
+    actorId: about.actorId,
+    actorHandle: about.actorHandle,
+    repositoryId: about.repositoryId,
+    owner: about.owner,
+    repository: about.repository,
+    // A check is about a commit, and `subject` stays the repository rather than
+    // being stretched to mean a sha: a receiver routing on `subject.type`
+    // should not have to learn a fourth value to keep working. The commit is in
+    // `check.sha`, where a receiver that cares about it is already looking.
+    subjectType: 'repository',
+    subjectId: about.repositoryId,
+    title: `${check.name} on ${check.sha.slice(0, 10)}`,
+    check,
+  } as any)
 }
