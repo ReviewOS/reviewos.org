@@ -71,6 +71,33 @@ for (const step of stepRows) {
     stepsByJob.set(jobId, [step])
 }
 
+/**
+ * The output each job produced.
+ *
+ * Read here rather than fetched, because a log that arrives after the page does
+ * is a log somebody watches appear - and the run is usually over by the time
+ * anybody opens this. The live case is worth a fetch later; the ordinary case
+ * is worth being on the page.
+ *
+ * One query for the run rather than one per job. Bounded by the ceiling the
+ * append side enforces, so "everything" is at most a couple of megabytes and
+ * the tail is what a reader wants anyway.
+ */
+const logRows: any[] = jobRows.length > 0
+  ? await db
+      .selectFrom('workflow_job_logs')
+      .select(['workflow_job_id', 'sequence', 'stream', 'content'])
+      .where('workflow_job_id', 'in', jobRows.map(job => Number(job.id)))
+      .orderBy('sequence')
+      .execute()
+  : []
+
+const logByJob = new Map<number, string>()
+for (const chunk of logRows) {
+  const jobId = Number(chunk.workflow_job_id)
+  logByJob.set(jobId, (logByJob.get(jobId) ?? '') + String(chunk.content ?? ''))
+}
+
 const version: any = run
   ? await db
       .selectFrom('workflow_versions')
@@ -102,6 +129,9 @@ const jobs = jobRows.map((job) => {
     runsOn: String(job.runs_on ?? '').split('\n').map(line => line.trim()).filter(Boolean).join(', '),
     runner: job.runner_id ? String(job.runner_id) : '',
     duration: runDuration(job.started_at, job.finished_at),
+    // Trimmed of trailing blank lines only: everything else is what the job
+    // printed, and a log this screen edited is a log nobody can trust.
+    log: (logByJob.get(Number(job.id)) ?? '').replace(/\s+$/, ''),
     steps: (stepsByJob.get(Number(job.id)) ?? []).map(step => ({
       name: step.name ? String(step.name) : `Step ${Number(step.position) + 1}`,
       state: String(step.state),
@@ -142,7 +172,7 @@ const base = `/${ownerHandle}/${repositoryName}`
         </h1>
       </header>
 
-      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="runs" />
 
       <div class="panel run-head">
         <div class="run-head-main">
@@ -209,6 +239,16 @@ const base = `/${ownerHandle}/${repositoryName}`
               @endif
             </p>
 
+            @if (job.log)
+              <details class="log">
+                <summary>Output</summary>
+                {{-- `pre` and nothing else. This text came off a machine
+                     running somebody's build, so it is escaped and shown, never
+                     interpreted. --}}
+                <pre class="log-body">{{ job.log }}</pre>
+              </details>
+            @endif
+
             @if (job.steps.length > 0)
               <ol class="steps">
                 @foreach (job.steps as step)
@@ -256,6 +296,36 @@ const base = `/${ownerHandle}/${repositoryName}`
   .run-running { background: var(--accent); }
 
   .jobs { display: grid; gap: 10px; margin-top: 14px; }
+
+  /* Closed by default: a run with six jobs is a page of scrollback otherwise,
+    and the reader opening this usually wants the one that failed. */
+  .log { margin-top: 10px; }
+
+  .log > summary {
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--muted);
+    padding: 4px 0;
+  }
+
+  .log > summary:hover { color: var(--text); }
+
+  .log-body {
+    margin: 6px 0 0;
+    padding: 10px 12px;
+    max-height: 420px;
+    overflow: auto;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    /* Wrapped rather than scrolled sideways: a build line is long because a
+      path is long, and reading it should not be a horizontal errand. */
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
   .job { padding: 14px 18px; }
 
   .job-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }

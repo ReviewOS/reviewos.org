@@ -118,7 +118,7 @@ const base = `/${ownerHandle}/${repositoryName}`
         </p>
       </header>
 
-      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="runs" />
 
       @if (rows.length === 0)
         <div class="panel" style="padding: 28px; text-align: center; margin-top: 16px;">

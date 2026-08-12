@@ -547,6 +547,20 @@ the run must remain inspectable and resumable without trusting runner memory.
       output.
 
       Structured event representations are not done; this is the plain-text half.
+
+      The run screen renders it too, server-side rather than fetched: a log that arrives after the
+      page is one somebody watches appear, and the run is usually over by the time anybody opens it.
+      Closed by default, because a run with six jobs is otherwise a page of scrollback and the
+      reader came for the one that failed. `pre` and nothing else - the text came off a machine
+      running somebody's build, so it is escaped and shown, never interpreted.
+
+      **Opening the screen found two things the API could not.** The runs pages had no tab pointing
+      at them, so they existed and were unreachable by navigation - the same failure the `RepoTabs`
+      comment warns about, with the arrow the other way round. And `var(--border)` is used in eight
+      files and **defined nowhere**: an undefined custom property makes the declaration invalid at
+      computed-value time, so every one of those borders fell back to `currentColor` and rendered at
+      full text contrast. In dark mode the tab underline was drawn in near-white against a hairline
+      elsewhere on the same screen. The token is `--line`; all eight now use it.
 - [ ] Pause, resume, cancel, retry from the start, and retry from a named step
 
       **Cancel is done; the other four are not.** Cancelling is the one that has something to act on

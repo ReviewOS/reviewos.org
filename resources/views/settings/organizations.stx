@@ -202,7 +202,7 @@ if (!viewer)
   align-items: flex-start;
   gap: 14px;
   padding: 16px 18px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
 }
 .org-row:last-child { border-bottom: 0; }
 
@@ -217,10 +217,10 @@ if (!viewer)
 .org-meta { font-size: 12.5px; }
 .org-actions { display: flex; align-items: center; gap: 8px; flex: none; }
 
-.org-form { padding: 18px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 14px; }
+.org-form { padding: 18px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 14px; }
 .org-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
 .org-label + .org-input { margin-bottom: 4px; }
-.org-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; font-size: 14px; }
+.org-input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: inherit; font-size: 14px; }
 .org-input.mono { font-family: var(--mono, ui-monospace, monospace); }
 .org-hint { font-size: 12.5px; margin: 0 0 14px; }
 .org-form-actions { margin-top: 16px; }

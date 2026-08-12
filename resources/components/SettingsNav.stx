@@ -38,7 +38,7 @@ const pages = [
   flex-wrap: wrap;
   gap: 2px;
   margin-bottom: 24px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
 }
 
 .settings-nav-item {

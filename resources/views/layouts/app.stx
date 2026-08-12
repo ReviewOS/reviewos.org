@@ -794,7 +794,7 @@
         gap: 12px;
         margin-top: 14px;
         padding: 12px 16px;
-        border: 1px solid var(--border);
+        border: 1px solid var(--line);
         border-left-width: 2px;
         border-radius: 8px;
         font-size: 13.5px;
@@ -807,10 +807,10 @@
 
       /* Syncing is the ordinary state and gets no colour at all - a banner that
          is always tinted is a banner nobody reads by the time it matters. */
-      .mirror-syncing, .mirror-never { border-left-color: var(--border); }
+      .mirror-syncing, .mirror-never { border-left-color: var(--line); }
       .mirror-stale { border-left-color: var(--warn, var(--accent)); }
       .mirror-failing { border-left-color: var(--bad); }
-      .mirror-disabled { border-left-color: var(--border); opacity: 0.75; }
+      .mirror-disabled { border-left-color: var(--line); opacity: 0.75; }
 
       @media (max-width: 640px) {
         .mirror-banner { flex-wrap: wrap; }

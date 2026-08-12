@@ -502,7 +502,7 @@ const notFound = !repoRow
 
   .list-page {
     padding: 6px 12px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--line);
     border-radius: 7px;
     text-decoration: none;
     color: var(--text);

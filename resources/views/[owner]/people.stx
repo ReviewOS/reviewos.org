@@ -285,10 +285,10 @@ if (!visible)
 .people-head > .muted { margin-top: 6px; font-size: 14px; }
 
 .people-invite { margin-bottom: 18px; }
-.invite-form { margin-top: 12px; padding: 18px; border: 1px solid var(--border); border-radius: 8px; max-width: 420px; }
+.invite-form { margin-top: 12px; padding: 18px; border: 1px solid var(--line); border-radius: 8px; max-width: 420px; }
 .invite-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
 .invite-label + .invite-input { margin-bottom: 14px; }
-.invite-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; font-size: 14px; }
+.invite-input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: inherit; font-size: 14px; }
 .invite-input.mono { font-family: var(--mono, ui-monospace, monospace); }
 .invite-actions { margin-top: 4px; }
 
@@ -299,7 +299,7 @@ if (!visible)
   align-items: center;
   gap: 12px;
   padding: 12px 18px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
 }
 .person-row:last-child { border-bottom: 0; }
 
@@ -316,7 +316,7 @@ if (!visible)
 .machines-lede { font-size: 13px; margin: 0 0 14px; max-width: 62ch; }
 .machines-note { font-size: 12.5px; margin: 12px 0 0; max-width: 56ch; }
 
-.person-select { padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; font-size: 13px; }
+.person-select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: inherit; font-size: 13px; }
 
 @media (max-width: 640px) {
   .person-row { flex-wrap: wrap; }

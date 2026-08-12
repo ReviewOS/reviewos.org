@@ -192,7 +192,7 @@ if (!visible)
 .token-reason {
   width: 150px;
   padding: 5px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: 6px;
   background: transparent;
   color: inherit;
