@@ -307,10 +307,10 @@ describe('a handle nobody has', () => {
      * file with it - and the page then rendered its not-found branch *because
      * everything was undefined*. It looked exactly like this page working.
      *
-     * Nineteen views were in that state. The guard in
-     * `resources/functions/http.ts` is what makes the branch deliberate, and
-     * this checks the difference: a collapsed render loses the layout's
-     * navigation, and a real one keeps it.
+     * Nineteen views were in that state. The binding is provided by both
+     * hosts now and asked for inside the script that has it, which is what
+     * makes the branch deliberate; this checks the difference, because a
+     * collapsed render loses the layout's navigation and a real one keeps it.
      */
     const { html } = await fetchPage('/definitely-nobody-at-all-here')
 
@@ -318,7 +318,7 @@ describe('a handle nobody has', () => {
     expect(html).toContain('Explore')
   })
 
-  test('the status is still 200, and that is a known gap', async () => {
+  test('and answers 404, which it did not for a long time', async () => {
     if (!available)
       return
 
@@ -326,16 +326,23 @@ describe('a handle nobody has', () => {
      * An empty profile under a 200 tells a crawler, a cache and an uptime check
      * that the page is fine, and this product would rather it did not.
      *
-     * The page asks for 404. stx 0.2.157 makes the ask harmless and records it,
-     * but the router's own view path neither provides the binding nor reads the
-     * recorded value back - so the status is still 200 everywhere except the
-     * dev frontend.
+     * This assertion used to read `toBe(200)` with a note saying the day the
+     * router carried the status through, it would fail and somebody would
+     * tighten it. Two things had to be true for that day to arrive.
      *
-     * Asserted rather than skipped, so the day the router carries it this test
-     * fails and somebody tightens it. A skipped test would just rot.
+     * `@stacksjs/bun-router` 0.0.23 hands the server script
+     * `setResponseStatus`, `notFound` and `setResponseHeader`, and answers with
+     * what the page asked for rather than a fixed 200.
+     *
+     * And the ask moved to where the binding is. `setResponseStatus` is a
+     * *context binding* - the host builds the script's scope from the keys it
+     * supplies - so `resources/functions/http.ts`, a module the script
+     * imported, could never see it however carefully it guarded. Every page
+     * that meant to answer 404 answered 200, on every host, including the dev
+     * frontend the old note gave the benefit of the doubt to.
      */
     const { status } = await fetchPage('/definitely-nobody-at-all-here')
 
-    expect(status).toBe(200)
+    expect(status).toBe(404)
   })
 })

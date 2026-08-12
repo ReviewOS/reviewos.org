@@ -16,7 +16,10 @@
 import { repositoryForView } from '../../../../functions/repo'
 import { relativeTime, shortSha } from '../../../../functions/browse'
 import { runDuration, runLabel, runTone } from '../../../../functions/runs'
-import { setStatus } from '../../../../functions/http'
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)

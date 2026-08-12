@@ -14,7 +14,10 @@
 import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
 import { hasExpired, keysFor } from '../../functions/repo'
 import { relativeTime } from '../../functions/browse'
-import { setStatus } from '../../functions/http'
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 
 /**
  * The request, when there is one, without naming a binding that may not exist.

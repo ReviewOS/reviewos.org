@@ -15,7 +15,10 @@
  * lands back on it rather than on a dashboard, having lost the thing they were
  * doing.
  */
-import { setStatus } from '../functions/http'
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
 
 const serveContext = __stxServeContext

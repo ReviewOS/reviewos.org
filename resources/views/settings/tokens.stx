@@ -19,7 +19,10 @@
 import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
 import { scopableRepositories, tokensFor } from '../../functions/repo'
 import { relativeTime } from '../../functions/browse'
-import { setStatus } from '../../functions/http'
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 
 // stx declares `__stxServeContext` only on the path that serves a request, and
 // an undeclared identifier is a ReferenceError that optional chaining does not
@@ -42,11 +45,10 @@ const repositories = viewer ? await scopableRepositories(viewer.id) : []
 // A settings page for nobody is not a 404. The page exists, and saying so is
 // how somebody knows to sign in rather than that they mistyped the URL.
 //
-// `setStatus` carries the `typeof` guard itself - see `functions/http.ts` for
-// why it has to. Repeating the guard here was worse than redundant: it asked
-// about `setResponseStatus` and then called `setStatus`, so on the one boot
-// path where the name is missing it skipped the status entirely, which is the
-// path it was put there to cover.
+// `setStatus` is bound at the top of this script rather than imported: the
+// helper it used to come from could not see `setResponseStatus` at all, which
+// is why this page - and every other one - answered 200 while believing
+// otherwise.
 if (!viewer)
   setStatus(401)
 

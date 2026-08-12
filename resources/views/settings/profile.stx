@@ -11,7 +11,10 @@
  * No client script. The page reads its own state on every load, so it cannot
  * show a value the database does not have.
  */
-import { setStatus } from '../../functions/http'
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
 
 const serveContext = __stxServeContext

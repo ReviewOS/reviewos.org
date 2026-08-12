@@ -13,7 +13,21 @@
 import { mirrorFor, repositoryForView, summarizeMirror } from '../functions/repo'
 import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
-import { setStatus } from '../functions/http'
+/**
+ * The status this page wants, asked for where the binding actually exists.
+ *
+ * `setResponseStatus` is a *context binding*: the host builds the server
+ * script's scope out of the keys it supplies, so the name is in scope here and
+ * nowhere else. A module the script imports cannot see it, whatever it does
+ * with `typeof` - which is what `functions/http.ts` was, so every page in this
+ * codebase that meant to answer 404 answered 200, on every host, and the
+ * not-found branch it rendered read as exactly the answer it intended.
+ *
+ * The `typeof` guard stays because an *undeclared* identifier is a
+ * ReferenceError, and it would be thrown inside this script's IIFE - taking
+ * every other binding in the file down with it and rendering the page blank.
+ */
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 
 // Props arrive as attribute strings, so everything is normalised here rather
 // than at each use site.

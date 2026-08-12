@@ -11,7 +11,10 @@
  * password. Losing four fields because the fifth was wrong is how people
  * abandon a sign-up.
  */
-import { setStatus } from '../functions/http'
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
 
 const serveContext = __stxServeContext

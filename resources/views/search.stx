@@ -15,7 +15,10 @@
 import { viewerFromCookies, cookieJarFromHeader } from '../functions/identity'
 import { runSearch } from '../functions/repo'
 import { relativeTime } from '../functions/browse'
-import { setStatus } from '../functions/http'
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 
 // Both spellings of the request, because each is undeclared on the other
 // rendering path and an undeclared identifier is a ReferenceError that takes

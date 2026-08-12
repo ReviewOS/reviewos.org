@@ -439,6 +439,23 @@ the one moment where rejecting is still possible.
       200, which tells a crawler, a cache and an uptime check that the page is fine. `stx` gained
       `setResponseStatus()` (0.2.155) and the render cache now carries the status with the HTML, so
       a cached not-found page does not go back to 200 on its second request
+
+      **And for a long time after that was written, none of them did.** Two things were wrong, and
+      each hid the other. `@stacksjs/bun-router`'s file-based view path - the one `route.serve()`
+      uses, which is to say the API server, the e2e suite and a production boot - built the same
+      Response for every page: status 200, no headers of the page's own. And the ask went through
+      `resources/functions/http.ts`, a module, which could never work: `setResponseStatus` is a
+      *context binding*, and the host builds a server script's scope out of the keys it supplies, so
+      the name is in scope inside the script and nowhere else. A module that imports nothing of the
+      sort can guard it with `typeof` all day and get `undefined` every time.
+
+      So twenty-eight call sites across twenty-five views were asking a function that did nothing to
+      set a status the host would have discarded anyway. Fixed at both ends: bun-router 0.0.23 hands
+      the script `setResponseStatus`, `notFound` and `setResponseHeader` and answers with what the
+      page asked for, and the binding is now taken at the top of each script - `const setStatus =
+      typeof setResponseStatus === 'function' ? setResponseStatus : () => {}` - where it exists. The
+      profile page's e2e test carried `expect(status).toBe(200)` with a note saying the day the
+      router carried it through, this would fail and somebody would tighten it; it reads `404` now
 - [x] **Every page in the product had the wrong name, and most had no name at all.** The layout
       read `{{ title ?? 'ReviewOS' }}`, which wants a *variable* called title, while a page sets one
       with `@section('title', …)` - so the seven pages that declared a title were ignored, and the
