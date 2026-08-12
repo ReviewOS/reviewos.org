@@ -26,7 +26,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [09 - Checks and CI](./09-checks-ci.md) | Checks, durable execution, runner providers, deployments | Started (30/120) |
 | [10 - Federation](./10-federation.md) | Research: ActivityPub / ForgeFed versus AT Protocol | Research (0/13) |
 | [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Done (47/47) |
-| [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Started (29/30) |
+| [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Complete (30/30) |
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | In progress (42/45) |
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (140/171) |
 | [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | Started (1/189) |

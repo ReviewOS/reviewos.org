@@ -7,7 +7,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', versionId: 0 }
+const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', versionId: 0, token: '' }
 
 let available = false
 let db: any = null
@@ -118,6 +118,25 @@ beforeAll(async () => {
       })
       .returning(['id']).executeTakeFirst()
     created.versionId = Number(version.id)
+
+    // A credential that can stop a run and nothing more. `workflow:cancel`
+    // maps to `checks: write`, so this is also the assertion that the mapping
+    // is wired: a token carrying it reaches the endpoint at all.
+    const { generateToken } = await import('../../app/Actions/Tokens/secret')
+    const secret = generateToken()
+    const tokenRow: any = await db.insertInto('access_tokens').values({
+      user_id: created.ownerId,
+      name: 'workflow test',
+      prefix: secret.prefix,
+      token_hash: secret.hash,
+      selection: 'all',
+      expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+    }).returning(['id']).executeTakeFirst()
+
+    for (const [scope, level] of [['checks', 'write'], ['contents', 'read']] as Array<[string, string]>)
+      await db.insertInto('access_token_permissions').values({ access_token_id: Number(tokenRow?.id), scope, level }).execute()
+
+    created.token = secret.token
 
     await route.importRoutes()
     server = await route.serve({ port: 0, hostname: '127.0.0.1' })
@@ -254,5 +273,97 @@ describe('cancelling', () => {
     // Unauthenticated, so this never reaches the action. What matters is that
     // it is not 200: stopping somebody's build is not something a stranger does.
     expect(status).not.toBe(200)
+  })
+
+  test('a caller who may stops the run and everything under it', async () => {
+    if (!available)
+      return
+
+    const number = await makeRun('running', 'd'.repeat(40))
+
+    const { status, body } = await api(
+      `/api/repos/workflow-runs/cancel?owner=${created.handle}&repo=${created.name}&number=${number}`,
+      { method: 'POST', headers: { Authorization: `Bearer ${created.token}`, Accept: 'application/json' } },
+    )
+
+    expect(status).toBe(200)
+    expect(body.cancelled).toBe(true)
+    expect(body.workflow_run.state).toBe('cancelling')
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id', 'state'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', number)
+      .executeTakeFirst()
+
+    expect(String(run.state)).toBe('cancelling')
+
+    // The job was running, so it is asked to stop rather than declared
+    // stopped - and its lease is revoked here, which is what keeps a worker
+    // that has already lost its connection from reporting a success over this.
+    const job: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['state', 'lease_expires_at'])
+      .where('workflow_run_id', '=', Number(run.id))
+      .executeTakeFirst()
+
+    expect(String(job.state)).toBe('cancelling')
+    expect(job.lease_expires_at).toBeTruthy()
+  })
+
+  test('cancelling one that already finished is not an error', async () => {
+    if (!available)
+      return
+
+    const number = await makeRun('succeeded', 'e'.repeat(40))
+
+    const { status, body } = await api(
+      `/api/repos/workflow-runs/cancel?owner=${created.handle}&repo=${created.name}&number=${number}`,
+      { method: 'POST', headers: { Authorization: `Bearer ${created.token}`, Accept: 'application/json' } },
+    )
+
+    expect(status).toBe(200)
+    expect(body.cancelled).toBe(false)
+    expect(body.workflow_run.state).toBe('succeeded')
+  })
+
+  /*
+   * The screen's cancel button posts an ordinary form to this same action
+   * rather than to a route of its own. That only works if the action answers a
+   * browser with its page back: a reader who lands on JSON has found a working
+   * feature that looks broken.
+   */
+  test('a browser gets the run page back rather than JSON', async () => {
+    if (!available)
+      return
+
+    const number = await makeRun('queued', 'f'.repeat(40))
+
+    const answer = await fetch(
+      `http://127.0.0.1:${port}/api/repos/workflow-runs/cancel`
+      + `?owner=${created.handle}&repo=${created.name}&number=${number}`,
+      {
+        method: 'POST',
+        redirect: 'manual',
+        headers: {
+          'Authorization': `Bearer ${created.token}`,
+          'Accept': 'text/html,application/xhtml+xml',
+        },
+      },
+    )
+
+    expect([301, 302, 303, 307, 308]).toContain(answer.status)
+    expect(String(answer.headers.get('location'))).toBe(`/${created.handle}/${created.name}/run/${number}`)
+
+    // And it did the work, not only the redirect.
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['state'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', number)
+      .executeTakeFirst()
+
+    expect(String(run.state)).toBe('cancelling')
   })
 })

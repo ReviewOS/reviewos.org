@@ -15,7 +15,11 @@
 import { repositoryForView } from '../../../../functions/repo'
 import { relativeTime, shortSha } from '../../../../functions/browse'
 import { runDuration, runIsFinished, runLabel, runTone } from '../../../../functions/runs'
-import { setStatus } from '../../../../functions/http'
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+import { cookieJarFromHeader } from '../../../../functions/identity'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
@@ -23,7 +27,23 @@ const runNumber = Number(params.number)
 
 const serveContext = __stxServeContext
 
-const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
+/*
+ * The reader, from whichever of the two shapes this page was served with.
+ *
+ * The frontend server hands a view its cookies already parsed; a page rendered
+ * through `route.serve()`'s file routing gets the raw headers and nothing else,
+ * and asking only for the jar renders every reader there as a stranger. On this
+ * page that is not a blank region - it is a signed-in maintainer being shown
+ * the run with no way to stop it, which looks like a missing feature rather
+ * than a missing identity.
+ */
+// `typeof` rather than a plain read: an identifier that does not exist throws
+// before optional chaining is reached, and a throw here renders the page with
+// every variable undefined and no error anywhere.
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+const viewerCookies = serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie)
+
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, viewerCookies)
 const repoRow: any = repoAccess?.repository ?? null
 
 if (!repoRow)
@@ -113,6 +133,24 @@ const workflow: any = version
       .where('id', '=', Number(version.workflow_id))
       .executeTakeFirst()
   : null
+
+/**
+ * Whether this reader may stop this run.
+ *
+ * Asked with `workflow:cancel`, which is the ability the action itself checks,
+ * rather than the broader `repository:write` it happens to sit at today. The
+ * two are the same level now and are separate on purpose - a person who can
+ * cancel a run need not be able to report a passing check - and a button whose
+ * visibility is decided by a different rule than the one enforcing it is a
+ * button that either lies or hides.
+ *
+ * Read access is not enough: a public repository is readable by everybody, and
+ * a cancel button everybody can press is a denial of service with an
+ * affordance.
+ */
+const canCancel = Boolean(run)
+  && !runIsFinished(String(run.state))
+  && Boolean(repoAccess?.can?.('workflow:cancel'))
 
 const jobs = jobRows.map((job) => {
   const needs = String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
@@ -267,10 +305,28 @@ const base = `/${ownerHandle}/${repositoryName}`
       </div>
 
       @if (!runIsFinished(String(run.state)))
-        <p class="muted" style="margin-top: 14px; font-size: 12.5px;">
-          Nothing on this instance executes a run. Jobs wait here until a runner you provide takes
-          them.
-        </p>
+        <div class="run-foot">
+          <p class="muted run-note">
+            Nothing on this instance executes a run. Jobs wait here until a runner you provide takes
+            them.
+          </p>
+
+          {{--
+            Posted to the same public action the API and the CLI call, rather
+            than to a route that exists for this page. A control the interface
+            has and the API does not is how a product grows a second, undocumented
+            way to change its own state.
+          --}}
+          @if (canCancel)
+            <form method="post" action="/api/repos/workflow-runs/cancel" class="run-cancel">
+              <CsrfField />
+              <input type="hidden" name="owner" value="{{ ownerHandle }}">
+              <input type="hidden" name="repo" value="{{ repositoryName }}">
+              <input type="hidden" name="number" value="{{ runNumber }}">
+              <button class="button" type="submit">Cancel run</button>
+            </form>
+          @endif
+        </div>
       @endif
     @endif
   </div>
@@ -296,6 +352,18 @@ const base = `/${ownerHandle}/${repositoryName}`
   .run-running { background: var(--accent); }
 
   .jobs { display: grid; gap: 10px; margin-top: 14px; }
+
+  .run-foot {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .run-note { font-size: 12.5px; margin: 0; }
+  .run-cancel { margin: 0; }
 
   /* Closed by default: a run with six jobs is a page of scrollback otherwise,
     and the reader opening this usually wants the one that failed. */

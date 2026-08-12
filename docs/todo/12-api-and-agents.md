@@ -175,24 +175,35 @@ vocabulary, and it is discoverable without reading the source.
   from a child process now (`tests/helpers/declaredRoutes.ts`), which is the honest definition
   anyway - **the API surface is what `routes/` declares**, not what happens to be registered by the
   time this file runs.
-- [ ] Long-running resources, including CI workflow runs, expose their state machine and control
+- [x] Long-running resources, including CI workflow runs, expose their state machine and control
       operations through the same public actions used by the interface and CLI. No UI-only pause,
       retry, cancellation, log, or approval path.
 
-  **Half of this holds and is worth writing down.** `operations` carries a real
+  **The operations half held from the start.** `operations` carries a real
   state machine - `queued`, `running`, `succeeded`, `failed`, `cancelled` - and
   both reading one and cancelling it are public actions
   (`ShowOperationAction`, `CancelOperationAction`), with no separate path for
   the interface. Failed jobs gained the other control operation with the
   administration surface: a retry that moves the row rather than copying it.
-  The parity check above is what will keep a UI-only control path from
-  appearing later, since one would show up as a view reaching a module no route
-  reaches.
 
-  **The CI clause cannot be closed because there is no CI.** No workflow model,
-  no runner, no log stream. Ticking this on the strength of the operations half
-  would mean the next person reads "control operations are exposed" and
-  believes it covers workflow runs. It goes in with CI.
+  **The CI clause waited for CI, and closed with it.** A workflow run's states
+  are declared in one place (`app/Actions/Workflow/states.ts`) and the
+  transitions are checked there rather than at each caller; the run, its jobs,
+  its steps and its log are read through `ShowWorkflowRunAction`,
+  `ListWorkflowRunsAction` and `ShowJobLogAction`; and stopping one is
+  `CancelWorkflowRunAction`, behind `workflow:cancel`.
+
+  The run screen's cancel button posts an ordinary form to *that* endpoint
+  rather than to a route of its own, and the action answers a browser with a
+  redirect back to the run and a program with the row. That is the whole point
+  of the clause: a control the interface has and the API does not is how a
+  product grows a second, undocumented way to change its own state. The button
+  is shown on `workflow:cancel` - the ability the action enforces, not the
+  level it currently sits at - so what is offered and what is allowed cannot
+  drift apart.
+
+  The parity check above is what keeps a UI-only path from appearing later,
+  since one would show up as a view reaching a module no route reaches.
 
 ## Built for a program, not a person with curl
 

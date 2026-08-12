@@ -114,6 +114,20 @@ export default new Action({
       .where('state', '=', 'running')
       .execute()
 
+    /*
+     * A browser gets its page back; a program gets the row.
+     *
+     * The interface posts an ordinary form to this action rather than to a
+     * route of its own - a control the screen has and the API does not is how a
+     * product grows a second, undocumented way to change its own state - so
+     * this has to answer both callers. Without the redirect the reader lands on
+     * a page of JSON, which is a working feature that looks broken.
+     */
+    if (wantsHtml(request)) {
+      const owner = String(request.get('owner') ?? '')
+      return response.redirect(`/${owner}/${String(repository.name)}/run/${number}`)
+    }
+
     return response.json({
       workflow_run: { number, state: 'cancelling' },
       cancelled: true,
@@ -121,3 +135,10 @@ export default new Action({
     })
   },
 })
+
+/** Whether this arrived from a form rather than from fetch. */
+function wantsHtml(request: any): boolean {
+  const accept = String(request.header?.('accept') ?? request.headers?.get?.('accept') ?? '')
+
+  return accept.includes('text/html')
+}
