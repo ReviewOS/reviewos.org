@@ -23,6 +23,17 @@ export default function () {
     .job('MirrorSweep')
     .everyFiveMinutes()
 
+  // Work whose runner stopped talking, returned to the queue.
+  //
+  // Every minute, because a lease lasts sixty seconds: a sweep slower than the
+  // lease is a job sitting in `running` with nobody coming for it, and until
+  // this existed the only thing that freed one was another runner happening to
+  // ask - which never happens on the instance where it matters most, the one
+  // whose fleet is busy elsewhere.
+  schedule
+    .job('ReclaimLapsedLeases')
+    .everyMinute()
+
   // What was held, sent as one message per thread. A sweep rather than a timer
   // armed per notification: a timer has to survive a restart and a sweep reads
   // what is actually pending, so a process that dies mid-digest loses nothing -

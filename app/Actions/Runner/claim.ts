@@ -35,7 +35,7 @@ export interface ClaimedJob {
  * would want this narrowed in SQL - the limit is what keeps that from being
  * urgent.
  */
-async function candidates(runner: RunnerFacts, now: Date, limit = 50): Promise<any[]> {
+async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
   let query = db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
@@ -98,7 +98,7 @@ export async function claimNextJob(
   runner: RunnerFacts,
   now: Date = new Date(),
 ): Promise<ClaimedJob | null> {
-  for (const row of await candidates(runner, now)) {
+  for (const row of await candidates(runner)) {
     const facts = factsOf(row)
 
     if (!mayClaim(runner, facts, now).ok)

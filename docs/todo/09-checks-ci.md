@@ -481,7 +481,24 @@ the run must remain inspectable and resumable without trusting runner memory.
       revoked so a disconnected worker cannot publish a late success
 - [ ] Optimistic locking or transitions in one transaction prevent two schedulers from dispatching
       the same step
-- [ ] Recovery sweep for expired runner leases and control-plane restarts
+- [x] Recovery sweep for expired runner leases and control-plane restarts
+
+      `ReclaimLapsedLeasesJob`, every minute - a sweep slower than the sixty-second lease is a job
+      sitting in `running` with nobody coming for it. Until it existed the only thing that freed one
+      was another runner *happening to poll*, which never happens on the instance where it matters
+      most: the one whose fleet is busy elsewhere. A repository whose only runner crashed had a
+      pull request whose checks stayed pending on a machine that was gone.
+
+      **Returned to `queued`, not failed.** A lapsed lease means the control plane stopped hearing
+      from a runner, which is not the same as the work having failed - it may even have succeeded
+      with the report lost on the way back. Requeuing risks running it twice, failing it reports a
+      verdict nobody reached, and at-least-once is the promise the protocol already makes.
+
+      A running job holding no lease at all is reclaimed too: that is a row which lost its holder,
+      and skipping it would leave the one case that cannot recover itself. Each write is guarded on
+      the state and holder it was read at, so a runner that heartbeated in between keeps its
+      job - taking work from a machine that is alive is the direction that does damage. A finished
+      run is never reopened by a lease expiring underneath it.
 
 ### REST API
 
