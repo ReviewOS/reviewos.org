@@ -78,7 +78,10 @@ export async function reportJob(
     leaseExpiresAt: row.lease_expires_at ? String(row.lease_expires_at) : null,
   }
 
-  const allowed = mayReport(runner, facts, now)
+  // The state the runner is claiming travels with the question, because one
+  // answer depends on it: a cancellation may be acknowledged with a lease that
+  // was revoked, and nothing else may.
+  const allowed = mayReport(runner, facts, now, { reporting: input.state })
   if (!allowed.ok)
     return { ok: false, reason: allowed.reason, duplicate: false }
 

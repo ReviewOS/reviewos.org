@@ -167,12 +167,25 @@ export interface ReportDecision {
  * this it can publish a success over a job that was cancelled and handed to
  * somebody else, which is a green check for work nobody did.
  */
+export interface ReportOptions {
+  /** What the runner says the job came to, when the caller knows. */
+  reporting?: string
+  terminalStates?: readonly string[]
+}
+
 export function mayReport(
   runner: RunnerFacts,
   job: JobFacts,
   now: Date,
-  terminalStates: readonly string[] = ['cancelled', 'failed', 'skipped', 'succeeded'],
+  options: ReportOptions | readonly string[] = {},
 ): ReportDecision {
+  // The fourth argument used to be the terminal-state list. Both forms are
+  // accepted so a caller passing the old one keeps working rather than silently
+  // handing an array where an options object is read - which would leave
+  // `terminalStates` at its default and quietly change the rule.
+  const settings: ReportOptions = Array.isArray(options) ? { terminalStates: options } : options as ReportOptions
+  const terminalStates = settings.terminalStates ?? ['cancelled', 'failed', 'skipped', 'succeeded']
+
   if (job.runnerId === null)
     return { ok: false, reason: 'this job is not held by anybody', duplicate: false }
 
@@ -187,6 +200,24 @@ export function mayReport(
     // be said twice, and the second time is a repeat rather than a conflict.
     return { ok: true, reason: 'already recorded', duplicate: true }
   }
+
+  /*
+   * Acknowledging a cancellation, with a lease that was deliberately revoked.
+   *
+   * Cancelling a run expires every lease it holds *at the moment of the
+   * request*, which is what stops a worker that already lost its connection
+   * publishing a success over a run somebody stopped. The side effect was that
+   * a well-behaved runner - one that heard the cancellation, stopped its work
+   * and came back to say so - was refused for the same reason as the bad one,
+   * and its job sat in `cancelling` until a sweep forced it.
+   *
+   * So one report survives a revoked lease, and only one: `cancelled`. The
+   * credential still proves this is the holder, and "I stopped" cannot
+   * fabricate a verdict the way "I succeeded" can. Anything else from an
+   * expired lease is refused exactly as before.
+   */
+  if (job.state === 'cancelling' && settings.reporting === 'cancelled')
+    return { ok: true, reason: 'acknowledging a cancellation', duplicate: false }
 
   if (!leaseIsLive(job, now))
     return { ok: false, reason: 'this lease has expired', duplicate: false }

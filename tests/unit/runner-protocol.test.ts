@@ -213,6 +213,68 @@ describe('reporting', () => {
   })
 })
 
+describe('acknowledging a cancellation', () => {
+  /*
+   * Cancelling revokes every lease at the moment of the request - that is what
+   * stops a worker which already lost its connection publishing a success over
+   * a run somebody stopped. The side effect was that the *well-behaved* runner,
+   * the one that heard the cancellation, stopped its work and came back to say
+   * so, was refused for the same reason as the bad one, and its job sat in
+   * `cancelling` until a sweep forced it.
+   */
+  const asked = (over: Partial<JobFacts> = {}) => job({
+    state: 'cancelling',
+    runnerId: 1,
+    // Revoked: expired the instant the cancellation was requested.
+    leaseExpiresAt: new Date(NOW.getTime() - 1000).toISOString(),
+    ...over,
+  })
+
+  test('is accepted even though the lease was revoked', () => {
+    const decision = mayReport(runner({ id: 1 }), asked(), LATER, { reporting: 'cancelled' })
+
+    expect(decision.ok).toBe(true)
+    expect(decision.reason).toContain('cancellation')
+  })
+
+  /*
+   * And only that. "I stopped" cannot fabricate a verdict; "I succeeded" from a
+   * revoked lease is exactly the report the revocation exists to refuse, and a
+   * green check satisfies a branch protection rule.
+   */
+  test('but a success on the same revoked lease is not', () => {
+    const decision = mayReport(runner({ id: 1 }), asked(), LATER, { reporting: 'succeeded' })
+
+    expect(decision.ok).toBe(false)
+    expect(decision.reason).toContain('expired')
+  })
+
+  test('nor is an acknowledgement from a runner that never held it', () => {
+    const decision = mayReport(runner({ id: 9 }), asked(), LATER, { reporting: 'cancelled' })
+
+    expect(decision.ok).toBe(false)
+    expect(decision.reason).toContain('another runner')
+  })
+
+  test('a live lease still reports anything it likes', () => {
+    // The exception is about the revoked lease, not about `cancelling` being a
+    // state where the rules relax.
+    const live = asked({ leaseExpiresAt: leaseUntil(NOW) })
+
+    expect(mayReport(runner({ id: 1 }), live, SOON, { reporting: 'succeeded' }).ok).toBe(true)
+  })
+
+  test('the old fourth argument still means the terminal-state list', () => {
+    // Both call shapes are accepted, so a caller that passed the array does not
+    // silently get the default list back - which would change the rule without
+    // changing a line.
+    const finished = job({ state: 'succeeded', runnerId: 1, leaseExpiresAt: leaseUntil(NOW) })
+    const decision = mayReport(runner({ id: 1 }), finished, SOON, ['succeeded'])
+
+    expect(decision.duplicate).toBe(true)
+  })
+})
+
 describe('leases', () => {
   test('a lease is live until it is not', () => {
     const holding = job({ leaseExpiresAt: leaseUntil(NOW) })

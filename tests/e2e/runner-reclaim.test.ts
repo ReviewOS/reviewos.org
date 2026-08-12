@@ -9,6 +9,7 @@
 // the sweep must never take work from a machine that is still alive.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { CANCEL_GRACE_SECONDS } from '../../app/Jobs/ReclaimLapsedLeasesJob'
 import { leaseUntil } from '../../app/Actions/Runner/protocol'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
@@ -233,5 +234,135 @@ describe('a run that already finished', () => {
 
     const run: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
     expect(run.state).toBe('succeeded')
+  })
+})
+
+
+describe('a cancellation nobody acknowledged', () => {
+  /*
+   * A sha nobody else in this file used.
+   *
+   * `dispatchPush` deduplicates a run by its commit, correctly - a re-push of
+   * the same commits is not a second run - so reusing a sha from a describe
+   * above returns nothing created and the test reads a job that is not there.
+   */
+  const sha = (tag: string) => `${tag}`.repeat(4).padEnd(40, '9')
+
+  /** The state cancelling leaves a running job in, with the lease revoked when. */
+  async function askedToStop(jobId: number, revokedAt: Date): Promise<void> {
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelling', runner_id: 'runner-going', lease_expires_at: revokedAt.toISOString() })
+      .where('id', '=', jobId)
+      .execute()
+  }
+
+  async function runState(runId: number): Promise<string> {
+    const row: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
+    return String(row?.state ?? '')
+  }
+
+  /*
+   * The hole this closes. Cancelling a run leaves its running jobs in
+   * `cancelling` - asked to stop, not known to have - and revokes their leases,
+   * so the machine cannot report even if it wanted to. Without a sweep the run
+   * never reaches a terminal state, and a pull request's checks stay open on
+   * work that stopped minutes ago.
+   */
+  test('is ended for it once the grace period has passed', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun(sha('1'))
+    const job = await buildJob(runId)
+
+    await db.updateTable('workflow_runs').set({ state: 'cancelling' }).where('id', '=', runId).execute()
+    await askedToStop(Number(job.id), new Date(Date.now() - (CANCEL_GRACE_SECONDS + 30) * 1000))
+
+    await sweep.handle()
+
+    expect(String((await buildJob(runId)).state)).toBe('cancelled')
+    // And the run with it: a terminal job list is what makes a run terminal.
+    expect(await runState(runId)).toBe('cancelled')
+  })
+
+  /*
+   * Cooperative first. A runner mid-step gets its turn to stop and say so, and
+   * forcing it the moment the request lands would be the control plane telling
+   * somebody their build ended while it is still running and still costing
+   * them.
+   */
+  test('but not before it, while the runner still might', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun(sha('2'))
+    const job = await buildJob(runId)
+
+    await db.updateTable('workflow_runs').set({ state: 'cancelling' }).where('id', '=', runId).execute()
+    await askedToStop(Number(job.id), new Date(Date.now() - 5000))
+
+    await sweep.handle()
+
+    expect(String((await buildJob(runId)).state)).toBe('cancelling')
+    expect(await runState(runId)).toBe('cancelling')
+  })
+
+  test('and a job asked to stop is never handed to somebody else', async () => {
+    if (!available)
+      return
+
+    // The reclaim half returns lapsed work to the queue, which for a job that
+    // was cancelled would mean a second machine running what somebody stopped.
+    const runId = await freshRun(sha('3'))
+    const job = await buildJob(runId)
+
+    await db.updateTable('workflow_runs').set({ state: 'cancelling' }).where('id', '=', runId).execute()
+    await askedToStop(Number(job.id), new Date(Date.now() - 5000))
+
+    await sweep.handle()
+
+    expect(String((await buildJob(runId)).state)).not.toBe('queued')
+  })
+
+  test('a job with no lease recorded at all is ended rather than waited on', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun(sha('4'))
+    const job = await buildJob(runId)
+
+    await db.updateTable('workflow_runs').set({ state: 'cancelling' }).where('id', '=', runId).execute()
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelling', runner_id: 'runner-gone', lease_expires_at: null })
+      .where('id', '=', Number(job.id))
+      .execute()
+
+    await sweep.handle()
+
+    // Waiting on a clock that does not exist is waiting forever.
+    expect(String((await buildJob(runId)).state)).toBe('cancelled')
+  })
+
+  test('and a job that finished in the meantime keeps what it reported', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun(sha('5'))
+    const job = await buildJob(runId)
+
+    await db.updateTable('workflow_runs').set({ state: 'cancelling' }).where('id', '=', runId).execute()
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'succeeded', runner_id: 'runner-fast', lease_expires_at: new Date(Date.now() - 600_000).toISOString() })
+      .where('id', '=', Number(job.id))
+      .execute()
+
+    await sweep.handle()
+
+    // The work really did happen. Overwriting it with `cancelled` would be the
+    // control plane inventing an outcome nobody reached.
+    expect(String((await buildJob(runId)).state)).toBe('succeeded')
   })
 })

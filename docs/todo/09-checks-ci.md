@@ -563,8 +563,27 @@ the run must remain inspectable and resumable without trusting runner memory.
       are reused only when their inputs and workflow version still match.
 - [ ] Waiting steps can sleep until a time or wait for a typed external event, with a timeout. This
       is the primitive for approvals, webhooks, and other human-in-the-loop gates.
-- [ ] Cancellation is cooperative first and forceful after a deadline, with the runner lease
+- [x] Cancellation is cooperative first and forceful after a deadline, with the runner lease
       revoked so a disconnected worker cannot publish a late success
+
+      All three halves, and the third one was a hole in the first two. Cancelling revokes every
+      lease **at the moment of the request** and leaves running jobs in `cancelling` - asked to
+      stop, not known to have. That is the honest state and it was also a state nothing ever left:
+      the run never reached a terminal one, so a pull request's checks stayed open on work that had
+      stopped minutes earlier.
+
+      So the runner that behaves can now say so. One report survives a revoked lease and only one -
+      `cancelled` - because the credential still proves it is the holder, and "I stopped" cannot
+      fabricate a verdict the way "I succeeded" can. A success on a revoked lease is refused exactly
+      as it was, which is the case the revocation exists for: a green check for a run somebody
+      stopped satisfies a branch protection rule.
+
+      And when nobody says anything, the sweep says it for them after two lease periods. The clock
+      is the revoked lease itself, which cancelling set to the instant it was requested - a column
+      whose only content would be that same instant is a column that eventually disagrees with it.
+      A job that finished successfully in between keeps that result: the work really did happen, and
+      overwriting it would be the control plane inventing an outcome. A job asked to stop is never
+      returned to the queue, either, which would have a second machine run what somebody cancelled.
 - [ ] Optimistic locking or transitions in one transaction prevent two schedulers from dispatching
       the same step
 - [x] Recovery sweep for expired runner leases and control-plane restarts

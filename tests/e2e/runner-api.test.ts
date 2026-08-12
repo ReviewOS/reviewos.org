@@ -351,3 +351,63 @@ describe('heartbeat and report over HTTP', () => {
     expect(String(answer.body.errors?.state)).toContain('succeeded')
   })
 })
+
+
+describe('acknowledging a cancellation over HTTP', () => {
+  async function claimOne(): Promise<{ id: number, token: string }> {
+    await freshRun(`${Math.random().toString(16).slice(2)}`.padEnd(40, '0'))
+    const answer = await call('/runner/claim', {})
+    return { id: Number(answer.body.job.id), token: String(answer.body.job.token) }
+  }
+
+  /** Cancel the job the way `CancelWorkflowRun` does: state and lease together. */
+  async function ask(jobId: number): Promise<void> {
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelling', lease_expires_at: new Date().toISOString() })
+      .where('id', '=', jobId)
+      .execute()
+  }
+
+  /*
+   * The runner that behaves. It heard the cancellation, stopped its work, and
+   * came back to say so - with a lease that was deliberately revoked the
+   * instant somebody pressed cancel.
+   */
+  test('a runner that stopped may say so, revoked lease and all', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+    await ask(job.id)
+
+    const answer = await call('/runner/report', { state: 'cancelled' }, job.token)
+
+    expect(answer.status).toBe(200)
+    expect(answer.body.recorded).toBe(true)
+
+    const row: any = await db.selectFrom('workflow_jobs').select(['state']).where('id', '=', job.id).executeTakeFirst()
+    expect(String(row.state)).toBe('cancelled')
+  })
+
+  /*
+   * And only that. A success on a revoked lease is exactly the report the
+   * revocation exists to refuse: a worker that lost its connection publishing a
+   * green check over a run somebody stopped, which then satisfies a branch
+   * protection rule.
+   */
+  test('but it cannot report a success on the same credential', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+    await ask(job.id)
+
+    const answer = await call('/runner/report', { state: 'succeeded' }, job.token)
+
+    expect(answer.status).not.toBe(200)
+
+    const row: any = await db.selectFrom('workflow_jobs').select(['state']).where('id', '=', job.id).executeTakeFirst()
+    expect(String(row.state)).toBe('cancelling')
+  })
+})
