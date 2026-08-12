@@ -76,6 +76,15 @@ export default {
    */
   'check:reported': ['DispatchWebhooks'],
   'status:reported': ['DispatchWebhooks'],
+  /*
+   * The run lifecycle, for the programs waiting on it.
+   *
+   * Same reasoning again, and the strongest case for it: a run lives for
+   * minutes on a machine this instance does not own, and everything downstream
+   * of CI either hears about it or polls for it.
+   */
+  'run:transitioned': ['DispatchWebhooks'],
+  'job:transitioned': ['DispatchWebhooks'],
   'pr:merged': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'pr:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'review:requested': ['Notify', 'DispatchWebhooks'],

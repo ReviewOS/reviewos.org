@@ -13,6 +13,7 @@
  */
 
 import { db } from '@stacksjs/database'
+import { announceJob, announceRunIfMoved } from '../Workflow/announce'
 import type { JobState } from '../Workflow/states'
 import { canJobMove, eligibleJobs, runStateFromJobs, unreachableJobs } from '../Workflow/states'
 import type { RunnerFacts } from './protocol'
@@ -136,7 +137,37 @@ export async function reportJob(
       .catch(() => null)
   }
 
+  const before = await currentRunState(Number(row.run_id))
   const runState = await settleRun(Number(row.run_id), now)
+
+  /*
+   * The two events a program waits on, after the write and in that order: the
+   * job it was told about, then the run if this report finished it. A receiver
+   * that hears "run succeeded" before "job succeeded" has to hold the first
+   * until the second arrives to make sense of it.
+   */
+  const named: any = await db
+    .selectFrom('workflow_jobs')
+    .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+    .select([
+      'workflow_jobs.job_id as job_id',
+      'workflow_jobs.name as name',
+      'workflow_runs.number as run_number',
+    ])
+    .where('workflow_jobs.id', '=', facts.id)
+    .executeTakeFirst()
+
+  await announceJob(facts.repositoryId, {
+    id: facts.id,
+    jobId: String(named?.job_id ?? ''),
+    name: named?.name ? String(named.name) : String(named?.job_id ?? ''),
+    state: input.state,
+    runId: Number(row.run_id),
+    runNumber: Number(named?.run_number ?? 0),
+    runnerId: String(runner.id),
+  })
+
+  await announceRunIfMoved(facts.repositoryId, Number(row.run_id), before, runState)
 
   return { ok: true, reason: 'recorded', duplicate: false, runState }
 }

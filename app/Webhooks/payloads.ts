@@ -84,6 +84,19 @@ export const WEBHOOK_EVENTS = [
    */
   'check:reported',
   /*
+   * A run moved, and a job of one moved.
+   *
+   * The longest-lived thing this product has, and the two events everything
+   * downstream of CI waits on: a deployment gate, a dashboard, a merge queue,
+   * an agent waiting for its own check. The alternative is polling every run
+   * every few seconds, which is the reason forges grow rate limits.
+   *
+   * The new state travels in `action`, so one subscription covers the whole
+   * lifecycle and a receiver that only wants finished runs reads one field.
+   */
+  'run:transitioned',
+  'job:transitioned',
+  /*
    * The same, through the older commit-status API.
    *
    * Kept separate rather than folded into `check:reported`: the two carry
@@ -147,6 +160,38 @@ export interface WebhookPayload extends Envelope {
   tag?: string
   /** What a check said. Absent on every event that is not one. */
   check?: CheckDetail
+  /** The workflow run, on `run:transitioned`. */
+  run?: RunDetail
+  /** The job, on `job:transitioned`. */
+  job?: JobDetail
+}
+
+/** A workflow run, for the receivers that wait on one. */
+export interface RunDetail {
+  id: number
+  /** The number people say out loud, and the one in the URL. */
+  number: number
+  state: string
+  /** What started it: `push`, `pull_request`, and so on. */
+  event: string | null
+  head_sha: string | null
+  /** The full ref, because a receiver filtering by branch needs to parse it. */
+  ref: string | null
+  /** The workflow's name, when the payload's builder knew it. */
+  workflow: string | null
+}
+
+/** One job of a run. */
+export interface JobDetail {
+  id: number
+  /** The key in the workflow file, which is what `needs` refers to. */
+  job_id: string
+  name: string
+  state: string
+  run_id: number
+  run_number: number
+  /** Which machine holds it, when one does. */
+  runner: string | null
 }
 
 /** What `action` each event means. */
@@ -170,6 +215,9 @@ const ACTIONS: Record<string, string> = {
    */
   'check:reported': 'reported',
   'status:reported': 'reported',
+  // Fallbacks only: a real payload carries the state it moved to.
+  'run:transitioned': 'transitioned',
+  'job:transitioned': 'transitioned',
 }
 
 /**
@@ -206,7 +254,7 @@ export interface CheckDetail {
  */
 export function webhookPayload(
   event: NotificationEvent | string,
-  subject: EventSubject & { detail?: string, check?: CheckDetail },
+  subject: EventSubject & { detail?: string, check?: CheckDetail, run?: RunDetail, job?: JobDetail },
   at: string,
 ): WebhookPayload {
   const owner = String(subject.owner ?? '')
@@ -237,9 +285,17 @@ export function webhookPayload(
     // A check's action is its own state, which is the field a receiver
     // switches on. Mapping it through ACTIONS would flatten three transitions
     // into one word and make the event useless for the thing it exists for.
-    action: subject.check ? String(subject.check.status) : (ACTIONS[String(event)] ?? String(event)),
+    action: subject.check
+      ? String(subject.check.status)
+      : subject.job
+        ? String(subject.job.state)
+        : subject.run
+          ? String(subject.run.state)
+          : (ACTIONS[String(event)] ?? String(event)),
     ...(subject.detail ? { tag: String(subject.detail) } : {}),
     ...(subject.check ? { check: subject.check } : {}),
+    ...(subject.run ? { run: subject.run } : {}),
+    ...(subject.job ? { job: subject.job } : {}),
   }
 }
 

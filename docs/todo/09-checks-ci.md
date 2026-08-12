@@ -694,6 +694,22 @@ the run must remain inspectable and resumable without trusting runner memory.
 - [ ] Every endpoint has a fine-grained token requirement, generated OpenAPI, stable errors, rate
       limits, audit events, and request ids that continue into dispatched jobs
 - [ ] Webhook events for run and job transitions, action required, deployment, and artifact expiry
+
+      **The two transitions are done; the other three have nothing to fire yet.** `run:transitioned`
+      and `job:transitioned` carry the new state in `action`, so one subscription covers queued
+      through finished and a receiver that only wants completed runs reads one field. They are
+      emitted from every place a state actually changes - the claim, the report, the cancellation
+      and the recovery sweep - and the sweep is the one that matters most: every other transition
+      happens because somebody asked and hears the answer, while that one happens because a machine
+      stopped talking, so the event is the only way anything finds out.
+
+      A run's event carries its number, state, commit, ref and triggering event; a job's carries the
+      key `needs` refers to, its name, its run, and which machine holds it - the fields a fleet
+      operator needs to join a slow job to a sick runner. `subject` stays the repository rather than
+      growing a fourth type for a receiver to learn.
+
+      Action required, deployment and artifact expiry wait on approvals, deployments and artifacts,
+      none of which exist.
 - [ ] Tests cover every state transition, token boundaries, idempotency, stale writes, cursor
       pagination, recovery after lease expiry, and restart from a step
 

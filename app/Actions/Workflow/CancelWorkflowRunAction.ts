@@ -3,6 +3,7 @@ import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import type { RunState } from './states'
 import { canRunMove, isTerminalRun } from './states'
+import { announceRunIfMoved } from './announce'
 import { authorizeRepository } from '../Repo/authorize'
 
 /**
@@ -113,6 +114,10 @@ export default new Action({
       .where('workflow_run_id', '=', Number(run.id))
       .where('state', '=', 'running')
       .execute()
+
+    // Programs first: something waiting on this run should hear that it was
+    // stopped before the person who stopped it has finished reading the page.
+    await announceRunIfMoved(Number(repository.id), Number(run.id), state, 'cancelling')
 
     /*
      * A browser gets its page back; a program gets the row.

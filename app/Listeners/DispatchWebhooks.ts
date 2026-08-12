@@ -42,6 +42,10 @@ export default {
     // wrong.
     'check:reported',
     'status:reported',
+    // The run lifecycle. The state travels in `action`, so one subscription
+    // covers queued through finished.
+    'run:transitioned',
+    'job:transitioned',
   ],
 
   async handle(payload: EventSubject & { event?: NotificationEvent }, eventName?: string): Promise<void> {

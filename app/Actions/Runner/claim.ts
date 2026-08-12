@@ -15,6 +15,7 @@
  */
 
 import { db } from '@stacksjs/database'
+import { announceJob, announceRunIfMoved } from '../Workflow/announce'
 import { hashToken } from './authenticate'
 import type { JobFacts, RunnerFacts } from './protocol'
 import { leaseUntil, mayClaim, splitLabels } from './protocol'
@@ -64,11 +65,13 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
     .select([
       'workflow_jobs.id as id',
       'workflow_jobs.job_id as job_id',
+      'workflow_jobs.name as name',
       'workflow_jobs.state as state',
       'workflow_jobs.runs_on as runs_on',
       'workflow_jobs.runner_id as runner_id',
       'workflow_jobs.lease_expires_at as lease_expires_at',
       'workflow_runs.id as run_id',
+      'workflow_runs.number as run_number',
       'workflow_runs.repository_id as repository_id',
       'repositories.owner_id as owner_id',
     ])
@@ -161,6 +164,44 @@ export async function claimNextJob(
 
     if (!changedSomething(result))
       continue
+
+    /*
+     * Work started, said out loud.
+     *
+     * After the write, so a receiver that reads the job back sees it held. The
+     * run follows the job: a run whose first job was just claimed is running,
+     * and a dashboard that hears "job running" while the run still says
+     * "queued" has to guess which one is stale.
+     */
+    const runState: any = await db
+      .selectFrom('workflow_runs')
+      .select(['state'])
+      .where('id', '=', Number(row.run_id))
+      .executeTakeFirst()
+
+    const wasQueued = String(runState?.state ?? '') === 'queued'
+
+    if (wasQueued) {
+      await db
+        .updateTable('workflow_runs')
+        .set({ state: 'running', started_at: now.toISOString() } as any)
+        .where('id', '=', Number(row.run_id))
+        .where('state', '=', 'queued')
+        .execute()
+    }
+
+    await announceJob(facts.repositoryId, {
+      id: facts.id,
+      jobId: String(row.job_id),
+      name: row.name ? String(row.name) : String(row.job_id),
+      state: 'running',
+      runId: Number(row.run_id),
+      runNumber: Number(row.run_number ?? 0),
+      runnerId: String(runner.id),
+    })
+
+    if (wasQueued)
+      await announceRunIfMoved(facts.repositoryId, Number(row.run_id), 'queued', 'running')
 
     return {
       jobId: facts.id,

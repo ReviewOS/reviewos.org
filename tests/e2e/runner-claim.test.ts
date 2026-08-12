@@ -157,8 +157,18 @@ describe('claiming', () => {
     if (!available)
       return
 
+    /*
+     * Scoped to this repository, deliberately.
+     *
+     * An instance-scoped runner may claim *any* queued job and may recover any
+     * lapsed one, which is the behaviour the tests below are about - and it
+     * made this one depend on the rest of the database being empty. A run left
+     * behind by an interrupted suite is a job with a lapsed lease, and an
+     * instance runner takes the oldest of those before the one this test just
+     * created. Scoping it asks the question this test is actually asking.
+     */
     const runId = await freshRun('b'.repeat(40))
-    const runner = await runnerFacts(await makeRunner())
+    const runner = await runnerFacts(await makeRunner({ scope_type: 'repository', scope_id: created.repositoryId }))
 
     const claimed = await claimNextJob(runner)
 

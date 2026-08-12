@@ -2,6 +2,7 @@ import { Job } from '@stacksjs/queue'
 import { db } from '@stacksjs/database'
 import { runStateFromJobs } from '../Actions/Workflow/states'
 import type { JobState } from '../Actions/Workflow/states'
+import { announceRunIfMoved } from '../Actions/Workflow/announce'
 
 /**
  * How long a runner is given to acknowledge a cancellation before it is made
@@ -211,4 +212,21 @@ async function settle(runId: number): Promise<void> {
     .where('id', '=', runId)
     .where('state', '=', from)
     .execute()
+
+  /*
+   * The sweep is the one mover nobody is watching for.
+   *
+   * Every other transition happens because somebody asked - a claim, a report,
+   * a cancellation - and whoever asked hears the answer. This one happens
+   * because a machine stopped talking or a grace period ran out, so the event
+   * is the *only* way anything downstream finds out.
+   */
+  const owning: any = await db
+    .selectFrom('workflow_runs')
+    .select(['repository_id'])
+    .where('id', '=', runId)
+    .executeTakeFirst()
+
+  if (owning)
+    await announceRunIfMoved(Number(owning.repository_id), runId, from, next)
 }

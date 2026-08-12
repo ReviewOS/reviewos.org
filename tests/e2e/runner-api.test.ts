@@ -132,6 +132,18 @@ afterAll(async () => {
   try {
     for (const id of created.runnerIds)
       await db.deleteFrom('runners').where('id', '=', id).execute()
+
+    if (created.repositoryId) {
+      // Deliveries first: they reference the webhook, and the repository
+      // cascade cannot remove a hook something still points at.
+      const hooks: any[] = await db.selectFrom('webhooks').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+
+      for (const hook of hooks)
+        await db.deleteFrom('webhook_deliveries').where('webhook_id', '=', Number(hook.id)).execute()
+
+      await db.deleteFrom('webhooks').where('repository_id', '=', created.repositoryId).execute()
+    }
+
     if (created.repositoryId)
       await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute()
     if (created.ownerId)
@@ -410,4 +422,94 @@ describe('acknowledging a cancellation over HTTP', () => {
     const row: any = await db.selectFrom('workflow_jobs').select(['state']).where('id', '=', job.id).executeTakeFirst()
     expect(String(row.state)).toBe('cancelling')
   })
+})
+
+
+describe('the run lifecycle, as a program hears it', () => {
+  /*
+   * The events everything downstream of CI waits on. A run lives for minutes on
+   * a machine this instance does not own, and the alternative to hearing about
+   * it is polling every run every few seconds - which is the reason forges grow
+   * rate limits.
+   *
+   * Asserted through the whole path, because each half has been broken on its
+   * own: an event nothing listens to, and a listener no event reaches.
+   */
+  let hookId = 0
+
+  async function subscribe(): Promise<number> {
+    const row: any = await db.insertInto('webhooks').values({
+      repository_id: created.repositoryId,
+      // Refused by the SSRF policy and recorded anyway, which is what this
+      // needs: that the attempt was made.
+      url: 'http://127.0.0.1:1/hook',
+      secret: 'shhh',
+      events: 'run:transitioned,job:transitioned',
+      content_type: 'application/json',
+      active: true,
+      consecutive_failures: 0,
+    }).returning(['id']).executeTakeFirst()
+
+    return Number(row?.id)
+  }
+
+  /** Deliveries so far, waited for: the dispatch is deliberately not awaited. */
+  async function settled(atLeast: number): Promise<any[]> {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const rows: any[] = await db
+        .selectFrom('webhook_deliveries')
+        .select(['event', 'payload'])
+        .where('webhook_id', '=', hookId)
+        .where('attempt', '=', 1)
+        .orderBy('id', 'asc')
+        .execute()
+
+      if (rows.length >= atLeast)
+        return rows
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    return []
+  }
+
+  test('a claim and a report tell it what happened, in order', async () => {
+    if (!available)
+      return
+
+    hookId = await subscribe()
+
+    await freshRun(`${Math.random().toString(16).slice(2)}`.padEnd(40, '0'))
+
+    const claimed = await call('/runner/claim', {})
+    const token = String(claimed.body.job.token)
+
+    await call('/runner/report', { state: 'succeeded' }, token)
+
+    const sent = await settled(3)
+    const events = sent.map(row => String(row.event))
+
+    // Job running, job succeeded, run succeeded. The run's own "running" may
+    // ride along too, which is why this is a containment check rather than an
+    // equality one.
+    expect(events).toContain('job:transitioned')
+    expect(events).toContain('run:transitioned')
+
+    const jobBodies = sent.filter(row => String(row.event) === 'job:transitioned').map(row => JSON.parse(String(row.payload)))
+    const runBodies = sent.filter(row => String(row.event) === 'run:transitioned').map(row => JSON.parse(String(row.payload)))
+
+    expect(jobBodies.map(body => body.action)).toContain('running')
+    expect(jobBodies.map(body => body.action)).toContain('succeeded')
+    expect(runBodies.map(body => body.action)).toContain('succeeded')
+
+    // The fields a receiver joins on: which job, of which run, on which machine.
+    const first = jobBodies[0]
+    expect(first.job.job_id).toBeTruthy()
+    expect(first.job.run_number).toBeGreaterThan(0)
+    expect(first.job.runner).toBeTruthy()
+
+    const finished = runBodies.at(-1)
+    expect(finished.run.number).toBeGreaterThan(0)
+    expect(String(finished.run.head_sha).length).toBe(40)
+  }, 30_000)
 })
