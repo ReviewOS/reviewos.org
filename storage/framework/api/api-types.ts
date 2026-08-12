@@ -14799,6 +14799,29 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/workflow-runs/log": {
+    get: {
+    parameters: {
+      query: { "owner"?: string; "repo"?: string; "job": number; "after"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/workflow-runs/show": {
     get: {
     parameters: {
@@ -15022,7 +15045,30 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody: { content: { "application/json": { "job": number } } }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/runner/logs": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: { content: { "application/json": { "sequence": number; "content"?: string; "stream"?: "stdout" | "stderr" } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -15045,7 +15091,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody: { content: { "application/json": { "job": number; "state"?: "succeeded" | "failed" | "cancelled"; "error"?: string } } }
+    requestBody?: { content: { "application/json": { "state"?: "succeeded" | "failed" | "cancelled"; "error"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }

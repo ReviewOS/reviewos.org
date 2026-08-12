@@ -21960,6 +21960,64 @@
         }
       }
     },
+    "/api/repos/workflow-runs/log": {
+      "get": {
+        "summary": "/api/repos/workflow-runs/log",
+        "operationId": "get__api_repos_workflow_runs_log",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "job",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/api/repos/workflow-runs/show": {
       "get": {
         "summary": "/api/repos/workflow-runs/show",
@@ -22310,6 +22368,31 @@
           "500": {
             "description": "Server error"
           }
+        }
+      }
+    },
+    "/api/runner/logs": {
+      "post": {
+        "summary": "/api/runner/logs",
+        "operationId": "post__api_runner_logs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
         },
         "requestBody": {
           "required": true,
@@ -22318,12 +22401,22 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "job": {
+                  "sequence": {
                     "type": "number"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "stream": {
+                    "type": "string",
+                    "enum": [
+                      "stdout",
+                      "stderr"
+                    ]
                   }
                 },
                 "required": [
-                  "job"
+                  "sequence"
                 ]
               }
             }
@@ -22355,15 +22448,12 @@
           }
         },
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "job": {
-                    "type": "number"
-                  },
                   "state": {
                     "type": "string",
                     "enum": [
@@ -22375,10 +22465,7 @@
                   "error": {
                     "type": "string"
                   }
-                },
-                "required": [
-                  "job"
-                ]
+                }
               }
             }
           }

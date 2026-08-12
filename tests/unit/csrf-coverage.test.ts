@@ -32,12 +32,13 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
   },
   {
     file: 'routes/api.ts',
-    count: 5,
-    because: 'the MCP endpoint, the mirror webhook, and the three runner routes. '
+    count: 6,
+    because: 'the MCP endpoint, the mirror webhook, and the four runner routes. '
       + 'MCP reads its bearer itself and refuses a request without one before '
       + 'anything else happens; the mirror webhook is signed over its body by an '
       + 'upstream forge that holds no cookie; the runner endpoints authenticate a '
-      + 'machine by its own registered token, and there is no browser and no '
+      + 'machine by its own registered token - or, after a claim, by the '
+      + 'credential minted for that one job - and there is no browser and no '
       + 'session anywhere in that conversation. None of them accepts an ambient '
       + 'credential, so there is nothing for a forged cross-site post to ride. '
       + 'Left on, each answers its only real caller with a 403 about a cookie it '
@@ -140,16 +141,17 @@ describe('CSRF exemptions', () => {
 
 describe('what is not exempt', () => {
   test('the API surface is protected apart from the documented routes', async () => {
-    // Ninety-odd state-changing routes in one file, five exemptions. The route
+    // Ninety-odd state-changing routes in one file, six exemptions. The route
     // count is asserted as a floor rather than a number, so adding an endpoint
     // does not fail this test - which is the kind of failure people learn to
     // update without reading. The exemption count is exact, because that is the
-    // number worth noticing a change in, and it is what caught the three runner
-    // routes arriving without anybody writing down why they were exempt.
+    // number worth noticing a change in, and it is what caught the runner
+    // routes arriving without anybody writing down why they were exempt - once
+    // for the first three, and again for the log append.
     const source = await Bun.file('routes/api.ts').text()
     const unsafe = (source.match(/route\.(post|put|patch|delete)\(/g) ?? []).length
 
     expect(unsafe).toBeGreaterThan(50)
-    expect(await skipCount('routes/api.ts')).toBe(5)
+    expect(await skipCount('routes/api.ts')).toBe(6)
   })
 })

@@ -726,3 +726,9 @@ route.post('/repos/workflow-runs/cancel', 'Actions/Workflow/CancelWorkflowRunAct
 route.post('/runner/claim', 'Actions/Runner/ClaimJobAction').skipCsrf()
 route.post('/runner/heartbeat', 'Actions/Runner/HeartbeatAction').skipCsrf()
 route.post('/runner/report', 'Actions/Runner/ReportJobAction').skipCsrf()
+route.post('/runner/logs', 'Actions/Runner/AppendLogAction').skipCsrf()
+
+// Reading is the repository's permission, not the runner's: a log is the
+// repository's data, and somebody who cannot see the code cannot see what
+// building it printed.
+route.get('/repos/workflow-runs/log', 'Actions/Workflow/ShowJobLogAction')

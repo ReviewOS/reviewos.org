@@ -9065,10 +9065,101 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "workflow_job_logs",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "workflow_job_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "workflow_jobs",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "sequence",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "content",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "stream",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "stdout",
+            "enumValues": [
+              "stdout",
+              "stderr"
+            ],
+            "enumTypeName": "workflow_job_logs_stream_type"
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "workflow_job_logs_job_index",
+            "columns": [
+              "workflow_job_id",
+              "sequence"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_job_logs_sequence_index",
+            "columns": [
+              "workflow_job_id",
+              "sequence"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "66cc58a96ef3dae627a5bbc1e6b0f7795122fc360b11db120a905b8eacf330e7",
+  "hash": "0979f7a7d0a6f8ca922ae241a1722984aca591c4495b37d312a951f60e5b426e",
   "dialect": "postgres",
-  "updatedAt": "2026-08-12T05:28:55.814Z"
+  "updatedAt": "2026-08-12T15:13:41.103Z"
 }

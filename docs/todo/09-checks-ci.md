@@ -533,7 +533,20 @@ the run must remain inspectable and resumable without trusting runner memory.
       Attempts and the check rollup are not in the response yet: nothing produces attempts until
       something executes a step, and there is no rollup to report. Listed here rather than
       pretended.
-- [ ] Read logs incrementally from a cursor, with plain text and structured event representations
+- [x] Read logs incrementally from a cursor, with plain text and structured event representations
+
+      `/api/repos/workflow-runs/log?job=&after=`, chunk-sequenced. The cursor is a chunk sequence
+      rather than a byte offset, because a byte offset into a log that is still being written means
+      something different a second later.
+
+      **Reading is the repository's permission, not the runner's.** A log is the repository's data,
+      and somebody who cannot see the code cannot see what building it printed - which matters more
+      than it sounds, because build output routinely carries paths, hostnames and the occasional
+      thing somebody echoed by mistake. The job id is checked against the repository too: it is a
+      number anybody can increment, and without that check it is a way to read another repository's
+      output.
+
+      Structured event representations are not done; this is the plain-text half.
 - [ ] Pause, resume, cancel, retry from the start, and retry from a named step
 
       **Cancel is done; the other four are not.** Cancelling is the one that has something to act on
@@ -574,11 +587,11 @@ should not make its public workflow API describe one vendor's sandbox.
 - [x] Versioned runner protocol for claim, heartbeat, log append, artifact upload, step completion,
       and cancellation acknowledgment
 
-      Claim, heartbeat and completion are implemented, reachable over HTTP at `/api/runner/claim`,
-      `/api/runner/heartbeat` and `/api/runner/report`, and held by `tests/e2e/runner-claim.test.ts`
-      and `tests/e2e/runner-api.test.ts`. Log append, artifact upload and cancellation
-      acknowledgment are not, and neither is protocol versioning - the box is ticked for the half
-      that exists and says which half that is.
+      Claim, heartbeat, completion and log append are implemented, reachable over HTTP at
+      `/api/runner/claim`, `/api/runner/heartbeat`, `/api/runner/report` and `/api/runner/logs`,
+      and held by `tests/e2e/runner-claim.test.ts`, `runner-api.test.ts` and `runner-logs.test.ts`.
+      Artifact upload and cancellation acknowledgment are not, and neither is protocol versioning -
+      the box is ticked for the parts that exist and says which those are.
 
       The status codes are part of the contract rather than decoration. **No work is a 200 with
       `job: null`**, because a runner polling an idle instance is not making a mistake and an error

@@ -5448,6 +5448,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/workflow-runs/log
+   */
+  getReposWorkflowRunsLog(input: { "owner"?: string; "repo"?: string; "job": number; "after"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/workflow-runs/log", input ?? {}, ["owner", "repo", "job", "after"], false, options)
+  },
+
+  /**
    * GET /api/repos/workflow-runs/show
    */
   getReposWorkflowRunsShow(input?: { "owner"?: string; "repo"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -5527,14 +5534,21 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/runner/heartbeat
    */
-  postRunnerHeartbeat(input: { body: { "job": number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/runner/heartbeat", input ?? {}, [], true, options)
+  postRunnerHeartbeat(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/runner/heartbeat", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/runner/logs
+   */
+  postRunnerLogs(input: { body: { "sequence": number; "content"?: string; "stream"?: "stdout" | "stderr" } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/runner/logs", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/runner/report
    */
-  postRunnerReport(input: { body: { "job": number; "state"?: "succeeded" | "failed" | "cancelled"; "error"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postRunnerReport(input?: { body?: { "state"?: "succeeded" | "failed" | "cancelled"; "error"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/runner/report", input ?? {}, [], true, options)
   },
 
