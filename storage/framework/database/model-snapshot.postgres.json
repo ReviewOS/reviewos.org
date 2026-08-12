@@ -237,6 +237,7 @@
               "pull_requests",
               "webhooks",
               "administration",
+              "checks",
               "members",
               "organization_administration",
               "billing"
@@ -9159,7 +9160,7 @@
       }
     ]
   },
-  "hash": "0979f7a7d0a6f8ca922ae241a1722984aca591c4495b37d312a951f60e5b426e",
+  "hash": "b09dcaeb76e71862e90eaefd711c25d2a201be1e484c855870ae558039c87ea3",
   "dialect": "postgres",
-  "updatedAt": "2026-08-12T15:13:41.103Z"
+  "updatedAt": "2026-08-12T16:51:24.073Z"
 }

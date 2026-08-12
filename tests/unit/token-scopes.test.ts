@@ -15,7 +15,9 @@ import {
   MAXIMUM_TOKEN_LIFETIME_MS,
   normalizeGrants,
   ORGANIZATION_ABILITY_SCOPES,
+  ORGANIZATION_SCOPES,
   REPOSITORY_ABILITY_SCOPES,
+  REPOSITORY_SCOPES,
   resolveExpiry,
   tokenAllows,
   tokenAllowsInOrganization,
@@ -248,5 +250,32 @@ describe('normalizeGrants', () => {
     const two = normalizeGrants([{ scope: 'contents', level: 'read' }, { scope: 'issues', level: 'read' }])
 
     expect(one).toEqual(two)
+  })
+})
+
+describe('the vocabulary and the column agree', () => {
+  /*
+   * The scopes are a Postgres enum, generated from the model. So a scope that
+   * exists here and not there is not a cosmetic mismatch: the type refuses the
+   * value, and *every* attempt to grant it fails at the insert.
+   *
+   * `checks` was in this file, mapped by `check:report` and `workflow:cancel`,
+   * and missing from the model. The result was a scope that could be reasoned
+   * about and never written down - and, because the end-to-end tests for the
+   * checks API create their token the same way, a whole suite that skipped
+   * itself with a warning nobody read while reporting fourteen passes.
+   */
+  test('every scope in the vocabulary is a value the column accepts', async () => {
+    const source = await Bun.file('app/Models/AccessTokenPermission.ts').text()
+    const block = source.match(/scope:\s*\{[\s\S]*?schema\.enum\(\[([\s\S]*?)\]\)/)
+
+    expect(block).toBeTruthy()
+
+    const declared = Array.from(String(block?.[1] ?? '').matchAll(/'([a-z_]+)'/g)).map(match => match[1])
+
+    // Both directions. A value in the column and not in the vocabulary is the
+    // less dangerous half - it can be stored and never grants anything - but it
+    // is still a scope somebody added and then forgot to give meaning to.
+    expect([...declared].sort()).toEqual([...REPOSITORY_SCOPES, ...ORGANIZATION_SCOPES].slice().sort())
   })
 })

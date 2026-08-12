@@ -262,6 +262,20 @@ This much makes ReviewOS usable with any existing CI. Ship it independently of t
   capped per run with its true total reported beside the sample rather than the
   sample being passed off as everything.
 
+  **And for a while none of it ran.** The scope vocabulary in
+  `app/TokenScopes.ts` gained `checks`; the model behind the column did not, and
+  the column is a Postgres enum generated from the model. So every attempt to
+  grant the scope failed at the insert - which meant the two boxes above were
+  true of code nobody had executed, and this file's suite caught the failure in
+  its setup, set `available = false`, and reported fourteen passes.
+
+  Fixed in three places, because one of them was the reporting: the model lists
+  the scope, a unit test in `tests/unit/token-scopes.test.ts` fails if the
+  vocabulary and the column ever disagree again, and `tests/setup.ts` repeats
+  every suite's skip after the summary - with `TESTS_REQUIRE_ALL=1` turning it
+  into a failure, which is what a machine with a database should run. A suite
+  that skips itself and a suite that passes should not look the same.
+
 ## Workflow definitions and triggers
 
 The workflow is a versioned resource, not whatever happens to be in the default branch when an old

@@ -36,6 +36,7 @@ if (!Bun.env.GIT_HOOK_SECRET || Bun.env.GIT_HOOK_SECRET.trim().length < 16)
  */
 Bun.env.QUEUE_DRIVER = 'sync'
 
+import { afterAll } from 'bun:test'
 import { applyRuntimeDirectoryEnv } from '@stacksjs/path'
 import { setupTestEnvironment } from '@stacksjs/testing'
 
@@ -45,3 +46,60 @@ setupTestEnvironment()
 // `storage/` here too. Without it a test that renders a template or touches a
 // cloud helper would write to `.stx` / `.ts-cloud` in the project root.
 applyRuntimeDirectoryEnv()
+
+/**
+ * Skips, said out loud at the end.
+ *
+ * Most end-to-end suites here open with a `try` that resolves the database and
+ * boots the router, and set `available = false` when that fails, so a checkout
+ * without Postgres runs the unit tests instead of drowning in connection
+ * errors. Every test in such a suite then returns immediately - and is counted
+ * as a pass.
+ *
+ * That is the right behaviour and the wrong reporting. `14 pass` from a suite
+ * which asserted nothing looks exactly like `14 pass` from one which asserted
+ * everything, and a real defect hid behind it: the `checks` token scope was
+ * missing from the model, so its suite could not create a token, skipped
+ * itself, and reported green for as long as it took somebody to read the
+ * warning.
+ *
+ * So the warnings are collected and repeated after the summary, where they are
+ * the last thing on screen. `TESTS_REQUIRE_ALL=1` turns them into a failing
+ * exit code, which is what a machine with a database - CI, or this one -
+ * should run.
+ */
+const skipped: string[] = []
+const warn = console.warn.bind(console)
+
+console.warn = (...args: unknown[]) => {
+  const first = String(args[0] ?? '')
+
+  // The shape the suites already use: `[name] skipping: reason`.
+  if (/^\[[^\]]+\]\s+skipping:/.test(first))
+    skipped.push(first)
+
+  warn(...args)
+}
+
+/*
+ * Reported from an `afterAll` registered here, which the runner applies to
+ * every file, rather than from a `process.on('exit')` handler: `bun test` does
+ * not fire one, so the summary written that way is never printed. This runs at
+ * the end of each file that skipped, which is also where a reader is looking.
+ */
+afterAll(() => {
+  if (skipped.length === 0)
+    return
+
+  const lines = skipped.splice(0, skipped.length)
+
+  warn(`\n${lines.length} suite(s) skipped themselves and passed without asserting anything:`)
+
+  for (const line of lines)
+    warn(`  ${line}`)
+
+  // Thrown rather than an exit code, so it lands in the summary as a failure
+  // with the reason attached.
+  if (Bun.env.TESTS_REQUIRE_ALL === '1')
+    throw new Error(`TESTS_REQUIRE_ALL=1 and a suite skipped itself: ${lines.join(' / ')}`)
+})

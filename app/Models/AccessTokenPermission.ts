@@ -49,6 +49,12 @@ export default defineModel({
           'pull_requests',
           'webhooks',
           'administration',
+          // Kept in step with `REPOSITORY_SCOPES` and `ORGANIZATION_SCOPES` in
+          // `app/TokenScopes.ts`, which a unit test now enforces. `checks` was
+          // added there and not here, and because this list becomes a Postgres
+          // enum, every attempt to grant it failed at the insert - the scope
+          // existed in the vocabulary and could not be written down.
+          'checks',
           'members',
           'organization_administration',
           'billing',
