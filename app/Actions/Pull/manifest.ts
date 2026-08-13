@@ -26,6 +26,8 @@ import { classifyFile, foldedHunkIndexes } from './classify'
 import { isGenerated, parseDiffFile } from './diff'
 import { countRows, hunkBodyRows } from './metrics'
 import { createPatchSplitter, releaseDetachBuffer } from './patch'
+import type { LanguageRule } from '../Browse/attributes'
+import { declaredLanguage } from '../Browse/attributes'
 import { highlightDiffFile, renderDiffFile } from './rows'
 import { anchorThreadsToFile } from './loadThreads'
 import { threadSlotFor } from './threads'
@@ -384,6 +386,15 @@ export interface ManifestOptions {
      * worse diff, it is only a cleaner measurement.
      */
     highlight?: boolean
+    /**
+     * The repository's own language rules, from `.gitattributes`.
+     *
+     * Resolved once by the caller - it knows the repository and the ref, and
+     * this module knows neither - and consulted per file, so a `.h` a
+     * repository declares as C++ is C++ in a review as well as in the blob
+     * view. Absent means detection decides, which is the ordinary case.
+     */
+    languageRules?: readonly LanguageRule[]
   }
 }
 
@@ -515,7 +526,16 @@ export async function* streamManifest(
     // Started, not awaited. This is the whole change: the next file's record is
     // parsed and sent while this one is still being tokenized, and several
     // files are tokenized at once.
-    inFlight.push({ at, file, folded: foldInfo.folded, tokens: highlightDiffFile(file, { highlight: rowOptions.highlight }) })
+    const declared = rowOptions.languageRules && rowOptions.languageRules.length > 0
+      ? declaredLanguage(rowOptions.languageRules, file.path)
+      : null
+
+    inFlight.push({
+      at,
+      file,
+      folded: foldInfo.folded,
+      tokens: highlightDiffFile(file, { highlight: rowOptions.highlight, language: declared }),
+    })
 
     yield* drain(false)
   }

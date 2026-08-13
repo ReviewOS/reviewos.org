@@ -11,7 +11,7 @@
  * files costs the browser nothing.
  */
 import { mirrorFor, repositoryForView, summarizeMirror } from '../functions/repo'
-import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor } from '../functions/browse'
+import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor, languageRulesFor, declaredLanguage } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
 /**
  * The status this page wants, asked for where the binding actually exists.
@@ -130,8 +130,20 @@ const readme = readmeEntry
 // Highlighting happens here, not in the browser: a large file tokenised
 // client-side is jank exactly when someone is trying to read code.
 const sourceLines = (source && !source.error && !source.binary && !source.tooLarge) ? source.lines : []
-const highlighted = sourceLines.length > 0 ? await highlightLines(sourceLines, requestedPath) : []
-const language = sourceLines.length > 0 ? languageFor(requestedPath) : null
+
+/*
+ * What the repository says this file is, before what its name suggests.
+ *
+ * `.gitattributes` at this ref, through `linguist-language` - the attribute
+ * every repository that has ever cared already carries. It is the only source
+ * that knows rather than infers: a `.h` that is C++, a house extension, a
+ * generated directory that should read as plain text.
+ */
+const languageRules = sourceLines.length > 0 ? await languageRulesFor(diskPath, ref, readBlob) : []
+const declared = sourceLines.length > 0 ? declaredLanguage(languageRules, requestedPath) : null
+
+const highlighted = sourceLines.length > 0 ? await highlightLines(sourceLines, requestedPath, { language: declared }) : []
+const language = sourceLines.length > 0 ? (declared ?? languageFor(requestedPath)) : null
 
 const head = repoRow ? await lastCommit(diskPath, ref, requestedPath) : null
 // Tags are capped for the picker: a repository with a release per week has

@@ -2,6 +2,8 @@ import { Action } from '@stacksjs/actions'
 import { diskPathFor } from '../Git/access'
 import { streamMergeBaseDiff } from '../Git/diffStream'
 import { authorizeRepository } from '../Repo/authorize'
+import { languageRulesFor } from '../Browse/attributes'
+import { readBlob } from '../Browse/load'
 import { manifestToNdjson, streamManifest } from './manifest'
 
 /**
@@ -146,6 +148,11 @@ export default new Action({
     const { loadCoverage } = await import('../Checks/coverage')
     const coverage = await loadCoverage(Number(repository.id), String(pullRequest?.head_sha ?? ''))
 
+    // The same rules the manifest used, so a file's colours do not change
+    // when its rows are fetched separately. Cached from that request in the
+    // ordinary case, since this is the same repository at the same head.
+    const languageRules = await languageRulesFor(path, String(pullRequest.head_sha), readBlob)
+
     const records = manifestToNdjson(streamManifest(diff, {
       rows: {
         layout,
@@ -155,6 +162,7 @@ export default new Action({
         threads,
         openHunks: openHunks ?? undefined,
         coverage,
+        languageRules,
       },
     }))
 

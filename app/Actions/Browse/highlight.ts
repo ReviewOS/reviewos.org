@@ -275,13 +275,26 @@ function normalize(type: string): TokenClass {
  * unparseable file, or anything the tokenizer refuses. Showing the code
  * unhighlighted is always better than showing nothing, so nothing here throws.
  */
-export async function highlightLines(lines: readonly string[], path: string): Promise<HighlightedToken[][]> {
+export async function highlightLines(
+  lines: readonly string[],
+  path: string,
+  options: { language?: string | null } = {},
+): Promise<HighlightedToken[][]> {
   const plain = (): HighlightedToken[][] => lines.map(line => [{ type: 'text' as const, content: line }])
 
-  // The path first, and the shebang only when the path said nothing: an
-  // extensionless script is common (`bin/deploy`, every git hook) and is
-  // exactly the file somebody wrote by hand.
-  const language = languageFor(path) ?? languageForShebang(lines[0] ?? '')
+  /*
+   * A repository's own answer first, when it gave one.
+   *
+   * `options.language` is what `.gitattributes` declared through
+   * `linguist-language`, and it wins over every rule below because it is the
+   * only source that *knows* rather than infers - a `.h` that is C++, a house
+   * extension, a vendored directory that should read as plain text.
+   *
+   * Then the path, and the shebang only when the path said nothing: an
+   * extensionless script is common (`bin/deploy`, every git hook) and is
+   * exactly the file somebody wrote by hand.
+   */
+  const language = options.language ?? languageFor(path) ?? languageForShebang(lines[0] ?? '')
   if (!language)
     return plain()
 

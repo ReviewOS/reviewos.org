@@ -148,6 +148,17 @@ beforeAll(async () => {
     writeFileSync(join(work, 'README.md'), DOCUMENT)
     writeFileSync(join(work, 'docs', 'architecture.md'), DOCUMENT)
 
+    /*
+     * A file whose language no rule can know, and the repository's answer.
+     *
+     * `.house` is not an extension anything maps, so detection gives up and the
+     * file renders as plain text - which is the correct behaviour without the
+     * override and the wrong one with it.
+     */
+    writeFileSync(join(work, 'thing.house'), 'export const answer: number = 42\n')
+    writeFileSync(join(work, 'plain.house'), 'export const answer: number = 42\n')
+    writeFileSync(join(work, '.gitattributes'), 'thing.house linguist-language=TypeScript\n')
+
     await git(work, 'add', '.')
     await git(work, 'commit', '-m', 'documentation')
     await git(work, 'push', created.diskPath, 'main')
@@ -250,6 +261,30 @@ describe('a markdown file in a repository', () => {
     expect(html).toContain('<th')
     expect(html).toContain('language-ts')
     expect(html).toContain('🚀')
+  })
+
+  /*
+   * The per-repository override. `.house` is not an extension anything maps, so
+   * the two files below differ in exactly one way: one of them is named by
+   * `.gitattributes`.
+   */
+  test('a language the repository declares wins over what the name suggests', async () => {
+    if (!available)
+      return
+
+    const declared = await page(`/${created.handle}/${created.name}/tree/main/thing.house`)
+    const undeclared = await page(`/${created.handle}/${created.name}/tree/main/plain.house`)
+
+    expect(declared.status).toBe(200)
+    expect(undeclared.status).toBe(200)
+
+    /*
+     * A keyword *span* is the proof, not the class name: the layout's
+     * stylesheet defines `.t-keyword` on every page, so looking for the bare
+     * string finds the CSS rather than the code.
+     */
+    expect(declared.html).toContain('<span class="t-keyword">')
+    expect(undeclared.html).not.toContain('<span class="t-keyword">')
   })
 
   test('and the README on the repository page goes through the same pipeline', async () => {

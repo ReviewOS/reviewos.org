@@ -934,7 +934,16 @@ whole before the loop comes back round.
       the wrong language and that is worse than no colour. The shebang matters more than it sounds:
       `bin/deploy`, `scripts/release` and every git hook are extensionless by convention, and those
       are exactly the files somebody wrote by hand.
-- [ ] A per-repository language override, for the cases no rule can know.
+- [x] A per-repository language override, for the cases no rule can know. `.gitattributes` through
+      `linguist-language`, which is what every repository that has ever cared already carries and
+      what a mirror brings across untouched - inventing `reviewos-language` would have meant the
+      override worked only for repositories that had heard of this forge. GitLab's spelling is read
+      too, git's own last-match-wins order is kept, and both ways of turning it off are an answer
+      rather than an absence, so a repository can exempt a vendored subtree.
+
+      Read once per request and consulted per file, so a diff of any size costs one `cat-file`, and
+      cached for thirty seconds because a ref moves. The blob view and the diff share it: the same
+      file has the same colours in a review as in the browser, or the override is a half-feature.
 
 ### Performance work in the library
 

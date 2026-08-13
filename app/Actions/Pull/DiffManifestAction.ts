@@ -3,6 +3,8 @@ import { diskPathFor } from '../Git/access'
 import { streamMergeBaseDiff } from '../Git/diffStream'
 import { authorizeRepository } from '../Repo/authorize'
 import { renderMarkdownHighlighted } from '../Markdown/render'
+import { languageRulesFor } from '../Browse/attributes'
+import { readBlob } from '../Browse/load'
 import { loadReviewThreads } from './loadThreads'
 import { manifestToNdjson, streamManifest } from './manifest'
 
@@ -88,8 +90,18 @@ export default new Action({
     const { loadCoverage } = await import('../Checks/coverage')
     const coverage = await loadCoverage(Number(repository.id), String(pullRequest?.head_sha ?? ''))
 
+    /*
+     * The repository's own language rules, once per request.
+     *
+     * `.gitattributes` at the head this diff is against, so a file the
+     * repository declares as something detection would not guess is coloured
+     * the same here as in the blob view. Read once and consulted per file: it
+     * is one `cat-file` for a diff of any size, and cached for the next.
+     */
+    const languageRules = await languageRulesFor(path, String(pullRequest.head_sha), readBlob)
+
     const records = manifestToNdjson(streamManifest(diff, {
-      rows: { layout, threads, skipCollapsed: true, highlight, coverage },
+      rows: { layout, threads, skipCollapsed: true, highlight, coverage, languageRules },
     }))
 
     const body = new ReadableStream<Uint8Array>({

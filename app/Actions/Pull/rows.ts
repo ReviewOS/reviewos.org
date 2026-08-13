@@ -47,6 +47,10 @@ export function tokenKey(line: Pick<DiffLine, 'origin' | 'oldLine' | 'newLine'>)
  * so a construct opened in one of them is not known about; that is the
  * documented limit of highlighting a patch rather than a file.
  *
+ * `language` overrides detection for this file, and is how a repository's
+ * `.gitattributes` reaches the diff: the same file has the same colours in the
+ * blob view and in a review, or the override is a half-feature.
+ *
  * `highlight: false` renders every line as one plain token instead, which is
  * the benchmark harness's stubbed mode. Layout and paint work is the thing
  * being measured there, and a token span per word is a large, variable share of
@@ -57,7 +61,7 @@ export function tokenKey(line: Pick<DiffLine, 'origin' | 'oldLine' | 'newLine'>)
  */
 export async function highlightDiffFile(
   file: DiffFile,
-  options: { highlight?: boolean } = {},
+  options: { highlight?: boolean, language?: string | null } = {},
 ): Promise<DiffTokenMap> {
   const left: string[] = []
   const leftKeys: string[] = []
@@ -83,8 +87,8 @@ export async function highlightDiffFile(
   const [leftTokens, rightTokens] = options.highlight === false
     ? [plain(left), plain(right)]
     : await Promise.all([
-        highlightLines(left, file.previousPath ?? file.path),
-        highlightLines(right, file.path),
+        highlightLines(left, file.previousPath ?? file.path, { language: options.language }),
+        highlightLines(right, file.path, { language: options.language }),
       ])
 
   const map: DiffTokenMap = {}
