@@ -74,10 +74,10 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       from growing.
 - [x] Contributing guide: the model to migration to action to route to view order, and the
       expectation that roadmap boxes are ticked in the same commit as the work
-- [ ] Search across the docs. The overlay renders and takes a query, and bunpress serves the index
-      it fetches from 0.2.0 on - this app is on a Stacks release that pins `^0.1.18`, where
-      `/search-index.json` is a 404 and the box silently answers nothing. Bumped in Stacks and
-      released as 0.70.370; tick this once the app is on it and a query returns hits here.
+- [x] Search across the docs. The overlay had been rendering, taking a query, and answering
+      nothing: it fetches `/search-index.json`, which bunpress serves from 0.2.0 on, and the
+      framework pinned `^0.1.18`. Bumped upstream, released as Stacks 0.70.370, and verified here -
+      a query returns hits across the guides, the roadmap, and the generated API reference.
 
 ## Self-hosting guide
 
