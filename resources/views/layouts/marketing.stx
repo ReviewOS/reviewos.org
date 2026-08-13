@@ -24,6 +24,25 @@ import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../../functi
     <meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0c1113" media="(prefers-color-scheme: dark)">
 
+    {{-- Every marketing page gets a card. The one image rather than one per
+        page: a feature page's card that says "ReviewOS" is worth far more than
+        no card, and forty generated variants are worth very little more than
+        one. --}}
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="ReviewOS">
+    <meta property="og:title" content="@yield('title')">
+    <meta property="og:description" content="@yield('description')">
+    <meta property="og:image" content="https://reviewos.org/images/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="ReviewOS: a git forge built around review">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="@yield('title')">
+    <meta name="twitter:description" content="@yield('description')">
+    <meta name="twitter:image" content="https://reviewos.org/images/og.png">
+    <meta name="twitter:image:alt" content="ReviewOS: a git forge built around review">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">

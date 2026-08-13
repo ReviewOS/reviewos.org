@@ -44,6 +44,10 @@ export default {
   // `--check` is what a test uses to notice the committed pages have drifted.
   'docs:reference': 'DocsReference',
 
+  // The Open Graph card. Chrome renders it, the PNG is committed, and this
+  // runs when the copy changes rather than on every build.
+  'social:card': 'SocialCard',
+
   'inspire': 'Inspire',
   'seed:demo': 'SeedDemo',
   'export:repository': 'ExportRepository',
