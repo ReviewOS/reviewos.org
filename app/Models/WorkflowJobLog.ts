@@ -83,5 +83,33 @@ export default defineModel({
       validation: { rule: schema.enum(['stdout', 'stderr']) },
       factory: () => 'stdout',
     },
+
+    /**
+     * The same output as events, when the runner sent it that way.
+     *
+     * Beside `content` rather than instead of it, and that is the whole design:
+     * everything that reads a log as text - the API's plain answer, the ceiling
+     * arithmetic, somebody with `curl` - keeps working without knowing this
+     * column exists, and the screen that can do more reads this one.
+     *
+     * Four things cannot be recovered from text afterwards and are guesses if
+     * you try: which lines a job grouped, when it printed them, which stream
+     * each came from, and where its colour started and stopped. `::group::` is
+     * a marker one CI product uses and a string somebody's build may legitimately
+     * print, so parsing it back out is wrong exactly when the output is
+     * interesting.
+     *
+     * JSON as text, not a JSON column: this is written once and read whole, so
+     * the query surface a JSON column buys would be paying for nothing.
+     */
+    events: {
+      order: 5,
+      fillable: true,
+      // `max` is what decides the column type, not just the validation: a bare
+      // `schema.string()` becomes `varchar(255)`, which holds about two events
+      // and truncates the rest of a chunk without saying so.
+      validation: { rule: schema.string().max(65_535) },
+      factory: () => null,
+    },
   },
 })

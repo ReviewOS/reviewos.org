@@ -303,3 +303,76 @@ describe('reading', () => {
     expect(r.status).toBe(404)
   })
 })
+
+
+describe('output sent as events', () => {
+  const ESC = String.fromCharCode(27)
+
+  /*
+   * The plain-text form is not deprecated and this is the proof: a runner that
+   * sends bytes is doing the honest thing, and requiring structure to say "here
+   * is a line" would be a protocol nobody could write in an afternoon. Events
+   * are for the four things text cannot carry.
+   */
+  test('are stored beside the text a plain reader gets', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+
+    const answer = await call('/runner/logs', {
+      sequence: 1,
+      events: [
+        { type: 'group', text: 'Install' },
+        { type: 'line', text: `${ESC}[32mok${ESC}[0m`, at: '2026-08-13T10:00:00.000Z' },
+        { type: 'endgroup' },
+      ],
+    }, job.token)
+
+    expect(answer.status).toBe(200)
+    // How many were understood, so a runner ahead of this server can see that
+    // some were dropped rather than assuming they landed.
+    expect(answer.body.events).toBe(3)
+
+    const page = await readLog(job.id)
+
+    // The text is what a plain reader would have seen, derived rather than sent
+    // twice: a runner should not have to keep two forms in step.
+    expect(page.chunks[0]?.content).toBe(`Install\n${ESC}[32mok${ESC}[0m\n`)
+    expect(page.chunks[0]?.events?.length).toBe(3)
+  })
+
+  test('a runner sending an event type this server has not learned keeps the rest', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+
+    const answer = await call('/runner/logs', {
+      sequence: 1,
+      events: [
+        { type: 'line', text: 'before' },
+        { type: 'annotation', text: 'from a newer runner' },
+        { type: 'line', text: 'after' },
+      ],
+    }, job.token)
+
+    // Two of the three: the unknown one is dropped rather than costing the
+    // lines around it, which are what somebody is waiting to read.
+    expect(answer.body.events).toBe(2)
+    expect((await readLog(job.id)).chunks[0]?.content).toBe('before\nafter\n')
+  })
+
+  test('and text still works, with no events stored beside it', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+    await call('/runner/logs', { sequence: 1, content: 'plain output\n' }, job.token)
+
+    const page = await readLog(job.id)
+
+    expect(page.chunks[0]?.content).toBe('plain output\n')
+    expect(page.chunks[0]?.events).toBeUndefined()
+  })
+})

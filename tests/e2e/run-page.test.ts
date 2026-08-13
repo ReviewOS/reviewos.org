@@ -340,3 +340,69 @@ describe('what the run produced', () => {
     expect(html).toContain('/api/repos/workflow-runs/artifact?owner=')
   })
 })
+
+
+describe('a log the runner sent as events', () => {
+  /*
+   * The four things text cannot carry: which lines were grouped, when each was
+   * printed, which stream it came from, and where colour started. This asserts
+   * they survive storage and reach the page - and that a job's output still
+   * cannot write markup into it, which is the one dangerous thing about
+   * rendering a log as anything but `pre`.
+   */
+  const ESC = String.fromCharCode(27)
+
+  test('renders groups as folds, colour as classes, and markup as text', async () => {
+    if (!available)
+      return
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', created.running)
+      .executeTakeFirst()
+
+    const job: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['id'])
+      .where('workflow_run_id', '=', Number(run.id))
+      .executeTakeFirst()
+
+    const events = [
+      { type: 'group', text: 'Install dependencies', at: '2026-08-13T10:00:00.000Z', stream: 'stdout' },
+      { type: 'line', text: `${ESC}[32mbun install succeeded${ESC}[0m`, at: '2026-08-13T10:00:01.000Z', stream: 'stdout' },
+      { type: 'line', text: '<script>alert(1)</script>', at: '2026-08-13T10:00:02.000Z', stream: 'stderr' },
+      { type: 'endgroup', text: '', at: '', stream: 'stdout' },
+      { type: 'line', text: 'see https://example.com/report', at: '2026-08-13T10:00:03.000Z', stream: 'stdout' },
+    ]
+
+    await db.insertInto('workflow_job_logs').values({
+      workflow_job_id: Number(job.id),
+      sequence: 2,
+      content: 'Install dependencies\nbun install succeeded\n<script>alert(1)</script>\nsee https://example.com/report\n',
+      stream: 'stdout',
+      events: JSON.stringify(events),
+    }).execute()
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.running}`)
+
+    // Grouped, and foldable with no script: the run screen carries almost none.
+    expect(html).toContain('<details class="log-group"')
+    expect(html).toContain('Install dependencies')
+
+    // The colour a test runner meant, as a class rather than an inline style.
+    expect(html).toContain('ansi-green')
+    expect(html).not.toContain(`${ESC}[32m`)
+
+    // Which stream, without a prefix somebody's build could have printed.
+    expect(html).toContain('log-stderr')
+
+    // A link, and one this instance does not vouch for.
+    expect(html).toContain('rel="noreferrer nofollow noopener"')
+
+    // And the line that tried to write markup is text.
+    expect(html).toContain('&lt;script&gt;')
+    expect(html).not.toContain('<script>alert(1)</script>')
+  })
+})

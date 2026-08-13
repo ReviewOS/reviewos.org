@@ -3,6 +3,7 @@ import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { schema } from '@stacksjs/validation'
 import { authenticateJob } from './authenticate'
 import { appendLog } from './logs'
+import { parseEvents } from './logevents'
 
 /**
  * Output from a job, as it happens.
@@ -60,11 +61,24 @@ export default new Action({
     if (!held)
       return runnerJson({ error: 'Unknown job credential' }, 401)
 
+    /*
+     * Text or events, and text is not deprecated.
+     *
+     * A runner that sends what its build printed is doing the honest thing, and
+     * requiring structure to say "here is a line" would be a protocol nobody
+     * could write in an afternoon. Events are for the four things text cannot
+     * carry - which lines were grouped, when the job printed them, which stream
+     * each came from, and where colour started - and a runner that sends them
+     * does not also have to send the flattened form.
+     */
+    const events = parseEvents(request.get('events'))
+
     const outcome = await appendLog({
       jobId: held.jobId,
       sequence: Number(request.get('sequence')),
       content: String(request.get('content') ?? ''),
       stream: request.get('stream') === 'stderr' ? 'stderr' : 'stdout',
+      events,
     })
 
     if (!outcome.ok)
@@ -74,6 +88,9 @@ export default new Action({
       stored: !outcome.duplicate,
       duplicate: outcome.duplicate,
       truncated: outcome.truncated,
+      // How many of the events sent were understood. A runner ahead of this
+      // server can see that some were dropped rather than assuming they landed.
+      events: events.length,
     })
   },
 })

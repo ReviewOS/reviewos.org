@@ -15,6 +15,7 @@
 import { repositoryForView } from '../../../../functions/repo'
 import { relativeTime, shortSha } from '../../../../functions/browse'
 import { artifactSize, runDuration, runIsFinished, runLabel, runTone } from '../../../../functions/runs'
+import { eventsFromText, renderLog } from '../../../../functions/runs'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
 // `resources/components/RepoBrowser.stx`.
@@ -106,13 +107,25 @@ for (const step of stepRows) {
 const logRows: any[] = jobRows.length > 0
   ? await db
       .selectFrom('workflow_job_logs')
-      .select(['workflow_job_id', 'sequence', 'stream', 'content'])
+      .select(['workflow_job_id', 'sequence', 'stream', 'content', 'events'])
       .where('workflow_job_id', 'in', jobRows.map(job => Number(job.id)))
       .orderBy('sequence')
       .execute()
   : []
 
 const logByJob = new Map<number, string>()
+
+/*
+ * The same output as events, for the jobs whose runner sent them.
+ *
+ * Four things cannot be recovered from the text afterwards - which lines were
+ * grouped, when each was printed, which stream it came from, and where colour
+ * started - so a job that sent structure gets the richer rendering and one that
+ * sent bytes gets the same renderer over lines derived from them. Two renderers
+ * would mean the half of a log stored before events existed looked different
+ * from the half after.
+ */
+const eventsByJob = new Map<number, any[]>()
 /*
  * The last sequence each job's output reached, which is where a follower picks
  * up. Without it the live tail would either re-send everything the page already
@@ -124,6 +137,19 @@ const cursorByJob = new Map<number, number>()
 for (const chunk of logRows) {
   const jobId = Number(chunk.workflow_job_id)
   logByJob.set(jobId, (logByJob.get(jobId) ?? '') + String(chunk.content ?? ''))
+
+  if (chunk.events) {
+    try {
+      const parsed = JSON.parse(String(chunk.events))
+
+      if (Array.isArray(parsed))
+        eventsByJob.set(jobId, [...(eventsByJob.get(jobId) ?? []), ...parsed])
+    }
+    catch {
+      // A row whose JSON will not parse still has its text above, which is
+      // correct - so the structure is dropped rather than the output.
+    }
+  }
   cursorByJob.set(jobId, Math.max(cursorByJob.get(jobId) ?? 0, Number(chunk.sequence) || 0))
 }
 
@@ -212,6 +238,16 @@ const jobs = jobRows.map((job) => {
     // Trimmed of trailing blank lines only: everything else is what the job
     // printed, and a log this screen edited is a log nobody can trust.
     log: (logByJob.get(Number(job.id)) ?? '').replace(/\s+$/, ''),
+    /*
+     * The rendered log: groups a reader can fold, colour a test runner meant,
+     * links that are links. Built here rather than in the template because it
+     * is markup, and markup assembled in a template is markup nobody escaped.
+     */
+    logHtml: renderLog(
+      eventsByJob.get(Number(job.id))
+      ?? eventsFromText((logByJob.get(Number(job.id)) ?? '').replace(/\s+$/, '')),
+      { failed: String(job.state) === 'failed' },
+    ),
     // The row id the log endpoint is keyed on, and where this page's copy of
     // the output ends.
     id: Number(job.id),
@@ -336,7 +372,15 @@ const base = `/${ownerHandle}/${repositoryName}`
                 {{-- `pre` and nothing else. This text came off a machine
                      running somebody's build, so it is escaped and shown, never
                      interpreted. --}}
-                @if (job.log)
+                @if (job.logHtml)
+                  {{--
+                    Already escaped: every piece of text in here went through
+                    the ANSI renderer, which escapes before it decorates. The
+                    bytes came off a machine running somebody's build, and a log
+                    that can write a tag owns the page it is shown on.
+                  --}}
+                  <div class="log-body">{!! job.logHtml !!}</div>
+                @elseif (job.log)
                   <pre class="log-body">{{ job.log }}</pre>
                 @endif
 
@@ -428,6 +472,31 @@ const base = `/${ownerHandle}/${repositoryName}`
     font-size: 13px;
     border-color: var(--warn, #bf8700);
   }
+
+  /* The log, when a runner sent structure. `pre` still styles the plain half. */
+  .log-line { display: flex; gap: 10px; white-space: pre-wrap; word-break: break-word; }
+  .log-time { color: var(--muted); flex: none; font-variant-numeric: tabular-nums; }
+  .log-text { flex: 1; }
+  .log-stderr .log-text { color: var(--bad); }
+
+  .log-group { margin: 2px 0; }
+  .log-group-name { cursor: pointer; font-weight: 600; }
+  .log-group-body { padding-left: 14px; border-left: 1px solid var(--line); margin-top: 4px; }
+
+  /* A build's own colours. Named rather than hardcoded, so a theme decides what
+     "red" is on the background the reader actually has. */
+  .ansi-black { color: #555; }
+  .ansi-red, .ansi-bright-red { color: var(--bad); }
+  .ansi-green, .ansi-bright-green { color: var(--ok); }
+  .ansi-yellow, .ansi-bright-yellow { color: var(--warn); }
+  .ansi-blue, .ansi-bright-blue { color: var(--accent, #2f6feb); }
+  .ansi-magenta, .ansi-bright-magenta { color: #a371f7; }
+  .ansi-cyan, .ansi-bright-cyan { color: #1b7c83; }
+  .ansi-white, .ansi-bright-white { color: var(--fg); }
+  .ansi-bold { font-weight: 700; }
+  .ansi-dim { opacity: 0.7; }
+  .ansi-italic { font-style: italic; }
+  .ansi-underline { text-decoration: underline; }
 
   .artifacts { padding: 15px 17px; margin-top: 16px; }
   .artifacts-heading { font-size: 14px; font-weight: 600; margin: 0; }

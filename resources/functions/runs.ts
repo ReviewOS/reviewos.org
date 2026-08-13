@@ -99,3 +99,15 @@ export function runDuration(startedAt: unknown, finishedAt: unknown): string {
 import { megabytes as megabytesImpl } from '../../app/Actions/Artifact/storage'
 
 export const artifactSize = megabytesImpl
+
+/**
+ * A job's output, rendered.
+ *
+ * Re-exported one name at a time rather than with `export … from`, which the
+ * stx composable loader cannot parse - it fails by leaving every binding
+ * undefined rather than by saying so.
+ */
+import { eventsFromText as eventsFromTextImpl, renderLog as renderLogImpl } from '../../app/Actions/Runner/logrender'
+
+export const renderLog = renderLogImpl
+export const eventsFromText = eventsFromTextImpl

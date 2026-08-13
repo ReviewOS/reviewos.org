@@ -27,6 +27,8 @@ declare global {
   const runDuration: typeof autoImports.runDuration
   const RUN_STATES: typeof autoImports.RUN_STATES
   const artifactSize: typeof autoImports.artifactSize
+  const renderLog: typeof autoImports.renderLog
+  const eventsFromText: typeof autoImports.eventsFromText
   const intervalFor: typeof autoImports.intervalFor
   const watchRun: typeof autoImports.watchRun
   const watchJobLog: typeof autoImports.watchJobLog

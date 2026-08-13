@@ -15,6 +15,8 @@
  */
 
 import { db } from '@stacksjs/database'
+import type { LogEvent } from './logevents'
+import { eventsAsText } from './logevents'
 
 /**
  * How much output one job may keep.
@@ -35,6 +37,16 @@ export interface AppendInput {
   sequence: number
   content: string
   stream?: 'stdout' | 'stderr'
+  /**
+   * The same output as events, when the runner sent it that way.
+   *
+   * Stored beside the text rather than instead of it. `content` stays the
+   * source of truth for everything that reads a log as text - the ceiling
+   * arithmetic here, the API's plain answer, somebody with `curl` - and a
+   * caller that sends events gets the text derived from them rather than having
+   * to send both.
+   */
+  events?: readonly LogEvent[]
 }
 
 export interface AppendOutcome {
@@ -74,11 +86,16 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
   if (!Number.isInteger(input.sequence) || input.sequence < 1)
     return { ok: false, duplicate: false, truncated: false, reason: 'a sequence number from 1 is required' }
 
+  // Events, when there are any, decide the text: a runner that sends structure
+  // should not also have to send the flattened form and keep the two in step.
+  const events = input.events && input.events.length > 0 ? input.events : null
+  const text = events ? eventsAsText(events) : input.content
+
   // Trimmed rather than refused: a runner that sends a large chunk has already
   // produced the output, and refusing it loses more than clipping it does.
-  const content = byteLength(input.content) > MAX_CHUNK_BYTES
-    ? `${input.content.slice(0, MAX_CHUNK_BYTES)}\n[chunk truncated]\n`
-    : input.content
+  const content = byteLength(text) > MAX_CHUNK_BYTES
+    ? `${text.slice(0, MAX_CHUNK_BYTES)}\n[chunk truncated]\n`
+    : text
 
   const already = await storedBytes(input.jobId)
 
@@ -101,6 +118,13 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
         sequence: input.sequence,
         content: clipped,
         stream,
+        /*
+         * The structured form is stored only when the text survived whole.
+         * Past the ceiling the two would disagree - the text clipped, the
+         * events complete - and a screen reading events would show lines the
+         * plain answer says were dropped.
+         */
+        events: events && clipped === text ? JSON.stringify(events) : null,
       } as any)
       .execute()
   }
@@ -127,7 +151,7 @@ function isDuplicate(error: unknown): boolean {
 
 export interface LogPage {
   /** Chunks after the cursor, in the order the runner produced them. */
-  chunks: Array<{ sequence: number, stream: string, content: string }>
+  chunks: Array<{ sequence: number, stream: string, content: string, events?: LogEvent[] }>
   /** Where to ask from next. Unchanged when there was nothing new. */
   cursor: number
 }
@@ -143,7 +167,7 @@ export interface LogPage {
 export async function readLog(jobId: number, after = 0, limit = 200): Promise<LogPage> {
   const rows: any[] = await db
     .selectFrom('workflow_job_logs')
-    .select(['sequence', 'stream', 'content'])
+    .select(['sequence', 'stream', 'content', 'events'])
     .where('workflow_job_id', '=', jobId)
     .where('sequence', '>', Number.isFinite(after) ? after : 0)
     .orderBy('sequence', 'asc')
@@ -155,7 +179,30 @@ export async function readLog(jobId: number, after = 0, limit = 200): Promise<Lo
       sequence: Number(row.sequence),
       stream: String(row.stream ?? 'stdout'),
       content: String(row.content ?? ''),
+      // Present only for the chunks a runner sent structured. A reader that
+      // does not know about events sees the text and misses nothing it could
+      // have used; one that does gets the groups, the timestamps and the
+      // colour, which cannot be recovered from the text afterwards.
+      ...(row.events ? { events: safeEvents(row.events) } : {}),
     })),
     cursor: rows.length > 0 ? Number(rows[rows.length - 1].sequence) : (Number.isFinite(after) ? after : 0),
+  }
+}
+
+/**
+ * The stored events, or none.
+ *
+ * A row whose JSON will not parse is a row written by a version that is gone or
+ * a database somebody edited, and the text beside it is still correct - so this
+ * drops the structure rather than failing a read of the log.
+ */
+function safeEvents(stored: unknown): LogEvent[] {
+  try {
+    const parsed = JSON.parse(String(stored ?? ''))
+
+    return Array.isArray(parsed) ? parsed as LogEvent[] : []
+  }
+  catch {
+    return []
   }
 }

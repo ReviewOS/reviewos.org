@@ -459,7 +459,32 @@ decisions.
 - [ ] Log output streamed live, with collapsible groups the job itself opens and closes, per-line
       timestamps, ANSI colour, links, and images
 
-      **The streaming is done; the four decorations are not.** The run screen follows a job from the
+      **Everything but images.** Groups, timestamps, colour and links are done, on top of structured
+      log events: an append may carry `line`, `group` and `endgroup` events instead of bytes, and
+      the four things text cannot carry stop being guesses. `::group::` is a marker one CI product
+      uses and a string somebody's build may legitimately print; the time a chunk arrived is not the
+      time a line was printed, since a runner batching a hundred lines has them all land in one
+      millisecond; a chunk carries one stream where a job interleaves two; and escape bytes shown as
+      text are noise nobody can turn off.
+
+      A group is a `<details>`, so folding works with no script - the run screen carries almost
+      none. The last group of a *failed* job is open, because a job that groups its output is
+      usually grouping the parts nobody reads and the exception is the one the failure is in; that
+      is decided from the job's state rather than by searching the output for the word "error".
+
+      Colour is classes rather than inline styles, so a theme decides what red is on the background
+      the reader actually has. Links are `http` and `https` only, `rel="noreferrer nofollow
+      noopener"`, with trailing punctuation left out of the href - a link that 404s because it
+      swallowed a full stop teaches people not to click them.
+
+      Text is not deprecated: a runner that sends what its build printed still works, renders through
+      the same path, and gets the text stored beside any events rather than having to send both.
+
+      Images are the one left. They need a way to reference bytes a job produced - which is now
+      possible, artifacts exist - plus a content policy for rendering them, and an image a build can
+      put on a page somebody else loads is a decision rather than a feature.
+
+      **The streaming half, from before:** The run screen follows a job from the
       sequence the page was rendered at - `resources/functions/runlive.ts` - so a job that has
       already printed two megabytes costs nothing to follow and a reader never sees a line twice.
       New output is appended after what the server rendered rather than replacing it, because a

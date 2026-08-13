@@ -3,7 +3,7 @@
 export { pushState, enablePush, disablePush, testPush, pushSupported } from '../../../resources/functions/push'
 export type { PushState } from '../../../resources/functions/push'
 export { viewerFromCookies, cookieJarFromHeader, ownersForCreate, organizationRoleOf, organizationsFor, peopleIn } from '../../../resources/functions/identity'
-export { runTone, runLabel, runIsFinished, runDuration, RUN_STATES, artifactSize } from '../../../resources/functions/runs'
+export { runTone, runLabel, runIsFinished, runDuration, RUN_STATES, artifactSize, renderLog, eventsFromText } from '../../../resources/functions/runs'
 export type { RunTone } from '../../../resources/functions/runs'
 export { intervalFor, watchRun, watchJobLog } from '../../../resources/functions/runlive'
 export type { RunJobState, RunSnapshot, WatchRunOptions, LiveHandle, WatchLogOptions } from '../../../resources/functions/runlive'

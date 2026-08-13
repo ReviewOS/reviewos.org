@@ -106,6 +106,47 @@ The sequence is the runner's own counter, and it is what makes at-least-once
 delivery safe: sending the same chunk twice stores it once and answers
 `duplicate: true`. A runner that did not hear an answer should send it again.
 
+**Or as events**, when the runner has more than bytes to say:
+
+```json
+{
+  "sequence": 2,
+  "events": [
+    { "type": "group", "text": "Install dependencies" },
+    { "type": "line", "text": "bun install", "at": "2026-08-13T10:00:01Z", "stream": "stdout" },
+    { "type": "endgroup" }
+  ]
+}
+```
+
+Text is not deprecated and will not be. A runner that sends what its build
+printed is doing the honest thing; events exist for the four things text cannot
+carry and that cannot be recovered from it afterwards:
+
+- **which lines were grouped**, because `::group::` is a marker one CI product
+  uses and a string somebody's build may legitimately print;
+- **when the job printed each line**, because the time this server received a
+  chunk is not that - a runner batching a hundred lines for one round trip would
+  have them all arrive in the same millisecond;
+- **which stream each line came from**, since a chunk carries one `stream` and a
+  runner interleaving stdout and stderr would otherwise have to split every
+  chunk or lie;
+- **where colour started and stopped**, so a page can render it or ignore it per
+  reader rather than showing escape bytes as text.
+
+Three event types: `line`, `group`, `endgroup`. Nesting is flat, like every CI
+product that has this. A group nobody closed is closed at the end, because a
+build that fails inside one never gets to close it - and that is the group
+somebody came to read.
+
+The answer reports how many events were understood. An event type this server
+has not learned is **dropped, not refused**: a newer runner mid-fleet-upgrade
+should not lose the lines around it, and the protocol version is what tells it
+the server is older.
+
+The text form is stored alongside, derived from the events, so everything that
+reads a log as text keeps working without knowing any of this exists.
+
 There is a ceiling on a job's total output, enforced on the way in. Past it the
 append is **accepted and dropped** rather than refused - a 4xx there makes a
 correct runner retry a chunk that will never be wanted.

@@ -9122,6 +9122,14 @@
             "enumTypeName": "workflow_job_logs_stream_type"
           },
           {
+            "name": "events",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
             "name": "created_at",
             "type": "datetime",
             "isPrimaryKey": false,
@@ -9294,7 +9302,7 @@
       }
     ]
   },
-  "hash": "b849940097ee6c34fac853e67576a8948b5cd77ba11056f5b615c24ce9ffbb8c",
+  "hash": "d36731f1c473dcd216a989c7e96220b8ab8a0962c75c26f8f19ecafa3129d688",
   "dialect": "postgres",
-  "updatedAt": "2026-08-13T05:16:51.375Z"
+  "updatedAt": "2026-08-13T06:02:23.328Z"
 }
