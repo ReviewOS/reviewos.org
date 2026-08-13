@@ -29,33 +29,44 @@ export interface BlogConfig {
   }
 }
 
+/*
+ * The blog, as this project rather than as the template it started from.
+ *
+ * Every value below was Stacks': the title, the description, the canonical URL,
+ * the social handles, the colophon. None of it is a placeholder that reads as
+ * one - a build of this would have published another product's branding on
+ * reviewos.org, and it would have looked deliberate.
+ *
+ * `content/blog/` is empty on purpose. Two posts about Stacks shipped here for
+ * the same reason, and an empty blog is honest where somebody else's marketing
+ * is not.
+ */
 const config: BlogConfig = {
   subdomain: 'blog',
-  title: 'The Stacks Blog',
-  description: 'Notes from building a full-stack TypeScript framework whose only dependencies are TypeScript and Bun.',
+  title: 'The ReviewOS Blog',
+  description: 'Notes from building an open source git forge organized around code review.',
   postsPerPage: 10,
   enableComments: true,
   enableRss: true,
   enableSitemap: true,
   enableSearch: true,
-  siteTitle: 'Stacks Blog',
-  author: 'The Stacks Team',
-  url: 'https://stacksjs.com',
+  siteTitle: 'ReviewOS Blog',
+  author: 'The ReviewOS contributors',
+  url: 'https://reviewos.org',
   nav: [
     { text: 'Blog', link: '/blog' },
     { text: 'Docs', link: '/docs' },
-    { text: 'GitHub', link: 'https://github.com/stacksjs/stacks' },
+    { text: 'GitHub', link: 'https://github.com/ReviewOS/reviewos.org' },
   ],
   themes: ['colored', 'light', 'dark'],
   defaultTheme: 'light',
-  colophon: 'Built with Stacks · TypeScript &amp; Bun · <a href="/blog/feed.xml">RSS</a>',
+  colophon: 'Open source, self-hostable · <a href="/blog/feed.xml">RSS</a>',
   social: {
-    twitter: 'stacksjs',
-    github: 'stacksjs/stacks',
+    github: 'ReviewOS/reviewos.org',
   },
   theme: {
     primaryColor: '#2563eb',
-    logo: '/images/logos/logo-transparent.svg',
+    logo: undefined,
   },
 }
 

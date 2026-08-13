@@ -43,8 +43,11 @@ feature, a page per use case, and comparisons that say plainly what the alternat
 - [ ] Screenshots of the actual review interface, once phase 4 exists. Placeholders now, replaced
       then; shipping invented screenshots of software that does not exist yet is not acceptable.
 - [x] Contrast measured rather than eyeballed: every text pair passes WCAG AA in both themes
-- [ ] Remove the leftover template assets in `resources/assets/` (2.8 MB of images, a demo
-      stylesheet, and a demo script) once nothing in the build references them
+- [x] Remove the leftover template assets in `resources/assets/` (3.1 MB: eight national-park
+      illustrations, eight fonts, a demo stylesheet and a demo script). Nothing referenced any of
+      it but the two template blog posts, which went too - `content/blog/` shipped "Introducing
+      Stacks", and `config/blog.ts` was titled The Stacks Blog with stacksjs.com as its canonical
+      URL, so a blog build here would have published another product's branding.
 - [ ] Open Graph and Twitter card metadata, with a generated social image
 - [ ] Lighthouse pass: no layout shift, fonts preloaded, images sized
 
