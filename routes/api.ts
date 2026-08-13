@@ -433,6 +433,7 @@ route.get('/repos/search', 'Actions/Browse/SearchCodeAction')
  * a leak to one person but a listing.
  */
 route.get('/explore', 'Actions/Explore/ExploreAction')
+route.get('/discover', 'Actions/Feed/DiscoverFeedAction')
 route.get('/repos/compare', 'Actions/Browse/CompareAction')
 
 // Releases. A release is a tag plus what somebody wanted to say about it, so

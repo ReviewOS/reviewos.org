@@ -3,10 +3,11 @@ import { describeEntry } from '../../Activity/verbs'
 /**
  * Reading a feed.
  *
- * Two of them, and they are different questions. A **profile** feed is "what
+ * Three of them, and they are different questions. A **profile** feed is "what
  * has this person done", ordered by their own activity. A **dashboard** feed is
- * "what happened in the repositories I watch and to the people I follow", which
- * is a much wider net and the one the roadmap warns will hurt first.
+ * "what happened in the repositories I watch". A **discover** feed is "what is
+ * happening in public repositories on this instance", for finding work outside
+ * the reader's existing watch list.
  *
  * Both are keyset paginated rather than offset paginated, and that is not
  * premature. `OFFSET 2000` makes Postgres read and discard two thousand rows to
@@ -194,6 +195,46 @@ export async function dashboardFeed(options: {
 
   const rows: any[] = await query
     .orderBy('id', 'desc')
+    .limit(limit + 1)
+    .execute()
+
+  return page(rows, limit)
+}
+
+/**
+ * Public work happening across the instance.
+ *
+ * This checks both the event's recorded visibility and the repository's current
+ * visibility. `is_public` prevents a repository made public today from exposing
+ * events written while it was private. The join prevents a repository made
+ * private today from remaining advertised on a discovery page that links to a
+ * place the reader can no longer open.
+ */
+export async function discoverFeed(options: {
+  before?: number | null
+  limit?: number
+} = {}): Promise<FeedPage> {
+  const limit = Math.min(Math.max(1, options.limit ?? PAGE_SIZE), 100)
+
+  let query = db
+    .selectFrom('activity_events')
+    .innerJoin('repositories', 'repositories.id', '=', 'activity_events.repository_id')
+    .select([
+      'activity_events.id as id',
+      'activity_events.actor_id as actor_id',
+      'activity_events.verb as verb',
+      'activity_events.subject_type as subject_type',
+      'activity_events.detail as detail',
+      'activity_events.created_at as created_at',
+    ])
+    .where('activity_events.is_public', '=', true)
+    .where('repositories.visibility', '=', 'public')
+
+  if (options.before)
+    query = query.where('activity_events.id', '<', Number(options.before))
+
+  const rows: any[] = await query
+    .orderBy('activity_events.id', 'desc')
     .limit(limit + 1)
     .execute()
 
