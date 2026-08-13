@@ -731,6 +731,26 @@ the run must remain inspectable and resumable without trusting runner memory.
 - [ ] Tests cover every state transition, token boundaries, idempotency, stale writes, cursor
       pagination, recovery after lease expiry, and restart from a step
 
+      **Six of the seven, and the seventh has nothing to test.** Restart from a step needs steps to
+      be restartable, which is a box further up this file that is still open; the rest are covered
+      and it is worth writing down where, because a list like this is otherwise a claim nobody can
+      check:
+
+      | Named case | Where |
+      |---|---|
+      | every state transition | `tests/unit/workflow-state-table.test.ts` - the table itself, not one case at a time |
+      | token boundaries | `runner-api.test.ts`: a registration token cannot report, a job credential cannot write to another job |
+      | idempotency | `runner-claim.test.ts` (the repeated completion), `runner-logs.test.ts` (the repeated chunk) |
+      | stale writes | `runner-claim.test.ts` (a report after the lease lapsed), `runner-api.test.ts` (a completion for a run that already ended) |
+      | cursor pagination | `workflow-api.test.ts` - including that the last page carries no cursor rather than one returning nothing |
+      | recovery after lease expiry | `runner-reclaim.test.ts`, both directions: the dead machine's work comes back, the live machine keeps its own |
+
+      The state-transition file is the one worth reading. Individual cases cover the transitions
+      somebody thought to write down; what they cannot cover is the shape of the table - a state
+      added to the union and forgotten in the table, a terminal state that grew an exit, a derived
+      state the table has never heard of. Each is a one-line mistake, and each ends with a run that
+      either never finishes or finishes twice.
+
 ## Runner provider contract
 
 Build the provider-neutral contract before a hosted runner. The first useful provider may be a
@@ -879,8 +899,19 @@ should not make its public workflow API describe one vendor's sandbox.
       sends somebody to look at their payload and a 401 to look at their token, and both are the
       wrong afternoon. And the check runs **before the credential**, because a runner that cannot be
       spoken to will misread whatever it is handed.
-- [ ] Tests against a fake provider: disconnect, duplicate claim, late completion, cancellation,
+- [x] Tests against a fake provider: disconnect, duplicate claim, late completion, cancellation,
       incompatible capabilities, and a credential used against the wrong job
+
+      All six, against the real endpoints rather than a mock, because the mock would be the thing
+      being tested. Disconnect is the recovery sweep - a machine that stopped talking cannot say so,
+      which is the whole reason leases exist. Duplicate claim is two runners asking at once, where
+      the guarded write decides. Late completion is a report whose lease lapsed, and the one this
+      protocol is built to refuse: a worker that lost its connection publishing a success over work
+      somebody else now holds. Cancellation covers the acknowledgment with a revoked lease and the
+      forced sweep behind it. Incompatible capabilities answers "no work" rather than an error,
+      because a fleet of specialised machines should not log an error every few seconds for
+      behaving correctly. And a credential used against the wrong job is refused as *held by another
+      runner* rather than as missing - the runner is real, it is just not holding this.
 
 ## Execution plane, only after the security decision
 

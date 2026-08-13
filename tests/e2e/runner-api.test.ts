@@ -592,3 +592,87 @@ describe('speaking the same protocol', () => {
     }
   })
 })
+
+
+describe('the cases a fake provider is put through', () => {
+  /*
+   * The roadmap names six: disconnect, duplicate claim, late completion,
+   * cancellation, incompatible capabilities, and a credential used against the
+   * wrong job. Most are covered above and next door; these are the two that had
+   * no end-to-end case, and both are the kind that only ever happen under load.
+   */
+  async function claimOne(): Promise<{ id: number, token: string }> {
+    await freshRun(`${Math.random().toString(16).slice(2)}`.padEnd(40, '0'))
+    const answer = await call('/runner/claim', {})
+    return { id: Number(answer.body.job.id), token: String(answer.body.job.token) }
+  }
+
+  /*
+   * Incompatible capabilities, over HTTP rather than against the rule.
+   *
+   * A runner that cannot satisfy `runs-on` is offered nothing, and the answer
+   * is the ordinary "no work" rather than an error: from the runner's side
+   * there is simply nothing for it, and a fleet of specialised machines would
+   * otherwise log an error every few seconds for behaving correctly.
+   */
+  test('a runner whose labels do not match is offered nothing, not an error', async () => {
+    if (!available)
+      return
+
+    const picky = `tok-${Buffer.from(crypto.getRandomValues(new Uint8Array(8))).toString('hex')}`
+
+    const row: any = await db.insertInto('runners').values({
+      name: unique('picky'),
+      scope_type: 'repository',
+      scope_id: created.repositoryId,
+      token_hash: hashToken(picky),
+      labels: 'macos-14',
+      state: 'active',
+    }).returning(['id']).executeTakeFirst()
+
+    created.runnerIds.push(Number(row.id))
+
+    await freshRun(`${Math.random().toString(16).slice(2)}`.padEnd(40, '0'))
+
+    const answer = await call('/runner/claim', {}, picky)
+
+    expect(answer.status).toBe(200)
+    expect(answer.body.job).toBeNull()
+  })
+
+  /*
+   * A stale write against a run that has already finished.
+   *
+   * The report arrives from a machine that was working the whole time; the run
+   * ended underneath it because the control plane forced a cancellation or
+   * another job failed the graph. Believing it would move a terminal run, which
+   * is the one thing the state machine exists to refuse.
+   */
+  test('a completion for a job whose run already ended does not move it', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+
+    const before: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['workflow_run_id'])
+      .where('id', '=', job.id)
+      .executeTakeFirst()
+
+    const runId = Number(before.workflow_run_id)
+
+    // The run finishes without this job, the way a forced cancellation ends it.
+    await db.updateTable('workflow_jobs').set({ state: 'cancelled' }).where('id', '=', job.id).execute()
+    await db.updateTable('workflow_runs').set({ state: 'cancelled' }).where('id', '=', runId).execute()
+
+    const answer = await call('/runner/report', { state: 'succeeded' }, job.token)
+
+    // Answered rather than errored - the job is terminal, so this is the
+    // at-least-once duplicate case - and the run stays where it was.
+    expect([200, 409]).toContain(answer.status)
+
+    const after: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
+    expect(String(after.state)).toBe('cancelled')
+  })
+})
