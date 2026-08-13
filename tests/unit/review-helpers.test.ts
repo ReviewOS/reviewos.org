@@ -6,7 +6,7 @@
 // the line that replaced the one it was written about is worse than no comment.
 
 import { describe, expect, test } from 'bun:test'
-import { formatCount, relativeTime, threadsAt } from '../../resources/functions/review'
+import { formatCount, relativeTimeAt, threadsAt } from '../../resources/functions/review'
 import { startsCollapsed } from '../../app/Actions/Pull/manifest'
 
 function thread(id: number, path: string, line: number | null, side: 'left' | 'right' = 'right') {
@@ -106,34 +106,34 @@ describe('formatCount', () => {
   })
 })
 
-describe('relativeTime', () => {
+describe('relativeTimeAt', () => {
   const now = Date.parse('2026-07-30T12:00:00Z')
 
   test('very recent reads as just now', () => {
-    expect(relativeTime('2026-07-30T11:59:40Z', now)).toBe('just now')
+    expect(relativeTimeAt('2026-07-30T11:59:40Z', now)).toBe('just now')
   })
 
   test('minutes', () => {
-    expect(relativeTime('2026-07-30T11:30:00Z', now)).toBe('30 minutes ago')
+    expect(relativeTimeAt('2026-07-30T11:30:00Z', now)).toBe('30 minutes ago')
   })
 
   test('hours', () => {
-    expect(relativeTime('2026-07-30T09:00:00Z', now)).toBe('3 hours ago')
+    expect(relativeTimeAt('2026-07-30T09:00:00Z', now)).toBe('3 hours ago')
   })
 
   test('days', () => {
-    expect(relativeTime('2026-07-27T12:00:00Z', now)).toBe('3 days ago')
+    expect(relativeTimeAt('2026-07-27T12:00:00Z', now)).toBe('3 days ago')
   })
 
   test('uses the singular for one', () => {
-    expect(relativeTime('2026-07-29T12:00:00Z', now)).toBe('1 day ago')
+    expect(relativeTimeAt('2026-07-29T12:00:00Z', now)).toBe('1 day ago')
   })
 
   test('years', () => {
-    expect(relativeTime('2025-07-30T12:00:00Z', now)).toBe('1 year ago')
+    expect(relativeTimeAt('2025-07-30T12:00:00Z', now)).toBe('1 year ago')
   })
 
   test('an unparseable date renders as nothing rather than Invalid Date', () => {
-    expect(relativeTime('not a date', now)).toBe('')
+    expect(relativeTimeAt('not a date', now)).toBe('')
   })
 })

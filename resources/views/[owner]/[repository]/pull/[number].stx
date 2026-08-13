@@ -13,7 +13,12 @@
 import { repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
-import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, blockedBy, buildStack, orphanMessage, orphanReason, stackSummary, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists, checksPanel, annotationsByLine, annotationsForLine, renderAnnotations } from '../../../../functions/review'
+import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists, checksPanel, annotationsByLine, annotationsForLine, renderAnnotations } from '../../../../functions/review'
+// The stack helpers from the module that owns them. They used to be
+// re-exported by `review.ts` so this line could be one import; two modules
+// exporting one name is what breaks the auto-import barrel for every function
+// in the product, so the convenience went.
+import { blockedBy, buildStack, orphanMessage, orphanReason, stackSummary } from '../../../../functions/stack'
 import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)

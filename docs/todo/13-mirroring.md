@@ -244,8 +244,13 @@ documentation is markdown that the docs pipeline has to render anyway.
       route, and `/js/mermaid.js` serves 3,493,222 bytes of `application/javascript` - the file's
       own size - while `/stacks/stacks` still renders the repository and `/favicon.ico`, which
       publicDir genuinely does not have, still falls through to the page.
-- [ ] Its markdown renders through the docs pipeline described in
-      [07 - Marketing and docs](./07-marketing-docs.md)
+- [x] Its markdown renders through the docs pipeline described in
+      [07 - Marketing and docs](./07-marketing-docs.md). Held by
+      `tests/e2e/markdown-in-repository.test.ts`, which pushes a document with a mermaid fence, a
+      task list, a table, a fenced code block and an emoji into a real repository and asks the
+      served product for it: the fence is a `<pre class="mermaid">`, the tasks are disabled
+      checkboxes, the table is a table, and the README on the repository page goes through the same
+      pipeline rather than a second one.
 - [x] Pull requests visible in the review screen, which is the actual test of whether any of this
       was worth building.
 

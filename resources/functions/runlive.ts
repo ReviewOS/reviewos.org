@@ -52,7 +52,13 @@ export interface WatchRunOptions {
   onFinished?: (state: string) => void
 }
 
-export interface LiveHandle {
+/**
+ * Named `RunLiveHandle` rather than `LiveHandle` because `live.ts` owns that
+ * name, and the auto-import barrel is one namespace - two exports of a name,
+ * type or not, make it fail to compile and take every other function in
+ * `resources/functions/` with it.
+ */
+export interface RunLiveHandle {
   stop: () => void
 }
 
@@ -78,7 +84,7 @@ export function intervalFor(state: string, hidden: boolean): number {
   return state === 'running' || state === 'cancelling' ? 3000 : 10_000
 }
 
-export function watchRun(options: WatchRunOptions): LiveHandle {
+export function watchRun(options: WatchRunOptions): RunLiveHandle {
   let stopped = false
   let timer: any = null
 
@@ -167,7 +173,7 @@ export interface WatchLogOptions {
  * log this page already has is how a tab open on a long build runs out of
  * memory.
  */
-export function watchJobLog(options: WatchLogOptions): LiveHandle {
+export function watchJobLog(options: WatchLogOptions): RunLiveHandle {
   let stopped = false
   let timer: any = null
   let finishing = false

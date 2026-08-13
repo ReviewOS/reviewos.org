@@ -54,12 +54,15 @@ export function formatCount(value: number): string {
 }
 
 /**
- * A short, human sense of when something happened.
+ * A short, human sense of when something happened, at a given clock.
  *
- * Takes the current time as an argument rather than reading the clock, so a
- * rendered page is a function of its inputs and the tests are not flaky.
+ * Takes the current time as an argument rather than reading it, so a rendered
+ * page is a function of its inputs and the tests are not flaky. Named
+ * `relativeTimeAt` because `browse.ts` owns `relativeTime`, and the auto-import
+ * barrel is one namespace: two exports of a name make it fail to compile, which
+ * takes every other function in `resources/functions/` down with it.
  */
-export function relativeTime(iso: string, now: number): string {
+export function relativeTimeAt(iso: string, now: number): string {
   const then = Date.parse(iso)
   if (Number.isNaN(then))
     return ''
@@ -91,14 +94,21 @@ export function relativeTime(iso: string, now: number): string {
 }
 
 /**
- * The tokens for one diff line.
+ * The syntax tokens for one diff line.
+ *
+ * Named `lineTokensFor` rather than `tokensFor` because the auto-import barrel
+ * is one namespace: `repo.ts` exports a `tokensFor` that lists an account's
+ * access tokens, and two exports of one name made the whole barrel fail to
+ * compile - "Cannot export a duplicate name" - which takes every other function
+ * in `resources/functions/` down with it and leaves a view that relies on one
+ * saying "is not defined".
  *
  * Keyed by origin and line number rather than by array position, because a
  * hunk's lines are not contiguous in the file and a thread row sits between
  * them. Falls back to the raw content, so a file the highlighter declined
  * still renders.
  */
-export function tokensFor(
+export function lineTokensFor(
   highlighted: Record<string, Array<{ type: string, content: string }>> | undefined,
   line: { origin: string, oldLine: number | null, newLine: number | null, content: string },
 ): Array<{ type: string, content: string }> {
@@ -128,7 +138,6 @@ import { approvalsSatisfied as approvalsSatisfiedImpl, machineAccountsAmong as m
 import { changedPathsFor as changedPathsForImpl, commitDiff as commitDiffImpl, commitsOnBranch as commitsOnBranchImpl, pullRequestDiff as pullRequestDiffImpl } from '../../app/Actions/Pull/load'
 import { isMergeStrategy as isMergeStrategyImpl, mergeBlockers as mergeBlockersImpl } from '../../app/Actions/Pull/merge'
 import { combinedState as combinedStateImpl, requirementSummary as requirementSummaryImpl, requirementsSatisfied as requirementsSatisfiedImpl } from '../../app/Actions/Checks/status'
-import { labelTextColor as labelTextColorImpl } from '../../app/Actions/Issue/labels'
 import { highlightDiffFile as highlightDiffFileImpl, renderDiffFile as renderDiffFileImpl } from '../../app/Actions/Pull/rows'
 import { anchorThreads as anchorThreadsImpl, loadReviewThreads as loadReviewThreadsImpl } from '../../app/Actions/Pull/loadThreads'
 import { threadSlotFor as threadSlotForImpl } from '../../app/Actions/Pull/threads'
@@ -137,8 +146,6 @@ import { crossFileMoves as crossFileMovesImpl, moveNotes as moveNotesImpl } from
 import { loadCoverage as loadCoverageImpl } from '../../app/Actions/Checks/coverage'
 import { checksPanel as checksPanelImpl } from '../../app/Actions/Checks/panel'
 import { annotationsByLine as annotationsByLineImpl, annotationsForLine as annotationsForLineImpl, renderAnnotations as renderAnnotationsImpl } from '../../app/Actions/Pull/annotations'
-import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
-import { blockedBy as blockedByImpl, buildStack as buildStackImpl, orphanMessage as orphanMessageImpl, orphanReason as orphanReasonImpl, stackSummary as stackSummaryImpl } from './stack'
 import { refreshMergeability as refreshMergeabilityImpl } from '../../app/Actions/Pull/refresh-mergeability'
 
 export const parseDiff = parseDiffImpl
@@ -177,14 +184,6 @@ export const annotationsForLine = annotationsForLineImpl
 export const renderAnnotations = renderAnnotationsImpl
 export const requirementSummary = requirementSummaryImpl
 export const combinedState = combinedStateImpl
-export const labelTextColor = labelTextColorImpl
-export const highlightLines = highlightLinesImpl
-export const languageFor = languageForImpl
-export const buildStack = buildStackImpl
-export const orphanReason = orphanReasonImpl
-export const orphanMessage = orphanMessageImpl
-export const blockedBy = blockedByImpl
-export const stackSummary = stackSummaryImpl
 export const refreshMergeability = refreshMergeabilityImpl
 
 /**
