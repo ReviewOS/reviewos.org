@@ -168,11 +168,17 @@ The values that have to be right:
 | `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `reviewos` / `postgres` / - | Postgres has exactly one role in the pantry-managed local cluster, so `postgres` is not a placeholder. |
 | `AUTH_IDLE_TIMEOUT` | `0` (off) | How long a session may go **unused** before it stops working, in milliseconds. Distinct from how long it may live at all: an absolute limit alone lets a browser left open on a machine somebody walked away from keep working for its full term. `1800000` is thirty minutes. A value that is not a number stops the instance rather than quietly meaning "off". |
 | `MAIL_HOST` and friends | none | Absent means no password reset and no notification email can be sent, silently. Fine for an invite-only instance, and worth knowing. |
-| `SEARCH_HOST` / `SEARCH_KEY` | - | Meilisearch. The instance works without it; the search page is empty. |
+| `TYPESENSE_HOST` / `TYPESENSE_PORT` / `TYPESENSE_API_KEY` | `127.0.0.1` / `8108` / `pantry-dev` | The search node. The instance works without it and the search page is empty. The development key is a development key: a search node reachable from anywhere, with a guessable key, answers anybody's questions about private repositories. |
 
-`buddy instance:check` reads all of these and says which are wrong, why, and
-what to do. It is the same check the boot path runs, so there is nothing to
-learn twice.
+This table is the triage list, not the reference. [Configuration](./configuration.md)
+is generated from `.env.example` and the source that reads each variable, so it
+cannot drift the way this table did: it said `SEARCH_HOST` and `SEARCH_KEY` for
+months after the instance moved from Meilisearch to Typesense, and anybody who
+followed it configured a search engine nothing reads.
+
+`buddy instance:check` reads the values that have to be right and says which are
+wrong, why, and what to do. It is the same check the boot path runs, so there is
+nothing to learn twice.
 
 ### Secrets from a file
 

@@ -226,7 +226,10 @@ export function renderApiReference(document: OpenApiDocument, at: string, routes
     }
   }
 
-  return `${out.join('\n').replace(/\n{3,}/g, '\n\n')}\n`
+  // Trimmed rather than joined exactly: a page that ends in a blank line is a
+  // lint error in this repository, and a generator that emits one makes every
+  // regeneration fail the check it exists to pass.
+  return `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`
 }
 
 /** How much of the surface documents itself, which is a number worth publishing. */
@@ -314,7 +317,7 @@ export function renderWebhookReference(at: string): string {
     '',
   )
 
-  return `${out.join('\n')}\n`
+  return `${out.join('\n').trimEnd()}\n`
 }
 
 /** One line per event, in the terms a receiver's author thinks in. */

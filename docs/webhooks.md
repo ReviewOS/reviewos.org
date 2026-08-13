@@ -58,4 +58,3 @@ body: a webhook endpoint that skips the check is an endpoint anybody can post to
 `check:reported`, `status:reported`, `run:transitioned` and `job:transitioned` carry an extra
 key - `check`, `run` or `job` - and put the new state in `action`, so one subscription covers a
 whole lifecycle and a receiver switches on one field.
-

@@ -1828,4 +1828,3 @@ _Inputs are not declared on `Actions/Tokens/RotateTokenAction`, so they are not 
 | `200` | Successful response |
 | `422` | Validation failed |
 | `500` | Server error |
-
