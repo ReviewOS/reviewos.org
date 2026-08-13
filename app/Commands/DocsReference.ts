@@ -3,14 +3,17 @@ import process from 'node:process'
 import { Glob } from 'bun'
 import { checkedVariables, envReads, parseEnvExample, renderConfiguration } from '../Docs/configuration'
 import { declaredRoutes, renderApiReference, renderWebhookReference } from '../Docs/reference'
+import { parseTokens, renderDesign } from '../Docs/tokens'
 
 /**
  * Write the generated reference pages.
  *
- * Three files, all committed: `docs/api.md` from the OpenAPI document the
+ * Four files, all committed: `docs/api.md` from the OpenAPI document the
  * actions produce, `docs/webhooks.md` from the module the payloads are built
- * from, and `docs/configuration.md` from `.env.example` and the source that
- * reads it. Generated rather than written because a second description of the
+ * from, `docs/configuration.md` from `.env.example` and the source that reads
+ * it, and `docs/design.md` from the stylesheets that declare the palette.
+ *
+ * Generated rather than written because a second description of the
  * same thing is the one that goes stale - an endpoint gains a parameter, the
  * page keeps the old list, and somebody spends an afternoon discovering the
  * docs are wrong rather than their request.
@@ -22,7 +25,7 @@ import { declaredRoutes, renderApiReference, renderWebhookReference } from '../D
  */
 export default function (cli: CLI) {
   cli
-    .command('docs:reference', 'Generate the API, webhook and configuration reference pages')
+    .command('docs:reference', 'Generate the API, webhook, configuration and design reference pages')
     .option('--check', 'Fail if the committed pages are out of date rather than rewriting them', { default: false })
     .action(async (options: { check?: boolean }) => {
       const spec = await Bun.file('storage/framework/api/openapi.json').json().catch(() => null)
@@ -91,9 +94,16 @@ export default function (cli: CLI) {
 
       const entries = parseEnvExample(await Bun.file('.env.example').text())
 
+      // The three surfaces that carry the palette. They agree by copy rather
+      // than by import, so the page records what they say and a test fails
+      // when they stop saying the same thing.
+      const styled = ['resources/views/index.stx', 'resources/views/layouts/marketing.stx', 'resources/views/layouts/app.stx']
+      const tokens = (await Promise.all(styled.map(async path => parseTokens(await Bun.file(path).text(), path)))).flat()
+
       const pages = [
         { path: 'docs/api.md', body: renderApiReference(spec, at, routes) },
         { path: 'docs/webhooks.md', body: renderWebhookReference(at) },
+        { path: 'docs/design.md', body: renderDesign(tokens, 'from the stylesheets that declare it') },
         {
           path: 'docs/configuration.md',
           // Its own provenance line: this page comes from `.env.example` and

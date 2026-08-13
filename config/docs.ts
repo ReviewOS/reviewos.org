@@ -65,6 +65,7 @@ const config: BunPressOptions = {
           text: 'Reference',
           items: [
             { text: 'Configuration', link: '/configuration' },
+            { text: 'Design', link: '/design' },
             { text: 'API reference', link: '/api' },
             { text: 'Webhook payloads', link: '/webhooks' },
             { text: 'Runner protocol', link: '/runner-protocol' },

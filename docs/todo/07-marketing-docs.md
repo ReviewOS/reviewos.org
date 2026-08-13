@@ -109,5 +109,9 @@ feature, a page per use case, and comparisons that say plainly what the alternat
 
 - [ ] Wordmark and icon
 - [ ] Favicon set
-- [ ] Colour and type scale recorded so the marketing page and the application agree
+- [x] Colour and type scale recorded so the marketing page and the application agree.
+      `docs/design.md` is generated from the three stylesheets that declare the palette, and
+      `tests/unit/design-tokens.test.ts` fails when a token two of them share stops having the same
+      value - which is how two copies of a palette drift, one hex at a time, with nothing failing
+      because both files are valid CSS.
 - [ ] Social preview image
