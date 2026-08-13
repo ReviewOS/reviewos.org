@@ -15,7 +15,7 @@ curl -H "Authorization: Bearer $TOKEN" "$SERVER/api/repos/workflow-runs?owner=yo
 A token carries scopes, and a repository the token cannot reach answers **404** rather than
 403 - saying "forbidden" would confirm that a private repository exists.
 
-27 of the 157 operations below declare their inputs on the action, and this page
+33 of the 157 operations below declare their inputs on the action, and this page
 lists them. The rest validate inside the handler, so the page names the action instead of
 guessing - that number going up is the work, and a test holds it from going down.
 
@@ -442,12 +442,20 @@ _Inputs are not declared on `Actions/Org/UpdateOrganizationAction`, so they are 
 
 ### `DELETE /api/repos`
 
-_Inputs are not declared on `Actions/Repo/DeleteRepositoryAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | required | string |
+| `repo` | query | optional | string |
+| `repository` | query | optional | string |
+| `confirm` | query | optional | string |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
-| `422` | Validation failed |
+| `200` | Deleted: the row and the repository on disk, together. |
+| `401` | Unauthenticated. |
+| `403` | Not yours to delete. |
+| `404` | No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
+| `422` | The confirmation did not match the repository name. Deleting a repository takes the name, typed. |
 | `500` | Server error |
 
 ### `POST /api/repos`
@@ -622,12 +630,20 @@ _Inputs are not declared on `Actions/Checks/UploadCoverageAction`, so they are n
 
 ### `POST /api/repos/delete`
 
-_Inputs are not declared on `Actions/Repo/DeleteRepositoryAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `confirm` | body | optional | string |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
-| `422` | Validation failed |
+| `200` | Deleted: the row and the repository on disk, together. |
+| `401` | Unauthenticated. |
+| `403` | Not yours to delete. |
+| `404` | No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
+| `422` | The confirmation did not match the repository name. Deleting a repository takes the name, typed. |
 | `500` | Server error |
 
 ### `POST /api/repos/deploy-keys`
@@ -642,11 +658,20 @@ _Inputs are not declared on `Actions/Keys/ManageDeployKeyAction`, so they are no
 
 ### `POST /api/repos/forks`
 
-_Inputs are not declared on `Actions/Repo/ForkRepositoryAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `to` | body | optional | string |
 
 | Status | Means |
 |---|---|
 | `200` | Successful response |
+| `201` | The fork, with its own owner and name. |
+| `401` | Unauthenticated. |
+| `404` | No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
+| `409` | The destination owner already has a repository with that name. |
 | `422` | Validation failed |
 | `500` | Server error |
 
@@ -1259,11 +1284,17 @@ _Inputs are not declared on `Actions/Repo/UpdateSettingsAction`, so they are not
 
 ### `POST /api/repos/stars`
 
-_Inputs are not declared on `Actions/Repo/StarAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
+| `200` | The star was added or removed. `starred` says which, and `stars` is the count after it. |
+| `401` | Unauthenticated. A star belongs to somebody. |
+| `404` | No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
 | `422` | Validation failed |
 | `500` | Server error |
 
@@ -1309,11 +1340,20 @@ _Inputs are not declared on `Actions/Repo/UpdateTopicsAction`, so they are not l
 
 ### `POST /api/repos/transfer`
 
-_Inputs are not declared on `Actions/Repo/TransferRepositoryAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `to` | body | optional | string |
+| `new_owner` | body | optional | string |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
+| `200` | Transferred. The repository is now under the new owner, and its old path redirects. |
+| `401` | Unauthenticated. |
+| `403` | Not yours to transfer, or not somewhere you may transfer it to. |
+| `404` | No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
 | `422` | Validation failed |
 | `500` | Server error |
 
@@ -1329,12 +1369,19 @@ _Inputs are not declared on `Actions/Browse/TreeAction`, so they are not listed 
 
 ### `PUT /api/repos/watches`
 
-_Inputs are not declared on `Actions/Repo/WatchAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `subscription` | body | optional | string |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
-| `422` | Validation failed |
+| `200` | The subscription as it now stands. |
+| `401` | Unauthenticated. |
+| `404` | No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
+| `422` | The subscription is not one of `all`, `participating` or `ignore`. |
 | `500` | Server error |
 
 ### `POST /api/repos/webhooks`

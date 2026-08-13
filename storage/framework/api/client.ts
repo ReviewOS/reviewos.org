@@ -4862,8 +4862,8 @@ export function createClient(config: ClientConfig) {
   /**
    * DELETE /api/repos
    */
-  deleteRepos(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "DELETE", "/api/repos", {}, [], false, options)
+  deleteRepos(input: { "owner": string; "repo"?: string; "repository"?: string; "confirm"?: string }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "DELETE", "/api/repos", input ?? {}, ["owner", "repo", "repository", "confirm"], false, options)
   },
 
   /**
@@ -4960,8 +4960,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/delete
    */
-  postReposDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/delete", {}, [], false, options)
+  postReposDelete(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "confirm"?: string } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/delete", input ?? {}, [], true, options)
   },
 
   /**
@@ -4974,8 +4974,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/forks
    */
-  postReposForks(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/forks", {}, [], false, options)
+  postReposForks(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "to"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/forks", input ?? {}, [], true, options)
   },
 
   /**
@@ -5373,8 +5373,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/stars
    */
-  postReposStars(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/stars", {}, [], false, options)
+  postReposStars(input: { body: { "owner": string; "repo"?: string; "repository"?: string } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/stars", input ?? {}, [], true, options)
   },
 
   /**
@@ -5408,8 +5408,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/transfer
    */
-  postReposTransfer(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/transfer", {}, [], false, options)
+  postReposTransfer(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "to"?: string; "new_owner"?: string } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/transfer", input ?? {}, [], true, options)
   },
 
   /**
@@ -5422,8 +5422,8 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/watches
    */
-  putReposWatches(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/watches", {}, [], false, options)
+  putReposWatches(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "subscription"?: "all" | "participating" | "ignore" } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "PUT", "/api/repos/watches", input ?? {}, [], true, options)
   },
 
   /**

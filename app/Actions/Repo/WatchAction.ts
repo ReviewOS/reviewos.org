@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { authorizeRepository } from './authorize'
 
@@ -21,6 +22,27 @@ export default new Action({
   name: 'Watch',
   description: 'Set or clear a watch on a repository',
   method: 'PUT',
+
+  /*
+   * Declared here so the generated reference lists them and the validator
+   * enforces them from the same object. `owner` plus one of `repo` or
+   * `repository` is how every repository-scoped endpoint is addressed - see
+   * `authorizeRepository` - and a caller that forgets one should be told that
+   * rather than shown a 404 that reads as "no such repository".
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    subscription: { rule: schema.enum(['all', 'participating', 'ignore']) },
+  },
+
+  responses: {
+    200: { description: 'The subscription as it now stands.' },
+    401: { description: 'Unauthenticated.' },
+    422: { description: 'The subscription is not one of `all`, `participating` or `ignore`.' },
+    404: { description: 'No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:read')

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { mkdir, rename } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { canInOrganization } from '../../Permissions'
@@ -27,6 +28,28 @@ export default new Action({
   name: 'TransferRepository',
   description: 'Move a repository to a new owner',
   method: 'POST',
+
+  /*
+   * Declared here so the generated reference lists them and the validator
+   * enforces them from the same object. `owner` plus one of `repo` or
+   * `repository` is how every repository-scoped endpoint is addressed - see
+   * `authorizeRepository` - and a caller that forgets one should be told that
+   * rather than shown a 404 that reads as "no such repository".
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    to: { rule: schema.string() },
+    new_owner: { rule: schema.string() },
+  },
+
+  responses: {
+    200: { description: 'Transferred. The repository is now under the new owner, and its old path redirects.' },
+    401: { description: 'Unauthenticated.' },
+    403: { description: 'Not yours to transfer, or not somewhere you may transfer it to.' },
+    404: { description: 'No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:transfer')

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { authorizeRepository } from './authorize'
 import { recountStars } from './counters'
@@ -19,6 +20,25 @@ export default new Action({
   name: 'Star',
   description: 'Star or unstar a repository',
   method: 'POST',
+
+  /*
+   * Declared here so the generated reference lists them and the validator
+   * enforces them from the same object. `owner` plus one of `repo` or
+   * `repository` is how every repository-scoped endpoint is addressed - see
+   * `authorizeRepository` - and a caller that forgets one should be told that
+   * rather than shown a 404 that reads as "no such repository".
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+  },
+
+  responses: {
+    200: { description: 'The star was added or removed. `starred` says which, and `stars` is the count after it.' },
+    401: { description: 'Unauthenticated. A star belongs to somebody.' },
+    404: { description: 'No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:read')

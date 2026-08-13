@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { mkdir, rename } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { auditEvent } from '../../Audit/events'
@@ -28,6 +29,28 @@ export default new Action({
   name: 'DeleteRepository',
   description: 'Delete a repository, keeping it recoverable',
   method: 'DELETE',
+
+  /*
+   * Declared here so the generated reference lists them and the validator
+   * enforces them from the same object. `owner` plus one of `repo` or
+   * `repository` is how every repository-scoped endpoint is addressed - see
+   * `authorizeRepository` - and a caller that forgets one should be told that
+   * rather than shown a 404 that reads as "no such repository".
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    confirm: { rule: schema.string() },
+  },
+
+  responses: {
+    200: { description: 'Deleted: the row and the repository on disk, together.' },
+    401: { description: 'Unauthenticated.' },
+    403: { description: 'Not yours to delete.' },
+    422: { description: 'The confirmation did not match the repository name. Deleting a repository takes the name, typed.' },
+    404: { description: 'No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:delete')

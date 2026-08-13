@@ -75,10 +75,13 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       committed copies have drifted, because a generator nobody runs is a hand-written page with
       extra steps.
 - [x] Webhook payload reference, every event from `WEBHOOK_EVENTS` with the envelope described once
-- [ ] Declare the remaining endpoints' inputs on their actions. 27 of 157 operations carry a
-      `validations` block; the other 130 validate inside the handler, so the document has nothing to
+- [ ] Declare the remaining endpoints' inputs on their actions. 33 of 157 operations carry a
+      `validations` block; the other 124 validate inside the handler, so the document has nothing to
       publish for them and the page names the action instead of guessing. The test holds that count
-      from growing.
+      from growing, and it comes down a batch at a time: the repository endpoints - star, watch,
+      fork, transfer, delete - went first, because `owner` plus `repo` is how every
+      repository-scoped endpoint is addressed and a caller who forgets one was being told "no such
+      repository".
 - [x] Contributing guide: the model to migration to action to route to view order, and the
       expectation that roadmap boxes are ticked in the same commit as the work
 - [x] Search across the docs. The overlay had been rendering, taking a query, and answering

@@ -12973,14 +12973,17 @@ export interface paths {
   }
     delete: {
     parameters: {
-      query?: never
+      query: { "owner": string; "repo"?: string; "repository"?: string; "confirm"?: string }
       header?: never
       path?: never
       cookie?: never
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -13295,9 +13298,12 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string; "confirm"?: string } } }
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -13341,9 +13347,13 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string; "to"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: never }
+      "401": { content: never }
+      "404": { content: never }
+      "409": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -14572,9 +14582,11 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string } } }
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: never }
+      "401": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -14677,9 +14689,12 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string; "to"?: string; "new_owner"?: string } } }
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -14722,9 +14737,11 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string; "subscription"?: "all" | "participating" | "ignore" } } }
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: never }
+      "401": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }

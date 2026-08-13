@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { log } from '@stacksjs/logging'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
@@ -37,6 +38,27 @@ export default new Action({
   name: 'ForkRepository',
   description: 'Fork a repository into an account or organization',
   method: 'POST',
+
+  /*
+   * Declared here so the generated reference lists them and the validator
+   * enforces them from the same object. `owner` plus one of `repo` or
+   * `repository` is how every repository-scoped endpoint is addressed - see
+   * `authorizeRepository` - and a caller that forgets one should be told that
+   * rather than shown a 404 that reads as "no such repository".
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    to: { rule: schema.string() },
+  },
+
+  responses: {
+    201: { description: 'The fork, with its own owner and name.' },
+    401: { description: 'Unauthenticated.' },
+    409: { description: 'The destination owner already has a repository with that name.' },
+    404: { description: 'No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
+  },
 
   async handle(request: any) {
     // Reading is the whole requirement. Anybody who can read a repository can

@@ -19417,20 +19417,55 @@
       "delete": {
         "summary": "/api/repos",
         "operationId": "delete__api_repos",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "confirm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted: the row and the repository on disk, together."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "Not yours to delete."
+          },
+          "404": {
+            "description": "No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists."
+          },
           "422": {
-            "description": "Validation failed"
+            "description": "The confirmation did not match the repository name. Deleting a repository takes the name, typed."
           },
           "500": {
             "description": "Server error"
@@ -20221,20 +20256,49 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "Deleted: the row and the repository on disk, together."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "Not yours to delete."
+          },
+          "404": {
+            "description": "No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists."
           },
           "422": {
-            "description": "Validation failed"
+            "description": "The confirmation did not match the repository name. Deleting a repository takes the name, typed."
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "type": "string"
+                  },
+                  "confirm": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "owner"
+                ]
+              }
+            }
           }
         }
       }
@@ -20280,11 +20344,50 @@
               }
             }
           },
+          "201": {
+            "description": "The fork, with its own owner and name."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "404": {
+            "description": "No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists."
+          },
+          "409": {
+            "description": "The destination owner already has a repository with that name."
+          },
           "422": {
             "description": "Validation failed"
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "owner"
+                ]
+              }
+            }
           }
         }
       }
@@ -21969,20 +22072,43 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "The star was added or removed. `starred` says which, and `stars` is the count after it."
+          },
+          "401": {
+            "description": "Unauthenticated. A star belongs to somebody."
+          },
+          "404": {
+            "description": "No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists."
           },
           "422": {
             "description": "Validation failed"
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "owner"
+                ]
+              }
+            }
           }
         }
       }
@@ -22092,20 +22218,52 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "Transferred. The repository is now under the new owner, and its old path redirects."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "Not yours to transfer, or not somewhere you may transfer it to."
+          },
+          "404": {
+            "description": "No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists."
           },
           "422": {
             "description": "Validation failed"
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  },
+                  "new_owner": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "owner"
+                ]
+              }
+            }
           }
         }
       }
@@ -22142,20 +22300,51 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "The subscription as it now stands."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "404": {
+            "description": "No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists."
           },
           "422": {
-            "description": "Validation failed"
+            "description": "The subscription is not one of `all`, `participating` or `ignore`."
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "type": "string"
+                  },
+                  "subscription": {
+                    "type": "string",
+                    "enum": [
+                      "all",
+                      "participating",
+                      "ignore"
+                    ]
+                  }
+                },
+                "required": [
+                  "owner"
+                ]
+              }
+            }
           }
         }
       }
