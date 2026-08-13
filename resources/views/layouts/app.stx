@@ -871,7 +871,7 @@
       /* Truncates rather than wrapping the row to four lines. A title can be
         three hundred characters, and a feed is scanned. */
       .feed-title { flex: 1; min-width: 0; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-      .feed-when { flex-shrink: 0; font-size: 12px; }
+      .feed-when { flex-shrink: 0; margin-left: auto; font-size: 12px; }
 
       /* The live banner. Above the header, because it is the one thing on the
         page that can make everything below it wrong. */
@@ -1800,7 +1800,7 @@
               rather than from their queue. --}}
           <a class="muted" style="text-decoration: none;" href="/notifications">Inbox<InboxBadge /></a>
           <a class="muted" style="text-decoration: none;" href="/explore">Explore</a>
-          <a class="muted" style="text-decoration: none;" href="/dashboard">Dashboard</a>
+          <a class="muted" style="text-decoration: none;" href="/discover">Discover</a>
           <a class="muted" style="text-decoration: none;" href="/docs">Docs</a>
           {{-- Last, and only when there is somebody to have settings. Six
               settings pages existed and nothing in the chrome pointed at any

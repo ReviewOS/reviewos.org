@@ -142,4 +142,19 @@ describe('discover feed', () => {
     expect(second.entries).toHaveLength(1)
     expect(second.entries[0].id).not.toBe(first.entries[0].id)
   }, 60_000)
+
+  test('renders the feed and its repository discovery alongside it', async () => {
+    if (!available)
+      return
+
+    const answer = await fetch(`http://127.0.0.1:${port}/discover`)
+    const html = await answer.text()
+
+    expect(answer.status).toBe(200)
+    expect(html).toContain('Discover')
+    expect(html).toContain('Recent activity')
+    expect(html).toContain('Trending this week')
+    expect(html).toContain('discover-public-first')
+    expect(html).not.toContain('discover-now-private')
+  }, 60_000)
 })

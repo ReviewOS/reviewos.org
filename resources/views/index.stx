@@ -46,6 +46,7 @@ const capabilities = [
     icon: 'i-hugeicons-comment-01',
     size: 'wide',
     tone: 'accent',
+    points: [],
   },
   {
     title: 'Stacked pull requests',
@@ -63,23 +64,27 @@ const capabilities = [
     title: 'Diffs against the merge base',
     text: 'Not against the base tip. The difference is every change you did not make, quietly added to your review.',
     icon: 'i-hugeicons-git-compare',
+    points: [],
   },
   {
     title: 'Rendered on the server',
     text: 'The browser receives HTML, not a diff library and a JSON payload. A hundred files stays usable.',
     icon: 'i-hugeicons-flash',
+    points: [],
   },
   {
     title: 'Ordinary bare repositories',
     text: 'Driven by the git binary, on your disk. Nothing about your history is locked inside this application.',
     icon: 'i-hugeicons-folder-01',
     tone: 'tint',
+    points: [],
   },
   {
     title: 'One Postgres, one process',
     text: 'No queue cluster to operate before the first repository exists. Scale the parts that need it, later.',
     icon: 'i-hugeicons-database',
     size: 'wide',
+    points: [],
   },
 ]
 
@@ -92,7 +97,7 @@ const phases = [
   { number: '03', name: 'Issues', state: 'done' },
   { number: '04', name: 'Pull requests and reviews', state: 'done' },
   { number: '05', name: 'Notifications and webhooks', state: 'done' },
-  { number: '06', name: 'Search and explore', state: 'next', status: '19/20 complete' },
+  { number: '06', name: 'Search and explore', state: 'next', status: '20/21 complete' },
   { number: '07', name: 'Marketing and docs', state: 'next', status: '21/45 complete' },
 ]
 

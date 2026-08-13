@@ -1,0 +1,189 @@
+<script server>
+/**
+ * Public activity across this instance.
+ *
+ * The first page is rendered here from the same read as `/api/discover`, so a
+ * client and a search engine see the same visibility decision. The cursor is an
+ * event id rather than an offset, which keeps later pages the same cost as the
+ * first one.
+ */
+import { discoverFeed, withHandles } from '../../app/Actions/Feed/read'
+import { recentlyActive, trending } from '../../app/Actions/Explore/explore'
+import { relativeTime } from '../functions/browse'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const params = serveContext?.query ?? (typeof query === 'undefined' ? {} : query) ?? {}
+const requestedBefore = Number(params.before)
+const before = Number.isInteger(requestedBefore) && requestedBefore > 0 ? requestedBefore : null
+const now = new Date()
+
+const page = await withHandles(await discoverFeed({ before }))
+const feedRows = page.entries.map(entry => ({
+  ...entry,
+  when: relativeTime(new Date(entry.at).toISOString(), now),
+}))
+
+const gaining = await trending(7, 5)
+const active = await recentlyActive(5)
+
+function repositoryHref(entry) {
+  return `/${entry.owner}/${entry.name}`
+}
+</script>
+
+@layout('app')
+
+@section('title', 'Discover - ReviewOS')
+
+@section('content')
+  <div class="shell discover-shell">
+    <header class="discover-head">
+      <h1>Discover</h1>
+      <p class="muted">Public work happening across this instance.</p>
+    </header>
+
+    <div class="discover-layout">
+      <main class="discover-main" aria-labelledby="activity-heading">
+        <div class="discover-section-head">
+          <h2 id="activity-heading">Recent activity</h2>
+          <a href="/explore">Explore repositories</a>
+        </div>
+
+        <div class="panel discover-feed">
+          <ActivityFeed
+            :rows="feedRows"
+            empty="No public activity yet. Open an issue, publish a release, or review a pull request and it will appear here."
+          />
+        </div>
+
+        @if (page.cursor)
+          <nav class="discover-more" aria-label="Activity pages">
+            <a class="btn" href="/discover?before={{ page.cursor }}">More activity</a>
+          </nav>
+        @endif
+      </main>
+
+      <aside class="discover-side" aria-label="Repository discovery">
+        <section class="panel discover-panel" aria-labelledby="trending-heading">
+          <div class="discover-section-head">
+            <h2 id="trending-heading">Trending this week</h2>
+            <a href="/explore?days=7">See all</a>
+          </div>
+
+          @if (gaining.length === 0)
+            <p class="muted discover-empty">No public repository gained a star this week.</p>
+          @else
+            <ul class="discover-repositories">
+              @foreach (gaining as entry)
+                <li>
+                  <a href="{{ repositoryHref(entry) }}">{{ entry.owner }}/{{ entry.name }}</a>
+                  <span class="muted">+{{ entry.gained }} stars</span>
+                </li>
+              @endforeach
+            </ul>
+          @endif
+        </section>
+
+        <section class="panel discover-panel" aria-labelledby="active-heading">
+          <div class="discover-section-head">
+            <h2 id="active-heading">Recently active</h2>
+            <a href="/explore">See all</a>
+          </div>
+
+          @if (active.length === 0)
+            <p class="muted discover-empty">Nothing has been pushed to a public repository yet.</p>
+          @else
+            <ul class="discover-repositories">
+              @foreach (active as entry)
+                <li>
+                  <a href="{{ repositoryHref(entry) }}">{{ entry.owner }}/{{ entry.name }}</a>
+                  @if (entry.language)
+                    <span class="muted">{{ entry.language }}</span>
+                  @endif
+                </li>
+              @endforeach
+            </ul>
+          @endif
+        </section>
+      </aside>
+    </div>
+  </div>
+@endsection
+
+<style>
+  .discover-shell { padding-top: 22px; padding-bottom: 64px; }
+
+  .discover-head { margin-bottom: 22px; }
+  .discover-head h1 { font-size: 22px; margin-bottom: 4px; }
+  .discover-head p { font-size: 13.5px; }
+
+  .discover-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 330px);
+    gap: 20px;
+    align-items: start;
+  }
+
+  .discover-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .discover-section-head h2 { font-size: 15px; }
+
+  .discover-section-head a {
+    color: var(--muted);
+    font-size: 12.5px;
+    text-decoration: none;
+  }
+
+  .discover-section-head a:hover { color: var(--text); }
+
+  .discover-feed { padding: 5px 18px; }
+  .discover-feed .feed-row { padding: 13px 0; }
+  .discover-feed .feed-empty { padding: 14px 0; line-height: 1.55; }
+
+  .discover-more { display: flex; justify-content: center; margin-top: 16px; }
+
+  .discover-side { display: grid; gap: 14px; }
+  .discover-panel { padding: 15px 16px; }
+  .discover-panel .discover-section-head { margin-bottom: 7px; }
+
+  .discover-repositories { display: grid; }
+
+  .discover-repositories li {
+    display: grid;
+    gap: 2px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+    min-width: 0;
+  }
+
+  .discover-repositories li:last-child { border-bottom: 0; padding-bottom: 1px; }
+
+  .discover-repositories a {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 13.5px;
+    font-weight: 500;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .discover-repositories a:hover { text-decoration: underline; }
+  .discover-repositories span { font-size: 12px; }
+  .discover-empty { font-size: 13px; line-height: 1.5; }
+
+  @media (max-width: 820px) {
+    .discover-layout { grid-template-columns: minmax(0, 1fr); }
+    .discover-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 580px) {
+    .discover-side { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

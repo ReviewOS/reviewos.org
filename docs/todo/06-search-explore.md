@@ -69,6 +69,14 @@ because that is what actually listens.
   active under a heading saying "trending" would be lying about what the
   instance knows. Two lists, two empty states, and the page decides what to
   hide.
+- [x] A Discover feed of public activity, with trending and recently active repositories beside it
+
+  The event's recorded visibility and the repository's current visibility both
+  matter. The first stops a repository made public today from exposing events
+  written while it was private. The second stops a repository made private
+  today from remaining advertised on a page that links somewhere the reader can
+  no longer open. Keyset pagination uses the event id, so later pages cost the
+  same as the first.
 - [x] `resources/views/explore.stx`
 
   Server-rendered from the same reads the endpoint calls, for the reason
