@@ -5441,6 +5441,20 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/workflow-runs/artifact
+   */
+  getReposWorkflowRunsArtifact(input: { "owner"?: string; "repo"?: string; "id": number }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "GET", "/api/repos/workflow-runs/artifact", input ?? {}, ["owner", "repo", "id"], false, options)
+  },
+
+  /**
+   * GET /api/repos/workflow-runs/artifacts
+   */
+  getReposWorkflowRunsArtifacts(input?: { "owner"?: string; "repo"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<{ "artifacts"?: Array<Record<string, unknown>>; "total_bytes"?: number }>> {
+    return request(config, "GET", "/api/repos/workflow-runs/artifacts", input ?? {}, ["owner", "repo", "number"], false, options)
+  },
+
+  /**
    * POST /api/repos/workflow-runs/cancel
    */
   postReposWorkflowRunsCancel(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "reason"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "workflow_run"?: { "number"?: number; "state"?: string }; "cancelled"?: boolean; "reason"?: string }>> {
@@ -5522,6 +5536,13 @@ export function createClient(config: ClientConfig) {
    */
   postReviewsSubmit(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/reviews/submit", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/runner/artifacts
+   */
+  postRunnerArtifacts(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/runner/artifacts", {}, [], false, options)
   },
 
   /**

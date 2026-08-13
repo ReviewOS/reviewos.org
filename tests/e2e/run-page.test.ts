@@ -300,3 +300,43 @@ describe('following a run that is still going', () => {
     expect(html).not.toContain('jobtail')
   })
 })
+
+
+describe('what the run produced', () => {
+  /*
+   * The collection point. An artifact a run built is no use behind an API call
+   * nobody knows to make, and the run screen is where somebody who wants it is
+   * already standing.
+   */
+  test('is listed on the run, with a size and the date it stops being available', async () => {
+    if (!available)
+      return
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', created.finished)
+      .executeTakeFirst()
+
+    await db.insertInto('workflow_artifacts').values({
+      workflow_run_id: Number(run.id),
+      name: 'coverage.lcov',
+      digest: 'b'.repeat(64),
+      size_bytes: 5 * 1024 * 1024,
+      content_type: 'text/plain',
+      expires_at: '2026-12-01T00:00:00.000Z',
+    }).execute()
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
+
+    expect(html).toContain('coverage.lcov')
+    expect(html).toContain('5.0 MB')
+    // A date rather than "in 89 days": somebody deciding whether to download it
+    // now is comparing against a calendar.
+    expect(html).toContain('2026-12-01')
+    // The link is the public endpoint, not a second download path only the page
+    // knows about.
+    expect(html).toContain('/api/repos/workflow-runs/artifact?owner=')
+  })
+})

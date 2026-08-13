@@ -32,8 +32,8 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
   },
   {
     file: 'routes/api.ts',
-    count: 6,
-    because: 'the MCP endpoint, the mirror webhook, and the four runner routes. '
+    count: 7,
+    because: 'the MCP endpoint, the mirror webhook, and the five runner routes. '
       + 'MCP reads its bearer itself and refuses a request without one before '
       + 'anything else happens; the mirror webhook is signed over its body by an '
       + 'upstream forge that holds no cookie; the runner endpoints authenticate a '
@@ -44,7 +44,9 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
       + 'Left on, each answers its only real caller with a 403 about a cookie it '
       + 'was never going to send - which is exactly what the mirror webhook did '
       + 'until an audit noticed that its intended caller had never once got '
-      + 'through.',
+      + 'through. The fifth runner route is the artifact upload, which is the '
+      + 'same machine sending the same job credential with a body of bytes '
+      + 'instead of a body of JSON.',
   },
   {
     file: 'routes/notifications.ts',
@@ -152,6 +154,6 @@ describe('what is not exempt', () => {
     const unsafe = (source.match(/route\.(post|put|patch|delete)\(/g) ?? []).length
 
     expect(unsafe).toBeGreaterThan(50)
-    expect(await skipCount('routes/api.ts')).toBe(6)
+    expect(await skipCount('routes/api.ts')).toBe(7)
   })
 })

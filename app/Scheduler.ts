@@ -34,6 +34,14 @@ export default function () {
     .job('ReclaimLapsedLeases')
     .everyMinute()
 
+  // Hourly, because nothing depends on the exact moment: a download past its
+  // date is already refused, so this is the difference between a disk that
+  // grows forever and one that does not, rather than between available and
+  // gone.
+  schedule
+    .job('ExpireArtifacts')
+    .hourly()
+
   // What was held, sent as one message per thread. A sweep rather than a timer
   // armed per notification: a timer has to survive a restart and a sweep reads
   // what is actually pending, so a process that dies mid-digest loses nothing -

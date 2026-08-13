@@ -767,7 +767,8 @@ should not make its public workflow API describe one vendor's sandbox.
       heard a cancellation may report `cancelled` even with the lease the cancellation revoked -
       and only that, because "I stopped" cannot fabricate a verdict the way "I succeeded" can - and
       every request may carry `X-Runner-Protocol` while every answer carries
-      `X-Runner-Protocol-Supported`. Artifact upload is still absent, and the box says so.
+      `X-Runner-Protocol-Supported`. Artifact upload has since been added too, so the box now
+      covers everything it names.
 
       The status codes are part of the contract rather than decoration. **No work is a 200 with
       `job: null`**, because a runner polling an idle instance is not making a mistake and an error
@@ -945,8 +946,40 @@ gate, in order.
       redacted from logs and structured outputs, and never exposed to untrusted fork workflows
 - [ ] Dependency cache keyed by declared inputs, runtime, architecture, and lockfile digest. Cache
       restore permissions prevent a fork or lower-trust branch from poisoning a protected branch.
-- [ ] Artifacts are content-addressed, size-limited, checksummed, access-controlled, and expired by
+- [x] Artifacts are content-addressed, size-limited, checksummed, access-controlled, and expired by
       policy. Artifacts and dependency caches are distinct resources.
+
+      Storing bytes is not running them, which is why this one is done while the boxes around it
+      wait: nothing here executes anything, and an artifact is a file a runner an operator already
+      trusts hands over. Caches are deliberately absent - a cache is an optimisation the instance
+      may drop whenever it likes and an artifact is something a person asks for by name three weeks
+      later, so sharing a table would mean one retention policy for two opposite needs.
+
+      **Content-addressed**, at `storage/artifacts/{aa}/{bb}/{sha256}`. Three consequences, and the
+      third is the reason: a matrix of eight jobs publishing the same binary costs one copy; the
+      name is metadata rather than a path, so an artifact called `../../config/app.ts` is a row with
+      an odd name instead of a write outside the directory; and a download can be checked, because
+      the digest is what the row is keyed on and is returned as a header.
+
+      **Two ceilings**, per artifact and per run, because one without the other is not a ceiling: a
+      per-artifact limit alone is walked around by a matrix of fifty jobs each uploading just under
+      it. Both are enforced on the way in - a runner streaming forever is not stopped by a policy
+      that runs tomorrow, it fills the disk tonight.
+
+      **Access is the repository's**, with no artifact permission of its own: an artifact is built
+      from a repository's code and often contains it, and a second permission that has to be kept in
+      step with the first is one that eventually is not. The id is a number anybody can increment,
+      so it is checked against the repository the caller named - without that the endpoint reads out
+      every repository's build output one integer at a time. And every download is an attachment
+      with `nosniff`, whatever the uploader claimed the type was, because an HTML report a browser
+      renders in place is stored cross-site scripting with extra steps.
+
+      **Expiry is a promise, not a cleanup.** The date is decided at upload, shown in every listing
+      and on the run screen, and a download past it is refused before anything sweeps. The hourly
+      sweep is how the disk follows, and it removes the row first and the blob second - a row
+      without a file is an unpleasant 404, a file without a row is a byte nobody can reach and
+      nobody will ever delete. A blob another artifact still points at survives its own row
+      expiring, which on a matrix is the ordinary case.
 - [ ] Log streaming applies backpressure and redaction before persistence, with configurable
       retention and a hard ceiling per job
 - [ ] Concurrency, fair queueing, and quotas per instance, owner, repository, workflow, and token, so

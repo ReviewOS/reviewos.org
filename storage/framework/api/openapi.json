@@ -22395,6 +22395,296 @@
         }
       }
     },
+    "/api/repos/workflow-runs/artifact": {
+      "get": {
+        "summary": "/api/repos/workflow-runs/artifact",
+        "operationId": "get__api_repos_workflow_runs_artifact",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bytes, as an attachment. X-Artifact-Digest carries the SHA-256 a client can check them against.",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a client can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a client can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such repository, no such artifact, or one belonging to a repository this caller may not see - deliberately the same answer.",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a client can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The artifact expired. The row is gone and so are the bytes; the date was in every listing that ever showed it.",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a client can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a client can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a client can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/workflow-runs/artifacts": {
+      "get": {
+        "summary": "/api/repos/workflow-runs/artifacts",
+        "operationId": "get__api_repos_workflow_runs_artifacts",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every artifact this run still holds, with the digest to check a download against and the date each one stops being available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "artifacts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total_bytes": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may see this repository but not do this to it, or their token does not carry the permission.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such repository, or no run with that number.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/workflow-runs/cancel": {
       "post": {
         "summary": "/api/repos/workflow-runs/cancel",
@@ -23273,6 +23563,150 @@
           },
           "500": {
             "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/runner/artifacts": {
+      "post": {
+        "summary": "/api/runner/artifacts",
+        "operationId": "post__api_runner_artifacts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The artifact, with the digest a client can check what it downloads against and the date it stops being available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "digest": {
+                      "type": "string",
+                      "description": "SHA-256 of the bytes, lower case hex. Also the address the file is stored at."
+                    },
+                    "size_bytes": {
+                      "type": "integer"
+                    },
+                    "expires_at": {
+                      "type": "string"
+                    },
+                    "duplicate": {
+                      "type": "boolean",
+                      "description": "True when this exact upload had already been recorded - at-least-once delivery means a correct runner will send it twice."
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No job credential, or one this instance does not recognise.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The credential names a job whose run has gone.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This run already has an artifact under that name with different content. Replacing it silently would leave two people holding different files with one name.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Past the per-artifact or per-run ceiling. The message says which and by how much.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "This runner speaks a protocol version the server does not.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }

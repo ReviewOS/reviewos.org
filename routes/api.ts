@@ -727,8 +727,17 @@ route.post('/runner/claim', 'Actions/Runner/ClaimJobAction').skipCsrf()
 route.post('/runner/heartbeat', 'Actions/Runner/HeartbeatAction').skipCsrf()
 route.post('/runner/report', 'Actions/Runner/ReportJobAction').skipCsrf()
 route.post('/runner/logs', 'Actions/Runner/AppendLogAction').skipCsrf()
+route.post('/runner/artifacts', 'Actions/Runner/UploadArtifactAction').skipCsrf()
 
 // Reading is the repository's permission, not the runner's: a log is the
 // repository's data, and somebody who cannot see the code cannot see what
 // building it printed.
 route.get('/repos/workflow-runs/log', 'Actions/Workflow/ShowJobLogAction')
+
+// The same rule for what a run produced. An artifact is built from a
+// repository's code and often contains it, so a private repository's build
+// output is as private as the repository - and there is no separate artifact
+// permission, because a second permission that has to be kept in step with the
+// first is one that eventually is not.
+route.get('/repos/workflow-runs/artifacts', 'Actions/Workflow/ListArtifactsAction')
+route.get('/repos/workflow-runs/artifact', 'Actions/Workflow/DownloadArtifactAction')

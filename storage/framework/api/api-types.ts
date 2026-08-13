@@ -14785,6 +14785,58 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/workflow-runs/artifact": {
+    get: {
+    parameters: {
+      query: { "owner"?: string; "repo"?: string; "id": number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: never }
+      "401": { content: never }
+      "404": { content: never }
+      "410": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/workflow-runs/artifacts": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "number"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "artifacts"?: Array<Record<string, unknown>>; "total_bytes"?: number } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/workflow-runs/cancel": {
     get?: never
     put?: never
@@ -15023,6 +15075,35 @@ export interface paths {
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/runner/artifacts": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "id"?: number; "name"?: string; "digest"?: string; "size_bytes"?: number; "expires_at"?: string; "duplicate"?: boolean } } }
+      "401": { content: never }
+      "404": { content: never }
+      "409": { content: never }
+      "413": { content: never }
+      "422": { content: never }
+      "426": { content: never }
       "500": { content: never }
     }
   }

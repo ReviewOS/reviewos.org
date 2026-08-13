@@ -14,7 +14,7 @@
  */
 import { repositoryForView } from '../../../../functions/repo'
 import { relativeTime, shortSha } from '../../../../functions/browse'
-import { runDuration, runIsFinished, runLabel, runTone } from '../../../../functions/runs'
+import { artifactSize, runDuration, runIsFinished, runLabel, runTone } from '../../../../functions/runs'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
 // `resources/components/RepoBrowser.stx`.
@@ -126,6 +126,39 @@ for (const chunk of logRows) {
   logByJob.set(jobId, (logByJob.get(jobId) ?? '') + String(chunk.content ?? ''))
   cursorByJob.set(jobId, Math.max(cursorByJob.get(jobId) ?? 0, Number(chunk.sequence) || 0))
 }
+
+/*
+ * What this run produced, for whoever came to collect it.
+ *
+ * Read here rather than fetched, like the log above: a screen that shows the
+ * jobs and then asks a second time for the files is two round trips to draw one
+ * page. Guarded to an empty list on any failure - a throw in this script
+ * renders the whole page with every binding undefined, and losing the run
+ * because an artifact query was unhappy is a poor trade.
+ */
+let artifactRows: any[] = []
+try {
+  if (run) {
+    artifactRows = await db
+      .selectFrom('workflow_artifacts')
+      .select(['id', 'name', 'size_bytes', 'expires_at'])
+      .where('workflow_run_id', '=', Number(run.id))
+      .orderBy('name')
+      .execute()
+  }
+}
+catch {
+  artifactRows = []
+}
+
+const artifactList = artifactRows.map(one => ({
+  id: Number(one.id),
+  name: String(one.name),
+  size: artifactSize(Number(one.size_bytes) || 0),
+  // A date rather than "in 89 days": somebody deciding whether to download this
+  // now is comparing it against a calendar.
+  expires: one.expires_at ? String(one.expires_at).slice(0, 10) : '',
+}))
 
 const version: any = run
   ? await db
@@ -338,6 +371,23 @@ const base = `/${ownerHandle}/${repositoryName}`
         @endforeach
       </div>
 
+      @if (artifactList.length > 0)
+        <section class="panel artifacts">
+          <h2 class="artifacts-heading">Artifacts</h2>
+          <ul class="artifact-list">
+            @foreach (artifactList as artifact)
+              <li class="artifact">
+                <a href="/api/repos/workflow-runs/artifact?owner={{ ownerHandle }}&repo={{ repositoryName }}&id={{ artifact.id }}">{{ artifact.name }}</a>
+                <span class="muted artifact-size">{{ artifact.size }}</span>
+                @if (artifact.expires)
+                  <span class="muted artifact-expiry">until {{ artifact.expires }}</span>
+                @endif
+              </li>
+            @endforeach
+          </ul>
+        </section>
+      @endif
+
       @if (!runIsFinished(String(run.state)))
         <div class="run-foot">
           <p class="muted run-note">
@@ -378,6 +428,12 @@ const base = `/${ownerHandle}/${repositoryName}`
     font-size: 13px;
     border-color: var(--warn, #bf8700);
   }
+
+  .artifacts { padding: 15px 17px; margin-top: 16px; }
+  .artifacts-heading { font-size: 14px; font-weight: 600; margin: 0; }
+  .artifact-list { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+  .artifact { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13.5px; }
+  .artifact-size, .artifact-expiry { font-size: 12.5px; }
 
   .run-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; background: var(--muted); display: inline-block; }
   .run-good { background: var(--ok); }

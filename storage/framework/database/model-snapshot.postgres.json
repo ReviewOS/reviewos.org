@@ -9157,10 +9157,144 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "workflow_artifacts",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "workflow_run_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "workflow_runs",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "workflow_job_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 200
+          },
+          {
+            "name": "digest",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "size_bytes",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "content_type",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 150
+          },
+          {
+            "name": "expires_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "runner_id",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 100
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "workflow_artifacts_run_index",
+            "columns": [
+              "workflow_run_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_artifacts_expiry_index",
+            "columns": [
+              "expires_at"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_artifacts_digest_index",
+            "columns": [
+              "digest"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_artifacts_name_index",
+            "columns": [
+              "workflow_run_id",
+              "name"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "b09dcaeb76e71862e90eaefd711c25d2a201be1e484c855870ae558039c87ea3",
+  "hash": "b849940097ee6c34fac853e67576a8948b5cd77ba11056f5b615c24ce9ffbb8c",
   "dialect": "postgres",
-  "updatedAt": "2026-08-12T16:51:24.073Z"
+  "updatedAt": "2026-08-13T05:16:51.375Z"
 }

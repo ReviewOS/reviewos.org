@@ -88,3 +88,14 @@ export function runDuration(startedAt: unknown, finishedAt: unknown): string {
 
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
 }
+
+/**
+ * An artifact's size, in the units a person reads.
+ *
+ * Re-exported from `app/Actions/Artifact/storage.ts` rather than written again
+ * here: the API answers with the same string, and a page that computed its own
+ * would eventually disagree with the endpoint about a megabyte.
+ */
+import { megabytes as megabytesImpl } from '../../app/Actions/Artifact/storage'
+
+export const artifactSize = megabytesImpl

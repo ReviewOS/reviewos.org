@@ -4,7 +4,7 @@ What a machine has to say to take work from this instance, and what it gets
 back. Everything here is HTTP and JSON: there is no SDK to install, and a runner
 written in an afternoon in any language is a supported runner.
 
-The whole surface is four endpoints. That is deliberate - a protocol an operator
+The whole surface is five endpoints. That is deliberate - a protocol an operator
 can hold in their head is one they can debug at three in the morning with
 `curl`.
 
@@ -56,11 +56,12 @@ The check runs before the credential is looked at: a runner that cannot be
 spoken to is going to misread whatever it is handed, and telling it the token is
 fine first only delays the confusion.
 
-## The four calls
+## The five calls
 
-All four are `POST`, all four take and return JSON, and all four are exempt from
-CSRF because a machine holds a bearer token and no cookie - there is no ambient
-credential for a forged cross-site request to ride.
+All five are `POST` and all five are exempt from CSRF, because a machine holds a
+bearer token and no cookie - there is no ambient credential for a forged
+cross-site request to ride. Four of them take and return JSON; the artifact
+upload takes the file itself as the body, for the reason given there.
 
 ### `POST /api/runner/claim`
 
@@ -130,6 +131,43 @@ succeeded" can, so that one is accepted and nothing else is.
 
 A run whose runner never acknowledges is ended by the control plane two lease
 periods after the request. Cooperative first, forceful after a deadline.
+
+### `POST /api/runner/artifacts`
+
+Authenticated with the **job credential**. Publishes a file for somebody to
+collect later.
+
+**The body is the file.** A runner is a program, the thing it has is a stream of
+bytes, and asking it to build a multipart form around them would mean every
+implementer pulling in a library to send one file. The name and the retention
+ride in headers, so nothing needs parsing before the bytes can be written.
+
+```bash
+curl -X POST "$SERVER/api/runner/artifacts" \
+  -H "Authorization: Bearer $JOB_TOKEN" \
+  -H "X-Artifact-Name: coverage.lcov" \
+  -H "X-Artifact-Retention-Days: 30" \
+  --data-binary @coverage.lcov
+```
+
+The answer carries the SHA-256 the bytes were stored under and the date the
+artifact stops being available. Storage is content-addressed, so the same file
+published by eight jobs of a matrix costs one copy, and a re-run producing
+identical output costs nothing.
+
+**The same name twice** is idempotent when the content matches - a 200 marked
+`duplicate`, which is what a runner that did not hear the first answer gets. The
+same name with *different* content is a 409: silently replacing an artifact
+somebody may already have downloaded leaves two people holding different files
+under one name and no way to tell.
+
+There are two ceilings, per artifact and per run. One without the other is not a
+ceiling - a per-artifact limit alone is walked around by a matrix of fifty jobs
+each uploading just under it.
+
+Artifacts are **not** dependency caches. A cache is an optimisation the instance
+may drop whenever it likes; an artifact is something a person asks for by name
+three weeks later, and the two want opposite retention rules.
 
 ## Upgrading a fleet
 
