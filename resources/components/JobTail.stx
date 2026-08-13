@@ -1,0 +1,57 @@
+<script server>
+/**
+ * The rest of a job's output, as it arrives.
+ *
+ * Appended after what the server rendered rather than replacing it. The page
+ * already carries everything the job had printed when it loaded, and re-sending
+ * that would be megabytes to draw a screen that is already drawn - so this asks
+ * only for what came after the last sequence the page has, which is what the
+ * cursor is for.
+ *
+ * It stops when the job does. The log endpoint reports the job's state beside
+ * its chunks precisely so a follower can tell "quiet for a minute in the middle
+ * of a step" from "quiet forever", which from the output alone look identical.
+ *
+ * `pre` and nothing else, same as the server-rendered half: this text came off
+ * a machine running somebody's build, and `x-text` sets it as text rather than
+ * markup.
+ */
+</script>
+
+<div
+  class="jobtail"
+  x-data="{ tail: '', state: '', handle: null }"
+  x-init="handle = followJob($props.owner, $props.repository, Number($props.job), Number($props.after), (text) => { tail = tail + text }, (next) => { state = next })"
+  x-destroy="handle?.stop()">
+
+  <pre class="log-body jobtail-body" x-show="tail" x-cloak x-text="tail"></pre>
+
+  {{--
+    Said once the job ends, because the reader is looking at output that stops
+    mid-sentence otherwise and has no way to tell whether more is coming.
+  --}}
+  <p class="muted jobtail-note" x-show="state && ['succeeded','failed','cancelled','skipped'].includes(state)" x-cloak>
+    This job <span x-text="state"></span>. Reload for its steps and timings.
+  </p>
+</div>
+
+<script client>
+/*
+ * The import lives here because this is the only part of a component that is
+ * bundled. An `x-init` expression is evaluated against the scope and the
+ * globals, so a function it names has to exist in one of those - and nothing
+ * puts `resources/functions` on `window`. A client script's own bindings *are*
+ * visible to those expressions, which is how `CloneUrlBox` reaches its
+ * clipboard helper.
+ */
+import { watchJobLog } from '../functions/runlive'
+
+function followJob(owner, repository, job, after, onOutput, onState) {
+  return watchJobLog({ owner, repository, job, after, onOutput, onState })
+}
+</script>
+
+<style>
+  .jobtail-body { margin-top: 0; border-top: 0; }
+  .jobtail-note { font-size: 12.5px; margin: 6px 0 0; }
+</style>

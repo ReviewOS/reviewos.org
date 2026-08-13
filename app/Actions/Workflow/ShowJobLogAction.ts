@@ -38,6 +38,7 @@ export default new Action({
         properties: {
           chunks: { type: 'array', items: { type: 'object' } },
           cursor: { type: 'integer' },
+          state: { type: 'string', description: 'The job\'s state, so a client following the output knows when to stop asking without a second request.' },
         },
       },
     },
@@ -60,7 +61,7 @@ export default new Action({
     const job: any = await db
       .selectFrom('workflow_jobs')
       .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
-      .select(['workflow_jobs.id as id'])
+      .select(['workflow_jobs.id as id', 'workflow_jobs.state as state'])
       .where('workflow_jobs.id', '=', jobId)
       .where('workflow_runs.repository_id', '=', repository.id)
       .executeTakeFirst()
@@ -70,6 +71,16 @@ export default new Action({
 
     const page = await readLog(jobId, Number(request.get('after') ?? 0))
 
-    return response.json(page)
+    /*
+     * The job's state, beside its output.
+     *
+     * A client following a log has to know when to stop asking, and the state
+     * is the only thing that says so - a job can be quiet for a minute in the
+     * middle of a step and quiet forever after it ends, and those look
+     * identical from the chunks alone. Sending it here saves that client a
+     * second request per poll against an endpoint that has already read the
+     * row.
+     */
+    return response.json({ ...page, state: String(job.state) })
   },
 })

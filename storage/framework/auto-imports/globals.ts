@@ -21,9 +21,15 @@ declare global {
   const organizationRoleOf: typeof autoImports.organizationRoleOf
   const organizationsFor: typeof autoImports.organizationsFor
   const peopleIn: typeof autoImports.peopleIn
+  const runTone: typeof autoImports.runTone
+  const runLabel: typeof autoImports.runLabel
+  const runIsFinished: typeof autoImports.runIsFinished
+  const runDuration: typeof autoImports.runDuration
+  const RUN_STATES: typeof autoImports.RUN_STATES
+  const intervalFor: typeof autoImports.intervalFor
+  const watchRun: typeof autoImports.watchRun
+  const watchJobLog: typeof autoImports.watchJobLog
   const watchPullRequest: typeof autoImports.watchPullRequest
-  const setStatus: typeof autoImports.setStatus
-  const setHeader: typeof autoImports.setHeader
   const mirrorFor: typeof autoImports.mirrorFor
   const repositoryPath: typeof autoImports.repositoryPath
   const findRepositoryByPath: typeof autoImports.findRepositoryByPath
@@ -82,6 +88,10 @@ declare global {
   const mergeBlockers: typeof autoImports.mergeBlockers
   const isMergeStrategy: typeof autoImports.isMergeStrategy
   const requirementsSatisfied: typeof autoImports.requirementsSatisfied
+  const checksPanel: typeof autoImports.checksPanel
+  const annotationsByLine: typeof autoImports.annotationsByLine
+  const annotationsForLine: typeof autoImports.annotationsForLine
+  const renderAnnotations: typeof autoImports.renderAnnotations
   const requirementSummary: typeof autoImports.requirementSummary
   const combinedState: typeof autoImports.combinedState
   const labelTextColor: typeof autoImports.labelTextColor
@@ -104,11 +114,13 @@ declare global {
   const loadCoverage: typeof autoImports.loadCoverage
   const linesFor: typeof autoImports.linesFor
   const mountBlobWindow: typeof autoImports.mountBlobWindow
+  const describeFailure: typeof autoImports.describeFailure
   const streamDiffManifest: typeof autoImports.streamDiffManifest
   const createFileList: typeof autoImports.createFileList
   const firstBatchSize: typeof autoImports.firstBatchSize
   const measureScrollbarGutter: typeof autoImports.measureScrollbarGutter
   const createDiffViewer: typeof autoImports.createDiffViewer
+  const gapCovering: typeof autoImports.gapCovering
   const mountDiffFiles: typeof autoImports.mountDiffFiles
   const DEFAULT_HEIGHT_METRICS: typeof autoImports.DEFAULT_HEIGHT_METRICS
   const readPreferences: typeof autoImports.readPreferences

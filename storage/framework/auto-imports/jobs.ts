@@ -8,6 +8,7 @@ export { default as IndexRepositoryJob } from '../../../app/Jobs/IndexRepository
 export { default as MeasureLanguagesJob } from '../../../app/Jobs/MeasureLanguagesJob'
 export { default as WarnExpiringTokensJob } from '../../../app/Jobs/WarnExpiringTokensJob'
 export { default as SendWelcomeEmail } from '../../../app/Jobs/SendWelcomeEmail'
+export { default as ReclaimLapsedLeasesJob } from '../../../app/Jobs/ReclaimLapsedLeasesJob'
 export { default as MirrorSweepJob } from '../../../app/Jobs/MirrorSweepJob'
 export { default as RepositoryMaintenanceJob } from '../../../app/Jobs/RepositoryMaintenanceJob'
 export { default as MirrorSyncJob } from '../../../app/Jobs/MirrorSyncJob'

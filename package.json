@@ -75,7 +75,7 @@
     "@stacksjs/queue": "^0.70.369",
     "@stacksjs/search-engine": "^0.70.369",
     "@stacksjs/server": "^0.70.369",
-    "@stacksjs/stx": "0.2.175",
+    "@stacksjs/stx": "0.2.178",
     "@stacksjs/ts-ssh": "^0.1.0",
     "buddy-bot": "^0.9.27",
     "bun-query-builder": "^0.2.25",
@@ -104,9 +104,9 @@
   },
   "overrides": {
     "@stacksjs/bun-router": "^0.0.23",
-    "@stacksjs/stx": "0.2.175",
+    "@stacksjs/stx": "0.2.178",
     "@stacksjs/ts-ssh": "^0.1.0",
-    "stx-router": "0.2.175",
-    "bun-plugin-stx": "0.2.175"
+    "stx-router": "0.2.178",
+    "bun-plugin-stx": "0.2.178"
   }
 }

@@ -458,6 +458,22 @@ decisions.
 
 - [ ] Log output streamed live, with collapsible groups the job itself opens and closes, per-line
       timestamps, ANSI colour, links, and images
+
+      **The streaming is done; the four decorations are not.** The run screen follows a job from the
+      sequence the page was rendered at - `resources/functions/runlive.ts` - so a job that has
+      already printed two megabytes costs nothing to follow and a reader never sees a line twice.
+      New output is appended after what the server rendered rather than replacing it, because a
+      reader mid-line in the failure of job three should not be moved; the run's own state is
+      reported in a line at the top, and a run that finishes offers a reload rather than taking one.
+
+      It stops when the run does. The log endpoint reports the job's state beside its chunks for
+      exactly that: a job quiet for a minute in the middle of a step and one quiet forever look
+      identical from the output alone, so a follower without it either gives up early or polls a
+      finished job until the tab closes. A hidden tab backs off to a minute rather than stopping,
+      since coming back to a stale page is the thing this exists to prevent.
+
+      Groups, timestamps, ANSI and links wait on structured log events - the plain-text half is what
+      exists, and a group marker parsed out of plain text is a guess about somebody's build output.
 - [ ] Log search that works during streaming and on a finished run, with deep links to a line
 - [ ] Log redaction applied before persistence, driven by the secrets the job was given, with a
       visible marker where something was removed rather than a silent gap
@@ -465,8 +481,14 @@ decisions.
       rather than dropping the middle of the log
 - [ ] Annotations: markdown, with a level (success, info, warning, error), a context key so a rerun
       replaces rather than appends, and append semantics when asked for
-- [ ] **Annotations render on the diff**, on the file and line they name, on both sides. This is the
+- [x] **Annotations render on the diff**, on the file and line they name, on both sides. This is the
       row in the table at the top of this file, and it is the reason to build any of this.
+
+      Done in phase 9, where the checks half of it lives: `app/Actions/Pull/annotations.ts`, hung on
+      the diff through an `annotationsAt` slot beside the one review threads use. Both sides, on the
+      line the tool named, and a finding spanning five lines is placed once rather than five times -
+      repeating it would turn one warning into five and give a reviewer counting them a number the
+      tool never reported.
 - [ ] Artifacts: uploaded by glob, content-addressed, downloadable individually and as a set,
       searchable within a run, with retention policy and expiry visible before it happens
 - [ ] Artifacts are downloadable by later steps in the same run by name, which is the only reason

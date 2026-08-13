@@ -113,9 +113,18 @@ const logRows: any[] = jobRows.length > 0
   : []
 
 const logByJob = new Map<number, string>()
+/*
+ * The last sequence each job's output reached, which is where a follower picks
+ * up. Without it the live tail would either re-send everything the page already
+ * has - megabytes, to draw a screen that is drawn - or guess, and a guess here
+ * shows the reader a line twice or drops one.
+ */
+const cursorByJob = new Map<number, number>()
+
 for (const chunk of logRows) {
   const jobId = Number(chunk.workflow_job_id)
   logByJob.set(jobId, (logByJob.get(jobId) ?? '') + String(chunk.content ?? ''))
+  cursorByJob.set(jobId, Math.max(cursorByJob.get(jobId) ?? 0, Number(chunk.sequence) || 0))
 }
 
 const version: any = run
@@ -170,6 +179,12 @@ const jobs = jobRows.map((job) => {
     // Trimmed of trailing blank lines only: everything else is what the job
     // printed, and a log this screen edited is a log nobody can trust.
     log: (logByJob.get(Number(job.id)) ?? '').replace(/\s+$/, ''),
+    // The row id the log endpoint is keyed on, and where this page's copy of
+    // the output ends.
+    id: Number(job.id),
+    cursor: cursorByJob.get(Number(job.id)) ?? 0,
+    // A job that has finished has nothing more to say, so nothing follows it.
+    live: !['succeeded', 'failed', 'cancelled', 'skipped'].includes(String(job.state)),
     steps: (stepsByJob.get(Number(job.id)) ?? []).map(step => ({
       name: step.name ? String(step.name) : `Step ${Number(step.position) + 1}`,
       state: String(step.state),
@@ -254,6 +269,11 @@ const base = `/${ownerHandle}/${repositoryName}`
         </div>
       @endif
 
+      {{-- Reports, never rewrites: see the note in the component. --}}
+      @if (!runIsFinished(String(run.state)))
+        <RunLive owner="{{ ownerHandle }}" repository="{{ repositoryName }}" number="{{ runNumber }}" />
+      @endif
+
       <div class="jobs">
         @foreach (jobs as job)
           <article class="panel job">
@@ -277,13 +297,27 @@ const base = `/${ownerHandle}/${repositoryName}`
               @endif
             </p>
 
-            @if (job.log)
-              <details class="log">
+            @if (job.log || job.live)
+              <details class="log"@if (job.live) open @endif>
                 <summary>Output</summary>
                 {{-- `pre` and nothing else. This text came off a machine
                      running somebody's build, so it is escaped and shown, never
                      interpreted. --}}
-                <pre class="log-body">{{ job.log }}</pre>
+                @if (job.log)
+                  <pre class="log-body">{{ job.log }}</pre>
+                @endif
+
+                {{-- Everything printed after this page loaded, appended rather
+                     than replacing what is above: the reader may be mid-line in
+                     it. --}}
+                @if (job.live)
+                  <JobTail
+                    owner="{{ ownerHandle }}"
+                    repository="{{ repositoryName }}"
+                    job="{{ job.id }}"
+                    after="{{ job.cursor }}"
+                  />
+                @endif
               </details>
             @endif
 

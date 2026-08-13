@@ -247,3 +247,56 @@ describe('the cancel control', () => {
     expect(html).not.toContain('Cancel run')
   })
 })
+
+
+describe('following a run that is still going', () => {
+  /*
+   * The live layer is markup plus a client script, and an e2e that fetches HTML
+   * cannot run the script - so what is asserted here is the half that decides
+   * whether the script ever gets a chance: the component rendered, it was given
+   * the run and the cursor, and a finished run got none of it.
+   *
+   * That is also the half that fails silently. stx renders a page with every
+   * binding undefined when a server script throws, so a missing live region
+   * looks exactly like a deliberate decision not to show one.
+   */
+  test('the page carries the live region, with the cursor its output ends at', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.running}`)
+
+    expect(html).toContain('runlive')
+    expect(html).toContain('jobtail')
+
+    /*
+     * The setup expression, in the markup.
+     *
+     * A component's props are consumed when it renders, so the invocation's
+     * attributes are gone by the time this sees the page - what has to survive
+     * is the `x-init` the scope hydrates from, which stx preserves as
+     * `data-stx-xinit`. It did not until 0.2.177: the attribute was dropped on
+     * the assumption that the bridge script carried it, which is true for a
+     * page and false for an island. Every live region in this codebase rendered
+     * its empty state and started nothing, which looks exactly like a live
+     * region with nothing to say.
+     */
+    expect(html).toContain('data-stx-xinit')
+    expect(html).toContain('followJob(')
+    // Where this page's copy of the output ends. Without it a follower either
+    // re-sends the whole log or guesses, and a guess shows a line twice.
+    expect(html).toContain('$props.after')
+  })
+
+  test('and a finished run is left alone', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
+
+    // Nothing to follow. A finished run cannot change, and a page that polls
+    // for one is a tab that costs something forever.
+    expect(html).not.toContain('runlive')
+    expect(html).not.toContain('jobtail')
+  })
+})

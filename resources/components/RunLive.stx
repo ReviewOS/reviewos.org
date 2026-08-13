@@ -1,0 +1,91 @@
+<script server>
+/**
+ * "This run has moved on since the page loaded."
+ *
+ * The run screen is the one page in this product somebody sits and watches, and
+ * until this existed watching it meant pressing reload every thirty seconds.
+ *
+ * It reports and never rewrites, which is the same rule `LiveBanner` follows on
+ * a pull request and the same reason: the reader may have scrolled to the
+ * failure in job three, opened its output and started reading. Replacing the
+ * page under them to change one word loses their place, and their place is the
+ * thing they came for. So the states are said in a line at the top, and a
+ * finished run offers a reload the reader chooses.
+ *
+ * Props rather than a query: the page already knows which run this is, and a
+ * component that fetched that again would be a round trip to learn what its
+ * parent had.
+ */
+</script>
+
+<div
+  class="runlive"
+  x-data="{ summary: '', finished: '', handle: null }"
+  x-init="handle = followRun($props.owner, $props.repository, Number($props.number), (line) => { summary = line }, (state) => { finished = state })"
+  x-destroy="handle?.stop()">
+
+  {{--
+    Nothing at all until there is something to say. A live region that renders
+    an empty shell is one people learn to stop seeing, and then the once it
+    matters it is invisible.
+  --}}
+  <p class="runlive-line muted" x-show="summary && !finished" x-cloak>
+    <span role="status" aria-live="polite" x-text="summary"></span>
+  </p>
+
+  <div class="runlive-done panel" x-show="finished" x-cloak>
+    <span role="status" aria-live="polite">
+      This run <span x-text="finished"></span> while you were reading.
+    </span>
+    <a class="runlive-reload" href="" @click.prevent="location.reload()">Reload</a>
+  </div>
+</div>
+
+<script client>
+/*
+ * Bundled, and that is why the import is here: an `x-init` expression sees the
+ * scope and the globals, and `resources/functions` is on neither. A client
+ * script's bindings are visible to it, which is the seam this uses.
+ *
+ * The sentence is built here rather than in the expression for the ordinary
+ * reason - a template is not a place to test three conditions - and because a
+ * throw inside `x-init` leaves the scope half-initialised with nothing said.
+ */
+import { watchRun } from '../functions/runlive'
+
+const FINISHED = ['succeeded', 'failed', 'cancelled', 'skipped']
+
+function followRun(owner, repository, number, onSummary, onFinished) {
+  return watchRun({
+    owner,
+    repository,
+    number,
+    onRun: (run) => {
+      const jobs = run.jobs || []
+      const done = jobs.filter(job => FINISHED.includes(job.state)).length
+      const failed = jobs.filter(job => job.state === 'failed').length
+
+      onSummary(failed > 0
+        ? `${failed} of ${jobs.length} failed, ${done} finished`
+        : `${done} of ${jobs.length} jobs finished`)
+    },
+    onFinished,
+  })
+}
+</script>
+
+<style>
+  .runlive-line { font-size: 13px; margin: 6px 0 0; }
+
+  .runlive-done {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: space-between;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-size: 13.5px;
+  }
+
+  .runlive-reload { font-weight: 600; }
+</style>
