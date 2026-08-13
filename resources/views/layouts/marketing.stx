@@ -172,11 +172,12 @@ import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../../functi
       .mega[open] > summary { color: var(--text); background: var(--surface-tint); }
 
       .mega-chevron {
-        width: 14px;
-        height: 14px;
-        border-right: 1.6px solid currentColor;
-        border-bottom: 1.6px solid currentColor;
-        transform: rotate(45deg) translate(-2px, -2px);
+        width: 6px;
+        height: 6px;
+        margin-left: 2px;
+        border-right: 1.25px solid currentColor;
+        border-bottom: 1.25px solid currentColor;
+        transform: translateY(-1px) rotate(45deg);
         opacity: 0.6;
       }
 

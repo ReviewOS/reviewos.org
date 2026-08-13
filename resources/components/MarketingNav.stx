@@ -103,11 +103,12 @@ import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../functions
   .mega > summary::-webkit-details-marker { display: none; }
 
   .mega-chevron {
-    width: 13px;
-    height: 13px;
-    border-right: 1.6px solid currentColor;
-    border-bottom: 1.6px solid currentColor;
-    transform: rotate(45deg) translate(-2px, -2px);
+    width: 6px;
+    height: 6px;
+    margin-left: 2px;
+    border-right: 1.25px solid currentColor;
+    border-bottom: 1.25px solid currentColor;
+    transform: translateY(-1px) rotate(45deg);
     opacity: 0.55;
   }
 

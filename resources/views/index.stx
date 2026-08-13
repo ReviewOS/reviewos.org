@@ -83,21 +83,24 @@ const capabilities = [
   },
 ]
 
-// Phase state mirrors docs/todo/index.md. Keep them in sync.
+// The core path and the two tracks immediately after it. Counts mirror
+// docs/todo/index.md; the full roadmap continues there.
 const phases = [
   { number: '00', name: 'Bootstrap', state: 'done' },
-  { number: '01', name: 'Users, organizations, teams', state: 'next' },
-  { number: '02', name: 'Repositories and git hosting', state: 'planned' },
-  { number: '03', name: 'Issues', state: 'planned' },
-  { number: '04', name: 'Pull requests and reviews', state: 'planned' },
-  { number: '05', name: 'Notifications and webhooks', state: 'planned' },
+  { number: '01', name: 'Foundation', state: 'done' },
+  { number: '02', name: 'Git hosting', state: 'done' },
+  { number: '03', name: 'Issues', state: 'done' },
+  { number: '04', name: 'Pull requests and reviews', state: 'done' },
+  { number: '05', name: 'Notifications and webhooks', state: 'done' },
+  { number: '06', name: 'Search and explore', state: 'next', status: '19/20 complete' },
+  { number: '07', name: 'Marketing and docs', state: 'next', status: '21/45 complete' },
 ]
 
 const nots = [
   { title: 'A package registry', text: 'Not until the forge itself is good.' },
   { title: 'A wiki', text: 'Markdown in the repository covers most of it.' },
-  { title: 'Its own CI runners', text: 'A status API first, so your existing CI reports in. Running untrusted code is a security project of its own.' },
-  { title: 'Federation, yet', text: 'An open question with a real answer owed, not a checkbox to claim.' },
+  { title: 'Projects and boards', text: 'Issues, labels, and milestones come first.' },
+  { title: 'A hosted CI execution plane', text: 'Self-hosted runners work now. Running untrusted code on instance-managed infrastructure still needs a reviewed isolation model.' },
 ]
 </script>
 
@@ -299,7 +302,7 @@ const nots = [
 
       /* Hero */
       .hero {
-        padding: 72px 0 24px;
+        padding: 72px 0 80px;
       }
 
       .hero-title {
@@ -407,7 +410,7 @@ const nots = [
       .terminal .comment { color: var(--muted); }
 
       /* Section rhythm */
-      .section { padding: 96px 0; }
+      .section { padding: 80px 0; }
       .section-sep { border-top: 1px solid var(--line); }
 
       .eyebrow {
@@ -567,6 +570,14 @@ const nots = [
 
       .pill-done { background: var(--state-done-bg); color: var(--state-done); }
       .pill-next { background: var(--accent-quiet); color: var(--accent-text); }
+
+      .phase-note {
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .phase-note a { color: var(--accent-text); font-weight: 500; }
 
       /* Not doing */
       .nots {
@@ -795,10 +806,10 @@ const nots = [
 
       <section class="section section-sep shell">
         <p class="eyebrow">Where it is</p>
-        <h2 class="section-title">Early, and honest about it</h2>
+        <h2 class="section-title">The core forge is here</h2>
         <p class="section-lede">
-          Phases are ordered by dependency. Phase 4 is the reason this exists; phases 1 and 2 are
-          what it needs underneath. Boxes get ticked when the work is done, not when it is planned.
+          Repositories, issues, pull requests, reviews, notifications, and webhooks are implemented.
+          Search, discovery, and the public site are the current open tracks.
         </p>
 
         <div class="phases">
@@ -809,13 +820,18 @@ const nots = [
               @if (phase.state === 'done')
                 <span class="pill pill-done">Done</span>
               @elseif (phase.state === 'next')
-                <span class="pill pill-next">In progress</span>
+                <span class="pill pill-next">{{ phase.status }}</span>
               @else
                 <span class="pill">Planned</span>
               @endif
             </div>
           @endforeach
         </div>
+
+        <p class="phase-note">
+          Diff performance, mirroring, pipelines, and the remaining work stay visible in the
+          <a href="/docs/todo/">full roadmap</a>.
+        </p>
       </section>
 
       <section class="section section-sep shell">
