@@ -57,8 +57,16 @@ feature, a page per use case, and comparisons that say plainly what the alternat
 - [ ] Getting started: requirements, install, first repository
 - [ ] Configuration reference: every environment variable that matters, and what it does
 - [ ] Architecture: how a request becomes a git operation, and where repositories live on disk
-- [ ] API reference for the JSON API, generated from the actions rather than written by hand
-- [ ] Webhook payload reference
+- [x] API reference for the JSON API, generated from the actions rather than written by hand.
+      `buddy docs:reference` writes `docs/api.md` from the OpenAPI document and `docs/webhooks.md`
+      from the payload module; `--check` and `tests/unit/docs-reference.test.ts` fail when the
+      committed copies have drifted, because a generator nobody runs is a hand-written page with
+      extra steps.
+- [x] Webhook payload reference, every event from `WEBHOOK_EVENTS` with the envelope described once
+- [ ] Declare the remaining endpoints' inputs on their actions. 26 of 156 operations carry a
+      `validations` block; the other 130 validate inside the handler, so the document has nothing to
+      publish for them and the page names the action instead of guessing. The test holds that count
+      from growing.
 - [ ] Contributing guide: the model to migration to action to route to view order, and the
       expectation that roadmap boxes are ticked in the same commit as the work
 - [ ] Search across the docs

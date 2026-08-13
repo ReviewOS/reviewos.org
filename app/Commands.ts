@@ -40,6 +40,10 @@ export default {
   // container's start script.
   'instance': 'Doctor',
 
+  // The API and webhook reference, written by the code that implements them.
+  // `--check` is what a test uses to notice the committed pages have drifted.
+  'docs:reference': 'DocsReference',
+
   'inspire': 'Inspire',
   'seed:demo': 'SeedDemo',
   'export:repository': 'ExportRepository',

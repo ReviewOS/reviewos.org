@@ -3362,6 +3362,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/discover
+   */
+  getDiscover(input?: { "before"?: number }, options?: RequestOptions): Promise<ApiResult<{ "entries"?: Array<Record<string, unknown>>; "cursor"?: number }>> {
+    return request(config, "GET", "/api/discover", input ?? {}, ["before"], false, options)
+  },
+
+  /**
    * GET /api/drivers
    */
   getDrivers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

@@ -13341,6 +13341,53 @@
         }
       }
     },
+    "/api/discover": {
+      "get": {
+        "summary": "/api/discover",
+        "operationId": "get__api_discover",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The newest events first, and the cursor to ask for the ones before them.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      },
+                      "description": "One entry per event, already phrased for display."
+                    },
+                    "cursor": {
+                      "type": "number",
+                      "description": "Pass as `before` for the next page. Null on the last one rather than a cursor that returns nothing."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/api/drivers": {
       "get": {
         "summary": "/api/drivers",

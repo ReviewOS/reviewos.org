@@ -8975,6 +8975,29 @@ export interface paths {
   }
     trace?: never
   }
+  "/api/discover": {
+    get: {
+    parameters: {
+      query?: { "before"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "entries"?: Array<Record<string, unknown>>; "cursor"?: number } } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/drivers": {
     get: {
     parameters: {

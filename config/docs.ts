@@ -51,6 +51,23 @@ const config: BunPressOptions = {
             { text: 'What ReviewOS is', link: '/' },
           ],
         },
+        /*
+         * The pages somebody reads while running or talking to an instance.
+         *
+         * Above the roadmap because a reader who arrived from a search for
+         * "reviewos webhook payload" wants the reference, not a phase list -
+         * and until now these pages existed with nothing linking to them.
+         */
+        {
+          text: 'Reference',
+          items: [
+            { text: 'API reference', link: '/api' },
+            { text: 'Webhook payloads', link: '/webhooks' },
+            { text: 'Runner protocol', link: '/runner-protocol' },
+            { text: 'Self-hosting', link: '/self-hosting' },
+            { text: 'CI threat model', link: '/ci-threat-model' },
+          ],
+        },
         {
           text: 'Roadmap',
           items: [

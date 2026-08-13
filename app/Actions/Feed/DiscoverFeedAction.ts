@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { discoverFeed, withHandles } from './read'
 
 /**
@@ -12,6 +13,23 @@ export default new Action({
   name: 'DiscoverFeed',
   description: 'Recent activity in public repositories',
   method: 'GET',
+
+  validations: {
+    before: { rule: schema.number() },
+  },
+
+  responses: {
+    200: {
+      description: 'The newest events first, and the cursor to ask for the ones before them.',
+      schema: {
+        type: 'object',
+        properties: {
+          entries: { type: 'array', items: { type: 'object' }, description: 'One entry per event, already phrased for display.' },
+          cursor: { type: 'number', description: 'Pass as `before` for the next page. Null on the last one rather than a cursor that returns nothing.' },
+        },
+      },
+    },
+  },
 
   async handle(request: any) {
     const before = Number(request.get('before'))
