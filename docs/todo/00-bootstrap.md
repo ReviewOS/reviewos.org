@@ -79,6 +79,29 @@ Each one is committed and pushed in the repository named.
 - [x] **bun-query-builder** - Enum type names are table-qualified, but only newly added columns were
       stamped with the qualified name, so altering an existing enum column referenced a type nothing
       creates. Migrating to Postgres died on the last file with `type "channel_type" does not exist`.
+- [x] **bun-query-builder** - The seeder handed factories `@stacksjs/ts-faker` directly, and every
+      factory in this ecosystem is written in the faker-js dialect: `helpers.arrayElement` threw,
+      `string.alphanumeric(12)` silently returned one character, `datatype` and `location` did not
+      exist. The compat layer now translates both ways and is exported as a type, so a factory
+      written the normal way is neither a runtime error nor a type error. `0.2.29`.
+- [x] **ts-validation** - The declaration emitter widened `EnumValidator.name` to `unknown`, so
+      `schema.enum([...])` was not assignable to the `EnumValidatorType` this library exports and a
+      framework's env config rejected values it validates happily at runtime. A `.d.ts` bug wearing
+      a type error's clothes. `0.5.4`, with a type test.
+- [x] **stacks** - `@stacksjs/faker` builds an enhanced faker - `datatype`, `location`,
+      `helpers.arrayElement`, `catchPhrase` - and exported the *type* of the library underneath it.
+      Every model factory in every Stacks application was therefore a type error against a type
+      describing a different object: 116 of them here, 73 in the framework's own default models.
+      Fixed in 0.70.371 along with the env config's enum type.
+- [x] **stacks** - bunpress was pinned at `^0.1.18`, where `/search-index.json` does not exist, so
+      every documentation site built on this framework had a search box that took a query and
+      answered nothing. `0.70.370`.
+- [ ] **stacks** - `faker.datatype.boolean(0.2)` - the bare-probability form faker-js accepts, and
+      the form the framework's own `ProductUnit` model uses - is still a type error, and it is the
+      one error `./buddy typecheck` reports here. Fixed and tagged as 0.70.372, but that release
+      never published: the `Releaser` job fails building `storage/framework/core/mobile`, which
+      imports `craft-native/mobile` - a subpath the published `craft-native@0.0.55` does not export.
+      Somebody else's work in flight, so it is named here rather than worked around.
 
 ## Known gaps, deferred deliberately
 
