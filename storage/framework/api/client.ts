@@ -5450,7 +5450,7 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/workflow-runs/log
    */
-  getReposWorkflowRunsLog(input: { "owner"?: string; "repo"?: string; "job": number; "after"?: number }, options?: RequestOptions): Promise<ApiResult<{ "chunks"?: Array<Record<string, unknown>>; "cursor"?: number }>> {
+  getReposWorkflowRunsLog(input: { "owner"?: string; "repo"?: string; "job": number; "after"?: number }, options?: RequestOptions): Promise<ApiResult<{ "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string }>> {
     return request(config, "GET", "/api/repos/workflow-runs/log", input ?? {}, ["owner", "repo", "job", "after"], false, options)
   },
 

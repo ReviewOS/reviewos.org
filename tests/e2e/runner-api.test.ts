@@ -10,6 +10,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { hashToken } from '../../app/Actions/Runner/authenticate'
+import { RUNNER_PROTOCOL } from '../../app/Actions/Runner/protocol'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
 
@@ -37,10 +38,12 @@ jobs:
       - run: bun test
 `
 
-async function call(path: string, body: Record<string, unknown>, token: string | null = TOKEN) {
+async function call(path: string, body: Record<string, unknown>, token: string | null = TOKEN, protocol?: string) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token)
     headers.authorization = `Bearer ${token}`
+  if (protocol !== undefined)
+    headers['X-Runner-Protocol'] = protocol
 
   const r = await fetch(`http://127.0.0.1:${port}/api${path}`, {
     method: 'POST',
@@ -48,7 +51,12 @@ async function call(path: string, body: Record<string, unknown>, token: string |
     body: JSON.stringify(body),
   })
 
-  return { status: r.status, body: await r.json().catch(() => ({})) as any }
+  return {
+    status: r.status,
+    body: await r.json().catch(() => ({})) as any,
+    // What this server says it speaks, which rides on every answer.
+    supported: r.headers.get('x-runner-protocol-supported'),
+  }
 }
 
 async function freshRun(headSha: string): Promise<number> {
@@ -512,4 +520,75 @@ describe('the run lifecycle, as a program hears it', () => {
     expect(finished.run.number).toBeGreaterThan(0)
     expect(String(finished.run.head_sha).length).toBe(40)
   }, 30_000)
+})
+
+
+describe('speaking the same protocol', () => {
+  /*
+   * A self-hosted runner is a program somebody else installs, on a machine
+   * somebody else reboots. The two ends drift by default, and the only question
+   * is whether they find out by being told or by behaving strangely - a runner
+   * reading a field this server stopped sending produces a job that hangs
+   * rather than an error anybody can act on.
+   */
+  test('every answer says what this server speaks, refusal or not', async () => {
+    if (!available)
+      return
+
+    const claim = await call('/runner/claim', {})
+
+    expect(claim.supported).toBe(String(RUNNER_PROTOCOL.current))
+  })
+
+  test('a runner from the future is refused with 426, not 400 or 401', async () => {
+    if (!available)
+      return
+
+    // 426 Upgrade Required is the one status that means exactly this. A 400
+    // sends somebody to look at their payload and a 401 to look at their token,
+    // and both are the wrong afternoon.
+    const answer = await call('/runner/claim', {}, TOKEN, String(RUNNER_PROTOCOL.current + 1))
+
+    expect(answer.status).toBe(426)
+    expect(String(answer.body.error)).toContain('upgrade the server')
+    expect(answer.supported).toBe(String(RUNNER_PROTOCOL.current))
+  })
+
+  test('and is refused before its credential is even looked at', async () => {
+    if (!available)
+      return
+
+    // A runner that cannot be spoken to is going to misread whatever it is
+    // handed, and telling it the token is fine first only delays the confusion.
+    const answer = await call('/runner/claim', {}, 'not-a-real-token', String(RUNNER_PROTOCOL.current + 1))
+
+    expect(answer.status).toBe(426)
+  })
+
+  /*
+   * The compatibility rule that matters on the day this shipped: every runner
+   * written before the header existed sends nothing, and refusing those would
+   * have broken every fleet at once.
+   */
+  test('a runner that sends no version keeps working', async () => {
+    if (!available)
+      return
+
+    const answer = await call('/runner/claim', {})
+
+    expect(answer.status).toBe(200)
+  })
+
+  test('the same gate is on every runner endpoint, not only the claim', async () => {
+    if (!available)
+      return
+
+    const tooNew = String(RUNNER_PROTOCOL.current + 1)
+
+    for (const path of ['/runner/heartbeat', '/runner/report', '/runner/logs']) {
+      const answer = await call(path, { state: 'succeeded', sequence: 1, content: 'x' }, 'job-token', tooNew)
+
+      expect({ path, status: answer.status }).toEqual({ path, status: 426 })
+    }
+  })
 })

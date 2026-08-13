@@ -238,3 +238,115 @@ export const LEASE_SECONDS = 60
 export function leaseUntil(now: Date, seconds = LEASE_SECONDS): string {
   return new Date(now.getTime() + seconds * 1000).toISOString()
 }
+
+/**
+ * The wire contract's version, and what this server will speak.
+ *
+ * A self-hosted runner is a program somebody else installs, on a machine
+ * somebody else reboots, upgraded on a schedule nobody here controls. So the
+ * two ends drift apart by default, and the question is only whether they find
+ * out by being told or by behaving strangely - a runner sending a field this
+ * server ignores, or reading one it stopped sending, produces a job that hangs
+ * rather than an error anybody can act on.
+ *
+ * One number, deliberately, rather than per-endpoint versions or feature flags.
+ * A fleet operator upgrading a hundred machines needs one thing to compare, and
+ * a matrix of capabilities is a matrix of states nobody tests.
+ *
+ * **A range rather than a number**, because both directions have to work during
+ * an upgrade: a fleet is never upgraded atomically, so the server has to keep
+ * speaking to the machines nobody has restarted yet, and a runner upgraded
+ * ahead of its server must be told rather than left guessing.
+ */
+export const RUNNER_PROTOCOL = {
+  /** The oldest a runner may speak. Raising this retires a runner version. */
+  minimum: 1,
+  /** The newest this server knows. Raising it is how a new field ships. */
+  current: 1,
+} as const
+
+/** The header a runner sends, and the one this server answers with. */
+export const PROTOCOL_HEADER = 'X-Runner-Protocol'
+export const PROTOCOL_SUPPORTED_HEADER = 'X-Runner-Protocol-Supported'
+
+export interface ProtocolDecision {
+  ok: boolean
+  /** What the runner is speaking, as this server understood it. */
+  version: number
+  /** Said to the runner when it is refused. Never to a person. */
+  reason: string
+}
+
+/**
+ * Whether this server and this runner speak the same protocol.
+ *
+ * **A missing version is the oldest one**, not a refusal. Every runner written
+ * before this existed sends nothing, and answering those with an error would
+ * break every fleet on the day the header shipped - which is the opposite of
+ * what a compatibility check is for. They are told what to send in the response
+ * header, and they keep working until `minimum` moves past them.
+ *
+ * A version this server does not recognise is refused in both directions. Too
+ * old means the runner is sending a shape this server has stopped reading; too
+ * new means it is sending one this server has not learned. Guessing at either
+ * is how a job hangs instead of failing.
+ */
+export function negotiate(
+  sent: unknown,
+  // Takes the range rather than reading the constant, so the retirement path
+  // can be tested before there is a retired version - and so a server that
+  // wants to pin an older range has somewhere to say it.
+  supported: { minimum: number, current: number } = RUNNER_PROTOCOL,
+): ProtocolDecision {
+  const raw = String(sent ?? '').trim()
+
+  if (!raw)
+    return { ok: true, version: supported.minimum, reason: 'no version sent, assumed the oldest' }
+
+  const version = Number(raw)
+
+  if (!Number.isInteger(version) || version <= 0) {
+    return {
+      ok: false,
+      version: 0,
+      reason: `${PROTOCOL_HEADER} must be a whole number. This server speaks ${describeProtocol(supported)}.`,
+    }
+  }
+
+  if (version < supported.minimum) {
+    return {
+      ok: false,
+      version,
+      reason: `This runner speaks protocol ${version}, which this server has retired. It speaks ${describeProtocol(supported)}; upgrade the runner.`,
+    }
+  }
+
+  if (version > supported.current) {
+    return {
+      ok: false,
+      version,
+      reason: `This runner speaks protocol ${version}, which this server does not know yet. It speaks ${describeProtocol(supported)}; upgrade the server or run an older runner.`,
+    }
+  }
+
+  return { ok: true, version, reason: 'agreed' }
+}
+
+/** `1` when there is one version, `1 to 3` when there are several. */
+export function describeProtocol(supported: { minimum: number, current: number } = RUNNER_PROTOCOL): string {
+  return supported.minimum === supported.current
+    ? String(supported.current)
+    : `${supported.minimum} to ${supported.current}`
+}
+
+/**
+ * The header every runner response carries.
+ *
+ * On the successful answers too, not only the refusals. A runner that is about
+ * to be retired should be able to find that out from an ordinary poll rather
+ * than from the first request that fails, and an operator diagnosing a fleet
+ * should be able to read both ends' opinion out of one response.
+ */
+export function protocolHeaders(): Record<string, string> {
+  return { [PROTOCOL_SUPPORTED_HEADER]: describeProtocol() }
+}

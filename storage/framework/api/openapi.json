@@ -22692,6 +22692,10 @@
                     },
                     "cursor": {
                       "type": "integer"
+                    },
+                    "state": {
+                      "type": "string",
+                      "description": "The job's state, so a client following the output knows when to stop asking without a second request."
                     }
                   }
                 }
@@ -23287,13 +23291,59 @@
                   "type": "object"
                 }
               }
+            },
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "422": {
-            "description": "Validation failed"
+            "description": "Validation failed",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "This runner speaks a protocol version the server does not. The body says which end is behind; every answer carries X-Runner-Protocol-Supported.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "500": {
-            "description": "Server error"
+            "description": "Server error",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -23312,13 +23362,59 @@
                   "type": "object"
                 }
               }
+            },
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "422": {
-            "description": "Validation failed"
+            "description": "Validation failed",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "This runner speaks a protocol version the server does not. The body says which end is behind; every answer carries X-Runner-Protocol-Supported.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "500": {
-            "description": "Server error"
+            "description": "Server error",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
@@ -23337,13 +23433,59 @@
                   "type": "object"
                 }
               }
+            },
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "422": {
-            "description": "Validation failed"
+            "description": "Validation failed",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "This runner speaks a protocol version the server does not. The body says which end is behind; every answer carries X-Runner-Protocol-Supported.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "500": {
-            "description": "Server error"
+            "description": "Server error",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -23390,13 +23532,59 @@
                   "type": "object"
                 }
               }
+            },
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
             }
           },
           "422": {
-            "description": "Validation failed"
+            "description": "Validation failed",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "This runner speaks a protocol version the server does not. The body says which end is behind; every answer carries X-Runner-Protocol-Supported.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "500": {
-            "description": "Server error"
+            "description": "Server error",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "requestBody": {

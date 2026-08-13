@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { schema } from '@stacksjs/validation'
 import { authenticateJob } from './authenticate'
 import { reportJob } from './report'
@@ -29,15 +30,42 @@ export default new Action({
   description: 'Record the result of a job a runner holds',
   method: 'POST',
 
+  responses: {
+    426: {
+      description: 'This runner speaks a protocol version the server does not. The body says which end is behind; every answer carries X-Runner-Protocol-Supported.',
+    },
+    401: { description: 'No credential, or one this instance does not recognise.' },
+  },
+
+  responseHeaders: {
+    'X-Runner-Protocol-Supported': {
+      description: 'The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.',
+      schema: { type: 'string' },
+    },
+  },
+
   validations: {
     state: { rule: schema.enum(['succeeded', 'failed', 'cancelled']) },
     error: { rule: schema.string() },
   },
 
   async handle(request: any) {
+    /*
+     * Before anything else, including the credential.
+     *
+     * A runner speaking a protocol this server does not is going to
+     * misread whatever it is handed, and telling it that its token is
+     * fine first only delays the confusion. The refusal names which way
+     * the mismatch runs, because upgrading a fleet and upgrading a
+     * server are different afternoons.
+     */
+    const protocol = protocolOf(request)
+    if (!protocol.ok)
+      return refuseProtocol(protocol)
+
     const held = await authenticateJob(request)
     if (!held)
-      return response.json({ error: 'Unknown job credential' }, 401)
+      return runnerJson({ error: 'Unknown job credential' }, 401)
 
     // No second check on `state`. The `validations` block above refuses
     // anything else before this runs, with "State Must be one of: succeeded,
@@ -52,9 +80,9 @@ export default new Action({
     })
 
     if (!outcome.ok)
-      return response.json({ error: outcome.reason }, 409)
+      return runnerJson({ error: outcome.reason }, 409)
 
-    return response.json({
+    return runnerJson({
       recorded: true,
       duplicate: outcome.duplicate,
       run_state: outcome.runState ?? null,

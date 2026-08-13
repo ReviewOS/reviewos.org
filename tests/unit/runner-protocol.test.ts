@@ -12,12 +12,15 @@
 import { describe, expect, test } from 'bun:test'
 import type { JobFacts, RunnerFacts } from '../../app/Actions/Runner/protocol'
 import {
+  describeProtocol,
   leaseIsLive,
   leaseUntil,
   mayClaim,
   mayReport,
+  negotiate,
   runnerReaches,
   runnerSatisfies,
+  RUNNER_PROTOCOL,
   splitLabels,
 } from '../../app/Actions/Runner/protocol'
 
@@ -302,5 +305,68 @@ describe('splitLabels', () => {
   test('and absent is no labels rather than one empty one', () => {
     expect(splitLabels(null)).toEqual([])
     expect(splitLabels('   ')).toEqual([])
+  })
+})
+
+
+describe('speaking the same protocol', () => {
+  /*
+   * A self-hosted runner is a program somebody else installs, on a machine
+   * somebody else reboots, upgraded on a schedule nobody here controls. The two
+   * ends drift apart by default; the only question is whether they find out by
+   * being told or by behaving strangely - a runner sending a field this server
+   * ignores, or reading one it stopped sending, produces a job that hangs
+   * rather than an error anybody can act on.
+   */
+  test('a runner speaking the current version is agreed with', () => {
+    expect(negotiate(String(RUNNER_PROTOCOL.current)).ok).toBe(true)
+  })
+
+  /*
+   * The compatibility rule that matters most on the day it ships. Every runner
+   * written before the header existed sends nothing, and refusing those would
+   * break every fleet the moment this landed - the opposite of what a
+   * compatibility check is for.
+   */
+  test('a runner that sends no version is assumed to be the oldest, not refused', () => {
+    const decision = negotiate('')
+
+    expect(decision.ok).toBe(true)
+    expect(decision.version).toBe(RUNNER_PROTOCOL.minimum)
+  })
+
+  test('a version this server has retired is refused, and told to upgrade', () => {
+    // Against a range with something below it, because there is nothing below
+    // 1 yet - and the path that retires a version should be tested before the
+    // day somebody retires one.
+    const decision = negotiate('1', { minimum: 2, current: 3 })
+
+    expect(decision.ok).toBe(false)
+    expect(decision.reason).toContain('upgrade the runner')
+  })
+
+  /*
+   * Both directions, because a fleet is never upgraded atomically: a runner
+   * ahead of its server has to be told rather than left guessing, and the
+   * sentence has to say which end is behind - upgrading a hundred machines and
+   * upgrading one server are different afternoons.
+   */
+  test('and a version from the future is refused the other way round', () => {
+    const decision = negotiate(String(RUNNER_PROTOCOL.current + 1))
+
+    expect(decision.ok).toBe(false)
+    expect(decision.reason).toContain('upgrade the server')
+  })
+
+  test('nonsense is refused as nonsense rather than read as a number', () => {
+    for (const sent of ['v2', '1.5', '-1', '0', 'latest'])
+      expect({ sent, ok: negotiate(sent).ok }).toEqual({ sent, ok: false })
+  })
+
+  test('what this server speaks is said in a way an operator can compare', () => {
+    // One number when there is one, a range when there are several. A fleet
+    // operator upgrading a hundred machines needs one thing to compare against.
+    expect(describeProtocol({ minimum: 1, current: 1 })).toBe('1')
+    expect(describeProtocol({ minimum: 1, current: 3 })).toBe('1 to 3')
   })
 })

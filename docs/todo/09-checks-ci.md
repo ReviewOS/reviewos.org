@@ -743,8 +743,11 @@ should not make its public workflow API describe one vendor's sandbox.
       Claim, heartbeat, completion and log append are implemented, reachable over HTTP at
       `/api/runner/claim`, `/api/runner/heartbeat`, `/api/runner/report` and `/api/runner/logs`,
       and held by `tests/e2e/runner-claim.test.ts`, `runner-api.test.ts` and `runner-logs.test.ts`.
-      Artifact upload and cancellation acknowledgment are not, and neither is protocol versioning -
-      the box is ticked for the parts that exist and says which those are.
+      Cancellation acknowledgment and protocol versioning have since been added: a runner that
+      heard a cancellation may report `cancelled` even with the lease the cancellation revoked -
+      and only that, because "I stopped" cannot fabricate a verdict the way "I succeeded" can - and
+      every request may carry `X-Runner-Protocol` while every answer carries
+      `X-Runner-Protocol-Supported`. Artifact upload is still absent, and the box says so.
 
       The status codes are part of the contract rather than decoration. **No work is a 200 with
       `job: null`**, because a runner polling an idle instance is not making a mistake and an error
@@ -858,7 +861,24 @@ should not make its public workflow API describe one vendor's sandbox.
 - [ ] A provider cannot read another provider's job payloads, logs, caches, artifacts, or secrets
 - [ ] External CI adapters can translate an existing provider's run into ReviewOS check runs without
       pretending ReviewOS executed it
-- [ ] A documented self-hosted runner installation and upgrade path, with compatibility negotiation
+- [x] A documented self-hosted runner installation and upgrade path, with compatibility negotiation
+
+      [`docs/runner-protocol.md`](../runner-protocol.md). Four endpoints, HTTP and JSON, no SDK: a
+      runner written in an afternoon in any language is a supported runner, and a protocol an
+      operator can hold in their head is one they can debug at three in the morning with `curl`.
+
+      Negotiation is one number rather than per-endpoint versions or a capability matrix, because a
+      fleet operator upgrading a hundred machines needs one thing to compare and a matrix of
+      capabilities is a matrix of states nobody tests. It is a *range*, since both directions have
+      to work during an upgrade: the server keeps speaking to machines nobody has restarted yet, and
+      a runner upgraded ahead of its server is told rather than left guessing.
+
+      Three decisions worth keeping. **A missing version is the oldest**, not a refusal - every
+      runner written before the header existed sends nothing, and refusing those would have broken
+      every fleet on the day it shipped. **426 Upgrade Required** rather than 400 or 401: a 400
+      sends somebody to look at their payload and a 401 to look at their token, and both are the
+      wrong afternoon. And the check runs **before the credential**, because a runner that cannot be
+      spoken to will misread whatever it is handed.
 - [ ] Tests against a fake provider: disconnect, duplicate claim, late completion, cancellation,
       incompatible capabilities, and a credential used against the wrong job
 

@@ -14823,7 +14823,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": { "chunks"?: Array<Record<string, unknown>>; "cursor"?: number } } }
+      "200": { content: { "application/json": { "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string } } }
       "401": { content: never }
       "403": { content: never }
       "404": { content: never }
@@ -15045,7 +15045,9 @@ export interface paths {
     requestBody?: never
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
+      "401": { content: never }
       "422": { content: never }
+      "426": { content: never }
       "500": { content: never }
     }
   }
@@ -15068,7 +15070,9 @@ export interface paths {
     requestBody?: never
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
+      "401": { content: never }
       "422": { content: never }
+      "426": { content: never }
       "500": { content: never }
     }
   }
@@ -15091,7 +15095,9 @@ export interface paths {
     requestBody: { content: { "application/json": { "sequence": number; "content"?: string; "stream"?: "stdout" | "stderr" } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
+      "401": { content: never }
       "422": { content: never }
+      "426": { content: never }
       "500": { content: never }
     }
   }
@@ -15114,7 +15120,9 @@ export interface paths {
     requestBody?: { content: { "application/json": { "state"?: "succeeded" | "failed" | "cancelled"; "error"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
+      "401": { content: never }
       "422": { content: never }
+      "426": { content: never }
       "500": { content: never }
     }
   }

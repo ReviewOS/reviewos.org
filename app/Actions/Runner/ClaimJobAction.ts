@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { db } from '@stacksjs/database'
 import { authenticateRunner } from './authenticate'
 import { claimNextJob } from './claim'
@@ -27,14 +28,41 @@ export default new Action({
   description: 'Take the next job this runner may run',
   method: 'POST',
 
+  responses: {
+    426: {
+      description: 'This runner speaks a protocol version the server does not. The body says which end is behind; every answer carries X-Runner-Protocol-Supported.',
+    },
+    401: { description: 'No credential, or one this instance does not recognise.' },
+  },
+
+  responseHeaders: {
+    'X-Runner-Protocol-Supported': {
+      description: 'The protocol version, or range of versions, this server speaks. On every answer, so a runner about to be retired learns it from an ordinary poll rather than from the first request that fails.',
+      schema: { type: 'string' },
+    },
+  },
+
   async handle(request: any) {
+    /*
+     * Before anything else, including the credential.
+     *
+     * A runner speaking a protocol this server does not is going to
+     * misread whatever it is handed, and telling it that its token is
+     * fine first only delays the confusion. The refusal names which way
+     * the mismatch runs, because upgrading a fleet and upgrading a
+     * server are different afternoons.
+     */
+    const protocol = protocolOf(request)
+    if (!protocol.ok)
+      return refuseProtocol(protocol)
+
     const runner = await authenticateRunner(request)
     if (!runner)
-      return response.json({ error: 'Unknown runner' }, 401)
+      return runnerJson({ error: 'Unknown runner' }, 401)
 
     const claimed = await claimNextJob(runner.facts)
     if (!claimed)
-      return response.json({ job: null })
+      return runnerJson({ job: null })
 
     // Read after the claim rather than joined into it: the claim is a guarded
     // write and adding columns to it would mean widening the statement whose
@@ -75,7 +103,7 @@ export default new Action({
       .orderBy('workflow_version_steps.position')
       .execute()
 
-    return response.json({
+    return runnerJson({
       job: {
         id: claimed.jobId,
         key: claimed.jobKey,
