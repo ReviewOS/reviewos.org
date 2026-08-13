@@ -81,14 +81,22 @@ feature, a page per use case, and comparisons that say plainly what the alternat
 
 ## Self-hosting guide
 
-- [ ] Requirements and sizing, with honest numbers rather than optimistic ones
-- [ ] Install with pantry, and install with Docker
-- [ ] Reverse proxy and TLS
-- [ ] SMTP configuration for notifications
-- [ ] Backup and restore, covering both Postgres and the repository directory. Documented only after
-      it has actually been restored from, not merely written.
-- [ ] Upgrading, including migrations
-- [ ] Hardening checklist
+- [x] Requirements and sizing, with honest numbers rather than optimistic ones. Measured on a real
+      instance: boot to serving, resident memory idle and after a hundred requests, ref
+      advertisement and a full clone of a 190 MiB pack.
+- [x] Install with pantry, and install with Docker. Both paths, with the systemd units for the
+      non-Docker one and why `TimeoutStopSec` has to be above the drain window.
+- [x] Reverse proxy and TLS, including the `x-forwarded-proto` that decides whether the session
+      cookie is marked `Secure` - getting it wrong is a login that appears to work and returns you
+      signed out.
+- [x] SMTP configuration for notifications, starting with the fact that the default driver is `log`
+      and sends nothing, which in production is a password reset nobody receives.
+- [x] Backup and restore, covering both Postgres and the repository directory. Documented after
+      restoring from it against a copy, not merely written.
+- [x] Upgrading, including migrations, and which failure is the one where the answer is "restore"
+      rather than "fix and re-run"
+- [x] Hardening checklist: what an instance should look like before other people depend on it,
+      every line of it covered elsewhere on the page
 
 ## Brand
 

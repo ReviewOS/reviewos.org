@@ -311,6 +311,11 @@ Default: `public`, and the line is commented out.
 
 Default: `smtp`.
 
+The driver. `log` writes what would have been sent to the log and sends
+nothing, which is the framework's default and is fine in development and a
+silent failure in production - a password reset nobody receives looks like a
+broken account. `buddy instance:check` warns about it when `APP_ENV`=production.
+
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `MAIL_HOST`
@@ -351,7 +356,11 @@ Default: `"${APP_NAME}"`.
 
 ### `MAIL_FROM_ADDRESS`
 
-Default: `"no-reply@stacksjs.com"`.
+Default: `"no-reply@example.com"`.
+
+The address notifications come from. A domain you control and that this
+instance is allowed to send for: a From on somebody else's domain fails SPF
+and lands in spam, which reads as the notifications being broken.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 

@@ -80,6 +80,52 @@ nothing else, run something that alerts on the health endpoint going 503 - the
 instance takes itself out of rotation on a failed database or an unwritable
 repository volume, and that is the signal worth waking up for.
 
+## Without Docker
+
+The compose file is the shortest path, not the only one. On a machine you
+manage directly, pantry installs the toolchain into the project rather than onto
+the system, which is what makes this reproducible without containers:
+
+```sh
+git clone https://github.com/ReviewOS/reviewos.org
+cd reviewos.org
+cp .env.example .env          # then edit it, see Configuration below
+./buddy setup                 # Bun, Postgres, git, gnupg; creates the database
+./buddy migrate
+./buddy instance:check
+```
+
+Then run the two processes under whatever supervises this machine. A systemd
+unit each, both with `Restart=always`, both in the project directory:
+
+```ini
+# /etc/systemd/system/reviewos.service
+[Service]
+WorkingDirectory=/srv/reviewos
+ExecStart=/srv/reviewos/buddy serve
+Restart=always
+KillSignal=SIGTERM
+TimeoutStopSec=30
+```
+
+```ini
+# /etc/systemd/system/reviewos-queue.service
+[Service]
+WorkingDirectory=/srv/reviewos
+ExecStart=/srv/reviewos/buddy queue:work --concurrency 4
+Restart=always
+KillSignal=SIGTERM
+TimeoutStopSec=30
+```
+
+`TimeoutStopSec=30` and `SIGTERM` matter more than they look: the application
+stops by reporting unhealthy, waiting for the load balancer to notice, then
+draining in-flight work, and the total is deliberately under the 30 seconds
+systemd waits before `SIGKILL`. See [Stopping and restarting](#stopping-and-restarting).
+
+The reverse proxy, the backups and the checks below are the same either way -
+only the process manager differs.
+
 ## What it costs to run
 
 Measured on this instance rather than estimated, because sizing guidance from
@@ -221,6 +267,54 @@ Three things worth knowing:
 
 Nothing else changes: an instance started from a `.env` works as before, which
 is the common case on a single host.
+
+## Email
+
+Password resets, sign-in notifications for a new device, review requests and
+digests all leave through here. There is one fact worth knowing before anything
+else: **the default driver is `log`**, which writes what would have been sent
+and sends nothing. In development that is what you want. In production it is a
+password reset nobody receives, which the person on the other end reads as a
+broken account rather than as a mail server that was never configured.
+
+```sh
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.example.com
+MAIL_PORT=587
+MAIL_USERNAME=forge@example.com
+MAIL_PASSWORD=...
+MAIL_ENCRYPTION=tls
+MAIL_FROM_NAME=ReviewOS
+MAIL_FROM_ADDRESS=no-reply@example.com
+```
+
+Four things that go wrong, in the order they do:
+
+- **`MAIL_FROM_ADDRESS` on a domain you do not control.** It fails SPF and lands
+  in spam, and the symptom is "notifications do not work" rather than anything
+  about mail. Use a domain this instance is allowed to send for, and publish SPF
+  and DKIM for whatever relays it.
+- **Port 587 with `MAIL_ENCRYPTION=tls`** for submission with STARTTLS; 465 with
+  `ssl` for implicit TLS. A mismatched pair connects and then hangs, which looks
+  like the host being unreachable.
+- **`MAIL_USERNAME=null`.** The example file carries the literal string, and it
+  is treated as empty rather than as a user named "null" - so an authenticated
+  relay with the username left at the default fails to authenticate and says so
+  in the queue's log, not on the page somebody was looking at.
+- **The queue has to be running.** Mail is queued, not sent inline, so a
+  configuration that is right and a worker that is not running are
+  indistinguishable from the interface.
+
+Check it rather than guessing:
+
+```sh
+docker compose exec app bun run --bun ./buddy email:test
+```
+
+`buddy instance:check` warns when a production instance has no mail configured
+at all. It is a warning rather than fatal: an invite-only instance where nobody
+resets a password is a reasonable deployment, and it should be a choice rather
+than a surprise.
 
 ## The queue
 
@@ -586,6 +680,29 @@ Three things about a deployment, in the order they bite:
   leaking a password.
 - **The backup is a security control.** It contains every private repository on
   the instance, so encrypt it before it leaves the host.
+
+### The checklist
+
+Everything below is covered somewhere on this page. Together it is what an
+instance should look like before other people depend on it.
+
+- [ ] TLS terminated in front, and `APP_URL` matching what people type
+- [ ] `APP_KEY` generated with `buddy key:generate`, and backed up somewhere
+      other than the instance
+- [ ] `GIT_HOOK_SECRET` set to something random, and `buddy git:hooks` run since
+- [ ] Registration closed, or open on purpose
+- [ ] The first account made an administrator, and no others by accident
+- [ ] Two-factor required for administrators, at least
+- [ ] `METRICS_TOKEN` set, or `/api/metrics` unreachable from outside
+- [ ] Postgres not listening on a public interface
+- [ ] Backups running on a timer, encrypted, and **restored from once** rather
+      than merely written
+- [ ] `buddy instance:check` clean, in production mode
+- [ ] Mail configured, or accepted as absent on purpose
+- [ ] Dependency updates arriving as pull requests rather than as a task nobody
+      has time for
+- [ ] The search node, if you run one, on its own key rather than the
+      development default
 
 ### Sessions
 
