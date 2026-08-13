@@ -62,18 +62,34 @@ export default function (cli: CLI) {
 
       /*
        * Every file that could read a variable, so "read by" is a fact rather
-       * than a sample. `app/` and `routes/` only: `config/` carries the
-       * framework's defaults for services this product does not use, and a
-       * configuration page listing Twilio and Vonage is one nobody finishes.
+       * than a sample. `app/`, `routes/` and `resources/`, not `config/`: the
+       * config files carry the framework's defaults for services this product
+       * does not use, and a configuration page listing Twilio and Vonage is one
+       * nobody finishes.
+       *
+       * `resources/` earns its place - `SSH_CLONE_HOST` and `SSH_CLONE_USER`
+       * are read by a component and by nothing under `app/`, so leaving views
+       * out published them as variables nothing reads.
        */
       const readers: Array<{ path: string, source: string }> = []
 
-      for (const directory of ['app', 'routes']) {
-        for await (const file of new Glob('**/*.ts').scan({ cwd: directory }))
-          readers.push({ path: `${directory}/${file}`, source: await Bun.file(`${directory}/${file}`).text() })
+      for (const directory of ['app', 'routes', 'resources']) {
+        for await (const file of new Glob('**/*.{ts,stx}').scan({ cwd: directory })) {
+          const path = `${directory}/${file}`
+
+          // Not the generator itself. It names variables in its own comments to
+          // explain why they are hard to find, and listing it as their reader
+          // would be the page citing itself.
+          if (path.startsWith('app/Docs/'))
+            continue
+
+          readers.push({ path, source: await Bun.file(path).text() })
+        }
       }
 
       readers.sort((left, right) => left.path.localeCompare(right.path))
+
+      const entries = parseEnvExample(await Bun.file('.env.example').text())
 
       const pages = [
         { path: 'docs/api.md', body: renderApiReference(spec, at, routes) },
@@ -85,8 +101,8 @@ export default function (cli: CLI) {
           // with is the sort of small lie a reader catches and then distrusts
           // the rest of.
           body: renderConfiguration(
-            parseEnvExample(await Bun.file('.env.example').text()),
-            envReads(readers),
+            entries,
+            envReads(readers, new Set(entries.map(entry => entry.name))),
             'from `.env.example` and the source that reads it',
             checkedVariables(await Bun.file('app/Ops/config.ts').text()),
           ),

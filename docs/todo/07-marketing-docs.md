@@ -54,13 +54,14 @@ feature, a page per use case, and comparisons that say plainly what the alternat
 - [x] Roadmap published as task lists that render as checkboxes
 - [x] Roadmap index counts and "not started" states are checked by `tests/unit/roadmap.test.ts`, so
       completing work cannot leave the summary silently stale
-- [ ] Getting started: requirements, install, first repository
+- [x] Getting started: requirements, install, first repository, and what a push actually does
 - [x] Configuration reference: every environment variable that matters, and what it does.
       `docs/configuration.md` is generated from `.env.example` and the source that reads each
       variable, so it says where a value is used, which ones the boot check validates, and which
       ones git sets for a hook rather than you. The hand-written table it replaced still named
       Meilisearch months after the move to Typesense, which is the argument for generating it.
-- [ ] Architecture: how a request becomes a git operation, and where repositories live on disk
+- [x] Architecture: how a request becomes a git operation, where repositories live on disk, and the
+      two planes checks run in
 - [x] API reference for the JSON API, generated from the actions rather than written by hand.
       `buddy docs:reference` writes `docs/api.md` from the OpenAPI document and `docs/webhooks.md`
       from the payload module; `--check` and `tests/unit/docs-reference.test.ts` fail when the
@@ -71,9 +72,12 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       `validations` block; the other 130 validate inside the handler, so the document has nothing to
       publish for them and the page names the action instead of guessing. The test holds that count
       from growing.
-- [ ] Contributing guide: the model to migration to action to route to view order, and the
+- [x] Contributing guide: the model to migration to action to route to view order, and the
       expectation that roadmap boxes are ticked in the same commit as the work
-- [ ] Search across the docs
+- [ ] Search across the docs. The overlay renders and takes a query, and bunpress serves the index
+      it fetches from 0.2.0 on - this app is on a Stacks release that pins `^0.1.18`, where
+      `/search-index.json` is a 404 and the box silently answers nothing. Bumped in Stacks and
+      released as 0.70.370; tick this once the app is on it and a query returns hits here.
 
 ## Self-hosting guide
 

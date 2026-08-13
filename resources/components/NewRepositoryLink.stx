@@ -1,0 +1,34 @@
+<script server>
+/**
+ * The navigation item for creating a repository, shown only to somebody signed
+ * in.
+ *
+ * `/new` existed and nothing in the chrome pointed at it, which is the same
+ * failure `SettingsLink.stx` was written for: a page that exists and nothing
+ * links to. Creating a repository is the first thing anybody does on a forge,
+ * and typing a URL to reach it is not a thing people guess.
+ *
+ * A component rather than a branch in the layout, for the reason written at
+ * length in `ReviewQueueBadge.stx`: an stx server script that throws renders
+ * its page with every variable undefined and says nothing, so a script added to
+ * the shared layout is one mistake away from blanking the whole product.
+ * Everything here sits inside a guard that cannot throw, and any failure
+ * renders no link - which is what a signed-out reader gets on purpose.
+ */
+import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
+
+const serveContext = __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+let signedIn = false
+try {
+  signedIn = Boolean(await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie)))
+}
+catch {
+  signedIn = false
+}
+</script>
+
+@if (signedIn)
+  <a class="muted" style="text-decoration: none;" href="/new">New</a>
+@endif

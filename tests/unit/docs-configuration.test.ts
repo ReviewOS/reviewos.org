@@ -138,16 +138,24 @@ describe('the committed page', () => {
     const { Glob } = await import('bun')
     const readers: Array<{ path: string, source: string }> = []
 
-    for (const directory of ['app', 'routes']) {
-      for await (const file of new Glob('**/*.ts').scan({ cwd: directory }))
-        readers.push({ path: `${directory}/${file}`, source: await Bun.file(`${directory}/${file}`).text() })
+    for (const directory of ['app', 'routes', 'resources']) {
+      for await (const file of new Glob('**/*.{ts,stx}').scan({ cwd: directory })) {
+        const path = `${directory}/${file}`
+
+        if (path.startsWith('app/Docs/'))
+          continue
+
+        readers.push({ path, source: await Bun.file(path).text() })
+      }
     }
 
     readers.sort((left, right) => left.path.localeCompare(right.path))
 
+    const entries = parseEnvExample(await Bun.file('.env.example').text())
+
     const body = renderConfiguration(
-      parseEnvExample(await Bun.file('.env.example').text()),
-      envReads(readers),
+      entries,
+      envReads(readers, new Set(entries.map(entry => entry.name))),
       'from `.env.example` and the source that reads it',
       checkedVariables(await Bun.file('app/Ops/config.ts').text()),
     )

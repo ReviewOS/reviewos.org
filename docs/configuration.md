@@ -11,7 +11,7 @@ Nothing is committed. `.env` is gitignored, values can come from a file instead 
 `<NAME>_FILE`, and `buddy instance:check` reads the ones that have to be right and says which
 are wrong and what to do about them.
 
-_Generated from `.env.example` and the source that reads it._
+*Generated from `.env.example` and the source that reads it.*
 
 ## The application
 
@@ -19,7 +19,7 @@ _Generated from `.env.example` and the source that reads it._
 
 Default: `ReviewOS`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `APP_ENV`
 
@@ -40,31 +40,31 @@ Default: `reviewos.localhost`. Checked at boot, so a wrong value stops the insta
 Pretty HTTPS URLs are the default development experience. `./buddy dev`
 routes this hostname through rpx, which uses tlsx for local certificates.
 
-Read by `app/Actions/Auth/passkeys.ts`, `app/Actions/Auth/SsoAction.ts`, `app/Actions/Notification/vapid.ts`, `app/Jobs/SendNotificationJob.ts`.
+Read by `app/Actions/Auth/passkeys.ts`, `app/Actions/Auth/SsoAction.ts`, `app/Actions/Notification/vapid.ts`, `app/Jobs/SendNotificationJob.ts`, `resources/components/CloneUrlBox.stx`.
 
 ### `APP_MAINTENANCE`
 
 Default: `false`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `APP_MAINTENANCE_SECRET`
 
 Default: empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `APP_COMING_SOON`
 
 Default: `false`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `APP_COMING_SOON_SECRET`
 
 Default: empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `APP_PORT`
 
@@ -73,10 +73,10 @@ Default: unset.
 Two values the git hooks read, set by the process that starts them rather
 than by hand:
 
-APP_PORT is a fallback for PORT when building the loopback URL a hook posts
-back to, so a hook still reaches the instance when only APP_PORT is set.
+`APP_PORT` is a fallback for `PORT` when building the loopback URL a hook posts
+back to, so a hook still reaches the instance when only `APP_PORT` is set.
 
-REVIEWOS_ACTOR_ID attributes a push to an account. The SSH server sets it for
+`REVIEWOS_ACTOR_ID` attributes a push to an account. The SSH server sets it for
 the connection it authenticated; a value in `.env` would attribute every push
 on the instance to one person.
 
@@ -92,7 +92,7 @@ Optional automation credential for non-interactive environments. Interactive
 users should run `./buddy setup:ssl` once instead of storing a sudo password.
 Local-only, never commit a real value because .env is gitignored.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Encrypted values
 
@@ -107,13 +107,13 @@ Encrypted values look like `encrypted:...` or `enc:...` in this file and
 are auto-decrypted at boot by the env plugin in bunfig.toml preload.
 Leave both blank in dev; run `buddy key:generate` to materialize.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `DOTENV_PRIVATE_KEY`
 
 Default: empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Ports
 
@@ -129,7 +129,7 @@ Read by `app/Actions/Git/hooks.ts`.
 
 Default: `true`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Git
 
@@ -146,13 +146,13 @@ Without it a push lands on disk and nothing is recorded about it: no closed
 issues, no cross references, no `pushed_at`. Generate one with
 `openssl rand -hex 32`, then run `buddy git:hooks`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `GIT_HOOK_URL`
 
 Default: empty.
 
-Where the hooks reach the application. Defaults to loopback on PORT, which is
+Where the hooks reach the application. Defaults to loopback on `PORT`, which is
 what you want: a push should not depend on the instance being able to resolve
 and reach its own public hostname from the inside.
 
@@ -164,19 +164,19 @@ Read by `app/Actions/Git/hooks.ts`.
 
 Default: `postgres`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `DB_HOST`
 
 Default: `127.0.0.1`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `DB_PORT`
 
 Default: `5432`. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `DB_DATABASE`
 
@@ -192,15 +192,15 @@ Pantry initialises its Postgres cluster with `initdb --auth-local=trust
 --auth-host=trust --username=postgres`, so `postgres` is the only role that
 exists and the password is ignored. This value is also load-bearing for
 automatic database creation: pantry skips `createdb` entirely when
-DB_USERNAME is empty.
+`DB_USERNAME` is empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `DB_PASSWORD`
 
 Default: empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `DATABASE_URL`
 
@@ -209,7 +209,7 @@ Default: `postgres://postgres@127.0.0.1:5432/reviewos`.
 Read natively by bun:sql as a fallback for connections that setConfig does
 not reach. Keep it in sync with the DB_* values above.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Stripe
 
@@ -217,7 +217,7 @@ _Not read by anything under `app/` or `routes/`: this one is the framework's._
 
 Default: `""`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## AWS
 
@@ -225,31 +225,31 @@ _Not read by anything under `app/` or `routes/`: this one is the framework's._
 
 Default: empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `AWS_ACCESS_KEY_ID`
 
 Default: empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `AWS_SECRET_ACCESS_KEY`
 
 Default: empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `AWS_DEFAULT_REGION`
 
 Default: `us-east-1`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `AWS_PROFILE`
 
 Default: `stacks`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `AWS_BUCKET`
 
@@ -257,31 +257,31 @@ Default: empty.
 
 AWS S3 Storage
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `AWS_S3_PREFIX`
 
 Default: empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `AWS_ENDPOINT`
 
 Default: empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `AWS_URL`
 
 Default: empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `AWS_USE_PATH_STYLE_ENDPOINT`
 
 Default: `false`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Storage
 
@@ -291,19 +291,19 @@ Default: `local`.
 
 Filesystem / Storage
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `FILESYSTEM_LOCAL_ROOT`
 
 Default: `storage/app`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `FILESYSTEM_PUBLIC_ROOT`
 
 Default: `public`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Email
 
@@ -311,49 +311,49 @@ _Not read by anything under `app/` or `routes/`: this one is the framework's._
 
 Default: `smtp`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `MAIL_HOST`
 
 Default: `mailpit`. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `MAIL_PORT`
 
 Default: `1025`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `MAIL_USERNAME`
 
 Default: `null`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `MAIL_PASSWORD`
 
 Default: `null`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `MAIL_ENCRYPTION`
 
 Default: `null`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `MAIL_FROM_NAME`
 
 Default: `"${APP_NAME}"`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `MAIL_FROM_ADDRESS`
 
 Default: `"no-reply@stacksjs.com"`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## The queue
 
@@ -364,37 +364,37 @@ Default: `database`.
 Queue Configuration
 Drivers: sync (default, immediate execution), database, redis, sqs, memory
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_PREFIX`
 
 Default: `stacks:queue`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_CONCURRENCY`
 
 Default: `5`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_LOG_LEVEL`
 
 Default: `info`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_WORKER_CONCURRENCY`
 
 Default: `5`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_FAILED_DRIVER`
 
 Default: `database`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_RATE_LIMIT_ENABLED`
 
@@ -402,19 +402,19 @@ Default: `false`, and the line is commented out.
 
 Queue Rate Limiting (optional)
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_RATE_LIMIT_MAX`
 
 Default: `100`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_RATE_LIMIT_DURATION`
 
 Default: `1000`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_DLQ_ENABLED`
 
@@ -422,13 +422,13 @@ Default: `true`, and the line is commented out.
 
 Queue Dead Letter Queue (optional)
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_DLQ_MAX_RETRIES`
 
 Default: `3`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_HORIZONTAL_SCALING_ENABLED`
 
@@ -436,19 +436,19 @@ Default: `false`, and the line is commented out.
 
 Queue Horizontal Scaling (optional, for multi-instance deployments)
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_MAX_WORKERS`
 
 Default: `10`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_JOBS_PER_WORKER`
 
 Default: `10`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_METRICS_ENABLED`
 
@@ -456,7 +456,7 @@ Default: `false`, and the line is commented out.
 
 Queue Metrics (optional)
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Redis
 
@@ -464,33 +464,33 @@ _Not read by anything under `app/` or `routes/`: this one is the framework's._
 
 Default: unset.
 
-Redis Configuration (required when QUEUE_DRIVER=redis)
+Redis Configuration (required when `QUEUE_DRIVER`=redis)
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `REDIS_HOST`
 
 Default: `localhost`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `REDIS_PORT`
 
 Default: `6379`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `REDIS_PASSWORD`
 
 Default: unset.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `REDIS_DB`
 
 Default: `0`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## SQS
 
@@ -498,15 +498,15 @@ _Not read by anything under `app/` or `routes/`: this one is the framework's._
 
 Default: unset.
 
-SQS Configuration (required when QUEUE_DRIVER=sqs)
+SQS Configuration (required when `QUEUE_DRIVER`=sqs)
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `SQS_SUFFIX`
 
 Default: unset.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Search
 
@@ -523,31 +523,31 @@ The key is the one pantry's service runs with. It is a development default and
 an instance reachable from anywhere needs its own: a search node with a
 guessable key answers anybody's question about private repositories.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `TYPESENSE_HOST`
 
 Default: `127.0.0.1`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `TYPESENSE_PORT`
 
 Default: `8108`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `TYPESENSE_PROTOCOL`
 
 Default: `http`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `TYPESENSE_API_KEY`
 
 Default: `pantry-dev`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Exposed to the browser
 
@@ -557,19 +557,19 @@ Default: `"${APP_ENV}"`.
 
 FRONTEND_* variables should not contain any sensitive information
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `FRONTEND_APP_URL`
 
 Default: `"${APP_URL}"`.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `FRONTEND_STRIPE_PUBLIC_KEY`
 
 Default: empty.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Cloud dashboard
 
@@ -578,28 +578,28 @@ _Not read by anything under `app/` or `routes/`: this one is the framework's._
 Default: empty.
 
 ts-cloud management dashboard (auto-deployed on every server).
-Served behind HTTP Basic auth when TS_CLOUD_UI_PASSWORD is set; if left empty
+Served behind HTTP Basic auth when `TS_CLOUD_UI_PASSWORD` is set; if left empty
 the dashboard is served WITHOUT auth (recommended: set a password).
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `TS_CLOUD_UI_USERNAME`
 
 Default: `admin`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `TS_CLOUD_UI_DOMAIN`
 
 Default: `dashboard.example.com`, and the line is commented out.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `TS_CLOUD_UI_DISABLE`
 
 Default: unset.
 
-_Not read by anything under `app/` or `routes/`: this one is the framework's._
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ## Webhooks
 
@@ -643,7 +643,7 @@ The public key is safe to expose - the browser needs it to subscribe. The
 private key never leaves the server. Replacing the pair invalidates every
 existing subscription, because a browser subscribes TO a public key.
 
-VAPID_SUBJECT is mailto: or https:, and RFC 8292 requires it: it is how a push
+`VAPID_SUBJECT` is mailto: or https:, and RFC 8292 requires it: it is how a push
 service reaches whoever runs this server, and the alternative to being
 reachable is being blocked.
 
@@ -669,19 +669,19 @@ Default: unset.
 
 Single sign-on (OIDC)
 
-Off unless SSO_ISSUER, SSO_CLIENT_ID and SSO_CLIENT_SECRET are all set: a
+Off unless `SSO_ISSUER`, `SSO_CLIENT_ID` and `SSO_CLIENT_SECRET` are all set: a
 half-configured provider would be a sign-in button that fails after the
 redirect, which is worse than no button. The issuer is the base URL whose
 `/.well-known/openid-configuration` describes the provider.
 
-SSO_REDIRECT_URI defaults to `<APP_URL>/api/auth/sso`, which is what the
+`SSO_REDIRECT_URI` defaults to `<APP_URL>/api/auth/sso`, which is what the
 provider must be told to allow. Set it only when this instance sits behind
 something that rewrites the path.
 
-SSO_SCOPES is space or comma separated and adds to the defaults. Ask for the
+`SSO_SCOPES` is space or comma separated and adds to the defaults. Ask for the
 groups claim here when the provider needs to be told to send it.
 
-SSO_TEAM_ORGANIZATION names the one organization whose teams follow the
+`SSO_TEAM_ORGANIZATION` names the one organization whose teams follow the
 provider's groups. Deliberately a single named organization: group mapping
 that could add somebody to any organization on the instance is a provider
 misconfiguration away from being a privilege escalation.
@@ -726,12 +726,12 @@ Default: unset. Checked at boot, so a wrong value stops the instance with a sent
 
 Error reporting
 
-Off unless ERROR_REPORTING_URL is set, and that default is a product decision
+Off unless `ERROR_REPORTING_URL` is set, and that default is a product decision
 rather than laziness: self-hosted software that phones home by default is
 software people stop trusting. A POST to a webhook rather than a vendor SDK,
 so this is not a dependency or a bet on which service you use.
 
-ERROR_REPORTING_WINDOW_MS is how long the same error stays deduplicated, so a
+`ERROR_REPORTING_WINDOW_MS` is how long the same error stays deduplicated, so a
 failing job cannot turn into ten thousand identical messages.
 
 Read by `app/Ops/reporting.ts`.
@@ -778,7 +778,30 @@ Serving git over SSH: the port `buddy git:ssh` listens on. 2222 rather than
 22 because binding a privileged port needs root, and running the git server as
 root to save people six characters in a clone URL is not a trade worth making.
 
-Read by `app/Commands/GitSsh.ts`.
+Read by `app/Actions/Repo/cloneUrl.ts`, `app/Commands/GitSsh.ts`.
+
+### `SSH_CLONE_HOST`
+
+Default: unset.
+
+Serving git over SSH to whoever is looking at a repository page.
+
+The clone box offers an SSH URL only when one of these is set, and that is
+deliberate: a URL that cannot connect is worse than one fewer, because
+somebody copies it, waits for a timeout, and concludes the forge is broken
+rather than that a feature is off. Setting `SSH_PORT` is enough - the host falls
+back to the one the page was served from.
+
+`SSH_CLONE_USER` is the account clients connect as. The user name is ignored on
+the way in; the key is the identity. `git` unless you have a reason.
+
+Read by `app/Actions/Repo/cloneUrl.ts`.
+
+### `SSH_CLONE_USER`
+
+Default: `git`, and the line is commented out.
+
+Read by `app/Actions/Repo/cloneUrl.ts`.
 
 ## Stopping
 
@@ -788,8 +811,8 @@ Default: `5000`, and the line is commented out.
 
 Stopping without losing work.
 
-SHUTDOWN_LEAD_MS is how long to keep answering *after* reporting unhealthy, so
-the load balancer has noticed before the door closes. SHUTDOWN_DRAIN_MS is how
+`SHUTDOWN_LEAD_MS` is how long to keep answering *after* reporting unhealthy, so
+the load balancer has noticed before the door closes. `SHUTDOWN_DRAIN_MS` is how
 long in-flight work then has to finish. The total is deliberately under the
 30 seconds Docker, Kubernetes and systemd wait before SIGKILL: a process that
 exits on its own terms has finished its writes, and one that is killed has not.

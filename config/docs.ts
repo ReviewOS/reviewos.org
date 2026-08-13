@@ -49,6 +49,9 @@ const config: BunPressOptions = {
           text: 'Introduction',
           items: [
             { text: 'What ReviewOS is', link: '/' },
+            { text: 'Getting started', link: '/getting-started' },
+            { text: 'Architecture', link: '/architecture' },
+            { text: 'Contributing', link: '/contributing' },
           ],
         },
         /*

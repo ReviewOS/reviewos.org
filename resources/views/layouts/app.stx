@@ -1802,6 +1802,10 @@
           <a class="muted" style="text-decoration: none;" href="/explore">Explore</a>
           <a class="muted" style="text-decoration: none;" href="/discover">Discover</a>
           <a class="muted" style="text-decoration: none;" href="/docs">Docs</a>
+          {{-- Creating a repository is the first thing anybody does on a
+              forge, and `/new` was reachable only by typing the URL. Same
+              failure as the settings pages below, one screen earlier. --}}
+          <NewRepositoryLink />
           {{-- Last, and only when there is somebody to have settings. Six
               settings pages existed and nothing in the chrome pointed at any
               of them, which is the same failure as a link to a page that does

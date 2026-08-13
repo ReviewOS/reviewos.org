@@ -155,21 +155,67 @@ export function checkedVariables(source: string): Set<string> {
   return new Set([...String(source ?? '').matchAll(/variable:\s*'([A-Z][A-Z0-9_]*)'/g)].map(match => match[1] ?? ''))
 }
 
-/** Which files read each variable, so a reader can go and look. */
-export function envReads(files: Array<{ path: string, source: string }>): Map<string, string[]> {
+/**
+ * Which files read each variable, so a reader can go and look.
+ *
+ * Two passes, because the codebase spells an environment read two ways. Most
+ * are `process.env.NAME` or `Bun.env.NAME` and match on sight. The rest arrive
+ * as a passed-in object - `app/Ops/config.ts` takes the environment as an
+ * argument so its rules are testable without setting a variable in the test
+ * runner's own process, and `sshCloneUrlFor` does the same - where the property
+ * is `environment.SSH_CLONE_HOST` and no pattern for "env" will find it.
+ *
+ * So a name already declared in `.env.example` is also matched as a bare
+ * property. The false positive that admits - a field that happens to be named
+ * `APP_KEY` on something unrelated - is a wrong file path in a list; the false
+ * negative it avoids is the page claiming nothing reads a variable that does.
+ */
+export function envReads(files: Array<{ path: string, source: string }>, known: Set<string> = new Set()): Map<string, string[]> {
   const reads = new Map<string, string[]>()
 
-  for (const { path, source } of files) {
-    for (const match of source.matchAll(/(?:Bun\.env|process\.env|\benv)\.([A-Z][A-Z0-9_]{2,})/g)) {
-      const name = match[1] ?? ''
-      const paths = reads.get(name) ?? []
+  const add = (name: string, path: string): void => {
+    const paths = reads.get(name) ?? []
 
-      if (!paths.includes(path))
-        reads.set(name, [...paths, path])
+    if (!paths.includes(path))
+      reads.set(name, [...paths, path])
+  }
+
+  for (const { path, source } of files) {
+    for (const match of source.matchAll(/(?:Bun\.env|process\.env|\benv)\.([A-Z][A-Z0-9_]{2,})/g))
+      add(match[1] ?? '', path)
+
+    if (known.size === 0)
+      continue
+
+    for (const match of source.matchAll(/\.([A-Z][A-Z0-9_]{2,})\b/g)) {
+      const name = match[1] ?? ''
+
+      if (known.has(name))
+        add(name, path)
     }
   }
 
   return reads
+}
+
+/**
+ * Variable names in prose, as code.
+ *
+ * Not cosmetic: `SHUTDOWN_LEAD_MS` in running text is `SHUTDOWN` then an
+ * emphasis run, so markdown renders half the name in italics and eats the
+ * underscores. The comments in `.env.example` are written for somebody reading
+ * a file, where backticks would be noise, so they are added here instead.
+ *
+ * Text already inside backticks is left alone - it is code twice otherwise, and
+ * a fenced block would gain backticks in the middle of a command.
+ */
+export function codeVariables(text: string, known: Set<string>): string {
+  return String(text ?? '')
+    .split(/(`[^`]*`)/)
+    .map(part => part.startsWith('`')
+      ? part
+      : part.replace(/\b[A-Z][A-Z0-9_]{2,}\b/g, name => (known.has(name) ? `\`${name}\`` : name)))
+    .join('')
 }
 
 function describeDefault(entry: EnvEntry): string {
@@ -210,7 +256,10 @@ export function renderConfiguration(entries: EnvEntry[], reads: Map<string, stri
     '`<NAME>_FILE`, and `buddy instance:check` reads the ones that have to be right and says which',
     'are wrong and what to do about them.',
     '',
-    `_Generated ${at}._`,
+    // Asterisks rather than underscores, because the comments carried over
+    // from `.env.example` use asterisks and a document that mixes the two is a
+    // lint warning here. One style, chosen by whichever the prose already uses.
+    `*Generated ${at}.*`,
     '',
   ]
 
@@ -236,12 +285,12 @@ export function renderConfiguration(entries: EnvEntry[], reads: Map<string, stri
       out.push(`Default: ${describeDefault(entry)}.${boot}`, '')
 
       if (entry.comment)
-        out.push(entry.comment, '')
+        out.push(codeVariables(entry.comment, declared), '')
 
       if (where.length > 0)
         out.push(`Read by ${where.map(path => `\`${path}\``).join(', ')}.`, '')
       else
-        out.push('_Not read by anything under `app/` or `routes/`: this one is the framework\'s._', '')
+        out.push('*No reader in `app/`, `routes/` or `resources/`: this one is the framework\'s.*', '')
     }
   }
 
