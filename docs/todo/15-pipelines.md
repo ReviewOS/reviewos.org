@@ -80,9 +80,14 @@ of those something else, and the Buildkite word must not creep in as a synonym.
 | annotation | annotation | **annotation** | Same word, and it is already a phase 9 model. |
 | check run | (reports as one) | **check run** | Phase 9 owns it. |
 
-- [ ] A test that greps routes, actions, models, and generated OpenAPI for `pipeline`, `build`,
+- [x] A test that greps routes, actions, models, and generated OpenAPI for `pipeline`, `build`,
       `agent`, and `meta-data` used in the Buildkite sense, and fails. This is the same class of rule
       as "never repo", and the same reason: a synonym that lands once is permanent.
+
+      `tests/unit/pipeline-vocabulary.test.ts`, checked against the generated document, the model
+      names and the action names - not against comments, because prose *about* Buildkite is how the
+      decision gets explained. It also asserts the Actions nouns are the ones in use, since a guard
+      that only bans things passes on an empty codebase.
 
 ---
 
