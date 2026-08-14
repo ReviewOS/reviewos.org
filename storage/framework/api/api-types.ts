@@ -13275,9 +13275,14 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string; "sha": string; "lcov"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "413": { content: never }
       "422": { content: never }
       "500": { content: never }
     }

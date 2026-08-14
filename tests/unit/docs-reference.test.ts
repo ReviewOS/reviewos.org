@@ -99,9 +99,27 @@ describe('the API page', () => {
   })
 
   /*
-   * "Takes no parameters" would be a lie for most of the surface: the document
-   * only knows what an action declares in `validations`, so an endpoint that
-   * plainly requires a name would be published as taking nothing at all.
+   * An endpoint described on purpose is taken at its word. `POST
+   * /api/runner/claim` takes a credential in a header and nothing else;
+   * sending a reader to an action that has nothing more to say is worse than
+   * saying so plainly.
+   */
+  test('an endpoint that documented its answers is taken at its word about its inputs', () => {
+    const described = renderApiReference(
+      { paths: { '/api/runner/claim': { post: { responses: { 401: { description: 'No credential, or one this instance does not recognise.' } } } } } } as any,
+      'from OpenAPI 1.0.0',
+      declaredRoutes([{ prefix: '/api', source: `route.post('/runner/claim', 'Actions/Runner/ClaimJobAction')` }]),
+    )
+
+    expect(described).toContain('_Takes no parameters._')
+    expect(described).not.toContain('Inputs are not declared')
+  })
+
+  /*
+   * And one that said nothing at all gets the honest answer. "Takes no
+   * parameters" would be a lie for most of the surface: the document only
+   * knows what an action declares in `validations`, so an endpoint that
+   * plainly requires a name would be published as taking nothing.
    */
   test('an endpoint that declares nothing names its action rather than claiming it takes nothing', () => {
     const bare = renderApiReference(
@@ -184,7 +202,7 @@ describe('the committed pages', () => {
     const routes = declaredRoutes([{ prefix: '/api', source: await Bun.file('routes/api.ts').text() }])
     const { declared, operations } = countDeclared(spec, groupPaths(spec, pathsOf(routes)))
 
-    expect(operations - declared).toBeLessThanOrEqual(110)
+    expect(operations - declared).toBeLessThanOrEqual(109)
   })
 
   test('and are linked from the sidebar, or nobody finds them', async () => {

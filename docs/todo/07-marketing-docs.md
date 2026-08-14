@@ -94,8 +94,8 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       committed copies have drifted, because a generator nobody runs is a hand-written page with
       extra steps.
 - [x] Webhook payload reference, every event from `WEBHOOK_EVENTS` with the envelope described once
-- [ ] Declare the remaining endpoints' inputs on their actions. 47 of 157 operations carry a
-      `validations` block; the other 110 validate inside the handler, so the document has nothing to
+- [ ] Declare the remaining endpoints' inputs on their actions. 48 of 157 operations carry a
+      `validations` block; the other 109 validate inside the handler, so the document has nothing to
       publish for them and the page names the action instead of guessing. The test holds that count
       from growing, and it comes down a batch at a time: the repository endpoints - star, watch,
       fork, transfer, delete - went first, because `owner` plus `repo` is how every
@@ -103,7 +103,12 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       repository". Then the issue endpoints: list, create, comment, assign, label, lock. Then
       opening, merging and requesting a review on a pull request, which is the surface an agent
       uses most. Then webhooks and tokens - the two endpoints where a 422 is the difference between
-      "your URL is refused" and a delivery that silently never happens.
+      "your URL is refused" and a delivery that silently never happens - and the coverage upload.
+
+      The page also stopped telling readers to go and read an action that has nothing to say. An
+      endpoint that wrote its own `responses` is taken at its word about its inputs: `POST
+      /api/runner/claim` takes a credential in a header and nothing else, and now says so rather
+      than pointing at `ClaimJobAction`.
 
       One thing to carry into the next batch. A declared rule is enforced, so a wrong one is an
       outage rather than a documentation gap: `assignees` and `labels` arrive as arrays, and

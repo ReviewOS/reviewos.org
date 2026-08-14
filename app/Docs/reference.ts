@@ -111,6 +111,22 @@ export function titleFor(group: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
+/**
+ * The answers the generator invents when an action says nothing.
+ *
+ * Every operation gets these three whether or not anybody wrote them, so their
+ * presence says nothing - but an operation that carries *anything else* was
+ * described on purpose, by somebody who would have listed the inputs too if
+ * there were any.
+ */
+const GENERIC_RESPONSES = new Set(['Successful response', 'Validation failed', 'Server error'])
+
+/** Whether an author described this endpoint, rather than the generator filling it in. */
+export function isDescribed(operation: OpenApiOperation): boolean {
+  return Object.values(operation.responses ?? {})
+    .some(answer => answer.description && !GENERIC_RESPONSES.has(answer.description))
+}
+
 function parameterTable(operation: OpenApiOperation, handler: string): string {
   const parameters = operation.parameters ?? []
   const body = operation.requestBody?.content?.['application/json']?.schema
@@ -134,7 +150,12 @@ function parameterTable(operation: OpenApiOperation, handler: string): string {
      * as taking nothing at all. Naming the action is the honest answer, and it
      * is also the thing that gets the declaration written.
      */
-    return handler
+    /*
+     * Unless the endpoint was described. `ClaimJob` takes a credential in a
+     * header and nothing else; telling a reader its inputs are undeclared
+     * sends them to read an action that has nothing more to say.
+     */
+    return handler && !isDescribed(operation)
       ? `_Inputs are not declared on \`${handler}\`, so they are not listed here._\n`
       : '_Takes no parameters._\n'
   }

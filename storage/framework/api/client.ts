@@ -4953,8 +4953,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/coverage
    */
-  postReposCoverage(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/coverage", {}, [], false, options)
+  postReposCoverage(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "sha": string; "lcov"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/coverage", input ?? {}, [], true, options)
   },
 
   /**

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { parseLcov } from './coverage'
 
@@ -24,6 +25,29 @@ export default new Action({
   name: 'UploadCoverage',
   description: 'Store a coverage report for a commit',
   method: 'POST',
+
+  /*
+   * Declared here so the reference lists them and the validator enforces them
+   * from the same object. The body may also arrive as raw lcov with a content
+   * type to match, which is what every coverage tool emits - so `lcov` is
+   * optional here and the handler decides between the two.
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    sha: { rule: schema.string().required() },
+    lcov: { rule: schema.string() },
+  },
+
+  responses: {
+    201: { description: 'The report, as this instance now holds it: the commit and the per-file coverage it will show in a diff.' },
+    401: { description: 'Unauthenticated.' },
+    403: { description: 'Reporting coverage needs the `checks` scope on a token that can reach this repository.' },
+    413: { description: 'The report is larger than this instance accepts. A coverage file that big is usually a whole monorepo reported as one.' },
+    422: { description: 'A full commit sha is required, and the body has to read as lcov. A truncated upload fails here rather than becoming a diff with no coverage.' },
+    404: { description: 'No such repository, or none this caller may see.' },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'check:report')

@@ -15,7 +15,7 @@ curl -H "Authorization: Bearer $TOKEN" "$SERVER/api/repos/workflow-runs?owner=yo
 A token carries scopes, and a repository the token cannot reach answers **404** rather than
 403 - saying "forbidden" would confirm that a private repository exists.
 
-47 of the 157 operations below declare their inputs on the action, and this page
+48 of the 157 operations below declare their inputs on the action, and this page
 lists them. The rest validate inside the handler, so the page names the action instead of
 guessing - that number going up is the work, and a test holds it from going down.
 
@@ -620,12 +620,23 @@ _Inputs are not declared on `Actions/Browse/CompareAction`, so they are not list
 
 ### `POST /api/repos/coverage`
 
-_Inputs are not declared on `Actions/Checks/UploadCoverageAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `sha` | body | required | string |
+| `lcov` | body | optional | string |
 
 | Status | Means |
 |---|---|
 | `200` | Successful response |
-| `422` | Validation failed |
+| `201` | The report, as this instance now holds it: the commit and the per-file coverage it will show in a diff. |
+| `401` | Unauthenticated. |
+| `403` | Reporting coverage needs the `checks` scope on a token that can reach this repository. |
+| `404` | No such repository, or none this caller may see. |
+| `413` | The report is larger than this instance accepts. A coverage file that big is usually a whole monorepo reported as one. |
+| `422` | A full commit sha is required, and the body has to read as lcov. A truncated upload fails here rather than becoming a diff with no coverage. |
 | `500` | Server error |
 
 ### `POST /api/repos/delete`
@@ -1660,7 +1671,7 @@ _Inputs are not declared on `Actions/Pull/ReviewQueueAction`, so they are not li
 
 ### `POST /api/runner/artifacts`
 
-_Inputs are not declared on `Actions/Runner/UploadArtifactAction`, so they are not listed here._
+_Takes no parameters._
 
 | Status | Means |
 |---|---|
@@ -1678,7 +1689,7 @@ Response headers: `X-Runner-Protocol-Supported`.
 
 ### `POST /api/runner/claim`
 
-_Inputs are not declared on `Actions/Runner/ClaimJobAction`, so they are not listed here._
+_Takes no parameters._
 
 | Status | Means |
 |---|---|
@@ -1692,7 +1703,7 @@ Response headers: `X-Runner-Protocol-Supported`.
 
 ### `POST /api/runner/heartbeat`
 
-_Inputs are not declared on `Actions/Runner/HeartbeatAction`, so they are not listed here._
+_Takes no parameters._
 
 | Status | Means |
 |---|---|
