@@ -184,7 +184,7 @@ describe('the committed pages', () => {
     const routes = declaredRoutes([{ prefix: '/api', source: await Bun.file('routes/api.ts').text() }])
     const { declared, operations } = countDeclared(spec, groupPaths(spec, pathsOf(routes)))
 
-    expect(operations - declared).toBeLessThanOrEqual(124)
+    expect(operations - declared).toBeLessThanOrEqual(118)
   })
 
   test('and are linked from the sidebar, or nobody finds them', async () => {

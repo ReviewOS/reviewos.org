@@ -4981,8 +4981,8 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/issues
    */
-  getReposIssues(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/issues", {}, [], false, options)
+  getReposIssues(input: { "owner": string; "repo"?: string; "repository"?: string; "state"?: "open" | "closed" | "all"; "sort"?: "created" | "updated" | "comments"; "direction"?: "asc" | "desc"; "labels"?: string; "label"?: string; "assignee"?: string; "author"?: string; "milestone"?: string; "q"?: string; "search"?: string; "limit"?: number; "cursor"?: string }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "GET", "/api/repos/issues", input ?? {}, ["owner", "repo", "repository", "state", "sort", "direction", "labels", "label", "assignee", "author", "milestone", "q", "search", "limit", "cursor"], false, options)
   },
 
   /**
@@ -4995,15 +4995,15 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/issues
    */
-  postReposIssues(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/issues", {}, [], false, options)
+  postReposIssues(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "title": string; "body"?: string; "labels"?: Array<unknown>; "milestone_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/issues", input ?? {}, [], true, options)
   },
 
   /**
    * PUT /api/repos/issues/assignees
    */
-  putReposIssuesAssignees(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/issues/assignees", {}, [], false, options)
+  putReposIssuesAssignees(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "number": number; "assignees"?: Array<unknown> } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "PUT", "/api/repos/issues/assignees", input ?? {}, [], true, options)
   },
 
   /**
@@ -5023,8 +5023,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/issues/comments
    */
-  postReposIssuesComments(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/issues/comments", {}, [], false, options)
+  postReposIssuesComments(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "number": number; "body": string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/issues/comments", input ?? {}, [], true, options)
   },
 
   /**
@@ -5037,15 +5037,15 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/issues/labels
    */
-  putReposIssuesLabels(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/issues/labels", {}, [], false, options)
+  putReposIssuesLabels(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "number": number; "labels"?: Array<unknown> } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "PUT", "/api/repos/issues/labels", input ?? {}, [], true, options)
   },
 
   /**
    * PUT /api/repos/issues/lock
    */
-  putReposIssuesLock(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/issues/lock", {}, [], false, options)
+  putReposIssuesLock(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "number": number; "locked"?: boolean } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "PUT", "/api/repos/issues/lock", input ?? {}, [], true, options)
   },
 
   /**

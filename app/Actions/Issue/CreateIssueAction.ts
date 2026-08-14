@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { appendAttachments } from '../Attachment/upload'
 import { allocateNumber, authorizeRepository } from '../Repo/authorize'
 import { recountOpenIssues } from '../Repo/counters'
@@ -14,6 +15,31 @@ export default new Action({
   name: 'CreateIssue',
   description: 'Open an issue on a repository',
   method: 'POST',
+
+  /*
+   * Declared here so the reference lists them and the validator enforces them
+   * from the same object. `owner` plus one of `repo` or `repository` addresses
+   * every repository-scoped endpoint - see `authorizeRepository` - and a caller
+   * who forgets one should be told which field is missing rather than shown a
+   * 404 that reads as "no such repository".
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    title: { rule: schema.string().required() },
+    body: { rule: schema.string() },
+    // An array of label names, as `applyLabels` reads it.
+    labels: { rule: schema.array() },
+    milestone_id: { rule: schema.number() },
+  },
+
+  responses: {
+    201: { description: 'The issue, with the number it was given.' },
+    401: { description: 'Unauthenticated.' },
+    422: { description: 'A title is required. An issue with no title is a row nobody can find again.' },
+    404: { description: 'No such repository or issue, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
+  },
 
   async handle(request: any) {
     // Anyone who can read a repository may open an issue on it; that is what

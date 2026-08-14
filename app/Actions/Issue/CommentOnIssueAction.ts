@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { appendAttachments } from '../Attachment/upload'
 import { userReferences } from '../Markdown/references'
 import { authorizeRepository } from '../Repo/authorize'
@@ -17,6 +18,29 @@ export default new Action({
   name: 'CommentOnIssue',
   description: 'Add a comment to an issue or pull request',
   method: 'POST',
+
+  /*
+   * Declared here so the reference lists them and the validator enforces them
+   * from the same object. `owner` plus one of `repo` or `repository` addresses
+   * every repository-scoped endpoint - see `authorizeRepository` - and a caller
+   * who forgets one should be told which field is missing rather than shown a
+   * 404 that reads as "no such repository".
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    number: { rule: schema.number().required() },
+    body: { rule: schema.string().required() },
+  },
+
+  responses: {
+    201: { description: 'The comment, rendered.' },
+    401: { description: 'Unauthenticated.' },
+    403: { description: 'The issue is locked, and this caller is not somebody who may comment on a locked issue.' },
+    422: { description: 'An empty comment. Nothing is not a remark.' },
+    404: { description: 'No such repository or issue, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'issue:comment')

@@ -15,7 +15,7 @@ curl -H "Authorization: Bearer $TOKEN" "$SERVER/api/repos/workflow-runs?owner=yo
 A token carries scopes, and a repository the token cannot reach answers **404** rather than
 403 - saying "forbidden" would confirm that a private repository exists.
 
-33 of the 157 operations below declare their inputs on the action, and this page
+39 of the 157 operations below declare their inputs on the action, and this page
 lists them. The rest validate inside the handler, so the page names the action instead of
 guessing - that number going up is the work, and a test holds it from going down.
 
@@ -677,22 +677,50 @@ _Inputs are not declared on `Actions/Keys/ManageDeployKeyAction`, so they are no
 
 ### `GET /api/repos/issues`
 
-_Inputs are not declared on `Actions/Issue/ListIssuesAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | required | string |
+| `repo` | query | optional | string |
+| `repository` | query | optional | string |
+| `state` | query | optional | string |
+| `sort` | query | optional | string |
+| `direction` | query | optional | string |
+| `labels` | query | optional | string |
+| `label` | query | optional | string |
+| `assignee` | query | optional | string |
+| `author` | query | optional | string |
+| `milestone` | query | optional | string |
+| `q` | query | optional | string |
+| `search` | query | optional | string |
+| `limit` | query | optional | number |
+| `cursor` | query | optional | string |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
+| `200` | A page of issues, and the cursor for the next. `next` is null on the last page rather than a cursor that returns nothing. |
+| `404` | No such repository or issue, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
 | `422` | Validation failed |
 | `500` | Server error |
 
 ### `POST /api/repos/issues`
 
-_Inputs are not declared on `Actions/Issue/CreateIssueAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `title` | body | required | string |
+| `body` | body | optional | string |
+| `labels` | body | optional | array |
+| `milestone_id` | body | optional | number |
 
 | Status | Means |
 |---|---|
 | `200` | Successful response |
-| `422` | Validation failed |
+| `201` | The issue, with the number it was given. |
+| `401` | Unauthenticated. |
+| `404` | No such repository or issue, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
+| `422` | A title is required. An issue with no title is a row nobody can find again. |
 | `500` | Server error |
 
 ### `PUT /api/repos/issues`
@@ -707,11 +735,20 @@ _Inputs are not declared on `Actions/Issue/UpdateIssueAction`, so they are not l
 
 ### `PUT /api/repos/issues/assignees`
 
-_Inputs are not declared on `Actions/Issue/AssignIssueAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `number` | body | required | number |
+| `assignees` | body | optional | array |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
+| `200` | The assignees as they now stand. |
+| `401` | Unauthenticated. |
+| `403` | Assigning somebody needs write access to the repository. |
+| `404` | No such repository or issue, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
 | `422` | Validation failed |
 | `500` | Server error |
 
@@ -737,12 +774,22 @@ _Inputs are not declared on `Actions/Issue/DeleteCommentAction`, so they are not
 
 ### `POST /api/repos/issues/comments`
 
-_Inputs are not declared on `Actions/Issue/CommentOnIssueAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `number` | body | required | number |
+| `body` | body | required | string |
 
 | Status | Means |
 |---|---|
 | `200` | Successful response |
-| `422` | Validation failed |
+| `201` | The comment, rendered. |
+| `401` | Unauthenticated. |
+| `403` | The issue is locked, and this caller is not somebody who may comment on a locked issue. |
+| `404` | No such repository or issue, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
+| `422` | An empty comment. Nothing is not a remark. |
 | `500` | Server error |
 
 ### `PUT /api/repos/issues/comments`
@@ -757,21 +804,39 @@ _Inputs are not declared on `Actions/Issue/UpdateCommentAction`, so they are not
 
 ### `PUT /api/repos/issues/labels`
 
-_Inputs are not declared on `Actions/Issue/LabelIssueAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `number` | body | required | number |
+| `labels` | body | optional | array |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
+| `200` | The labels as they now stand. |
+| `401` | Unauthenticated. |
+| `403` | Labelling needs write access to the repository. |
+| `404` | No such repository or issue, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
 | `422` | Validation failed |
 | `500` | Server error |
 
 ### `PUT /api/repos/issues/lock`
 
-_Inputs are not declared on `Actions/Issue/LockIssueAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `number` | body | required | number |
+| `locked` | body | optional | boolean |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
+| `200` | Whether the issue is now locked. |
+| `401` | Unauthenticated. |
+| `403` | Locking a conversation needs write access to the repository. |
+| `404` | No such repository or issue, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
 | `422` | Validation failed |
 | `500` | Server error |
 

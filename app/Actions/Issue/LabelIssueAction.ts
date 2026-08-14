@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { recordMany } from './timeline'
 
@@ -13,6 +14,29 @@ export default new Action({
   name: 'LabelIssue',
   description: 'Replace the labels on an issue',
   method: 'PUT',
+
+  /*
+   * Declared here so the reference lists them and the validator enforces them
+   * from the same object. `owner` plus one of `repo` or `repository` addresses
+   * every repository-scoped endpoint - see `authorizeRepository` - and a caller
+   * who forgets one should be told which field is missing rather than shown a
+   * 404 that reads as "no such repository".
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    number: { rule: schema.number().required() },
+    // An array of label names, as the handler reads it.
+    labels: { rule: schema.array() },
+  },
+
+  responses: {
+    200: { description: 'The labels as they now stand.' },
+    401: { description: 'Unauthenticated.' },
+    403: { description: 'Labelling needs write access to the repository.' },
+    404: { description: 'No such repository or issue, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'issue:label')

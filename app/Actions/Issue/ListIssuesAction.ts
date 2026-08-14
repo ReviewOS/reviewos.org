@@ -1,5 +1,6 @@
 import type { KeysetSegment } from './listing'
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import {
   encodeCursor,
@@ -41,6 +42,36 @@ export default new Action({
   name: 'ListIssues',
   description: 'List the issues on a repository',
   method: 'GET',
+
+  /*
+   * Declared here so the reference lists them and the validator enforces them
+   * from the same object. `owner` plus one of `repo` or `repository` addresses
+   * every repository-scoped endpoint - see `authorizeRepository` - and a caller
+   * who forgets one should be told which field is missing rather than shown a
+   * 404 that reads as "no such repository".
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    state: { rule: schema.enum(['open', 'closed', 'all']) },
+    sort: { rule: schema.enum(['created', 'updated', 'comments']) },
+    direction: { rule: schema.enum(['asc', 'desc']) },
+    labels: { rule: schema.string() },
+    label: { rule: schema.string() },
+    assignee: { rule: schema.string() },
+    author: { rule: schema.string() },
+    milestone: { rule: schema.string() },
+    q: { rule: schema.string() },
+    search: { rule: schema.string() },
+    limit: { rule: schema.number() },
+    cursor: { rule: schema.string() },
+  },
+
+  responses: {
+    200: { description: 'A page of issues, and the cursor for the next. `next` is null on the last page rather than a cursor that returns nothing.' },
+    404: { description: 'No such repository or issue, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:read')

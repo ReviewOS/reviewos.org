@@ -75,13 +75,18 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       committed copies have drifted, because a generator nobody runs is a hand-written page with
       extra steps.
 - [x] Webhook payload reference, every event from `WEBHOOK_EVENTS` with the envelope described once
-- [ ] Declare the remaining endpoints' inputs on their actions. 33 of 157 operations carry a
-      `validations` block; the other 124 validate inside the handler, so the document has nothing to
+- [ ] Declare the remaining endpoints' inputs on their actions. 39 of 157 operations carry a
+      `validations` block; the other 118 validate inside the handler, so the document has nothing to
       publish for them and the page names the action instead of guessing. The test holds that count
       from growing, and it comes down a batch at a time: the repository endpoints - star, watch,
       fork, transfer, delete - went first, because `owner` plus `repo` is how every
       repository-scoped endpoint is addressed and a caller who forgets one was being told "no such
-      repository".
+      repository". Then the issue endpoints: list, create, comment, assign, label, lock.
+
+      One thing to carry into the next batch. A declared rule is enforced, so a wrong one is an
+      outage rather than a documentation gap: `assignees` and `labels` arrive as arrays, and
+      declaring them as strings turned an ordinary request into a 422. Read the handler, not the
+      field name.
 - [x] Contributing guide: the model to migration to action to route to view order, and the
       expectation that roadmap boxes are ticked in the same commit as the work
 - [x] Search across the docs. The overlay had been rendering, taking a query, and answering
