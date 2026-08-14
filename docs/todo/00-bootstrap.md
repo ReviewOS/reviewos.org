@@ -98,10 +98,15 @@ Each one is committed and pushed in the repository named.
       answered nothing. `0.70.370`.
 - [ ] **stacks** - `faker.datatype.boolean(0.2)` - the bare-probability form faker-js accepts, and
       the form the framework's own `ProductUnit` model uses - is still a type error, and it is the
-      one error `./buddy typecheck` reports here. Fixed and tagged as 0.70.372, but that release
-      never published: the `Releaser` job fails building `storage/framework/core/mobile`, which
+      one error `./buddy typecheck` reports here. Fixed and tagged as 0.70.372, and that release
+      cannot publish: the `Releaser` job fails building `storage/framework/core/mobile`, which
       imports `craft-native/mobile` - a subpath the published `craft-native@0.0.55` does not export.
-      Somebody else's work in flight, so it is named here rather than worked around.
+
+      The craft side is ready and released as `v0.0.65`: the entry point is built, exported, and
+      the tag is on `origin`. It has not reached npm because **that repository's GitHub Actions have
+      not run since 1 June** - no workflow run exists for any push or tag since, including today's.
+      So the chain is one manual publish, or one repository's Actions, away from closing, and both
+      of those are somebody's decision rather than a fix.
 
 ## Known gaps, deferred deliberately
 
