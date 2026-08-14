@@ -14792,9 +14792,13 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string; "operation"?: "create" | "update" | "delete" | "deliveries"; "id"?: number; "url"?: string; "secret"?: string; "content_type"?: string; "active"?: boolean; "limit"?: number; "events"?: unknown } } }
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: never }
+      "201": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16772,23 +16776,29 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody: { content: { "application/json": { "name": string; "selection"?: "all" | "organization" | "selected"; "expires_at"?: string; "organization_id"?: number; "machine_account_id"?: number; "permissions"?: Array<unknown>; "repository_ids"?: Array<unknown> } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: never }
+      "401": { content: never }
+      "403": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
   }
     delete: {
     parameters: {
-      query?: never
+      query: { "id": number; "reason"?: string }
       header?: never
       path?: never
       cookie?: never
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16808,9 +16818,12 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody: { content: { "application/json": { "id": number; "reason"?: string } } }
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16831,9 +16844,12 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody: { content: { "application/json": { "id": number; "expires_at"?: string } } }
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }

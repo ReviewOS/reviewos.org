@@ -5429,8 +5429,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/webhooks
    */
-  postReposWebhooks(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/webhooks", {}, [], false, options)
+  postReposWebhooks(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "operation"?: "create" | "update" | "delete" | "deliveries"; "id"?: number; "url"?: string; "secret"?: string; "content_type"?: string; "active"?: boolean; "limit"?: number; "events"?: unknown } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/webhooks", input ?? {}, [], true, options)
   },
 
   /**
@@ -6143,29 +6143,29 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/user/tokens
    */
-  postUserTokens(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/tokens", {}, [], false, options)
+  postUserTokens(input: { body: { "name": string; "selection"?: "all" | "organization" | "selected"; "expires_at"?: string; "organization_id"?: number; "machine_account_id"?: number; "permissions"?: Array<unknown>; "repository_ids"?: Array<unknown> } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/tokens", input ?? {}, [], true, options)
   },
 
   /**
    * DELETE /api/user/tokens
    */
-  deleteUserTokens(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "DELETE", "/api/user/tokens", {}, [], false, options)
+  deleteUserTokens(input: { "id": number; "reason"?: string }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "DELETE", "/api/user/tokens", input ?? {}, ["id", "reason"], false, options)
   },
 
   /**
    * POST /api/user/tokens/revoke
    */
-  postUserTokensRevoke(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/tokens/revoke", {}, [], false, options)
+  postUserTokensRevoke(input: { body: { "id": number; "reason"?: string } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/user/tokens/revoke", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/user/tokens/rotate
    */
-  postUserTokensRotate(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/tokens/rotate", {}, [], false, options)
+  postUserTokensRotate(input: { body: { "id": number; "expires_at"?: string } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/user/tokens/rotate", input ?? {}, [], true, options)
   },
 
   /**

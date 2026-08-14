@@ -1,5 +1,6 @@
 import type { ResourceSelection } from '../../TokenScopes'
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { normalizeGrants, ORGANIZATION_SCOPES, REPOSITORY_SCOPES, resolveExpiry } from '../../TokenScopes'
 import { canInOrganization } from '../../Permissions'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
@@ -21,6 +22,31 @@ export default new Action({
   name: 'CreateAccessToken',
   description: 'Issue a fine-grained access token',
   method: 'POST',
+
+  /*
+   * Declared here so the reference lists them and the validator enforces them
+   * from the same object. Read against the handler rather than the field name:
+   * a declared rule is enforced, so a wrong one turns an ordinary request into
+   * a 422.
+   */
+  validations: {
+    name: { rule: schema.string().required() },
+    selection: { rule: schema.enum(['all', 'organization', 'selected']) },
+    expires_at: { rule: schema.string() },
+    organization_id: { rule: schema.number() },
+    machine_account_id: { rule: schema.number() },
+    // Both arrays, and both accepted in the flattened `scope_*` form the
+    // settings form posts. The handler reads either.
+    permissions: { rule: schema.array() },
+    repository_ids: { rule: schema.array() },
+  },
+
+  responses: {
+    201: { description: 'The token, shown once. It is stored as a hash, so this is the only time the value exists.' },
+    401: { description: 'Unauthenticated.' },
+    403: { description: 'A token for an organization or a machine account needs the right to act for it.' },
+    422: { description: 'A name is required, the selection must be one of the three, and an expiry that is not a date is refused rather than ignored.' },
+  },
 
   async handle(request: any) {
     const caller = await currentUser(request)

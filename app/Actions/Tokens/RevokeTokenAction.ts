@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { recordTokenAudit } from './audit'
 import { organizationsReachedBy } from './organization'
@@ -26,6 +27,24 @@ export default new Action({
   name: 'RevokeAccessToken',
   description: 'Revoke an access token',
   method: 'DELETE',
+
+  /*
+   * Declared here so the reference lists them and the validator enforces them
+   * from the same object. Read against the handler rather than the field name:
+   * a declared rule is enforced, so a wrong one turns an ordinary request into
+   * a 422.
+   */
+  validations: {
+    id: { rule: schema.number().required() },
+    reason: { rule: schema.string() },
+  },
+
+  responses: {
+    200: { description: 'Revoked. The token stops working immediately, and the reason is kept for the audit log.' },
+    401: { description: 'Unauthenticated.' },
+    403: { description: 'Not yours to revoke.' },
+    404: { description: 'No such token.' },
+  },
 
   async handle(request: any) {
     const user = await currentUser(request)

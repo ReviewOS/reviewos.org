@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { pingPayload, WEBHOOK_EVENTS } from '../../Webhooks/payloads'
 import { inspectUrl } from './ssrf'
@@ -25,6 +26,37 @@ export default new Action({
   name: 'ManageWebhook',
   description: 'Create, update, or delete a webhook',
   method: 'POST',
+
+  /*
+   * Declared here so the reference lists them and the validator enforces them
+   * from the same object. Read against the handler rather than the field name:
+   * a declared rule is enforced, so a wrong one turns an ordinary request into
+   * a 422.
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    operation: { rule: schema.enum(['create', 'update', 'delete', 'deliveries']) },
+    id: { rule: schema.number() },
+    url: { rule: schema.string() },
+    secret: { rule: schema.string() },
+    content_type: { rule: schema.string() },
+    active: { rule: schema.boolean() },
+    limit: { rule: schema.number() },
+    // `*` or a list of event names, as a comma-separated string or an array.
+    // Both spellings reach `readEvents`, so neither is refused here.
+    events: { rule: schema.custom(() => true, 'Events must be * or a list this product sends') },
+  },
+
+  responses: {
+    200: { description: 'The webhook as it now stands, or its recent deliveries when `operation` is `deliveries`.' },
+    201: { description: 'The webhook, with the secret shown once.' },
+    401: { description: 'Unauthenticated.' },
+    403: { description: 'Managing webhooks needs administration access to the repository.' },
+    422: { description: 'A URL this instance will not deliver to, or an event name it does not send. The SSRF policy refuses loopback and private ranges unless the operator allowed the host.' },
+    404: { description: 'No such repository or webhook, or none this caller may see.' },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:settings')

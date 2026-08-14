@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { resolveExpiry, tokenState } from '../../TokenScopes'
 import { currentUser } from '../Identity/lookup'
 import { recordTokenAudit } from './audit'
@@ -22,6 +23,24 @@ export default new Action({
   name: 'RotateAccessToken',
   description: 'Replace an access token, with a short overlap',
   method: 'POST',
+
+  /*
+   * Declared here so the reference lists them and the validator enforces them
+   * from the same object. Read against the handler rather than the field name:
+   * a declared rule is enforced, so a wrong one turns an ordinary request into
+   * a 422.
+   */
+  validations: {
+    id: { rule: schema.number().required() },
+    expires_at: { rule: schema.string() },
+  },
+
+  responses: {
+    200: { description: 'The new token, shown once, with the old one revoked.' },
+    401: { description: 'Unauthenticated.' },
+    403: { description: 'Not yours to rotate.' },
+    404: { description: 'No such token.' },
+  },
 
   async handle(request: any) {
     const user = await currentUser(request)

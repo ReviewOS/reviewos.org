@@ -15,7 +15,7 @@ curl -H "Authorization: Bearer $TOKEN" "$SERVER/api/repos/workflow-runs?owner=yo
 A token carries scopes, and a repository the token cannot reach answers **404** rather than
 403 - saying "forbidden" would confirm that a private repository exists.
 
-42 of the 157 operations below declare their inputs on the action, and this page
+47 of the 157 operations below declare their inputs on the action, and this page
 lists them. The rest validate inside the handler, so the page names the action instead of
 guessing - that number going up is the work, and a test holds it from going down.
 
@@ -1487,12 +1487,28 @@ _Inputs are not declared on `Actions/Browse/TreeAction`, so they are not listed 
 
 ### `POST /api/repos/webhooks`
 
-_Inputs are not declared on `Actions/Webhook/ManageWebhookAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `operation` | body | optional | string |
+| `id` | body | optional | number |
+| `url` | body | optional | string |
+| `secret` | body | optional | string |
+| `content_type` | body | optional | string |
+| `active` | body | optional | boolean |
+| `limit` | body | optional | number |
+| `events` | body | optional | custom |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
-| `422` | Validation failed |
+| `200` | The webhook as it now stands, or its recent deliveries when `operation` is `deliveries`. |
+| `201` | The webhook, with the secret shown once. |
+| `401` | Unauthenticated. |
+| `403` | Managing webhooks needs administration access to the repository. |
+| `404` | No such repository or webhook, or none this caller may see. |
+| `422` | A URL this instance will not deliver to, or an event name it does not send. The SSRF policy refuses loopback and private ranges unless the operator allowed the host. |
 | `500` | Server error |
 
 ### `POST /api/repos/webhooks/redeliver`
@@ -1916,11 +1932,17 @@ _Inputs are not declared on `Actions/Profile/UpdateProfileAction`, so they are n
 
 ### `DELETE /api/user/tokens`
 
-_Inputs are not declared on `Actions/Tokens/RevokeTokenAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `id` | query | required | number |
+| `reason` | query | optional | string |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
+| `200` | Revoked. The token stops working immediately, and the reason is kept for the audit log. |
+| `401` | Unauthenticated. |
+| `403` | Not yours to revoke. |
+| `404` | No such token. |
 | `422` | Validation failed |
 | `500` | Server error |
 
@@ -1936,31 +1958,54 @@ _Inputs are not declared on `Actions/Tokens/ListTokensAction`, so they are not l
 
 ### `POST /api/user/tokens`
 
-_Inputs are not declared on `Actions/Tokens/CreateTokenAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `name` | body | required | string |
+| `selection` | body | optional | string |
+| `expires_at` | body | optional | string |
+| `organization_id` | body | optional | number |
+| `machine_account_id` | body | optional | number |
+| `permissions` | body | optional | array |
+| `repository_ids` | body | optional | array |
 
 | Status | Means |
 |---|---|
 | `200` | Successful response |
-| `422` | Validation failed |
+| `201` | The token, shown once. It is stored as a hash, so this is the only time the value exists. |
+| `401` | Unauthenticated. |
+| `403` | A token for an organization or a machine account needs the right to act for it. |
+| `422` | A name is required, the selection must be one of the three, and an expiry that is not a date is refused rather than ignored. |
 | `500` | Server error |
 
 ### `POST /api/user/tokens/revoke`
 
-_Inputs are not declared on `Actions/Tokens/RevokeTokenAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `id` | body | required | number |
+| `reason` | body | optional | string |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
+| `200` | Revoked. The token stops working immediately, and the reason is kept for the audit log. |
+| `401` | Unauthenticated. |
+| `403` | Not yours to revoke. |
+| `404` | No such token. |
 | `422` | Validation failed |
 | `500` | Server error |
 
 ### `POST /api/user/tokens/rotate`
 
-_Inputs are not declared on `Actions/Tokens/RotateTokenAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `id` | body | required | number |
+| `expires_at` | body | optional | string |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
+| `200` | The new token, shown once, with the old one revoked. |
+| `401` | Unauthenticated. |
+| `403` | Not yours to rotate. |
+| `404` | No such token. |
 | `422` | Validation failed |
 | `500` | Server error |
 

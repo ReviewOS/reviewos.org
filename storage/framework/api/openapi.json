@@ -22827,20 +22827,79 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "The webhook as it now stands, or its recent deliveries when `operation` is `deliveries`."
+          },
+          "201": {
+            "description": "The webhook, with the secret shown once."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "Managing webhooks needs administration access to the repository."
+          },
+          "404": {
+            "description": "No such repository or webhook, or none this caller may see."
           },
           "422": {
-            "description": "Validation failed"
+            "description": "A URL this instance will not deliver to, or an event name it does not send. The SSRF policy refuses loopback and private ranges unless the operator allowed the host."
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "create",
+                      "update",
+                      "delete",
+                      "deliveries"
+                    ]
+                  },
+                  "id": {
+                    "type": "number"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  },
+                  "content_type": {
+                    "type": "string"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "limit": {
+                    "type": "number"
+                  },
+                  "events": {
+                    "type": "custom"
+                  }
+                },
+                "required": [
+                  "owner"
+                ]
+              }
+            }
           }
         }
       }
@@ -27009,17 +27068,36 @@
       "delete": {
         "summary": "/api/user/tokens",
         "operationId": "delete__api_user_tokens",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "Revoked. The token stops working immediately, and the reason is kept for the audit log."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "Not yours to revoke."
+          },
+          "404": {
+            "description": "No such token."
           },
           "422": {
             "description": "Validation failed"
@@ -27067,11 +27145,61 @@
               }
             }
           },
+          "201": {
+            "description": "The token, shown once. It is stored as a hash, so this is the only time the value exists."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "A token for an organization or a machine account needs the right to act for it."
+          },
           "422": {
-            "description": "Validation failed"
+            "description": "A name is required, the selection must be one of the three, and an expiry that is not a date is refused rather than ignored."
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "selection": {
+                    "type": "string",
+                    "enum": [
+                      "all",
+                      "organization",
+                      "selected"
+                    ]
+                  },
+                  "expires_at": {
+                    "type": "string"
+                  },
+                  "organization_id": {
+                    "type": "number"
+                  },
+                  "machine_account_id": {
+                    "type": "number"
+                  },
+                  "permissions": {
+                    "type": "array"
+                  },
+                  "repository_ids": {
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
           }
         }
       }
@@ -27083,20 +27211,43 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "Revoked. The token stops working immediately, and the reason is kept for the audit log."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "Not yours to revoke."
+          },
+          "404": {
+            "description": "No such token."
           },
           "422": {
             "description": "Validation failed"
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              }
+            }
           }
         }
       }
@@ -27108,20 +27259,43 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "The new token, shown once, with the old one revoked."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "Not yours to rotate."
+          },
+          "404": {
+            "description": "No such token."
           },
           "422": {
             "description": "Validation failed"
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "number"
+                  },
+                  "expires_at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              }
+            }
           }
         }
       }
