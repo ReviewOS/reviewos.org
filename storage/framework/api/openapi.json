@@ -21239,11 +21239,64 @@
               }
             }
           },
+          "201": {
+            "description": "The pull request, with the number it was given."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "404": {
+            "description": "No such repository or pull request, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists."
+          },
+          "409": {
+            "description": "An open pull request from this head to this base already exists. Two of them would be two conversations about one change."
+          },
           "422": {
-            "description": "Validation failed"
+            "description": "A title and a head branch are required, the head must exist, and it cannot be the base."
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "head": {
+                    "type": "string"
+                  },
+                  "base": {
+                    "type": "string"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "draft": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "owner",
+                  "title",
+                  "head"
+                ]
+              }
+            }
           }
         }
       },
@@ -21670,20 +21723,67 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "Merged, with the sha it landed as."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "Merging needs write access, and a protected branch may need more than that."
+          },
+          "404": {
+            "description": "No such repository or pull request, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists."
+          },
+          "409": {
+            "description": "The merge did not apply: a conflict, or a head that moved since the check."
           },
           "422": {
-            "description": "Validation failed"
+            "description": "Unknown strategy, or one this repository does not allow."
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "type": "string"
+                  },
+                  "number": {
+                    "type": "number"
+                  },
+                  "strategy": {
+                    "type": "string",
+                    "enum": [
+                      "merge",
+                      "squash",
+                      "rebase"
+                    ]
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "body_text": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "owner",
+                  "number"
+                ]
+              }
+            }
           }
         }
       }
@@ -21779,11 +21879,62 @@
               }
             }
           },
+          "201": {
+            "description": "The request. Asking twice is not an error and does not ask twice."
+          },
+          "401": {
+            "description": "Unauthenticated."
+          },
+          "403": {
+            "description": "Requesting a review needs access to the repository."
+          },
+          "404": {
+            "description": "No such repository or pull request, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists."
+          },
           "422": {
-            "description": "Validation failed"
+            "description": "A reviewer is a user or a team, and has to be one that exists."
           },
           "500": {
             "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "type": "string"
+                  },
+                  "number": {
+                    "type": "number"
+                  },
+                  "reviewer_id": {
+                    "type": "number"
+                  },
+                  "reviewer_type": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "team"
+                    ]
+                  }
+                },
+                "required": [
+                  "owner",
+                  "number",
+                  "reviewer_id"
+                ]
+              }
+            }
           }
         }
       }

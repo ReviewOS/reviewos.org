@@ -75,13 +75,15 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       committed copies have drifted, because a generator nobody runs is a hand-written page with
       extra steps.
 - [x] Webhook payload reference, every event from `WEBHOOK_EVENTS` with the envelope described once
-- [ ] Declare the remaining endpoints' inputs on their actions. 39 of 157 operations carry a
-      `validations` block; the other 118 validate inside the handler, so the document has nothing to
+- [ ] Declare the remaining endpoints' inputs on their actions. 42 of 157 operations carry a
+      `validations` block; the other 115 validate inside the handler, so the document has nothing to
       publish for them and the page names the action instead of guessing. The test holds that count
       from growing, and it comes down a batch at a time: the repository endpoints - star, watch,
       fork, transfer, delete - went first, because `owner` plus `repo` is how every
       repository-scoped endpoint is addressed and a caller who forgets one was being told "no such
-      repository". Then the issue endpoints: list, create, comment, assign, label, lock.
+      repository". Then the issue endpoints: list, create, comment, assign, label, lock. Then
+      opening, merging and requesting a review on a pull request, which is the surface an agent
+      uses most.
 
       One thing to carry into the next batch. A declared rule is enforced, so a wrong one is an
       outage rather than a documentation gap: `assignees` and `labels` arrive as arrays, and

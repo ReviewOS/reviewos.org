@@ -1,5 +1,6 @@
 import type { GitRepositoryRow } from '../Git/access'
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { canOnRepository } from '../../Permissions'
 import { permissionOn } from '../Git/access'
 import { authorizeRepository } from '../Repo/authorize'
@@ -17,6 +18,29 @@ export default new Action({
   name: 'RequestReview',
   description: 'Request a review from a user or a team',
   method: 'POST',
+
+  /*
+   * Declared here so the reference lists them and the validator enforces them
+   * from the same object. Read against the handler rather than the field name:
+   * a declared rule is enforced, so a wrong one turns an ordinary request into
+   * a 422 - which is how `assignees: string` broke assigning somebody.
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    number: { rule: schema.number().required() },
+    reviewer_id: { rule: schema.number().required() },
+    reviewer_type: { rule: schema.enum(['user', 'team']) },
+  },
+
+  responses: {
+    201: { description: 'The request. Asking twice is not an error and does not ask twice.' },
+    401: { description: 'Unauthenticated.' },
+    403: { description: 'Requesting a review needs access to the repository.' },
+    422: { description: 'A reviewer is a user or a team, and has to be one that exists.' },
+    404: { description: 'No such repository or pull request, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:read')

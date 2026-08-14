@@ -5114,8 +5114,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/pulls
    */
-  postReposPulls(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/pulls", {}, [], false, options)
+  postReposPulls(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "title": string; "head": string; "base"?: string; "body"?: string; "draft"?: boolean } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/pulls", input ?? {}, [], true, options)
   },
 
   /**
@@ -5205,8 +5205,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/pulls/merge
    */
-  postReposPullsMerge(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/pulls/merge", {}, [], false, options)
+  postReposPullsMerge(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "number": number; "strategy"?: "merge" | "squash" | "rebase"; "subject"?: string; "body_text"?: string } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/pulls/merge", input ?? {}, [], true, options)
   },
 
   /**
@@ -5233,8 +5233,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/pulls/review-requests
    */
-  postReposPullsReviewRequests(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/pulls/review-requests", {}, [], false, options)
+  postReposPullsReviewRequests(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "number": number; "reviewer_id": number; "reviewer_type"?: "user" | "team" } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/pulls/review-requests", input ?? {}, [], true, options)
   },
 
   /**

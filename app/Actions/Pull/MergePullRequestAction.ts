@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { closingTargets, withoutSelf } from '../Issue/closing'
 import { runGit } from '../Git/git'
 import { performMerge } from './apply'
@@ -22,6 +23,31 @@ export default new Action({
   name: 'MergePullRequest',
   description: 'Merge an open pull request',
   method: 'POST',
+
+  /*
+   * Declared here so the reference lists them and the validator enforces them
+   * from the same object. Read against the handler rather than the field name:
+   * a declared rule is enforced, so a wrong one turns an ordinary request into
+   * a 422 - which is how `assignees: string` broke assigning somebody.
+   */
+  validations: {
+    owner: { rule: schema.string().required() },
+    repo: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    number: { rule: schema.number().required() },
+    strategy: { rule: schema.enum(['merge', 'squash', 'rebase']) },
+    subject: { rule: schema.string() },
+    body_text: { rule: schema.string() },
+  },
+
+  responses: {
+    200: { description: 'Merged, with the sha it landed as.' },
+    401: { description: 'Unauthenticated.' },
+    403: { description: 'Merging needs write access, and a protected branch may need more than that.' },
+    409: { description: 'The merge did not apply: a conflict, or a head that moved since the check.' },
+    422: { description: 'Unknown strategy, or one this repository does not allow.' },
+    404: { description: 'No such repository or pull request, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'pull:merge')

@@ -15,7 +15,7 @@ curl -H "Authorization: Bearer $TOKEN" "$SERVER/api/repos/workflow-runs?owner=yo
 A token carries scopes, and a repository the token cannot reach answers **404** rather than
 403 - saying "forbidden" would confirm that a private repository exists.
 
-39 of the 157 operations below declare their inputs on the action, and this page
+42 of the 157 operations below declare their inputs on the action, and this page
 lists them. The rest validate inside the handler, so the page names the action instead of
 guessing - that number going up is the work, and a test holds it from going down.
 
@@ -931,12 +931,25 @@ _Inputs are not declared on `Actions/Repo/ManageProtectedBranchAction`, so they 
 
 ### `POST /api/repos/pulls`
 
-_Inputs are not declared on `Actions/Pull/OpenPullRequestAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `title` | body | required | string |
+| `head` | body | required | string |
+| `base` | body | optional | string |
+| `body` | body | optional | string |
+| `draft` | body | optional | boolean |
 
 | Status | Means |
 |---|---|
 | `200` | Successful response |
-| `422` | Validation failed |
+| `201` | The pull request, with the number it was given. |
+| `401` | Unauthenticated. |
+| `404` | No such repository or pull request, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
+| `409` | An open pull request from this head to this base already exists. Two of them would be two conversations about one change. |
+| `422` | A title and a head branch are required, the head must exist, and it cannot be the base. |
 | `500` | Server error |
 
 ### `PUT /api/repos/pulls`
@@ -1088,12 +1101,24 @@ _Inputs are not declared on `Actions/Pull/LiveStateAction`, so they are not list
 
 ### `POST /api/repos/pulls/merge`
 
-_Inputs are not declared on `Actions/Pull/MergePullRequestAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `number` | body | required | number |
+| `strategy` | body | optional | string |
+| `subject` | body | optional | string |
+| `body_text` | body | optional | string |
 
 | Status | Means |
 |---|---|
-| `200` | Successful response |
-| `422` | Validation failed |
+| `200` | Merged, with the sha it landed as. |
+| `401` | Unauthenticated. |
+| `403` | Merging needs write access, and a protected branch may need more than that. |
+| `404` | No such repository or pull request, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
+| `409` | The merge did not apply: a conflict, or a head that moved since the check. |
+| `422` | Unknown strategy, or one this repository does not allow. |
 | `500` | Server error |
 
 ### `POST /api/repos/pulls/merge-stack`
@@ -1128,12 +1153,23 @@ _Inputs are not declared on `Actions/Pull/RestoreHeadBranchAction`, so they are 
 
 ### `POST /api/repos/pulls/review-requests`
 
-_Inputs are not declared on `Actions/Pull/RequestReviewAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | required | string |
+| `repo` | body | optional | string |
+| `repository` | body | optional | string |
+| `number` | body | required | number |
+| `reviewer_id` | body | required | number |
+| `reviewer_type` | body | optional | string |
 
 | Status | Means |
 |---|---|
 | `200` | Successful response |
-| `422` | Validation failed |
+| `201` | The request. Asking twice is not an error and does not ask twice. |
+| `401` | Unauthenticated. |
+| `403` | Requesting a review needs access to the repository. |
+| `404` | No such repository or pull request, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists. |
+| `422` | A reviewer is a user or a team, and has to be one that exists. |
 | `500` | Server error |
 
 ### `GET /api/repos/pulls/review-state`
