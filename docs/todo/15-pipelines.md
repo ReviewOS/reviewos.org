@@ -129,9 +129,24 @@ written down here so it does not get relitigated:
       with `branches`, `branches-ignore`, `tags`, `paths`, `paths-ignore`, and `types` filters
 - [ ] `jobs:` with `needs:`, `if:`, `strategy.matrix` including `include`, `exclude`, `fail-fast`,
       and `max-parallel`, plus `continue-on-error`, `timeout-minutes`, and `outputs`
-- [ ] `runs-on:`, accepting a single label, a list of labels, and a `group`/`labels` object, mapped
+
+      **The matrix half is done and tested**, in `app/Actions/Workflow/matrix.ts`: the cartesian
+      product with the last key varying fastest, `exclude` applied *before* `include` so a workflow
+      that excludes a combination and includes it back keeps it, an `include` entry merged into
+      every combination it fits without overwriting and appended as its own job when it would, and
+      a 256-job ceiling that says what to do rather than starting 400 jobs. Object values compare by
+      shape, because `{ node: 20 }` as a matrix value is idiomatic and comparing by identity makes
+      every `exclude` miss. `continue-on-error` and `outputs` are parsed but nothing consumes them
+      yet.
+- [x] `runs-on:`, accepting a single label, a list of labels, and a `group`/`labels` object, mapped
       onto queues and runner tags. Complex `runs-on` expressions are in scope; Gitea's not supporting
       them is a known migration blocker.
+
+      All three forms parse, with the group flattened onto the labels a runner has to carry because
+      a pool is a label here. The object form had been refusing a valid workflow outright - the
+      parser read `runs-on` as a string or a list and a mapping came back empty, which reported as
+      "does not say what it runs on". It had no test; it has one now. Expressions inside `runs-on`
+      are still text, because evaluating them needs the expression engine.
 - [ ] `steps:` with `run`, `uses`, `with`, `env`, `id`, `if`, `name`, `shell`, `working-directory`,
       and `continue-on-error`
 - [ ] `container:` and `services:` on a job, with `image`, `env`, `ports`, `volumes`, `options`, and
@@ -139,9 +154,16 @@ written down here so it does not get relitigated:
 - [ ] `concurrency:` with `group` and `cancel-in-progress`, at workflow and job level. Actions has
       this and Gitea ignores it; the Buildkite concurrency engine in this file implements it properly
       rather than partially.
+
+      Workflow-level `concurrency` is now **read** rather than accepted and dropped, in both the
+      bare-string and mapping forms. That is the parsing half only: nothing serialises runs on a
+      group yet, so the box stays open. Reading it first is deliberate - the failure this names
+      Gitea for is a key that parses and does nothing, and a run that carries its group can at
+      least show it.
 - [ ] `permissions:` on the workflow and per job, mapped onto the fine-grained token permissions from
       [phase 1](./01-foundation.md#access-tokens), defaulting to read-only
-- [ ] `defaults:` including `run.shell` and `run.working-directory`
+- [ ] `defaults:` including `run.shell` and `run.working-directory`. Parsed onto the workflow;
+      steps do not inherit from it yet, which is the half that needs the runner.
 - [ ] `env:` at workflow, job, and step level with Actions' precedence order
 - [ ] `secrets:` on `workflow_call`, including `inherit`
 - [ ] `workflow_dispatch` inputs of every type Actions supports (string, boolean, choice, environment)

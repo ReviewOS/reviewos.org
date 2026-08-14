@@ -20,6 +20,9 @@
  * with no suggestion is the same as no error at all.
  */
 
+import type { Combination, MatrixDefinition } from './matrix'
+import { combinationLabel, expandMatrix } from './matrix'
+
 export interface WorkflowError {
   /** 1-based line in the source, or 0 when it could not be located. */
   line: number
@@ -51,12 +54,45 @@ export interface WorkflowJob {
   timeoutMinutes: number | null
   env: Record<string, string>
   steps: WorkflowStep[]
+  /**
+   * One entry per matrix combination, empty when the job has no matrix.
+   *
+   * Expanded here rather than at dispatch because the number of jobs a run
+   * will carry is a fact about the file, and a run screen that cannot say how
+   * many jobs are coming until they arrive is a progress bar with no end.
+   */
+  matrix: Combination[]
+  /** What a run screen calls each combination: Actions' `build (ubuntu, 20)` shape. */
+  matrixLabels: string[]
+  /**
+   * Actions defaults this to true, which is the surprising direction: one
+   * failed combination cancels the rest.
+   */
+  failFast: boolean
+  maxParallel: number | null
+}
+
+export interface WorkflowConcurrency {
+  group: string
+  cancelInProgress: boolean
 }
 
 export interface TriggerFilter {
   branches: string[]
   tags: string[]
   paths: string[]
+  /**
+   * The negative forms, kept apart rather than folded into the positive ones.
+   *
+   * `branches-ignore` is not `branches` with a flag: Actions refuses a workflow
+   * that sets both, and a matcher that saw one merged list could not tell which
+   * way round the author meant it.
+   */
+  branchesIgnore: string[]
+  tagsIgnore: string[]
+  pathsIgnore: string[]
+  /** `types: [opened, synchronize]`, which decides which activity fires the event. */
+  types: string[]
 }
 
 export interface WorkflowTriggers {
@@ -93,6 +129,13 @@ export interface NormalizedWorkflow {
   triggers: WorkflowTriggers
   jobs: WorkflowJob[]
   env: Record<string, string>
+  /**
+   * Read rather than ignored, which is the whole point of naming Gitea in the
+   * roadmap: it accepts `concurrency:` and does nothing with it, so a workflow
+   * that relies on it looks like it works.
+   */
+  concurrency: WorkflowConcurrency | null
+  defaults: { shell: string | null, workingDirectory: string | null }
 }
 
 export type ParseResult =
@@ -204,7 +247,31 @@ function filterFrom(value: unknown): TriggerFilter {
     branches: asStringList(record?.branches),
     tags: asStringList(record?.tags),
     paths: asStringList(record?.paths),
+    branchesIgnore: asStringList(record?.['branches-ignore']),
+    tagsIgnore: asStringList(record?.['tags-ignore']),
+    pathsIgnore: asStringList(record?.['paths-ignore']),
+    types: asStringList(record?.types),
   }
+}
+
+/**
+ * `runs-on`, in all three shapes Actions accepts.
+ *
+ * A label, a list of labels, or `{ group, labels }`. The object form is the one
+ * Gitea does not support, and the roadmap names that as a migration blocker -
+ * so it is read here and flattened onto the labels a runner has to carry, with
+ * the group first because a pool is a label to this product.
+ */
+export function runsOnFrom(value: unknown): string[] {
+  const record = asRecord(value)
+
+  if (record) {
+    const group = typeof record.group === 'string' ? [record.group] : []
+
+    return [...group, ...asStringList(record.labels)]
+  }
+
+  return asStringList(value)
 }
 
 /**
@@ -215,7 +282,7 @@ function filterFrom(value: unknown): TriggerFilter {
  * the one the schema would prefer.
  */
 function triggersFrom(value: unknown): WorkflowTriggers {
-  const empty: TriggerFilter = { branches: [], tags: [], paths: [] }
+  const empty: TriggerFilter = { branches: [], tags: [], paths: [], branchesIgnore: [], tagsIgnore: [], pathsIgnore: [], types: [] }
   const triggers: WorkflowTriggers = {
     push: null,
     pullRequest: null,
@@ -270,6 +337,36 @@ function triggersFrom(value: unknown): WorkflowTriggers {
   }
 
   return triggers
+}
+
+/**
+ * `concurrency:`, in both shapes.
+ *
+ * A bare string is the group with no cancellation; the mapping form carries
+ * `cancel-in-progress`. Read rather than ignored: this is the key the roadmap
+ * names Gitea for accepting and doing nothing with, which is how a workflow
+ * that relies on it looks like it works.
+ */
+export function concurrencyFrom(value: unknown): WorkflowConcurrency | null {
+  if (typeof value === 'string' && value.length > 0)
+    return { group: value, cancelInProgress: false }
+
+  const record = asRecord(value)
+
+  if (!record || typeof record.group !== 'string')
+    return null
+
+  return { group: record.group, cancelInProgress: record['cancel-in-progress'] === true }
+}
+
+/** `defaults.run`, which every step inherits unless it says otherwise. */
+export function defaultsFrom(value: unknown): { shell: string | null, workingDirectory: string | null } {
+  const run = asRecord(asRecord(value)?.run)
+
+  return {
+    shell: typeof run?.shell === 'string' ? run.shell : null,
+    workingDirectory: typeof run?.['working-directory'] === 'string' ? run['working-directory'] : null,
+  }
 }
 
 /**
@@ -431,7 +528,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       }
     }
 
-    const runsOn = asStringList(body['runs-on'])
+    const runsOn = runsOnFrom(body['runs-on'])
     if (runsOn.length === 0) {
       errors.push({
         line: jobLine,
@@ -506,6 +603,18 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
     })
 
     const timeout = body['timeout-minutes']
+    const strategy = asRecord(body.strategy) ?? {}
+    const matrix = expandMatrix(strategy.matrix as MatrixDefinition | undefined)
+
+    if (matrix.problem) {
+      errors.push({
+        line: lineOf(source, 'matrix', jobLine),
+        message: `Job \`${id}\`: ${matrix.problem}`,
+        fix: 'Reduce the matrix, or split the workflow into more than one.',
+      })
+    }
+
+    const maxParallel = strategy['max-parallel']
 
     jobs.push({
       id,
@@ -516,6 +625,12 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       timeoutMinutes: typeof timeout === 'number' && Number.isFinite(timeout) ? timeout : null,
       env: asStringMap(body.env),
       steps,
+      matrix: matrix.combinations,
+      matrixLabels: matrix.combinations.map(combinationLabel),
+      // Actions' default, and the surprising direction: one failed combination
+      // cancels the rest unless the workflow says otherwise.
+      failFast: strategy['fail-fast'] !== false,
+      maxParallel: typeof maxParallel === 'number' && Number.isFinite(maxParallel) ? maxParallel : null,
     })
   }
 
@@ -561,6 +676,8 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       triggers,
       jobs,
       env: asStringMap(root.env),
+      concurrency: concurrencyFrom(root.concurrency),
+      defaults: defaultsFrom(root.defaults),
     },
   }
 }
