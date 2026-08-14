@@ -55,6 +55,25 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       committed image is the 1200x630 the tags claim.
 - [ ] Lighthouse pass: no layout shift, fonts preloaded, images sized
 
+      Measured rather than assumed, in a browser against the served page. **Layout shift is zero**
+      across repeated loads, with no shift entries recorded at all, and **there is nothing to size**:
+      the page carries no images, because the icons are Iconify classes and the product shot is a
+      terminal drawn in CSS. Two of the three are done and were done by construction.
+
+      What is left is the fonts, and it is a decision rather than an oversight. The page loads Geist
+      from `fonts.googleapis.com`, which is the one render-blocking third-party request on it (125ms
+      cold, cached afterwards) and the one thing that sends every visitor's address to somebody else
+      - on a product whose whole argument is that you host it yourself. Self-hosting the two woff2
+      files removes the round trip, the privacy leak and the single point of failure in one go, and
+      it is the only option here that does not put a `link` with an `onload` handler in the markup.
+      Left open because it means vendoring font binaries, which is a choice about what this
+      repository carries.
+
+      The measuring turned up something better than any of it: **the server was not compressing
+      anything.** 253 KB of HTML, `Accept-Encoding: gzip` ignored, on every page of every request.
+      Fixed upstream in `@stacksjs/bun-router` 0.0.24 - see the note in
+      [00 - Bootstrap](./00-bootstrap.md).
+
 ## Documentation site
 
 - [x] bunpress configured through `config/docs.ts`, served by `./buddy dev:docs`

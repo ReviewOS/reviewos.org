@@ -108,6 +108,26 @@ Each one is committed and pushed in the repository named.
       So the chain is one manual publish, or one repository's Actions, away from closing, and both
       of those are somebody's decision rather than a fix.
 
+- [x] **bun-router** - Static files were served gzipped and nothing else was. Every response a route
+      produced went out whole: 253 KB of HTML on this project's landing page, `Accept-Encoding`
+      ignored, on every request from every visitor. Compression now happens once, where every
+      response passes through, with the two rules that make it safe rather than merely smaller - a
+      `Vary` on both branches, so a cache cannot hand a gzipped body to a client that did not ask,
+      and the body **piped** rather than buffered, so a streamed response keeps streaming: this
+      product's diff manifest still arrives a file at a time, now compressed.
+
+      The first attempt used `Content-Length` to tell a buffered response from a stream, and Bun
+      does not set one on a `Response` built from a string - so the guard skipped every
+      server-rendered page, which is the entire case. Piping needs no length and covers both.
+      Two follow-ups, both found by watching what the application served rather than by reading the
+      code: with no length there was nothing to compare against the threshold, so a 356-byte
+      `/api/health` was being gzipped into something larger - the body is now peeked up to the
+      threshold and no further - and `text/event-stream` matched `text/*` and was eligible, which
+      would have turned a live channel into one that arrives in clumps.
+
+      `0.0.26`. Measured on the landing page: **252,661 bytes to 61,184 on the wire**, with
+      `/api/health` untouched and the diff manifest still arriving a file at a time.
+
 ## Known gaps, deferred deliberately
 
 - [x] **Stacks** - `notifications.user_id` and `notification_deliveries.user_id` foreign keys were

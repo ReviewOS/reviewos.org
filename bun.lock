@@ -44,7 +44,7 @@
     },
   },
   "overrides": {
-    "@stacksjs/bun-router": "^0.0.23",
+    "@stacksjs/bun-router": "^0.0.26",
     "@stacksjs/stx": "0.2.178",
     "@stacksjs/ts-ssh": "^0.1.0",
     "bun-plugin-stx": "0.2.178",
@@ -97,7 +97,7 @@
 
     "@stacksjs/bun-queue": ["@stacksjs/bun-queue@0.1.8", "", {}, "sha512-4nrKGXksRW/57VJqpLQmnX5SI9yE4OsRKp60jE8MoZI4vzH45MJQrBzFgAiGITzmjnbmxHN1c5a9kG+kbp94rw=="],
 
-    "@stacksjs/bun-router": ["@stacksjs/bun-router@0.0.23", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "ts-rate-limiter": "^0.4.2" }, "bin": { "bun-router": "./dist/cli.js", "router": "./bin/cli.ts" } }, "sha512-VdY0cXU5crVd3lKwlEGarQXB8CoGU3bnpuV9yP7GAflX/9YwfqjkIVOg0y+NeFa5NvEuNt909kEJkQ88zAihrQ=="],
+    "@stacksjs/bun-router": ["@stacksjs/bun-router@0.0.26", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "ts-rate-limiter": "^0.4.2" }, "bin": { "bun-router": "./dist/cli.js", "router": "./bin/cli.ts" } }, "sha512-Zlwa1G1ap7b0HX9+LnN/6cG0UqLCds13F7VQIEKTg0e8pcf67Xo86wDLyD3Mbh+XDjVC3/zXQvqHGg1q57PCDg=="],
 
     "@stacksjs/bunpress": ["@stacksjs/bunpress@0.1.21", "", { "dependencies": { "@stacksjs/stx": "^0.2.82", "@stacksjs/ts-cloud": "^0.7.51", "@stacksjs/ts-md": "^0.1.1", "bunfig": "^0.15.6" }, "bin": { "bunpress": "./dist/bin/cli.js" } }, "sha512-F44YG7rylrrrDasCK0RLUvOCuMFzXiJPM+Y22FgLc1dq1nYlRmZ+wk/3IRndWVGIiCyy0FsWKDka7ktk345SAA=="],
 
