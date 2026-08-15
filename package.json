@@ -67,27 +67,27 @@
     "typecheck:framework": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false"
   },
   "dependencies": {
-    "@stacksjs/actions": "^0.70.371",
-    "@stacksjs/api": "^0.70.371",
-    "@stacksjs/buddy": "^0.70.371",
-    "@stacksjs/database": "^0.70.371",
-    "@stacksjs/env": "^0.70.371",
-    "@stacksjs/events": "^0.70.371",
-    "@stacksjs/faker": "^0.70.371",
-    "@stacksjs/orm": "^0.70.371",
-    "@stacksjs/queue": "^0.70.371",
-    "@stacksjs/search-engine": "^0.70.371",
-    "@stacksjs/server": "^0.70.371",
-    "@stacksjs/stx": "^0.2.181",
-    "@stacksjs/ts-ssh": "^0.1.0",
+    "@stacksjs/actions": "^0.70.376",
+    "@stacksjs/api": "^0.70.376",
+    "@stacksjs/buddy": "^0.70.376",
+    "@stacksjs/database": "^0.70.376",
+    "@stacksjs/env": "^0.70.376",
+    "@stacksjs/events": "^0.70.376",
+    "@stacksjs/faker": "^0.70.376",
+    "@stacksjs/orm": "^0.70.376",
+    "@stacksjs/queue": "^0.70.376",
+    "@stacksjs/search-engine": "^0.70.376",
+    "@stacksjs/server": "^0.70.376",
+    "@stacksjs/stx": "^0.2.182",
+    "@stacksjs/ts-ssh": "^0.1.1",
     "buddy-bot": "^0.9.27",
-    "bun-query-builder": "^0.2.25",
+    "bun-query-builder": "^0.2.30",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.56",
-    "stacks": "^0.70.368",
-    "ts-git-lfs": "^0.1.1",
-    "ts-pantry": "^0.11.19",
-    "ts-syntax-highlighter": "^0.2.13"
+    "stacks": "^0.70.376",
+    "ts-git-lfs": "^0.1.2",
+    "ts-pantry": "^0.11.26",
+    "ts-syntax-highlighter": "^0.2.14"
   },
   "workspaces": [
     "storage/framework",
@@ -103,15 +103,16 @@
     "commit-msg": "bun x gitlint --edit \"$1\""
   },
   "devDependencies": {
-    "better-dx": "^0.2.17"
+    "better-dx": "^0.2.22"
   },
   "overrides": {
     "@stacksjs/bun-router": "^0.0.26",
-    "@stacksjs/stx": "^0.2.181",
+    "@stacksjs/stx": "^0.2.182",
     "@stacksjs/ts-ssh": "^0.1.0",
-    "stx-router": "^0.2.181",
-    "bun-plugin-stx": "^0.2.181",
-    "@stacksjs/components": "^0.2.181",
-    "@stacksjs/ts-cloud": "^0.7.125"
+    "stx-router": "^0.2.182",
+    "bun-plugin-stx": "^0.2.182",
+    "@stacksjs/components": "^0.2.182",
+    "@stacksjs/ts-cloud": "^0.7.126",
+    "@stacksjs/buddy": "^0.70.376"
   }
 }
