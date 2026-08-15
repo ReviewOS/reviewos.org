@@ -733,12 +733,18 @@ export const tsCloud: TsCloudConfig = {
   sites: {
     reviewos: {
       // ReviewOS itself, added to the shared production box alongside the
-      // sites already on it. Its own port, so it cannot collide with theirs.
+      // sites already on it. Its own port, so it cannot collide with theirs —
+      // which 3010 did not manage: verygoodadblock's api holds it, and both
+      // processes have been bound to it, one on 127.0.0.1 and one on every
+      // interface. That does not error. The kernel simply hands each new
+      // connection to one of them, and the more specific bind wins loopback,
+      // so which site answers depends on how the request arrived. 3072 was
+      // checked against `ss -lntp` on the box rather than assumed free.
       root: '.',
       path: '/',
       domain: env.APP_DOMAIN || 'reviewos.org',
       start: 'bun node_modules/@stacksjs/buddy/dist/serve-entry.js',
-      port: 3010,
+      port: 3072,
       // The published package ships `dist` and not `src`, so the entry is used
       // as built rather than rebuilt here. The template's build step assumes a
       // vendored `storage/framework/core`, which a core-less app - the default
