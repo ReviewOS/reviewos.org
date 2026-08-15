@@ -36,6 +36,14 @@ jobs:
   deploy:
     name: Deploy to production
     runs-on: ubuntu-latest
+    # A deploy either finishes or fails; it never legitimately runs for an
+    # hour. One did: `buddy typecheck` hit a framework bug where a swallowed
+    # exception left the process alive with nothing to end it, and the job sat
+    # in progress until someone cancelled it by hand — holding the
+    # deploy-production concurrency lock the whole time, so nothing else could
+    # deploy either. The framework bug is fixed upstream; this is the guard
+    # that means the next one costs twenty minutes instead of an afternoon.
+    timeout-minutes: 20
     environment:
       name: production
       url: https://reviewos.org
