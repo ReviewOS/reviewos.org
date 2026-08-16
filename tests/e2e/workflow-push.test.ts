@@ -724,4 +724,68 @@ jobs:
     // And the sibling job, which asked for nothing, is untouched by any of it.
     expect(tests.every((job: any) => job.state === 'queued')).toBe(true)
   }, 30_000)
+
+  /*
+   * `if:` on a job, decided when the run is created rather than left to the
+   * execution plane. A run showing three queued jobs that only ever runs one is
+   * a run nobody can plan around.
+   */
+  test('a job whose condition is false is skipped, with the reason recorded', async () => {
+    if (!available)
+      return
+
+    await push('.reviewos/workflows/conditional.yml', `name: Conditional
+on:
+  push:
+    paths:
+      - 'conditional/**'
+jobs:
+  always:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hello
+  only-tags:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - run: ./release
+  only-main:
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'main'
+    steps:
+      - run: ./deploy
+`)
+
+    await push('conditional/go.txt', 'go\n')
+
+    const jobsFor = async (): Promise<any[]> => db
+      .selectFrom('workflow_jobs')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select([
+        'workflow_jobs.job_id as job_id',
+        'workflow_jobs.state as state',
+        'workflow_jobs.condition as condition',
+        'workflow_jobs.condition_reason as condition_reason',
+      ])
+      .where('workflows.path', '=', '.reviewos/workflows/conditional.yml')
+      .orderBy('workflow_jobs.id')
+      .execute()
+
+    const jobs = await waitFor(jobsFor, (rows: any[]) => rows.length >= 3)
+
+    const byId = new Map(jobs.map((job: any) => [job.job_id, job]))
+
+    // No condition: queued, as it always was.
+    expect(byId.get('always').state).toBe('queued')
+
+    // A push to a branch is not a tag, so this one never runs and says so.
+    expect(byId.get('only-tags').state).toBe('skipped')
+    expect(String(byId.get('only-tags').condition_reason)).toContain('false')
+
+    // And the one whose condition holds is queued like any other.
+    expect(byId.get('only-main').state).toBe('queued')
+    expect(String(byId.get('only-main').condition)).toBe("github.ref_name == 'main'")
+  }, 30_000)
 })

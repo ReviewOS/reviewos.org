@@ -88,6 +88,28 @@ export default defineModel({
       factory: () => 'blocked',
     },
 
+    /** `if:` as written, copied from the definition so the run stays readable. */
+    condition: {
+      order: 32,
+      fillable: true,
+      validation: { rule: schema.string().max(2000) },
+      factory: () => null,
+    },
+
+    /**
+     * Why the condition decided what it did, in words.
+     *
+     * A skipped job is the one outcome with nothing to look at - no logs, no
+     * steps, no runner - so the reason has to be written down at the moment it
+     * is decided or it is gone.
+     */
+    condition_reason: {
+      order: 33,
+      fillable: true,
+      validation: { rule: schema.string().max(1000) },
+      factory: () => null,
+    },
+
     /** Job ids this waits on, copied from the definition. */
     /**
      * The matrix values this job was created for, as JSON.

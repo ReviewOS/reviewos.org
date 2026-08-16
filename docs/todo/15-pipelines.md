@@ -192,7 +192,9 @@ written down here so it does not get relitigated:
       instance that was off for a week should produce one catch-up run, not seven.
 
       The rest are recorded as recognised-but-not-dispatched.
-- [ ] `jobs:` with `needs:`, `if:`, `strategy.matrix` including `include`, `exclude`, `fail-fast`,
+- [ ] `jobs:` with `needs:`, `if:` (**decided at dispatch now** - a job whose condition is false is
+      `skipped` from the moment the run exists, with the reason on the row, rather than queued and
+      quietly ignored), `strategy.matrix` including `include`, `exclude`, `fail-fast`,
       and `max-parallel`, plus `continue-on-error`, `timeout-minutes`, and `outputs`
 
       **A matrix is now four jobs in a run rather than one**, which is the half that was missing:
@@ -366,15 +368,42 @@ written down here so it does not get relitigated:
 
 ### Expressions and contexts
 
-- [ ] `${{ }}` expression evaluation: operators, precedence, and the function set (`contains`,
-      `startsWith`, `endsWith`, `format`, `join`, `toJSON`, `fromJSON`, `hashFiles`)
-- [ ] Status functions `success()`, `always()`, `cancelled()`, `failure()`, with Actions' rule that
-      an `if:` without one implies `success()`
+- [x] `${{ }}` expression evaluation: operators, precedence, and the function set (`contains`,
+      `startsWith`, `endsWith`, `format`, `join`, `toJSON`, `fromJSON`, `hashFiles`).
+
+      A lexer, a Pratt parser and an evaluator in `app/Actions/Workflow/expression.ts`. Not a
+      regular expression, and never `new Function`: an expression comes out of a file in a
+      repository, which on a public instance means it comes from a stranger, and evaluating it with
+      the host language's evaluator would hand that stranger this process.
+
+      GitHub's semantics are copied deliberately, including the parts that look wrong, because a
+      workflow that behaves differently here is one somebody has to debug twice: comparison coerces
+      to number so `'' == 0` is true, strings compare without case, `&&` and `||` return operands
+      rather than booleans (`inputs.name || 'default'` is the fallback idiom), an unknown property
+      is null rather than an error, and an empty object is truthy.
+
+      `hashFiles` is **refused rather than answered**: it reads a checked-out tree this side does
+      not have, and a fake digest silently restores the wrong cache - a bug people chase for days.
+
+      Property reads are own-properties only. `thing.toString` is null, not the host's function;
+      the grammar cannot call anything outside the closed set, but a value that leaks a host
+      function into a comparison is the first half of an escape.
+- [x] Status functions `success()`, `always()`, `cancelled()`, `failure()`, with Actions' rule that
+      an `if:` without one implies `success()`.
+
+      They read the job's status rather than computing anything, which is why `success()` with
+      nothing yet reported is true: it is the default behaviour written out.
 - [ ] Contexts: `github`, `env`, `vars`, `job`, `jobs`, `steps`, `runner`, `secrets`, `strategy`,
       `matrix`, `needs`, `inputs`. A `reviewos` context is the canonical name and `github` is an
       alias, which is the approach Forgejo took and it works.
-- [ ] The expression evaluator is sandboxed and total: no host access, no unbounded evaluation, and a
-      documented failure mode for an expression that cannot be resolved
+- [x] The expression evaluator is sandboxed and total: no host access, no unbounded evaluation, and a
+      documented failure mode for an expression that cannot be resolved.
+
+      The failure mode is written down and tested in both places it matters. **An `if:` that cannot
+      be evaluated does not run the job**, because the other direction deploys somebody's code
+      because their condition had a typo; the reason is recorded on the job, since a skipped job is
+      the one outcome with nothing else to look at. **An interpolation that cannot be evaluated
+      stays as written**, rather than becoming an empty string somebody has to explain.
 - [ ] Tests: an expression suite ported from Actions' own documented examples, including the ones
       that are surprising
 

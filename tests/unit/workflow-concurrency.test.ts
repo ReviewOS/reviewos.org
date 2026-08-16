@@ -63,9 +63,21 @@ describe('resolving a group', () => {
    * group is the answer.
    */
   test('an expression that cannot be resolved is no group at all', () => {
-    expect(resolveGroup('${{ github.head_ref || github.ref }}', push)).toBeNull()
+    // A name this side does not have is not a group. `inputs` belongs to a
+    // dispatch and `secrets` is never readable here at all.
     expect(resolveGroup('${{ inputs.environment }}', push)).toBeNull()
     expect(resolveGroup('deploy-${{ secrets.SOMETHING }}', push)).toBeNull()
+    expect(resolveGroup('${{ hashFiles(\'**/lock\') }}', push)).toBeNull()
+  })
+
+  /*
+   * The fallback idiom, which the closed substitution table could not do and
+   * the expression engine can: a pull request groups on its source branch, a
+   * push on its ref.
+   */
+  test('and the fallback idiom resolves, now that expressions are evaluated', () => {
+    expect(resolveGroup('${{ github.head_ref || github.ref }}', push)).toBe('refs/heads/main')
+    expect(resolveGroup('${{ github.head_ref || github.ref }}', pullRequest)).toBe('feature/thing')
   })
 
   test('and a partly resolvable one is too, rather than half a group', () => {

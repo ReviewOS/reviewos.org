@@ -11,6 +11,8 @@
  * event that started the run rather than stored resolved.
  */
 
+import { evaluateExpression } from './expression'
+
 /** What a run needs to know about itself to resolve a group. */
 export interface ConcurrencyContext {
   /** The workflow's `name:`, or its file path when it has none. */
@@ -99,8 +101,42 @@ export function fillGroup(template: string, context: ConcurrencyContext): string
   return template.replace(/\$\{\{([^}]*)\}\}/g, (whole: string, inner: string) => {
     const key = String(inner).trim()
 
-    return Object.hasOwn(values, key) ? String(values[key] ?? '') : whole
+    if (Object.hasOwn(values, key))
+      return String(values[key] ?? '')
+
+    /*
+     * Anything beyond a plain context read goes to the expression engine -
+     * `${{ github.head_ref || github.ref }}` is the fallback idiom, and it was
+     * previously left unresolved, which meant no group at all.
+     *
+     * Still no group when the engine cannot answer either: an expression this
+     * side cannot evaluate must not become one literal string shared by every
+     * run of the workflow. Grouping too little wastes runners; grouping too
+     * much cancels somebody's build.
+     */
+    const result = evaluateExpression(key, expressionContext(context))
+
+    return result.ok && result.value !== null ? String(result.value) : whole
   })
+}
+
+/** The same facts, in the shape the expression language reads. */
+function expressionContext(context: ConcurrencyContext): Record<string, unknown> {
+  const ref = context.ref ?? ''
+
+  return {
+    github: {
+      workflow: context.workflow ?? '',
+      event_name: context.eventName ?? '',
+      ref,
+      ref_name: ref.replace(/^refs\/(?:heads|tags)\//, ''),
+      sha: context.sha ?? '',
+      head_ref: context.headRef ?? '',
+      base_ref: context.baseRef ?? '',
+      event: context.number ? { number: context.number, pull_request: { number: context.number } } : {},
+    },
+    matrix: context.matrix ?? {},
+  }
 }
 
 /**

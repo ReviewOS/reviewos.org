@@ -22,6 +22,7 @@
 import { db } from '@stacksjs/database'
 import type { ConcurrencyContext } from './concurrency'
 import { resolveGroup } from './concurrency'
+import { shouldRun } from './expression'
 import type { PullRequestEvent, PushEvent } from './triggers'
 import { pullRequestStartsRun, pushStartsRun } from './triggers'
 
@@ -412,7 +413,10 @@ export async function createJobsForRun(
 async function createJobs(runId: number, versionId: number, context?: ConcurrencyContext): Promise<void> {
   const definition: any[] = await db
     .selectFrom('workflow_version_jobs')
-    .select(['job_id', 'name', 'position', 'runs_on', 'needs', 'matrix', 'concurrency_group', 'job_cancel_in_progress'])
+    .select([
+      'job_id', 'name', 'position', 'runs_on', 'needs', 'matrix',
+      'concurrency_group', 'job_cancel_in_progress', 'condition',
+    ])
     .where('workflow_version_id', '=', versionId)
     .orderBy('position')
     .execute()
@@ -447,18 +451,41 @@ async function createJobs(runId: number, versionId: number, context?: Concurrenc
         ? resolveGroup(job.concurrency_group, withMatrix(context, values))
         : null
 
+      /*
+       * `if:` decided here rather than left to the execution plane.
+       *
+       * A job whose condition is false is `skipped` from the moment the run
+       * exists, which is what a reader needs to see: a run that shows three
+       * queued jobs and only ever runs one is a run nobody can plan around.
+       *
+       * Only what this side actually knows goes into the context - the event,
+       * the ref, the commit, the matrix combination. A condition that reads
+       * something else (a step's outcome, a job's status) cannot be answered
+       * before anything has run, and `shouldRun` refuses rather than guesses,
+       * so the job is skipped with the reason recorded. That is the safe
+       * direction: the other one runs a deployment because a condition could
+       * not be read.
+       */
+      const decision = context
+        ? shouldRun(job.condition, conditionContext(context, values))
+        : { run: true, reason: 'no condition context' }
+
       const created: any = await db
         .insertInto('workflow_jobs')
         .values({
           workflow_run_id: runId,
           job_id: job.job_id,
           concurrency_group: group,
+          condition: job.condition ?? null,
+          condition_reason: job.condition ? decision.reason : null,
           // Actions' shape: `test (ubuntu-latest, 20)`. The values without
           // their keys, because that is what fits in a job list and what
           // somebody scanning a failed run already recognises.
           name: values ? `${job.name ?? job.job_id} (${labelFor(values)})` : job.name,
           position: position++,
-          state: needs.length > 0 ? 'blocked' : 'queued',
+          state: !decision.run
+            ? 'skipped'
+            : (needs.length > 0 ? 'blocked' : 'queued'),
           needs: job.needs,
           runs_on: job.runs_on,
           matrix_values: values ? JSON.stringify(values) : null,
@@ -519,6 +546,31 @@ async function supersedeJobs(
       .set({ state: 'cancelling' } as any)
       .where('id', '=', Number(sibling.id))
       .execute()
+  }
+}
+
+/**
+ * The facts a job's `if:` may read before anything has run.
+ *
+ * Deliberately small. `steps` and `needs` do not exist yet, and `job.status`
+ * is not a thing until a runner reports one - a condition asking for them is
+ * refused by `shouldRun` rather than answered with an invented value.
+ */
+function conditionContext(context: ConcurrencyContext, values: Record<string, unknown> | null): Record<string, unknown> {
+  const ref = context.ref ?? ''
+
+  return {
+    github: {
+      workflow: context.workflow ?? '',
+      event_name: context.eventName ?? '',
+      ref,
+      ref_name: ref.replace(/^refs\/(?:heads|tags)\//, ''),
+      sha: context.sha ?? '',
+      head_ref: context.headRef ?? '',
+      base_ref: context.baseRef ?? '',
+      event: context.number ? { number: context.number, pull_request: { number: context.number } } : {},
+    },
+    matrix: values ?? {},
   }
 }
 
