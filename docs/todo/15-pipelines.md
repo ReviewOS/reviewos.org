@@ -114,8 +114,26 @@ written down here so it does not get relitigated:
 - [ ] Copy `.github/workflows/` to `.reviewos/workflows/`, push, and a normal repository's CI runs
       green with no edits. This is the acceptance test for the whole section, run against real
       workflow files from real repositories rather than ones written to pass.
-- [ ] `.github/workflows/` is also read directly, so a mirrored repository ([phase 13](./13-mirroring.md))
-      runs its existing workflows without a commit that would have to be undone to go back
+
+      **The copy is read now**, held by `tests/e2e/workflow-push.test.ts`: push
+      `.reviewos/workflows/ci.yml` and it registers, produces a version, and starts a run. What is
+      not done is "green", which needs the execution plane, so the box stays open. `.reviewos`
+      **wins outright over `.github` rather than merging** - merging runs every job twice the day
+      somebody forgets to delete the original, and "which of these two files ran" is a question
+      nobody should have to ask.
+- [x] `.github/workflows/` is also read directly, so a mirrored repository ([phase 13](./13-mirroring.md))
+      runs its existing workflows without a commit that would have to be undone to go back.
+
+      Read from the trusted ref with plumbing, nothing checked out. A repository that arrives with
+      workflows registers them on its first push here, and one that later adds `.reviewos/workflows`
+      switches over without the two ever running together.
+
+      Testing this turned up an older bug with nothing to do with directories: **a workflow whose
+      file was deleted stayed `active` forever**, and dispatch reads `state = 'active'`, so a
+      repository that removed its CI kept starting runs from a definition that was no longer in the
+      tree. A file that is gone now retires its workflow, in a `removed` state kept apart from
+      `disabled` - a workflow somebody switched off has to stay off when the file comes back, and
+      one state for both would let a revert resurrect it.
 - [ ] A conformance suite pinned to a corpus of widely used public workflows, run in CI, reporting
       which constructs pass, which are unimplemented, and which are refused on purpose. The report is
       published. Silence about a gap is how Gitea's ignored `concurrency:` surprised people.
