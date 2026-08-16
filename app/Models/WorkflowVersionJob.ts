@@ -140,6 +140,28 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * `concurrency:` on the job, as written.
+     *
+     * A group of its own, resolved per run like the workflow's - a workflow
+     * whose runs may overlap can still hold one deployment job to one at a
+     * time.
+     */
+    concurrency_group: {
+      order: 35,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
+    job_cancel_in_progress: {
+      order: 36,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
     timeout_minutes: {
       order: 8,
       fillable: true,

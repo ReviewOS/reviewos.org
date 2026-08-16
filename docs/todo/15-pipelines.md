@@ -248,10 +248,20 @@ written down here so it does not get relitigated:
       - **A group is not namespaced by event**, matching Actions. `group: ${{ github.ref }}` is
         written precisely so a branch's push run and its pull request run do not both run.
 
+      **Job-level `concurrency` works too**, which is the case the workflow level cannot express: a
+      workflow whose runs may overlap, with one deployment job inside it that must not. A job's
+      group is resolved against its run *and its matrix combination* - `${{ matrix.node }}` is
+      available - because a matrix job whose group names none of its values puts every combination
+      in one group, and under `cancel-in-progress` they then cancel each other. Actions behaves the
+      same way and does not withhold the values, so neither does this; there is a test saying so, so
+      that nobody "fixes" it by namespacing silently.
+
+      A superseded job moves to `cancelling`, and a sibling job that asked for no group is untouched.
+
       What is left is the other half: `cancel-in-progress: false` should *queue* the second run
       behind the first, and that is not a state a run can enter on its own - something has to
-      release the group when the first finishes, which is the execution plane. Job-level
-      `concurrency` is unread. The box stays open for both.
+      release the group when the first finishes, which is the execution plane. The box stays open
+      for that.
 - [x] `permissions:` on the workflow and per job, mapped onto the fine-grained token permissions from
       [phase 1](./01-foundation.md#access-tokens), defaulting to read-only.
 

@@ -108,3 +108,44 @@ describe('filling a template', () => {
     expect(fillGroup('pr-${{ github.head_ref }}', push)).toBe('pr-')
   })
 })
+
+describe('a job\'s own group', () => {
+  /*
+   * The case the workflow level cannot express: a workflow whose runs may
+   * overlap, with one deployment job inside it that must not.
+   */
+  test('resolves like the workflow\'s, against the same run', () => {
+    expect(resolveGroup('deploy-${{ github.ref_name }}', push)).toBe('deploy-main')
+  })
+
+  test('and a matrix combination is available to it', () => {
+    // Without this, a matrix job whose group names none of its values puts
+    // every combination in one group - and under `cancel-in-progress` they
+    // cancel each other. Actions behaves the same way and does not withhold
+    // the values, so neither does this.
+    const combination = { ...push, matrix: { node: 20, os: 'ubuntu' } }
+
+    expect(resolveGroup('build-${{ matrix.node }}', combination)).toBe('build-20')
+    expect(resolveGroup('build-${{ matrix.os }}-${{ matrix.node }}', combination)).toBe('build-ubuntu-20')
+  })
+
+  test('a group naming no matrix value is one group for every combination', () => {
+    // Not a bug to fix here: it is what the file asked for, and what Actions
+    // does. Worth a test so nobody "fixes" it by namespacing silently.
+    const one = resolveGroup('build', { ...push, matrix: { node: 20 } })
+    const two = resolveGroup('build', { ...push, matrix: { node: 22 } })
+
+    expect(one).toBe(two)
+  })
+
+  test('a matrix reference with no matrix is no group at all', () => {
+    /*
+     * A job with no matrix cannot resolve `matrix.node`, so the expression
+     * stays unresolved and the rule above applies: no group. Grouping every run
+     * of that job under the literal `build-${{ matrix.node }}` would cancel
+     * builds that have nothing to do with each other, which is the direction
+     * this deliberately fails away from.
+     */
+    expect(resolveGroup('build-${{ matrix.node }}', push)).toBeNull()
+  })
+})

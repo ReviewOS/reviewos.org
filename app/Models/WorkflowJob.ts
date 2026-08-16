@@ -107,6 +107,20 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * The concurrency group this job belongs to, resolved against its run.
+     *
+     * On the job rather than derived, for the same reason the run carries its
+     * own: somebody asking why a job was cancelled needs the value that was
+     * compared, not one recomputed from a definition that has since moved.
+     */
+    concurrency_group: {
+      order: 31,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
     needs: {
       order: 6,
       fillable: true,

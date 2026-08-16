@@ -279,7 +279,7 @@ async function createPullRequestRun(
       .executeTakeFirst()
 
     const runId = Number(run?.id)
-    await createJobs(runId, Number(version.id))
+    await createJobs(runId, Number(version.id), context)
     await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true)
 
     return runId
@@ -301,12 +301,14 @@ async function createPullRequestRun(
  * it is deliberately not implemented here rather than approximated.
  */
 async function createRun(input: DispatchInput, version: any): Promise<number | null> {
-  const group = resolveGroup(version.concurrency_group, {
+  const context: ConcurrencyContext = {
     workflow: String(version.workflow_name || version.workflow_path || ''),
     eventName: 'push',
     ref: input.event.ref,
     sha: input.headSha,
-  })
+  }
+
+  const group = resolveGroup(version.concurrency_group, context)
 
   try {
     const run: any = await db
@@ -331,7 +333,7 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
       .executeTakeFirst()
 
     const runId = Number(run?.id)
-    await createJobs(runId, Number(version.id))
+    await createJobs(runId, Number(version.id), context)
     await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true)
 
     return runId
@@ -399,14 +401,18 @@ function isDuplicate(error: unknown): boolean {
  * definition changes - and because a job's state belongs to the run, not to the
  * workflow. A job with no `needs` is queued immediately; the rest wait.
  */
-export async function createJobsForRun(runId: number, versionId: number): Promise<void> {
-  await createJobs(runId, versionId)
+export async function createJobsForRun(
+  runId: number,
+  versionId: number,
+  context?: ConcurrencyContext,
+): Promise<void> {
+  await createJobs(runId, versionId, context)
 }
 
-async function createJobs(runId: number, versionId: number): Promise<void> {
+async function createJobs(runId: number, versionId: number, context?: ConcurrencyContext): Promise<void> {
   const definition: any[] = await db
     .selectFrom('workflow_version_jobs')
-    .select(['job_id', 'name', 'position', 'runs_on', 'needs', 'matrix'])
+    .select(['job_id', 'name', 'position', 'runs_on', 'needs', 'matrix', 'concurrency_group', 'job_cancel_in_progress'])
     .where('workflow_version_id', '=', versionId)
     .orderBy('position')
     .execute()
@@ -427,11 +433,26 @@ async function createJobs(runId: number, versionId: number): Promise<void> {
      * the include rules are not obvious.
      */
     for (const values of combinationsOf(job.matrix)) {
-      await db
+      /*
+       * A job's own concurrency group, resolved against this run *and this
+       * combination*.
+       *
+       * `matrix.node` is available in the expression, which matters: a matrix
+       * job whose group names none of its matrix values puts every combination
+       * in one group, and under `cancel-in-progress` they cancel each other.
+       * Actions behaves the same way, and it is the shape people file bugs
+       * about, so the values are offered rather than withheld.
+       */
+      const group = context
+        ? resolveGroup(job.concurrency_group, withMatrix(context, values))
+        : null
+
+      const created: any = await db
         .insertInto('workflow_jobs')
         .values({
           workflow_run_id: runId,
           job_id: job.job_id,
+          concurrency_group: group,
           // Actions' shape: `test (ubuntu-latest, 20)`. The values without
           // their keys, because that is what fits in a job list and what
           // somebody scanning a failed run already recognises.
@@ -442,9 +463,68 @@ async function createJobs(runId: number, versionId: number): Promise<void> {
           runs_on: job.runs_on,
           matrix_values: values ? JSON.stringify(values) : null,
         } as any)
-        .execute()
+        .returning(['id'])
+        .executeTakeFirst()
+
+      await supersedeJobs(runId, Number(created?.id), group, job.job_cancel_in_progress === true)
     }
   }
+}
+
+/**
+ * Stop the jobs this one replaces.
+ *
+ * The job-level twin of `supersede`, and it exists because the workflow level
+ * cannot express the case people actually have: a workflow whose runs may
+ * overlap, with one deployment job inside it that must not. Only when the job
+ * asked for it, for the same reason - cancelling by default would throw away
+ * work somebody is watching.
+ *
+ * Scoped to the repository through the run, so two repositories that happen to
+ * write the same group string never touch each other's jobs.
+ */
+async function supersedeJobs(
+  runId: number,
+  jobId: number,
+  group: string | null,
+  cancelInProgress: boolean,
+): Promise<void> {
+  if (!group || !cancelInProgress || !jobId)
+    return
+
+  const run: any = await db
+    .selectFrom('workflow_runs')
+    .select(['repository_id'])
+    .where('id', '=', runId)
+    .executeTakeFirst()
+
+  if (!run)
+    return
+
+  const siblings: any[] = await db
+    .selectFrom('workflow_jobs')
+    .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+    .select(['workflow_jobs.id as id'])
+    .where('workflow_runs.repository_id', '=', Number(run.repository_id))
+    .where('workflow_jobs.concurrency_group', '=', group)
+    .where('workflow_jobs.id', '!=', jobId)
+    // Only what is still live: a finished job is history, and one already being
+    // cancelled does not need telling twice.
+    .where('workflow_jobs.state', 'in', ['queued', 'blocked', 'running'])
+    .execute()
+
+  for (const sibling of siblings) {
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelling' } as any)
+      .where('id', '=', Number(sibling.id))
+      .execute()
+  }
+}
+
+/** The run's context, with this combination's values available to an expression. */
+function withMatrix(context: ConcurrencyContext, values: Record<string, unknown> | null): ConcurrencyContext {
+  return values ? { ...context, matrix: values } : context
 }
 
 /**

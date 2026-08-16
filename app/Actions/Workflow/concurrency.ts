@@ -27,6 +27,15 @@ export interface ConcurrencyContext {
   baseRef?: string
   /** The pull request's number, when there is one. */
   number?: number | null
+  /**
+   * This job's matrix combination, when it has one.
+   *
+   * Offered to a *job's* group expression, because a matrix job whose group
+   * names none of its values puts every combination in one group - and under
+   * `cancel-in-progress` they then cancel each other. Actions behaves the same
+   * way; what it does not do is withhold the values, so neither does this.
+   */
+  matrix?: Record<string, unknown> | null
 }
 
 /**
@@ -51,7 +60,24 @@ function contextValues(context: ConcurrencyContext): Record<string, string> {
     'github.run_id': '',
     'github.event.number': context.number ? String(context.number) : '',
     'github.event.pull_request.number': context.number ? String(context.number) : '',
+    ...matrixValues(context.matrix),
   }
+}
+
+/** `matrix.node` and friends, flattened for substitution. */
+function matrixValues(matrix: Record<string, unknown> | null | undefined): Record<string, string> {
+  if (!matrix)
+    return {}
+
+  const values: Record<string, string> = {}
+
+  for (const [name, value] of Object.entries(matrix)) {
+    values[`matrix.${name}`] = value !== null && typeof value === 'object'
+      ? JSON.stringify(value)
+      : String(value ?? '')
+  }
+
+  return values
 }
 
 /**

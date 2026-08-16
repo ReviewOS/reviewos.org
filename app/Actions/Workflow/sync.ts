@@ -216,6 +216,8 @@ async function insertVersion(
         permissions: job.permissions === null || job.permissions === undefined
           ? null
           : JSON.stringify(job.permissions),
+        concurrency_group: job.concurrency?.group ?? null,
+        job_cancel_in_progress: job.concurrency?.cancelInProgress ?? false,
         matrix: job.matrix.length > 0 ? JSON.stringify(job.matrix) : null,
         fail_fast: job.failFast,
         max_parallel: job.maxParallel,

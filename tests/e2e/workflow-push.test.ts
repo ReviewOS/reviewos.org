@@ -659,4 +659,69 @@ jobs:
     expect(rows.every((row: any) => row.state === 'queued')).toBe(true)
     expect(rows.every((row: any) => row.concurrency_group === null)).toBe(true)
   }, 30_000)
+
+  /*
+   * A job's own `concurrency`, which is the case the workflow level cannot
+   * express: a workflow whose runs may overlap, with one deployment job inside
+   * it that must not.
+   */
+  test('a job with its own group cancels the job it replaces, and leaves its siblings alone', async () => {
+    if (!available)
+      return
+
+    await push('.reviewos/workflows/ship.yml', `name: Ship
+on:
+  push:
+    paths:
+      - 'ship/**'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: bun test
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ship-\${{ github.ref_name }}
+      cancel-in-progress: true
+    steps:
+      - run: ./deploy
+`)
+
+    const jobsFor = async (): Promise<any[]> => db
+      .selectFrom('workflow_jobs')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select([
+        'workflow_jobs.id as id',
+        'workflow_jobs.job_id as job_id',
+        'workflow_jobs.state as state',
+        'workflow_jobs.concurrency_group as concurrency_group',
+      ])
+      .where('workflows.path', '=', '.reviewos/workflows/ship.yml')
+      .orderBy('workflow_jobs.id')
+      .execute()
+
+    await push('ship/one.txt', 'one\n')
+    const first = await waitFor(jobsFor, (rows: any[]) => rows.length >= 2)
+
+    expect(first).toHaveLength(2)
+    expect(first.find((job: any) => job.job_id === 'deploy').concurrency_group).toBe('ship-main')
+    // The job that did not ask for a group does not get one.
+    expect(first.find((job: any) => job.job_id === 'test').concurrency_group).toBeNull()
+
+    await push('ship/two.txt', 'two\n')
+    const both = await waitFor(jobsFor, (rows: any[]) => rows.length >= 4)
+
+    const deploys = both.filter((job: any) => job.job_id === 'deploy')
+    const tests = both.filter((job: any) => job.job_id === 'test')
+
+    // The first deploy is superseded; the second is not.
+    expect(deploys[0].state).toBe('cancelling')
+    expect(deploys[1].state).toBe('queued')
+
+    // And the sibling job, which asked for nothing, is untouched by any of it.
+    expect(tests.every((job: any) => job.state === 'queued')).toBe(true)
+  }, 30_000)
 })

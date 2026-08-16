@@ -8277,6 +8277,24 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "concurrency_group",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
+          },
+          {
+            "name": "job_cancel_in_progress",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -8585,6 +8603,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "concurrency_group",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
           }
         ],
         "indexes": [
@@ -9477,7 +9504,7 @@
       }
     ]
   },
-  "hash": "cd16958bb2043b29e87c67c7c7b029b6945e14cd185a3c0cbe9a3a0a085b3466",
+  "hash": "1081d610b269e6d9854934124c6f3a1a125ff2cacd1e92a37942d67559b0bc52",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T20:38:09.953Z"
+  "updatedAt": "2026-08-16T20:43:08.279Z"
 }

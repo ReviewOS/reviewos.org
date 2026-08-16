@@ -55,6 +55,14 @@ export interface WorkflowJob {
   env: Record<string, string>
   /** `permissions:` on the job, as written. Replaces the workflow's, never adds. */
   permissions: unknown
+  /**
+   * `concurrency:` on the job.
+   *
+   * Its own group, independent of the workflow's: a workflow can let its runs
+   * overlap while one deployment job inside it serialises, which is the shape
+   * most people actually want and cannot express at the workflow level.
+   */
+  concurrency: WorkflowConcurrency | null
   steps: WorkflowStep[]
   /**
    * One entry per matrix combination, empty when the job has no matrix.
@@ -712,6 +720,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       timeoutMinutes: typeof timeout === 'number' && Number.isFinite(timeout) ? timeout : null,
       env: asStringMap(body.env),
       permissions: body.permissions ?? null,
+      concurrency: concurrencyFrom(body.concurrency),
       steps,
       matrix: matrix.combinations,
       matrixLabels: matrix.combinations.map(combinationLabel),
