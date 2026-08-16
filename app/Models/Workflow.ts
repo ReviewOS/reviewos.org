@@ -108,6 +108,22 @@ export default defineModel({
      * state for both would mean a revert quietly resurrecting a workflow a
      * person had switched off on purpose.
      */
+    /**
+     * When this workflow's `schedule:` was last swept.
+     *
+     * The compare-and-swap that stops a cron firing twice: the sweep reads this
+     * value, computes what was due since, and writes the new one guarded on the
+     * old. Two sweeps racing means one of them updates nothing and dispatches
+     * nothing, which is the correct outcome - the alternative is a nightly
+     * deploy that runs twice because a second worker woke up.
+     */
+    last_scheduled_at: {
+      order: 50,
+      fillable: true,
+      validation: { rule: schema.string() },
+      factory: () => null,
+    },
+
     state: {
       order: 6,
       fillable: true,

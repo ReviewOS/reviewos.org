@@ -176,8 +176,22 @@ written down here so it does not get relitigated:
       `pull_request_target` is asked as its own question, so a workflow naming only `pull_request`
       can never be started as the trigger behind the published secret-theft write-ups.
 
-      `schedule` and `workflow_dispatch` still do not dispatch, and the rest are recorded as
-      recognised-but-not-dispatched.
+      **`schedule` dispatches too**, swept every minute by `DispatchScheduledWorkflowsJob`. A sweep
+      rather than a timer armed per workflow: a timer has to survive a restart and a redeploy, and a
+      sweep reads what is actually due, so a process that dies between two minutes loses only the
+      minutes it was dead. Runs are created on the default branch, the way Actions does it - a cron
+      on a feature branch would be a job nobody is watching, from a definition nobody reviewed.
+
+      What stops a cron firing twice is a **compare-and-swap on `workflows.last_scheduled_at`**, not
+      the run table's unique index: a scheduled run repeats at the same ref and the same commit by
+      design, so the index cannot tell a second night from a duplicate. Two sweeps racing means one
+      of them updates nothing and dispatches nothing.
+
+      A workflow that has never been swept records the clock and waits for the next occurrence
+      rather than firing immediately, and a sweep after downtime looks back at most six hours - an
+      instance that was off for a week should produce one catch-up run, not seven.
+
+      The rest are recorded as recognised-but-not-dispatched.
 - [ ] `jobs:` with `needs:`, `if:`, `strategy.matrix` including `include`, `exclude`, `fail-fast`,
       and `max-parallel`, plus `continue-on-error`, `timeout-minutes`, and `outputs`
 

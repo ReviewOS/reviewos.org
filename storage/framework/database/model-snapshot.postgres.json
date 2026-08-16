@@ -7812,6 +7812,14 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "last_scheduled_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8793,7 +8801,18 @@
             "type": "unique"
           },
           {
-            "name": "workflow_runs_dedupe_index",
+            "name": "workflow_runs_redelivery_index",
+            "columns": [
+              "workflow_version_id",
+              "event_ref",
+              "head_sha",
+              "event"
+            ],
+            "type": "unique",
+            "where": "event NOT IN ('workflow_dispatch', 'schedule')"
+          },
+          {
+            "name": "workflow_runs_delivery_index",
             "columns": [
               "workflow_version_id",
               "event_ref",
@@ -9428,7 +9447,7 @@
       }
     ]
   },
-  "hash": "844f290768f673cc87aa95de51e71f4c02eacf8451661d7347cbae91c8891851",
+  "hash": "6ee966fa3d5f1eda677ef00e34f1c45dfcbe986e9d1a34cfcbaf4e22abb13d49",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T17:34:19.317Z"
+  "updatedAt": "2026-08-16T17:46:26.120Z"
 }

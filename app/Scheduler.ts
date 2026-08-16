@@ -71,6 +71,19 @@ export default function () {
     .daily()
     .at('03:30')
 
+  /*
+   * `on: schedule`, every minute.
+   *
+   * Cron is minute-resolution, so a sweep slower than a minute would fire a
+   * workflow late and, worse, unpredictably late: 02:00 arriving at 02:04 is
+   * one thing, arriving at 02:04 some nights and 02:00 on others is a schedule
+   * nobody can reason about. The sweep is a single indexed query when nothing
+   * is due, which is nearly every minute.
+   */
+  schedule
+    .job('DispatchScheduledWorkflows')
+    .everyMinute()
+
   // Run a custom action every five minutes
   // schedule.action('CleanupTempFiles').everyFiveMinutes()
 

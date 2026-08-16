@@ -36,12 +36,18 @@ export default defineModel({
      * arriving together would both pass the check.
      */
     /*
-     * Partial, and the exclusion is the point: a manual `workflow_dispatch` is
-     * not a delivery, so there is nothing to deduplicate. Somebody clicking
-     * "run workflow" twice means two runs, and the index would otherwise refuse
-     * the second one for looking like a redelivered event.
+     * Partial, and what it excludes is the point.
+     *
+     * This guards against a *redelivered* event: the same push arriving twice
+     * must not make two runs. A manual `workflow_dispatch` and a `schedule`
+     * are not deliveries - nothing arrived - and both repeat at the same ref
+     * and the same commit by design. A nightly job would otherwise run once,
+     * ever, and pressing "run workflow" a second time would be refused.
+     *
+     * What stops a schedule double-firing is not this index but the
+     * compare-and-swap on `workflows.last_scheduled_at`.
      */
-    { name: 'workflow_runs_delivery_index', columns: ['workflow_version_id', 'event_ref', 'head_sha', 'event'], unique: true, where: 'event <> \'workflow_dispatch\'' },
+    { name: 'workflow_runs_redelivery_index', columns: ['workflow_version_id', 'event_ref', 'head_sha', 'event'], unique: true, where: 'event NOT IN (\'workflow_dispatch\', \'schedule\')' },
   ],
 
   traits: {
