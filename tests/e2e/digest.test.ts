@@ -11,6 +11,13 @@
 // A sweep that ignores a recipient's window mails them at 03:00 and defeats the
 // setting it exists to serve.
 //
+// Three of the cases below assert the *failure* path and get it from the
+// environment: there is no mail server in a checkout, so every send fails. That
+// is deliberate and it is also fragile - point `MAIL_MAILER` at the log driver
+// and they fail, because sends start succeeding. Making it deterministic means
+// forcing the failure explicitly rather than relying on there being no SMTP
+// host, and that is a rewrite of these three rather than a setting.
+//
 // Like the rest of tests/e2e it needs a database, and skips itself loudly when
 // there is not one.
 
@@ -116,7 +123,11 @@ beforeAll(async () => {
     console.warn(`[digest] skipped: ${error instanceof Error ? error.message : String(error)}`)
     available = false
   }
-})
+  // The same allowance every other end-to-end file gives its setup: injecting
+  // the auto-imports and opening the database is slower than bun's five-second
+  // default on a loaded machine, and a suite that fails on how busy the laptop
+  // is teaches people to ignore it.
+}, 120_000)
 
 afterAll(async () => {
   const db = (globalThis as any).db
