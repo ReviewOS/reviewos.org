@@ -185,6 +185,8 @@ async function insertVersion(
       pull_request_types: lines(triggers.pullRequest?.types ?? []),
       dispatch_inputs: triggers.dispatchInputs.length > 0 ? JSON.stringify(triggers.dispatchInputs) : null,
       env: Object.keys(workflow.env).length > 0 ? JSON.stringify(workflow.env) : null,
+      default_shell: workflow.defaults.shell,
+      default_working_directory: workflow.defaults.workingDirectory,
       permissions: workflow.permissions === null || workflow.permissions === undefined
         ? null
         : JSON.stringify(workflow.permissions),
@@ -216,6 +218,8 @@ async function insertVersion(
         permissions: job.permissions === null || job.permissions === undefined
           ? null
           : JSON.stringify(job.permissions),
+        default_shell: job.defaults.shell,
+        default_working_directory: job.defaults.workingDirectory,
         concurrency_group: job.concurrency?.group ?? null,
         job_cancel_in_progress: job.concurrency?.cancelInProgress ?? false,
         matrix: job.matrix.length > 0 ? JSON.stringify(job.matrix) : null,
@@ -242,6 +246,8 @@ async function insertVersion(
           inputs: Object.keys(step.with).length > 0 ? JSON.stringify(step.with) : null,
           env: Object.keys(step.env).length > 0 ? JSON.stringify(step.env) : null,
           working_directory: step.workingDirectory,
+          shell: step.shell,
+          continue_on_error: step.continueOnError,
           condition: step.if,
         } as any)
         .execute()

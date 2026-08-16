@@ -101,6 +101,23 @@ export default defineModel({
       factory: () => null,
     },
 
+    /** `shell:` as written. Null means inherit rather than bash. */
+    shell: {
+      order: 21,
+      fillable: true,
+      validation: { rule: schema.string().max(200) },
+      factory: () => null,
+    },
+
+    /** `continue-on-error:`: this step fails and the job carries on. */
+    continue_on_error: {
+      order: 22,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
     working_directory: {
       order: 8,
       fillable: true,

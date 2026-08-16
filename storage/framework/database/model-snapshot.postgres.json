@@ -8116,6 +8116,24 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "default_shell",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 200
+          },
+          {
+            "name": "default_working_directory",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
           }
         ],
         "indexes": [
@@ -8295,6 +8313,24 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": false
+          },
+          {
+            "name": "default_shell",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 200
+          },
+          {
+            "name": "default_working_directory",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
           }
         ],
         "indexes": [
@@ -8425,6 +8461,24 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "shell",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 200
+          },
+          {
+            "name": "continue_on_error",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -9504,7 +9558,7 @@
       }
     ]
   },
-  "hash": "1081d610b269e6d9854934124c6f3a1a125ff2cacd1e92a37942d67559b0bc52",
+  "hash": "d2933c1eea9306e45cf9fbd577bc4039a0e799353b9763e3b4a6c9fe9b777c2a",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T20:43:08.279Z"
+  "updatedAt": "2026-08-16T20:50:27.997Z"
 }

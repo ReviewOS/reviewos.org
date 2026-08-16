@@ -35,6 +35,17 @@ export interface WorkflowError {
 export interface WorkflowStep {
   id: string | null
   name: string | null
+  /**
+   * `shell:`, which decides how `run:` is interpreted.
+   *
+   * Null means "inherit", not "bash": the answer comes from the job's or the
+   * workflow's `defaults.run.shell`, and only if neither says anything does the
+   * runner pick. Resolving it here would bake a default that the file may have
+   * overridden two levels up.
+   */
+  shell: string | null
+  /** `continue-on-error:`: the step fails and the job carries on. */
+  continueOnError: boolean
   /** The command to run. Exactly one of `run` or `uses` is set. */
   run: string | null
   /** The action to use, recorded verbatim and never resolved here. */
@@ -55,6 +66,13 @@ export interface WorkflowJob {
   env: Record<string, string>
   /** `permissions:` on the job, as written. Replaces the workflow's, never adds. */
   permissions: unknown
+  /**
+   * `defaults:` on the job, which its steps inherit unless they say otherwise.
+   *
+   * Kept apart from the workflow's rather than merged, for the same reason as
+   * `env`: the precedence is a rule a reader has to be able to check.
+   */
+  defaults: { shell: string | null, workingDirectory: string | null }
   /**
    * `concurrency:` on the job.
    *
@@ -693,6 +711,11 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
         with: asRecord(step.with) ?? {},
         env: asStringMap(step.env),
         workingDirectory: typeof step['working-directory'] === 'string' ? step['working-directory'] : null,
+        shell: typeof step.shell === 'string' ? step.shell : null,
+        // Only a literal `true`. An expression here - `${{ inputs.soft }}` -
+        // needs the expression engine, and reading it as truthy text would make
+        // every such step unfailable.
+        continueOnError: step['continue-on-error'] === true,
         if: typeof step.if === 'string' ? step.if : null,
       })
     })
@@ -720,6 +743,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       timeoutMinutes: typeof timeout === 'number' && Number.isFinite(timeout) ? timeout : null,
       env: asStringMap(body.env),
       permissions: body.permissions ?? null,
+      defaults: defaultsFrom(body.defaults),
       concurrency: concurrencyFrom(body.concurrency),
       steps,
       matrix: matrix.combinations,

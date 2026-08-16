@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { explainEnv } from './env'
+import { defaultsOf, resolveDefaults } from './defaults'
 import { resolvePermissions } from './permissions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
@@ -127,7 +128,7 @@ export default new Action({
      */
     const definitionJobs: any[] = await db
       .selectFrom('workflow_version_jobs')
-      .select(['job_id', 'env', 'permissions'])
+      .select(['job_id', 'env', 'permissions', 'default_shell', 'default_working_directory'])
       .where('workflow_version_id', '=', Number(run.workflow_version_id))
       .execute()
 
@@ -139,7 +140,10 @@ export default new Action({
 
     const version: any = await db
       .selectFrom('workflow_versions')
-      .select(['id', 'workflow_id', 'source_path', 'source_sha', 'content_digest', 'env', 'permissions'])
+      .select([
+        'id', 'workflow_id', 'source_path', 'source_sha', 'content_digest',
+        'env', 'permissions', 'default_shell', 'default_working_directory',
+      ])
       .where('id', '=', Number(run.workflow_version_id))
       .executeTakeFirst()
 
@@ -220,6 +224,24 @@ export default new Action({
           runner: job.runner_id ?? null,
           started_at: job.started_at ?? null,
           finished_at: job.finished_at ?? null,
+          /*
+           * What this job's steps run with when they say nothing themselves.
+           *
+           * `null` means the runner decides, which is a real answer: the shell
+           * depends on the platform, and inventing one here would be a default
+           * the file never asked for and impossible to tell from one it did.
+           */
+          defaults: (() => {
+            const definition = definitionJobs.find(row => String(row.job_id) === String(job.job_id))
+            const resolved = resolveDefaults({ workflow: defaultsOf(version), job: defaultsOf(definition) })
+
+            return {
+              shell: resolved.shell,
+              shell_from: resolved.shellFrom,
+              working_directory: resolved.workingDirectory,
+              working_directory_from: resolved.workingDirectoryFrom,
+            }
+          })(),
           steps: (byJob.get(Number(job.id)) ?? []).map(step => ({
             id: Number(step.id),
             name: step.name ?? null,

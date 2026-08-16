@@ -294,6 +294,22 @@ export default defineModel({
       factory: () => null,
     },
 
+    /** `defaults.run.shell` at the workflow level. Steps inherit it. */
+    default_shell: {
+      order: 41,
+      fillable: true,
+      validation: { rule: schema.string().max(200) },
+      factory: () => null,
+    },
+
+    /** `defaults.run.working-directory` at the workflow level. */
+    default_working_directory: {
+      order: 42,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
     /** Cron expressions, one per line. */
     schedules: {
       order: 15,

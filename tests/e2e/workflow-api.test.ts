@@ -615,6 +615,41 @@ describe('the environment a job inherits', () => {
     expect(job.permissions.unsupported).toEqual(['packages'])
   })
 
+  test('and the shell and directory its steps inherit, or the runner\'s choice', async () => {
+    if (!available)
+      return
+
+    await db.updateTable('workflow_versions')
+      .set({ default_shell: 'bash', default_working_directory: './app' } as any)
+      .where('id', '=', created.versionId)
+      .execute()
+
+    const head = Buffer.from(crypto.getRandomValues(new Uint8Array(20))).toString('hex')
+    const number = await makeRun('queued', head, 'refs/heads/defaults-probe')
+
+    const { body } = await api(`/api/repos/workflow-runs/show?owner=${created.handle}&repo=${created.name}&number=${number}`)
+    const job = body.workflow_run.jobs.find((row: any) => row.job_id === 'test')
+
+    expect(job.defaults).toMatchObject({
+      shell: 'bash',
+      shell_from: 'workflow',
+      working_directory: './app',
+    })
+
+    // And with nothing declared anywhere, the answer is the runner's - named
+    // rather than guessed at, because the shell depends on the platform.
+    await db.updateTable('workflow_versions')
+      .set({ default_shell: null, default_working_directory: null } as any)
+      .where('id', '=', created.versionId)
+      .execute()
+
+    const second = await makeRun('queued', Buffer.from(crypto.getRandomValues(new Uint8Array(20))).toString('hex'), 'refs/heads/defaults-none')
+    const answer = await api(`/api/repos/workflow-runs/show?owner=${created.handle}&repo=${created.name}&number=${second}`)
+    const plain = answer.body.workflow_run.jobs.find((row: any) => row.job_id === 'test')
+
+    expect(plain.defaults).toMatchObject({ shell: null, shell_from: 'runner' })
+  })
+
   test('a workflow that asks for nothing gets a read-only token', async () => {
     if (!available)
       return

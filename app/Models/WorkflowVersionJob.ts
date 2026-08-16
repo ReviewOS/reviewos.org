@@ -162,6 +162,21 @@ export default defineModel({
       factory: () => false,
     },
 
+    /** `defaults.run.shell` on the job, which overrides the workflow's. */
+    default_shell: {
+      order: 37,
+      fillable: true,
+      validation: { rule: schema.string().max(200) },
+      factory: () => null,
+    },
+
+    default_working_directory: {
+      order: 38,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
     timeout_minutes: {
       order: 8,
       fillable: true,

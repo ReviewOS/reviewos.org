@@ -219,8 +219,16 @@ written down here so it does not get relitigated:
       parser read `runs-on` as a string or a list and a mapping came back empty, which reported as
       "does not say what it runs on". It had no test; it has one now. Expressions inside `runs-on`
       are still text, because evaluating them needs the expression engine.
-- [ ] `steps:` with `run`, `uses`, `with`, `env`, `id`, `if`, `name`, `shell`, `working-directory`,
-      and `continue-on-error`
+- [x] `steps:` with `run`, `uses`, `with`, `env`, `id`, `if`, `name`, `shell`, `working-directory`,
+      and `continue-on-error`.
+
+      All of them are read and stored. `shell` is null when the step does not say, which means
+      *inherit* rather than bash - see `defaults:` below. `continue-on-error` is only a literal
+      `true`: an expression there needs the expression engine, and reading `${{ inputs.soft }}` as
+      truthy text would make every such step unfailable, which is the dangerous direction to guess
+      in.
+
+      `if` is stored as written and not evaluated, which is the expression engine's job.
 - [ ] `container:` and `services:` on a job, with `image`, `env`, `ports`, `volumes`, `options`, and
       health-checked service startup before the first step
 - [ ] `concurrency:` with `group` and `cancel-in-progress`, at workflow and job level. Actions has
@@ -289,8 +297,19 @@ written down here so it does not get relitigated:
       Nothing mints a token yet; that is the execution plane, and by the threat model it happens
       after the fork check - a fork's pull request gets no write-scoped token whatever its workflow
       declares.
-- [ ] `defaults:` including `run.shell` and `run.working-directory`. Parsed onto the workflow;
-      steps do not inherit from it yet, which is the half that needs the runner.
+- [x] `defaults:` including `run.shell` and `run.working-directory`, at workflow and job level,
+      with steps inheriting.
+
+      Three levels, narrowest wins, each key falling through on its own - a step that sets only
+      `working-directory` still inherits the shell. The run detail reports what a job's steps
+      inherit and from which level.
+
+      One difference from `env:` is worth keeping in mind: **nothing declared anywhere means the
+      runner decides**, and that is reported as `runner` rather than filled in with `bash`. The
+      answer depends on the platform the runner is on, which is knowledge the control plane does not
+      have; inventing a default here would also be impossible to tell apart from a workflow that
+      asked for it. An empty string is treated as a mistake rather than an answer, so
+      `shell: ''` falls through to the level that meant something.
 - [x] `env:` at workflow, job, and step level with Actions' precedence order.
 
       Stored at all three levels rather than merged at parse time, because the precedence is a rule
