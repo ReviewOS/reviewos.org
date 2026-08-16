@@ -100,12 +100,19 @@ export default defineModel({
      * A workflow that is failing at three in the morning gets turned off, and
      * the runs it already produced have to stay inspectable - which deleting
      * the row would take with it.
+     *
+     * `removed` is a third state and not a synonym for `disabled`: the file is
+     * no longer in the tree. The two have to be told apart because they behave
+     * differently when the file comes back - a workflow somebody turned off
+     * stays off, and one whose file was deleted and restored runs again. One
+     * state for both would mean a revert quietly resurrecting a workflow a
+     * person had switched off on purpose.
      */
     state: {
       order: 6,
       fillable: true,
       default: 'active',
-      validation: { rule: schema.enum(['active', 'disabled']) },
+      validation: { rule: schema.enum(['active', 'disabled', 'removed']) },
       factory: () => 'active',
     },
 

@@ -7775,7 +7775,8 @@
             "defaultValue": "active",
             "enumValues": [
               "active",
-              "disabled"
+              "disabled",
+              "removed"
             ],
             "enumTypeName": "workflows_state_type"
           },
@@ -9302,7 +9303,7 @@
       }
     ]
   },
-  "hash": "d36731f1c473dcd216a989c7e96220b8ab8a0962c75c26f8f19ecafa3129d688",
+  "hash": "97102e96777cdbfb62a7bc5f1b1e18fafbd81b1233c5a9b400a3b394982bf606",
   "dialect": "postgres",
-  "updatedAt": "2026-08-13T06:02:23.328Z"
+  "updatedAt": "2026-08-16T15:31:32.556Z"
 }

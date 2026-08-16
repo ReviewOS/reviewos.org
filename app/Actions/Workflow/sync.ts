@@ -105,7 +105,7 @@ async function upsertWorkflow(input: SyncInput, workflow: NormalizedWorkflow): P
 
   let query = db
     .selectFrom('workflows')
-    .select(['id'])
+    .select(['id', 'state'])
     .where('owner_type', '=', input.ownerType)
     .where('owner_id', '=', input.ownerId)
     .where('path', '=', input.path)
@@ -121,8 +121,17 @@ async function upsertWorkflow(input: SyncInput, workflow: NormalizedWorkflow): P
   const found: any = await query.executeTakeFirst()
 
   if (found) {
-    // The name follows the file, so a renamed workflow is renamed here too.
-    await db.updateTable('workflows').set({ name }).where('id', '=', Number(found.id)).execute()
+    /*
+     * The name follows the file, so a renamed workflow is renamed here too.
+     *
+     * And a file that has come back revives its workflow - but only from
+     * `removed`. A workflow somebody switched off stays off: a revert must not
+     * quietly resurrect a workflow that was turned off on purpose, which is the
+     * whole reason `removed` is a state of its own.
+     */
+    const revived = String(found.state) === 'removed' ? { state: 'active' } : {}
+
+    await db.updateTable('workflows').set({ name, ...revived }).where('id', '=', Number(found.id)).execute()
     return Number(found.id)
   }
 

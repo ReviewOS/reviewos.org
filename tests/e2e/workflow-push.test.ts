@@ -294,6 +294,77 @@ describe('pushing a workflow file', () => {
     expect(paths).toContain('.github/workflows/ci.yml')
     expect(paths).not.toContain('.github/workflows/second.yml')
   })
+
+  /*
+   * The migration this product asks somebody to make: copy the directory
+   * across, keep the original for GitHub, and do not have every job run twice.
+   *
+   * `.reviewos/workflows` wins outright when it exists rather than merging with
+   * `.github/workflows`, because merging means a workflow running twice under
+   * two names the day somebody forgets to delete one - and "which of these two
+   * files ran" is a question nobody should have to ask.
+   */
+  test('a repository that copies its workflows across runs the copy, not both', async () => {
+    if (!available)
+      return
+
+    await push('.reviewos/workflows/ci.yml', CI.replace('name: CI', 'name: CI here'))
+
+    const registered = await waitFor(
+      workflowsHere,
+      (rows: any[]) => rows.some(row => String(row.path).startsWith('.reviewos/')),
+    )
+
+    const paths = registered.map((workflow: any) => workflow.path)
+
+    expect(paths).toContain('.reviewos/workflows/ci.yml')
+
+    // The GitHub one is still in the tree and is no longer read: its workflow
+    // row stays as it was, and nothing new arrives from it.
+    const active = registered.filter((workflow: any) => String(workflow.state) === 'active')
+
+    expect(active.map((workflow: any) => workflow.path)).toEqual(['.reviewos/workflows/ci.yml'])
+  })
+
+  /*
+   * Deleting a workflow used to leave its row active forever, so a repository
+   * that removed its CI kept a definition nobody could find in the tree - and
+   * dispatch reads `state = 'active'`, so it kept starting runs from it.
+   */
+  test('and deleting the file retires the workflow rather than leaving it running', async () => {
+    if (!available)
+      return
+
+    const work = join(created.temp, 'work')
+
+    rmSync(join(work, '.reviewos'), { recursive: true, force: true })
+    rmSync(join(work, '.github'), { recursive: true, force: true })
+
+    await git(work, 'add', '-A')
+    await git(work, 'commit', '-m', 'remove the workflows')
+
+    const before = await git(work, 'rev-parse', 'HEAD~1')
+    await git(work, 'push', created.diskPath, 'main')
+    const after = await git(work, 'rev-parse', 'HEAD')
+
+    const { parseRefUpdates } = await import('../../app/Actions/Git/push')
+    const { default: ProcessPushJob } = await import('../../app/Jobs/ProcessPushJob')
+
+    await ProcessPushJob.handle({
+      gitDir: created.diskPath,
+      updates: parseRefUpdates(`${before} ${after} refs/heads/main`),
+    })
+
+    const rows = await waitFor(
+      workflowsHere,
+      (all: any[]) => all.every(workflow => String(workflow.state) !== 'active'),
+    )
+
+    // The rows stay - the runs they produced have to remain inspectable - and
+    // none of them is active any more.
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.map((workflow: any) => workflow.state)).not.toContain('active')
+  })
 })
 
 describe('and the runs it starts', () => {

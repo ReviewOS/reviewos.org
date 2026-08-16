@@ -19,6 +19,22 @@ import { isSafeRevision, runGit } from '../Git/git'
 /** Where Actions keeps them, and where a repository being imported will have them. */
 export const WORKFLOW_DIRECTORY = '.github/workflows'
 
+/**
+ * This product's own directory, which takes precedence when it exists.
+ *
+ * Two front doors, one at a time. A repository arriving from GitHub has
+ * `.github/workflows` and should run without a commit that would have to be
+ * undone to go back, so that directory is read as it stands. A repository that
+ * has moved here copies the directory across, edits it freely, and does not
+ * want every job running twice from the copy it left behind for GitHub.
+ *
+ * So: **`.reviewos/workflows` wins outright when it is present.** Not merged -
+ * merging would run a workflow twice under two names the day somebody forgets
+ * to delete one, and "which of these two files ran" is a question nobody should
+ * have to ask. The directory that is there is the one that runs.
+ */
+export const REVIEWOS_WORKFLOW_DIRECTORY = '.reviewos/workflows'
+
 export interface DiscoveredWorkflow {
   path: string
   source: string
@@ -55,14 +71,29 @@ export async function discoverWorkflows(
   if (!isSafeRevision(sha))
     return []
 
-  const listing = await runGit(gitDir, [
+  const list = async (directory: string) => await runGit(gitDir, [
     'ls-tree',
     '--name-only',
     '-z',
-    `${sha}:${WORKFLOW_DIRECTORY}`,
+    `${sha}:${directory}`,
   ], { timeoutMs: 30_000 })
 
-  // No `.github/workflows` in this commit, which is most repositories.
+  /*
+   * This product's directory first, and only one of the two.
+   *
+   * A repository that has both is one that copied its workflows across and
+   * left the originals for GitHub. Reading both would run every job twice, so
+   * the copy that is ours wins and the other is not read at all.
+   */
+  let directory = REVIEWOS_WORKFLOW_DIRECTORY
+  let listing = await list(directory)
+
+  if (!listing.ok) {
+    directory = WORKFLOW_DIRECTORY
+    listing = await list(directory)
+  }
+
+  // Neither directory in this commit, which is most repositories.
   if (!listing.ok)
     return []
 
@@ -75,7 +106,7 @@ export async function discoverWorkflows(
   const found: DiscoveredWorkflow[] = []
 
   for (const name of names) {
-    const path = `${WORKFLOW_DIRECTORY}/${name}`
+    const path = `${directory}/${name}`
 
     const file = await runGit(gitDir, ['show', `${sha}:${path}`], { timeoutMs: 30_000 })
     if (!file.ok)

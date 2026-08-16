@@ -91,6 +91,21 @@ export async function syncFromPush(event: any): Promise<void> {
       }).catch(() => null)
     }
 
+    /*
+     * A file that is no longer there stops running.
+     *
+     * Deleting a workflow used to leave its row active forever, so a repository
+     * that removed its CI kept starting runs from a definition nobody could
+     * find in the tree. The same applies when a repository copies its
+     * workflows to `.reviewos/workflows` - the `.github` ones stop being read,
+     * and a row that still says `active` would be a workflow with no file.
+     *
+     * `removed` rather than `disabled`: a person's decision to switch a
+     * workflow off has to survive the file coming back, and one state for both
+     * would let a revert quietly resurrect it.
+     */
+    await retireMissing(Number(repository.id), found.map(file => file.path))
+
     // Definitions first, then what they say to do with this push - in that
     // order, so a workflow added by this very push can run on it. The other
     // order is the one where adding CI to a repository does nothing until the
@@ -101,6 +116,32 @@ export async function syncFromPush(event: any): Promise<void> {
     // An event is a consequence of somebody's push and must never be able to
     // fail it. By the time this runs the refs have moved and the push has been
     // answered; the worst case here is definitions that are one push stale.
+  }
+}
+
+/**
+ * Mark every active workflow of this repository whose file is gone.
+ *
+ * Only rows that are `active`: a workflow somebody switched off stays off, and
+ * one already marked `removed` needs no second write.
+ */
+async function retireMissing(repositoryId: number, present: string[]): Promise<void> {
+  const active: any[] = await db
+    .selectFrom('workflows')
+    .select(['id', 'path'])
+    .where('repository_id', '=', repositoryId)
+    .where('state', '=', 'active')
+    .execute()
+
+  const gone = active.filter(workflow => !present.includes(String(workflow.path)))
+
+  for (const workflow of gone) {
+    await db
+      .updateTable('workflows')
+      .set({ state: 'removed' })
+      .where('id', '=', Number(workflow.id))
+      .execute()
+      .catch(() => null)
   }
 }
 
