@@ -711,6 +711,9 @@ route.get('/repos/workflow-runs/show', 'Actions/Workflow/ShowWorkflowRunAction')
 // Write access, checked in the action: anybody who can see a run is not
 // therefore somebody who can stop it.
 route.post('/repos/workflow-runs/cancel', 'Actions/Workflow/CancelWorkflowRunAction').middleware('auth')
+// `workflow_dispatch`: the trigger with no event behind it. Write access, since
+// starting a run spends the instance's runners.
+route.post('/repos/workflows/dispatch', 'Actions/Workflow/DispatchWorkflowAction').middleware('auth')
 
 /**
  * The runner protocol.

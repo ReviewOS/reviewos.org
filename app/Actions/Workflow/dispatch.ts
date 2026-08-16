@@ -13,6 +13,10 @@
  * check-then-insert: two deliveries arriving at once would both pass a check
  * and both insert. The insert is attempted and a collision is read as "somebody
  * else already made this run", which is the correct outcome either way.
+ *
+ * That index deliberately excludes `workflow_dispatch`. A manual run is not a
+ * delivery - there is nothing to have arrived twice - and somebody pressing
+ * "run workflow" a second time means a second run.
  */
 
 import { db } from '@stacksjs/database'
@@ -395,6 +399,10 @@ function isDuplicate(error: unknown): boolean {
  * definition changes - and because a job's state belongs to the run, not to the
  * workflow. A job with no `needs` is queued immediately; the rest wait.
  */
+export async function createJobsForRun(runId: number, versionId: number): Promise<void> {
+  await createJobs(runId, versionId)
+}
+
 async function createJobs(runId: number, versionId: number): Promise<void> {
   const definition: any[] = await db
     .selectFrom('workflow_version_jobs')

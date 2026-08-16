@@ -245,7 +245,28 @@ written down here so it does not get relitigated:
 - [ ] `env:` at workflow, job, and step level with Actions' precedence order
 - [ ] `secrets:` on `workflow_call`, including `inherit`
 - [ ] `workflow_dispatch` inputs of every type Actions supports (string, boolean, choice, environment)
-      and the interface form generated from them
+      and the interface form generated from them.
+
+      **The trigger works and the inputs are checked**; the generated form is what is left, so the
+      box stays open. `POST /api/repos/workflows/dispatch` starts a run from a workflow that names
+      `workflow_dispatch`, under a new `workflow:dispatch` ability (write, mapped to `checks:write`)
+      - starting a run spends the instance's runners, so seeing a workflow is not permission to run
+      it.
+
+      All four types are read, in the order written, because a form follows that order. Checking
+      them is most of the value: a choice outside its options, a boolean that is not one, a required
+      input with nothing to fall back on, and **an input the workflow never declared** are all
+      refused with every problem listed at once rather than the first. That last one is refused
+      rather than dropped on purpose - silently discarding `enviroment: production` is how somebody
+      spends an afternoon wondering why nothing happened.
+
+      A default satisfies `required`, matching Actions: `required: true` with a default means "this
+      always has a value", not "the caller must always type one". The run records the values it ran
+      with, defaults filled in, because "the default applied" is otherwise invisible.
+
+      One thing this turned up: the run dedupe index refused a second manual dispatch, having read it
+      as a redelivered event. It is partial now (`WHERE event <> 'workflow_dispatch'`) - a manual run
+      is not a delivery, and pressing the button twice means two runs.
 - [ ] `environment:` on a job, wired to phase 9's deployment environments and their protection rules,
       including required reviewers and wait timers
 - [ ] Reusable workflows via `uses:` at job level, local and cross-repository, with inputs, secrets,

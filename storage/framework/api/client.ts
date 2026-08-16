@@ -5483,6 +5483,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/workflows/dispatch
+   */
+  postReposWorkflowsDispatch(input?: { body?: { "owner"?: string; "repo"?: string; "workflow"?: string; "ref"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/workflows/dispatch", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/requests
    */
   getRequests(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

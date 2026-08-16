@@ -183,6 +183,7 @@ async function insertVersion(
       pull_request_branches_ignore: lines(triggers.pullRequest?.branchesIgnore ?? []),
       pull_request_paths_ignore: lines(triggers.pullRequest?.pathsIgnore ?? []),
       pull_request_types: lines(triggers.pullRequest?.types ?? []),
+      dispatch_inputs: triggers.dispatchInputs.length > 0 ? JSON.stringify(triggers.dispatchInputs) : null,
       concurrency_group: workflow.concurrency?.group ?? null,
       cancel_in_progress: workflow.concurrency?.cancelInProgress ?? false,
       schedules: lines(triggers.schedule),

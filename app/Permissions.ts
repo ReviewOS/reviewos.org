@@ -62,6 +62,11 @@ export const REPOSITORY_ABILITIES = {
   // which is the more dangerous of the two, because it satisfies a branch
   // protection rule.
   'workflow:cancel': 'write',
+  // Starting one by hand is write for the same reason as cancelling, and a
+  // little more so: a `workflow_dispatch` run spends the instance's runners and
+  // can touch anything the workflow can touch. Anybody who may *see* a workflow
+  // is not therefore somebody who may run it.
+  'workflow:dispatch': 'write',
   // Managing the label and milestone *sets* is a heavier power than applying
   // them: deleting a label strips it from every issue that carried it, and
   // deleting a milestone empties it. Applying one stays at triage above.

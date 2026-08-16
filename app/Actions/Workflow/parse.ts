@@ -112,6 +112,13 @@ export interface WorkflowTriggers {
   schedule: string[]
   /** Whether a person or the API may start this workflow directly. */
   dispatch: boolean
+  /**
+   * The inputs `workflow_dispatch` declares, in the order they were written.
+   *
+   * Order matters because a generated form follows it: a workflow author
+   * putting `environment` first meant it to be the first question.
+   */
+  dispatchInputs: WorkflowDispatchInput[]
   /** `workflow_call`: startable only by another workflow, never by an event. */
   reusable: boolean
   /**
@@ -122,6 +129,25 @@ export interface WorkflowTriggers {
    * repository to.
    */
   unsupported: string[]
+}
+
+/**
+ * One `workflow_dispatch` input.
+ *
+ * `type` is Actions' four: `string`, `boolean`, `choice`, `environment`. An
+ * unrecognised type is read as `string` rather than refused - a workflow whose
+ * only oddity is a type this does not know still runs, and the input still
+ * arrives.
+ */
+export interface WorkflowDispatchInput {
+  name: string
+  description: string
+  required: boolean
+  type: 'string' | 'boolean' | 'choice' | 'environment'
+  /** As written. A boolean's default is still text here; validation coerces. */
+  default: string | null
+  /** For `choice`, the permitted values. Empty for every other type. */
+  options: string[]
 }
 
 export interface NormalizedWorkflow {
@@ -289,6 +315,7 @@ function triggersFrom(value: unknown): WorkflowTriggers {
     pullRequestTarget: null,
     schedule: [],
     dispatch: false,
+    dispatchInputs: [],
     reusable: false,
     unsupported: [],
   }
@@ -324,6 +351,12 @@ function triggersFrom(value: unknown): WorkflowTriggers {
     return triggers
 
   for (const [name, body] of Object.entries(record)) {
+    if (name === 'workflow_dispatch') {
+      triggers.dispatch = true
+      triggers.dispatchInputs = dispatchInputsFrom(asRecord(body)?.inputs)
+      continue
+    }
+
     if (name === 'schedule') {
       for (const entry of Array.isArray(body) ? body : []) {
         const cron = asRecord(entry)?.cron
@@ -337,6 +370,48 @@ function triggersFrom(value: unknown): WorkflowTriggers {
   }
 
   return triggers
+}
+
+/**
+ * `workflow_dispatch.inputs`, in the order written.
+ *
+ * The order is the form's order: a workflow author who put `environment` first
+ * meant it to be the first question somebody is asked.
+ */
+export function dispatchInputsFrom(value: unknown): WorkflowDispatchInput[] {
+  const record = asRecord(value)
+
+  if (!record)
+    return []
+
+  const inputs: WorkflowDispatchInput[] = []
+
+  for (const [name, body] of Object.entries(record)) {
+    const definition = asRecord(body) ?? {}
+    const declared = String(definition.type ?? 'string')
+
+    // An unrecognised type reads as `string` rather than refusing the file. A
+    // workflow whose only oddity is a type this does not know still runs, and
+    // the input still arrives.
+    const type = declared === 'boolean' || declared === 'choice' || declared === 'environment'
+      ? declared
+      : 'string'
+
+    inputs.push({
+      name,
+      description: typeof definition.description === 'string' ? definition.description : '',
+      required: definition.required === true,
+      type,
+      // Kept as written, including a boolean's `true`. Coercion belongs where
+      // the value is used, not where it is read.
+      default: definition.default === undefined || definition.default === null
+        ? null
+        : String(definition.default),
+      options: type === 'choice' ? asStringList(definition.options) : [],
+    })
+  }
+
+  return inputs
 }
 
 /**

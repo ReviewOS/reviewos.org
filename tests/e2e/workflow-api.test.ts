@@ -367,3 +367,142 @@ describe('cancelling', () => {
     expect(String(run.state)).toBe('cancelling')
   })
 })
+
+/*
+ * `workflow_dispatch`: the trigger with no event behind it.
+ *
+ * It was stored on every version with no way to act on it, so the only
+ * workflows this instance could run were ones an event happened to. The cases
+ * that matter are about the inputs, because that is the one place a person
+ * hands values straight to a pipeline.
+ */
+describe('dispatching a workflow by hand', () => {
+  const path = '/api/repos/workflows/dispatch'
+
+  async function makeDispatchable(inputs: unknown): Promise<void> {
+    await db
+      .updateTable('workflow_versions')
+      .set({
+        on_dispatch: true,
+        dispatch_inputs: inputs ? JSON.stringify(inputs) : null,
+      } as any)
+      .where('id', '=', created.versionId)
+      .execute()
+  }
+
+  /*
+   * A function, not a constant. A describe body runs at collection time, before
+   * `beforeAll` has made the token - so a captured `created.token` is the empty
+   * string and every request comes back 401 for the wrong reason.
+   */
+  const authorized = (): RequestInit => ({
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${created.token}`, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+  })
+
+  test('a stranger cannot start one', async () => {
+    if (!available)
+      return
+
+    const { status } = await api(`${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`, { method: 'POST' })
+
+    // Starting a run spends the instance's runners. Anybody who may see a
+    // workflow is not therefore somebody who may run it.
+    expect(status).not.toBe(201)
+  })
+
+  test('a workflow that never asked for workflow_dispatch is refused', async () => {
+    if (!available)
+      return
+
+    await db.updateTable('workflow_versions').set({ on_dispatch: false } as any).where('id', '=', created.versionId).execute()
+
+    const { status, body } = await api(
+      `${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`,
+      authorized(),
+    )
+
+    expect(status).toBe(409)
+    expect(String(body.error)).toContain('workflow_dispatch')
+  })
+
+  test('one that did starts a run, named by file or by name', async () => {
+    if (!available)
+      return
+
+    await makeDispatchable(null)
+
+    const { status, body } = await api(
+      `${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`,
+      authorized(),
+    )
+
+    expect(status).toBe(201)
+    expect(body.workflow_run.event).toBe('workflow_dispatch')
+    expect(body.workflow_run.state).toBe('queued')
+
+    // By name too, since that is what the interface shows.
+    const byName = await api(`${path}?owner=${created.handle}&repo=${created.name}&workflow=CI`, authorized())
+
+    expect(byName.status).toBe(201)
+  })
+
+  test('the inputs are checked against what the workflow declared', async () => {
+    if (!available)
+      return
+
+    await makeDispatchable([
+      { name: 'environment', description: '', required: true, type: 'choice', default: null, options: ['staging', 'production'] },
+      { name: 'dry-run', description: '', required: false, type: 'boolean', default: 'false', options: [] },
+    ])
+
+    const wrong = await api(
+      `${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`,
+      { ...authorized(), body: JSON.stringify({ inputs: { environment: 'producton' } }) },
+    )
+
+    // A typo is a message, not a run that fails twelve minutes later.
+    expect(wrong.status).toBe(422)
+    expect(String(wrong.body.problems?.[0])).toContain('staging, production')
+  })
+
+  test('and the run records what it ran with, defaults filled in', async () => {
+    if (!available)
+      return
+
+    const { status, body } = await api(
+      `${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`,
+      { ...authorized(), body: JSON.stringify({ inputs: { environment: 'production' } }) },
+    )
+
+    expect(status).toBe(201)
+    // `dry-run` was never sent; its default is what the run will see, and "the
+    // default applied" is exactly the fact that is otherwise invisible.
+    expect(body.workflow_run.inputs).toEqual({ 'environment': 'production', 'dry-run': 'false' })
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['dispatch_inputs', 'trusted', 'event'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', Number(body.workflow_run.number))
+      .executeTakeFirst()
+
+    expect(JSON.parse(String(run.dispatch_inputs))).toEqual({ 'environment': 'production', 'dry-run': 'false' })
+    // Whoever asked has write access and the workflow is the repository's own:
+    // there is no untrusted tree in this path.
+    expect(run.trusted).toBe(true)
+  })
+
+  test('a required input with nothing to fall back on is refused', async () => {
+    if (!available)
+      return
+
+    const { status, body } = await api(
+      `${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`,
+      { ...authorized(), body: JSON.stringify({ inputs: {} }) },
+    )
+
+    expect(status).toBe(422)
+    expect(String(body.problems?.[0])).toContain('environment')
+  })
+})

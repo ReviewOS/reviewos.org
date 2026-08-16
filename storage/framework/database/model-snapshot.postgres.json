@@ -8084,6 +8084,14 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": false
+          },
+          {
+            "name": "dispatch_inputs",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8750,6 +8758,14 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 500
+          },
+          {
+            "name": "dispatch_inputs",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8770,6 +8786,13 @@
             "type": "index"
           },
           {
+            "name": "workflow_runs_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          },
+          {
             "name": "workflow_runs_dedupe_index",
             "columns": [
               "workflow_version_id",
@@ -8777,14 +8800,7 @@
               "head_sha",
               "event"
             ],
-            "type": "unique"
-          },
-          {
-            "name": "workflow_runs_uuid_unique",
-            "columns": [
-              "uuid"
-            ],
-            "type": "unique"
+            "unique": true
           }
         ]
       },
@@ -9412,7 +9428,7 @@
       }
     ]
   },
-  "hash": "8cd8505376d0f0968c3530e7b1436c386a8107e295e047f030321ea56711933d",
+  "hash": "844f290768f673cc87aa95de51e71f4c02eacf8451661d7347cbae91c8891851",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T17:21:53.123Z"
+  "updatedAt": "2026-08-16T17:34:19.317Z"
 }

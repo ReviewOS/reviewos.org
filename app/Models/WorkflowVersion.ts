@@ -250,6 +250,20 @@ export default defineModel({
       factory: () => false,
     },
 
+    /**
+     * `workflow_dispatch.inputs`, as JSON, in the order written.
+     *
+     * JSON because an input is a small object with a type, a default, and
+     * sometimes a list of options, and it is only ever read whole with the
+     * version. The order is the form's order.
+     */
+    dispatch_inputs: {
+      order: 38,
+      fillable: true,
+      validation: { rule: schema.string().max(16_000) },
+      factory: () => null,
+    },
+
     /** Cron expressions, one per line. */
     schedules: {
       order: 15,

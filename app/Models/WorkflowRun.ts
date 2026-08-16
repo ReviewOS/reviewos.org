@@ -35,7 +35,13 @@ export default defineModel({
      * the database rather than by a check-then-insert, because two deliveries
      * arriving together would both pass the check.
      */
-    { name: 'workflow_runs_dedupe_index', columns: ['workflow_version_id', 'event_ref', 'head_sha', 'event'], unique: true },
+    /*
+     * Partial, and the exclusion is the point: a manual `workflow_dispatch` is
+     * not a delivery, so there is nothing to deduplicate. Somebody clicking
+     * "run workflow" twice means two runs, and the index would otherwise refuse
+     * the second one for looking like a redelivered event.
+     */
+    { name: 'workflow_runs_delivery_index', columns: ['workflow_version_id', 'event_ref', 'head_sha', 'event'], unique: true, where: 'event <> \'workflow_dispatch\'' },
   ],
 
   traits: {
@@ -153,6 +159,20 @@ export default defineModel({
       order: 40,
       fillable: true,
       validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
+    /**
+     * The inputs a `workflow_dispatch` run was started with, as JSON.
+     *
+     * The values that were *used*, with defaults filled in - not what somebody
+     * typed. A person reading a run later needs to know what it ran with, and
+     * "the default applied" is exactly the fact that is otherwise invisible.
+     */
+    dispatch_inputs: {
+      order: 41,
+      fillable: true,
+      validation: { rule: schema.string().max(16_000) },
       factory: () => null,
     },
 
