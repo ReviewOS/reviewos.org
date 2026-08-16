@@ -152,6 +152,49 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * The negative filters, stored apart from the positive ones.
+     *
+     * Actions refuses a workflow that sets `branches` and `branches-ignore`
+     * together, so these are never both populated for one event - but they mean
+     * opposite things, and one merged column could not say which way round the
+     * author wrote it.
+     */
+    push_branches_ignore: {
+      order: 30,
+      fillable: true,
+      validation: { rule: schema.string().max(2000) },
+      factory: () => null,
+    },
+
+    push_tags_ignore: {
+      order: 31,
+      fillable: true,
+      validation: { rule: schema.string().max(2000) },
+      factory: () => null,
+    },
+
+    push_paths_ignore: {
+      order: 32,
+      fillable: true,
+      validation: { rule: schema.string().max(4000) },
+      factory: () => null,
+    },
+
+    pull_request_branches_ignore: {
+      order: 33,
+      fillable: true,
+      validation: { rule: schema.string().max(2000) },
+      factory: () => null,
+    },
+
+    pull_request_paths_ignore: {
+      order: 34,
+      fillable: true,
+      validation: { rule: schema.string().max(4000) },
+      factory: () => null,
+    },
+
     pull_request_branches: {
       order: 13,
       fillable: true,

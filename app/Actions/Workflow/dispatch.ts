@@ -40,6 +40,12 @@ async function currentVersions(repositoryId: number): Promise<any[]> {
       'workflow_versions.workflow_id as workflow_id',
       'workflow_versions.on_push as on_push',
       'workflow_versions.push_branches as push_branches',
+      // The negative filters travel with the positive ones: a version selected
+      // without them is one whose `paths-ignore` silently does nothing, which
+      // is the failure this product names Gitea for elsewhere.
+      'workflow_versions.push_branches_ignore as push_branches_ignore',
+      'workflow_versions.push_tags_ignore as push_tags_ignore',
+      'workflow_versions.push_paths_ignore as push_paths_ignore',
       'workflow_versions.push_tags as push_tags',
       'workflow_versions.push_paths as push_paths',
       'workflow_versions.source_sha as source_sha',

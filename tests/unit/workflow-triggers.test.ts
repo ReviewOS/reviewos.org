@@ -213,3 +213,71 @@ describe('patternsFrom', () => {
     expect(patternsFrom('   ')).toEqual([])
   })
 })
+
+describe('the negative filters', () => {
+  /*
+   * `branches-ignore` is not `branches` inverted: it changes the default. With
+   * `branches`, a branch runs only if it matches; with `branches-ignore`, every
+   * branch runs except the ones named. A workflow with only an ignore list and
+   * no positive one used to match nothing, so it never ran at all.
+   */
+  test('branches-ignore runs everything it does not name', () => {
+    const version = { on_push: true, push_branches_ignore: 'wip/**\nrenovate/**' }
+
+    expect(pushStartsRun(version, { ref: 'refs/heads/main' }).run).toBe(true)
+    expect(pushStartsRun(version, { ref: 'refs/heads/feature/thing' }).run).toBe(true)
+    expect(pushStartsRun(version, { ref: 'refs/heads/wip/spike' }).run).toBe(false)
+    expect(pushStartsRun(version, { ref: 'refs/heads/wip/spike' }).reason).toContain('branches-ignore')
+  })
+
+  test('tags-ignore counts as naming tags, so a tag push is not silently dropped', () => {
+    // Tags are opted into: a workflow filtering on branches does not run on
+    // tags. But `tags-ignore` *is* a tag filter, and reading it as "no tag
+    // filter" would mean a workflow written to run on every tag but the
+    // release ones never ran on any.
+    const version = { on_push: true, push_tags_ignore: 'v*-rc*' }
+
+    expect(pushStartsRun(version, { ref: 'refs/tags/v1.2.0' }).run).toBe(true)
+    expect(pushStartsRun(version, { ref: 'refs/tags/v1.2.0-rc1' }).run).toBe(false)
+  })
+
+  test('and a push with neither form still runs, as it always did', () => {
+    expect(pushStartsRun({ on_push: true }, { ref: 'refs/heads/anything' }).run).toBe(true)
+  })
+})
+
+describe('paths-ignore', () => {
+  /*
+   * The rule people rely on: a push that only touches documentation does not
+   * start CI. The subtle half is what "only" means.
+   */
+  test('excludes a push whose every file is ignored', () => {
+    const version = { on_push: true, push_paths_ignore: 'docs/**\n**/*.md' }
+
+    expect(pushStartsRun(version, { ref: 'refs/heads/main', changed: ['docs/guide.md', 'README.md'] }).run).toBe(false)
+  })
+
+  test('and runs when anything else changed too', () => {
+    // One source file alongside a hundred documentation changes is still a
+    // source change. The filter is about pushes that are entirely
+    // uninteresting, not pushes that contain anything uninteresting.
+    const version = { on_push: true, push_paths_ignore: 'docs/**' }
+
+    expect(pushStartsRun(version, { ref: 'refs/heads/main', changed: ['docs/guide.md', 'app/thing.ts'] }).run).toBe(true)
+  })
+
+  test('a push with nothing known about it runs, filter or no filter', () => {
+    // A missed run on a push that did touch the paths is a broken product; an
+    // extra run on one that did not is a wasted minute.
+    const version = { on_push: true, push_paths_ignore: 'docs/**' }
+
+    expect(pushStartsRun(version, { ref: 'refs/heads/main', changed: [] }).run).toBe(true)
+  })
+
+  test('and the positive form still decides on its own', () => {
+    const version = { on_push: true, push_paths: 'app/**' }
+
+    expect(pushStartsRun(version, { ref: 'refs/heads/main', changed: ['app/thing.ts'] }).run).toBe(true)
+    expect(pushStartsRun(version, { ref: 'refs/heads/main', changed: ['docs/guide.md'] }).run).toBe(false)
+  })
+})

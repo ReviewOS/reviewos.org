@@ -141,6 +141,17 @@ export interface VersionTriggers {
   push_branches?: string | null
   push_tags?: string | null
   push_paths?: string | null
+  /**
+   * The negative filters, which are not the positive ones inverted.
+   *
+   * Actions refuses a workflow that sets both forms for one event, so at most
+   * one of each pair is populated. What they change is the *default*: with
+   * `branches`, a branch runs only if it matches; with `branches-ignore`, every
+   * branch runs except the ones that do.
+   */
+  push_branches_ignore?: string | null
+  push_tags_ignore?: string | null
+  push_paths_ignore?: string | null
 }
 
 export interface PushEvent {
@@ -190,24 +201,45 @@ export function pushStartsRun(version: VersionTriggers, event: PushEvent): Trigg
 
   const branches = patternsFrom(version.push_branches)
   const tags = patternsFrom(version.push_tags)
+  const branchesIgnore = patternsFrom(version.push_branches_ignore)
+  const tagsIgnore = patternsFrom(version.push_tags_ignore)
 
   if (ref.kind === 'tag') {
-    // A workflow that names branches and not tags is asking for branches. Tags
-    // are opted into, which is Actions' behaviour and the safe direction: the
-    // alternative runs every release tag through a workflow written for `main`.
-    if (tags.length === 0)
+    /*
+     * A workflow that names branches and not tags is asking for branches. Tags
+     * are opted into, which is Actions' behaviour and the safe direction: the
+     * alternative runs every release tag through a workflow written for `main`.
+     *
+     * `tags-ignore` counts as naming tags. `on: push` with only
+     * `tags-ignore: [v*]` means every tag but those, and reading it as "no tag
+     * filter, so no tags" would silently never run.
+     */
+    if (tags.length === 0 && tagsIgnore.length === 0)
       return { run: false, reason: 'the push was a tag, and this workflow filters on branches' }
 
-    if (!refMatches(tags, ref.name))
+    if (tagsIgnore.length > 0 && refMatches(tagsIgnore, ref.name))
+      return { run: false, reason: `tag ${ref.name} is excluded by this workflow's tags-ignore` }
+
+    if (tags.length > 0 && !refMatches(tags, ref.name))
       return { run: false, reason: `tag ${ref.name} does not match this workflow's tag filter` }
   }
   else {
-    if (!refMatches(branches, ref.name))
+    if (branchesIgnore.length > 0 && refMatches(branchesIgnore, ref.name))
+      return { run: false, reason: `branch ${ref.name} is excluded by this workflow's branches-ignore` }
+
+    // With only an ignore list, everything not named runs - which is the whole
+    // point of the negative form.
+    if (branches.length > 0 && !refMatches(branches, ref.name))
+      return { run: false, reason: `branch ${ref.name} does not match this workflow's branch filter` }
+
+    if (branches.length === 0 && branchesIgnore.length === 0 && !refMatches(branches, ref.name))
       return { run: false, reason: `branch ${ref.name} does not match this workflow's branch filter` }
   }
 
   const paths = patternsFrom(version.push_paths)
-  if (paths.length > 0) {
+  const pathsIgnore = patternsFrom(version.push_paths_ignore)
+
+  if (paths.length > 0 || pathsIgnore.length > 0) {
     const changed = event.changed ?? []
 
     // Nothing known about what changed, and a filter that needs to know. Run
@@ -216,7 +248,17 @@ export function pushStartsRun(version: VersionTriggers, event: PushEvent): Trigg
     if (changed.length === 0)
       return { run: true, reason: 'this push changed nothing we can see, and the workflow filters on paths' }
 
-    if (!pathsMatch(paths, changed))
+    /*
+     * `paths-ignore` excludes a push only when *every* file it changed is
+     * ignored. One source file alongside a hundred documentation changes is
+     * still a source change, and Actions agrees: the filter is about pushes
+     * that are entirely uninteresting, not about pushes that contain anything
+     * uninteresting.
+     */
+    if (pathsIgnore.length > 0 && changed.every(path => pathsMatch(pathsIgnore, [path])))
+      return { run: false, reason: 'everything this push changed is excluded by paths-ignore' }
+
+    if (paths.length > 0 && !pathsMatch(paths, changed))
       return { run: false, reason: 'nothing this push changed matches the path filter' }
   }
 

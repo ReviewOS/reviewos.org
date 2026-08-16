@@ -1,4 +1,5 @@
 import { db } from '@stacksjs/database'
+import { changedPaths } from '../Actions/Workflow/changed'
 import { discoverWorkflows } from '../Actions/Workflow/discover'
 import { syncWorkflowFile } from '../Actions/Workflow/sync'
 
@@ -205,16 +206,33 @@ async function dispatchForPush(repository: any, event: any): Promise<void> {
   const tags = updates.filter((update: any) =>
     update?.kind === 'tag' && update?.change !== 'deleted' && update?.after)
 
+  // The same resolution the definitions used, and for the same reason: the
+  // column is not one shape across writers, so the owner and name decide.
+  const gitDir = await resolveGitDir(repository, String(event?.owner ?? ''))
+
   for (const update of [...branches, ...tags]) {
+    /*
+     * What the push changed, which is what `paths:` and `paths-ignore:` need.
+     *
+     * This used to be an empty list with a comment saying the paths were not
+     * known here, so both filters did nothing: a documentation-only push
+     * started the whole test suite, which is the one thing `paths-ignore`
+     * exists to prevent. One `git diff --name-only` per updated ref answers it.
+     *
+     * Empty still means "unknown", and `pushStartsRun` still errs towards
+     * running on it - a missed run is a broken product and an extra run is a
+     * wasted minute.
+     */
+    const changed = gitDir
+      ? await changedPaths(gitDir, String(update.before ?? ''), String(update.after)).catch(() => [])
+      : []
+
     await dispatchPush({
       repositoryId: Number(repository.id),
       headSha: String(update.after),
       event: {
         ref: String(update.ref),
-        // The changed paths are not known here. `pushStartsRun` errs towards
-        // running when a workflow filters on paths and nothing is known, which
-        // is the visible failure rather than the invisible one.
-        changed: [],
+        changed,
         deleted: update.change === 'deleted',
       },
     }).catch(() => null)

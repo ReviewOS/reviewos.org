@@ -457,4 +457,55 @@ describe('and the runs it starts', () => {
     const runs = await runsHere()
     expect(runs.map(run => Number(run.number))).toEqual(runs.map((_, index) => index + 1))
   })
+
+  /*
+   * The rule everybody relies on and nobody checks until it is wrong: a push
+   * that only touches documentation starts nothing. The filter had been parsed
+   * and dropped, so `paths-ignore` did nothing at all - which is the failure
+   * this product names Gitea for elsewhere in the roadmap.
+   */
+  test('a docs-only push does not start a run when the workflow ignores docs', async () => {
+    if (!available)
+      return
+
+    await push('.reviewos/workflows/ci.yml', `name: CI
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: bun test
+`)
+
+    /*
+     * Let the workflow push's own run land before taking the baseline.
+     *
+     * `dispatch` is fire-and-forget, so reading the count immediately after a
+     * push measures a moment when the run may not exist yet - and then the
+     * *next* settle window catches it and reads as the docs push having
+     * started something.
+     */
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    const before = (await runsHere()).length
+
+    await push('docs/guide.md', '# a guide\n')
+
+    // Nothing new should arrive, so there is nothing to wait for: settle long
+    // enough that a run which was going to appear has.
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    expect((await runsHere()).length).toBe(before)
+
+    // And a source change on the same workflow still runs, so the assertion
+    // above is about the filter rather than about runs having stopped.
+    await push('app/thing.ts', 'export const thing = 2\n')
+
+    const after = await waitFor(runsHere, (rows: any[]) => rows.length > before)
+
+    expect(after.length).toBeGreaterThan(before)
+  })
 })

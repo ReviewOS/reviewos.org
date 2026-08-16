@@ -8017,6 +8017,46 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "push_branches_ignore",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "push_tags_ignore",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "push_paths_ignore",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "pull_request_branches_ignore",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "pull_request_paths_ignore",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -9303,7 +9343,7 @@
       }
     ]
   },
-  "hash": "97102e96777cdbfb62a7bc5f1b1e18fafbd81b1233c5a9b400a3b394982bf606",
+  "hash": "aafce101a34e16d9c2bfd5a5083fc1fef1648c2802d69e600db99ac4e536b512",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T15:31:32.556Z"
+  "updatedAt": "2026-08-16T15:50:47.977Z"
 }

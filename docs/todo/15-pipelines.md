@@ -145,6 +145,24 @@ written down here so it does not get relitigated:
 - [ ] `on:` triggers: `push`, `pull_request`, `pull_request_target`, `issues`, `issue_comment`,
       `release`, `schedule`, `workflow_dispatch`, `workflow_call`, `workflow_run`, `repository_dispatch`,
       with `branches`, `branches-ignore`, `tags`, `paths`, `paths-ignore`, and `types` filters
+
+      **The push filters work end to end now**, which they did not: `paths:` and `paths-ignore:`
+      were parsed, stored, consulted - and handed an empty list of changed files, because the
+      dispatcher never read what the push touched. Empty reads as "no information, so run", so both
+      filters did nothing at all and a documentation-only push started the whole test suite. One
+      `git diff --name-only` per updated ref answers it, with a new branch read as what its own
+      commit introduced rather than as every file in the repository, and a push past 5,000 files
+      answered as unknown rather than truncated.
+
+      The negative forms are stored and consulted too. `branches-ignore` is not `branches`
+      inverted - it changes the default, so a workflow with only an ignore list runs everything it
+      does not name, and `tags-ignore` counts as naming tags or a workflow written to run on every
+      tag but the release ones would never run on any. `paths-ignore` excludes a push only when
+      *every* file it changed is ignored: one source file among a hundred documentation changes is
+      still a source change.
+
+      The events themselves are unchanged: `push`, `pull_request`, `schedule` and
+      `workflow_dispatch` dispatch, and the rest are recorded as recognised-but-not-dispatched.
 - [ ] `jobs:` with `needs:`, `if:`, `strategy.matrix` including `include`, `exclude`, `fail-fast`,
       and `max-parallel`, plus `continue-on-error`, `timeout-minutes`, and `outputs`
 

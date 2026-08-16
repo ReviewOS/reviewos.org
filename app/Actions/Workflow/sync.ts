@@ -175,8 +175,13 @@ async function insertVersion(
       push_branches: lines(triggers.push?.branches ?? []),
       push_tags: lines(triggers.push?.tags ?? []),
       push_paths: lines(triggers.push?.paths ?? []),
+      push_branches_ignore: lines(triggers.push?.branchesIgnore ?? []),
+      push_tags_ignore: lines(triggers.push?.tagsIgnore ?? []),
+      push_paths_ignore: lines(triggers.push?.pathsIgnore ?? []),
       pull_request_branches: lines(triggers.pullRequest?.branches ?? []),
       pull_request_paths: lines(triggers.pullRequest?.paths ?? []),
+      pull_request_branches_ignore: lines(triggers.pullRequest?.branchesIgnore ?? []),
+      pull_request_paths_ignore: lines(triggers.pullRequest?.pathsIgnore ?? []),
       schedules: lines(triggers.schedule),
       unsupported_events: lines(triggers.unsupported),
     } as any)
