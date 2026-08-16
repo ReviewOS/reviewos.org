@@ -181,7 +181,14 @@ written down here so it does not get relitigated:
 - [ ] `jobs:` with `needs:`, `if:`, `strategy.matrix` including `include`, `exclude`, `fail-fast`,
       and `max-parallel`, plus `continue-on-error`, `timeout-minutes`, and `outputs`
 
-      **The matrix half is done and tested**, in `app/Actions/Workflow/matrix.ts`: the cartesian
+      **A matrix is now four jobs in a run rather than one**, which is the half that was missing:
+      the expansion existed in the parser and was dropped on the way to the version, so a matrix of
+      four produced a single job. Each combination is its own `workflow_jobs` row, named the way
+      Actions names them - `test (ubuntu-latest, 20)` - and carrying its own values for a runner to
+      inject and a screen to show. They succeed and fail separately, which is the point: a person
+      looking at a failed run needs to see *which* combination broke.
+
+      **The expansion itself**, in `app/Actions/Workflow/matrix.ts`: the cartesian
       product with the last key varying fastest, `exclude` applied *before* `include` so a workflow
       that excludes a combination and includes it back keeps it, an `include` entry merged into
       every combination it fits without overwriting and appended as its own job when it would, and

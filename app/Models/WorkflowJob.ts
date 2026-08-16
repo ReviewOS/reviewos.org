@@ -89,6 +89,24 @@ export default defineModel({
     },
 
     /** Job ids this waits on, copied from the definition. */
+    /**
+     * The matrix values this job was created for, as JSON.
+     *
+     * One `workflow_jobs` row per combination, so a matrix of four is four jobs
+     * in the run rather than one job that somehow ran four times. Null for a
+     * job with no matrix.
+     *
+     * Stored on the job rather than derived from the version at read time: the
+     * run has to stay readable when the definition changes, which is the same
+     * reason the steps are copied.
+     */
+    matrix_values: {
+      order: 30,
+      fillable: true,
+      validation: { rule: schema.string().max(4000) },
+      factory: () => null,
+    },
+
     needs: {
       order: 6,
       fillable: true,

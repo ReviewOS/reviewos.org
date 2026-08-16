@@ -89,6 +89,41 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * The matrix, expanded at parse time, as JSON.
+     *
+     * Expanded here rather than at dispatch because the number of jobs a run
+     * will carry is a fact about the file: a run screen that cannot say how
+     * many jobs are coming until they arrive is a progress bar with no end.
+     * Null for a job with no matrix, which is most of them.
+     */
+    matrix: {
+      order: 30,
+      fillable: true,
+      validation: { rule: schema.string().max(65_535) },
+      factory: () => null,
+    },
+
+    /**
+     * Actions' default is true, and it is the surprising direction: one failed
+     * combination cancels the rest. Stored per job because that is where the
+     * workflow says it.
+     */
+    fail_fast: {
+      order: 31,
+      fillable: true,
+      default: true,
+      validation: { rule: schema.boolean() },
+      factory: () => true,
+    },
+
+    max_parallel: {
+      order: 32,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
     timeout_minutes: {
       order: 8,
       fillable: true,

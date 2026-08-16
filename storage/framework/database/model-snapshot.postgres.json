@@ -8186,6 +8186,31 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "matrix",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "fail_fast",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": true
+          },
+          {
+            "name": "max_parallel",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8478,6 +8503,14 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 64
+          },
+          {
+            "name": "matrix_values",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -9352,7 +9385,7 @@
       }
     ]
   },
-  "hash": "7ff965374781677822a5b87d6013f25507cc1258f758d65b58b3b03c6d60925a",
+  "hash": "ccf801ea21a3dfc73b2e19cf017ce615547c93db30e0bf4c84de44c26b7c4a3a",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T16:01:05.134Z"
+  "updatedAt": "2026-08-16T16:19:09.119Z"
 }

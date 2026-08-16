@@ -203,6 +203,11 @@ async function insertVersion(
         needs: lines(job.needs),
         condition: job.if,
         timeout_minutes: job.timeoutMinutes,
+        // JSON rather than rows: a combination is read whole, with the job,
+        // and never queried across workflows.
+        matrix: job.matrix.length > 0 ? JSON.stringify(job.matrix) : null,
+        fail_fast: job.failFast,
+        max_parallel: job.maxParallel,
       } as any)
       .returning(['id'])
       .executeTakeFirst()

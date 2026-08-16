@@ -326,25 +326,74 @@ function isDuplicate(error: unknown): boolean {
 async function createJobs(runId: number, versionId: number): Promise<void> {
   const definition: any[] = await db
     .selectFrom('workflow_version_jobs')
-    .select(['job_id', 'name', 'position', 'runs_on', 'needs'])
+    .select(['job_id', 'name', 'position', 'runs_on', 'needs', 'matrix'])
     .where('workflow_version_id', '=', versionId)
     .orderBy('position')
     .execute()
 
+  let position = 0
+
   for (const job of definition) {
     const needs = String(job.needs ?? '').trim()
 
-    await db
-      .insertInto('workflow_jobs')
-      .values({
-        workflow_run_id: runId,
-        job_id: job.job_id,
-        name: job.name,
-        position: Number(job.position ?? 0),
-        state: needs.length > 0 ? 'blocked' : 'queued',
-        needs: job.needs,
-        runs_on: job.runs_on,
-      } as any)
-      .execute()
+    /*
+     * One row per matrix combination.
+     *
+     * A matrix of four is four jobs in the run, not one job that somehow ran
+     * four times: they succeed and fail separately, they are handed to
+     * different runners, and a person looking at a failed run needs to see
+     * *which* combination broke. The expansion happened at parse time and was
+     * stored on the version - see `Workflow/matrix.ts` for why the order and
+     * the include rules are not obvious.
+     */
+    for (const values of combinationsOf(job.matrix)) {
+      await db
+        .insertInto('workflow_jobs')
+        .values({
+          workflow_run_id: runId,
+          job_id: job.job_id,
+          // Actions' shape: `test (ubuntu-latest, 20)`. The values without
+          // their keys, because that is what fits in a job list and what
+          // somebody scanning a failed run already recognises.
+          name: values ? `${job.name ?? job.job_id} (${labelFor(values)})` : job.name,
+          position: position++,
+          state: needs.length > 0 ? 'blocked' : 'queued',
+          needs: job.needs,
+          runs_on: job.runs_on,
+          matrix_values: values ? JSON.stringify(values) : null,
+        } as any)
+        .execute()
+    }
   }
+}
+
+/**
+ * The combinations a stored matrix describes, or a single `null` for no matrix.
+ *
+ * `null` rather than an empty list so the caller writes one row for a job with
+ * no matrix without a branch: the loop is the same shape either way.
+ */
+function combinationsOf(stored: unknown): Array<Record<string, unknown> | null> {
+  const text = String(stored ?? '').trim()
+
+  if (!text)
+    return [null]
+
+  try {
+    const parsed = JSON.parse(text)
+
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [null]
+  }
+  catch {
+    // A version whose matrix cannot be read still runs, once. Refusing would
+    // turn a storage problem into a repository with no CI.
+    return [null]
+  }
+}
+
+/** `ubuntu-latest, 20`, the way Actions writes a matrix job's name. */
+function labelFor(values: Record<string, unknown>): string {
+  return Object.values(values)
+    .map(value => (value !== null && typeof value === 'object' ? JSON.stringify(value) : String(value)))
+    .join(', ')
 }

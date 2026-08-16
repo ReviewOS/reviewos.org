@@ -507,5 +507,77 @@ jobs:
     const after = await waitFor(runsHere, (rows: any[]) => rows.length > before)
 
     expect(after.length).toBeGreaterThan(before)
-  })
+    // Three pushes and two settle windows: past bun's five-second default.
+  }, 30_000)
+
+  /*
+   * A matrix of four is four jobs in the run, not one job that somehow ran four
+   * times: they succeed and fail separately, they go to different runners, and
+   * a person looking at a failed run needs to see which combination broke. The
+   * expansion existed in the parser and was dropped on the way to the run.
+   *
+   * Triggered on a path of its own so it does not change what the tests above
+   * observe - a second workflow that runs on every push would start a run
+   * during the docs-only assertion and read as that filter being broken.
+   */
+  test('a matrix job becomes one job per combination, named the way Actions names them', async () => {
+    if (!available)
+      return
+
+    await push('.reviewos/workflows/matrix.yml', `name: Matrix
+on:
+  push:
+    paths:
+      - 'matrix/**'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+        os: [ubuntu, macos]
+    steps:
+      - run: bun test
+`)
+
+    await push('matrix/trigger.txt', 'go\n')
+
+    // The run belonging to *this* workflow, rather than the last one written:
+    // the repository has more than one workflow by now.
+    const findRun = async () => {
+      const rows: any[] = await db
+        .selectFrom('workflow_runs')
+        .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+        .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+        .select(['workflow_runs.id as id'])
+        .where('workflows.path', '=', '.reviewos/workflows/matrix.yml')
+        .orderBy('workflow_runs.id', 'desc')
+        .execute()
+
+      return rows[0] ?? null
+    }
+
+    const run = await waitFor(findRun, (row: any) => Boolean(row))
+
+    expect(run).toBeTruthy()
+
+    const jobs = await waitFor(
+      () => db.selectFrom('workflow_jobs').select(['name', 'matrix_values', 'state'])
+        .where('workflow_run_id', '=', Number((run as any).id)).orderBy('position').execute(),
+      (rows: any[]) => rows.length >= 4,
+    )
+
+    expect(jobs).toHaveLength(4)
+    expect(jobs.map((job: any) => job.name)).toEqual([
+      'test (20, ubuntu)',
+      'test (20, macos)',
+      'test (22, ubuntu)',
+      'test (22, macos)',
+    ])
+
+    // And each carries its own values, so a runner has something to inject and
+    // the screen has something to show.
+    expect(JSON.parse(String(jobs[0].matrix_values))).toEqual({ node: 20, os: 'ubuntu' })
+    // Two pushes, each a commit and a job run.
+  }, 30_000)
 })
