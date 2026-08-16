@@ -213,11 +213,31 @@ written down here so it does not get relitigated:
       this and Gitea ignores it; the Buildkite concurrency engine in this file implements it properly
       rather than partially.
 
-      Workflow-level `concurrency` is now **read** rather than accepted and dropped, in both the
-      bare-string and mapping forms. That is the parsing half only: nothing serialises runs on a
-      group yet, so the box stays open. Reading it first is deliberate - the failure this names
-      Gitea for is a key that parses and does nothing, and a run that carries its group can at
-      least show it.
+      **`cancel-in-progress` works.** A run records the group it belongs to, resolved against its
+      own event rather than stored as written, and a new run in the same group moves the ones it
+      replaces to `cancelling`. Push twice and the first run stops, which is the whole reason people
+      write the key.
+
+      `cancelling` rather than `cancelled`: a run already handed to a runner has to be told and has
+      to acknowledge ([phase 9](./09-ci.md)), and the control plane does not get to claim an outcome
+      it cannot observe.
+
+      Two decisions worth keeping:
+
+      - **A group whose expression cannot be resolved is no group at all.** Only the closed set of
+        context values dispatch actually knows is substituted - `github.workflow`, `github.ref`,
+        `github.ref_name`, `github.sha`, `github.head_ref`, `github.base_ref`, the pull request
+        number. Anything else (a `||` fallback, `hashFiles`, an input) leaves the template
+        unresolved, and an unresolved template would be the same literal string for every run of
+        that workflow - grouping runs that should be independent and cancelling somebody's build
+        under `cancel-in-progress`. Grouping too little only wastes runners.
+      - **A group is not namespaced by event**, matching Actions. `group: ${{ github.ref }}` is
+        written precisely so a branch's push run and its pull request run do not both run.
+
+      What is left is the other half: `cancel-in-progress: false` should *queue* the second run
+      behind the first, and that is not a state a run can enter on its own - something has to
+      release the group when the first finishes, which is the execution plane. Job-level
+      `concurrency` is unread. The box stays open for both.
 - [ ] `permissions:` on the workflow and per job, mapped onto the fine-grained token permissions from
       [phase 1](./01-foundation.md#access-tokens), defaulting to read-only
 - [ ] `defaults:` including `run.shell` and `run.working-directory`. Parsed onto the workflow;

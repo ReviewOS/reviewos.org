@@ -8066,6 +8066,24 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 500
+          },
+          {
+            "name": "concurrency_group",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
+          },
+          {
+            "name": "cancel_in_progress",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -8723,6 +8741,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "concurrency_group",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
           }
         ],
         "indexes": [
@@ -9385,7 +9412,7 @@
       }
     ]
   },
-  "hash": "ccf801ea21a3dfc73b2e19cf017ce615547c93db30e0bf4c84de44c26b7c4a3a",
+  "hash": "8cd8505376d0f0968c3530e7b1436c386a8107e295e047f030321ea56711933d",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T16:19:09.119Z"
+  "updatedAt": "2026-08-16T17:21:53.123Z"
 }

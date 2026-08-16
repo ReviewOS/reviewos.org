@@ -141,6 +141,21 @@ export default defineModel({
      * a column read at injection time is one place to look rather than a rule
      * every caller re-derives.
      */
+    /**
+     * The concurrency group this run belongs to, resolved.
+     *
+     * Stored on the run rather than derived, because it is resolved against
+     * *this* event - the ref, the workflow, the event name - and a reader
+     * asking "why was this cancelled" needs the value that was actually
+     * compared, not one recomputed later from a definition that may have moved.
+     */
+    concurrency_group: {
+      order: 40,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
     trusted: {
       order: 9,
       fillable: true,

@@ -16,6 +16,8 @@
  */
 
 import { db } from '@stacksjs/database'
+import type { ConcurrencyContext } from './concurrency'
+import { resolveGroup } from './concurrency'
 import type { PullRequestEvent, PushEvent } from './triggers'
 import { pullRequestStartsRun, pushStartsRun } from './triggers'
 
@@ -53,6 +55,11 @@ async function currentVersions(repositoryId: number): Promise<any[]> {
       'workflow_versions.pull_request_branches_ignore as pull_request_branches_ignore',
       'workflow_versions.pull_request_paths_ignore as pull_request_paths_ignore',
       'workflow_versions.pull_request_types as pull_request_types',
+      'workflow_versions.concurrency_group as concurrency_group',
+      'workflow_versions.cancel_in_progress as cancel_in_progress',
+      // The workflow's name, for `${{ github.workflow }}` in a group.
+      'workflows.name as workflow_name',
+      'workflows.path as workflow_path',
       'workflow_versions.push_tags as push_tags',
       'workflow_versions.push_paths as push_paths',
       'workflow_versions.source_sha as source_sha',
@@ -152,6 +159,8 @@ export interface PullRequestDispatchInput {
   headSha: string
   /** The ref the run is recorded against, `refs/pull/12/head`. */
   ref: string
+  /** The pull request's number, for a concurrency group that names it. */
+  number?: number | null
   /** Who opened or updated it, when that is known. */
   actorId?: number | null
 }
@@ -214,6 +223,18 @@ async function createPullRequestRun(
   version: any,
   target: boolean,
 ): Promise<number | null> {
+  const context: ConcurrencyContext = {
+    workflow: String(version.workflow_name || version.workflow_path || ''),
+    eventName: target ? 'pull_request_target' : 'pull_request',
+    ref: input.ref,
+    sha: input.headSha,
+    headRef: input.event.headBranch ?? '',
+    baseRef: input.event.baseBranch,
+    number: input.number ?? null,
+  }
+
+  const group = resolveGroup(version.concurrency_group, context)
+
   try {
     const run: any = await db
       .insertInto('workflow_runs')
@@ -248,12 +269,14 @@ async function createPullRequestRun(
          */
         trusted: target ? true : !input.event.fromFork,
         actor_id: input.actorId ?? null,
+        concurrency_group: group,
       } as any)
       .returning(['id'])
       .executeTakeFirst()
 
     const runId = Number(run?.id)
     await createJobs(runId, Number(version.id))
+    await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true)
 
     return runId
   }
@@ -274,6 +297,13 @@ async function createPullRequestRun(
  * it is deliberately not implemented here rather than approximated.
  */
 async function createRun(input: DispatchInput, version: any): Promise<number | null> {
+  const group = resolveGroup(version.concurrency_group, {
+    workflow: String(version.workflow_name || version.workflow_path || ''),
+    eventName: 'push',
+    ref: input.event.ref,
+    sha: input.headSha,
+  })
+
   try {
     const run: any = await db
       .insertInto('workflow_runs')
@@ -291,12 +321,14 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
         definition_sha: String(version.source_sha ?? input.headSha),
         trusted: true,
         actor_id: input.actorId ?? null,
+        concurrency_group: group,
       } as any)
       .returning(['id'])
       .executeTakeFirst()
 
     const runId = Number(run?.id)
     await createJobs(runId, Number(version.id))
+    await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true)
 
     return runId
   }
@@ -308,6 +340,46 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
 
     throw error
   }
+}
+
+/**
+ * Stop the runs this one replaces.
+ *
+ * Only when the workflow asked for it: Actions' default is that a second run
+ * queues behind the first rather than replacing it, and cancelling by default
+ * would throw away work somebody is watching. Turning it on is what makes a
+ * branch's pipeline stop spending runners on commits nobody is waiting for.
+ *
+ * `cancelling` rather than `cancelled`, because a run that has been handed to
+ * a runner has to be told, and the runner has to acknowledge - see phase 9. A
+ * run nothing has picked up is moved on by the execution plane in the same
+ * sweep; writing `cancelled` here would mean the control plane claiming an
+ * outcome it cannot yet observe.
+ *
+ * Queueing the newer run behind the older one - the `cancel-in-progress: false`
+ * half - is deliberately not done here. It is not a state a run can enter on
+ * its own: something has to release the group when the first finishes, and that
+ * something is the execution plane.
+ */
+async function supersede(
+  repositoryId: number,
+  runId: number,
+  group: string | null,
+  cancelInProgress: boolean,
+): Promise<void> {
+  if (!group || !cancelInProgress)
+    return
+
+  await db
+    .updateTable('workflow_runs')
+    .set({ state: 'cancelling' } as any)
+    .where('repository_id', '=', repositoryId)
+    .where('concurrency_group', '=', group)
+    .where('id', '!=', runId)
+    // Only what is still live. A finished run is history and a run already
+    // being cancelled does not need telling twice.
+    .where('state', 'in', ['queued', 'running', 'waiting', 'paused'])
+    .execute()
 }
 
 /** Postgres says 23505 for a unique violation; drivers wrap it differently. */

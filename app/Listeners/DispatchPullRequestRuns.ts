@@ -45,7 +45,7 @@ export async function handleEvent(event: any, eventName = ''): Promise<void> {
 
     const pullRequest: any = await db
       .selectFrom('pull_requests')
-      .select(['id', 'number', 'head_sha', 'base_branch', 'head_repository_id', 'repository_id', 'draft', 'state'])
+      .select(['id', 'number', 'head_sha', 'base_branch', 'head_branch', 'head_repository_id', 'repository_id', 'draft', 'state'])
       .where('repository_id', '=', repositoryId)
       .where('number', '=', number)
       .executeTakeFirst()
@@ -84,10 +84,12 @@ export async function handleEvent(event: any, eventName = ''): Promise<void> {
       repositoryId,
       headSha,
       ref: `refs/pull/${number}/head`,
+      number,
       actorId: Number(event?.actorId ?? 0) || null,
       event: {
         activity,
         baseBranch: String(pullRequest.base_branch ?? ''),
+        headBranch: String(pullRequest.head_branch ?? ''),
         fromFork,
         draft: Boolean(pullRequest.draft),
         // What the pull request changes, for `paths:` and `paths-ignore:`.

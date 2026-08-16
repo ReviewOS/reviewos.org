@@ -223,6 +223,33 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * `concurrency:`, as written, with its expressions unresolved.
+     *
+     * The group is a template - `${{ github.workflow }}-${{ github.ref }}` is
+     * the common one - and it can only be resolved against a particular event,
+     * so it is stored as text and resolved per run.
+     */
+    concurrency_group: {
+      order: 36,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
+    /**
+     * Actions' default is false: a second run queues behind the first rather
+     * than replacing it. Turning it on is what makes a branch's pipeline stop
+     * wasting runners on commits nobody is waiting for any more.
+     */
+    cancel_in_progress: {
+      order: 37,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
     /** Cron expressions, one per line. */
     schedules: {
       order: 15,

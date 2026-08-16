@@ -580,4 +580,83 @@ jobs:
     expect(JSON.parse(String(jobs[0].matrix_values))).toEqual({ node: 20, os: 'ubuntu' })
     // Two pushes, each a commit and a job run.
   }, 30_000)
+
+  /*
+   * `concurrency:` with `cancel-in-progress`, which is the key the roadmap
+   * names Gitea for accepting and ignoring. Push twice and the first run has to
+   * stop: a branch that keeps every superseded run alive spends its runners on
+   * commits nobody is waiting for.
+   *
+   * `cancelling` rather than `cancelled` - a run that has been handed to a
+   * runner has to be told and has to acknowledge, and the control plane does
+   * not get to claim an outcome it cannot observe.
+   */
+  test('a second push cancels the run its workflow said to replace', async () => {
+    if (!available)
+      return
+
+    await push('.reviewos/workflows/deploy.yml', `name: Deploy
+on:
+  push:
+    paths:
+      - 'deploy/**'
+concurrency:
+  group: deploy-\${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    steps:
+      - run: bun run deploy
+`)
+
+    const runsFor = async (): Promise<any[]> => db
+      .selectFrom('workflow_runs')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_runs.id as id', 'workflow_runs.state as state', 'workflow_runs.concurrency_group as concurrency_group'])
+      .where('workflows.path', '=', '.reviewos/workflows/deploy.yml')
+      .orderBy('workflow_runs.id')
+      .execute()
+
+    await push('deploy/one.txt', 'one\n')
+    const first = await waitFor(runsFor, (rows: any[]) => rows.length >= 1)
+
+    expect(first).toHaveLength(1)
+    // The group was resolved against this event rather than stored as written.
+    expect(first[0].concurrency_group).toBe('deploy-refs/heads/main')
+
+    await push('deploy/two.txt', 'two\n')
+    const both = await waitFor(runsFor, (rows: any[]) => rows.length >= 2)
+
+    expect(both).toHaveLength(2)
+    expect(both[0].state).toBe('cancelling')
+    // And the one that superseded it is untouched.
+    expect(both[1].state).toBe('queued')
+  }, 30_000)
+
+  test('a workflow without concurrency keeps both runs', async () => {
+    if (!available)
+      return
+
+    // The default, and the reason cancelling is opt-in: throwing away a run
+    // somebody is watching because a colleague pushed is worse than paying for
+    // two runners.
+    const runsFor = async (): Promise<any[]> => db
+      .selectFrom('workflow_runs')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_runs.state as state', 'workflow_runs.concurrency_group as concurrency_group'])
+      .where('workflows.path', '=', '.reviewos/workflows/matrix.yml')
+      .orderBy('workflow_runs.id')
+      .execute()
+
+    await push('matrix/again.txt', 'again\n')
+
+    const rows = await waitFor(runsFor, (list: any[]) => list.length >= 2)
+
+    expect(rows.length).toBeGreaterThanOrEqual(2)
+    expect(rows.every((row: any) => row.state === 'queued')).toBe(true)
+    expect(rows.every((row: any) => row.concurrency_group === null)).toBe(true)
+  }, 30_000)
 })

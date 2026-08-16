@@ -202,6 +202,8 @@ export interface PullRequestEvent {
   activity: string
   /** The branch the pull request would merge into, without `refs/heads/`. */
   baseBranch: string
+  /** The source branch, for `${{ github.head_ref }}` in a concurrency group. */
+  headBranch?: string
   /** Paths the pull request changes. Empty when nothing is known about them. */
   changed?: readonly string[]
   /** Whether the head is a fork of this repository, which decides trust. */
