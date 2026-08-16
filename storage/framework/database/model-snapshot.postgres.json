@@ -8108,6 +8108,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "permissions",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8256,6 +8264,14 @@
           },
           {
             "name": "env",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "permissions",
             "type": "text",
             "isPrimaryKey": false,
             "isUnique": false,
@@ -9461,7 +9477,7 @@
       }
     ]
   },
-  "hash": "3c66443e5b2a6fbbc179937a80978fb42833cf9d2cbf5e365e8adda49982e79b",
+  "hash": "cd16958bb2043b29e87c67c7c7b029b6945e14cd185a3c0cbe9a3a0a085b3466",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T20:28:08.283Z"
+  "updatedAt": "2026-08-16T20:38:09.953Z"
 }

@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { explainEnv } from './env'
+import { resolvePermissions } from './permissions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
@@ -35,6 +36,18 @@ function envFor(job: any, definitionJobs: readonly any[], version: any): any[] {
     from: entry.level,
     overrides: entry.overridden,
   }))
+}
+
+/** What this job's token may do, with the level of the file that decided it. */
+function permissionsFor(job: any, definitionJobs: readonly any[], version: any): any {
+  const definition = definitionJobs.find(row => String(row.job_id) === String(job.job_id))
+  const resolved = resolvePermissions(version?.permissions ?? null, definition?.permissions ?? null)
+
+  return {
+    scopes: resolved.granted,
+    from: resolved.source,
+    unsupported: resolved.unsupported,
+  }
 }
 
 export default new Action({
@@ -114,7 +127,7 @@ export default new Action({
      */
     const definitionJobs: any[] = await db
       .selectFrom('workflow_version_jobs')
-      .select(['job_id', 'env'])
+      .select(['job_id', 'env', 'permissions'])
       .where('workflow_version_id', '=', Number(run.workflow_version_id))
       .execute()
 
@@ -126,7 +139,7 @@ export default new Action({
 
     const version: any = await db
       .selectFrom('workflow_versions')
-      .select(['id', 'workflow_id', 'source_path', 'source_sha', 'content_digest', 'env'])
+      .select(['id', 'workflow_id', 'source_path', 'source_sha', 'content_digest', 'env', 'permissions'])
       .where('id', '=', Number(run.workflow_version_id))
       .executeTakeFirst()
 
@@ -185,6 +198,21 @@ export default new Action({
            * injection time, after the fork check, and never written to a row.
            */
           env: envFor(job, definitionJobs, version),
+          /*
+           * What this job's token would be allowed to do, and how that was
+           * decided.
+           *
+           * Worth returning even though nothing mints a token yet: a workflow
+           * that expected to write issues and gets `contents: read` fails at
+           * the far end with an error about permissions, and this is where a
+           * person looks to find out why. `unsupported` is the other half -
+           * a permission this instance has no scope for is named rather than
+           * dropped.
+           *
+           * A fork's pull request is a separate question, decided at injection
+           * time by the run's `trusted` column, not here.
+           */
+          permissions: permissionsFor(job, definitionJobs, version),
           name: job.name ?? null,
           state: String(job.state),
           needs: String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean),

@@ -185,6 +185,9 @@ async function insertVersion(
       pull_request_types: lines(triggers.pullRequest?.types ?? []),
       dispatch_inputs: triggers.dispatchInputs.length > 0 ? JSON.stringify(triggers.dispatchInputs) : null,
       env: Object.keys(workflow.env).length > 0 ? JSON.stringify(workflow.env) : null,
+      permissions: workflow.permissions === null || workflow.permissions === undefined
+        ? null
+        : JSON.stringify(workflow.permissions),
       concurrency_group: workflow.concurrency?.group ?? null,
       cancel_in_progress: workflow.concurrency?.cancelInProgress ?? false,
       schedules: lines(triggers.schedule),
@@ -210,6 +213,9 @@ async function insertVersion(
         // JSON rather than rows: a combination is read whole, with the job,
         // and never queried across workflows.
         env: Object.keys(job.env).length > 0 ? JSON.stringify(job.env) : null,
+        permissions: job.permissions === null || job.permissions === undefined
+          ? null
+          : JSON.stringify(job.permissions),
         matrix: job.matrix.length > 0 ? JSON.stringify(job.matrix) : null,
         fail_fast: job.failFast,
         max_parallel: job.maxParallel,

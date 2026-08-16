@@ -132,6 +132,14 @@ export default defineModel({
       factory: () => null,
     },
 
+    /** `permissions:` on the job. Replaces the workflow's rather than adding to it. */
+    permissions: {
+      order: 34,
+      fillable: true,
+      validation: { rule: schema.string().max(4000) },
+      factory: () => null,
+    },
+
     timeout_minutes: {
       order: 8,
       fillable: true,

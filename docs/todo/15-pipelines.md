@@ -252,8 +252,33 @@ written down here so it does not get relitigated:
       behind the first, and that is not a state a run can enter on its own - something has to
       release the group when the first finishes, which is the execution plane. Job-level
       `concurrency` is unread. The box stays open for both.
-- [ ] `permissions:` on the workflow and per job, mapped onto the fine-grained token permissions from
-      [phase 1](./01-foundation.md#access-tokens), defaulting to read-only
+- [x] `permissions:` on the workflow and per job, mapped onto the fine-grained token permissions from
+      [phase 1](./01-foundation.md#access-tokens), defaulting to read-only.
+
+      The file speaks GitHub's vocabulary and this instance has its own, so the names are
+      translated rather than adopted: `pull-requests` onto `pull_requests`, `statuses` onto the
+      `checks` scope, `repository-hooks` onto `webhooks`. All three shapes are read - the mapping,
+      `read-all` / `write-all`, and `{}`, which is a workflow asking for nothing on purpose and is
+      not the same as the key being absent.
+
+      **The default is read-only and it does not depend on a setting.** Actions' default varies with
+      an organization option, which is a footgun this instance declines to reproduce: a workflow
+      that says nothing gets a token that can read the repository and no more, on every instance.
+
+      Two decisions the tests hold. **A job's block replaces the workflow's rather than adding to
+      it** - merging is the friendlier reading and the wrong one, since it hands a job powers its
+      author took away. And **neither blanket form grants `administration`**, which is the scope
+      that can change branch protection and delete the repository; a workflow that needs it names
+      it.
+
+      A permission this instance has no scope for - `packages`, `id-token`, `deployments` - is
+      **recorded and returned** rather than dropped, because a token that silently grants nothing is
+      a workflow that fails at the far end with no explanation. The run detail reports the scopes, the
+      level of the file that decided them, and what was refused.
+
+      Nothing mints a token yet; that is the execution plane, and by the threat model it happens
+      after the fork check - a fork's pull request gets no write-scoped token whatever its workflow
+      declares.
 - [ ] `defaults:` including `run.shell` and `run.working-directory`. Parsed onto the workflow;
       steps do not inherit from it yet, which is the half that needs the runner.
 - [x] `env:` at workflow, job, and step level with Actions' precedence order.

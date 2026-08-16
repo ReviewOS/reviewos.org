@@ -53,6 +53,8 @@ export interface WorkflowJob {
   if: string | null
   timeoutMinutes: number | null
   env: Record<string, string>
+  /** `permissions:` on the job, as written. Replaces the workflow's, never adds. */
+  permissions: unknown
   steps: WorkflowStep[]
   /**
    * One entry per matrix combination, empty when the job has no matrix.
@@ -155,6 +157,16 @@ export interface NormalizedWorkflow {
   triggers: WorkflowTriggers
   jobs: WorkflowJob[]
   env: Record<string, string>
+  /**
+   * `permissions:` as written, unresolved.
+   *
+   * Kept raw rather than translated here: the mapping onto this instance's
+   * scopes belongs with the scopes, and a stored copy of what the file said is
+   * what lets a screen explain a decision later. `null` is "the key is absent",
+   * which is not the same as `{}` - that is a workflow asking for nothing on
+   * purpose.
+   */
+  permissions: unknown
   /**
    * Read rather than ignored, which is the whole point of naming Gitea in the
    * roadmap: it accepts `concurrency:` and does nothing with it, so a workflow
@@ -699,6 +711,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       if: typeof body.if === 'string' ? body.if : null,
       timeoutMinutes: typeof timeout === 'number' && Number.isFinite(timeout) ? timeout : null,
       env: asStringMap(body.env),
+      permissions: body.permissions ?? null,
       steps,
       matrix: matrix.combinations,
       matrixLabels: matrix.combinations.map(combinationLabel),
@@ -751,6 +764,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       triggers,
       jobs,
       env: asStringMap(root.env),
+      permissions: root.permissions ?? null,
       concurrency: concurrencyFrom(root.concurrency),
       defaults: defaultsFrom(root.defaults),
     },

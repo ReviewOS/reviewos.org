@@ -587,4 +587,49 @@ describe('the environment a job inherits', () => {
       from: 'workflow',
     })
   })
+
+  /*
+   * `permissions:` travels with it. Nothing mints a token yet, and this is
+   * still the screen somebody reads when a workflow that expected to write
+   * issues fails at the far end with a permissions error.
+   */
+  test('and the permissions its token would carry, with what was refused', async () => {
+    if (!available)
+      return
+
+    await db.updateTable('workflow_versions')
+      .set({ permissions: JSON.stringify({ 'contents': 'read', 'packages': 'write' }) } as any)
+      .where('id', '=', created.versionId)
+      .execute()
+
+    const head = Buffer.from(crypto.getRandomValues(new Uint8Array(20))).toString('hex')
+    const number = await makeRun('queued', head, 'refs/heads/perm-probe')
+
+    const { body } = await api(`/api/repos/workflow-runs/show?owner=${created.handle}&repo=${created.name}&number=${number}`)
+    const job = body.workflow_run.jobs.find((row: any) => row.job_id === 'test')
+
+    expect(job.permissions.scopes).toEqual({ contents: 'read' })
+    expect(job.permissions.from).toBe('workflow')
+    // Named rather than dropped: a token that silently grants nothing is a
+    // workflow that fails with no explanation.
+    expect(job.permissions.unsupported).toEqual(['packages'])
+  })
+
+  test('a workflow that asks for nothing gets a read-only token', async () => {
+    if (!available)
+      return
+
+    await db.updateTable('workflow_versions').set({ permissions: null } as any).where('id', '=', created.versionId).execute()
+
+    const head = Buffer.from(crypto.getRandomValues(new Uint8Array(20))).toString('hex')
+    const number = await makeRun('queued', head, 'refs/heads/perm-default')
+
+    const { body } = await api(`/api/repos/workflow-runs/show?owner=${created.handle}&repo=${created.name}&number=${number}`)
+    const job = body.workflow_run.jobs.find((row: any) => row.job_id === 'test')
+
+    // Actions' default depends on an organization setting; this instance's does
+    // not, so a workflow behaves the same wherever it is run.
+    expect(job.permissions.scopes).toEqual({ contents: 'read' })
+    expect(job.permissions.from).toBe('default')
+  })
 })

@@ -280,6 +280,20 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * `permissions:` as written, as JSON.
+     *
+     * Stored unresolved so a screen can say what the file asked for as well as
+     * what it got. Null means the key was absent, which is not `{}` - that is a
+     * workflow asking for no permissions at all, deliberately.
+     */
+    permissions: {
+      order: 40,
+      fillable: true,
+      validation: { rule: schema.string().max(4000) },
+      factory: () => null,
+    },
+
     /** Cron expressions, one per line. */
     schedules: {
       order: 15,
