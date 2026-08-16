@@ -197,6 +197,7 @@ declare global {
   const ProcessPushJob: typeof import('../../../app/Jobs/ProcessPushJob')['default']
   const DeliverWebhookJob: typeof import('../../../app/Jobs/DeliverWebhookJob')['default']
   const ImportRepositoryJob: typeof import('../../../app/Jobs/ImportRepositoryJob')['default']
+  const DispatchScheduledWorkflowsJob: typeof import('../../../app/Jobs/DispatchScheduledWorkflowsJob')['default']
   const IndexRepositoryJob: typeof import('../../../app/Jobs/IndexRepositoryJob')['default']
   const MeasureLanguagesJob: typeof import('../../../app/Jobs/MeasureLanguagesJob')['default']
   const WarnExpiringTokensJob: typeof import('../../../app/Jobs/WarnExpiringTokensJob')['default']

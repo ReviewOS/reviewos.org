@@ -118,6 +118,10 @@ const base = `/${ownerHandle}/${repositoryName}`
         </h1>
         <p class="muted" style="margin-top: 6px;">
           {{ rows.length }} {{ rows.length === 1 ? 'workflow run' : 'workflow runs' }}
+          {{-- The page that answers "why did nothing happen at all", which this
+               list cannot: a workflow that never ran looks the same here as one
+               that does not exist. --}}
+          · <a href="{{ base }}/workflows">Workflows</a>
         </p>
       </header>
 

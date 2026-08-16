@@ -1,0 +1,344 @@
+<script server>
+/**
+ * A repository's workflows: what is registered, and what will never run.
+ *
+ * The runs list answers "did my commit pass". This page answers the question
+ * that comes before it and had nowhere to be asked: **why did nothing happen at
+ * all**. A workflow whose file was deleted, one somebody disabled, one whose
+ * only trigger is an event this instance does not dispatch, and one that failed
+ * to parse all look identical from the runs list - which shows nothing in every
+ * case.
+ *
+ * So every workflow says which events it fires on, and every reason it will not
+ * run is written out in words. `unsupported_events` was recorded at parse time
+ * for exactly this and had never been shown anywhere.
+ *
+ * The `workflow_dispatch` form is generated from the inputs the workflow
+ * declared, and posts to the same public action the API and the CLI use.
+ */
+import { repositoryForView } from '../../../../functions/repo'
+import { relativeTime } from '../../../../functions/browse'
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+const serveContext = __stxServeContext
+
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
+const repoRow = repoAccess?.repository ?? null
+
+if (!repoRow)
+  setStatus(404)
+
+const base = `/${ownerHandle}/${repositoryName}`
+
+const workflows = repoRow
+  ? await db
+      .selectFrom('workflows')
+      .selectAll()
+      .where('repository_id', '=', Number(repoRow.id))
+      .orderBy('path')
+      .execute()
+  : []
+
+/*
+ * The newest version of each, in one query rather than one per workflow.
+ *
+ * A repository with thirty workflows is ordinary, and a query per row is how a
+ * list page becomes the slowest thing in a product.
+ */
+const workflowIds = workflows.map(row => Number(row.id))
+
+const versions = workflowIds.length > 0
+  ? await db
+      .selectFrom('workflow_versions')
+      .selectAll()
+      .where('workflow_id', 'in', workflowIds)
+      .orderBy('id', 'desc')
+      .execute()
+  : []
+
+const newest = new Map()
+
+for (const version of versions) {
+  const key = Number(version.workflow_id)
+
+  if (!newest.has(key))
+    newest.set(key, version)
+}
+
+/** `push`, `pull request`, `schedule`, ... in the words the interface uses. */
+function triggersOf(version) {
+  if (!version)
+    return []
+
+  const names = []
+
+  if (version.on_push)
+    names.push('push')
+  if (version.on_pull_request)
+    names.push('pull request')
+  if (version.on_pull_request_target)
+    names.push('pull request target')
+  if (String(version.schedules ?? '').trim())
+    names.push('schedule')
+  if (version.on_dispatch)
+    names.push('manual')
+  if (version.reusable)
+    names.push('called by another workflow')
+
+  return names
+}
+
+/**
+ * Why this workflow will not run, in words, or an empty list when it will.
+ *
+ * Every one of these renders as nothing on the runs list, which is the whole
+ * reason this page exists.
+ */
+function problemsOf(workflow, version) {
+  const problems = []
+
+  if (String(workflow.state) === 'removed')
+    problems.push('Its file is no longer on the default branch, so it has been retired. Restore the file and it runs again.')
+
+  if (String(workflow.state) === 'disabled')
+    problems.push('Somebody switched this workflow off. It stays off until it is switched back on, even if the file changes.')
+
+  if (!version)
+    problems.push('Nothing readable has been registered for it yet.')
+
+  const unsupported = String(version?.unsupported_events ?? '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+
+  if (unsupported.length > 0) {
+    problems.push(
+      `It also fires on ${unsupported.join(', ')}, which this instance recognises but does not dispatch yet. `
+      + 'Those events start nothing here.',
+    )
+  }
+
+  if (version && triggersOf(version).length === 0)
+    problems.push('None of its triggers start a run on this instance, so it will never run on its own.')
+
+  return problems
+}
+
+const rows = workflows.map((workflow) => {
+  const version = newest.get(Number(workflow.id)) ?? null
+
+  let inputs = []
+
+  try {
+    const declared = version?.dispatch_inputs ? JSON.parse(String(version.dispatch_inputs)) : []
+    inputs = Array.isArray(declared) ? declared : []
+  }
+  catch {
+    // A version whose inputs cannot be read still offers the button; the action
+    // accepts none, which runs the workflow with its own defaults.
+    inputs = []
+  }
+
+  return {
+    id: Number(workflow.id),
+    name: String(workflow.name ?? workflow.path ?? ''),
+    path: String(workflow.path ?? ''),
+    state: String(workflow.state ?? 'active'),
+    triggers: triggersOf(version),
+    problems: problemsOf(workflow, version),
+    dispatchable: String(workflow.state) === 'active' && version?.on_dispatch === true,
+    inputs,
+    updated: workflow.updated_at ? relativeTime(String(workflow.updated_at)) : '',
+    concurrency: String(version?.concurrency_group ?? ''),
+  }
+})
+
+/*
+ * Running one spends the instance's runners, so the button is shown to the
+ * people who may actually use it. The same ability the action checks, asked
+ * here rather than guessed: a page that offers a control the endpoint refuses
+ * teaches people the product is broken.
+ */
+const canDispatch = typeof repoAccess?.can === 'function' && repoAccess.can('workflow:dispatch')
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repoRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+      </div>
+    @else
+      <header class="repo-head">
+        <h1 class="repo-title">
+          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
+        </h1>
+        <p class="muted" style="margin-top: 6px;">
+          {{ rows.length }} {{ rows.length === 1 ? 'workflow' : 'workflows' }}
+        </p>
+      </header>
+
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="runs" />
+
+      <p class="muted" style="margin-top: 14px; font-size: 12.5px;">
+        <a href="{{ base }}/runs">Runs</a> shows what has happened. This page shows what is
+        registered, and why anything that will not run does not.
+      </p>
+
+      @if (rows.length === 0)
+        <div class="panel" style="padding: 28px; text-align: center; margin-top: 16px;">
+          <p class="muted">No workflows are registered.</p>
+          <p class="muted" style="margin-top: 6px; font-size: 13px;">
+            Add one under <code>.github/workflows</code> or <code>.reviewos/workflows</code> and push
+            it. They are read from the default branch, and <code>.reviewos/workflows</code> wins when
+            both exist.
+          </p>
+        </div>
+      @else
+        <div class="workflows">
+          @foreach (rows as workflow)
+            <section class="workflow panel">
+              <div class="workflow-head">
+                <div class="workflow-main">
+                  <h2 class="workflow-name">{{ workflow.name }}</h2>
+                  <p class="workflow-path muted"><code>{{ workflow.path }}</code></p>
+                </div>
+
+                <span class="badge badge-{{ workflow.state }}">{{ workflow.state }}</span>
+              </div>
+
+              <p class="workflow-meta muted">
+                @if (workflow.triggers.length > 0)
+                  Runs on {{ workflow.triggers.join(', ') }}
+                @else
+                  No trigger this instance dispatches
+                @endif
+                @if (workflow.concurrency)
+                  · concurrency <code>{{ workflow.concurrency }}</code>
+                @endif
+                @if (workflow.updated)
+                  · updated {{ workflow.updated }}
+                @endif
+              </p>
+
+              @foreach (workflow.problems as problem)
+                <p class="workflow-problem">{{ problem }}</p>
+              @endforeach
+
+              @if (workflow.dispatchable && canDispatch)
+                {{--
+                  Posted to the same public action the API and the CLI call. A
+                  control the interface has and the API does not is how a
+                  product grows a second, undocumented way to change its state.
+                --}}
+                <form method="post" action="/api/repos/workflows/dispatch" class="workflow-run">
+                  <CsrfField />
+                  <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                  <input type="hidden" name="repo" value="{{ repositoryName }}">
+                  <input type="hidden" name="workflow" value="{{ workflow.path }}">
+
+                  @foreach (workflow.inputs as input)
+                    <label class="workflow-input">
+                      <span class="workflow-input-name">
+                        {{ input.name }}
+                        @if (input.required)
+                          <span class="muted">required</span>
+                        @endif
+                      </span>
+
+                      @if (input.description)
+                        <span class="workflow-input-help muted">{{ input.description }}</span>
+                      @endif
+
+                      @if (input.type === 'choice')
+                        <select name="inputs[{{ input.name }}]">
+                          @foreach (input.options as option)
+                            <option value="{{ option }}" {{ option === input.default ? 'selected' : '' }}>{{ option }}</option>
+                          @endforeach
+                        </select>
+                      @elseif (input.type === 'boolean')
+                        <select name="inputs[{{ input.name }}]">
+                          <option value="false" {{ input.default === 'true' ? '' : 'selected' }}>false</option>
+                          <option value="true" {{ input.default === 'true' ? 'selected' : '' }}>true</option>
+                        </select>
+                      @else
+                        <input type="text" name="inputs[{{ input.name }}]" value="{{ input.default ?? '' }}">
+                      @endif
+                    </label>
+                  @endforeach
+
+                  <button class="button" type="submit">Run workflow</button>
+                </form>
+              @endif
+            </section>
+          @endforeach
+        </div>
+
+        <p class="muted" style="margin-top: 14px; font-size: 12.5px;">
+          Runs are recorded here and carried out by runners you provide. This instance does not
+          execute repository code itself.
+        </p>
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+  .workflows { display: grid; gap: 10px; margin-top: 16px; }
+  .workflow { padding: 16px 18px; }
+
+  .workflow-head { display: flex; align-items: flex-start; gap: 12px; }
+  .workflow-main { flex: 1; min-width: 0; }
+  .workflow-name { font-size: 15px; font-weight: 600; margin: 0; }
+  .workflow-path { font-size: 12.5px; margin: 3px 0 0; }
+  .workflow-meta { font-size: 12.5px; margin: 8px 0 0; }
+
+  /*
+   * The state as a word, not only as a colour: a reader who cannot tell two
+   * colours apart still has to be able to see that a workflow is off.
+   */
+  .badge {
+    flex: none;
+    font-size: 11.5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--muted);
+  }
+
+  .badge-active { color: var(--ok); border-color: var(--ok); }
+  .badge-disabled { color: var(--warn); border-color: var(--warn); }
+  .badge-removed { color: var(--muted); }
+
+  .workflow-problem {
+    margin: 8px 0 0;
+    font-size: 12.5px;
+    padding: 8px 12px;
+    border-left: 2px solid var(--warn);
+    background: var(--panel-2, transparent);
+  }
+
+  .workflow-run { display: grid; gap: 10px; margin-top: 14px; max-width: 420px; }
+  .workflow-input { display: grid; gap: 4px; font-size: 12.5px; }
+  .workflow-input-name { font-weight: 550; }
+  .workflow-input-help { font-size: 12px; }
+
+  .workflow-run input[type="text"],
+  .workflow-run select {
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-field, 8px);
+    background: var(--bg);
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+  }
+
+  .workflow-run button { justify-self: start; }
+</style>

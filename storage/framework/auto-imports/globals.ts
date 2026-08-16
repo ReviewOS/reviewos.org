@@ -73,8 +73,8 @@ declare global {
   const createReviewStore: typeof autoImports.createReviewStore
   const threadsAt: typeof autoImports.threadsAt
   const formatCount: typeof autoImports.formatCount
-  const relativeTime: typeof autoImports.relativeTime
-  const tokensFor: typeof autoImports.tokensFor
+  const relativeTimeAt: typeof autoImports.relativeTimeAt
+  const lineTokensFor: typeof autoImports.lineTokensFor
   const parseDiff: typeof autoImports.parseDiff
   const diffTotals: typeof autoImports.diffTotals
   const isGenerated: typeof autoImports.isGenerated
@@ -97,14 +97,6 @@ declare global {
   const renderAnnotations: typeof autoImports.renderAnnotations
   const requirementSummary: typeof autoImports.requirementSummary
   const combinedState: typeof autoImports.combinedState
-  const labelTextColor: typeof autoImports.labelTextColor
-  const highlightLines: typeof autoImports.highlightLines
-  const languageFor: typeof autoImports.languageFor
-  const buildStack: typeof autoImports.buildStack
-  const orphanReason: typeof autoImports.orphanReason
-  const orphanMessage: typeof autoImports.orphanMessage
-  const blockedBy: typeof autoImports.blockedBy
-  const stackSummary: typeof autoImports.stackSummary
   const refreshMergeability: typeof autoImports.refreshMergeability
   const renderDiffFile: typeof autoImports.renderDiffFile
   const highlightDiffFile: typeof autoImports.highlightDiffFile
@@ -169,6 +161,8 @@ declare global {
   const BLOB_WINDOW_LINES: typeof autoImports.BLOB_WINDOW_LINES
   const renderBlobRows: typeof autoImports.renderBlobRows
   const languageFor: typeof autoImports.languageFor
+  const languageRulesFor: typeof autoImports.languageRulesFor
+  const declaredLanguage: typeof autoImports.declaredLanguage
   const MAX_BLOB_BYTES: typeof autoImports.MAX_BLOB_BYTES
   const listFilter: typeof autoImports.listFilter
   const statesFor: typeof autoImports.statesFor

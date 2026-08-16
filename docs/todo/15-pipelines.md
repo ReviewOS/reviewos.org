@@ -261,8 +261,14 @@ written down here so it does not get relitigated:
 - [ ] `workflow_dispatch` inputs of every type Actions supports (string, boolean, choice, environment)
       and the interface form generated from them.
 
-      **The trigger works and the inputs are checked**; the generated form is what is left, so the
-      box stays open. `POST /api/repos/workflows/dispatch` starts a run from a workflow that names
+      **The trigger works, the inputs are checked, and the form is generated.** A repository's
+      workflows have a screen now (`/{owner}/{repository}/workflows`) which answers the question the
+      runs list cannot: *why did nothing happen at all*. A workflow whose file was deleted, one
+      somebody disabled, one whose only trigger is an event this instance does not dispatch, and one
+      that failed to parse all look identical from the runs list, which shows nothing in every case.
+      Each reason is written out in words - including `unsupported_events`, recorded at parse time
+      for exactly this and never shown anywhere until now - and the dispatch form is built from the
+      inputs the workflow declared, posting to the same public action the API and the CLI use. `POST /api/repos/workflows/dispatch` starts a run from a workflow that names
       `workflow_dispatch`, under a new `workflow:dispatch` ability (write, mapped to `checks:write`)
       - starting a run spends the instance's runners, so seeing a workflow is not permission to run
       it.

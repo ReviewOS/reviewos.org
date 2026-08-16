@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
+import { wantsHtml } from '../Auth/session'
 import { authorizeRepository } from '../Repo/authorize'
 import { resolveGroup } from './concurrency'
 import { checkInputs } from './inputs'
@@ -55,6 +56,7 @@ export default new Action({
         },
       },
     },
+    303: { description: 'A browser gets the run list back. The same action serves the interface, so it answers HTML callers with a redirect.' },
     ...REPOSITORY_ERRORS,
     409: { description: 'The workflow does not accept `workflow_dispatch`.' },
     422: { description: 'The inputs do not match what the workflow declared. Every problem is listed, not just the first.' },
@@ -174,6 +176,21 @@ export default new Action({
       .executeTakeFirst()
 
     await createJobsFor(Number(run?.id), Number(version.id))
+
+    /*
+     * A browser gets the run list back; a program gets the row.
+     *
+     * The workflows screen posts an ordinary form here rather than to a route
+     * of its own, for the reason `CancelWorkflowRunAction` gives: a control the
+     * interface has and the API does not is a second, undocumented way to
+     * change the instance's state. Without the redirect the reader lands on a
+     * page of JSON, which is a working feature that looks broken.
+     */
+    if (wantsHtml(request)) {
+      const owner = String(request.get('owner') ?? '')
+
+      return response.redirect(`/${owner}/${String(repository.name)}/runs`)
+    }
 
     return response.json({
       workflow_run: {
