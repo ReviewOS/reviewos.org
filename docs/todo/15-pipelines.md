@@ -161,8 +161,23 @@ written down here so it does not get relitigated:
       *every* file it changed is ignored: one source file among a hundred documentation changes is
       still a source change.
 
-      The events themselves are unchanged: `push`, `pull_request`, `schedule` and
-      `workflow_dispatch` dispatch, and the rest are recorded as recognised-but-not-dispatched.
+      **`pull_request` starts runs now**, which it did not: the trigger was stored on every version
+      and read by nothing, so a workflow that named it never ran - on a forge built around review,
+      which is the wrong trigger to be missing. `DispatchPullRequestRuns` listens on `pr:opened`,
+      `pr:synchronized` and `pr:ready_for_review`, with Actions' three default activity types when a
+      workflow names none, drafts skipped unless the workflow asks for `ready_for_review`, and
+      `branches:` filtering on the *base* branch - a workflow saying `branches: [main]` means "when
+      something is proposed into main", not "when the contributor's branch is called main".
+
+      Two things the fork policy decides, held by tests rather than by care:
+      **the definition comes from the base branch** - the dispatcher reads registered versions and
+      never parses anything from the head - and **a fork's run is recorded untrusted**, decided by
+      the head repository rather than by the branch name or who pushed.
+      `pull_request_target` is asked as its own question, so a workflow naming only `pull_request`
+      can never be started as the trigger behind the published secret-theft write-ups.
+
+      `schedule` and `workflow_dispatch` still do not dispatch, and the rest are recorded as
+      recognised-but-not-dispatched.
 - [ ] `jobs:` with `needs:`, `if:`, `strategy.matrix` including `include`, `exclude`, `fail-fast`,
       and `max-parallel`, plus `continue-on-error`, `timeout-minutes`, and `outputs`
 

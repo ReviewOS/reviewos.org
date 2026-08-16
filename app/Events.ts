@@ -48,7 +48,7 @@ export default {
    * somebody for a review is a message to that person, and a feed listing it
    * reports who is behind on what to anybody who scrolls.
    */
-  'pr:opened': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
+  'pr:opened': ['Notify', 'DispatchWebhooks', 'RecordActivity', 'DispatchPullRequestRuns'],
   /*
    * Webhooks only, for both of these, and that is the interesting part.
    *
@@ -63,8 +63,14 @@ export default {
    * not activity: a feed of "pushed again" entries buries the things somebody
    * would actually scroll to find.
    */
-  'pr:synchronized': ['DispatchWebhooks'],
-  'pr:ready_for_review': ['DispatchWebhooks'],
+  /*
+   * `DispatchPullRequestRuns` joins both of these, and it is the reason
+   * `on: pull_request` works at all: the trigger was stored on every version
+   * and read by nothing, so a workflow that named it never ran - on a forge
+   * built around review, which is the wrong trigger to be missing.
+   */
+  'pr:synchronized': ['DispatchWebhooks', 'DispatchPullRequestRuns'],
+  'pr:ready_for_review': ['DispatchWebhooks', 'DispatchPullRequestRuns'],
   /*
    * A check reported. Webhooks only, on the same reasoning and more so.
    *

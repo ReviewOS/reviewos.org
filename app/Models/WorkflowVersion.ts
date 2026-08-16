@@ -181,6 +181,20 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * The activity types a pull request workflow runs on.
+     *
+     * Empty means Actions' default - opened, synchronize, reopened - rather
+     * than "every type", which is the distinction that decides whether closing
+     * a pull request starts a run.
+     */
+    pull_request_types: {
+      order: 35,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
     pull_request_branches_ignore: {
       order: 33,
       fillable: true,

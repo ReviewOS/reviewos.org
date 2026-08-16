@@ -180,6 +180,114 @@ export function refName(ref: string): { kind: 'branch' | 'tag', name: string } |
   return null
 }
 
+export interface PullRequestVersionTriggers {
+  on_pull_request?: boolean | null
+  on_pull_request_target?: boolean | null
+  pull_request_branches?: string | null
+  pull_request_paths?: string | null
+  pull_request_branches_ignore?: string | null
+  pull_request_paths_ignore?: string | null
+  /** `types: [opened, synchronize]`, one per line. Empty means Actions' default three. */
+  pull_request_types?: string | null
+}
+
+export interface PullRequestEvent {
+  /**
+   * What happened to the pull request: `opened`, `synchronize`, `reopened`,
+   * `closed`, `ready_for_review`.
+   *
+   * Actions calls these activity types, and a workflow that names none gets
+   * the default three - which is why the default matters as much as the list.
+   */
+  activity: string
+  /** The branch the pull request would merge into, without `refs/heads/`. */
+  baseBranch: string
+  /** Paths the pull request changes. Empty when nothing is known about them. */
+  changed?: readonly string[]
+  /** Whether the head is a fork of this repository, which decides trust. */
+  fromFork?: boolean
+  /** A draft is not ready for review, and Actions does not run on it by default. */
+  draft?: boolean
+}
+
+/**
+ * The activity types Actions runs on when a workflow names none.
+ *
+ * Naming this rather than inlining it: a workflow that says `on: pull_request`
+ * with no `types` is the overwhelmingly common case, and the reason it does not
+ * run when somebody closes a pull request is this list rather than a bug.
+ */
+export const DEFAULT_PULL_REQUEST_ACTIVITIES = ['opened', 'synchronize', 'reopened'] as const
+
+/**
+ * Should this pull request event start a run of this version?
+ *
+ * The trust question is deliberately *not* here: this answers whether the
+ * workflow asked for the event, and `dispatchPullRequest` decides what the run
+ * is allowed to do. Mixing them would mean a fork check that a caller could
+ * forget, which is the shape of every published Actions breach.
+ */
+export function pullRequestStartsRun(
+  version: PullRequestVersionTriggers,
+  event: PullRequestEvent,
+  options: { target?: boolean } = {},
+): TriggerDecision {
+  const wanted = options.target ? version.on_pull_request_target : version.on_pull_request
+  const name = options.target ? 'pull_request_target' : 'pull_request'
+
+  if (!wanted)
+    return { run: false, reason: `the workflow does not trigger on ${name}` }
+
+  const activities = patternsFrom(version.pull_request_types ?? null)
+  const allowed = activities.length > 0 ? activities : [...DEFAULT_PULL_REQUEST_ACTIVITIES]
+
+  if (!allowed.includes(event.activity))
+    return { run: false, reason: `${name} ${event.activity} is not one of the activity types this workflow runs on` }
+
+  /*
+   * A draft is work in progress, and Actions does not run on it unless the
+   * workflow asks for `ready_for_review`. Running would burn a runner on every
+   * keystroke of somebody thinking out loud.
+   */
+  if (event.draft && !allowed.includes('ready_for_review'))
+    return { run: false, reason: 'the pull request is a draft' }
+
+  const branches = patternsFrom(version.pull_request_branches)
+  const branchesIgnore = patternsFrom(version.pull_request_branches_ignore)
+
+  /*
+   * The *base* branch, not the head.
+   *
+   * `branches:` on a pull request filters on where it is going, which is the
+   * opposite of the instinct: a workflow that says `branches: [main]` means
+   * "when something is proposed into main", not "when the contributor's branch
+   * is called main".
+   */
+  if (branchesIgnore.length > 0 && refMatches(branchesIgnore, event.baseBranch))
+    return { run: false, reason: `base branch ${event.baseBranch} is excluded by this workflow's branches-ignore` }
+
+  if (branches.length > 0 && !refMatches(branches, event.baseBranch))
+    return { run: false, reason: `base branch ${event.baseBranch} does not match this workflow's branch filter` }
+
+  const paths = patternsFrom(version.pull_request_paths)
+  const pathsIgnore = patternsFrom(version.pull_request_paths_ignore)
+
+  if (paths.length > 0 || pathsIgnore.length > 0) {
+    const changed = event.changed ?? []
+
+    if (changed.length === 0)
+      return { run: true, reason: 'nothing is known about what this pull request changes, and the workflow filters on paths' }
+
+    if (pathsIgnore.length > 0 && changed.every(path => pathsMatch(pathsIgnore, [path])))
+      return { run: false, reason: 'everything this pull request changes is excluded by paths-ignore' }
+
+    if (paths.length > 0 && !pathsMatch(paths, changed))
+      return { run: false, reason: 'nothing this pull request changes matches the path filter' }
+  }
+
+  return { run: true, reason: `${name} ${event.activity} into ${event.baseBranch}` }
+}
+
 /**
  * Should this push start a run of this workflow version?
  *

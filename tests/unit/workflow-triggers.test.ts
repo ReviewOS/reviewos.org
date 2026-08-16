@@ -7,7 +7,7 @@
 // where the wrong answer is silent.
 
 import { describe, expect, test } from 'bun:test'
-import { globMatches, pathsMatch, patternsFrom, pushStartsRun, refMatches, refName } from '../../app/Actions/Workflow/triggers'
+import { globMatches, pathsMatch, patternsFrom, pushStartsRun, refMatches, refName, pullRequestStartsRun } from '../../app/Actions/Workflow/triggers'
 
 describe('globMatches', () => {
   /*
@@ -279,5 +279,79 @@ describe('paths-ignore', () => {
 
     expect(pushStartsRun(version, { ref: 'refs/heads/main', changed: ['app/thing.ts'] }).run).toBe(true)
     expect(pushStartsRun(version, { ref: 'refs/heads/main', changed: ['docs/guide.md'] }).run).toBe(false)
+  })
+})
+
+describe('a pull request', () => {
+  const version = { on_pull_request: true }
+
+  test('runs on the three activity types Actions defaults to', () => {
+    // A workflow that says `on: pull_request` with no `types` is the
+    // overwhelmingly common case, and the reason closing one does not start a
+    // run is this default rather than a bug.
+    for (const activity of ['opened', 'synchronize', 'reopened'])
+      expect(pullRequestStartsRun(version, { activity, baseBranch: 'main' }).run).toBe(true)
+
+    expect(pullRequestStartsRun(version, { activity: 'closed', baseBranch: 'main' }).run).toBe(false)
+    expect(pullRequestStartsRun(version, { activity: 'labeled', baseBranch: 'main' }).run).toBe(false)
+  })
+
+  test('and on the ones it names instead, when it names any', () => {
+    const named = { on_pull_request: true, pull_request_types: 'closed' }
+
+    expect(pullRequestStartsRun(named, { activity: 'closed', baseBranch: 'main' }).run).toBe(true)
+    expect(pullRequestStartsRun(named, { activity: 'opened', baseBranch: 'main' }).run).toBe(false)
+  })
+
+  /*
+   * `branches:` on a pull request filters on where it is *going*, which is the
+   * opposite of the instinct. A workflow saying `branches: [main]` means "when
+   * something is proposed into main", not "when the contributor's branch is
+   * called main".
+   */
+  test('filters on the base branch rather than the head', () => {
+    const toMain = { on_pull_request: true, pull_request_branches: 'main' }
+
+    expect(pullRequestStartsRun(toMain, { activity: 'opened', baseBranch: 'main' }).run).toBe(true)
+    expect(pullRequestStartsRun(toMain, { activity: 'opened', baseBranch: 'next' }).run).toBe(false)
+  })
+
+  test('and the ignore form works the same way round', () => {
+    const notNext = { on_pull_request: true, pull_request_branches_ignore: 'next' }
+
+    expect(pullRequestStartsRun(notNext, { activity: 'opened', baseBranch: 'main' }).run).toBe(true)
+    expect(pullRequestStartsRun(notNext, { activity: 'opened', baseBranch: 'next' }).run).toBe(false)
+  })
+
+  test('a draft does not run unless the workflow asked for ready_for_review', () => {
+    // Running would burn a runner on every keystroke of somebody thinking out
+    // loud in public.
+    expect(pullRequestStartsRun(version, { activity: 'opened', baseBranch: 'main', draft: true }).run).toBe(false)
+
+    const ready = { on_pull_request: true, pull_request_types: 'opened\nready_for_review' }
+
+    expect(pullRequestStartsRun(ready, { activity: 'ready_for_review', baseBranch: 'main', draft: true }).run).toBe(true)
+  })
+
+  test('paths and paths-ignore behave as they do for a push', () => {
+    const ignoring = { on_pull_request: true, pull_request_paths_ignore: 'docs/**' }
+
+    expect(pullRequestStartsRun(ignoring, { activity: 'opened', baseBranch: 'main', changed: ['docs/a.md'] }).run).toBe(false)
+    expect(pullRequestStartsRun(ignoring, { activity: 'opened', baseBranch: 'main', changed: ['docs/a.md', 'app/b.ts'] }).run).toBe(true)
+  })
+
+  /*
+   * The two are the same event with the opposite trust, so a workflow gets
+   * asked about each separately. A workflow that names only `pull_request` must
+   * never be started as `pull_request_target`, which is the trigger behind most
+   * published Actions secret-theft write-ups.
+   */
+  test('and pull_request_target is a separate question with the same shape', () => {
+    expect(pullRequestStartsRun(version, { activity: 'opened', baseBranch: 'main' }, { target: true }).run).toBe(false)
+
+    const targeted = { on_pull_request_target: true }
+
+    expect(pullRequestStartsRun(targeted, { activity: 'opened', baseBranch: 'main' }, { target: true }).run).toBe(true)
+    expect(pullRequestStartsRun(targeted, { activity: 'opened', baseBranch: 'main' }).run).toBe(false)
   })
 })

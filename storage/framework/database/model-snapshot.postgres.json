@@ -8057,6 +8057,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "pull_request_types",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
           }
         ],
         "indexes": [
@@ -9343,7 +9352,7 @@
       }
     ]
   },
-  "hash": "aafce101a34e16d9c2bfd5a5083fc1fef1648c2802d69e600db99ac4e536b512",
+  "hash": "7ff965374781677822a5b87d6013f25507cc1258f758d65b58b3b03c6d60925a",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T15:50:47.977Z"
+  "updatedAt": "2026-08-16T16:01:05.134Z"
 }
