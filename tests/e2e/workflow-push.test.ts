@@ -788,4 +788,123 @@ jobs:
     expect(byId.get('only-main').state).toBe('queued')
     expect(String(byId.get('only-main').condition)).toBe("github.ref_name == 'main'")
   }, 30_000)
+
+  /*
+   * A reusable workflow: a job that `uses:` another workflow has no steps of
+   * its own, and what runs is the called workflow's jobs, copied into the same
+   * run under the caller's name.
+   */
+  test('a called workflow\'s jobs are copied into the calling run', async () => {
+    if (!available)
+      return
+
+    await push('.reviewos/workflows/build.yml', `name: Build
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        default: staging
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make
+  package:
+    runs-on: ubuntu-latest
+    needs: compile
+    steps:
+      - run: make package
+`)
+
+    await push('.reviewos/workflows/release.yml', `name: Release
+on:
+  push:
+    paths:
+      - 'release/**'
+jobs:
+  build:
+    uses: ./.reviewos/workflows/build.yml
+    with:
+      environment: production
+  announce:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - run: ./announce
+`)
+
+    await push('release/go.txt', 'go\n')
+
+    const jobsFor = async (): Promise<any[]> => db
+      .selectFrom('workflow_jobs')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select([
+        'workflow_jobs.job_id as job_id',
+        'workflow_jobs.name as name',
+        'workflow_jobs.state as state',
+        'workflow_jobs.condition_reason as condition_reason',
+      ])
+      .where('workflows.path', '=', '.reviewos/workflows/release.yml')
+      .orderBy('workflow_jobs.id')
+      .execute()
+
+    const jobs = await waitFor(jobsFor, (rows: any[]) => rows.length >= 3)
+    const ids = jobs.map((job: any) => job.job_id)
+
+    // The caller's own job, and the called workflow's two under its name.
+    expect(ids).toContain('announce')
+    expect(ids).toContain('build/compile')
+    expect(ids).toContain('build/package')
+
+    /*
+     * Named the way Actions names them, so a run list reads as a pipeline. The
+     * second half is the called job's own name, which is its id when the file
+     * gave it none - a called workflow does not get a title it never wrote.
+     */
+    expect(jobs.find((job: any) => job.job_id === 'build/compile').name).toBe('build / compile')
+
+    // And the calling job itself is not a row: it has nothing to run.
+    expect(ids).not.toContain('build')
+  }, 30_000)
+
+  /*
+   * A call that cannot be resolved becomes one skipped row carrying the reason,
+   * rather than nothing at all. A run that silently misses half its pipeline is
+   * the failure people spend an afternoon on.
+   */
+  test('a call to a workflow that does not accept one is skipped, with the reason', async () => {
+    if (!available)
+      return
+
+    await push('.reviewos/workflows/broken-call.yml', `name: Broken call
+on:
+  push:
+    paths:
+      - 'broken/**'
+jobs:
+  build:
+    uses: ./.reviewos/workflows/ci.yml
+`)
+
+    await push('broken/go.txt', 'go\n')
+
+    const jobsFor = async (): Promise<any[]> => db
+      .selectFrom('workflow_jobs')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_jobs.state as state', 'workflow_jobs.condition_reason as condition_reason'])
+      .where('workflows.path', '=', '.reviewos/workflows/broken-call.yml')
+      .execute()
+
+    const jobs = await waitFor(jobsFor, (rows: any[]) => rows.length >= 1)
+
+    expect(jobs[0].state).toBe('skipped')
+    // `ci.yml` is a real workflow that never offered itself as an interface,
+    // and calling one that did not is how a pipeline nobody read gets run.
+    expect(String(jobs[0].condition_reason)).toContain('workflow_call')
+  }, 30_000)
 })

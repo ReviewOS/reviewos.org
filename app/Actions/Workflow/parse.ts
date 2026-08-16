@@ -64,6 +64,24 @@ export interface WorkflowJob {
   if: string | null
   timeoutMinutes: number | null
   env: Record<string, string>
+  /**
+   * `uses:` at the job level: this job *is* another workflow.
+   *
+   * A job with `uses` has no steps of its own - the called workflow's jobs are
+   * what run - so it is a different kind of job rather than a job with an
+   * unusual step, and it is kept as its own field for that reason.
+   */
+  uses: string | null
+  /** `with:` for a called workflow's inputs, as written. */
+  withInputs: Record<string, unknown>
+  /**
+   * `secrets:` on a call: either a mapping, or the word `inherit`.
+   *
+   * `inherit` is stored as the word rather than expanded here. Expanding it
+   * would mean deciding *at parse time* what a run may read, and by the threat
+   * model that decision belongs after the fork check.
+   */
+  secrets: unknown
   /** `permissions:` on the job, as written. Replaces the workflow's, never adds. */
   permissions: unknown
   /**
@@ -159,6 +177,18 @@ export interface WorkflowTriggers {
   dispatchInputs: WorkflowDispatchInput[]
   /** `workflow_call`: startable only by another workflow, never by an event. */
   reusable: boolean
+  /**
+   * What a caller may pass, and what it gets back.
+   *
+   * The inputs reuse `workflow_dispatch`'s shape: they are the same idea with
+   * the same four types, and giving them a second shape would mean two
+   * validators that have to agree forever.
+   */
+  callInputs: WorkflowDispatchInput[]
+  /** Output names a caller can read, with the expression each is bound to. */
+  callOutputs: Array<{ name: string, description: string, value: string }>
+  /** Secret names the called workflow declares it needs. */
+  callSecrets: Array<{ name: string, description: string, required: boolean }>
   /**
    * Events that are real Actions triggers this instance does not dispatch on
    * yet. Recorded rather than rejected: a workflow that also fires on `push`
@@ -373,6 +403,9 @@ function triggersFrom(value: unknown): WorkflowTriggers {
     dispatch: false,
     dispatchInputs: [],
     reusable: false,
+    callInputs: [],
+    callOutputs: [],
+    callSecrets: [],
     unsupported: [],
   }
 
@@ -416,6 +449,17 @@ function triggersFrom(value: unknown): WorkflowTriggers {
     if (name === 'workflow_dispatch') {
       triggers.dispatch = true
       triggers.dispatchInputs = dispatchInputsFrom(asRecord(body)?.inputs)
+      continue
+    }
+
+    if (name === 'workflow_call') {
+      triggers.reusable = true
+
+      const call = asRecord(body) ?? {}
+
+      triggers.callInputs = dispatchInputsFrom(call.inputs)
+      triggers.callOutputs = callOutputsFrom(call.outputs)
+      triggers.callSecrets = callSecretsFrom(call.secrets)
       continue
     }
 
@@ -474,6 +518,44 @@ export function dispatchInputsFrom(value: unknown): WorkflowDispatchInput[] {
   }
 
   return inputs
+}
+
+/** `workflow_call.outputs`: a name, a description, and the expression behind it. */
+export function callOutputsFrom(value: unknown): Array<{ name: string, description: string, value: string }> {
+  const record = asRecord(value)
+
+  if (!record)
+    return []
+
+  return Object.entries(record).map(([name, body]) => {
+    const definition = asRecord(body) ?? {}
+
+    return {
+      name,
+      description: typeof definition.description === 'string' ? definition.description : '',
+      // Stored as written. It is an expression over the called workflow's jobs,
+      // and it can only be evaluated once they have run.
+      value: typeof definition.value === 'string' ? definition.value : '',
+    }
+  })
+}
+
+/** `workflow_call.secrets`: names the called workflow says it needs. */
+export function callSecretsFrom(value: unknown): Array<{ name: string, description: string, required: boolean }> {
+  const record = asRecord(value)
+
+  if (!record)
+    return []
+
+  return Object.entries(record).map(([name, body]) => {
+    const definition = asRecord(body) ?? {}
+
+    return {
+      name,
+      description: typeof definition.description === 'string' ? definition.description : '',
+      required: definition.required === true,
+    }
+  })
 }
 
 /**
@@ -666,7 +748,14 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
     }
 
     const runsOn = runsOnFrom(body['runs-on'])
-    if (runsOn.length === 0) {
+    const callsAnother = typeof body.uses === 'string' && body.uses.length > 0
+
+    /*
+     * A job that calls another workflow has no `runs-on`, and requiring one
+     * refused every reusable-workflow caller ever written. Its jobs run on
+     * whatever the *called* workflow says, which is the point of calling it.
+     */
+    if (runsOn.length === 0 && !callsAnother) {
       errors.push({
         line: jobLine,
         message: `Job \`${id}\` does not say what it runs on`,
@@ -766,6 +855,9 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       if: typeof body.if === 'string' ? body.if : null,
       timeoutMinutes: typeof timeout === 'number' && Number.isFinite(timeout) ? timeout : null,
       env: asStringMap(body.env),
+      uses: typeof body.uses === 'string' && body.uses.length > 0 ? body.uses : null,
+      withInputs: asRecord(body.with) ?? {},
+      secrets: body.secrets ?? null,
       permissions: body.permissions ?? null,
       defaults: defaultsFrom(body.defaults),
       concurrency: concurrencyFrom(body.concurrency),

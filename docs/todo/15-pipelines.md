@@ -345,7 +345,13 @@ written down here so it does not get relitigated:
       Step-level `env` is stored and applied when a step runs, so the job's answer stays one answer
       rather than one per step. Secrets are not in this and never will be: they are resolved at
       injection time, after the fork check, and never written to a row.
-- [ ] `secrets:` on `workflow_call`, including `inherit`
+- [x] `secrets:` on `workflow_call`, including `inherit`.
+
+      Declared by the called workflow, passed by the caller, and **recorded rather than resolved**.
+      `inherit` stays the word it was written as: expanding it here would decide what a run may
+      read before the fork check has happened, and by [the threat
+      model](../ci-threat-model.md) that decision belongs at injection - a fork's pull request gets
+      no secrets whatever any `secrets:` line says.
 - [ ] `workflow_dispatch` inputs of every type Actions supports (string, boolean, choice, environment)
       and the interface form generated from them.
 
@@ -378,7 +384,36 @@ written down here so it does not get relitigated:
 - [ ] `environment:` on a job, wired to phase 9's deployment environments and their protection rules,
       including required reviewers and wait timers
 - [ ] Reusable workflows via `uses:` at job level, local and cross-repository, with inputs, secrets,
-      and outputs, and the called workflow's jobs shown in the run rather than collapsed to one box
+      and outputs, and the called workflow's jobs shown in the run rather than collapsed to one box.
+
+      **Local calls work.** A job that `uses: ./.reviewos/workflows/build.yml` becomes that
+      workflow's jobs, copied into the same run and named `build / compile` the way Actions names
+      them, so one run still shows everything that happened. The calling job is not a row of its
+      own: it has nothing to run. Inputs are checked against what the called workflow declares,
+      reusing the `workflow_dispatch` validator rather than growing a second one that would have to
+      agree with it forever.
+
+      Three refusals, each recorded as a skipped job carrying its reason rather than as silence,
+      because a run that quietly misses half its pipeline is the failure people spend an afternoon
+      on:
+
+      - **A workflow that did not say `workflow_call` cannot be called**, even though its jobs would
+        copy in perfectly well. Calling one runs a pipeline its author never offered as an
+        interface.
+      - **A cycle** is caught by the trail rather than by the depth limit, which would otherwise let
+        one go round three times first - and three copies of a pipeline is worse than none, since
+        somebody has to work out which was real.
+      - **Nesting deeper than four levels** stops there, the same limit Actions has and for the same
+        reason a stack has one.
+
+      What is left is cross-repository calls, which need a policy about which repositories may be
+      called and a way to read a version this instance may not hold. Refused with a clear reason for
+      now rather than half done. Outputs are stored as written and are not yet readable by a caller,
+      which needs the jobs to have run.
+
+      Found while writing the test for this: **the parser refused every reusable-workflow caller**,
+      because a calling job has no `runs-on` and the validator required one. Its jobs run on
+      whatever the called workflow says, which is the point of calling it.
 - [ ] Composite actions, JavaScript actions, and Docker actions, all three, because a repository's
       dependency tree contains all three whether or not its own workflows do
 

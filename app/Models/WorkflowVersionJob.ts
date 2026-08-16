@@ -177,6 +177,42 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * `uses:` - this job is another workflow rather than a list of steps.
+     *
+     * Stored on the job because that is where it is written, and read at
+     * dispatch, which is where the called workflow's jobs are copied into the
+     * run.
+     */
+    uses: {
+      order: 39,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
+    /** `with:` for the call, as JSON. */
+    call_with: {
+      order: 40,
+      fillable: true,
+      validation: { rule: schema.string().max(16_000) },
+      factory: () => null,
+    },
+
+    /**
+     * `secrets:` for the call: a mapping, or the word `inherit`.
+     *
+     * Kept as written. Expanding `inherit` at parse time would decide what a
+     * run may read before the fork check has happened, and by the threat model
+     * that decision belongs at injection.
+     */
+    call_secrets: {
+      order: 41,
+      fillable: true,
+      validation: { rule: schema.string().max(8000) },
+      factory: () => null,
+    },
+
     timeout_minutes: {
       order: 8,
       fillable: true,

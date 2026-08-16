@@ -362,6 +362,35 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * What a caller may pass this workflow, and what it gets back, as JSON.
+     *
+     * Only meaningful on a version whose `on:` names `workflow_call`. Stored
+     * with the version because a caller resolves against the *called
+     * workflow's registered definition*, not against whatever its file says
+     * today - the same rule the fork policy applies to a pull request.
+     */
+    call_inputs: {
+      order: 49,
+      fillable: true,
+      validation: { rule: schema.string().max(16_000) },
+      factory: () => null,
+    },
+
+    call_outputs: {
+      order: 50,
+      fillable: true,
+      validation: { rule: schema.string().max(16_000) },
+      factory: () => null,
+    },
+
+    call_secrets: {
+      order: 51,
+      fillable: true,
+      validation: { rule: schema.string().max(8000) },
+      factory: () => null,
+    },
+
     /** Cron expressions, one per line. */
     schedules: {
       order: 15,

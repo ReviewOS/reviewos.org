@@ -8188,6 +8188,30 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 500
+          },
+          {
+            "name": "call_inputs",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "call_outputs",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "call_secrets",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8385,6 +8409,31 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 500
+          },
+          {
+            "name": "uses",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
+          },
+          {
+            "name": "call_with",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "call_secrets",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -9628,7 +9677,7 @@
       }
     ]
   },
-  "hash": "b08753968ec72cd4490b4248efd87954bda67e0c0d5d1648d8c2ef3d61b15329",
+  "hash": "cf317e07edeca816a800c9eddc91380068079e2afd9add0d71026e6ad6a1daa4",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T22:13:51.820Z"
+  "updatedAt": "2026-08-16T23:31:56.881Z"
 }

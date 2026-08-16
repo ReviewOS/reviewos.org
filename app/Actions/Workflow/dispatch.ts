@@ -25,6 +25,7 @@ import { resolveGroup } from './concurrency'
 import { shouldRun } from './expression'
 import type { SubjectEventName } from './triggers'
 import { subjectStartsRun } from './triggers'
+import { MAX_CALL_DEPTH, resolveCall } from './reusable'
 import type { PullRequestEvent, PushEvent } from './triggers'
 import { pullRequestStartsRun, pushStartsRun } from './triggers'
 
@@ -519,21 +520,51 @@ export async function createJobsForRun(
   await createJobs(runId, versionId, context)
 }
 
-async function createJobs(runId: number, versionId: number, context?: ConcurrencyContext): Promise<void> {
+async function createJobs(
+  runId: number,
+  versionId: number,
+  context?: ConcurrencyContext,
+  call: { prefix?: string, depth?: number, trail?: number[] } = {},
+): Promise<void> {
   const definition: any[] = await db
     .selectFrom('workflow_version_jobs')
     .select([
       'job_id', 'name', 'position', 'runs_on', 'needs', 'matrix',
       'concurrency_group', 'job_cancel_in_progress', 'condition',
+      'uses', 'call_with',
     ])
     .where('workflow_version_id', '=', versionId)
     .orderBy('position')
     .execute()
 
+  const depth = call.depth ?? 0
+  const trail = call.trail ?? [versionId]
+  const prefix = call.prefix ?? ''
+
   let position = 0
 
   for (const job of definition) {
     const needs = String(job.needs ?? '').trim()
+
+    /*
+     * A job that `uses:` another workflow has no steps of its own: what runs is
+     * the called workflow's jobs, copied into this same run under the caller's
+     * name. One run still shows everything that happened, which is what a
+     * person reading a failed pipeline needs.
+     */
+    if (job.uses) {
+      await expandCall({
+        runId,
+        repositoryId: await repositoryOf(runId),
+        job,
+        context,
+        depth,
+        trail,
+        prefix,
+      })
+
+      continue
+    }
 
     /*
      * One row per matrix combination.
@@ -583,14 +614,17 @@ async function createJobs(runId: number, versionId: number, context?: Concurrenc
         .insertInto('workflow_jobs')
         .values({
           workflow_run_id: runId,
-          job_id: job.job_id,
+          // Prefixed when this job came from a called workflow, so two
+          // workflows that both have a `build` are two rows rather than one
+          // collision.
+          job_id: prefix ? `${prefix}/${job.job_id}` : job.job_id,
           concurrency_group: group,
           condition: job.condition ?? null,
           condition_reason: job.condition ? decision.reason : null,
           // Actions' shape: `test (ubuntu-latest, 20)`. The values without
           // their keys, because that is what fits in a job list and what
           // somebody scanning a failed run already recognises.
-          name: values ? `${job.name ?? job.job_id} (${labelFor(values)})` : job.name,
+          name: callName(prefix, values ? `${job.name ?? job.job_id} (${labelFor(values)})` : (job.name ?? job.job_id)),
           position: position++,
           state: !decision.run
             ? 'skipped'
@@ -605,6 +639,105 @@ async function createJobs(runId: number, versionId: number, context?: Concurrenc
       await supersedeJobs(runId, Number(created?.id), group, job.job_cancel_in_progress === true)
     }
   }
+}
+
+/**
+ * Copy a called workflow's jobs into this run.
+ *
+ * A call that cannot be resolved becomes one `skipped` row carrying the reason,
+ * rather than nothing at all: a run that silently misses half its pipeline is
+ * the failure people spend an afternoon on, and the reason is the only thing
+ * that can ever explain it.
+ */
+async function expandCall(input: {
+  runId: number
+  repositoryId: number
+  job: any
+  context?: ConcurrencyContext
+  depth: number
+  trail: number[]
+  prefix: string
+}): Promise<void> {
+  const { runId, repositoryId, job, context, depth, trail, prefix } = input
+  const name = prefix ? `${prefix}/${job.job_id}` : String(job.job_id)
+
+  const record = async (reason: string): Promise<void> => {
+    await db
+      .insertInto('workflow_jobs')
+      .values({
+        workflow_run_id: runId,
+        job_id: name,
+        name: callName(prefix, String(job.name ?? job.job_id)),
+        position: 9000,
+        state: 'skipped',
+        needs: job.needs,
+        runs_on: job.runs_on,
+        condition_reason: reason,
+      } as any)
+      .execute()
+  }
+
+  if (depth >= MAX_CALL_DEPTH) {
+    await record(`workflow calls are nested more than ${MAX_CALL_DEPTH} deep, which is where this stops following them`)
+    return
+  }
+
+  const resolved = await resolveCall(repositoryId, String(job.uses), parseWith(job.call_with))
+
+  if (!resolved.ok || !resolved.target) {
+    await record(resolved.error ?? 'this call could not be resolved')
+    return
+  }
+
+  /*
+   * A cycle is caught by the trail rather than by the depth limit, because the
+   * limit would let one go round three times first - and three copies of a
+   * pipeline is worse than none, since somebody has to work out which was
+   * real.
+   */
+  if (trail.includes(resolved.target.versionId)) {
+    await record(`\`${resolved.target.path}\` calls itself, directly or through another workflow`)
+    return
+  }
+
+  await createJobs(runId, resolved.target.versionId, context, {
+    prefix: name,
+    depth: depth + 1,
+    trail: [...trail, resolved.target.versionId],
+  })
+}
+
+/** `deploy / build`, the way Actions names a called workflow's job. */
+function callName(prefix: string, name: string): string {
+  return prefix ? `${prefix} / ${name}` : name
+}
+
+/** The `with:` a call passes, from its stored JSON. */
+function parseWith(stored: unknown): Record<string, unknown> {
+  const text = String(stored ?? '').trim()
+
+  if (!text)
+    return {}
+
+  try {
+    const parsed = JSON.parse(text)
+
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  }
+  catch {
+    return {}
+  }
+}
+
+/** The repository a run belongs to, for resolving a call against it. */
+async function repositoryOf(runId: number): Promise<number> {
+  const run: any = await db
+    .selectFrom('workflow_runs')
+    .select(['repository_id'])
+    .where('id', '=', runId)
+    .executeTakeFirst()
+
+  return Number(run?.repository_id ?? 0)
 }
 
 /**
