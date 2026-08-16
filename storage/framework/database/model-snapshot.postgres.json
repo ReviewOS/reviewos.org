@@ -8134,6 +8134,60 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 500
+          },
+          {
+            "name": "on_issues",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "issue_types",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
+          },
+          {
+            "name": "on_issue_comment",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "issue_comment_types",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
+          },
+          {
+            "name": "on_release",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "release_types",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
           }
         ],
         "indexes": [
@@ -9574,7 +9628,7 @@
       }
     ]
   },
-  "hash": "b91ca5a2eb52994f9eff86893a7203824aab7a46f4b38d4f5a54ec317e8fbf84",
+  "hash": "b08753968ec72cd4490b4248efd87954bda67e0c0d5d1648d8c2ef3d61b15329",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T20:58:30.422Z"
+  "updatedAt": "2026-08-16T22:13:51.820Z"
 }

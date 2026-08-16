@@ -310,6 +310,58 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * The issue and release triggers, with the activity types each names.
+     *
+     * One column per event rather than a shared table: they are read together
+     * with the version, always, and a workflow triggering on issues is rare
+     * enough that three nullable columns cost less than a join.
+     */
+    on_issues: {
+      order: 43,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    issue_types: {
+      order: 44,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
+    on_issue_comment: {
+      order: 45,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    issue_comment_types: {
+      order: 46,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
+    on_release: {
+      order: 47,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    release_types: {
+      order: 48,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
     /** Cron expressions, one per line. */
     schedules: {
       order: 15,

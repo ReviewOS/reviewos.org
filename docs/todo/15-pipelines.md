@@ -191,6 +191,22 @@ written down here so it does not get relitigated:
       rather than firing immediately, and a sweep after downtime looks back at most six hours - an
       instance that was off for a week should produce one catch-up run, not seven.
 
+      **`issues`, `issue_comment` and `release` dispatch too**, which was wiring rather than
+      anything new: this instance has emitted those events since
+      [phase 5](./05-notifications.md) and nothing had ever read them for CI. Labelling a new issue
+      and publishing on a release are the two things people automate first.
+
+      Their filters are `types:` and nothing else - there is no branch on an issue and no path on a
+      release. `issues` and `issue_comment` take Actions' defaults (every type, and
+      created/edited/deleted). **`release` deliberately defaults to `published` only**, where
+      Actions defaults to every type: a draft release starting a deployment is the surprise nobody
+      wants, and `published` is what people mean when they write `on: release`. Naming the types
+      opts back in.
+
+      The subject goes in the run's ref - `refs/heads/main#issues/7/opened` - because the redelivery
+      index is on (version, ref, head, event) and every issue event in a repository shares a head
+      commit. Without it the second issue would look like the first one redelivered.
+
       The rest are recorded as recognised-but-not-dispatched.
 - [ ] `jobs:` with `needs:`, `if:` (**decided at dispatch now** - a job whose condition is false is
       `skipped` from the moment the run exists, with the reason on the row, rather than queued and

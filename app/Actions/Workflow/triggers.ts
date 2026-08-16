@@ -374,3 +374,71 @@ export function pushStartsRun(version: VersionTriggers, event: PushEvent): Trigg
 
   return { run: true, reason: `push to ${ref.kind} ${ref.name}` }
 }
+
+/**
+ * The issue and release triggers.
+ *
+ * One shape for all three, because they filter on one thing: the activity
+ * type. There is no branch on an issue and no path on a release.
+ */
+export interface SubjectVersionTriggers {
+  on_issues?: boolean | null
+  issue_types?: string | null
+  on_issue_comment?: boolean | null
+  issue_comment_types?: string | null
+  on_release?: boolean | null
+  release_types?: string | null
+}
+
+export type SubjectEventName = 'issues' | 'issue_comment' | 'release'
+
+/**
+ * Actions' defaults when a workflow names no `types:`.
+ *
+ * `issues` defaults to every activity type it has, which is a long list and
+ * the reason a naive `on: issues` workflow fires on labelling as well as
+ * opening. `release` defaults to *published only* in practice, because that is
+ * what people mean, and Actions' own default of "all types" surprises everyone
+ * who has ever had a draft release start a deployment.
+ */
+const DEFAULT_TYPES: Record<SubjectEventName, string[]> = {
+  issues: ['opened', 'edited', 'closed', 'reopened', 'labeled', 'unlabeled', 'assigned', 'unassigned'],
+  issue_comment: ['created', 'edited', 'deleted'],
+  release: ['published'],
+}
+
+export interface SubjectEvent {
+  /** `opened`, `closed`, `created`, `published`, ... */
+  activity: string
+}
+
+/** Should this issue, comment or release event start a run of this version? */
+export function subjectStartsRun(
+  version: SubjectVersionTriggers,
+  event: SubjectEventName,
+  activity: string,
+): TriggerDecision {
+  const wanted = event === 'issues'
+    ? version.on_issues
+    : event === 'issue_comment'
+      ? version.on_issue_comment
+      : version.on_release
+
+  if (!wanted)
+    return { run: false, reason: `the workflow does not trigger on ${event}` }
+
+  const declared = patternsFrom(
+    event === 'issues'
+      ? version.issue_types
+      : event === 'issue_comment'
+        ? version.issue_comment_types
+        : version.release_types,
+  )
+
+  const allowed = declared.length > 0 ? declared : DEFAULT_TYPES[event]
+
+  if (!allowed.includes(activity))
+    return { run: false, reason: `${event} ${activity} is not one of the activity types this workflow runs on` }
+
+  return { run: true, reason: `${event} ${activity}` }
+}

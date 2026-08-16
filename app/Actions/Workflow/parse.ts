@@ -136,6 +136,16 @@ export interface WorkflowTriggers {
    * without losing the one fact the fork policy needs.
    */
   pullRequestTarget: TriggerFilter | null
+  /**
+   * `issues`, `issue_comment` and `release`.
+   *
+   * The filters they carry are `types:` and nothing else - there is no branch
+   * or path to filter on when the subject is an issue - so they share the
+   * shape and use one field of it.
+   */
+  issues: TriggerFilter | null
+  issueComment: TriggerFilter | null
+  release: TriggerFilter | null
   /** Cron expressions, unvalidated here beyond being strings. */
   schedule: string[]
   /** Whether a person or the API may start this workflow directly. */
@@ -223,6 +233,11 @@ const STEP_KEYS = new Set([
 /** The events this instance can start a run from today. */
 const DISPATCHED_EVENTS = new Set([
   'push', 'pull_request', 'pull_request_target', 'schedule', 'workflow_dispatch',
+  // The issue and release triggers, which this instance already emits events
+  // for. A workflow that labels a new issue or publishes on a release is one of
+  // the two things people automate first, and there was no reason beyond
+  // wiring for them to sit in the unsupported list.
+  'issues', 'issue_comment', 'release',
 ])
 
 /**
@@ -351,6 +366,9 @@ function triggersFrom(value: unknown): WorkflowTriggers {
     push: null,
     pullRequest: null,
     pullRequestTarget: null,
+    issues: null,
+    issueComment: null,
+    release: null,
     schedule: [],
     dispatch: false,
     dispatchInputs: [],
@@ -365,6 +383,12 @@ function triggersFrom(value: unknown): WorkflowTriggers {
       triggers.pullRequest = filter
     else if (name === 'pull_request_target')
       triggers.pullRequestTarget = filter
+    else if (name === 'issues')
+      triggers.issues = filter
+    else if (name === 'issue_comment')
+      triggers.issueComment = filter
+    else if (name === 'release')
+      triggers.release = filter
     else if (name === 'workflow_dispatch')
       triggers.dispatch = true
     else if (name === 'workflow_call')

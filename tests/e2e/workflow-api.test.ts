@@ -668,3 +668,90 @@ describe('the environment a job inherits', () => {
     expect(job.permissions.from).toBe('default')
   })
 })
+
+/*
+ * `on: issues` and `on: release`, which this instance has emitted events for
+ * since long before anything read them for CI.
+ */
+describe('an issue or a release starting a run', () => {
+  test('starts one for a workflow that asked, and nothing for one that did not', async () => {
+    if (!available)
+      return
+
+    const { dispatchSubject } = await import('../../app/Actions/Workflow/dispatch')
+
+    await db.updateTable('workflow_versions')
+      .set({ on_issues: true, issue_types: 'opened' } as any)
+      .where('id', '=', created.versionId)
+      .execute()
+
+    const before = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).execute()
+
+    await dispatchSubject({
+      repositoryId: created.repositoryId,
+      event: 'issues',
+      activity: 'opened',
+      subject: '7',
+    })
+
+    const after = await db.selectFrom('workflow_runs').select(['id', 'event', 'event_ref', 'trusted'])
+      .where('repository_id', '=', created.repositoryId)
+      .orderBy('id')
+      .execute()
+
+    expect(after.length).toBe(before.length + 1)
+
+    const run = after[after.length - 1] as any
+
+    expect(run.event).toBe('issues')
+    // The subject is in the ref, or two issues would look like one run
+    // redelivered: every issue event in a repository shares a head commit.
+    expect(String(run.event_ref)).toContain('issues/7/opened')
+    // The repository's own workflow on its own default branch: nothing about
+    // an issue is a tree, so there is no untrusted commit in this path.
+    expect(run.trusted).toBe(true)
+  })
+
+  test('an activity type the workflow did not name starts nothing', async () => {
+    if (!available)
+      return
+
+    const { dispatchSubject } = await import('../../app/Actions/Workflow/dispatch')
+
+    const before = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).execute()
+
+    const result = await dispatchSubject({
+      repositoryId: created.repositoryId,
+      event: 'issues',
+      activity: 'labeled',
+      subject: '7',
+    })
+
+    const after = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).execute()
+
+    expect(result.created).toHaveLength(0)
+    expect(after.length).toBe(before.length)
+  })
+
+  test('and the same issue event twice makes one run', async () => {
+    if (!available)
+      return
+
+    const { dispatchSubject } = await import('../../app/Actions/Workflow/dispatch')
+
+    const before = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).execute()
+
+    await dispatchSubject({ repositoryId: created.repositoryId, event: 'issues', activity: 'opened', subject: '7' })
+
+    const after = await db.selectFrom('workflow_runs').select(['id'])
+      .where('repository_id', '=', created.repositoryId).execute()
+
+    // The redelivery index covers this: same version, same ref, same head,
+    // same event.
+    expect(after.length).toBe(before.length)
+  })
+})

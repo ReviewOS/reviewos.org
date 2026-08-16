@@ -23,6 +23,8 @@ import { db } from '@stacksjs/database'
 import type { ConcurrencyContext } from './concurrency'
 import { resolveGroup } from './concurrency'
 import { shouldRun } from './expression'
+import type { SubjectEventName } from './triggers'
+import { subjectStartsRun } from './triggers'
 import type { PullRequestEvent, PushEvent } from './triggers'
 import { pullRequestStartsRun, pushStartsRun } from './triggers'
 
@@ -60,6 +62,12 @@ async function currentVersions(repositoryId: number): Promise<any[]> {
       'workflow_versions.pull_request_branches_ignore as pull_request_branches_ignore',
       'workflow_versions.pull_request_paths_ignore as pull_request_paths_ignore',
       'workflow_versions.pull_request_types as pull_request_types',
+      'workflow_versions.on_issues as on_issues',
+      'workflow_versions.issue_types as issue_types',
+      'workflow_versions.on_issue_comment as on_issue_comment',
+      'workflow_versions.issue_comment_types as issue_comment_types',
+      'workflow_versions.on_release as on_release',
+      'workflow_versions.release_types as release_types',
       'workflow_versions.concurrency_group as concurrency_group',
       'workflow_versions.cancel_in_progress as cancel_in_progress',
       // The workflow's name, for `${{ github.workflow }}` in a group.
@@ -152,6 +160,107 @@ export async function dispatchPush(input: DispatchInput): Promise<DispatchResult
       result.duplicates++
     else
       result.created.push(created)
+  }
+
+  return result
+}
+
+export interface SubjectDispatchInput {
+  repositoryId: number
+  /** `issues`, `issue_comment` or `release`. */
+  event: SubjectEventName
+  /** `opened`, `created`, `published`, ... */
+  activity: string
+  /** The subject's number or tag, for the ref this run is recorded against. */
+  subject: string
+  /** Who did it, when that is known. */
+  actorId?: number | null
+}
+
+/**
+ * Create the runs an issue, comment or release should start.
+ *
+ * These are the two things people automate first - label a new issue, publish
+ * on a release - and this instance already emitted the events for years of
+ * roadmap before anything read them for CI.
+ *
+ * Runs are recorded against the repository's default branch, and the workflow
+ * is the registered one: nothing about an issue is a tree, so there is no
+ * question of which commit supplied the definition. That also means these runs
+ * are trusted - the code and the workflow are both the repository's own.
+ */
+export async function dispatchSubject(input: SubjectDispatchInput): Promise<DispatchResult> {
+  const result: DispatchResult = { created: [], duplicates: 0, skipped: [] }
+
+  const repository: any = await db
+    .selectFrom('repositories')
+    .select(['id', 'default_branch'])
+    .where('id', '=', input.repositoryId)
+    .executeTakeFirst()
+
+  if (!repository)
+    return result
+
+  const versions = newestPerWorkflow(await currentVersions(input.repositoryId))
+  const ref = `refs/heads/${repository.default_branch || 'main'}`
+
+  for (const version of versions) {
+    const decision = subjectStartsRun(version, input.event, input.activity)
+
+    if (!decision.run) {
+      if (!decision.reason.includes('does not trigger'))
+        result.skipped.push({ versionId: Number(version.id), reason: decision.reason })
+
+      continue
+    }
+
+    const sha = String(version.source_sha ?? '')
+
+    const context: ConcurrencyContext = {
+      workflow: String(version.workflow_name || version.workflow_path || ''),
+      eventName: input.event,
+      ref,
+      sha,
+    }
+
+    const group = resolveGroup(version.concurrency_group, context)
+
+    try {
+      const run: any = await db
+        .insertInto('workflow_runs')
+        .values({
+          workflow_version_id: Number(version.id),
+          repository_id: input.repositoryId,
+          number: await nextNumber(input.repositoryId),
+          state: 'queued',
+          event: input.event,
+          /*
+           * The subject in the ref, so two issues do not look like one run
+           * redelivered. The redelivery index is on (version, ref, head,
+           * event), and every issue event in a repository shares a head.
+           */
+          event_ref: `${ref}#${input.event}/${input.subject}/${input.activity}`,
+          head_sha: sha,
+          definition_sha: sha,
+          trusted: true,
+          actor_id: input.actorId ?? null,
+          concurrency_group: group,
+        } as any)
+        .returning(['id'])
+        .executeTakeFirst()
+
+      const runId = Number(run?.id)
+      await createJobs(runId, Number(version.id), context)
+      await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true)
+
+      result.created.push(runId)
+    }
+    catch (error) {
+      if (isDuplicate(error))
+        result.duplicates++
+      else
+        throw error
+    }
   }
 
   return result

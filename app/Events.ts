@@ -95,10 +95,15 @@ export default {
   'pr:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'review:requested': ['Notify', 'DispatchWebhooks'],
   'review:submitted': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
-  'issue:opened': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
-  'issue:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
-  'comment:created': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
-  'release:published': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
+  /*
+   * `DispatchSubjectRuns` joins these four, which is what makes `on: issues`,
+   * `on: issue_comment` and `on: release` real. The events themselves are years
+   * old; nothing had ever read them for CI.
+   */
+  'issue:opened': ['Notify', 'DispatchWebhooks', 'RecordActivity', 'DispatchSubjectRuns'],
+  'issue:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity', 'DispatchSubjectRuns'],
+  'comment:created': ['Notify', 'DispatchWebhooks', 'RecordActivity', 'DispatchSubjectRuns'],
+  'release:published': ['Notify', 'DispatchWebhooks', 'RecordActivity', 'DispatchSubjectRuns'],
 
   /*
    * The security events, and none of the above.
