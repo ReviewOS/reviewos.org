@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { explainEnv } from './env'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
@@ -15,6 +16,27 @@ import { authorizeRepository } from '../Repo/authorize'
  * Addressed by the run's **number**, which is what a person says out loud and
  * what a link carries, rather than by its database id.
  */
+/**
+ * The environment a job's steps inherit, with each value's origin.
+ *
+ * Workflow level then job level; the step level is applied when the step runs
+ * and is deliberately not folded in here, because a job's answer has to be one
+ * answer rather than one per step.
+ */
+function envFor(job: any, definitionJobs: readonly any[], version: any): any[] {
+  const definition = definitionJobs.find(row => String(row.job_id) === String(job.job_id))
+
+  return explainEnv({
+    workflow: version?.env ?? null,
+    job: definition?.env ?? null,
+  }).map(entry => ({
+    name: entry.name,
+    value: entry.value,
+    from: entry.level,
+    overrides: entry.overridden,
+  }))
+}
+
 export default new Action({
   name: 'ShowWorkflowRun',
   description: 'Get one workflow run, with its jobs and steps',
@@ -85,6 +107,17 @@ export default new Action({
         .execute()
       : []
 
+    /*
+     * The definition's jobs, for the `env` each one declared. One query, keyed
+     * by the job id the run copied, because a run's job carries its name and
+     * state but not the file's environment.
+     */
+    const definitionJobs: any[] = await db
+      .selectFrom('workflow_version_jobs')
+      .select(['job_id', 'env'])
+      .where('workflow_version_id', '=', Number(run.workflow_version_id))
+      .execute()
+
     const byJob = new Map<number, any[]>()
     for (const step of steps as any[]) {
       const jobId = Number(step.workflow_job_id)
@@ -93,7 +126,7 @@ export default new Action({
 
     const version: any = await db
       .selectFrom('workflow_versions')
-      .select(['id', 'workflow_id', 'source_path', 'source_sha', 'content_digest'])
+      .select(['id', 'workflow_id', 'source_path', 'source_sha', 'content_digest', 'env'])
       .where('id', '=', Number(run.workflow_version_id))
       .executeTakeFirst()
 
@@ -138,6 +171,20 @@ export default new Action({
         jobs: jobs.map(job => ({
           id: Number(job.id),
           job_id: String(job.job_id),
+          /*
+           * The environment this job's steps see, and where each value came
+           * from.
+           *
+           * Answering "why did my step see staging when the job says
+           * production" is the reason this is here rather than only in the
+           * runner: the three levels merge by name, so the effective value is
+           * not readable from the file without doing the merge by hand.
+           *
+           * Definition-level only. A step's own `env` is applied on top when
+           * the step runs, and secrets are never in this: they are resolved at
+           * injection time, after the fork check, and never written to a row.
+           */
+          env: envFor(job, definitionJobs, version),
           name: job.name ?? null,
           state: String(job.state),
           needs: String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean),

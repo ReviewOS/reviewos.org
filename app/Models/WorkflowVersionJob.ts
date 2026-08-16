@@ -124,6 +124,14 @@ export default defineModel({
       factory: () => null,
     },
 
+    /** `env:` on the job, as JSON. Overrides the workflow's. */
+    env: {
+      order: 33,
+      fillable: true,
+      validation: { rule: schema.string().max(16_000) },
+      factory: () => null,
+    },
+
     timeout_minutes: {
       order: 8,
       fillable: true,

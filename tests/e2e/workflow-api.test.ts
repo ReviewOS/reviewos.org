@@ -338,7 +338,25 @@ describe('cancelling', () => {
     if (!available)
       return
 
-    const number = await makeRun('queued', 'f'.repeat(40))
+    /*
+     * A ref of its own, not just a sha.
+     *
+     * The redelivery index is on (version, ref, head, event), and this file's
+     * earlier tests have already used the default ref with several shas. A
+     * distinct ref keeps this test independent of how many runs ran before it -
+     * which is the property that makes a suite survive somebody adding a case
+     * above yours.
+     */
+    /*
+     * A head of its own, generated rather than written out.
+     *
+     * The redelivery index is on (version, ref, head, event) and it is doing
+     * its job here: any fixed sha makes this test depend on nothing else in the
+     * file having used it, which is a dependency that breaks the day somebody
+     * adds a case above.
+     */
+    const head = Buffer.from(crypto.getRandomValues(new Uint8Array(20))).toString('hex')
+    const number = await makeRun('queued', head, 'refs/heads/env-probe')
 
     const answer = await fetch(
       `http://127.0.0.1:${port}/api/repos/workflow-runs/cancel`
@@ -504,5 +522,69 @@ describe('dispatching a workflow by hand', () => {
 
     expect(status).toBe(422)
     expect(String(body.problems?.[0])).toContain('environment')
+  })
+})
+
+/*
+ * `env:` reaches the run detail, with the level each value came from.
+ *
+ * The merge is three lines; being able to answer "why did my step see staging
+ * when the job says production" is the reason it is exposed at all. A reader
+ * cannot do the merge from the file without doing it by hand.
+ */
+describe('the environment a job inherits', () => {
+  test('is reported with the level that defined each value', async () => {
+    if (!available)
+      return
+
+    await db.updateTable('workflow_versions')
+      .set({ env: JSON.stringify({ NODE_ENV: 'production', TARGET: 'production' }) } as any)
+      .where('id', '=', created.versionId)
+      .execute()
+
+    await db.insertInto('workflow_version_jobs').values({
+      workflow_version_id: created.versionId,
+      job_id: 'test',
+      name: 'Test',
+      position: 0,
+      runs_on: 'ubuntu-latest',
+      env: JSON.stringify({ TARGET: 'staging' }),
+    }).execute()
+
+    /*
+     * A ref of its own, not just a sha.
+     *
+     * The redelivery index is on (version, ref, head, event), and this file's
+     * earlier tests have already used the default ref with several shas. A
+     * distinct ref keeps this test independent of how many runs ran before it -
+     * which is the property that makes a suite survive somebody adding a case
+     * above yours.
+     */
+    /*
+     * A head of its own, generated rather than written out.
+     *
+     * The redelivery index is on (version, ref, head, event) and it is doing
+     * its job here: any fixed sha makes this test depend on nothing else in the
+     * file having used it, which is a dependency that breaks the day somebody
+     * adds a case above.
+     */
+    const head = Buffer.from(crypto.getRandomValues(new Uint8Array(20))).toString('hex')
+    const number = await makeRun('queued', head, 'refs/heads/env-probe')
+
+    const { status, body } = await api(`/api/repos/workflow-runs/show?owner=${created.handle}&repo=${created.name}&number=${number}`)
+
+    expect(status).toBe(200)
+
+    const job = body.workflow_run.jobs.find((row: any) => row.job_id === 'test')
+    const target = job.env.find((entry: any) => entry.name === 'TARGET')
+
+    // The job's value wins, and the workflow's is named as the one it beat.
+    expect(target).toMatchObject({ value: 'staging', from: 'job', overrides: ['workflow'] })
+
+    // And what the job did not redefine is inherited rather than dropped.
+    expect(job.env.find((entry: any) => entry.name === 'NODE_ENV')).toMatchObject({
+      value: 'production',
+      from: 'workflow',
+    })
   })
 })

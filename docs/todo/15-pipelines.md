@@ -256,7 +256,23 @@ written down here so it does not get relitigated:
       [phase 1](./01-foundation.md#access-tokens), defaulting to read-only
 - [ ] `defaults:` including `run.shell` and `run.working-directory`. Parsed onto the workflow;
       steps do not inherit from it yet, which is the half that needs the runner.
-- [ ] `env:` at workflow, job, and step level with Actions' precedence order
+- [x] `env:` at workflow, job, and step level with Actions' precedence order.
+
+      Stored at all three levels rather than merged at parse time, because the precedence is a rule
+      a reader has to be able to check and a merged blob cannot say which level a value came from.
+      `app/Actions/Workflow/env.ts` resolves it - narrowest wins, names merge and values do not -
+      and `explainEnv` answers the question the merge cannot: *why did my step see `staging` when
+      the job says `production`*. The run detail returns that per job, with the level in effect and
+      the ones it beat.
+
+      The cases worth pinning are the ones people get wrong: a name with no value is an empty
+      string rather than absent, because a step testing `[ -z "$THING" ]` should see one; an empty
+      value at a narrower level still wins, since blanking a variable is a real thing people write;
+      and names are compared exactly, so `Path` and `PATH` are two variables.
+
+      Step-level `env` is stored and applied when a step runs, so the job's answer stays one answer
+      rather than one per step. Secrets are not in this and never will be: they are resolved at
+      injection time, after the fork check, and never written to a row.
 - [ ] `secrets:` on `workflow_call`, including `inherit`
 - [ ] `workflow_dispatch` inputs of every type Actions supports (string, boolean, choice, environment)
       and the interface form generated from them.

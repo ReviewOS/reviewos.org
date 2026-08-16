@@ -93,6 +93,14 @@ export default defineModel({
       factory: () => null,
     },
 
+    /** `env:` on the step, as JSON. The narrowest level, so it wins. */
+    env: {
+      order: 20,
+      fillable: true,
+      validation: { rule: schema.string().max(16_000) },
+      factory: () => null,
+    },
+
     working_directory: {
       order: 8,
       fillable: true,

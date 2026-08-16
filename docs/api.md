@@ -1668,6 +1668,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 |---|---|
 | `200` | Successful response |
 | `201` | The run that was created. |
+| `303` | A browser gets the run list back. The same action serves the interface, so it answers HTML callers with a redirect. |
 | `401` | No credential, or one this instance does not recognise. |
 | `403` | The caller may see this repository but not do this to it, or their token does not carry the permission. |
 | `404` | No such repository, or one this caller may not see - deliberately the same answer. |

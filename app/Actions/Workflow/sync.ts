@@ -184,6 +184,7 @@ async function insertVersion(
       pull_request_paths_ignore: lines(triggers.pullRequest?.pathsIgnore ?? []),
       pull_request_types: lines(triggers.pullRequest?.types ?? []),
       dispatch_inputs: triggers.dispatchInputs.length > 0 ? JSON.stringify(triggers.dispatchInputs) : null,
+      env: Object.keys(workflow.env).length > 0 ? JSON.stringify(workflow.env) : null,
       concurrency_group: workflow.concurrency?.group ?? null,
       cancel_in_progress: workflow.concurrency?.cancelInProgress ?? false,
       schedules: lines(triggers.schedule),
@@ -208,6 +209,7 @@ async function insertVersion(
         timeout_minutes: job.timeoutMinutes,
         // JSON rather than rows: a combination is read whole, with the job,
         // and never queried across workflows.
+        env: Object.keys(job.env).length > 0 ? JSON.stringify(job.env) : null,
         matrix: job.matrix.length > 0 ? JSON.stringify(job.matrix) : null,
         fail_fast: job.failFast,
         max_parallel: job.maxParallel,
@@ -230,6 +232,7 @@ async function insertVersion(
           // Stored as JSON because `with:` is an action's own vocabulary and
           // this side has no business having an opinion about its shape.
           inputs: Object.keys(step.with).length > 0 ? JSON.stringify(step.with) : null,
+          env: Object.keys(step.env).length > 0 ? JSON.stringify(step.env) : null,
           working_directory: step.workingDirectory,
           condition: step.if,
         } as any)

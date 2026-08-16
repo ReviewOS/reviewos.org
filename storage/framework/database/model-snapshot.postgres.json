@@ -8100,6 +8100,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "env",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8245,6 +8253,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "env",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8363,6 +8379,14 @@
           {
             "name": "updated_at",
             "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "env",
+            "type": "text",
             "isPrimaryKey": false,
             "isUnique": false,
             "isNullable": true,
@@ -8810,16 +8834,6 @@
             ],
             "type": "unique",
             "where": "event NOT IN ('workflow_dispatch', 'schedule')"
-          },
-          {
-            "name": "workflow_runs_delivery_index",
-            "columns": [
-              "workflow_version_id",
-              "event_ref",
-              "head_sha",
-              "event"
-            ],
-            "unique": true
           }
         ]
       },
@@ -9447,7 +9461,7 @@
       }
     ]
   },
-  "hash": "6ee966fa3d5f1eda677ef00e34f1c45dfcbe986e9d1a34cfcbaf4e22abb13d49",
+  "hash": "3c66443e5b2a6fbbc179937a80978fb42833cf9d2cbf5e365e8adda49982e79b",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T17:46:26.120Z"
+  "updatedAt": "2026-08-16T20:28:08.283Z"
 }

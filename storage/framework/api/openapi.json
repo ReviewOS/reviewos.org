@@ -24211,6 +24211,29 @@
               }
             }
           },
+          "303": {
+            "description": "A browser gets the run list back. The same action serves the interface, so it answers HTML callers with a redirect.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
           "401": {
             "description": "No credential, or one this instance does not recognise.",
             "headers": {

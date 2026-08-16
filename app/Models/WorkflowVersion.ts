@@ -264,6 +264,22 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * `env:` at the workflow level, as JSON.
+     *
+     * Read whole with the version and never queried across workflows, so a
+     * column rather than rows. The three levels are stored apart rather than
+     * merged at parse time because [the precedence](../Actions/Workflow/env.ts)
+     * is a rule a reader has to be able to check, and a merged blob cannot say
+     * which level a value came from.
+     */
+    env: {
+      order: 39,
+      fillable: true,
+      validation: { rule: schema.string().max(16_000) },
+      factory: () => null,
+    },
+
     /** Cron expressions, one per line. */
     schedules: {
       order: 15,

@@ -15009,6 +15009,7 @@ export interface paths {
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "201": { content: { "application/json": { "workflow_run"?: { "number"?: number; "state"?: string; "event"?: string; "inputs"?: Record<string, unknown> } } } }
+      "303": { content: never }
       "401": { content: never }
       "403": { content: never }
       "404": { content: never }
