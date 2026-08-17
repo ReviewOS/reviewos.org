@@ -15344,6 +15344,33 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/workflow-templates": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: "list" | "publish" | "remove" | "apply"; "slug"?: string; "name"?: string; "description"?: string; "path"?: string; "source"?: string; "template"?: number; "branch"?: string; "overwrite"?: boolean } } }
+    responses: {
+      "200": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "409": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/workflows/dispatch": {
     get?: never
     put?: never

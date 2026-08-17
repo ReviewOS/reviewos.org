@@ -1267,9 +1267,30 @@ output, which covers the common case and nothing else.
 
 ### Definition management
 
-- [ ] Workflow templates, owner-managed, so an organization can require a starting point. This is
+- [x] Workflow templates, owner-managed, so an organization can require a starting point. This is
       phase 9's "owner-managed reusable workflows" from the governance side rather than the reuse
       side.
+
+      A reusable workflow is called by a repository that decided to call it; a template is what an
+      organization puts in front of every repository that has not decided anything yet - which is
+      where CI conventions are actually set, and where "copy it from the last repository" is how
+      they drift.
+
+      Two refusals carry the feature. **Publishing validates**, because a template is copied into
+      repositories by people who did not write it, and one that fails on their first push is a
+      support ticket from somebody with no way to know where the file came from. And **applying
+      never overwrites** without being told to: a template that silently replaced a repository's
+      own workflow is governance deleting the exception somebody made on purpose.
+
+      Applying writes a **real commit** through the same plumbing a web edit uses, and registers
+      the workflow itself - this commit is written by the instance, so no push hook fires, and a
+      template that landed as text nothing had read would not exist until somebody happened to push
+      again.
+
+      Found doing it: `app/Actions/Workflow/templates.ts` already existed and holds the starter
+      workflows for an empty repository. The owner-managed ones are `ownerTemplates.ts`, which is
+      the honest split - a starter is what this instance suggests, and a template is what an owner
+      requires.
 - [ ] Schedules in cron syntax, per workflow, each with its own branch, commit, message, and
       environment, plus enable and disable without deleting
 - [x] Skip intermediate runs and cancel intermediate runs, per workflow: when three commits land in a

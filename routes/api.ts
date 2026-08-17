@@ -799,6 +799,15 @@ route.post('/repos/variables', 'Actions/Workflow/VariablesAction').middleware('a
 route.post('/repos/secrets', 'Actions/Workflow/SecretsAction').middleware('auth')
 
 /*
+ * Workflow templates an owner publishes, and applying one as a real commit.
+ *
+ * The governance side of reuse: a reusable workflow is called by a repository
+ * that decided to call it, and a template is what an organization puts in front
+ * of every repository that has not decided anything yet.
+ */
+route.post('/repos/workflow-templates', 'Actions/Workflow/WorkflowTemplatesAction').middleware('auth')
+
+/*
  * Test intelligence: results from this instance's CI, or from anybody else's.
  *
  * Ingestion takes `check:report`, the ability a CI integration already needs to

@@ -5581,6 +5581,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/workflow-templates
+   */
+  postReposWorkflowTemplates(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "list" | "publish" | "remove" | "apply"; "slug"?: string; "name"?: string; "description"?: string; "path"?: string; "source"?: string; "template"?: number; "branch"?: string; "overwrite"?: boolean } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/workflow-templates", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/repos/workflows/dispatch
    */
   postReposWorkflowsDispatch(input?: { body?: { "owner"?: string; "repo"?: string; "workflow"?: string; "ref"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
