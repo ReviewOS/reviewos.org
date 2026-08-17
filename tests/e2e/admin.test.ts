@@ -18,6 +18,7 @@ const created = {
   personHandle: '',
   personToken: '',
   failedJobId: 0,
+  repositoryId: 0,
   jobIds: [] as number[],
 }
 
@@ -109,6 +110,35 @@ beforeAll(async () => {
       .executeTakeFirst()
 
     created.failedJobId = Number(failed?.id)
+
+    /*
+     * A repository to list.
+     *
+     * The repositories assertion used to read whatever the rest of the suite
+     * had left behind, which is fine on a developer's database and false on
+     * CI's: migrated fresh, this file's tests run before anything has made a
+     * repository, and "largest first" failed against an empty list. A test
+     * that only passes when another test ran first is not testing the thing it
+     * names.
+     *
+     * Written directly rather than through the API, because what is under test
+     * is the admin listing - the ordering and the resolved owner handle - and
+     * not repository creation, which has its own suite.
+     */
+    const repository: any = await db
+      .insertInto('repositories')
+      .values({
+        owner_type: 'user',
+        owner_id: created.adminId,
+        name: unique('adminrepo'),
+        visibility: 'public',
+        default_branch: 'main',
+        disk_path: `${created.personHandle}/admin-listing.git`,
+      })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    created.repositoryId = Number(repository?.id)
     available = true
   }
   catch (error) {
@@ -126,6 +156,9 @@ afterAll(async () => {
 
       if (created.failedJobId)
         await db.deleteFrom('failed_jobs').where('id', '=', created.failedJobId).execute()
+
+      if (created.repositoryId)
+        await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute()
 
       for (const id of created.jobIds)
         await db.deleteFrom('jobs').where('id', '=', id).execute()
@@ -207,6 +240,7 @@ describe('what it shows', () => {
      */
     const rows = (await admin({ operation: 'repositories', limit: 20 })).body?.repositories ?? []
 
+    // At least the one this file made. See `beforeAll`.
     expect(rows.length).toBeGreaterThan(0)
 
     for (let i = 1; i < rows.length; i += 1)

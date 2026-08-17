@@ -171,8 +171,18 @@ describe('a view served by the test router', () => {
     // quote characters in it.
     const scope = /data-stx-xdata="([^"]*)"/.exec(repositoryPage)?.[1] ?? ''
 
-    expect(scope).toContain('https://')
-    expect(scope).not.toContain('&quot;https')
+    /*
+     * Scheme-agnostic, because the scheme is not what this test is about.
+     *
+     * It asserted `https://` and so quietly required the instance to be
+     * configured with a TLS origin: `cloneUrl` is built from `APP_URL`, and CI
+     * runs with no `.env` at all, so the clone URL is `http://localhost/...`
+     * and the assertion failed on a page that was rendered perfectly. The
+     * property under test is that the value arrives *unquoted* - a URL is a
+     * URL either way.
+     */
+    expect(scope).toMatch(/https: '\w+:\/\//)
+    expect(scope).not.toMatch(/&quot;\w+:\/\//)
     expect(repositoryPage).not.toMatch(/initScope\(scopeEl, "\{[^"]*\\"http/)
   })
 

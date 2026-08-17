@@ -234,6 +234,31 @@ jobs:
           # exist without a secret. Any value will do; it never leaves the
           # runner.
           GIT_HOOK_SECRET: ci-hook-secret-not-a-real-one
+          # The rest of this block exists because CI has no `.env` at all.
+          #
+          # Every value the suite needs and does not set for itself therefore
+          # falls back to a config default, and the defaults are chosen for a
+          # fresh install rather than for a test run. Where a developer's
+          # `.env` happened to supply the right answer the suite passed on
+          # laptops and failed here, which is the worst shape a test can take:
+          # green where it is read, red where it gates the deploy.
+          #
+          # An https origin, because `cloneUrl` is built from `APP_URL` and
+          # defaults to `http://localhost`. `view-components` asserts on the
+          # rendered clone box, and asserting `https://` against an http
+          # instance failed on a page that had rendered perfectly.
+          APP_URL: https://reviewos.test
+          # A mail driver that cannot deliver, which is what the digest suite
+          # says it assumes: "there is no mail server in the test environment,
+          # so this is the failure path by construction". It was not by
+          # construction - it was `MAIL_MAILER=smtp` in a developer's `.env`
+          # pointing at a mailpit that does not resolve. Without one, the
+          # default is `log`, every send "succeeds", and the three tests
+          # pinning "a failed send holds the rows rather than marking them
+          # sent" assert against a success.
+          MAIL_MAILER: smtp
+          MAIL_HOST: 127.0.0.1
+          MAIL_PORT: '1'
         run: bun run test
 
       # `bun run test` shells out to `buddy test`, which only globs
