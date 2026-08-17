@@ -552,8 +552,23 @@ written down here so it does not get relitigated:
       because their condition had a typo; the reason is recorded on the job, since a skipped job is
       the one outcome with nothing else to look at. **An interpolation that cannot be evaluated
       stays as written**, rather than becoming an empty string somebody has to explain.
-- [ ] Tests: an expression suite ported from Actions' own documented examples, including the ones
+- [x] Tests: an expression suite ported from Actions' own documented examples, including the ones
       that are surprising
+
+      `tests/unit/workflow-expression-parity.test.ts`, and it is deliberately the *documented*
+      examples rather than more cases of our own: a compatibility claim is worth what somebody can
+      check, and the cheapest check is to take the expressions out of GitHub's documentation and
+      assert what the documentation says they produce. Nobody's workflow breaks on `1 == 1`.
+      Workflows break on `'' == 0` being true, on `'ABC' == 'abc'` being true, on `&&` returning an
+      operand rather than a boolean, and on `format('{{Hello}}')` meaning something.
+
+      **It found a real one immediately.** An `if:` that names no status function carries an implied
+      `success() &&`, and a step with no `if:` at all is exactly that case - this instance applied
+      neither, so every condition was evaluated as though nothing had failed. That was invisible
+      while the runner stopped at the first failing step, and became load-bearing the moment it
+      stopped stopping: without the rule, a job whose build broke went on to run its deploy step.
+      The reason is said on the skipped step rather than left for somebody to work out from the
+      file.
 
 ### The runner protocol Actions expects
 

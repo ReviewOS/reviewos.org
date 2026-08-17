@@ -104,7 +104,7 @@ export const CONFORMANCE: ConformanceEntry[] = [
   { key: 'steps[*].continue-on-error', level: 'step', status: 'differs', behaviour: 'Honoured as a literal `true` only. An expression needs the expression engine at step time, and reading it as truthy text would make every such step unfailable.' },
   { key: 'steps[*].shell', level: 'step', status: 'differs', behaviour: 'Recorded and inherited, and the local runner runs `sh` regardless. A runner that only has one shell should say so rather than refuse a file for naming another.' },
   { key: 'steps[*].id', level: 'step', status: 'supported', behaviour: 'Recorded, and what `steps.<id>.outputs`, `.outcome` and `.conclusion` are keyed on.' },
-  { key: 'steps[*].if', level: 'step', status: 'supported', behaviour: 'Evaluated by the runner against what the steps before it produced, so `steps.<id>.outputs`, `job.status`, `needs` and `always()` all work. A step whose condition is false says so in the log rather than vanishing.' },
+  { key: 'steps[*].if', level: 'step', status: 'supported', behaviour: 'Evaluated by the runner against what the steps before it produced, so `steps.<id>.outputs`, `job.status`, `needs` and `always()` all work. A condition naming no status function carries the implied `success() &&`, and no condition means `success()` - so a step after a failure is skipped unless it asked not to be. A skipped step says which condition skipped it rather than vanishing.' },
   { key: 'steps[*].timeout-minutes', level: 'step', status: 'unimplemented', behaviour: 'Parsed; the runner\'s own ceiling applies instead.' },
 
   // ------------------------------------------------------------- expressions

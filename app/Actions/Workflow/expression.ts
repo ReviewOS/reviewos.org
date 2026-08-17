@@ -637,25 +637,60 @@ export function evaluateExpression(source: string, context: ExpressionContext = 
 }
 
 /**
+ * The status functions, which decide whether a condition carries an implied
+ * `success()`.
+ *
+ * Matched on the name followed by its parenthesis, so a context value called
+ * `steps.always.outputs.x` is not mistaken for the function.
+ */
+const STATUS_FUNCTIONS = /\b(?:success|always|cancelled|failure)\s*\(/i
+
+/**
  * Whether a job or step with this `if:` should run.
  *
- * Two rules that are not obvious and both matter:
+ * Three rules that are not obvious and all matter:
  *
  * - **An `if:` is an expression whether or not it is wrapped in `${{ }}`.**
  *   `if: github.ref == 'refs/heads/main'` and `if: ${{ ... }}` are the same
  *   thing, which is why a bare string cannot be read as a literal.
+ * - **A condition that names no status function carries an implied
+ *   `success() &&`**, and no condition at all means `success()`. This is
+ *   Actions' most surprising documented rule and it is load-bearing: without
+ *   it, every step after a failing one runs, because a step with no `if:`
+ *   would be unconditionally true. `if: always()` exists precisely to ask for
+ *   the absence of the implied check, and a workflow that writes it is telling
+ *   you the default is the other way.
  * - **A condition that cannot be evaluated does not run the step.** The other
  *   direction runs somebody's deployment because their condition had a typo.
  */
 export function shouldRun(condition: string | null | undefined, context: ExpressionContext = {}): { run: boolean, reason: string } {
   const text = String(condition ?? '').trim()
 
-  if (!text)
-    return { run: true, reason: 'no condition' }
+  /*
+   * The status of whatever this belongs to. Absent means nothing has reported
+   * yet, which is a success - the same answer `success()` gives, written out
+   * rather than special-cased, so a job decided at dispatch behaves the way a
+   * step decided mid-run does.
+   */
+  const status = String((context.job as any)?.status ?? 'success')
+  const failed = status === 'failure' || status === 'cancelled'
+
+  if (!text) {
+    return failed
+      ? { run: false, reason: `the job is ${status}, and this step has no \`if:\` asking to run anyway` }
+      : { run: true, reason: 'no condition' }
+  }
 
   const inner = text.startsWith('${{') && text.endsWith('}}')
     ? text.slice(3, -2).trim()
     : text
+
+  if (failed && !STATUS_FUNCTIONS.test(inner)) {
+    return {
+      run: false,
+      reason: `the job is ${status}, and \`${inner}\` names no status function - Actions implies \`success() &&\``,
+    }
+  }
 
   const result = evaluateExpression(inner, context)
 

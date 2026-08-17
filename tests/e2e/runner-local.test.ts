@@ -797,3 +797,100 @@ describe('outputs between jobs', () => {
     expect(text).toContain('got app-1.2.3.tgz from success')
   }, 180_000)
 })
+
+/*
+ * What happens after a step fails, which is a question with three answers and
+ * only one of them right.
+ *
+ * The loop does not stop at the first failure - a step with `if: always()`
+ * exists to run after one - but "does not stop" cannot mean "runs everything",
+ * or a job whose build broke goes on to deploy. Actions' rule is that a
+ * condition naming no status function carries an implied `success() &&`, and a
+ * step with no `if:` at all is exactly that case.
+ */
+describe('after a step fails', () => {
+  test('the plain steps are skipped, the always() one runs, and the job fails', async () => {
+    if (!available)
+      return
+
+    const { runOnce } = await import('../../app/Actions/Runner/localExecutor')
+
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_versions.id', 'desc')
+      .executeTakeFirst()
+
+    const job: any = await db.insertInto('workflow_version_jobs').values({
+      workflow_version_id: Number(version.id),
+      job_id: 'breaks',
+      name: 'Breaks',
+      position: 20,
+      runs_on: 'ubuntu-latest',
+    }).returning(['id']).executeTakeFirst()
+
+    const steps = [
+      { position: 0, name: 'Before', command: 'echo "before the failure"' },
+      { position: 1, name: 'Break it', command: 'exit 3' },
+      { position: 2, name: 'Plain step after', command: 'echo "must not appear"' },
+      { position: 3, name: 'Conditional without a status function', condition: "1 == 1", command: 'echo "also must not appear"' },
+      { position: 4, name: 'Cleanup', condition: 'always()', command: 'echo "cleanup ran"' },
+      { position: 5, name: 'Only on failure', condition: 'failure()', command: 'echo "failure handler ran"' },
+    ]
+
+    for (const step of steps) {
+      await db.insertInto('workflow_version_steps').values({
+        workflow_version_job_id: Number(job.id),
+        ...step,
+      } as any).execute()
+    }
+
+    const run: any = await db.insertInto('workflow_runs').values({
+      workflow_version_id: Number(version.id),
+      repository_id: created.repositoryId,
+      number: 600,
+      state: 'queued',
+      event: 'push',
+      event_ref: 'refs/heads/breaks',
+      head_sha: created.headSha,
+      definition_sha: created.headSha,
+      trusted: true,
+    }).returning(['id']).executeTakeFirst()
+
+    const runJob: any = await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: 'breaks',
+      name: 'Breaks',
+      position: 0,
+      state: 'queued',
+      runs_on: 'ubuntu-latest',
+    }).returning(['id']).executeTakeFirst()
+
+    const outcome = await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' })
+
+    expect(outcome?.state).toBe('failed')
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .select(['content'])
+      .where('workflow_job_id', '=', Number(runJob.id))
+      .orderBy('sequence')
+      .execute()
+
+    const text = logs.map(row => String(row.content ?? '')).join('')
+
+    expect(text).toContain('before the failure')
+
+    // The two that must not run, and the reason said out loud on the one that
+    // asked a question: a skipped step with no explanation is somebody reading
+    // the workflow file to work out what happened.
+    expect(text).not.toContain('must not appear')
+    expect(text).toContain('implies `success() &&`')
+
+    // And the two written for this moment.
+    expect(text).toContain('cleanup ran')
+    expect(text).toContain('failure handler ran')
+  }, 180_000)
+})

@@ -46,7 +46,7 @@ These do what Actions does. A workflow using only these keys behaves the same he
 | `steps[*].env` | step | The narrowest environment level, applied over the job's and the workflow's. |
 | `steps[*].working-directory` | step | Resolved against the workspace. |
 | `steps[*].id` | step | Recorded, and what `steps.<id>.outputs`, `.outcome` and `.conclusion` are keyed on. |
-| `steps[*].if` | step | Evaluated by the runner against what the steps before it produced, so `steps.<id>.outputs`, `job.status`, `needs` and `always()` all work. A step whose condition is false says so in the log rather than vanishing. |
+| `steps[*].if` | step | Evaluated by the runner against what the steps before it produced, so `steps.<id>.outputs`, `job.status`, `needs` and `always()` all work. A condition naming no status function carries the implied `success() &&`, and no condition means `success()` - so a step after a failure is skipped unless it asked not to be. A skipped step says which condition skipped it rather than vanishing. |
 | `${{ }} operators` | workflow | Comparison, `&&`, `||`, `!`, indexing and the star filter, with Actions' coercion rules copied deliberately. |
 | `workflow commands` | step | `::error::`, `::warning::`, `::notice::`, `::group::`, `::add-mask::` and `::stop-commands::`. An `::error file=…::` becomes an annotation on the diff. |
 | `GITHUB_ENV, GITHUB_PATH, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY` | step | Written per step and applied to the steps after it; `GITHUB_OUTPUT` is what fills `steps.<id>.outputs`, and `GITHUB_STEP_SUMMARY` is rendered as markdown on the run and on the pull request's checks. |
