@@ -1185,12 +1185,34 @@ output, which covers the common case and nothing else.
       side.
 - [ ] Schedules in cron syntax, per workflow, each with its own branch, commit, message, and
       environment, plus enable and disable without deleting
-- [ ] Skip intermediate runs and cancel intermediate runs, per workflow: when three commits land in a
+- [x] Skip intermediate runs and cancel intermediate runs, per workflow: when three commits land in a
       minute on the same branch, do not run all three
+
+      `reviewos: { intermediate: skip | cancel | run }` at the top level - the only extension that is
+      not on a job, because it is a statement about the *workflow's* runs.
+
+      `cancel` is `concurrency.cancel-in-progress` said in one word. **`skip` is the third thing
+      neither Actions nor Gitea offers**, and usually the one people mean: let the build that has
+      already started finish, and drop the ones that have not. The run in progress will produce a
+      result somebody reads; the queued ones would produce two nobody does.
+
+      A skipped run is `cancelled` outright rather than `cancelling`, because nothing had taken it -
+      there is no machine to tell and no acknowledgement to wait for, which is the whole difference
+      from cancelling in progress. Its jobs go with it, rather than sitting queued for a runner to
+      take work from a run nobody will read.
+
+      One thing writing it turned up: the value was being validated *after* the parser's
+      `errors.length > 0` gate, so `intermediate: maybe` was silently read as `run`. A validator
+      whose complaints are discarded is worse than none - it reads like a check.
 - [ ] Merge queue support: a run against the prospective merge result rather than the branch tip, so
       a queue of pull requests is tested in the order it will land
-- [ ] A workflow can live at a path other than the repository root, and more than one can live in one
+- [x] A workflow can live at a path other than the repository root, and more than one can live in one
       repository
+
+      `.github/workflows/*.yml` and `.reviewos/workflows/*.yml`, any number of them, each its own
+      workflow with its own runs and its own schedule. `.reviewos/` wins outright when present -
+      not merged, because two directories quietly contributing to one list is how somebody ends up
+      running a file they thought they had replaced.
 - [ ] Environment variables and settings at instance, owner, repository, and workflow level, with a
       documented precedence order and a screen that shows where a value came from
 - [ ] Tests: schedule fires once per window, intermediate cancellation leaves exactly one run, a

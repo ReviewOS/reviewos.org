@@ -179,6 +179,17 @@ export interface WorkflowJob {
   priority: number
 }
 
+/**
+ * What to do with runs that are already waiting when a newer one arrives.
+ *
+ * `run` is Actions' behaviour and the default: three commits in a minute is
+ * three runs. `cancel` is `concurrency.cancel-in-progress`, which stops what is
+ * *running*. `skip` is the third thing people actually want and neither offers:
+ * let the build that has already started finish, and drop the ones that have
+ * not, because only the newest commit's result is going to be read.
+ */
+export type IntermediateRuns = 'run' | 'skip' | 'cancel'
+
 export interface WorkflowConcurrency {
   group: string
   cancelInProgress: boolean
@@ -301,6 +312,11 @@ export interface NormalizedWorkflow {
    */
   concurrency: WorkflowConcurrency | null
   defaults: { shell: string | null, workingDirectory: string | null }
+  /**
+   * `reviewos.intermediate:` - what to do with runs that are still waiting when
+   * a newer one arrives.
+   */
+  intermediate: IntermediateRuns
 }
 
 /**
@@ -325,7 +341,18 @@ export type ParseResult =
   | { ok: false, workflow: null, errors: WorkflowError[], warnings: WorkflowWarning[] }
 
 /** Top-level keys Actions defines. Anything else is a typo worth catching. */
-const TOP_LEVEL = new Set(['name', 'on', 'jobs', 'env', 'defaults', 'concurrency', 'permissions', 'run-name'])
+const TOP_LEVEL = new Set([
+  'name', 'on', 'jobs', 'env', 'defaults', 'concurrency', 'permissions', 'run-name',
+  /*
+   * The workflow-level half of the one extension key. The job-level half is in
+   * `JOB_KEYS`, and both exist for the same reason: one word to grep for when
+   * somebody asks what in a repository is not portable.
+   */
+  'reviewos',
+])
+
+/** `reviewos.intermediate:` at workflow level. */
+const WORKFLOW_EXTENSION_KEYS = new Set(['intermediate'])
 
 const JOB_KEYS = new Set([
   'name', 'runs-on', 'needs', 'if', 'steps', 'env', 'timeout-minutes',
@@ -1236,6 +1263,15 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
     }
   }
 
+  /*
+   * Read here rather than in the return below, which is where it was written
+   * first and where its errors went nowhere: the `errors.length > 0` gate runs
+   * before the returned object is built, so a refusal pushed while building it
+   * is a refusal nobody ever sees. A validator whose complaints are discarded
+   * is worse than none - it reads like a check.
+   */
+  const intermediate = intermediateFrom(root.reviewos, source, errors)
+
   if (!('on' in root)) {
     errors.push({
       line: 1,
@@ -1547,6 +1583,50 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       permissions: root.permissions ?? null,
       concurrency: concurrencyFrom(root.concurrency),
       defaults: defaultsFrom(root.defaults),
+      intermediate,
     },
   }
+}
+
+/**
+ * `reviewos.intermediate:` - what to do with runs still waiting when a newer
+ * one arrives.
+ *
+ * The third option neither Actions nor Gitea offers, and the one people
+ * actually want when three commits land in a minute: let the build that has
+ * already started finish, and drop the ones that have not, because only the
+ * newest commit's result is going to be read. `cancel` is
+ * `concurrency.cancel-in-progress` said in one word, and `run` is the default
+ * because it is Actions' behaviour and changing it silently would mean a run
+ * somebody expected simply not existing.
+ */
+function intermediateFrom(value: unknown, source: string, errors: WorkflowError[]): IntermediateRuns {
+  const raw = asRecord(value)
+
+  if (!raw)
+    return 'run'
+
+  for (const key of Object.keys(raw)) {
+    if (!WORKFLOW_EXTENSION_KEYS.has(key)) {
+      errors.push({
+        line: lineOf(source, key, lineOf(source, 'reviewos')),
+        message: `\`${key}\` is not a workflow-level \`reviewos:\` key`,
+        fix: 'The only one is `intermediate`. The rest go on a job.',
+      })
+    }
+  }
+
+  const intermediate = String(raw.intermediate ?? 'run').trim()
+
+  if (!['run', 'skip', 'cancel'].includes(intermediate)) {
+    errors.push({
+      line: lineOf(source, 'intermediate', lineOf(source, 'reviewos')),
+      message: `\`intermediate: ${intermediate}\` is not one of \`run\`, \`skip\` or \`cancel\``,
+      fix: '`skip` drops runs that have not started, `cancel` stops ones that have, `run` is Actions\' behaviour.',
+    })
+
+    return 'run'
+  }
+
+  return intermediate as IntermediateRuns
 }

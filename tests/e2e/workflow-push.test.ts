@@ -635,6 +635,72 @@ jobs:
     expect(both[1].state).toBe('queued')
   }, 30_000)
 
+  /*
+   * `intermediate: skip`, the third option neither Actions nor Gitea has.
+   *
+   * `cancel-in-progress` stops whatever is running, which is right when the
+   * machines are the scarce thing. `skip` is what people usually mean when
+   * three commits land in a minute: let the build that has already started
+   * finish - somebody will read its result - and drop the ones that have not,
+   * because nobody will read those.
+   */
+  test('a workflow that skips intermediate runs drops the ones that had not started', async () => {
+    if (!available)
+      return
+
+    await push('.reviewos/workflows/skipper.yml', `name: Skipper
+on:
+  push:
+    paths:
+      - 'skip/**'
+reviewos:
+  intermediate: skip
+concurrency:
+  group: skipper-\${{ github.ref }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make
+`)
+
+    const runsFor = async (): Promise<any[]> => db
+      .selectFrom('workflow_runs')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_runs.id as id', 'workflow_runs.state as state', 'workflow_runs.conclusion_reason as reason'])
+      .where('workflows.path', '=', '.reviewos/workflows/skipper.yml')
+      .orderBy('workflow_runs.id')
+      .execute()
+
+    await push('skip/one.txt', 'one\n')
+    await waitFor(runsFor, (rows: any[]) => rows.length >= 1)
+
+    await push('skip/two.txt', 'two\n')
+    const both = await waitFor(runsFor, (rows: any[]) => rows.length >= 2)
+
+    expect(both).toHaveLength(2)
+
+    /*
+     * Cancelled outright rather than `cancelling`: nothing had taken it, so
+     * there is no machine to tell and no acknowledgement to wait for - which
+     * is the whole difference from `cancel-in-progress`.
+     */
+    expect(both[0].state).toBe('cancelled')
+    expect(String(both[0].reason)).toContain('newer commit')
+    expect(both[1].state).toBe('queued')
+
+    // And its jobs went with it, rather than sitting queued for a runner to
+    // take work from a run nobody will read.
+    const jobs: any[] = await db
+      .selectFrom('workflow_jobs')
+      .select(['state'])
+      .where('workflow_run_id', '=', Number(both[0].id))
+      .execute()
+
+    expect(jobs.every(job => String(job.state) === 'cancelled')).toBe(true)
+  }, 30_000)
+
   test('a workflow without concurrency keeps both runs', async () => {
     if (!available)
       return

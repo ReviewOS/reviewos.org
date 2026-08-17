@@ -7,7 +7,7 @@ is accepted and does nothing has not been implemented - the fact that it has not
 hidden. So every key here has a status and a sentence, including the ones that are missing and
 the ones that are deliberately different.
 
-35 keys behave as Actions does, 11 differ on purpose, 6 are not implemented yet, and 1 is refused.
+35 keys behave as Actions does, 12 differ on purpose, 6 are not implemented yet, and 1 is refused.
 
 Generated from the conformance table.
 
@@ -60,6 +60,7 @@ These work, and deliberately not the way Actions does. Every one is a decision y
 | Key | Where | What this instance does |
 | --- | --- | --- |
 | `on.release` | on | Defaults to `published` only, where Actions defaults to every activity type. A draft release starting a deployment is the surprise nobody wants; naming `types` opts back in. |
+| `reviewos.intermediate` | workflow | The one extension at the top level: `skip` lets a run that has started finish and drops the ones that have not, which is what people usually mean when three commits land in a minute and which neither Actions nor Gitea offers. `cancel` is `concurrency.cancel-in-progress` said in one word, and `run` is the default because it is Actions' behaviour. See [extensions](./extensions.md). |
 | `permissions` | workflow | Mapped onto this instance's token scopes, and the default is read-only rather than depending on an organization setting, so a workflow behaves the same on every instance. `write-all` does not grant administration. |
 | `jobs.<id>.strategy.max-parallel` | job | Honoured at claim time by counting the combinations already running, which is a check rather than a lock: two runners polling in the same instant can both take the last slot. Making it exact would mean a lock held across every claim on the instance. |
 | `jobs.<id>.uses` | job | Local reusable workflows are called and their jobs shown in the run. A cross-repository call is refused with a reason rather than half done. |

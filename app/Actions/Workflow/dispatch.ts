@@ -72,6 +72,7 @@ async function currentVersions(repositoryId: number): Promise<any[]> {
       'workflow_versions.release_types as release_types',
       'workflow_versions.concurrency_group as concurrency_group',
       'workflow_versions.cancel_in_progress as cancel_in_progress',
+      'workflow_versions.intermediate as intermediate',
       // The workflow's name, for `${{ github.workflow }}` in a group.
       'workflows.name as workflow_name',
       'workflows.path as workflow_path',
@@ -253,7 +254,7 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
 
       const runId = Number(run?.id)
       await createJobs(runId, Number(version.id), context)
-      await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true)
+      await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
 
       result.created.push(runId)
     }
@@ -393,7 +394,7 @@ async function createPullRequestRun(
 
     const runId = Number(run?.id)
     await createJobs(runId, Number(version.id), context)
-    await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true)
+    await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
 
     return runId
   }
@@ -449,7 +450,7 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
 
     const runId = Number(run?.id)
     await createJobs(runId, Number(version.id), context)
-    await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true)
+    await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
 
     return runId
   }
@@ -487,8 +488,58 @@ async function supersede(
   runId: number,
   group: string | null,
   cancelInProgress: boolean,
+  intermediate: string = 'run',
 ): Promise<void> {
-  if (!group || !cancelInProgress)
+  if (!group)
+    return
+
+  /*
+   * `skip` and `cancel` differ in one thing: whether a build that has already
+   * started is stopped.
+   *
+   * Three commits in a minute is the case both are for. `cancel` stops
+   * whatever is running, which is right when only the newest result matters and
+   * the machines are the scarce thing. `skip` lets the started build finish and
+   * drops the ones that have not - which is what people usually mean, because
+   * the run in progress will produce a result somebody can read while the
+   * queued ones would produce two nobody will.
+   */
+  if (intermediate === 'skip') {
+    const waiting: any[] = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', repositoryId)
+      .where('concurrency_group', '=', group)
+      .where('id', '!=', runId)
+      // Not started: no runner has taken any of its jobs. A run that is
+      // `running` is one somebody is already waiting on.
+      .where('state', '=', 'queued')
+      .execute()
+
+    for (const run of waiting) {
+      await db
+        .updateTable('workflow_runs')
+        .set({
+          state: 'cancelled',
+          finished_at: new Date().toISOString(),
+          conclusion_reason: 'Skipped: a newer commit arrived before this run started.',
+        } as any)
+        .where('id', '=', Number(run.id))
+        .where('state', '=', 'queued')
+        .execute()
+
+      await db
+        .updateTable('workflow_jobs')
+        .set({ state: 'cancelled', finished_at: new Date().toISOString() } as any)
+        .where('workflow_run_id', '=', Number(run.id))
+        .where('state', 'in', ['blocked', 'queued'])
+        .execute()
+    }
+
+    return
+  }
+
+  if (!cancelInProgress && intermediate !== 'cancel')
     return
 
   await db

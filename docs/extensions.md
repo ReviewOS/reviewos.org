@@ -314,6 +314,32 @@ against.
 
 **Actions has no equivalent.**
 
+## `intermediate` - what to do with runs that have not started
+
+The one extension that goes at the **top level** rather than on a job:
+
+```yaml
+name: CI
+on: push
+reviewos:
+  intermediate: skip
+concurrency:
+  group: ci-${{ github.ref }}
+```
+
+Three commits land in a minute. `run` (the default, and Actions' behaviour) runs
+all three. `cancel` is `concurrency.cancel-in-progress` said in one word: stop
+whatever is running. `skip` is the third thing, and usually the one people mean:
+**let the build that has already started finish, and drop the ones that have
+not.**
+
+The difference matters because the run in progress will produce a result
+somebody reads, while the queued ones would produce two that nobody does. A
+skipped run is `cancelled` outright rather than `cancelling` - nothing had taken
+it, so there is no machine to tell - with the reason on the run.
+
+**Actions has `cancel` only**, through `concurrency.cancel-in-progress`.
+
 ## Toolchains, instead of container images
 
 Not a `reviewos:` key at all - it needs nothing in the workflow file.
@@ -416,7 +442,7 @@ output, where the number of jobs can vary but not what they are.
 |---|---|
 | Portability | A file using `reviewos:` does not run on GitHub. It is refused, not ignored. |
 | Migration in | Nothing. An Actions workflow uses none of this and behaves identically. |
-| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; `if-changed` becomes a `dorny/paths-filter`-style action plus a step-level `if:`; `retry` becomes a `nick-fields/retry`-style action or a manual re-run; `priority` becomes nothing, since GitHub's queue has no order you can influence; `agents` becomes a label somebody has to keep in step with the machines; generated steps become a `fromJSON` matrix, which covers the case where only the *number* varies; a `group` becomes nothing, since GitHub has no grouping. |
+| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; `if-changed` becomes a `dorny/paths-filter`-style action plus a step-level `if:`; `retry` becomes a `nick-fields/retry`-style action or a manual re-run; `priority` becomes nothing, since GitHub's queue has no order you can influence; `agents` becomes a label somebody has to keep in step with the machines; generated steps become a `fromJSON` matrix, which covers the case where only the *number* varies; `intermediate: cancel` becomes `concurrency.cancel-in-progress` and `skip` becomes nothing; a `group` becomes nothing, since GitHub has no grouping. |
 
 The engine underneath is documented in
 [the pipelines roadmap](https://github.com/stacksjs/reviewos/blob/main/docs/todo/15-pipelines.md),

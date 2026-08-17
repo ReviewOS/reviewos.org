@@ -251,6 +251,23 @@ export default defineModel({
     },
 
     /**
+     * `reviewos.intermediate:` - what happens to runs still waiting when a
+     * newer one arrives.
+     *
+     * `run` is Actions' behaviour and the default; `cancel` is
+     * `concurrency.cancel-in-progress` said in one word; `skip` is the third
+     * thing neither offers - let the build that started finish, drop the ones
+     * that have not.
+     */
+    intermediate: {
+      order: 44,
+      fillable: true,
+      default: 'run',
+      validation: { rule: schema.enum(['run', 'skip', 'cancel']) },
+      factory: () => 'run',
+    },
+
+    /**
      * `workflow_dispatch.inputs`, as JSON, in the order written.
      *
      * JSON because an input is a small object with a type, a default, and

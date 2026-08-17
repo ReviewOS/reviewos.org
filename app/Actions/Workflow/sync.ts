@@ -203,6 +203,7 @@ async function insertVersion(
         : JSON.stringify(workflow.permissions),
       concurrency_group: workflow.concurrency?.group ?? null,
       cancel_in_progress: workflow.concurrency?.cancelInProgress ?? false,
+      intermediate: workflow.intermediate,
       schedules: lines(triggers.schedule),
       unsupported_events: lines(triggers.unsupported),
     } as any)
