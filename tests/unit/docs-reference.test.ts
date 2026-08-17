@@ -205,10 +205,25 @@ describe('the committed pages', () => {
     expect(operations - declared).toBeLessThanOrEqual(109)
   })
 
-  test('and are linked from the sidebar, or nobody finds them', async () => {
+  /*
+   * Every page, not two named ones.
+   *
+   * Four pages had already been written and shipped with nothing linking to
+   * them - the extension surface, the conformance table, the autoscaler
+   * contract and test intelligence - which is the same as not having written
+   * them. A test that names its pages one at a time only catches the pages
+   * somebody remembered to add to it.
+   */
+  test('and every documentation page is linked from the sidebar, or nobody finds it', async () => {
     const config = await Bun.file('config/docs.ts').text()
+    const pages = (await Array.fromAsync(new Bun.Glob('*.md').scan({ cwd: 'docs' })))
+      .map(name => name.replace(/\.md$/, ''))
+      // The index is the landing page; the roadmap has its own section below.
+      .filter(name => name !== 'index')
+      .sort()
 
-    expect(config).toContain(`link: '/api'`)
-    expect(config).toContain(`link: '/webhooks'`)
+    const missing = pages.filter(page => !config.includes(`link: '/${page}'`))
+
+    expect(missing).toEqual([])
   })
 })

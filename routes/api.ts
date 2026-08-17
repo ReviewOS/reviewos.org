@@ -771,6 +771,17 @@ route.post('/repos/workflows/dispatch', 'Actions/Workflow/DispatchWorkflowAction
  */
 route.post('/repos/workflow-runs/approve', 'Actions/Workflow/ApproveWorkflowJobAction').middleware('auth')
 
+/*
+ * Test intelligence: results from this instance's CI, or from anybody else's.
+ *
+ * Ingestion takes `check:report`, the ability a CI integration already needs to
+ * say a commit passed - reporting *which* tests passed is the same act at a
+ * finer grain, and a second scope would mean every existing integration asking
+ * for one more permission to tell you more.
+ */
+route.post('/repos/tests/ingest', 'Actions/Tests/IngestTestsAction').middleware('auth')
+route.post('/repos/tests/manage', 'Actions/Tests/ManageTestAction').middleware('auth')
+
 /**
  * The runner protocol.
  *

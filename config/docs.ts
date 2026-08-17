@@ -77,6 +77,10 @@ const config: BunPressOptions = {
             { text: 'Runner protocol', link: '/runner-protocol' },
             { text: 'Self-hosting', link: '/self-hosting' },
             { text: 'CI threat model', link: '/ci-threat-model' },
+            { text: 'Workflow extensions', link: '/extensions' },
+            { text: 'Actions conformance', link: '/conformance' },
+            { text: 'Runner autoscaling', link: '/autoscaling' },
+            { text: 'Test intelligence', link: '/test-intelligence' },
           ],
         },
         {

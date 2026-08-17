@@ -1596,21 +1596,65 @@ Buildkite Test Engine is a separate product and, for a lot of their customers, t
 there at all. It ingests test results from any CI, not just their own, which is the shape to copy: it
 should work for a repository that has not moved its CI here yet.
 
-- [ ] `TestSuite`, `TestRun`, `TestExecution`, and `ManagedTest` models. A test is identified by
+- [x] `TestSuite`, `TestRun`, `TestExecution`, and `ManagedTest` models. A test is identified by
       suite, scope, and name; scope is what separates two tests with the same name.
-- [ ] Ingest JUnit XML and a documented JSON format over an authenticated endpoint, from any CI,
+
+      A rename makes a new test, deliberately. Guessing that `renders the header` and
+      `renders a header` are the same test is guessing about intent, and being wrong loses the
+      history of the test that still exists - which is the history somebody is about to decide
+      from. `tests/e2e/test-intelligence.test.ts` says so out loud.
+
+- [x] Ingest JUnit XML and a documented JSON format over an authenticated endpoint, from any CI,
       with the run tied to a commit and optionally a pull request
+
+      `/api/repos/tests/ingest`, with `check:report` - the ability a CI integration already has to
+      say a commit passed. Reporting *which* tests passed is the same act at a finer grain, and a
+      new scope would mean every existing integration asking for one more permission to tell you
+      more. The reporter's own `key` makes the run idempotent, because every collector retries and
+      a doubled history is one flake detection then answers from.
+
+      **JUnit is read with a scanner, not an XML library.** The input is a file from a machine this
+      instance does not control; a reader that cannot be made to resolve an external entity or
+      allocate a gigabyte is worth more here than one that handles namespaces.
+      `tests/unit/test-junit.test.ts` proves `&xxe;` stays text, and that a truncated report keeps
+      the cases before the cut rather than being thrown away whole.
+
 - [ ] First-party collectors for the frameworks people actually use, starting with the ones this
       repository could use on itself, and a documented protocol so the rest are writable by anyone
-- [ ] Per-execution: result, duration, retries, failure message, stack, and the job it ran in
-- [ ] Tags as dimensions on an execution, for filtering and aggregation
-- [ ] Ownership: map a test to a team or a path, so a failure has an addressee
-- [ ] **Flaky detection**: a test that passed and failed on the same commit, or that changes verdict
+
+      The protocol is written (`docs/test-intelligence.md`); the collectors are not. Anything that
+      emits JUnit already works, which is most things, so this is convenience rather than reach.
+
+- [x] Per-execution: result, duration, retries, failure message, stack, and the job it ran in
+- [x] Tags as dimensions on an execution, for filtering and aggregation
+
+      Both are why the JSON format exists: JUnit cannot carry retries or a dimension without
+      somebody inventing an attribute, and a failure that only happens on one browser or one shard
+      is the most useful thing a suite can say.
+
+- [x] Ownership: map a test to a team or a path, so a failure has an addressee
+- [x] **Flaky detection**: a test that passed and failed on the same commit, or that changes verdict
       across reruns, over a configurable window
-- [ ] Test states: enabled, muted, skipped. A muted test still runs and still reports, but does not
+
+      Two shapes, over the last twenty executions: disagreeing about one commit, and passing only
+      after a retry. **The second is the one tools throw away** - a reporter that stores the final
+      verdict has already lost the fact that the test failed twice first.
+
+      One failure is a failure, not a flake. Calling it flaky there is telling somebody to ignore a
+      broken test.
+
+- [x] Test states: enabled, muted, skipped. A muted test still runs and still reports, but does not
       fail the run. A skipped test does not run. The difference matters and most tools conflate it.
-- [ ] Quarantine is auditable and expires: who muted it, when, why, and a review date, so quarantine
+- [x] Quarantine is auditable and expires: who muted it, when, why, and a review date, so quarantine
       does not become a graveyard
+
+      A mute needs **both** a reason and a review date or it is refused, and the listing marks the
+      ones whose date has passed `overdue`. The friction is the point: thirty seconds against a
+      test that would otherwise be off forever.
+
+      Muted failures are counted, kept in the test's history, and shown - they are only set aside
+      when the endpoint reaches a verdict. So the day the test starts passing again is visible,
+      which is exactly what skipping it destroys.
 - [ ] Monitors and actions: a rule that watches a test over time, raises an alarm when a condition
       holds, recovers when it stops, and fires an action once per transition rather than per run
 - [ ] Reliability and duration trends per test, per suite, and per branch, with the slowest and least
@@ -1623,9 +1667,20 @@ should work for a repository that has not moved its CI here yet.
       distinguishable from one that was already flaky on the base
 - [ ] Retention policy on execution data, configurable, with the storage cost stated
 - [ ] REST API, webhooks, and generated OpenAPI for suites, runs, executions, and states
-- [ ] Tests: ingestion of a malformed report, the same run reported twice, a test renamed between
-      runs, flake detection across a rerun, muting that does not hide the result, and splitting with
-      partial history
+
+      The two endpoints and their OpenAPI are generated and published; the webhook events are not,
+      and belong with the run and job events on the delivery list below rather than on their own.
+
+- [x] Tests: ingestion of a malformed report, the same run reported twice, a test renamed between
+      runs, flake detection across a rerun, and muting that does not hide the result
+
+      Fourteen in `tests/e2e/test-intelligence.test.ts`, twelve in `tests/unit/test-junit.test.ts`.
+      The malformed case is the load-bearing one: a collector posting an HTML error page, because a
+      proxy answered instead of the file it meant to send, must not read as a suite with no tests -
+      which is indistinguishable from a suite that passed.
+
+      Splitting with partial history is a test for a client that is not written; it stays on the
+      splitting line above.
 
 ---
 

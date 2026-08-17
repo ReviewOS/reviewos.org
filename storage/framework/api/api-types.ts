@@ -14816,6 +14816,58 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/tests/ingest": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "suite"?: string; "sha"?: string; "branch"?: string; "key"?: string; "format"?: "junit" | "json"; "report"?: string } } }
+    responses: {
+      "200": { content: { "application/json": { "run"?: number; "verdict"?: string; "duplicate"?: boolean; "counts"?: { "passed"?: number; "failed"?: number; "skipped"?: number; "muted_failures"?: number }; "newly_flaky"?: Array<string> } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/tests/manage": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: "list" | "flaky" | "quarantined" | "mute" | "skip" | "enable" | "own" | "history"; "suite"?: string; "test"?: number; "reason"?: string; "review"?: string; "who"?: string; "limit"?: number } } }
+    responses: {
+      "200": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/topics": {
     get?: never
     put: {

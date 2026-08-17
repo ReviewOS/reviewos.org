@@ -23002,6 +23002,430 @@
         }
       }
     },
+    "/api/repos/tests/ingest": {
+      "post": {
+        "summary": "/api/repos/tests/ingest",
+        "operationId": "post__api_repos_tests_ingest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "What was recorded, and the verdict this instance reaches once muted failures are set aside.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run": {
+                      "type": "integer"
+                    },
+                    "verdict": {
+                      "type": "string"
+                    },
+                    "duplicate": {
+                      "type": "boolean"
+                    },
+                    "counts": {
+                      "type": "object",
+                      "properties": {
+                        "passed": {
+                          "type": "integer"
+                        },
+                        "failed": {
+                          "type": "integer"
+                        },
+                        "skipped": {
+                          "type": "integer"
+                        },
+                        "muted_failures": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "newly_flaky": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may see this repository but not do this to it, or their token does not carry the permission.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such repository, or one this caller may not see - deliberately the same answer.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The report could not be read. `reason` says what was wrong with it.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "suite": {
+                    "type": "string"
+                  },
+                  "sha": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "junit",
+                      "json"
+                    ]
+                  },
+                  "report": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/tests/manage": {
+      "post": {
+        "summary": "/api/repos/tests/manage",
+        "operationId": "post__api_repos_tests_manage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The tests, or the one that changed.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may see this repository but not do this to it, or their token does not carry the permission.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such test in this repository, or none this caller may see.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A mute needs a reason and a review date.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "list",
+                      "flaky",
+                      "quarantined",
+                      "mute",
+                      "skip",
+                      "enable",
+                      "own",
+                      "history"
+                    ]
+                  },
+                  "suite": {
+                    "type": "string"
+                  },
+                  "test": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "review": {
+                    "type": "string"
+                  },
+                  "who": {
+                    "type": "string"
+                  },
+                  "limit": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/topics": {
       "post": {
         "summary": "/api/repos/topics",
