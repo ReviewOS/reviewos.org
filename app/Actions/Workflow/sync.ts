@@ -230,6 +230,7 @@ async function insertVersion(
           ? null
           : JSON.stringify(job.permissions),
         uses: job.uses,
+        outputs: Object.keys(job.outputs).length > 0 ? JSON.stringify(job.outputs) : null,
         call_with: Object.keys(job.withInputs).length > 0 ? JSON.stringify(job.withInputs) : null,
         call_secrets: job.secrets === null || job.secrets === undefined ? null : JSON.stringify(job.secrets),
         default_shell: job.defaults.shell,

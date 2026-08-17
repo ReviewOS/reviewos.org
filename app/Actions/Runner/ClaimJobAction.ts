@@ -23,6 +23,48 @@ import { claimNextJob } from './claim'
  * by [the threat model](../../../docs/ci-threat-model.md) an untrusted run
  * never receives one at all.
  */
+/**
+ * What the jobs this one waited on produced.
+ *
+ * Keyed by job id, in the shape `needs.<job>.outputs.<name>` reads. A job that
+ * needed nothing gets an empty object rather than nothing, so an expression
+ * reading `needs.build.outputs.x` is null rather than an error - which is the
+ * rule everywhere else in the expression language.
+ */
+async function outputsOfNeeds(runId: number, jobKey: string): Promise<Record<string, unknown>> {
+  const job: any = await db
+    .selectFrom('workflow_jobs')
+    .select(['needs'])
+    .where('workflow_run_id', '=', runId)
+    .where('job_id', '=', jobKey)
+    .executeTakeFirst()
+
+  const needs = String(job?.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
+
+  if (needs.length === 0)
+    return {}
+
+  const rows: any[] = await db
+    .selectFrom('workflow_jobs')
+    .select(['job_id', 'state', 'outputs'])
+    .where('workflow_run_id', '=', runId)
+    .where('job_id', 'in', needs)
+    .execute()
+
+  const answer: Record<string, unknown> = {}
+
+  for (const row of rows) {
+    answer[String(row.job_id)] = {
+      // `result` is what Actions calls it, and a dependent job's `if:` reads it
+      // as often as it reads an output.
+      result: String(row.state) === 'succeeded' ? 'success' : String(row.state),
+      outputs: readJson(row.outputs),
+    }
+  }
+
+  return answer
+}
+
 /** A stored JSON column as an object, or nothing when it holds nothing readable. */
 function readJson(value: unknown): Record<string, unknown> {
   const text = String(value ?? '').trim()
@@ -123,6 +165,31 @@ export default new Action({
       .where('workflow_runs.id', '=', claimed.runId)
       .executeTakeFirst()
 
+    /*
+     * The job's own definition row, for its declared outputs. Read separately
+     * from the steps because it is one row rather than many, and joining it
+     * onto every step would carry the same JSON once per step.
+     */
+    /*
+     * The run's own job row, for the matrix combination it was created for.
+     * `claimNextJob` returns the identity it claimed rather than the whole row,
+     * deliberately - the claim is a guarded write and widening it would mean
+     * widening the statement whose narrowness is the point.
+     */
+    const jobRow: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['matrix_values'])
+      .where('id', '=', claimed.jobId)
+      .executeTakeFirst()
+
+    const definitionJob: any = await db
+      .selectFrom('workflow_version_jobs')
+      .innerJoin('workflow_runs', 'workflow_runs.workflow_version_id', '=', 'workflow_version_jobs.workflow_version_id')
+      .select(['workflow_version_jobs.outputs as outputs'])
+      .where('workflow_runs.id', '=', claimed.runId)
+      .where('workflow_version_jobs.job_id', '=', claimed.jobKey)
+      .executeTakeFirst()
+
     const steps: any[] = await db
       .selectFrom('workflow_version_steps')
       .innerJoin(
@@ -141,6 +208,8 @@ export default new Action({
         // What the step passes to what it uses, and whether the job survives
         // its failure. Both were stored and neither was sent, so a `uses:` step
         // ran with no inputs and `continue-on-error` did nothing.
+        'workflow_version_steps.step_id as step_id',
+        'workflow_version_steps.condition as condition',
         'workflow_version_steps.inputs as inputs',
         'workflow_version_steps.shell as shell',
         'workflow_version_steps.continue_on_error as continue_on_error',
@@ -177,9 +246,37 @@ export default new Action({
          * repository called `api`.
          */
         repository_full_name: context ? `${await ownerHandleOf(context)}/${context.repository}` : null,
+        /*
+         * What this job is expected to produce, and what the jobs it waited on
+         * produced.
+         *
+         * The first is expressions over this job's steps, resolved by the runner
+         * once they have run. The second is values, already resolved by whoever
+         * ran those jobs - which is what makes `needs.build.outputs.name` mean
+         * anything at all.
+         */
+        outputs: readJson(definitionJob?.outputs),
+        /*
+         * The matrix combination this job is, so `${{ matrix.node }}` means
+         * something inside a step and in an output expression. Stored on the job
+         * when the run was created, because a combination is a fact about the
+         * job rather than about the definition.
+         */
+        matrix_values: readJson(jobRow?.matrix_values),
+        needs: await outputsOfNeeds(claimed.runId, String(claimed.jobKey)),
         steps: steps.map(step => ({
           position: Number(step.position ?? 0),
           name: step.name ?? null,
+          /*
+           * The step's own id and condition.
+           *
+           * The id is what `steps.<id>.outputs` is keyed on, and the condition
+           * is evaluated by the runner rather than here: a step's `if:` reads
+           * what the steps before it produced, which does not exist until they
+           * have run.
+           */
+          id: step.step_id ?? null,
+          if: step.condition ?? null,
           run: step.command ?? null,
           uses: step.uses ?? null,
           working_directory: step.working_directory ?? null,

@@ -66,6 +66,14 @@ export interface WorkflowJob {
   timeoutMinutes: number | null
   env: Record<string, string>
   /**
+   * `outputs:` on the job, as written.
+   *
+   * Expressions over this job's own steps - `${{ steps.build.outputs.name }}` -
+   * which can only be resolved once those steps have run, so they travel to the
+   * runner rather than being evaluated here.
+   */
+  outputs: Record<string, string>
+  /**
    * `uses:` at the job level: this job *is* another workflow.
    *
    * A job with `uses` has no steps of its own - the called workflow's jobs are
@@ -886,6 +894,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       if: typeof body.if === 'string' ? body.if : null,
       timeoutMinutes: typeof timeout === 'number' && Number.isFinite(timeout) ? timeout : null,
       env: asStringMap(body.env),
+      outputs: asStringMap(body.outputs),
       uses: typeof body.uses === 'string' && body.uses.length > 0 ? body.uses : null,
       withInputs: asRecord(body.with) ?? {},
       secrets: body.secrets ?? null,

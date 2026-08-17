@@ -92,25 +92,25 @@ export const CONFORMANCE: ConformanceEntry[] = [
   { key: 'jobs.<id>.container', level: 'job', status: 'unimplemented', behaviour: 'Parsed and refused at run time: this instance has no container isolation yet, and pretending otherwise would run the steps on the host.' },
   { key: 'jobs.<id>.services', level: 'job', status: 'unimplemented', behaviour: 'Parsed; no service containers are started, and a job that needs one is told rather than failing on a closed port.' },
   { key: 'jobs.<id>.environment', level: 'job', status: 'unimplemented', behaviour: 'Parsed; deployment environments and their protection rules are phase 9 work.' },
-  { key: 'jobs.<id>.outputs', level: 'job', status: 'unimplemented', behaviour: 'Parsed; reading one from a dependent job needs the steps to have run.' },
+  { key: 'jobs.<id>.outputs', level: 'job', status: 'supported', behaviour: 'Resolved by the runner once the steps they read have run, stored on the run\'s job, and handed to the jobs that `needs:` it as `needs.<job>.outputs.<name>` alongside `needs.<job>.result`.' },
 
   // -------------------------------------------------------------------- step
-  { key: 'steps[*].run', level: 'step', status: 'supported', behaviour: 'Executed by the runner, in the workspace, with the job\'s environment.' },
+  { key: 'steps[*].run', level: 'step', status: 'supported', behaviour: 'Executed by the runner, in the workspace, with the job\'s environment and with its `${{ }}` expressions filled in first - which is what makes `echo "${{ steps.build.outputs.name }}"` work.' },
   { key: 'steps[*].uses', level: 'step', status: 'supported', behaviour: 'Local, composite and JavaScript actions run; remote ones are fetched and cached, under a policy that allows no host by default.' },
   { key: 'steps[*].with', level: 'step', status: 'supported', behaviour: 'Passed to an action as `INPUT_*`, with the action\'s declared defaults filled in.' },
   { key: 'steps[*].env', level: 'step', status: 'supported', behaviour: 'The narrowest environment level, applied over the job\'s and the workflow\'s.' },
   { key: 'steps[*].working-directory', level: 'step', status: 'supported', behaviour: 'Resolved against the workspace.' },
   { key: 'steps[*].continue-on-error', level: 'step', status: 'differs', behaviour: 'Honoured as a literal `true` only. An expression needs the expression engine at step time, and reading it as truthy text would make every such step unfailable.' },
   { key: 'steps[*].shell', level: 'step', status: 'differs', behaviour: 'Recorded and inherited, and the local runner runs `sh` regardless. A runner that only has one shell should say so rather than refuse a file for naming another.' },
-  { key: 'steps[*].id', level: 'step', status: 'supported', behaviour: 'Recorded, and used to key a step\'s outputs.' },
-  { key: 'steps[*].if', level: 'step', status: 'unimplemented', behaviour: 'Stored as written; step-level conditions need the contexts a step produces, which arrive with step outputs.' },
+  { key: 'steps[*].id', level: 'step', status: 'supported', behaviour: 'Recorded, and what `steps.<id>.outputs`, `.outcome` and `.conclusion` are keyed on.' },
+  { key: 'steps[*].if', level: 'step', status: 'supported', behaviour: 'Evaluated by the runner against what the steps before it produced, so `steps.<id>.outputs`, `job.status`, `needs` and `always()` all work. A step whose condition is false says so in the log rather than vanishing.' },
   { key: 'steps[*].timeout-minutes', level: 'step', status: 'unimplemented', behaviour: 'Parsed; the runner\'s own ceiling applies instead.' },
 
   // ------------------------------------------------------------- expressions
   { key: '${{ }} operators', level: 'workflow', status: 'supported', behaviour: 'Comparison, `&&`, `||`, `!`, indexing and the star filter, with Actions\' coercion rules copied deliberately.' },
   { key: '${{ }} functions', level: 'workflow', status: 'differs', behaviour: '`contains`, `startsWith`, `endsWith`, `format`, `join`, `toJSON`, `fromJSON` and the status functions all work. `hashFiles` is refused rather than answered: it reads a checked-out tree the control plane does not have, and a wrong hash restores the wrong cache.' },
   { key: 'workflow commands', level: 'step', status: 'supported', behaviour: '`::error::`, `::warning::`, `::notice::`, `::group::`, `::add-mask::` and `::stop-commands::`. An `::error file=…::` becomes an annotation on the diff.' },
-  { key: 'GITHUB_ENV, GITHUB_PATH, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY', level: 'step', status: 'supported', behaviour: 'Written per step and applied to the steps after it.' },
+  { key: 'GITHUB_ENV, GITHUB_PATH, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY', level: 'step', status: 'supported', behaviour: 'Written per step and applied to the steps after it; `GITHUB_OUTPUT` is what fills `steps.<id>.outputs`.' },
   { key: '::set-output::, ::save-state::', level: 'step', status: 'refused', behaviour: 'The deprecated command forms are logged as ordinary text rather than honoured. The file protocol replaced them, and a line that vanished is worse than one that did nothing.' },
 ]
 

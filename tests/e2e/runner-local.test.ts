@@ -91,6 +91,20 @@ jobs:
       - name: Refuse an action from the internet
         uses: actions/checkout@v4
         continue-on-error: true
+      - name: Produce an output
+        id: build
+        run: |
+          echo "artifact=app.tar.gz" >> "\$GITHUB_OUTPUT"
+          echo "changed=true" >> "\$GITHUB_OUTPUT"
+      - name: Read the last step's output
+        if: steps.build.outputs.changed == 'true'
+        run: echo "built \${{ steps.build.outputs.artifact }}"
+      - name: Skipped by its condition
+        if: steps.build.outputs.changed == 'false'
+        run: echo "this must not appear"
+      - name: Runs even after a failure
+        if: always()
+        run: echo "always ran"
 `
 
 /** A composite action in the repository, which is most of what an action is. */
@@ -293,6 +307,7 @@ describe('the local runner', () => {
     })
 
     expect(outcome).toBeTruthy()
+
     expect(outcome!.state).toBe('succeeded')
 
     const job: any = await db
@@ -482,6 +497,57 @@ describe('the local runner', () => {
     expect(text).toContain('no default action host')
   }, 60_000)
 
+  /*
+   * Step-level `if:`, which had to wait for the runner: a condition reading
+   * `steps.build.outputs.changed` cannot be answered before the step called
+   * `build` has run, so it cannot be answered at dispatch at all.
+   */
+  test('a step\'s condition reads what the steps before it produced', async () => {
+    if (!available)
+      return
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .innerJoin('workflow_jobs', 'workflow_jobs.id', '=', 'workflow_job_logs.workflow_job_id')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select(['workflow_job_logs.content as content'])
+      .where('workflow_runs.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_job_logs.sequence')
+      .execute()
+
+    const text = logs.map(row => String(row.content ?? '')).join('')
+
+    // The condition held, and the interpolation read the output.
+    expect(text).toContain('built app.tar.gz')
+
+    // The one whose condition did not hold says why rather than vanishing: a
+    // step that silently did not run is the thing people spend an afternoon on.
+    expect(text).not.toContain('this must not appear')
+    expect(text).toContain('is false')
+  }, 60_000)
+
+  /*
+   * `if: always()` exists to run after a failure - uploading logs, posting a
+   * comment, tearing down a deployment - so a runner that stops at the first
+   * failing step skips exactly the steps written for that moment.
+   */
+  test('and a step with if: always() runs after an earlier one failed', async () => {
+    if (!available)
+      return
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .innerJoin('workflow_jobs', 'workflow_jobs.id', '=', 'workflow_job_logs.workflow_job_id')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select(['workflow_job_logs.content as content'])
+      .where('workflow_runs.repository_id', '=', created.repositoryId)
+      .execute()
+
+    const text = logs.map(row => String(row.content ?? '')).join('')
+
+    expect(text).toContain('always ran')
+  }, 60_000)
+
   test('a second claim finds nothing, because the job is finished', async () => {
     if (!available)
       return
@@ -552,4 +618,137 @@ describe('the local runner', () => {
 
     expect(String(job.state)).toBe('failed')
   }, 120_000)
+})
+
+/*
+ * Job outputs: what one job produced, read by the job that waited for it.
+ *
+ * The whole path in one test, because every part of it is only useful with the
+ * others - a runner resolving `${{ steps.build.outputs.name }}` into a value,
+ * the control plane storing it against the run's job, and the next claim
+ * handing it to whoever needed it.
+ */
+describe('outputs between jobs', () => {
+  test('a dependent job is handed what the job it needed produced', async () => {
+    if (!available)
+      return
+
+    const { runOnce } = await import('../../app/Actions/Runner/localExecutor')
+
+    // A version whose first job declares an output and whose second needs it.
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_versions.id', 'desc')
+      .executeTakeFirst()
+
+    const producer: any = await db.insertInto('workflow_version_jobs').values({
+      workflow_version_id: Number(version.id),
+      job_id: 'produce',
+      name: 'Produce',
+      position: 10,
+      runs_on: 'ubuntu-latest',
+      outputs: JSON.stringify({ artifact: '${{ steps.pack.outputs.name }}' }),
+    }).returning(['id']).executeTakeFirst()
+
+    await db.insertInto('workflow_version_steps').values({
+      workflow_version_job_id: Number(producer.id),
+      position: 0,
+      step_id: 'pack',
+      name: 'Pack',
+      command: 'echo "name=app-1.2.3.tgz" >> "$GITHUB_OUTPUT"',
+    }).execute()
+
+    const consumer: any = await db.insertInto('workflow_version_jobs').values({
+      workflow_version_id: Number(version.id),
+      job_id: 'consume',
+      name: 'Consume',
+      position: 11,
+      runs_on: 'ubuntu-latest',
+      needs: 'produce',
+    }).returning(['id']).executeTakeFirst()
+
+    await db.insertInto('workflow_version_steps').values({
+      workflow_version_job_id: Number(consumer.id),
+      position: 0,
+      name: 'Read it',
+      command: 'echo "got ${{ needs.produce.outputs.artifact }} from ${{ needs.produce.result }}"',
+    }).execute()
+
+    const run: any = await db.insertInto('workflow_runs').values({
+      workflow_version_id: Number(version.id),
+      repository_id: created.repositoryId,
+      number: 500,
+      state: 'queued',
+      event: 'push',
+      event_ref: 'refs/heads/outputs',
+      head_sha: created.headSha,
+      definition_sha: created.headSha,
+      trusted: true,
+    }).returning(['id']).executeTakeFirst()
+
+    await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: 'produce',
+      name: 'Produce',
+      position: 0,
+      state: 'queued',
+      runs_on: 'ubuntu-latest',
+    }).execute()
+
+    await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: 'consume',
+      name: 'Consume',
+      position: 1,
+      // Blocked until the producer succeeds, which is what `needs` means.
+      state: 'blocked',
+      needs: 'produce',
+      runs_on: 'ubuntu-latest',
+    }).execute()
+
+    // The producer runs and resolves its declared output from its step.
+    const first = await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' })
+
+    expect(first?.state).toBe('succeeded')
+
+    const produced: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['outputs'])
+      .where('workflow_run_id', '=', Number(run.id))
+      .where('job_id', '=', 'produce')
+      .executeTakeFirst()
+
+    expect(JSON.parse(String(produced.outputs))).toEqual({ artifact: 'app-1.2.3.tgz' })
+
+    // Unblock the consumer the way the dispatcher would, then run it.
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'queued' } as any)
+      .where('workflow_run_id', '=', Number(run.id))
+      .where('job_id', '=', 'consume')
+      .execute()
+
+    const second = await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' })
+
+    expect(second?.state).toBe('succeeded')
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .innerJoin('workflow_jobs', 'workflow_jobs.id', '=', 'workflow_job_logs.workflow_job_id')
+      .select(['workflow_job_logs.content as content'])
+      .where('workflow_jobs.workflow_run_id', '=', Number(run.id))
+      .where('workflow_jobs.job_id', '=', 'consume')
+      .orderBy('workflow_job_logs.sequence')
+      .execute()
+
+    const text = logs.map(row => String(row.content ?? '')).join('')
+
+    // Both halves of what `needs` carries: the value, and whether the job that
+    // produced it succeeded - a dependent job's `if:` reads the second as often
+    // as it reads the first.
+    expect(text).toContain('got app-1.2.3.tgz from success')
+  }, 180_000)
 })

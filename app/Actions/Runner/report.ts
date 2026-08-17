@@ -25,6 +25,39 @@ export interface ReportInput {
   state: 'succeeded' | 'failed' | 'cancelled'
   /** Optional, and untrusted: a runner can send anything. */
   error?: string | null
+  /**
+   * What the job produced, resolved by the runner from its steps.
+   *
+   * Untrusted like everything else a runner says, and capped: a job's outputs
+   * are read by the jobs after it, so an unbounded map is a way to make every
+   * later claim expensive.
+   */
+  outputs?: Record<string, string> | null
+}
+
+/**
+ * A job's outputs, bounded.
+ *
+ * Sixty-four values of four kilobytes each is more than any real job produces
+ * and far less than a runner could send. The cap is here rather than only in the
+ * endpoint because this is the function that writes the row, and a limit that
+ * lives away from the write is a limit somebody bypasses by calling the other
+ * path.
+ */
+function cappedOutputs(outputs: Record<string, string> | null | undefined): string | null {
+  if (!outputs || typeof outputs !== 'object')
+    return null
+
+  const values: Record<string, string> = {}
+
+  for (const [name, value] of Object.entries(outputs).slice(0, 64)) {
+    if (!name)
+      continue
+
+    values[name.slice(0, 200)] = String(value ?? '').slice(0, 4000)
+  }
+
+  return Object.keys(values).length > 0 ? JSON.stringify(values) : null
 }
 
 export interface ReportOutcome {
@@ -100,6 +133,16 @@ export async function reportJob(
     .set({
       state: input.state,
       finished_at: now.toISOString(),
+      /*
+       * The outputs travel with the conclusion rather than in a call of their
+       * own.
+       *
+       * A job that reported outputs and then failed to report its result would
+       * leave values attached to a job nobody can tell finished, and the jobs
+       * waiting on it would read them without knowing whether the job that
+       * produced them succeeded.
+       */
+      outputs: cappedOutputs(input.outputs),
       // The lease is released with the result. Leaving it would let a
       // heartbeat from this runner keep a finished job looking held.
       lease_expires_at: null,

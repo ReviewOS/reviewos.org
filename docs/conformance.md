@@ -7,7 +7,7 @@ is accepted and does nothing has not been implemented - the fact that it has not
 hidden. So every key here has a status and a sentence, including the ones that are missing and
 the ones that are deliberately different.
 
-28 keys behave as Actions does, 6 differ on purpose, 12 are not implemented yet, and 1 is refused.
+30 keys behave as Actions does, 6 differ on purpose, 10 are not implemented yet, and 1 is refused.
 
 Generated from the conformance table.
 
@@ -36,15 +36,17 @@ These do what Actions does. A workflow using only these keys behaves the same he
 | `jobs.<id>.env` | job | Overrides the workflow's for this job's steps. |
 | `jobs.<id>.permissions` | job | Replaces the workflow's rather than adding to it, which is Actions' rule. |
 | `jobs.<id>.concurrency` | job | A group of its own, resolved against the run and the matrix combination. |
-| `steps[*].run` | step | Executed by the runner, in the workspace, with the job's environment. |
+| `jobs.<id>.outputs` | job | Resolved by the runner once the steps they read have run, stored on the run's job, and handed to the jobs that `needs:` it as `needs.<job>.outputs.<name>` alongside `needs.<job>.result`. |
+| `steps[*].run` | step | Executed by the runner, in the workspace, with the job's environment and with its `${{ }}` expressions filled in first - which is what makes `echo "${{ steps.build.outputs.name }}"` work. |
 | `steps[*].uses` | step | Local, composite and JavaScript actions run; remote ones are fetched and cached, under a policy that allows no host by default. |
 | `steps[*].with` | step | Passed to an action as `INPUT_*`, with the action's declared defaults filled in. |
 | `steps[*].env` | step | The narrowest environment level, applied over the job's and the workflow's. |
 | `steps[*].working-directory` | step | Resolved against the workspace. |
-| `steps[*].id` | step | Recorded, and used to key a step's outputs. |
+| `steps[*].id` | step | Recorded, and what `steps.<id>.outputs`, `.outcome` and `.conclusion` are keyed on. |
+| `steps[*].if` | step | Evaluated by the runner against what the steps before it produced, so `steps.<id>.outputs`, `job.status`, `needs` and `always()` all work. A step whose condition is false says so in the log rather than vanishing. |
 | `${{ }} operators` | workflow | Comparison, `&&`, `||`, `!`, indexing and the star filter, with Actions' coercion rules copied deliberately. |
 | `workflow commands` | step | `::error::`, `::warning::`, `::notice::`, `::group::`, `::add-mask::` and `::stop-commands::`. An `::error file=…::` becomes an annotation on the diff. |
-| `GITHUB_ENV, GITHUB_PATH, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY` | step | Written per step and applied to the steps after it. |
+| `GITHUB_ENV, GITHUB_PATH, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY` | step | Written per step and applied to the steps after it; `GITHUB_OUTPUT` is what fills `steps.<id>.outputs`. |
 
 ## Different on purpose
 
@@ -74,8 +76,6 @@ These are read and do nothing yet. A workflow using one is told - on its run, or
 | `jobs.<id>.container` | job | Parsed and refused at run time: this instance has no container isolation yet, and pretending otherwise would run the steps on the host. |
 | `jobs.<id>.services` | job | Parsed; no service containers are started, and a job that needs one is told rather than failing on a closed port. |
 | `jobs.<id>.environment` | job | Parsed; deployment environments and their protection rules are phase 9 work. |
-| `jobs.<id>.outputs` | job | Parsed; reading one from a dependent job needs the steps to have run. |
-| `steps[*].if` | step | Stored as written; step-level conditions need the contexts a step produces, which arrive with step outputs. |
 | `steps[*].timeout-minutes` | step | Parsed; the runner's own ceiling applies instead. |
 
 ## Refused

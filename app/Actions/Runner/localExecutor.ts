@@ -31,6 +31,7 @@ import { checkPolicy, defaultPolicy, parseActionRef } from './actionRef'
 import type { ActionDefinition } from './actionFile'
 import { inputEnvironment, missingInputs, parseActionFile } from './actionFile'
 import { CommandReader } from './commands'
+import { interpolate, shouldRun } from '../Workflow/expression'
 
 export interface LocalRunnerOptions {
   /** Where this instance is, for the runner protocol. */
@@ -223,8 +224,54 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     const carried: Record<string, string> = {}
     let extraPath = ''
 
+    /*
+     * What the steps so far have produced, in the shape an expression reads.
+     *
+     * This is the whole reason step-level `if:` had to wait for the runner: a
+     * condition like `steps.build.outputs.changed == 'true'` cannot be answered
+     * before the step called `build` has run, so it cannot be answered at
+     * dispatch at all.
+     */
+    const stepContext: Record<string, { outputs: Record<string, string>, outcome: string, conclusion: string }> = {}
+    let jobFailed = false
+
     for (const [index, step] of steps.entries()) {
       const name = String(step.name ?? step.run ?? step.uses ?? `step ${index + 1}`)
+
+      /*
+       * The step's own condition, evaluated here rather than at dispatch.
+       *
+       * `job.status` is what makes `if: always()` and `if: failure()` work, and
+       * it is the reason a step can run after an earlier one failed - which is
+       * how anybody uploads logs from a broken build.
+       */
+      const context = {
+        github: {
+          workflow: String(job.run?.workflow ?? ''),
+          event_name: String(job.run?.event ?? ''),
+          ref: String(job.run?.ref ?? ''),
+          ref_name: String(job.run?.ref ?? '').replace(/^refs\/(?:heads|tags)\//, ''),
+          sha: String(job.run?.head_sha ?? ''),
+          repository: String(job.repository_full_name ?? ''),
+        },
+        job: { status: jobFailed ? 'failure' : 'success' },
+        steps: stepContext,
+        needs: job.needs ?? {},
+        matrix: job.matrix_values ?? {},
+        env: { ...environmentFor(job, workspace), ...carried },
+      }
+
+      const decision = shouldRun(step.if, context)
+
+      if (!decision.run) {
+        await send(`::group::${name}\nSkipped: ${decision.reason}\n::endgroup::\n`)
+
+        if (step.id) {
+          stepContext[String(step.id)] = { outputs: {}, outcome: 'skipped', conclusion: 'skipped' }
+        }
+
+        continue
+      }
 
       if (step.uses) {
         await send(`::group::${name}\n`)
@@ -284,11 +331,28 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         environment.PATH = `${extraPath}:${environment.PATH}`
 
       const result = await runStep({
-        command: String(step.run),
-        cwd: step.working_directory ? join(workspace, String(step.working_directory)) : workspace,
+        /*
+         * The expressions in a `run:` are filled in before the shell sees it.
+         *
+         * That is what Actions does and the reason a workflow can say
+         * `echo "${{ steps.build.outputs.artifact }}"` at all - without it the
+         * shell is handed the literal braces and answers "bad substitution",
+         * which is what this did until a test ran a real workflow.
+         *
+         * It is also the well-known injection shape: a value spliced into a
+         * shell command is a value that can end the command and start another,
+         * and Actions has the same property by design. What keeps it honest is
+         * that the value comes from this run's own steps and event, quoting is
+         * the workflow author's job exactly as it is on Actions, and anything
+         * this cannot resolve is left as written rather than becoming an empty
+         * string that silently changes what the command means.
+         */
+        command: interpolate(String(step.run), context),
+        cwd: step.working_directory ? join(workspace, interpolate(String(step.working_directory), context)) : workspace,
         // A step's own `env:` is the narrowest level, so it wins - the same
-        // precedence `Workflow/env.ts` describes for the levels above it.
-        environment: { ...environment, ...(step.env ?? {}) },
+        // precedence `Workflow/env.ts` describes for the levels above it - and
+        // its values are expressions too.
+        environment: { ...environment, ...interpolateValues(step.env ?? {}, context) },
         onOutput: (text, stream) => send(text, stream),
       })
 
@@ -298,6 +362,22 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       const written = readStepFiles(files)
 
       Object.assign(carried, written.environment)
+
+      /*
+       * The step's outputs and its outcome, for the steps after it.
+       *
+       * `outcome` is what happened; `conclusion` is what it counts as, which
+       * differ exactly when `continue-on-error` turned a failure into a
+       * non-failure - and a later step reading one when it meant the other is
+       * the bug this distinction exists to prevent.
+       */
+      if (step.id) {
+        stepContext[String(step.id)] = {
+          outputs: written.outputs,
+          outcome: result.ok ? 'success' : 'failure',
+          conclusion: result.ok || step.continue_on_error ? 'success' : 'failure',
+        }
+      }
 
       if (written.path)
         extraPath = extraPath ? `${written.path}:${extraPath}` : written.path
@@ -317,12 +397,43 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         }
 
         failed = `${name} exited ${result.exitCode}`
+        jobFailed = true
         await send(`${failed}\n`, 'stderr')
-        break
+
+        /*
+         * The loop does not stop here any more.
+         *
+         * A step with `if: always()` or `if: failure()` exists to run after a
+         * failure - uploading logs, posting a comment, tearing down a
+         * deployment - and breaking out would skip exactly the steps written
+         * for this moment. The job still fails; what changes is that the file
+         * gets to say what happens next.
+         */
+        continue
       }
     }
 
     await flush()
+
+    /*
+     * The job's outputs, resolved now that the steps have run.
+     *
+     * `outputs: { name: '${{ steps.build.outputs.name }}' }` is an expression
+     * over the step context, which is why it is resolved here and not at parse
+     * time - and why an expression this cannot resolve is left as written
+     * rather than becoming an empty string somebody has to explain.
+     */
+    const declaredOutputs = (job.outputs && typeof job.outputs === 'object') ? job.outputs : {}
+    const resolvedOutputs: Record<string, string> = {}
+
+    for (const [name, expression] of Object.entries(declaredOutputs as Record<string, unknown>)) {
+      resolvedOutputs[name] = interpolate(String(expression ?? ''), {
+        steps: stepContext,
+        needs: job.needs ?? {},
+        job: { status: failed ? 'failure' : 'success' },
+        matrix: job.matrix_values ?? {},
+      })
+    }
 
     const state = failed ? 'failed' : 'succeeded'
 
@@ -347,7 +458,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       })
     }
 
-    await report(options.baseUrl, jobToken, state, failed ?? '')
+    await report(options.baseUrl, jobToken, state, failed ?? '', resolvedOutputs)
     say(`job ${job.id} ${state}`)
 
     return { jobId: Number(job.id), state, reason: failed ?? 'every step succeeded' }
@@ -733,6 +844,7 @@ function readStepFiles(files: ReturnType<typeof stepFiles>): {
   environment: Record<string, string>
   path: string
   summary: string
+  outputs: Record<string, string>
   masks: string[]
 } {
   const environment = parseEnvFile(read(files.paths.env))
@@ -744,6 +856,9 @@ function readStepFiles(files: ReturnType<typeof stepFiles>): {
     // first - which is what `GITHUB_PATH` means and the opposite of appending.
     path: read(files.paths.path).split('\n').map(line => line.trim()).filter(Boolean).reverse().join(':'),
     summary: read(files.paths.summary).trim(),
+    // What the step wrote to `GITHUB_OUTPUT`, which is how `steps.<id>.outputs`
+    // gets anything in it.
+    outputs,
     /*
      * Nothing here is masked automatically. An output is not a secret - it is
      * usually a version number or a filename - and masking every one of them
@@ -806,6 +921,16 @@ export function parseEnvFile(text: string): Record<string, string> {
   }
 
   return values
+}
+
+/** Every value in a map, with its expressions filled in. */
+function interpolateValues(values: Record<string, unknown>, context: Record<string, unknown>): Record<string, string> {
+  const filled: Record<string, string> = {}
+
+  for (const [name, value] of Object.entries(values ?? {}))
+    filled[name] = interpolate(String(value ?? ''), context)
+
+  return filled
 }
 
 /** Run one command, streaming its output as it arrives. */
@@ -878,6 +1003,15 @@ async function append(baseUrl: string, jobToken: string, sequence: number, conte
   await post(baseUrl, '/api/runner/logs', jobToken, { sequence, content, stream })
 }
 
-async function report(baseUrl: string, jobToken: string, state: string, error: string): Promise<void> {
-  await post(baseUrl, '/api/runner/report', jobToken, { state, error })
+async function report(
+  baseUrl: string,
+  jobToken: string,
+  state: string,
+  error: string,
+  outputs?: Record<string, string>,
+): Promise<void> {
+  // The outputs travel with the conclusion: a job that reported values and then
+  // failed to report its result would leave them attached to a job nobody can
+  // tell finished.
+  await post(baseUrl, '/api/runner/report', jobToken, { state, error, outputs: outputs ?? null })
 }

@@ -25,6 +25,30 @@ import { reportJob } from './report'
  * so "a credential used against the wrong job" stops being a case to defend
  * against and becomes one that cannot be expressed.
  */
+/** The outputs a runner reported, as a map of strings or nothing. */
+function readOutputs(value: unknown): Record<string, string> | null {
+  const parsed = typeof value === 'string' ? tryParse(value) : value
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    return null
+
+  const outputs: Record<string, string> = {}
+
+  for (const [name, entry] of Object.entries(parsed as Record<string, unknown>))
+    outputs[name] = entry === null || entry === undefined ? '' : String(entry)
+
+  return outputs
+}
+
+function tryParse(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  }
+  catch {
+    return null
+  }
+}
+
 export default new Action({
   name: 'ReportJob',
   description: 'Record the result of a job a runner holds',
@@ -77,6 +101,9 @@ export default new Action({
       jobId: held.jobId,
       state: state as 'succeeded' | 'failed' | 'cancelled',
       error: request.get('error') ?? null,
+      // Read as a map of strings, and capped where the row is written rather
+      // than trusted here: a runner is somebody else's machine.
+      outputs: readOutputs(request.get('outputs')),
     })
 
     if (!outcome.ok)

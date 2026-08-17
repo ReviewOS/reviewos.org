@@ -8442,6 +8442,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "outputs",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8788,6 +8796,14 @@
           },
           {
             "name": "condition_reason",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "outputs",
             "type": "text",
             "isPrimaryKey": false,
             "isUnique": false,
@@ -9685,7 +9701,7 @@
       }
     ]
   },
-  "hash": "f99eda1b5e4143b6c9eb48608dccb2d576a687d3b044e29ec1244ab8bbca7955",
+  "hash": "9cd718a06e681319f35fa4776765fb9950e8fe380cda646b4bfff85d8a3f65b6",
   "dialect": "postgres",
-  "updatedAt": "2026-08-17T05:01:33.563Z"
+  "updatedAt": "2026-08-17T14:04:17.790Z"
 }

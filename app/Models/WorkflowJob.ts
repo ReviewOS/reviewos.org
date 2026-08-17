@@ -143,6 +143,22 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * What this job produced, as JSON.
+     *
+     * Reported by the runner when the job finishes, and read by the jobs that
+     * `needs:` it. On the run's job rather than on the definition, because an
+     * output is a fact about one run: two runs of the same workflow produce
+     * different values, and a column shared with the definition could only hold
+     * the last one.
+     */
+    outputs: {
+      order: 34,
+      fillable: true,
+      validation: { rule: schema.string().max(65_535) },
+      factory: () => null,
+    },
+
     needs: {
       order: 6,
       fillable: true,

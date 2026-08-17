@@ -213,6 +213,20 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * `outputs:` on the job, as JSON.
+     *
+     * Expressions over the job's own steps - `${{ steps.build.outputs.name }}` -
+     * so they are stored as written and resolved by the runner once the steps
+     * they read have actually run.
+     */
+    outputs: {
+      order: 42,
+      fillable: true,
+      validation: { rule: schema.string().max(16_000) },
+      factory: () => null,
+    },
+
     timeout_minutes: {
       order: 8,
       fillable: true,

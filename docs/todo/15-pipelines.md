@@ -238,7 +238,8 @@ written down here so it does not get relitigated:
       commit. Without it the second issue would look like the first one redelivered.
 
       The rest are recorded as recognised-but-not-dispatched.
-- [ ] `jobs:` with `needs:`, `if:` (**decided at dispatch now** - a job whose condition is false is
+- [ ] `jobs:` with `needs:`, `outputs:` (**resolved by the runner and handed to dependent jobs as
+      `needs.<job>.outputs.<name>`, alongside `needs.<job>.result`**), `if:` (**decided at dispatch now** - a job whose condition is false is
       `skipped` from the moment the run exists, with the reason on the row, rather than queued and
       quietly ignored), `strategy.matrix` including `include`, `exclude`, `fail-fast`,
       and `max-parallel`, plus `continue-on-error`, `timeout-minutes`, and `outputs`
@@ -276,7 +277,24 @@ written down here so it does not get relitigated:
       truthy text would make every such step unfailable, which is the dangerous direction to guess
       in.
 
-      `if` is stored as written and not evaluated, which is the expression engine's job.
+      **`if` is evaluated now**, by the runner rather than at dispatch - a condition reading
+      `steps.build.outputs.changed` cannot be answered before the step called `build` has run, so it
+      cannot be answered when the run is created at all. `steps.<id>.outputs`, `.outcome`,
+      `.conclusion`, `job.status`, `needs` and `always()` all work, and a step whose condition is
+      false says so in the log rather than vanishing.
+
+      Two consequences worth stating. **A failing step no longer ends the job's steps**: a step with
+      `if: always()` or `if: failure()` exists to run after a failure - uploading logs, posting a
+      comment, tearing down a deployment - and stopping at the first failure skips exactly the steps
+      written for that moment. The job still fails; the file gets to say what happens next.
+
+      And **`${{ }}` in a `run:` is filled in before the shell sees it**, which is what makes
+      `echo "${{ steps.build.outputs.name }}"` work rather than producing "bad substitution". That is
+      also the well-known injection shape - a value spliced into a shell command can end it and
+      start another - and Actions has the same property by design: the value comes from this run's
+      own steps and event, quoting is the author's job exactly as it is there, and anything
+      unresolvable is left as written rather than becoming an empty string that silently changes what
+      the command means.
 - [ ] `container:` and `services:` on a job, with `image`, `env`, `ports`, `volumes`, `options`, and
       health-checked service startup before the first step
 - [ ] `concurrency:` with `group` and `cancel-in-progress`, at workflow and job level. Actions has
