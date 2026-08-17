@@ -1255,8 +1255,27 @@ output, which covers the common case and nothing else.
       workflow with its own runs and its own schedule. `.reviewos/` wins outright when present -
       not merged, because two directories quietly contributing to one list is how somebody ends up
       running a file they thought they had replaced.
-- [ ] Environment variables and settings at instance, owner, repository, and workflow level, with a
+- [x] Environment variables and settings at instance, owner, repository, and workflow level, with a
       documented precedence order and a screen that shows where a value came from
+
+      Narrowest wins - the workflow file's `env:`, then the repository, then the owner, then the
+      instance - and that half is what everybody expects. **The screen is the feature.** Four
+      places can set `REGISTRY`, so a value can be wrong at a level nobody is looking at, and "it
+      is us-east-1" is not the answer somebody needs at that point: the listing says which level
+      answered and what it overrode, widest last.
+
+      Setting a value something narrower already overrides says so in the answer, because
+      otherwise it looks like it worked and the question comes back three days later.
+
+      The resolution runs once, at claim time, and the page reads the same function: a precedence
+      rule implemented twice is a precedence rule that disagrees with itself about why a value is
+      what it is.
+
+      An instance variable needs an administrator and an owner variable needs the owner -
+      administering one repository is not permission to change every repository an organization
+      has. And they are **variables, not secrets**: readable by anybody who can read the
+      repository, in the logs, handed to a fork's job. There is no secret store yet and the docs
+      say so rather than approximating one with a `secret: true` column on a plain-text table.
 - [ ] Tests: schedule fires once per window, intermediate cancellation leaves exactly one run, a
       template change does not retroactively alter a finished run
 

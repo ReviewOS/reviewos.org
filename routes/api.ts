@@ -781,6 +781,14 @@ route.post('/repos/workflow-runs/approve', 'Actions/Workflow/ApproveWorkflowJobA
 route.post('/repos/environments', 'Actions/Workflow/EnvironmentsAction').middleware('auth')
 
 /*
+ * Variables at four levels, and where each effective value came from.
+ *
+ * The listing is the reason it exists: a value can be wrong at a level nobody
+ * is looking at, and "it is us-east-1" is not the answer somebody needs then.
+ */
+route.post('/repos/variables', 'Actions/Workflow/VariablesAction').middleware('auth')
+
+/*
  * Test intelligence: results from this instance's CI, or from anybody else's.
  *
  * Ingestion takes `check:report`, the ability a CI integration already needs to

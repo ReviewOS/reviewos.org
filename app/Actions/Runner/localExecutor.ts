@@ -773,6 +773,15 @@ function expressionContext(
     // `inputs` is what a `workflow_dispatch` or a called workflow reads, and it
     // travels in the event payload because that is where the run recorded it.
     inputs: (job?.event && typeof job.event === 'object' ? (job.event as any).inputs : null) ?? {},
+    /*
+     * `vars`, already resolved across instance, owner, repository and the
+     * workflow file by the control plane.
+     *
+     * Resolved there rather than merged here, so the precedence exists once:
+     * two implementations of "narrowest wins" is two answers to "why is this
+     * value what it is", and the screen that explains it reads the same one.
+     */
+    vars: job?.vars ?? {},
     runner: {
       os: runnerOs(),
       arch: runnerArch(),

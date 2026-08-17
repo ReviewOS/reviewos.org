@@ -11396,10 +11396,108 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "workflow_variables",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "scope_type",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "repository",
+            "enumValues": [
+              "instance",
+              "owner",
+              "repository"
+            ],
+            "enumTypeName": "workflow_variables_scope_type_type"
+          },
+          {
+            "name": "scope_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "key",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 200
+          },
+          {
+            "name": "value",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": ""
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "workflow_variables_scope_index",
+            "columns": [
+              "scope_type",
+              "scope_id",
+              "key"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "workflow_variables_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "f7f6bddc2346edfe06fdd7d052d5282e5a35be9c17c08d25f0174ed0522975d5",
+  "hash": "89be790fe10feccb9e9d99a91d3633dd5fca8c2611fd362f8b32281ec4f8ffab",
   "dialect": "postgres",
-  "updatedAt": "2026-08-17T20:07:21.813Z"
+  "updatedAt": "2026-08-17T20:24:02.811Z"
 }

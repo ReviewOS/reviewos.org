@@ -5497,6 +5497,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/variables
+   */
+  postReposVariables(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "list" | "set" | "unset"; "scope"?: "instance" | "owner" | "repository"; "key"?: string; "value"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "variables"?: Array<{ "key"?: string; "value"?: string; "scope"?: string; "from"?: string; "shadowed"?: Array<Record<string, unknown>> }> }>> {
+    return request(config, "POST", "/api/repos/variables", input ?? {}, [], true, options)
+  },
+
+  /**
    * PUT /api/repos/watches
    */
   putReposWatches(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "subscription"?: "all" | "participating" | "ignore" } }, options?: RequestOptions): Promise<ApiResult<unknown>> {

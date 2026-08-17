@@ -82,6 +82,7 @@ const config: BunPressOptions = {
             { text: 'Runner autoscaling', link: '/autoscaling' },
             { text: 'Test intelligence', link: '/test-intelligence' },
             { text: 'Deployment environments', link: '/environments' },
+            { text: 'Workflow variables', link: '/variables' },
           ],
         },
         {

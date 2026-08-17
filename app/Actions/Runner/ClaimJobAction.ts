@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
+import { variablesFor } from '../Workflow/variables'
 import { db } from '@stacksjs/database'
 import { authenticateRunner } from './authenticate'
 import { claimNextJob, stopRequestedFor } from './claim'
@@ -286,7 +287,7 @@ export default new Action({
     const definitionJob: any = await db
       .selectFrom('workflow_version_jobs')
       .innerJoin('workflow_runs', 'workflow_runs.workflow_version_id', '=', 'workflow_version_jobs.workflow_version_id')
-      .select(['workflow_version_jobs.outputs as outputs'])
+      .select(['workflow_version_jobs.outputs as outputs', 'workflow_version_jobs.env as env'])
       .where('workflow_runs.id', '=', claimed.runId)
       .where('workflow_version_jobs.job_id', '=', claimed.jobKey)
       .executeTakeFirst()
@@ -388,6 +389,19 @@ export default new Action({
          * job rather than about the definition.
          */
         matrix_values: readJson(jobRow?.matrix_values),
+        /*
+         * `vars`, resolved across the four levels at claim time.
+         *
+         * Resolved here rather than sent as four sets for the runner to merge:
+         * a precedence rule implemented twice is a precedence rule that
+         * disagrees with itself, and the screen that says where a value came
+         * from reads the same resolution this does.
+         *
+         * Variables, never secrets. They go to every job including a fork's,
+         * they are in the logs, and there is no secret store here to confuse
+         * them with.
+         */
+        vars: await variablesFor(claimed.repositoryId, readJson(definitionJob?.env) as Record<string, string> ?? {}),
         /*
          * The event, in the shape a webhook receiver would have got.
          *

@@ -17,6 +17,7 @@
  * repository, and none of those are things a permission check can catch.
  */
 import { deployKeysFor, repositoryForView } from '../../../functions/repo'
+import { resolveVariables, settingsFor } from '../../../functions/variables'
 import { branchNames, relativeTime } from '../../../functions/browse'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
@@ -61,6 +62,40 @@ const branches = repoRow && mayEdit ? await branchNames(String(repoAccess?.diskP
 
 // A repository's own keys, for the machines that clone it.
 const deployKeys = repoRow ? await deployKeysFor(Number(repoRow.id)) : []
+
+/*
+ * Variables, and the part that makes the section worth having: what each
+ * effective value overrode.
+ *
+ * Four levels can set one key, so a value can be wrong at a level nobody is
+ * looking at. "It is us-east-1" is not the answer somebody needs at that
+ * point - "it is us-east-1, set by the organization, and this repository's
+ * eu-west-1 is underneath it" is.
+ *
+ * Guarded like every other read on a settings screen: a throw here renders the
+ * page with every binding undefined, and a repository whose settings vanish
+ * because of a variable row is worse than one with no variables section.
+ */
+let variables: any[] = []
+try {
+  if (repoRow)
+    variables = resolveVariables(await settingsFor(Number(repoRow.id)))
+}
+catch {
+  variables = []
+}
+
+const variableRows = variables.map((one: any) => ({
+  key: String(one.key),
+  value: String(one.value ?? ''),
+  scope: String(one.scope),
+  from: String(one.from ?? ''),
+  // Flattened for the template: a nested loop over `one.shadowed` inside a
+  // loop over rows renders nothing at all in stx, silently.
+  overrides: (one.shadowed ?? [])
+    .map((under: any) => `${String(under.scope)} (${String(under.from)}): ${String(under.value ?? '')}`)
+    .join(' · '),
+}))
 
 const topics: any[] = repoRow && mayEdit
   ? await db
@@ -322,6 +357,74 @@ const fullName = `${ownerHandle}/${repositoryName}`
                   <input type="hidden" name="id" value="{{ key.id }}">
                   <button class="btn" type="submit">Remove</button>
                 </form>
+              </li>
+            @endforeach
+          </ul>
+        @endif
+      </section>
+
+      <section class="card panel">
+        <h2 class="card-title">Variables</h2>
+
+        {{--
+          Not secrets, and the note says so where somebody is about to type
+          one: these reach every job, a fork's included, and they are in the
+          logs.
+        --}}
+        <p class="card-note muted">
+          Values workflows read as <code>${{ '{{' }} vars.NAME {{ '}}' }}</code>. They are not secrets: every job can read
+          them, including a job from a fork, and they appear in logs. A workflow file's
+          <code>env:</code> beats all of them, then this repository, then the owner, then the
+          instance.
+        </p>
+
+        <form class="grid" method="post" action="/api/repos/variables">
+          <CsrfField />
+          <input type="hidden" name="owner" value="{{ ownerHandle }}">
+          <input type="hidden" name="repo" value="{{ repositoryName }}">
+          <input type="hidden" name="operation" value="set">
+          <input type="hidden" name="scope" value="repository">
+
+          <label class="field">
+            <span class="label">Name</span>
+            <input class="input mono" name="key" placeholder="REGISTRY" maxlength="200" required>
+          </label>
+
+          <label class="field">
+            <span class="label">Value</span>
+            <input class="input mono" name="value" placeholder="ghcr.io" maxlength="4000">
+          </label>
+
+          <div class="actions">
+            <button class="btn" type="submit">Set for this repository</button>
+          </div>
+        </form>
+
+        @if (variableRows.length > 0)
+          <ul class="deploy-list">
+            @foreach (variableRows as row)
+              <li class="deploy-row">
+                <div class="deploy-main">
+                  <span class="deploy-name mono">{{ row.key }} = {{ row.value }}</span>
+                  <span class="deploy-meta muted">set at the {{ row.scope }} level, by {{ row.from }}</span>
+                  @if (row.overrides)
+                    {{-- The sentence that ends the argument about why a deploy
+                        went to the wrong region. --}}
+                    <span class="deploy-meta muted">overriding {{ row.overrides }}</span>
+                  @endif
+                </div>
+
+                @if (row.scope === 'repository')
+                  <form class="inline" method="post" action="/api/repos/variables">
+                    <CsrfField />
+                    <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                    <input type="hidden" name="repo" value="{{ repositoryName }}">
+                    <input type="hidden" name="operation" value="unset">
+                    <input type="hidden" name="scope" value="repository">
+                    <input type="hidden" name="key" value="{{ row.key }}">
+                    <button class="btn" type="submit">Remove</button>
+                  </form>
+                @endif
               </li>
             @endforeach
           </ul>
