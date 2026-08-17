@@ -334,6 +334,18 @@ written down here so it does not get relitigated:
       the command means.
 - [ ] `container:` and `services:` on a job, with `image`, `env`, `ports`, `volumes`, `options`, and
       health-checked service startup before the first step
+
+      Still not implemented, and still refused at run time with a reason rather than run on the
+      host. What *has* changed is that the common case behind `container:` now has an answer: a
+      `container: node:20` is usually asking for a toolchain rather than for isolation, and a pantry
+      dependency file in the repository gets that with no image, no registry and nothing to bake -
+      the runner installs what the file names and puts it on `PATH` for every step. See
+      [extensions](../extensions.md).
+
+      That is deliberately not called container support. Isolation is a separate machine, which an
+      autoscaled fleet already gives you one of per job; `services:` needs something that can start
+      and health-check a database next to a job, and pantry has services but wiring them per job is
+      its own piece of work.
 - [ ] `concurrency:` with `group` and `cancel-in-progress`, at workflow and job level. Actions has
       this and Gitea ignores it; the Buildkite concurrency engine in this file implements it properly
       rather than partially.

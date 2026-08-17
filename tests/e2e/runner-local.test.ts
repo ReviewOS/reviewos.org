@@ -115,6 +115,9 @@ jobs:
         if: always()
         run: |
           echo "payload: \$(cat "\$GITHUB_EVENT_PATH")"
+      - name: The toolchain came from somewhere
+        if: always()
+        run: git --version
 `
 
 /** A composite action in the repository, which is most of what an action is. */
@@ -181,6 +184,15 @@ beforeAll(async () => {
 
     writeFileSync(join(work, '.reviewos', 'workflows', 'local.yml'), WORKFLOW)
     writeFileSync(join(work, 'marker.txt'), 'this came from the repository\n')
+
+    /*
+     * A dependency file, so the toolchain path is exercised rather than
+     * skipped. This is the answer to `container: node:20` for the case that is
+     * really "give me node 20", which is most of them - and the runner has to
+     * behave the same whether or not the machine has pantry, because most
+     * machines running this test will not.
+     */
+    writeFileSync(join(work, 'deps.yaml'), 'dependencies:\n  - git\n')
 
     mkdirSync(join(work, '.reviewos', 'actions', 'greet'), { recursive: true })
     writeFileSync(join(work, '.reviewos', 'actions', 'greet', 'action.yml'), ACTION)
@@ -893,4 +905,41 @@ describe('after a step fails', () => {
     expect(text).toContain('cleanup ran')
     expect(text).toContain('failure handler ran')
   }, 180_000)
+})
+
+/*
+ * The toolchain, which is this project's answer to a container image for the
+ * case that is really "give me node 22" - and which has to be a no-op rather
+ * than a failure on a machine without pantry, because that is most machines.
+ */
+describe('a repository that declares its tools', () => {
+  test('says what it is using, or says why it cannot, and runs either way', async () => {
+    if (!available)
+      return
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .innerJoin('workflow_jobs', 'workflow_jobs.id', '=', 'workflow_job_logs.workflow_job_id')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select(['workflow_job_logs.content as content'])
+      .where('workflow_runs.repository_id', '=', created.repositoryId)
+      .execute()
+
+    const text = logs.map(row => String(row.content ?? '')).join('')
+
+    // The group is opened either way, so a reader can see the decision was made
+    // rather than wondering whether the feature exists.
+    expect(text).toContain('Toolchain')
+
+    /*
+     * One of the two, and both are correct: pantry resolved the dependency
+     * file, or the machine does not have pantry and the job carried on with
+     * what it had. A step that installs its own tools is how every workflow
+     * written for Actions already works.
+     */
+    expect(/Using .*git|pantry is not available here/.test(text)).toBe(true)
+
+    // And the job succeeded regardless, which is the property that matters.
+    expect(text).toContain('git version')
+  }, 60_000)
 })

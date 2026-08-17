@@ -85,6 +85,18 @@ export interface LocalRunnerOptions {
    * mint for itself.
    */
   cloneToken?: string
+  /**
+   * Whether to provide the job's toolchain from pantry.
+   *
+   * On by default and harmless when pantry is not installed: a repository with
+   * no dependency file gets nothing, and a machine with no `pantry` binary is
+   * told so once in the log and carries on with what it has.
+   *
+   * This is the answer to `container: node:20` for the case that is really
+   * "give me node 20", which is most of them. It is **not** isolation and this
+   * runner does not pretend otherwise - isolation is a separate machine.
+   */
+  tools?: boolean
   /** Called with each line the runner wants to say, so a command can print it. */
   say?: (line: string) => void
 }
@@ -299,6 +311,17 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   // step can see.
   job.event_path = eventPath
 
+    /*
+     * The toolchain the repository asked for, before the first step.
+     *
+     * A checkout with a `deps.yaml` or `dependencies.yaml` names the versions
+     * it needs, and pantry installs them and says where they went. That is the
+     * honest alternative to a container image for the case that is really
+     * "give me node 22": no image to bake, no registry, and a machine that
+     * needs a different version tomorrow installs it rather than being rebuilt.
+     */
+    const toolchain = options.tools === false ? '' : await provideTools(workspace, text => send(text))
+
     const steps: any[] = Array.isArray(job.steps) ? job.steps : []
     let failed: string | null = null
     /*
@@ -439,6 +462,15 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         ...carried,
         ...files.environment,
       }
+
+      /*
+       * The repository's own toolchain goes on first, so `GITHUB_PATH` from a
+       * step still wins: a step that installed something and put it on the
+       * path is making a decision about *this run*, and a version the
+       * repository pinned should not override it.
+       */
+      if (toolchain)
+        environment.PATH = `${toolchain}:${environment.PATH}`
 
       if (extraPath)
         environment.PATH = `${extraPath}:${environment.PATH}`
@@ -731,6 +763,71 @@ function expressionContext(
       tool_cache: join(workspace, '.reviewos-runner', 'tools'),
     },
     env: state.env,
+  }
+}
+
+/**
+ * Install and locate what the checked-out repository says it needs.
+ *
+ * Answers the PATH entries to prepend, or an empty string when there is nothing
+ * to do - which is every repository that does not use pantry, and every machine
+ * that does not have it. Neither is a failure: a job whose workflow installs its
+ * own tools is a perfectly ordinary job.
+ *
+ * `pantry env --install --json` does the work; this only reads the answer. The
+ * alternative - this runner parsing dependency files and resolving versions
+ * itself - would be a second implementation of pantry that drifts from the
+ * first, in the one place where being wrong means building against the wrong
+ * compiler.
+ */
+async function provideTools(workspace: string, say: (line: string) => Promise<void>): Promise<string> {
+  const manifests = ['deps.yaml', 'deps.yml', 'dependencies.yaml', 'dependencies.yml', 'pkgx.yaml', 'pkgx.yml']
+
+  if (!manifests.some(name => existsSync(join(workspace, name))))
+    return ''
+
+  await say('::group::Toolchain\n')
+
+  const child = Bun.spawn(['pantry', 'env', '--install', '--json', '--dir', workspace], {
+    cwd: workspace,
+    stdout: 'pipe',
+    stderr: 'pipe',
+    stdin: 'ignore',
+  })
+
+  const [out, error, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ])
+
+  if (code !== 0) {
+    /*
+     * Said once and not fatal. A machine without pantry is a machine whose
+     * jobs install their own tools, which is how every workflow written for
+     * Actions already works.
+     */
+    await say(`This repository declares its tools, and pantry is not available here: ${(error || out).trim().slice(0, 300)}\n`)
+    await say('::endgroup::\n')
+
+    return ''
+  }
+
+  try {
+    const answer = JSON.parse(out)
+    const entries: string[] = Array.isArray(answer?.path) ? answer.path.map(String) : []
+
+    if (Array.isArray(answer?.dependencies) && answer.dependencies.length > 0)
+      await say(`Using ${answer.dependencies.join(', ')}\n`)
+
+    await say('::endgroup::\n')
+
+    return entries.join(':')
+  }
+  catch {
+    await say('::endgroup::\n')
+
+    return ''
   }
 }
 

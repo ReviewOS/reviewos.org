@@ -79,7 +79,7 @@ These are read and do nothing yet. A workflow using one is told - on its run, or
 | `on.workflow_run` | on | Recognised and recorded; no run is started, and the workflow page says so. |
 | `on.repository_dispatch` | on | Recognised and recorded; there is no endpoint to send one yet. |
 | `run-name` | workflow | Accepted and not yet used; runs are named for their workflow. |
-| `jobs.<id>.container` | job | Parsed and refused at run time: this instance has no container isolation yet, and pretending otherwise would run the steps on the host. |
+| `jobs.<id>.container` | job | Parsed and refused at run time: this instance has no container isolation yet, and pretending otherwise would run the steps on the host. If what the image was for is a *toolchain* rather than isolation - `container: node:20` usually is - a pantry dependency file in the repository gets that without an image at all, and the runner puts it on `PATH`. Isolation is a separate machine; see [extensions](./extensions.md). |
 | `jobs.<id>.services` | job | Parsed; no service containers are started, and a job that needs one is told rather than failing on a closed port. |
 | `jobs.<id>.environment` | job | Parsed; deployment environments and their protection rules are phase 9 work. |
 

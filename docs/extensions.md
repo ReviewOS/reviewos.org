@@ -281,6 +281,55 @@ against.
 
 **Actions has no equivalent.**
 
+## Toolchains, instead of container images
+
+Not a `reviewos:` key at all - it needs nothing in the workflow file.
+
+If the checked-out repository has a pantry dependency file (`deps.yaml`,
+`dependencies.yaml`, `pkgx.yaml`, or the dotted forms), the runner installs what
+it names and puts it on `PATH` for every step:
+
+```yaml
+# deps.yaml, in the repository
+dependencies:
+  - node@22
+  - postgresql.org@17
+```
+
+```yaml
+# .github/workflows/ci.yml - unchanged, portable, no extension keys
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: node --version   # 22, because the repository said so
+```
+
+This is the answer to `container: node:20` for the case that is really "give me
+node 20", which is most of them. The differences from an image are the point: no
+registry, nothing to bake, and a repository that needs a different version
+tomorrow changes one line instead of waiting for somebody to rebuild a base
+image.
+
+**It is not isolation and this page will not pretend otherwise.** Steps run as
+the user who started the runner. If you need isolation, the boundary is a
+separate machine - one job per machine with `--jobs 1`, which is what an
+autoscaled fleet already gives you. See [autoscaling](./autoscaling.md).
+
+Three properties worth knowing:
+
+- **A repository with no dependency file gets nothing**, and a machine with no
+  `pantry` gets a line in the log saying so and carries on. A workflow that
+  installs its own tools in a step is how everything written for Actions already
+  works, and it keeps working.
+- **The repository's toolchain goes on `PATH` before a step's own additions.** A
+  step that installed something and wrote to `GITHUB_PATH` is making a decision
+  about *this run*, and a pinned version should not override it.
+- The runner shells out to `pantry env --install --json` rather than reading the
+  dependency file itself. A second implementation of version resolution would
+  drift from the first in the one place where being wrong means building against
+  the wrong compiler.
+
 ## What this costs
 
 | | |
