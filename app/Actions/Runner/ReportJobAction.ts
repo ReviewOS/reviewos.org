@@ -104,6 +104,12 @@ export default new Action({
       // Read as a map of strings, and capped where the row is written rather
       // than trusted here: a runner is somebody else's machine.
       outputs: readOutputs(request.get('outputs')),
+      /*
+       * Untrusted like everything else a runner says, and only ever compared
+       * against the statuses the *workflow* named - so the worst a lying
+       * runner can do is ask for a retry the file already allowed.
+       */
+      exitStatus: Number.isInteger(Number(request.get('exit_status'))) ? Number(request.get('exit_status')) : null,
     })
 
     if (!outcome.ok)

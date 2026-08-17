@@ -233,6 +233,23 @@ export default defineModel({
     },
 
     /**
+     * Which attempt this is, counting from one.
+     *
+     * On the job rather than derived from a count of anything: a retry is the
+     * *same* job running again, and a screen that says "attempt 3" is saying
+     * something about this row rather than about three rows somebody has to
+     * find. It also bounds the lease sweep - a job whose runner keeps dying
+     * used to be requeued forever, because nothing counted.
+     */
+    attempt: {
+      order: 45,
+      fillable: true,
+      default: 1,
+      validation: { rule: schema.number() },
+      factory: () => 1,
+    },
+
+    /**
      * The run a `trigger` job started.
      *
      * Both a link for the screen and the thread `await: true` is closed by:

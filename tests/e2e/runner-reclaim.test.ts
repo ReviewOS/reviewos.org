@@ -46,7 +46,7 @@ async function freshRun(headSha: string): Promise<number> {
 async function buildJob(runId: number): Promise<any> {
   return db
     .selectFrom('workflow_jobs')
-    .select(['id', 'state', 'runner_id', 'lease_expires_at'])
+    .select(['id', 'state', 'runner_id', 'lease_expires_at', 'attempt', 'condition_reason'])
     .where('workflow_run_id', '=', runId)
     .where('job_id', '=', 'build')
     .executeTakeFirst()
@@ -365,4 +365,59 @@ describe('a cancellation nobody acknowledged', () => {
     // control plane inventing an outcome nobody reached.
     expect(String((await buildJob(runId)).state)).toBe('succeeded')
   })
+})
+
+/*
+ * The counter this loop never had.
+ *
+ * Every lapsed lease used to put the job straight back in the queue, with
+ * nothing counting - so a job that kills the machine it runs on (out of memory,
+ * out of disk, a kernel it does not like) was handed to every runner in the
+ * fleet in turn, for as long as the fleet existed. Recovery is right; recovery
+ * without a limit is one job taking down a fleet one machine at a time.
+ */
+describe('a job that keeps losing its runner', () => {
+  test('is retried a few times and then failed, saying which it was', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('f1'.repeat(20))
+
+    for (let round = 1; round <= 3; round++) {
+      const job = await buildJob(runId)
+
+      await hold(Number(job.id), `900${round}`, leaseUntil(new Date(Date.now() - 600_000), 0))
+      await sweep.handle({})
+    }
+
+    const after = await buildJob(runId)
+
+    /*
+     * Failed rather than requeued a fourth time, and the reason points at the
+     * job rather than at the machines: three different runners went quiet on
+     * the same work, which is not three unlucky machines.
+     */
+    expect(after.state).toBe('failed')
+    expect(Number(after.attempt)).toBe(3)
+    expect(String(after.condition_reason)).toContain('stopped responding')
+  }, 60_000)
+
+  test('while two unlucky machines do not fail somebody else\'s build', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('f2'.repeat(20))
+
+    for (let round = 1; round <= 2; round++) {
+      const job = await buildJob(runId)
+
+      await hold(Number(job.id), `910${round}`, leaseUntil(new Date(Date.now() - 600_000), 0))
+      await sweep.handle({})
+    }
+
+    const after = await buildJob(runId)
+
+    expect(after.state).toBe('queued')
+    expect(Number(after.attempt)).toBe(3)
+  }, 60_000)
 })

@@ -118,7 +118,7 @@ async function makeRunner(): Promise<any> {
 async function jobsOf(runId: number): Promise<any[]> {
   return db
     .selectFrom('workflow_jobs')
-    .select(['id', 'job_id', 'state', 'kind', 'settings', 'group_label', 'outputs', 'approved_by_id', 'triggered_run_id', 'condition_reason'])
+    .select(['id', 'job_id', 'state', 'kind', 'settings', 'group_label', 'outputs', 'approved_by_id', 'triggered_run_id', 'condition_reason', 'attempt'])
     .where('workflow_run_id', '=', runId)
     .orderBy('position')
     .execute()
@@ -500,4 +500,133 @@ jobs:
     expect(jobNamed(rows, 'api').state).toBe('queued')
     expect(jobNamed(rows, 'web').state).toBe('queued')
   }, 60_000)
+})
+
+/*
+ * Retry: the feature every CI system grows, and the one that has to be bounded
+ * from the first line. A retry with no cap is a job that fails forever on
+ * somebody else's machine.
+ */
+describe('retry', () => {
+  async function retryingRun(sha: string, settings: Record<string, unknown>): Promise<{ runId: number, jobId: number }> {
+    /*
+     * Everything else in this repository is put to bed first.
+     *
+     * A repository-scoped runner takes the oldest claimable job, so without
+     * this each test would be reporting against whatever an earlier one left
+     * queued - which is a test of nothing, and the kind of order-dependence
+     * that passes alone and fails in a suite.
+     */
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelled', finished_at: new Date().toISOString() } as any)
+      .where('state', 'in', ['blocked', 'queued', 'running', 'paused'])
+      .where('workflow_run_id', 'in', (
+        await db.selectFrom('workflow_runs').select(['id']).where('repository_id', '=', created.repositoryId).execute()
+      ).map((row: any) => Number(row.id)))
+      .execute()
+
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_versions.id', 'desc')
+      .executeTakeFirst()
+
+    const run: any = await db.insertInto('workflow_runs').values({
+      workflow_version_id: Number(version.id),
+      repository_id: created.repositoryId,
+      number: 700 + Math.floor(Number(`0x${sha.slice(0, 4)}`) % 200),
+      state: 'queued',
+      event: 'push',
+      event_ref: `refs/heads/retry-${sha.slice(0, 6)}`,
+      head_sha: sha,
+      definition_sha: sha,
+      trusted: true,
+    }).returning(['id']).executeTakeFirst()
+
+    const job: any = await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: 'flaky',
+      name: 'Flaky',
+      position: 0,
+      state: 'queued',
+      runs_on: 'ubuntu-latest',
+      settings: JSON.stringify(settings),
+    }).returning(['id']).executeTakeFirst()
+
+    return { runId: Number(run.id), jobId: Number(job.id) }
+  }
+
+  test('a failure goes back to the queue while attempts remain, and fails when they run out', async () => {
+    if (!available)
+      return
+
+    const { runId } = await retryingRun('2a'.repeat(20), { retry: { attempts: 2, exitStatus: [] } })
+    const runner = await makeRunner()
+
+    // First failure: requeued, with the attempt counted and the reason on the row.
+    const first = await claimNextJob(runner)
+    await reportJob(runner, { jobId: first!.jobId, state: 'failed', error: 'flaked', exitStatus: 1 })
+
+    let job = jobNamed(await jobsOf(runId), 'flaky')
+
+    expect(job.state).toBe('queued')
+    expect(Number(job.attempt)).toBe(2)
+    expect(String(job.condition_reason)).toContain('retrying')
+
+    // Second failure: one attempt left, so still requeued.
+    const second = await claimNextJob(runner)
+    await reportJob(runner, { jobId: second!.jobId, state: 'failed', error: 'flaked again', exitStatus: 1 })
+
+    job = jobNamed(await jobsOf(runId), 'flaky')
+
+    expect(job.state).toBe('queued')
+    expect(Number(job.attempt)).toBe(3)
+
+    // Third: out of attempts, so it is an ordinary failure. A job that fails
+    // three times is not flaky, it is broken.
+    const third = await claimNextJob(runner)
+    await reportJob(runner, { jobId: third!.jobId, state: 'failed', error: 'still broken', exitStatus: 1 })
+
+    job = jobNamed(await jobsOf(runId), 'flaky')
+
+    expect(job.state).toBe('failed')
+    expect(Number(job.attempt)).toBe(3)
+  }, 120_000)
+
+  test('and a workflow that named exit statuses retries only those', async () => {
+    if (!available)
+      return
+
+    /*
+     * The distinction the key exists for: a suite that exits 1 on a failed
+     * assertion is not worth running again, and a step killed for memory at
+     * 137 is exactly what a retry is for.
+     */
+    const { runId } = await retryingRun('2b'.repeat(20), { retry: { attempts: 2, exitStatus: [137] } })
+    const runner = await makeRunner()
+
+    const claim = await claimNextJob(runner)
+    await reportJob(runner, { jobId: claim!.jobId, state: 'failed', error: 'assertion failed', exitStatus: 1 })
+
+    const job = jobNamed(await jobsOf(runId), 'flaky')
+
+    expect(job.state).toBe('failed')
+    expect(Number(job.attempt)).toBe(1)
+  }, 120_000)
+
+  test('a job with no retry: fails the first time, as it always did', async () => {
+    if (!available)
+      return
+
+    const { runId } = await retryingRun('2c'.repeat(20), {})
+    const runner = await makeRunner()
+
+    const claim = await claimNextJob(runner)
+    await reportJob(runner, { jobId: claim!.jobId, state: 'failed', error: 'broken', exitStatus: 1 })
+
+    expect(jobNamed(await jobsOf(runId), 'flaky').state).toBe('failed')
+  }, 120_000)
 })

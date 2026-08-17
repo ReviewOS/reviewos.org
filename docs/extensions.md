@@ -200,6 +200,48 @@ right tool for "do not run CI for a documentation change" and the wrong one for
 a repository with twelve packages in it, where the workflow has to run and the
 question is what it runs.
 
+### `retry` - run a failed job again
+
+```yaml
+  flaky-integration:
+    runs-on: ubuntu-latest
+    reviewos:
+      retry: 2
+    steps: [{ run: make integration }]
+```
+
+Two extra attempts, so three runs at most. **The cap is required**, and there is
+a ceiling of five: a retry without a limit is a job that fails forever on
+somebody else's machine, and a job that fails five times in a row is not flaky,
+it is broken. Asking for more is refused with that sentence rather than quietly
+clamped.
+
+Every attempt is visible on the run - "attempt 2" next to the job - because a
+job that quietly ran twice is a flaky test nobody ever fixes.
+
+Narrow it to the failures worth repeating:
+
+```yaml
+    reviewos:
+      retry:
+        attempts: 2
+        exit-status: [137, 7]
+```
+
+A test suite that exits 1 because an assertion failed is not worth running
+again. A step killed for memory at 137, or a fetch that exits 7, is exactly what
+this is for. When statuses are named, a failure with an *unknown* status is not
+retried: retrying on "we do not know why it failed" is how a narrow retry
+becomes a blanket one.
+
+**A job whose runner keeps disappearing is capped too**, at three, whatever the
+workflow says. That one is not a feature you turn on: recovering a job from a
+machine that died is what leases are for, but doing it without a limit is one
+job taking down a fleet one machine at a time.
+
+**Actions has manual re-runs** of a whole workflow or its failed jobs, and no
+automatic retry at all.
+
 ### `group` - a label
 
 ```yaml
@@ -223,7 +265,7 @@ against.
 |---|---|
 | Portability | A file using `reviewos:` does not run on GitHub. It is refused, not ignored. |
 | Migration in | Nothing. An Actions workflow uses none of this and behaves identically. |
-| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; `if-changed` becomes a `dorny/paths-filter`-style action plus a step-level `if:`; a `group` becomes nothing, since GitHub has no grouping. |
+| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; `if-changed` becomes a `dorny/paths-filter`-style action plus a step-level `if:`; `retry` becomes a `nick-fields/retry`-style action or a manual re-run; a `group` becomes nothing, since GitHub has no grouping. |
 
 The engine underneath is documented in
 [the pipelines roadmap](https://github.com/stacksjs/reviewos/blob/main/docs/todo/15-pipelines.md),

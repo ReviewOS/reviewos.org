@@ -336,7 +336,7 @@ const JOB_KEYS = new Set([
 /** What a job *is*, which Actions has one of and this engine has five. */
 export type JobKind = 'command' | 'wait' | 'block' | 'trigger'
 
-const EXTENSION_KEYS = new Set(['wait', 'block', 'trigger', 'group', 'if-changed'])
+const EXTENSION_KEYS = new Set(['wait', 'block', 'trigger', 'group', 'if-changed', 'retry'])
 
 const STEP_KEYS = new Set([
   'id', 'name', 'run', 'uses', 'with', 'env', 'if',
@@ -677,6 +677,7 @@ function extensionOf(
    * every push runs everything.
    */
   const ifChanged = asStringList(raw['if-changed'])
+  const retry = retryFrom(raw.retry, id, jobLine, source, errors)
 
   const kinds = (['wait', 'block', 'trigger'] as const).filter(key => key in raw)
 
@@ -687,11 +688,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: {}, group, ifChanged }
+    return { kind: 'command', settings: { retry }, group, ifChanged }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: {}, group, ifChanged }
+    return { kind: 'command', settings: { retry }, group, ifChanged }
 
   if (ifChanged.length > 0) {
     /*
@@ -811,6 +812,100 @@ function blockFrom(
 
   return { prompt, fields }
 }
+
+/**
+ * `reviewos.retry:` - run a failed job again, automatically.
+ *
+ * The feature every CI system grows and the one that has to be bounded from the
+ * first line: a retry with no cap is a job that fails forever on somebody
+ * else's machine, and a retry that hides *everything* is a flaky test nobody
+ * ever fixes. So the cap is required (the shorthand `retry: 2` is the cap), and
+ * the run keeps every attempt rather than overwriting the last one.
+ *
+ * `exit-status:` narrows it to the failures worth repeating. A test suite that
+ * exits 1 because an assertion failed is not worth running again; a step that
+ * exits 137 because the machine ran out of memory, or a network fetch that
+ * exits 7, is exactly what this is for. Naming the statuses is how a workflow
+ * says which of those it means.
+ */
+function retryFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): Record<string, unknown> | null {
+  if (value === undefined || value === null)
+    return null
+
+  if (typeof value === 'number')
+    return attemptsOf(value, id, jobLine, source, errors)
+
+  const body = asRecord(value)
+
+  if (!body) {
+    errors.push({
+      line: lineOf(source, 'retry', jobLine),
+      message: `\`retry:\` in job \`${id}\` is neither a number nor a mapping`,
+      fix: 'Write `retry: 2`, or `retry: { attempts: 2, exit-status: [137] }`.',
+    })
+
+    return null
+  }
+
+  const parsed = attemptsOf(body.attempts, id, jobLine, source, errors)
+
+  if (!parsed)
+    return null
+
+  const statuses = (Array.isArray(body['exit-status']) ? body['exit-status'] : [])
+    .map(entry => Number(entry))
+    .filter(entry => Number.isInteger(entry))
+
+  return { ...parsed, exitStatus: statuses }
+}
+
+/** The cap, which is required and bounded. */
+function attemptsOf(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): Record<string, unknown> | null {
+  const attempts = Number(value)
+
+  if (!Number.isInteger(attempts) || attempts < 1) {
+    errors.push({
+      line: lineOf(source, 'retry', jobLine),
+      message: `\`retry:\` in job \`${id}\` needs a number of extra attempts`,
+      fix: 'Write `retry: 2` to try twice more after the first failure.',
+    })
+
+    return null
+  }
+
+  if (attempts > MAX_RETRY_ATTEMPTS) {
+    errors.push({
+      line: lineOf(source, 'retry', jobLine),
+      message: `\`retry: ${attempts}\` in job \`${id}\` is more than this instance allows`,
+      fix: `The ceiling is ${MAX_RETRY_ATTEMPTS}. A job that fails ${MAX_RETRY_ATTEMPTS} times in a row is not flaky, it is broken.`,
+    })
+
+    return null
+  }
+
+  return { attempts, exitStatus: [] }
+}
+
+/**
+ * How many extra attempts a workflow may ask for.
+ *
+ * Five, and the refusal says why: a job that fails five times in a row is not
+ * flaky, it is broken, and the retries are spending machines to postpone the
+ * moment somebody looks at it.
+ */
+export const MAX_RETRY_ATTEMPTS = 5
 
 /** `reviewos.trigger:` - which workflow to start, and what to pass it. */
 function triggerFrom(

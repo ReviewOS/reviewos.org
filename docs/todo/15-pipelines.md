@@ -988,9 +988,31 @@ below are the internal model's; the Actions key that maps onto each is noted whe
 - [ ] `branches`, including negation, as the shorthand for the most common `if`
 - [ ] `skip`, boolean or a reason string that shows on the run
 - [ ] `soft_fail`, boolean or a list of exit statuses that report failure without failing the run
-- [ ] `retry`, automatic and manual. Automatic retries key on exit status, a lost runner, and a
+- [x] `retry`, automatic and manual. Automatic retries key on exit status, a lost runner, and a
       timeout, with limits and constant, linear, or exponential backoff. Manual retry can be
       permitted, forbidden, or forbidden with a reason.
+
+      **Automatic, on exit status and on a lost runner.** `reviewos: { retry: 2 }` is two extra
+      attempts; `retry: { attempts: 2, exit-status: [137] }` narrows it to the failures worth
+      repeating, because a suite that exits 1 on a failed assertion is not one and a step killed for
+      memory at 137 is. A named-status retry does *not* fire on an unknown status: retrying on "we
+      do not know why it failed" is how a narrow retry becomes a blanket one.
+
+      **The cap is required and there is a ceiling of five**, refused with the reason rather than
+      clamped: a job that fails five times in a row is not flaky, it is broken, and the retries are
+      spending machines to postpone the moment somebody looks at it. Every attempt shows on the run,
+      because a job that quietly ran twice is a flaky test nobody ever fixes.
+
+      **This found an unbounded loop.** The lease sweep requeued *every* job whose runner stopped
+      responding, with nothing counting - so a job that kills the machine it runs on, out of memory
+      or out of disk, was handed to every runner in the fleet in turn, for as long as the fleet
+      existed. Recovery is right; recovery without a limit is one job taking down a fleet one
+      machine at a time. Three attempts now, and then a failure that says three different runners
+      went quiet on the same work rather than reading as an ordinary one.
+
+      Backoff and manual-retry policy are not implemented: a retry that waits needs a scheduled
+      wake-up rather than a state change, and the manual half is a re-run button that does not
+      exist yet.
 - [ ] `timeout_in_minutes`, per step, with a workflow default and an instance ceiling
 - [ ] `priority`, so a deploy jumps a queue full of pull request checks
 - [ ] `parallelism`, expanding one step into N identical jobs that differ only by index and total

@@ -376,6 +376,9 @@ const jobs = jobRows.map((job) => {
      * a gate with no logs is waiting for somebody, not stuck.
      */
     kind: String(job.kind ?? 'command'),
+    // "attempt 2" is a fact about this row, and a job that quietly ran twice
+    // is a flaky test nobody ever fixes.
+    attempt: Number(job.attempt ?? 1),
     group: job.group_label ? String(job.group_label) : '',
     /*
      * A gate's prompt and fields, flattened onto the job rather than nested.
@@ -561,7 +564,7 @@ const base = `/${ownerHandle}/${repositoryName}`
             <header class="job-head">
               <span class="run-dot run-{{ job.tone }}" aria-hidden="true"></span>
               <h3 class="job-name">{{ job.name }}</h3>
-              <span class="muted job-state">{{ job.label }}</span>
+              <span class="muted job-state">{{ job.label }}@if (job.attempt > 1) · attempt {{ job.attempt }}@endif</span>
               @if (job.duration)
                 <span class="muted job-time">{{ job.duration }}</span>
               @endif

@@ -62,7 +62,7 @@ export default new Job({
 
     const lapsed: any[] = await db
       .selectFrom('workflow_jobs')
-      .select(['id', 'workflow_run_id', 'runner_id', 'lease_expires_at'])
+      .select(['id', 'workflow_run_id', 'runner_id', 'lease_expires_at', 'attempt'])
       .where('state', '=', 'running')
       // Anything held with no lease at all is lapsed by definition: a running
       // job without one is a row that lost its holder, and leaving it out would
@@ -80,12 +80,46 @@ export default new Job({
     const runs = new Set<number>()
 
     for (const job of expired) {
+      const attempt = Number(job.attempt ?? 1)
+
+      /*
+       * A job whose runner keeps dying is failed rather than requeued forever.
+       *
+       * This loop had no counter at all: every lapsed lease put the job back
+       * in the queue, so a job that kills the machine it runs on - out of
+       * memory, out of disk, a kernel it does not like - was handed to every
+       * runner in the fleet in turn, for as long as the fleet existed. The
+       * attempt column bounds it, and the failure says what happened rather
+       * than reading as an ordinary one.
+       */
+      if (attempt >= MAX_LOST_ATTEMPTS) {
+        const ended: any = await db
+          .updateTable('workflow_jobs')
+          .set({
+            state: 'failed',
+            finished_at: now.toISOString(),
+            runner_id: null,
+            lease_expires_at: null,
+            job_token_hash: null,
+            condition_reason: `Handed to ${attempt} runners and each stopped responding. This job is failing its machine rather than failing on it.`,
+          } as any)
+          .where('id', '=', Number(job.id))
+          .where('state', '=', 'running')
+          .where('runner_id', '=', String(job.runner_id))
+          .execute()
+
+        if (changed(ended))
+          runs.add(Number(job.workflow_run_id))
+
+        continue
+      }
+
       const result: any = await db
         .updateTable('workflow_jobs')
         // The dead runner's credential goes with its lease. If it comes back
         // it authenticates as nothing, which is the honest answer - the work is
         // somebody else's now.
-        .set({ state: 'queued', runner_id: null, lease_expires_at: null, job_token_hash: null } as any)
+        .set({ state: 'queued', runner_id: null, lease_expires_at: null, job_token_hash: null, attempt: attempt + 1 } as any)
         .where('id', '=', Number(job.id))
         // Guarded on the state and the holder it was read at, so a runner that
         // heartbeated between the read and the write keeps its job. The sweep
@@ -117,6 +151,16 @@ export default new Job({
  * notices, and nobody notices until the pull request is a day old.
  */
 export const DEFAULT_JOB_TIMEOUT_MINUTES = 360
+
+/**
+ * How many machines may lose a job before the job is the suspect.
+ *
+ * Requeuing a job whose runner died is at-least-once recovery and it is right;
+ * doing it without a limit is how one job takes down a fleet one machine at a
+ * time. Three: enough that two unlucky machines do not fail somebody's build,
+ * few enough that a job which kills whatever runs it stops being handed out.
+ */
+export const MAX_LOST_ATTEMPTS = 3
 
 /**
  * Stop the jobs that ran past their `timeout-minutes`.

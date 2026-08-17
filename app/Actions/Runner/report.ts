@@ -27,6 +27,15 @@ export interface ReportInput {
   /** Optional, and untrusted: a runner can send anything. */
   error?: string | null
   /**
+   * What the failing step exited with, when the runner knows.
+   *
+   * Sent so `retry: { exit-status: [137] }` can mean something. A test suite
+   * that exits 1 on a failed assertion is not worth running again; a step
+   * killed for memory at 137, or a fetch that exits 7, is exactly what a retry
+   * is for, and the number is the only thing that tells them apart.
+   */
+  exitStatus?: number | null
+  /**
    * What the job produced, resolved by the runner from its steps.
    *
    * Untrusted like everything else a runner says, and capped: a job's outputs
@@ -129,6 +138,40 @@ export async function reportJob(
   if (!canJobMove(facts.state as JobState, input.state))
     return { ok: false, reason: `a job that is ${facts.state} cannot become ${input.state}`, duplicate: false }
 
+  /*
+   * A failure the workflow asked to have retried goes back to the queue
+   * instead of ending the job.
+   *
+   * Before the write below, because the two are alternatives: a job that is
+   * about to run again has not failed, and recording a failure first would put
+   * a red cross on a commit for something the workflow said to expect.
+   */
+  if (input.state === 'failed') {
+    const retry = await retryDecision(facts.id, input.exitStatus ?? null)
+
+    if (retry.retrying) {
+      await db
+        .updateTable('workflow_jobs')
+        .set({
+          state: 'queued',
+          attempt: retry.attempt,
+          runner_id: null,
+          lease_expires_at: null,
+          // The dead attempt's credential goes with it: the next attempt mints
+          // its own, and a token from a finished attempt must not be able to
+          // report over the one that replaced it.
+          job_token_hash: null,
+          started_at: null,
+          condition_reason: retry.reason,
+        } as any)
+        .where('id', '=', facts.id)
+        .where('runner_id', '=', String(runner.id))
+        .execute()
+
+      return { ok: true, reason: retry.reason, duplicate: false, runState: await currentRunState(Number(row.run_id)) }
+    }
+  }
+
   await db
     .updateTable('workflow_jobs')
     .set({
@@ -219,4 +262,57 @@ export async function reportJob(
 async function currentRunState(runId: number): Promise<string> {
   const run: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
   return String(run?.state ?? 'queued')
+}
+
+/**
+ * Whether this failure is one the workflow asked to have run again.
+ *
+ * Three things have to line up, and all three are the workflow's own statement:
+ * it asked for retries, it has attempts left, and - when it named exit
+ * statuses - this is one of them. Anything else is an ordinary failure, which
+ * is the direction that keeps a broken build visible.
+ */
+async function retryDecision(jobId: number, exitStatus: number | null): Promise<{ retrying: boolean, attempt: number, reason: string }> {
+  const job: any = await db
+    .selectFrom('workflow_jobs')
+    .select(['attempt', 'settings'])
+    .where('id', '=', jobId)
+    .executeTakeFirst()
+
+  const attempt = Number(job?.attempt ?? 1)
+
+  let retry: any = null
+
+  try {
+    retry = JSON.parse(String(job?.settings ?? '{}'))?.retry ?? null
+  }
+  catch {
+    retry = null
+  }
+
+  const allowed = Number(retry?.attempts ?? 0)
+
+  if (!Number.isInteger(allowed) || allowed < 1)
+    return { retrying: false, attempt, reason: '' }
+
+  // `attempts: 2` means two *extra* tries, so three runs in total.
+  if (attempt > allowed)
+    return { retrying: false, attempt, reason: '' }
+
+  const statuses = Array.isArray(retry?.exitStatus) ? retry.exitStatus.map(Number) : []
+
+  if (statuses.length > 0 && (exitStatus === null || !statuses.includes(exitStatus))) {
+    /*
+     * A workflow that named statuses is saying which failures are worth
+     * repeating. An unknown status is not one of them: retrying on "we do not
+     * know why it failed" is how a narrow retry becomes a blanket one.
+     */
+    return { retrying: false, attempt, reason: '' }
+  }
+
+  return {
+    retrying: true,
+    attempt: attempt + 1,
+    reason: `Attempt ${attempt} failed${exitStatus === null ? '' : ` (exit ${exitStatus})`}; retrying, ${allowed - attempt + 1} of ${allowed} left.`,
+  }
 }

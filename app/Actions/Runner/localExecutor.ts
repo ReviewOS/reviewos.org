@@ -277,6 +277,12 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
     const steps: any[] = Array.isArray(job.steps) ? job.steps : []
     let failed: string | null = null
+    /*
+     * What the failing step exited with, carried to the report so
+     * `retry: { exit-status: [137] }` can mean something. Null when the job
+     * failed for a reason that is not an exit status at all.
+     */
+    let failedStatus: number | null = null
 
     /*
      * When this job runs out of time.
@@ -480,6 +486,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         }
 
         failed = `${name} exited ${result.exitCode}`
+        failedStatus = result.exitCode
         jobFailed = true
         await send(`${failed}\n`, 'stderr')
 
@@ -543,7 +550,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       })
     }
 
-    await report(options.baseUrl, jobToken, state, failed ?? '', resolvedOutputs)
+    await report(options.baseUrl, jobToken, state, failed ?? '', resolvedOutputs, failedStatus)
     say(`job ${job.id} ${state}`)
 
     return { jobId: Number(job.id), state, reason: failed ?? 'every step succeeded' }
@@ -1304,9 +1311,15 @@ async function report(
   state: string,
   error: string,
   outputs?: Record<string, string>,
+  exitStatus?: number | null,
 ): Promise<void> {
   // The outputs travel with the conclusion: a job that reported values and then
   // failed to report its result would leave them attached to a job nobody can
   // tell finished.
-  await post(baseUrl, '/api/runner/report', jobToken, { state, error, outputs: outputs ?? null })
+  await post(baseUrl, '/api/runner/report', jobToken, {
+    state,
+    error,
+    outputs: outputs ?? null,
+    exit_status: exitStatus ?? null,
+  })
 }

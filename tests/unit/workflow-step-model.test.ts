@@ -341,3 +341,73 @@ describe('if-changed, the monorepository primitive', () => {
 `).join(' ')).toContain('cannot be skipped by')
   })
 })
+
+describe('retry', () => {
+  test('the shorthand is the number of extra attempts', () => {
+    const [job] = jobs(`jobs:
+  flaky:
+    runs-on: ubuntu-latest
+    reviewos:
+      retry: 2
+    steps:
+      - run: make test
+`)
+
+    expect(job!.settings).toEqual({ retry: { attempts: 2, exitStatus: [] } })
+  })
+
+  test('and exit statuses narrow it to the failures worth repeating', () => {
+    const [job] = jobs(`jobs:
+  flaky:
+    runs-on: ubuntu-latest
+    reviewos:
+      retry:
+        attempts: 3
+        exit-status: [137, 7]
+    steps:
+      - run: make test
+`)
+
+    // A suite that exits 1 on a failed assertion is not worth running again;
+    // a step killed for memory at 137 is exactly what this is for.
+    expect(job!.settings).toEqual({ retry: { attempts: 3, exitStatus: [137, 7] } })
+  })
+
+  test('a cap is required, because a retry without one never stops', () => {
+    // The mapping form with no `attempts:` - somebody who wrote `retry:` and
+    // then only the exit statuses they cared about.
+    expect(errorsIn(`jobs:
+  flaky:
+    runs-on: ubuntu-latest
+    reviewos:
+      retry:
+        exit-status: [137]
+    steps:
+      - run: make test
+`).join(' ')).toContain('needs a number of extra attempts')
+  })
+
+  test('and `retry: true` is refused with both forms written out', () => {
+    expect(errorsIn(`jobs:
+  flaky:
+    runs-on: ubuntu-latest
+    reviewos:
+      retry: true
+    steps:
+      - run: make test
+`).join(' ')).toContain('retry: 2')
+  })
+
+  test('and the ceiling refuses with the reason rather than clamping', () => {
+    // Clamping would be this instance quietly deciding something the workflow
+    // said, which is the behaviour that makes people distrust a tool.
+    expect(errorsIn(`jobs:
+  flaky:
+    runs-on: ubuntu-latest
+    reviewos:
+      retry: 50
+    steps:
+      - run: make test
+`).join(' ')).toContain('not flaky, it is broken')
+  })
+})

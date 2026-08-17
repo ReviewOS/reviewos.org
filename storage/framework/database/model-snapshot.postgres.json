@@ -8952,6 +8952,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "attempt",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 1
           }
         ],
         "indexes": [
@@ -9853,7 +9862,7 @@
       }
     ]
   },
-  "hash": "93d787cf6472526fdad40bc11e73dc603dbfcde2f58e632eabb9479509623bf7",
+  "hash": "466275ec62b4c70793673bcc12c4b9efb229453b3a9146355c17d482567fbb28",
   "dialect": "postgres",
-  "updatedAt": "2026-08-17T15:50:31.326Z"
+  "updatedAt": "2026-08-17T15:57:33.877Z"
 }
