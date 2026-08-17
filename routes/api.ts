@@ -772,6 +772,22 @@ route.post('/repos/workflows/dispatch', 'Actions/Workflow/DispatchWorkflowAction
  * is a commit, a review and a revert for something that is usually temporary.
  */
 route.post('/repos/workflows/manage', 'Actions/Workflow/ManageWorkflowAction').middleware('auth')
+
+/*
+ * A small GitHub-shaped surface, at the paths Octokit builds.
+ *
+ * An action does not read this instance's reference: it posts to
+ * `${GITHUB_API_URL}/repos/{owner}/{repo}/check-runs` and expects the shape
+ * GitHub answers with. Three endpoints - what CI *writes* - and a 404 that
+ * names them for everything else, because an action told "Not Found" retries,
+ * blames the token, and eventually blames the forge.
+ *
+ * `{resource}` is the last segment, so one action serves all three and the
+ * unsupported ones answer with the list rather than with nothing.
+ */
+route.post('/gh/repos/{owner}/{repo}/statuses/{sha}', 'Api/GitHubCompatAction').skipCsrf()
+route.post('/gh/repos/{owner}/{repo}/issues/{number}/comments', 'Api/GitHubCompatAction').skipCsrf()
+route.post('/gh/repos/{owner}/{repo}/{resource}', 'Api/GitHubCompatAction').skipCsrf()
 /*
  * Opening a gate: a `reviewos.block:` job waiting for a person.
  *

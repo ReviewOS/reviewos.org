@@ -9506,6 +9506,84 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/gh/repos/{owner}/{repo}/issues/{number}/comments": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repo": string; "number": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "resource"?: string; "sha"?: string; "number"?: number } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: never }
+      "401": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/gh/repos/{owner}/{repo}/statuses/{sha}": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repo": string; "sha": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "resource"?: string; "sha"?: string; "number"?: number } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: never }
+      "401": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/gh/repos/{owner}/{repo}/{resource}": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: { "owner": string; "repo": string; "resource": string }
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "resource"?: string; "sha"?: string; "number"?: number } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: never }
+      "401": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/gift-cards": {
     get: {
     parameters: {

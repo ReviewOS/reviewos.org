@@ -739,8 +739,32 @@ cannot talk back to the runner is a workflow that fails on its second line.
       Found writing the test: `where('revoked_at', 'is', null)` compiles to a bound parameter in
       this builder and matches nothing, so the revocation silently did nothing. `whereNull` is the
       spelling, and two other files in this codebase already carry that note.
-- [ ] The API endpoints that automatic token is used against by common actions, at
+- [x] The API endpoints that automatic token is used against by common actions, at
       `GITHUB_API_URL`, in the same shapes, so `actions/github-script` and friends work
+
+      **Three endpoints, deliberately, not the API**: check runs, commit statuses, and comments -
+      what CI *writes*. What an action reads it already has, in the event payload and the checkout.
+      A layer that half-implements two hundred endpoints is worse than one that implements three
+      and says so: the first fails at a random depth inside somebody's action, the second fails at
+      the call with a message naming what exists.
+
+      Everything else answers 404 **with the list**, because an action told "Not Found" by an API
+      it believes in retries, blames the token, and eventually blames the forge.
+
+      Each call is this instance's own API with the caller's token, which is the shape the MCP
+      surface uses and for the same reason: no second permission check to disagree with the first.
+      `permissions:` decides the write, from the ordinary gate.
+
+      Two deliberate differences, both documented: `state: error` becomes a failure, since this
+      instance has three status states rather than four and inventing one to preserve a distinction
+      nothing acts on is compatibility as decoration; and issue and pull request numbering, which
+      GitHub shares and this instance shares too because comments live in one table.
+
+      Found writing it: the action read the resource from a route parameter that only one of the
+      three routes has, so `statuses` and `comments` arrived empty and got the "not implemented"
+      answer *from the action that implements them*. The router was matching all along - four
+      segments included - which is worth recording, because the first diagnosis was a router
+      limitation and it was wrong.
 - [x] Secret masking in logs, including values registered at runtime with `::add-mask::`.
 
       **Masked in the runner, before anything crosses the wire.** A value masked server-side has

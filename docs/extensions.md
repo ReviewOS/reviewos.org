@@ -497,3 +497,41 @@ take down the database another job on the same runner is mid-query against.
 
 `container:` is still not implemented, and the reason has not changed - see
 above.
+
+## A GitHub-shaped surface at `GITHUB_API_URL`
+
+Actions do not read this instance's API reference. They build
+`${GITHUB_API_URL}/repos/{owner}/{repo}/check-runs`, post what Octokit sends,
+and read back an `id`. An instance that answers 404 to that is one where
+`actions/github-script`, every "report status" action and every annotation
+wrapper fails - with an error about a URL, which reads as *this forge is
+broken* rather than *this forge is different*.
+
+Three endpoints, which is what CI **writes**:
+
+| Path | What it does |
+|---|---|
+| `POST /repos/{owner}/{repo}/check-runs` | a check on a commit, with `output.title`, `output.summary` and annotations |
+| `POST /repos/{owner}/{repo}/statuses/{sha}` | the older commit-status API |
+| `POST /repos/{owner}/{repo}/issues/{number}/comments` | a comment on an issue or a pull request |
+
+What an action *reads*, it already has: the event payload at
+`GITHUB_EVENT_PATH`, the environment, and the checkout.
+
+**Everything else answers 404 with the list.** An action told "Not Found" by an
+API it believes in retries, blames the token, and eventually blames the forge;
+one told which three endpoints exist has been told what to do next.
+
+Two places it is deliberately not identical:
+
+- **`state: error` becomes a failure.** GitHub has four status states and this
+  instance has three; `error` and `failure` both mean the commit did not pass,
+  and inventing a third to preserve a distinction nothing acts on would be
+  compatibility as decoration.
+- **Numbering.** GitHub numbers issues and pull requests together. So does the
+  comment endpoint here, because they share a table - which is what makes `#12`
+  resolve either way.
+
+Every call is this instance's own API with the caller's token, so
+`permissions:` in the workflow is what decides whether a write is allowed.
+There is no second permission check to disagree with the first.

@@ -3551,6 +3551,27 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/gh/repos/{owner}/{repo}/issues/{number}/comments
+   */
+  postGhReposOwnerRepoIssuesNumberComments(input: { "owner": string; "repo": string; "number": string; body?: { "owner"?: string; "repo"?: string; "resource"?: string; "sha"?: string; "number"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/gh/repos/{owner}/{repo}/issues/{number}/comments", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/gh/repos/{owner}/{repo}/statuses/{sha}
+   */
+  postGhReposOwnerRepoStatusesSha(input: { "owner": string; "repo": string; "sha": string; body?: { "owner"?: string; "repo"?: string; "resource"?: string; "sha"?: string; "number"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/gh/repos/{owner}/{repo}/statuses/{sha}", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/gh/repos/{owner}/{repo}/{resource}
+   */
+  postGhReposOwnerRepoResource(input: { "owner": string; "repo": string; "resource": string; body?: { "owner"?: string; "repo"?: string; "resource"?: string; "sha"?: string; "number"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/gh/repos/{owner}/{repo}/{resource}", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/gift-cards
    */
   getGiftCards(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
