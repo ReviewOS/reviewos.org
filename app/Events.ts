@@ -168,6 +168,11 @@ export default {
   'fleet:repository-unassigned': ['RecordAudit'],
   'fleet:runner-assigned': ['RecordAudit'],
   'fleet:runner-created': ['RecordAudit'],
+  'fleet:runner-registered': ['RecordAudit'],
+  'fleet:token-created': ['RecordAudit'],
+  'fleet:token-revoked': ['RecordAudit'],
+  'fleet:maintainer-added': ['RecordAudit'],
+  'fleet:maintainer-removed': ['RecordAudit'],
   'fleet:runner-stopped': ['RecordAudit'],
   'audit:exported': ['RecordAudit'],
 } satisfies Events

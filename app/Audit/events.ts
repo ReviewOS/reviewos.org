@@ -94,6 +94,11 @@ export type AuditEventName =
   | 'fleet:repository-unassigned'
   | 'fleet:runner-assigned'
   | 'fleet:runner-created'
+  | 'fleet:runner-registered'
+  | 'fleet:token-created'
+  | 'fleet:token-revoked'
+  | 'fleet:maintainer-added'
+  | 'fleet:maintainer-removed'
   | 'fleet:runner-stopped'
   | 'audit:exported'
 
@@ -146,6 +151,11 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'fleet:repository-unassigned',
   'fleet:runner-assigned',
   'fleet:runner-created',
+  'fleet:runner-registered',
+  'fleet:token-created',
+  'fleet:token-revoked',
+  'fleet:maintainer-added',
+  'fleet:maintainer-removed',
   'fleet:runner-stopped',
   'audit:exported',
 ] as const

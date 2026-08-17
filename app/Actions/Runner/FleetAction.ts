@@ -41,6 +41,10 @@ export default new Action({
         'assign-runner',
         'stop-runner',
         'create-runner',
+        'create-token',
+        'revoke-token',
+        'add-maintainer',
+        'remove-maintainer',
       ]),
     },
     name: { rule: schema.string() },
@@ -52,6 +56,9 @@ export default new Action({
     runner: { rule: schema.number() },
     repository: { rule: schema.number() },
     force: { rule: schema.boolean() },
+    token: { rule: schema.number() },
+    expires: { rule: schema.string() },
+    user: { rule: schema.number() },
   },
 
   responses: {
@@ -67,11 +74,41 @@ export default new Action({
      * 404 rather than 403, like the rest of the administrative surface: whether
      * this instance has a fleet at all is not something to confirm to a
      * stranger.
+     *
+     * A **pool maintainer** gets past this for their own pools. The role exists
+     * because the alternative is what every self-hosted forge ends up with: the
+     * person who looks after the build machines is made an instance
+     * administrator - because draining a queue needs it - and now they can read
+     * every private repository on the instance.
      */
-    if (!user?.is_admin)
+    const maintains = user?.id ? await poolsMaintainedBy(Number(user.id)) : []
+
+    if (!user?.is_admin && maintains.length === 0)
       return response.json({ error: 'No such endpoint' }, 404)
 
     const operation = String(request.get('operation') ?? 'list').trim()
+
+    /*
+     * Which pool this operation is about, resolved before it runs so one check
+     * covers every verb. A maintainer acting on a pool they do not maintain is
+     * refused with the same 404 as a stranger: the existence of somebody else's
+     * pool is not theirs to learn.
+     */
+    if (!user?.is_admin) {
+      const subject = await poolOf(request, operation)
+
+      if (subject === null || (subject !== -1 && !maintains.includes(subject)))
+        return response.json({ error: 'No such endpoint' }, 404)
+
+      /*
+       * Two verbs stay administrator-only. Creating a pool is creating a
+       * boundary, and appointing maintainers is handing out the power to
+       * manage one - a role that can appoint itself sideways into another pool
+       * is not a narrower role at all.
+       */
+      if (['create-pool', 'add-maintainer', 'remove-maintainer'].includes(operation))
+        return response.json({ error: 'No such endpoint' }, 404)
+    }
 
     if (operation === 'list')
       return response.json(await fleet())
@@ -191,6 +228,108 @@ export default new Action({
         await auditEvent('fleet:repository-unassigned', context).catch(() => null)
 
       return response.json(await fleet())
+    }
+
+    if (operation === 'add-maintainer' || operation === 'remove-maintainer') {
+      const poolId = Number(request.get('pool'))
+      const userId = Number(request.get('user'))
+
+      if (!Number.isInteger(poolId) || !Number.isInteger(userId) || poolId <= 0 || userId <= 0)
+        return response.json({ error: 'Which pool, and which person?' }, 422)
+
+      if (operation === 'remove-maintainer') {
+        await db
+          .deleteFrom('runner_pool_maintainers')
+          .where('runner_pool_id', '=', poolId)
+          .where('user_id', '=', userId)
+          .execute()
+      }
+      else {
+        const already: any = await db
+          .selectFrom('runner_pool_maintainers')
+          .select(['id'])
+          .where('runner_pool_id', '=', poolId)
+          .where('user_id', '=', userId)
+          .executeTakeFirst()
+
+        if (!already)
+          await db.insertInto('runner_pool_maintainers').values({ runner_pool_id: poolId, user_id: userId } as any).execute()
+      }
+
+      const context = await entry(request, user, { pool: poolId, user: userId })
+
+      if (operation === 'add-maintainer')
+        await auditEvent('fleet:maintainer-added', context).catch(() => null)
+      else
+        await auditEvent('fleet:maintainer-removed', context).catch(() => null)
+
+      return response.json(await fleet())
+    }
+
+    if (operation === 'create-token') {
+      /*
+       * A credential a machine registers *itself* with, scoped to one pool.
+       *
+       * The credential an autoscaler's cloud-init should carry. Without it a
+       * scaler needs an administrator's token to create runners, which puts
+       * the widest credential on the instance into a userdata blob on every
+       * machine it starts.
+       */
+      const poolId = Number(request.get('pool'))
+
+      if (!Number.isInteger(poolId) || poolId <= 0)
+        return response.json({ error: 'Which pool?' }, 422)
+
+      const queueId = Number(request.get('queue'))
+      const { generateToken } = await import('../Tokens/secret')
+      const secret = generateToken()
+
+      const created: any = await db
+        .insertInto('runner_registration_tokens')
+        .values({
+          runner_pool_id: poolId,
+          runner_queue_id: Number.isInteger(queueId) && queueId > 0 ? queueId : null,
+          name: String(request.get('name') ?? 'registration').slice(0, 200),
+          token_hash: hashToken(secret.token),
+          expires_at: String(request.get('expires') ?? '').trim() || null,
+          created_by_id: user?.id ?? null,
+        } as any)
+        .returning(['id'])
+        .executeTakeFirst()
+
+      await auditEvent('fleet:token-created', await entry(request, user, { pool: poolId, token: Number(created?.id) })).catch(() => null)
+
+      return response.json({
+        registration_token: {
+          id: Number(created?.id),
+          pool: poolId,
+          // Shown once; the column holds a hash.
+          token: secret.token,
+        },
+      })
+    }
+
+    if (operation === 'revoke-token') {
+      const tokenId = Number(request.get('token'))
+
+      if (!Number.isInteger(tokenId) || tokenId <= 0)
+        return response.json({ error: 'Which token?' }, 422)
+
+      await db
+        .updateTable('runner_registration_tokens')
+        /*
+         * Revoked rather than deleted. "Which token did that machine register
+         * with" outlives the token, and a row that is gone answers that
+         * question with silence - at exactly the moment somebody is asking it
+         * because a machine did something surprising.
+         */
+        .set({ revoked_at: new Date().toISOString() } as any)
+        .where('id', '=', tokenId)
+        .execute()
+
+      await auditEvent('fleet:token-revoked', await entry(request, user, { token: tokenId })).catch(() => null)
+
+      return response.json({ registration_token: { id: tokenId, revoked: true } })
     }
 
     if (operation === 'create-runner') {
@@ -342,7 +481,12 @@ async function fleet(): Promise<Record<string, unknown>> {
   const assigned: any[] = await db.selectFrom('runner_pool_repositories').select(['runner_pool_id', 'repository_id']).execute()
   const runners: any[] = await db
     .selectFrom('runners')
-    .select(['id', 'name', 'state', 'labels', 'runner_queue_id', 'last_seen_at', 'stop_requested'])
+    .select(['id', 'name', 'state', 'labels', 'tags', 'runner_queue_id', 'last_seen_at', 'stop_requested'])
+    .execute()
+
+  const tokens: any[] = await db
+    .selectFrom('runner_registration_tokens')
+    .select(['id', 'runner_pool_id', 'name', 'first_used_at', 'last_used_at', 'uses', 'revoked_at', 'expires_at'])
     .execute()
 
   /*
@@ -376,6 +520,8 @@ async function fleet(): Promise<Record<string, unknown>> {
         leaseLapsed: Boolean(holding) && Number.isFinite(lease) && lease <= now.getTime(),
       }, now),
       last_seen_at: runner.last_seen_at ? String(runner.last_seen_at) : null,
+      // What the machine says it is, which is what an `agents:` query selects on.
+      tags: String(runner.tags ?? '').split('\n').map(tag => tag.trim()).filter(Boolean),
     }
   }
 
@@ -397,6 +543,23 @@ async function fleet(): Promise<Record<string, unknown>> {
       repositories: assigned
         .filter(entry => Number(entry.runner_pool_id) === Number(pool.id))
         .map(entry => Number(entry.repository_id)),
+      /*
+       * The tokens, with first and last use. Those two answer the questions
+       * asked about a credential nobody remembers making: has this ever been
+       * used, and is it still being used - and a token with a null first use
+       * is one to delete without asking anybody.
+       */
+      registration_tokens: tokens
+        .filter(token => Number(token.runner_pool_id) === Number(pool.id))
+        .map(token => ({
+          id: Number(token.id),
+          name: String(token.name),
+          uses: Number(token.uses ?? 0),
+          first_used_at: token.first_used_at ? String(token.first_used_at) : null,
+          last_used_at: token.last_used_at ? String(token.last_used_at) : null,
+          revoked: Boolean(token.revoked_at),
+          expires_at: token.expires_at ? String(token.expires_at) : null,
+        })),
       queues: queues
         .filter(queue => Number(queue.runner_pool_id) === Number(pool.id))
         .map(queue => ({
@@ -433,4 +596,65 @@ async function entry(request: any, user: any, detail: Record<string, unknown>): 
     ...await auditFrom(request),
     detail,
   }
+}
+
+/** The pools this person may manage. */
+async function poolsMaintainedBy(userId: number): Promise<number[]> {
+  const rows: any[] = await db
+    .selectFrom('runner_pool_maintainers')
+    .select(['runner_pool_id'])
+    .where('user_id', '=', userId)
+    .execute()
+
+  return rows.map(row => Number(row.runner_pool_id))
+}
+
+/**
+ * Which pool an operation is about.
+ *
+ * Every verb names its subject differently - a pool, a queue, a runner, a
+ * token - and a maintainer check that only understood one of them would leave
+ * the others open. Null means "cannot tell", which is refused: a permission
+ * check that fails open is not one.
+ */
+async function poolOf(request: any, operation: string): Promise<number | null> {
+  const direct = Number(request.get('pool'))
+
+  if (Number.isInteger(direct) && direct > 0)
+    return direct
+
+  const queueId = Number(request.get('queue'))
+
+  if (Number.isInteger(queueId) && queueId > 0) {
+    const queue: any = await db.selectFrom('runner_queues').select(['runner_pool_id']).where('id', '=', queueId).executeTakeFirst()
+
+    return queue ? Number(queue.runner_pool_id) : null
+  }
+
+  const tokenId = Number(request.get('token'))
+
+  if (Number.isInteger(tokenId) && tokenId > 0) {
+    const token: any = await db.selectFrom('runner_registration_tokens').select(['runner_pool_id']).where('id', '=', tokenId).executeTakeFirst()
+
+    return token ? Number(token.runner_pool_id) : null
+  }
+
+  const runnerId = Number(request.get('runner'))
+
+  if (Number.isInteger(runnerId) && runnerId > 0) {
+    const runner: any = await db
+      .selectFrom('runners')
+      .innerJoin('runner_queues', 'runner_queues.id', '=', 'runners.runner_queue_id')
+      .select(['runner_queues.runner_pool_id as pool_id'])
+      .where('runners.id', '=', runnerId)
+      .executeTakeFirst()
+
+    return runner ? Number(runner.pool_id) : null
+  }
+
+  // `list` is the only verb with no subject, and a maintainer may see the
+  // fleet - the listing is filtered by nothing today, which is a gap worth
+  // naming rather than hiding: it shows pool names and machine states, not
+  // repository contents.
+  return operation === 'list' ? -1 : null
 }

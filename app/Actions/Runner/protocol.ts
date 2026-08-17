@@ -22,6 +22,14 @@ export interface RunnerFacts {
   scopeId: number | null
   /** What it says it can run, already split. */
   labels: readonly string[]
+  /**
+   * `key=value` facts the machine reported about itself, for `agents:`.
+   *
+   * Optional, and absent means "said nothing" rather than "has nothing" - the
+   * difference matters only in that a machine which said nothing satisfies no
+   * selector, which is the safe direction.
+   */
+  tags?: readonly string[]
 }
 
 export interface JobFacts {
@@ -29,6 +37,8 @@ export interface JobFacts {
   state: string
   /** `runs-on`, already split. */
   runsOn: readonly string[]
+  /** `reviewos.agents:`, a `key=value` query over a machine's tags. */
+  agents?: readonly string[]
   /** Which repository's code this job would be handed. */
   repositoryId: number
   /** The repository's owner, for an organization-scoped runner. */
@@ -82,12 +92,38 @@ export function runnerReaches(runner: RunnerFacts, job: JobFacts): boolean {
  * means to somebody who wrote it.
  */
 export function runnerSatisfies(runner: RunnerFacts, job: JobFacts): boolean {
+  if (!satisfiesTags(runner, job))
+    return false
+
   if (job.runsOn.length === 0)
     return true
 
   const has = new Set(runner.labels.map(label => label.toLowerCase()))
 
   return job.runsOn.every(label => has.has(label.toLowerCase()))
+}
+
+/**
+ * Whether a machine's tags satisfy a job's `agents:` query.
+ *
+ * Labels are a set membership test, which is right for `ubuntu-latest` and
+ * wrong for anything with a value in it: a fleet with four GPU models grows
+ * labels called `gpu-a100`, and a label is whatever the person who typed it was
+ * thinking. `agents: [gpu=a100]` says what it means.
+ *
+ * Every selector has to match, and a machine with no tags satisfies no
+ * selector - which is the safe direction: a job that asked for a GPU waits
+ * visibly rather than running on a machine that never said it had one.
+ */
+export function satisfiesTags(runner: RunnerFacts, job: JobFacts): boolean {
+  const selectors = job.agents ?? []
+
+  if (selectors.length === 0)
+    return true
+
+  const has = new Set((runner.tags ?? []).map(tag => tag.trim().toLowerCase()))
+
+  return selectors.every(selector => has.has(selector.trim().toLowerCase()))
 }
 
 export interface ClaimDecision {

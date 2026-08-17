@@ -54,7 +54,7 @@ export async function authenticateRunner(request: any): Promise<AuthenticatedRun
 
   const row: any = await db
     .selectFrom('runners')
-    .select(['id', 'name', 'state', 'scope_type', 'scope_id', 'labels'])
+    .select(['id', 'name', 'state', 'scope_type', 'scope_id', 'labels', 'tags'])
     .where('token_hash', '=', hashToken(token))
     .executeTakeFirst()
 
@@ -78,6 +78,8 @@ export async function authenticateRunner(request: any): Promise<AuthenticatedRun
       scopeType: String(row.scope_type),
       scopeId: row.scope_id === null ? null : Number(row.scope_id),
       labels: splitLabels(row.labels),
+      // What the machine said it is, which is what an `agents:` query selects on.
+      tags: splitLabels(row.tags),
     },
   }
 }
@@ -117,7 +119,7 @@ export async function authenticateJob(request: any): Promise<AuthenticatedJob | 
 
   const runner: any = await db
     .selectFrom('runners')
-    .select(['id', 'state', 'scope_type', 'scope_id', 'labels'])
+    .select(['id', 'state', 'scope_type', 'scope_id', 'labels', 'tags'])
     .where('id', '=', Number(job.runner_id))
     .executeTakeFirst()
 
@@ -141,6 +143,7 @@ export async function authenticateJob(request: any): Promise<AuthenticatedJob | 
       scopeType: String(runner.scope_type),
       scopeId: runner.scope_id === null ? null : Number(runner.scope_id),
       labels: splitLabels(runner.labels),
+      tags: splitLabels(runner.tags),
     },
   }
 }

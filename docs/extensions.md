@@ -264,6 +264,39 @@ number.
 
 **Actions has no equivalent.**
 
+### `agents` - which machines may take this job
+
+```yaml
+  train:
+    runs-on: ubuntu-latest
+    reviewos:
+      agents:
+        gpu: a100
+        region: ash
+    steps: [{ run: ./train }]
+```
+
+A `key=value` query over the tags a machine reported about itself. The list form
+works too: `agents: [gpu=a100, region=ash]`.
+
+**`runs-on:` is a set membership test**, which is the right shape for
+`ubuntu-latest` and the wrong one for anything with a value in it. A fleet with
+four GPU models ends up with labels called `gpu-a100` and `gpu-a10g`, and a
+label means whatever the person who typed it was thinking. A tag query says what
+it means.
+
+Every selector has to match, and a machine that reported no tags satisfies none
+of them - a job that asked for a GPU waits visibly rather than running somewhere
+that never said it had one. A selector that is not `key=value` is refused rather
+than read as a label: one that silently became a label would match a different
+set of machines than the file says, and a job running somewhere it should not is
+invisible.
+
+Tags are set when a machine registers, from whatever its startup script knows
+about it. See [autoscaling](./autoscaling.md).
+
+**Actions has no equivalent**; labels are all it has.
+
 ### `group` - a label
 
 ```yaml
@@ -336,7 +369,7 @@ Three properties worth knowing:
 |---|---|
 | Portability | A file using `reviewos:` does not run on GitHub. It is refused, not ignored. |
 | Migration in | Nothing. An Actions workflow uses none of this and behaves identically. |
-| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; `if-changed` becomes a `dorny/paths-filter`-style action plus a step-level `if:`; `retry` becomes a `nick-fields/retry`-style action or a manual re-run; `priority` becomes nothing, since GitHub's queue has no order you can influence; a `group` becomes nothing, since GitHub has no grouping. |
+| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; `if-changed` becomes a `dorny/paths-filter`-style action plus a step-level `if:`; `retry` becomes a `nick-fields/retry`-style action or a manual re-run; `priority` becomes nothing, since GitHub's queue has no order you can influence; `agents` becomes a label somebody has to keep in step with the machines; a `group` becomes nothing, since GitHub has no grouping. |
 
 The engine underneath is documented in
 [the pipelines roadmap](https://github.com/stacksjs/reviewos/blob/main/docs/todo/15-pipelines.md),

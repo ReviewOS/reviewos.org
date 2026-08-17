@@ -925,5 +925,6 @@ The runner is compiled into a binary and copied to a machine that is not this on
 are set *there* rather than in this instance's `.env`. Each has a command-line flag too, and
 the flag wins.
 
+- `REVIEWOS_REGISTRATION_TOKEN`, read by `app/Actions/Runner/standalone.ts`
 - `REVIEWOS_URL`, read by `app/Actions/Runner/standalone.ts`
 - `REVIEWOS_WORKSPACE`, read by `app/Actions/Runner/standalone.ts`

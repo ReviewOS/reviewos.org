@@ -452,3 +452,289 @@ describe('the numbers an autoscaler polls', () => {
     expect(text).toContain('# HELP reviewos_ci_jobs_waiting')
   }, 120_000)
 })
+
+/*
+ * Registration tokens: the credential a fleet machine should actually carry.
+ *
+ * Without them a scaler needs an administrator's token to create runners, which
+ * puts the widest credential on the instance into a userdata blob on every
+ * machine it starts.
+ */
+describe('registration tokens', () => {
+  let poolId = 0
+  let queueId = 0
+  let tokenValue = ''
+  let tokenId = 0
+
+  async function register(token: string, body: Record<string, unknown> = {}): Promise<{ status: number, body: any }> {
+    const answer = await fetch(`http://127.0.0.1:${port}/api/runner/register`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Runner-Protocol': '1',
+      },
+      body: JSON.stringify(body),
+    })
+
+    return { status: answer.status, body: await answer.json().catch(() => null) }
+  }
+
+  test('a machine registers itself into the pool the token belongs to', async () => {
+    if (!available)
+      return
+
+    const pool = await fleet({ operation: 'create-pool', name: unique('Registered') })
+    poolId = Number(pool.body.pool.id)
+    created.poolIds.push(poolId)
+
+    const queue = await fleet({ operation: 'create-queue', pool: poolId, name: 'registered-x64' })
+    queueId = Number(queue.body.queue.id)
+
+    const minted = await fleet({ operation: 'create-token', pool: poolId, queue: queueId, name: 'us-east autoscaler' })
+
+    expect(minted.status).toBe(200)
+    tokenValue = String(minted.body.registration_token.token)
+    tokenId = Number(minted.body.registration_token.id)
+
+    const registered = await register(tokenValue, { name: 'build-07', labels: 'ubuntu-latest,self-hosted', tags: 'gpu=a100,region=ash' })
+
+    expect(registered.status).toBe(201)
+    expect(String(registered.body.runner.token)).not.toBe(tokenValue)
+
+    created.runnerIds.push(Number(registered.body.runner.id))
+
+    const row: any = await db
+      .selectFrom('runners')
+      .select(['runner_queue_id', 'tags', 'runner_registration_token_id'])
+      .where('id', '=', Number(registered.body.runner.id))
+      .executeTakeFirst()
+
+    expect(Number(row.runner_queue_id)).toBe(queueId)
+    expect(String(row.tags)).toContain('gpu=a100')
+    // Which credential put this machine here, kept for after the token is
+    // revoked - which is exactly when somebody asks.
+    expect(Number(row.runner_registration_token_id)).toBe(tokenId)
+  }, 120_000)
+
+  test('the credential it registered with is not the credential it works with', async () => {
+    if (!available)
+      return
+
+    /*
+     * The threat model's rule made concrete: a registration credential must
+     * never reach a job environment, and the only way to keep that promise is
+     * for the thing running jobs to be holding something else by then.
+     */
+    const answer = await fetch(`http://127.0.0.1:${port}/api/runner/claim`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${tokenValue}`, 'Content-Type': 'application/json', 'X-Runner-Protocol': '1' },
+      body: '{}',
+    })
+
+    expect(answer.status).toBe(401)
+  }, 60_000)
+
+  test('first use and last use are recorded, because that is what anybody asks', async () => {
+    if (!available)
+      return
+
+    const { body } = await fleet({ operation: 'list' })
+    const pool = body.pools.find((entry: any) => Number(entry.id) === poolId)
+    const token = pool.registration_tokens.find((entry: any) => Number(entry.id) === tokenId)
+
+    expect(token.uses).toBe(1)
+    expect(token.first_used_at).not.toBeNull()
+    expect(token.revoked).toBe(false)
+  }, 60_000)
+
+  test('and a revoked one stops working, while the machines it made keep going', async () => {
+    if (!available)
+      return
+
+    await fleet({ operation: 'revoke-token', token: tokenId })
+
+    const refused = await register(tokenValue, { name: 'build-08' })
+
+    expect(refused.status).toBe(401)
+
+    /*
+     * The machines it already registered are unaffected, and that is the
+     * point of exchanging the credential: revoking the token stops *new*
+     * machines joining, and does not interrupt a build that is running on one
+     * that already did.
+     */
+    const runner = await runnerFacts(created.runnerIds[created.runnerIds.length - 1]!)
+
+    expect(runner.state).toBe('active')
+  }, 60_000)
+})
+
+/*
+ * `agents:` - a tag query, which is a different question from a label.
+ *
+ * Labels are set membership, which is right for `ubuntu-latest` and wrong for
+ * anything with a value in it: a fleet with four GPU models grows labels called
+ * `gpu-a100`, and a label means whatever the person who typed it was thinking.
+ */
+describe('an impossible selector', () => {
+  test('leaves the job queued with a visible reason rather than silently forever', async () => {
+    if (!available)
+      return
+
+    const runner = await makeRunner(created.repositoryId)
+
+    // The machine reports one tag; the job asks for another.
+    await db.updateTable('runners').set({ tags: 'gpu=a10g' } as any).where('id', '=', runner.id).execute()
+
+    const runId = await freshRun(created.repositoryId, 'd1'.repeat(20))
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ settings: JSON.stringify({ agents: ['gpu=a100'] }) } as any)
+      .where('workflow_run_id', '=', runId)
+      .execute()
+
+    expect(await claimNextJob(await runnerFacts(runner.id))).toBeNull()
+
+    const { explainWaiting } = await import('../../app/Actions/Workflow/waiting')
+
+    const explanation = explainWaiting(
+      {
+        id: 0,
+        state: 'queued',
+        runsOn: ['ubuntu-latest'],
+        agents: ['gpu=a100'],
+        repositoryId: created.repositoryId,
+        ownerId: created.ownerId,
+        runnerId: null,
+        leaseExpiresAt: null,
+      },
+      [{ ...(await runnerFacts(runner.id)), tags: ['gpu=a10g'] }],
+    )
+
+    expect(explanation.kind).toBe('no-tags')
+    // Both halves: what it asked for, and what the machines actually report.
+    expect(explanation.summary).toContain('gpu=a100')
+    expect(explanation.summary).toContain('gpu=a10g')
+  }, 120_000)
+})
+
+describe('a pool maintainer', () => {
+  test('can drain their own pool without administering the instance', async () => {
+    if (!available)
+      return
+
+    const handle = unique('maint')
+
+    const person: any = await db
+      .insertInto('users')
+      .values({ name: 'Fleet Maintainer', email: `${handle}@example.com`, handle, password: 'x', is_admin: false })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    const { generateToken } = await import('../../app/Actions/Tokens/secret')
+    const token = generateToken()
+
+    await db.insertInto('access_tokens').values({
+      user_id: Number(person.id),
+      name: 'maintainer',
+      prefix: token.prefix,
+      token_hash: token.hash,
+      selection: 'all',
+      expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+    }).execute()
+
+    const pool = await fleet({ operation: 'create-pool', name: unique('Owned') })
+    const poolId = Number(pool.body.pool.id)
+    created.poolIds.push(poolId)
+
+    const queue = await fleet({ operation: 'create-queue', pool: poolId, name: 'owned-x64' })
+    const queueId = Number(queue.body.queue.id)
+
+    // Before being appointed, the endpoint does not exist for them.
+    expect((await fleet({ operation: 'pause-queue', queue: queueId }, token.token)).status).toBe(404)
+
+    await fleet({ operation: 'add-maintainer', pool: poolId, user: Number(person.id) })
+
+    expect((await fleet({ operation: 'pause-queue', queue: queueId, reason: 'kernel upgrade' }, token.token)).status).toBe(200)
+
+    /*
+     * And not somebody else's pool. The existence of a pool they do not
+     * maintain is not theirs to learn, so it is the same 404 a stranger gets.
+     */
+    const other = await fleet({ operation: 'create-pool', name: unique('Other') })
+    const otherPool = Number(other.body.pool.id)
+    created.poolIds.push(otherPool)
+
+    const otherQueue = await fleet({ operation: 'create-queue', pool: otherPool, name: 'other-x64' })
+
+    expect((await fleet({ operation: 'pause-queue', queue: Number(otherQueue.body.queue.id) }, token.token)).status).toBe(404)
+
+    // Nor may they appoint themselves sideways into one: a role that can
+    // appoint is not a narrower role at all.
+    expect((await fleet({ operation: 'add-maintainer', pool: otherPool, user: Number(person.id) }, token.token)).status).toBe(404)
+
+    await db.deleteFrom('users').where('id', '=', Number(person.id)).execute().catch(() => {})
+  }, 120_000)
+})
+
+/*
+ * The compiled runner registering itself, which is the flow the autoscaling
+ * documentation tells people to use. Worth running rather than describing: the
+ * usage text and the endpoint are in different files, and a flag that does not
+ * reach the request is a cloud-init that fails at four in the morning.
+ */
+describe('the runner binary registering itself', () => {
+  test('exchanges a registration token for its own credential', async () => {
+    if (!available)
+      return
+
+    const pool = await fleet({ operation: 'create-pool', name: unique('Binary') })
+    const poolId = Number(pool.body.pool.id)
+    created.poolIds.push(poolId)
+
+    await fleet({ operation: 'create-queue', pool: poolId, name: 'binary-x64' })
+
+    const minted = await fleet({ operation: 'create-token', pool: poolId, name: 'binary test' })
+    const registration = String(minted.body.registration_token.token)
+
+    const child = Bun.spawn([
+      'bun',
+      'app/Actions/Runner/standalone.ts',
+      '--url',
+      `http://127.0.0.1:${port}`,
+      '--registration-token',
+      registration,
+      '--name',
+      'binary-runner',
+      '--tags',
+      'gpu=a100',
+      '--once',
+    ], { stdout: 'pipe', stderr: 'pipe' })
+
+    const [out, error] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ])
+
+    expect(`${out}${error}`).toContain('Registered as')
+
+    const row: any = await db
+      .selectFrom('runners')
+      .select(['id', 'tags', 'labels'])
+      .where('name', '=', 'binary-runner')
+      .orderBy('id', 'desc')
+      .executeTakeFirst()
+
+    expect(row).toBeTruthy()
+    created.runnerIds.push(Number(row.id))
+
+    // The tags it reported about itself, which is what an `agents:` query
+    // selects on - and the default labels, since it named none.
+    expect(String(row.tags)).toContain('gpu=a100')
+    expect(String(row.labels)).toContain('ubuntu-latest')
+  }, 180_000)
+})

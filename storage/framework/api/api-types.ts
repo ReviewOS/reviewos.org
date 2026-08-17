@@ -9614,7 +9614,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "assign-repository" | "unassign-repository" | "assign-runner" | "stop-runner" | "create-runner"; "name"?: string; "slug"?: string; "labels"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number; "force"?: boolean } } }
+    requestBody?: { content: { "application/json": { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "assign-repository" | "unassign-repository" | "assign-runner" | "stop-runner" | "create-runner" | "create-token" | "revoke-token" | "add-maintainer" | "remove-maintainer"; "name"?: string; "slug"?: string; "labels"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number; "force"?: boolean; "token"?: number; "expires"?: string; "user"?: number } } }
     responses: {
       "200": { content: never }
       "404": { content: never }
@@ -15430,6 +15430,32 @@ export interface paths {
     requestBody: { content: { "application/json": { "sequence": number; "content"?: string; "stream"?: "stdout" | "stderr" } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
+      "401": { content: never }
+      "422": { content: never }
+      "426": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/runner/register": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "name"?: string; "labels"?: string; "tags"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "runner"?: { "id"?: number; "name"?: string; "token"?: string; "queue"?: string } } } }
       "401": { content: never }
       "422": { content: never }
       "426": { content: never }

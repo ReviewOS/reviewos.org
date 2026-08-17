@@ -73,6 +73,7 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
       'workflow_jobs.runner_id as runner_id',
       'workflow_jobs.lease_expires_at as lease_expires_at',
       'workflow_jobs.max_parallel as max_parallel',
+      'workflow_jobs.settings as settings',
       'workflow_runs.id as run_id',
       'workflow_runs.number as run_number',
       'workflow_runs.repository_id as repository_id',
@@ -127,6 +128,9 @@ function factsOf(row: any): JobFacts {
     id: Number(row.id),
     state: String(row.state),
     runsOn: splitLabels(row.runs_on),
+    // The `agents:` query, out of the extension settings. A job that named one
+    // is asking about the machine rather than about its labels.
+    agents: agentsOf(row.settings),
     repositoryId: Number(row.repository_id),
     ownerId: Number(row.owner_id),
     runnerId: row.runner_id === null ? null : Number(row.runner_id),
@@ -415,4 +419,22 @@ export async function stopRequestedFor(runnerId: number): Promise<string | null>
     .executeTakeFirst()
 
   return row?.stop_requested ? String(row.stop_requested) : null
+}
+
+/** A job's `agents:` query, out of the settings column. */
+function agentsOf(settings: unknown): string[] {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+
+    return Array.isArray(parsed?.agents) ? parsed.agents.map(String) : []
+  }
+  catch {
+    /*
+     * Unreadable settings mean no selector, which lets the job run anywhere
+     * its labels allow. The alternative - refusing every machine - would take
+     * a job offline over a column nobody can read, and the labels are still a
+     * real constraint.
+     */
+    return []
+  }
 }

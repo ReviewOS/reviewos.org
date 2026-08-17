@@ -44,7 +44,39 @@ do; the second is whether it worked. A queue whose oldest job keeps aging while
 
 ## What the scaler does
 
-Three calls, all on `/api/instance/fleet`, all needing an administrator's token:
+**Carry a registration token, not an administrator's token.** Mint one once,
+scoped to a pool, and put *that* in the machine's userdata:
+
+```sh
+curl -sX POST https://reviewos.example/api/instance/fleet \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"operation":"create-token","pool":3,"queue":7,"name":"us-east autoscaler"}'
+```
+
+The machine registers itself with it and is handed its own credential, which is
+what it uses from then on:
+
+```sh
+curl -sX POST https://reviewos.example/api/runner/register \
+  -H "Authorization: Bearer $REGISTRATION_TOKEN" -H 'X-Runner-Protocol: 1' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"build-07","labels":"ubuntu-latest,self-hosted","tags":"gpu=a100,region=ash"}'
+```
+
+A registration token can do exactly one thing - add a machine to one pool - so
+that is the whole blast radius when a machine is compromised or a userdata blob
+leaks. An administrator's token in the same place can read every repository on
+the instance. Revoke it with `{"operation":"revoke-token","token":12}`: new
+machines stop joining, and builds already running on machines that joined
+earlier are not interrupted.
+
+`tags` are what the machine knows about itself, and what a job's
+`agents: [gpu=a100]` query selects on. Set them from the startup script, which is
+the only thing that knows.
+
+The remaining calls live on `/api/instance/fleet` and need an administrator's
+token, or a **pool maintainer's** - a role that can drain queues, mint tokens and
+stop machines in one pool without being able to read a single repository:
 
 ```sh
 # Make a machine's credential, seconds before the machine exists.

@@ -71,6 +71,39 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * `key=value` per line: what this machine *is*, beyond a label.
+     *
+     * Labels answer "may this job run here" as a set membership test, which is
+     * the right shape for `runs-on: ubuntu-latest` and the wrong one for
+     * everything with a value in it - a GPU model, a region, a kernel version.
+     * A tag query says `gpu=a100` and means it, where a label called
+     * `gpu-a100` means whatever the person who typed it was thinking.
+     *
+     * Set at registration and by whatever the machine's startup script knows
+     * about itself, which is the only thing that *does* know it.
+     */
+    tags: {
+      order: 15,
+      fillable: true,
+      validation: { rule: schema.string().max(2000) },
+      factory: () => null,
+    },
+
+    /**
+     * The registration token this machine registered with, when it did.
+     *
+     * Kept so "which credential put this machine here" has an answer after the
+     * token is revoked - which is exactly when somebody asks. Null for a runner
+     * an operator created by hand.
+     */
+    runner_registration_token_id: {
+      order: 14,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
     /** What a person calls it in a list: `mac-mini-01`. */
     name: {
       order: 1,

@@ -14429,7 +14429,11 @@
                       "unassign-repository",
                       "assign-runner",
                       "stop-runner",
-                      "create-runner"
+                      "create-runner",
+                      "create-token",
+                      "revoke-token",
+                      "add-maintainer",
+                      "remove-maintainer"
                     ]
                   },
                   "name": {
@@ -14458,6 +14462,15 @@
                   },
                   "force": {
                     "type": "boolean"
+                  },
+                  "token": {
+                    "type": "number"
+                  },
+                  "expires": {
+                    "type": "string"
+                  },
+                  "user": {
+                    "type": "number"
                   }
                 }
               }
@@ -25541,6 +25554,87 @@
                 "required": [
                   "sequence"
                 ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runner/register": {
+      "post": {
+        "summary": "/api/runner/register",
+        "operationId": "post__api_runner_register",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The runner, with its own credential. Shown once; the column holds a hash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runner": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "token": {
+                          "type": "string"
+                        },
+                        "queue": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No registration token, or one that is unknown, revoked or expired."
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "426": {
+            "description": "This machine speaks a protocol version the server does not."
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "labels": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }

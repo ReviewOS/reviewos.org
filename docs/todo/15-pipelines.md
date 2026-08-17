@@ -1211,10 +1211,41 @@ register itself in - which is exactly what a registration token is for.
       and is undone by one call - **the jobs stay queued**, which is the difference between a drain
       and an outage. The reason travels to the run page, because the person who returns to a stuck
       queue is usually not the person who drained it.
-- [ ] Registration tokens scoped to one pool, rotatable, revocable, with a first-use and last-use
+- [x] Registration tokens scoped to one pool, rotatable, revocable, with a first-use and last-use
       record. Registration credentials never enter a job environment (phase 9 rule).
-- [ ] Runner tags, set at registration and by a startup hook, queried by a step's `agents` selector.
+
+      **The credential a fleet machine should actually carry.** Before this, an autoscaler needed an
+      *administrator's* token to create runners - which puts the widest credential on the instance
+      into a userdata blob on every machine it starts. A registration token can do one thing, add a
+      machine to one pool, and that is the whole blast radius when a blob leaks.
+
+      `POST /api/runner/register` **exchanges it**: registering mints a per-runner credential and the
+      machine uses that from then on, the same shape as the job token one layer down. That is how the
+      phase 9 rule is kept rather than promised - the thing running jobs is holding something else by
+      then, and a test asserts the registration credential is refused at the claim.
+
+      Revoked rather than deleted, because "which token did that machine register with" outlives the
+      token and is asked at exactly the moment a machine did something surprising. Revoking stops
+      *new* machines joining and does not interrupt a build already running on one that joined.
+      First use and last use are recorded because they answer the two questions asked about a
+      credential nobody remembers making: has this ever been used, and is it still being used.
+- [x] Runner tags, set at registration and by a startup hook, queried by a step's `agents` selector.
       Unmatched selectors leave a job queued with a visible reason rather than silently forever.
+
+      `reviewos: { agents: [gpu=a100] }`, matched against `key=value` tags a machine reports about
+      itself at registration. Labels are a set membership test, which is the right shape for
+      `ubuntu-latest` and the wrong one for anything with a value in it: a fleet with four GPU models
+      grows labels called `gpu-a100`, and a label means whatever the person who typed it was
+      thinking.
+
+      A selector that is not `key=value` is **refused rather than read as a label** - one that
+      silently became a label would match a different set of machines than the file says, and a job
+      running somewhere it should not is invisible. A machine that reported no tags satisfies no
+      selector, which is the safe direction.
+
+      An impossible selector is told apart from a label mismatch on the run page, because the two
+      look identical from outside and have opposite remedies: a label is changed in the workflow, and
+      a tag is set on the machine by whatever knows it has a GPU.
 - [x] Runner lifecycle visible in the interface: connecting, idle, accepted, running, stopping,
       stopped, lost, with the job it is on and the time in state
 
@@ -1286,10 +1317,28 @@ register itself in - which is exactly what a registration token is for.
       public and uncredentialed because the file holds no secret and does nothing until it is given
       a URL and a token. That makes the version question answer itself: the binary a machine fetches
       is the one built for the instance it is about to talk to.
-- [ ] Pool maintainers: a role that can manage queues, tokens, and workflow assignment without being
+- [x] Pool maintainers: a role that can manage queues, tokens, and workflow assignment without being
       an instance administrator
-- [ ] Tests: a job with an impossible selector, a runner lost mid-job, a drained queue, a revoked
+
+      The role exists because of what happens without it: the person who looks after the build
+      machines is made an instance administrator - draining a queue needs it - and now they can read
+      every private repository on the instance.
+
+      Per pool rather than a global "fleet operator", because a fleet with two pools usually has them
+      because two groups own different machines, and a role spanning both puts each group's
+      credentials within reach of the other. Two verbs stay administrator-only: creating a pool is
+      creating a boundary, and appointing maintainers is handing out the power to manage one - a role
+      that can appoint itself sideways is not a narrower role at all.
+
+      A maintainer acting on a pool they do not maintain gets the same 404 a stranger gets: the
+      existence of somebody else's pool is not theirs to learn.
+- [x] Tests: a job with an impossible selector, a runner lost mid-job, a drained queue, a revoked
       token mid-job, and a runner claiming work from a pool it is not registered to
+
+      All five, against the real claim rather than against the rules in isolation - a boundary the
+      dispatcher does not enforce is documentation. The runner-lost case is in
+      `runner-reclaim.test.ts`, where it also proves the attempt cap: three machines going quiet on
+      one job stops it being handed out rather than passing it round the fleet forever.
 
 ### Runner hooks
 

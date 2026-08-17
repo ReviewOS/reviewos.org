@@ -89,6 +89,15 @@ route.post('/instance/fleet', 'Actions/Runner/FleetAction')
  * actually there to use.
  */
 route.get('/runner/download', 'Actions/Runner/DownloadRunnerAction')
+/*
+ * A machine adding itself to the fleet with a registration token.
+ *
+ * Unauthenticated in the session sense - there is nobody at the keyboard - and
+ * the credential in the header is the whole of the authentication. It is
+ * exchanged immediately for a per-runner one, because by the threat model a
+ * registration credential must never reach a job environment.
+ */
+route.post('/runner/register', 'Actions/Runner/RegisterRunnerAction')
 
 /*
  * The OpenAPI document, at a stable public URL.

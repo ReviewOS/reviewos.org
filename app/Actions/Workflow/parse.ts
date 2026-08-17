@@ -352,7 +352,7 @@ const JOB_KEYS = new Set([
 /** What a job *is*, which Actions has one of and this engine has five. */
 export type JobKind = 'command' | 'wait' | 'block' | 'trigger'
 
-const EXTENSION_KEYS = new Set(['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority'])
+const EXTENSION_KEYS = new Set(['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents'])
 
 const STEP_KEYS = new Set([
   'id', 'name', 'run', 'uses', 'with', 'env', 'if',
@@ -695,6 +695,7 @@ function extensionOf(
   const ifChanged = asStringList(raw['if-changed'])
   const retry = retryFrom(raw.retry, id, jobLine, source, errors)
   const priority = priorityFrom(raw.priority, id, jobLine, source, errors)
+  const agents = agentsFrom(raw.agents, id, jobLine, source, errors)
 
   const kinds = (['wait', 'block', 'trigger'] as const).filter(key => key in raw)
 
@@ -705,11 +706,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: retry ? { retry } : {}, group, ifChanged, priority }
+    return { kind: 'command', settings: settingsOf(retry, agents), group, ifChanged, priority }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: retry ? { retry } : {}, group, ifChanged, priority }
+    return { kind: 'command', settings: settingsOf(retry, agents), group, ifChanged, priority }
 
   if (ifChanged.length > 0) {
     /*
@@ -829,6 +830,90 @@ function blockFrom(
   }
 
   return { prompt, fields }
+}
+
+/** The extension settings a command job carries, omitting what it did not say. */
+function settingsOf(retry: Record<string, unknown> | null, agents: string[]): Record<string, unknown> {
+  const settings: Record<string, unknown> = {}
+
+  if (retry)
+    settings.retry = retry
+
+  if (agents.length > 0)
+    settings.agents = agents
+
+  return settings
+}
+
+/**
+ * `reviewos.agents:` - a tag query selecting which machines may take this job.
+ *
+ * `runs-on:` is a set membership test, which is the right shape for
+ * `ubuntu-latest` and the wrong one for anything with a value in it. A fleet
+ * with four GPU models ends up with labels called `gpu-a100` and `gpu-a10g`,
+ * and a job that wants "any GPU with at least 40GB" cannot say so. A tag query
+ * says `gpu=a100` and means it.
+ *
+ * Both shapes are accepted, because both are what people write: a list of
+ * `key=value` strings, and a mapping. They normalize to the same thing.
+ */
+function agentsFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): string[] {
+  if (value === undefined || value === null)
+    return []
+
+  const entries: string[] = []
+
+  if (Array.isArray(value)) {
+    for (const entry of value)
+      entries.push(String(entry))
+  }
+  else {
+    const mapping = asRecord(value)
+
+    if (!mapping) {
+      errors.push({
+        line: lineOf(source, 'agents', jobLine),
+        message: `\`agents:\` in job \`${id}\` is neither a list nor a mapping`,
+        fix: 'Write `agents: [gpu=a100]`, or `agents: { gpu: a100 }`.',
+      })
+
+      return []
+    }
+
+    for (const [key, entry] of Object.entries(mapping))
+      entries.push(`${key}=${String(entry)}`)
+  }
+
+  const selectors: string[] = []
+
+  for (const entry of entries) {
+    const text = entry.trim()
+
+    if (!text.includes('=')) {
+      /*
+       * Refused rather than read as a label. A selector that silently became a
+       * label would match a different set of machines than the file says, and
+       * the failure - a job running somewhere it should not - is invisible.
+       */
+      errors.push({
+        line: lineOf(source, 'agents', jobLine),
+        message: `\`${text}\` is not a tag query, in job \`${id}\``,
+        fix: 'A tag query is `key=value`. For a plain label, use `runs-on:`.',
+      })
+
+      continue
+    }
+
+    selectors.push(text)
+  }
+
+  return selectors
 }
 
 /**

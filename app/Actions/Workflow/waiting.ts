@@ -16,7 +16,7 @@
 import type { QueueFacts } from '../Runner/fleet'
 import { queueAccepts } from '../Runner/fleet'
 import type { JobFacts, RunnerFacts } from '../Runner/protocol'
-import { runnerReaches, runnerSatisfies } from '../Runner/protocol'
+import { runnerReaches, runnerSatisfies, satisfiesTags } from '../Runner/protocol'
 
 export type WaitingKind =
   | 'ready'
@@ -29,6 +29,8 @@ export type WaitingKind =
   | 'queue-paused'
   /** Every matching runner is in a pool that does not serve this repository. */
   | 'pool-refuses'
+  /** No machine reported the tags this job's `agents:` query asks for. */
+  | 'no-tags'
 
 export interface WaitingExplanation {
   kind: WaitingKind
@@ -114,6 +116,29 @@ export function explainWaiting(job: JobFacts, runners: readonly FleetRunner[]): 
    */
   const matching = reaching.filter(runner => runnerSatisfies(runner, job))
   const available = [...new Set(reaching.flatMap(runner => runner.labels))].sort()
+
+  /*
+   * An `agents:` query nothing satisfies, told apart from a label mismatch.
+   *
+   * The two look identical from the outside and have different remedies: a
+   * label is changed in the workflow, and a tag is set on the machine at
+   * startup by whatever knows it has a GPU. A selector nobody matches would
+   * otherwise leave a job queued forever with a message about labels that are
+   * perfectly fine.
+   */
+  const selectors = job.agents ?? []
+
+  if (selectors.length > 0 && reaching.filter(runner => satisfiesTags(runner, job)).length === 0) {
+    const reported = [...new Set(reaching.flatMap(runner => runner.tags ?? []))].sort()
+
+    return {
+      kind: 'no-tags',
+      summary: `No runner here reports ${list([...selectors])}. ${reported.length > 0 ? `The runners that could take this job report ${list(reported)}.` : 'None of them report any tags at all.'}`,
+      fix: 'Set the tag on the machine at startup, or change this job\'s `agents:` query.',
+      wanted: [...selectors],
+      available: reported,
+    }
+  }
 
   if (matching.length === 0) {
     /*

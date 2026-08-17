@@ -3595,7 +3595,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/instance/fleet
    */
-  postInstanceFleet(input?: { body?: { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "assign-repository" | "unassign-repository" | "assign-runner" | "stop-runner" | "create-runner"; "name"?: string; "slug"?: string; "labels"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number; "force"?: boolean } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+  postInstanceFleet(input?: { body?: { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "assign-repository" | "unassign-repository" | "assign-runner" | "stop-runner" | "create-runner" | "create-token" | "revoke-token" | "add-maintainer" | "remove-maintainer"; "name"?: string; "slug"?: string; "labels"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number; "force"?: boolean; "token"?: number; "expires"?: string; "user"?: number } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
     return request(config, "POST", "/api/instance/fleet", input ?? {}, [], true, options)
   },
 
@@ -5620,6 +5620,13 @@ export function createClient(config: ClientConfig) {
    */
   postRunnerLogs(input: { body: { "sequence": number; "content"?: string; "stream"?: "stdout" | "stderr" } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/runner/logs", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/runner/register
+   */
+  postRunnerRegister(input?: { body?: { "name"?: string; "labels"?: string; "tags"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/runner/register", input ?? {}, [], true, options)
   },
 
   /**
