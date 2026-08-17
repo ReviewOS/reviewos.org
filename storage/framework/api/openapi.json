@@ -26645,6 +26645,207 @@
         }
       }
     },
+    "/api/repos/workflows/manage": {
+      "post": {
+        "summary": "/api/repos/workflows/manage",
+        "operationId": "post__api_repos_workflows_manage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The workflow, and what it will and will not do now.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may see this repository but not do this to it, or their token does not carry the permission.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No workflow by that name or path in this repository.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That workflow is `removed`: its file is gone from the branch, so there is nothing to enable.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "workflow": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "enable",
+                      "disable"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/requests": {
       "get": {
         "summary": "/api/requests",

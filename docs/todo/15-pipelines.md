@@ -1291,8 +1291,24 @@ output, which covers the common case and nothing else.
       workflows for an empty repository. The owner-managed ones are `ownerTemplates.ts`, which is
       the honest split - a starter is what this instance suggests, and a template is what an owner
       requires.
-- [ ] Schedules in cron syntax, per workflow, each with its own branch, commit, message, and
+- [x] Schedules in cron syntax, per workflow, each with its own branch, commit, message, and
       environment, plus enable and disable without deleting
+
+      The schedules were built earlier; **enable and disable were not, and that is the part worth
+      writing down.** `disabled` has been a state on the workflow row since the beginning, and
+      every dispatch path already refused to run one - the push dispatcher, the schedule sweep and
+      the manual dispatch all check it. Nothing could ever *set* it, so the check was dead code and
+      the state was a lie: a reader of the model would conclude a workflow could be turned off, and
+      no path existed. The same shape as `fail-fast`, `timeout-minutes` and `permissions:` before
+      it, from the other direction.
+
+      Off rather than deleted, because deleting is a commit, a review and a revert for something
+      that is usually temporary - a nightly job failing while an upstream service is down, a deploy
+      paused during a freeze. `removed` stays the third state and keeps meaning the file is gone
+      from the branch, so enabling one of those is refused with what actually has to happen instead.
+
+      It takes `workflow:dispatch` rather than repository administration: the person who needs to
+      stop a workflow failing at three in the morning is the person on call, not the owner.
 - [x] Skip intermediate runs and cancel intermediate runs, per workflow: when three commits land in a
       minute on the same branch, do not run all three
 

@@ -763,6 +763,15 @@ route.post('/repos/workflow-runs/cancel', 'Actions/Workflow/CancelWorkflowRunAct
 // `workflow_dispatch`: the trigger with no event behind it. Write access, since
 // starting a run spends the instance's runners.
 route.post('/repos/workflows/dispatch', 'Actions/Workflow/DispatchWorkflowAction').middleware('auth')
+
+/*
+ * Turning a workflow off without deleting it.
+ *
+ * `disabled` was a state every dispatch path already refused to run and nothing
+ * could set - a check that was dead code and a state that was a lie. Deleting
+ * is a commit, a review and a revert for something that is usually temporary.
+ */
+route.post('/repos/workflows/manage', 'Actions/Workflow/ManageWorkflowAction').middleware('auth')
 /*
  * Opening a gate: a `reviewos.block:` job waiting for a person.
  *

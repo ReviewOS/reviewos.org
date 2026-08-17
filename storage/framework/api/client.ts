@@ -5595,6 +5595,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/workflows/manage
+   */
+  postReposWorkflowsManage(input?: { body?: { "owner"?: string; "repo"?: string; "workflow"?: string; "operation"?: "enable" | "disable"; "reason"?: string } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/workflows/manage", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/requests
    */
   getRequests(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

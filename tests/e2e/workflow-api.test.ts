@@ -895,3 +895,91 @@ describe('approving a paused gate', () => {
     expect(String(second.body.reason)).toContain('already')
   })
 })
+
+/*
+ * Turning a workflow off without deleting it.
+ *
+ * `disabled` was a state on the row that every dispatch path already refused to
+ * run, and nothing could set - a check that was dead code and a state that was
+ * a lie. Deleting means a commit, a review and a revert for something that is
+ * usually temporary: a nightly job failing while an upstream service is down.
+ */
+describe('disabling a workflow', () => {
+  async function manage(body: Record<string, unknown>): Promise<any> {
+    const answer = await fetch(`http://127.0.0.1:${port}/api/repos/workflows/manage`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${created.token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ owner: created.handle, repo: created.name, ...body }),
+    })
+
+    return { status: answer.status, body: await answer.json().catch(() => null) }
+  }
+
+  test('by name or by path, because both are what people have', async () => {
+    if (!available)
+      return
+
+    const workflow: any = await db
+      .selectFrom('workflows')
+      .select(['id', 'name', 'path', 'state'])
+      .where('repository_id', '=', created.repositoryId)
+      .executeTakeFirst()
+
+    expect(workflow).toBeTruthy()
+
+    const byPath = await manage({ operation: 'disable', workflow: String(workflow.path) })
+
+    expect(byPath.status).toBe(200)
+    expect(byPath.body.workflow.state).toBe('disabled')
+
+    // The runs already going are unaffected, and the history is kept - said in
+    // the answer because both are questions somebody has as they press it.
+    expect(String(byPath.body.note)).toContain('history is kept')
+
+    const byName = await manage({ operation: 'enable', workflow: String(workflow.name) })
+
+    expect(byName.status).toBe(200)
+    expect(byName.body.workflow.state).toBe('active')
+  }, 120_000)
+
+  test('and a disabled workflow is not dispatched', async () => {
+    if (!available)
+      return
+
+    const workflow: any = await db
+      .selectFrom('workflows')
+      .select(['id', 'path'])
+      .where('repository_id', '=', created.repositoryId)
+      .executeTakeFirst()
+
+    await manage({ operation: 'disable', workflow: String(workflow.path) })
+
+    /*
+     * The check the state was written for, exercised at last: the dispatch
+     * paths have refused a disabled workflow since the beginning, against a
+     * state nothing could reach.
+     */
+    const { dispatchPush } = await import('../../app/Actions/Workflow/dispatch')
+
+    const result = await dispatchPush({
+      repositoryId: created.repositoryId,
+      event: { ref: 'refs/heads/main' },
+      headSha: 'd'.repeat(40),
+    })
+
+    expect(result.created).toEqual([])
+
+    await manage({ operation: 'enable', workflow: String(workflow.path) })
+  }, 120_000)
+
+  test('a workflow this repository does not have is not found', async () => {
+    if (!available)
+      return
+
+    expect((await manage({ operation: 'disable', workflow: '.github/workflows/nothing.yml' })).status).toBe(404)
+  }, 120_000)
+})
