@@ -153,6 +153,19 @@ const HELP: Record<string, string> = {
   reviewos_queue_oldest_seconds: 'How long the oldest queued job has waited. A number that keeps climbing means no worker is running.',
   reviewos_repositories_total: 'Repositories on this instance.',
   reviewos_users_total: 'Accounts on this instance.',
+
+  /*
+   * The fleet, which is the whole interface an autoscaler needs.
+   *
+   * Three numbers per queue answer the only question a scaler asks: is there
+   * work nobody is doing, and are there machines doing nothing. Everything
+   * else it might want - how long a job takes, which repository it belongs
+   * to - is a decision it should not be making.
+   */
+  reviewos_ci_jobs_waiting: 'CI jobs queued and not yet claimed, by queue. The number an autoscaler scales on.',
+  reviewos_ci_jobs_running: 'CI jobs a runner is currently holding, by queue.',
+  reviewos_ci_jobs_oldest_waiting_seconds: 'How long the oldest unclaimed CI job has waited, by queue. Climbing while runners is zero means nothing is coming.',
+  reviewos_ci_runners: 'Runners by queue and lifecycle: idle, running, stopping, lost, disabled, never-seen.',
 }
 
 /**
@@ -186,6 +199,8 @@ export async function collectFromDatabase(): Promise<void> {
 
     const users: any = await db.selectFrom('users').select(db.fn.count('id').as('count')).executeTakeFirst()
     gauge('reviewos_users_total', Number(users?.count ?? 0))
+
+    await collectFleet(db)
   }
   catch {
     /*
@@ -255,4 +270,104 @@ function withLabel(labels: string, name: string, value: string): string {
  */
 function escape(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
+}
+
+/**
+ * The fleet, by queue: work waiting, work running, and machines by lifecycle.
+ *
+ * **This is the autoscaler contract.** Everything a scaler needs is here and
+ * nothing else is: how much work nobody is doing, how long the oldest of it has
+ * waited, and how many machines are in each state. A scaler that needed more
+ * than this would be making decisions that belong to the instance.
+ *
+ * Every queue is emitted even at zero, including the `unassigned` pseudo-queue
+ * for machines nobody has put in one. A gauge that disappears when it reaches
+ * zero is how an autoscaler concludes there is no work when what actually
+ * happened is that the series stopped being reported.
+ */
+async function collectFleet(db: any): Promise<void> {
+  const queues: any[] = await db.selectFrom('runner_queues').select(['id', 'name']).execute()
+  const runners: any[] = await db
+    .selectFrom('runners')
+    .select(['id', 'state', 'labels', 'runner_queue_id', 'last_seen_at', 'stop_requested'])
+    .execute()
+
+  const jobs: any[] = await db
+    .selectFrom('workflow_jobs')
+    .select(['id', 'state', 'runs_on', 'runner_id', 'lease_expires_at', 'created_at'])
+    .where('state', 'in', ['queued', 'running'])
+    .execute()
+
+  const { runnerLifecycle } = await import('../Actions/Runner/fleet')
+
+  const named = [...queues.map(queue => ({ id: Number(queue.id), name: String(queue.name) })), { id: 0, name: 'unassigned' }]
+  const now = Date.now()
+
+  for (const queue of named) {
+    const machines = runners.filter(runner => Number(runner.runner_queue_id ?? 0) === queue.id)
+
+    /*
+     * Work is attributed to a queue by the labels its machines answer to,
+     * which is how the claim decides. A queue with no machines has no labels
+     * and therefore no work, which is correct and is also exactly the case an
+     * autoscaler is being asked to fix - so the unassigned bucket carries the
+     * jobs nothing matches, rather than them vanishing.
+     */
+    const labels = new Set(machines.flatMap(runner => String(runner.labels ?? '').split('\n').map(line => line.trim()).filter(Boolean)))
+
+    const mine = jobs.filter((job) => {
+      const wanted = String(job.runs_on ?? '').split('\n').map(line => line.trim()).filter(Boolean)
+
+      if (queue.id === 0)
+        return wanted.length === 0 || !wanted.every(label => anyQueueHas(runners, label))
+
+      return wanted.length > 0 && wanted.every(label => labels.has(label))
+    })
+
+    const waiting = mine.filter(job => String(job.state) === 'queued')
+    const running = mine.filter(job => String(job.state) === 'running')
+
+    gauge('reviewos_ci_jobs_waiting', waiting.length, { queue: queue.name })
+    gauge('reviewos_ci_jobs_running', running.length, { queue: queue.name })
+
+    const oldest = waiting
+      .map(job => (job.created_at ? Date.parse(String(job.created_at)) : Number.NaN))
+      .filter(at => Number.isFinite(at))
+      .sort((one, two) => one - two)[0]
+
+    gauge(
+      'reviewos_ci_jobs_oldest_waiting_seconds',
+      oldest === undefined ? 0 : Math.max(0, Math.round((now - oldest) / 1000)),
+      { queue: queue.name },
+    )
+
+    const held = jobs.filter(job => String(job.state) === 'running')
+
+    for (const lifecycle of ['idle', 'running', 'stopping', 'lost', 'disabled', 'never-seen']) {
+      const count = machines.filter((runner) => {
+        const holding = held.find(job => String(job.runner_id ?? '') === String(runner.id))
+        const lease = holding?.lease_expires_at ? Date.parse(String(holding.lease_expires_at)) : Number.NaN
+
+        return runnerLifecycle({
+          state: String(runner.state),
+          lastSeenAt: runner.last_seen_at ? String(runner.last_seen_at) : null,
+          stopRequested: runner.stop_requested ? String(runner.stop_requested) : null,
+          holdsJob: Boolean(holding),
+          leaseLapsed: Boolean(holding) && Number.isFinite(lease) && lease <= now,
+        }, new Date(now)) === lifecycle
+      }).length
+
+      // Emitted at zero too: a series that disappears is how a scaler decides
+      // there are no runners when what happened is that nobody reported any.
+      gauge('reviewos_ci_runners', count, { queue: queue.name, lifecycle })
+    }
+  }
+}
+
+/** Whether any runner anywhere answers to this label. */
+function anyQueueHas(runners: readonly any[], label: string): boolean {
+  return runners.some(runner => String(runner.labels ?? '')
+    .split('\n')
+    .map(line => line.trim())
+    .includes(label))
 }

@@ -3595,7 +3595,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/instance/fleet
    */
-  postInstanceFleet(input?: { body?: { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "assign-repository" | "unassign-repository" | "assign-runner"; "name"?: string; "slug"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+  postInstanceFleet(input?: { body?: { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "assign-repository" | "unassign-repository" | "assign-runner" | "stop-runner" | "create-runner"; "name"?: string; "slug"?: string; "labels"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number; "force"?: boolean } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
     return request(config, "POST", "/api/instance/fleet", input ?? {}, [], true, options)
   },
 
@@ -5599,6 +5599,13 @@ export function createClient(config: ClientConfig) {
    */
   postRunnerClaim(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/runner/claim", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/runner/download
+   */
+  getRunnerDownload(options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "GET", "/api/runner/download", {}, [], false, options)
   },
 
   /**

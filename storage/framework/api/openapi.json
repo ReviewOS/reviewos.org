@@ -14427,13 +14427,18 @@
                       "resume-queue",
                       "assign-repository",
                       "unassign-repository",
-                      "assign-runner"
+                      "assign-runner",
+                      "stop-runner",
+                      "create-runner"
                     ]
                   },
                   "name": {
                     "type": "string"
                   },
                   "slug": {
+                    "type": "string"
+                  },
+                  "labels": {
                     "type": "string"
                   },
                   "reason": {
@@ -14450,6 +14455,9 @@
                   },
                   "repository": {
                     "type": "number"
+                  },
+                  "force": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -25335,6 +25343,27 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/runner/download": {
+      "get": {
+        "summary": "/api/runner/download",
+        "operationId": "get__api_runner_download",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The binary, as an octet stream."
+          },
+          "404": {
+            "description": "This instance has not built a runner for that platform, and says which command builds it."
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
           }
         }
       }

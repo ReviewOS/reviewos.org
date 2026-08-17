@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { db } from '@stacksjs/database'
 import { authenticateRunner } from './authenticate'
-import { claimNextJob } from './claim'
+import { claimNextJob, stopRequestedFor } from './claim'
 import { eventPayload } from '../Workflow/eventPayload'
 
 /**
@@ -177,8 +177,33 @@ export default new Action({
       return runnerJson({ error: 'Unknown runner' }, 401)
 
     const claimed = await claimNextJob(runner.facts)
-    if (!claimed)
+
+    if (!claimed) {
+      /*
+       * No work is the ordinary answer, and "stop" is the one case where it
+       * means something else.
+       *
+       * A poll is the only moment this instance can tell a runner anything -
+       * it is somebody else's machine, and there is no connection to send a
+       * signal down - so the answer to "have you got work" carries the answer
+       * to "should I still be here".
+       */
+      const stop = await stopRequestedFor(runner.facts.id)
+
+      if (stop) {
+        await db
+          .updateTable('runners')
+          // Acknowledged by asking: the machine has been told, and a request
+          // that stayed set would stop it again the next time it registered.
+          .set({ stop_requested: null } as any)
+          .where('id', '=', runner.facts.id)
+          .execute()
+
+        return runnerJson({ job: null, stop })
+      }
+
       return runnerJson({ job: null })
+    }
 
     // Read after the claim rather than joined into it: the claim is a guarded
     // write and adding columns to it would mean widening the statement whose

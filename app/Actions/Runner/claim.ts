@@ -154,6 +154,17 @@ export async function claimNextJob(
    */
   const queue = await queueOf(runner.id)
 
+  /*
+   * A machine somebody asked to stop is offered nothing.
+   *
+   * Checked before the candidates rather than after: the point of a graceful
+   * stop is that the machine takes no *new* work, and a claim that examined
+   * jobs first would occasionally hand one out in the moment between the
+   * request and the poll.
+   */
+  if (await stopRequestedFor(runner.id))
+    return null
+
   for (const row of await candidates(runner)) {
     const facts = factsOf(row)
 
@@ -387,4 +398,21 @@ export async function queueOf(runnerId: number): Promise<QueueFacts | null> {
     pausedReason: row.paused_reason ? String(row.paused_reason) : null,
     repositoryIds: permitted.map(entry => Number(entry.repository_id)),
   }
+}
+
+/**
+ * Whether an operator has asked this machine to stop.
+ *
+ * Read on every claim, which is the only moment the instance can tell a runner
+ * anything: it is somebody else's machine, possibly behind a firewall, and
+ * there is no connection to send a signal down.
+ */
+export async function stopRequestedFor(runnerId: number): Promise<string | null> {
+  const row: any = await db
+    .selectFrom('runners')
+    .select(['stop_requested'])
+    .where('id', '=', runnerId)
+    .executeTakeFirst()
+
+  return row?.stop_requested ? String(row.stop_requested) : null
 }

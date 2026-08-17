@@ -9614,7 +9614,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "assign-repository" | "unassign-repository" | "assign-runner"; "name"?: string; "slug"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number } } }
+    requestBody?: { content: { "application/json": { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "assign-repository" | "unassign-repository" | "assign-runner" | "stop-runner" | "create-runner"; "name"?: string; "slug"?: string; "labels"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number; "force"?: boolean } } }
     responses: {
       "200": { content: never }
       "404": { content: never }
@@ -15362,6 +15362,30 @@ export interface paths {
       "500": { content: never }
     }
   }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/runner/download": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never

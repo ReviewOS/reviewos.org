@@ -84,3 +84,75 @@ export function queueAccepts(queue: QueueFacts | null, repositoryId: number): Fl
     reason: `The \`${queue.poolName}\` pool does not serve this repository, so its runners will not take this job.`,
   }
 }
+
+/**
+ * What a runner is doing, as opposed to what an operator set it to.
+ *
+ * `state` is administrative - somebody switched this machine on or off - and it
+ * answers the wrong question when a fleet is not behaving. The question is
+ * "which machines are working, which are sitting there, and which have gone
+ * quiet", and none of those is a column: they are the lease, the last poll and
+ * the stop somebody asked for, read together.
+ *
+ * Derived rather than stored for the reason every derived state in this phase
+ * is: a status column has to be written by whoever causes the change, and the
+ * one change nobody causes - a machine going quiet - is the one that matters.
+ */
+export type RunnerLifecycle =
+  /** Registered, never polled. A credential somebody made and nobody used. */
+  | 'never-seen'
+  /** Switched off by an operator. */
+  | 'disabled'
+  /** Asked to stop, still finishing what it holds. */
+  | 'stopping'
+  /** Holding a job, with a live lease. */
+  | 'running'
+  /** Polling, with nothing to do. */
+  | 'idle'
+  /** Was working and stopped talking. The one nobody sets. */
+  | 'lost'
+
+export interface RunnerObservation {
+  state: string
+  lastSeenAt: string | null
+  stopRequested: string | null
+  /** Whether it currently holds a job whose lease has not lapsed. */
+  holdsJob: boolean
+  /** Whether the lease on that job has already passed. */
+  leaseLapsed: boolean
+}
+
+/**
+ * How long a runner may be silent before it counts as lost.
+ *
+ * Longer than a poll interval and shorter than a person's patience. A runner
+ * that is idle polls every few seconds; one that has been quiet for two minutes
+ * has either stopped or cannot reach the instance, and both are worth showing
+ * as something other than "idle".
+ */
+export const SILENT_SECONDS = 120
+
+export function runnerLifecycle(runner: RunnerObservation, now: Date = new Date()): RunnerLifecycle {
+  if (runner.state === 'disabled')
+    return 'disabled'
+
+  const seen = runner.lastSeenAt ? Date.parse(runner.lastSeenAt) : Number.NaN
+  const silentFor = Number.isFinite(seen) ? (now.getTime() - seen) / 1000 : Number.POSITIVE_INFINITY
+
+  /*
+   * Lost outranks stopping and running, because it is the one that is not
+   * true by assumption: a machine asked to stop that then goes quiet has
+   * stopped without saying so, and a machine holding a job whose lease has
+   * lapsed is exactly what the reclaim sweep is about.
+   */
+  if (runner.leaseLapsed || (silentFor > SILENT_SECONDS && runner.lastSeenAt))
+    return 'lost'
+
+  if (!runner.lastSeenAt)
+    return 'never-seen'
+
+  if (runner.stopRequested)
+    return 'stopping'
+
+  return runner.holdsJob ? 'running' : 'idle'
+}

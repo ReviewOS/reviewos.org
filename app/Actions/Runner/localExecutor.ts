@@ -95,6 +95,24 @@ export interface JobOutcome {
   reason: string
 }
 
+/**
+ * Whether the instance asked this machine to stop, on the last poll.
+ *
+ * Module state rather than a return value because `runOnce` answers with a job
+ * outcome and null already means "nothing to do" - and a third meaning for null
+ * would be read wrong by every caller that has one today.
+ */
+let stopRequested: string | null = null
+
+/** What the instance last asked this runner to do, and clears it. */
+export function takeStopRequest(): string | null {
+  const stop = stopRequested
+
+  stopRequested = null
+
+  return stop
+}
+
 /** A step's result, in the shape the log stream wants to describe it. */
 interface StepResult {
   ok: boolean
@@ -125,8 +143,14 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   const say = options.say ?? (() => {})
   const claim = await post(options.baseUrl, '/api/runner/claim', options.token, {})
 
-  if (!claim.ok || !claim.body?.job)
+  if (!claim.ok || !claim.body?.job) {
+    // The answer to "have you got work" carries the answer to "should I still
+    // be here", because a poll is the only moment the instance can say so.
+    if (claim.body?.stop)
+      stopRequested = String(claim.body.stop)
+
     return null
+  }
 
   const job = claim.body.job
   const jobToken = String(job.token ?? '')
@@ -617,6 +641,19 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
 
     if (limit > 0)
       return outcomes
+
+    /*
+     * An operator asked this machine to stop. Answered by leaving the loop
+     * rather than by killing anything: `runOnce` returns when the job it was
+     * running has finished, so a graceful stop is graceful by construction.
+     */
+    const stop = takeStopRequest()
+
+    if (stop) {
+      options.say?.(`the instance asked this runner to stop (${stop})`)
+
+      return outcomes
+    }
 
     /*
      * Measured from the last job rather than from the last poll, so a runner

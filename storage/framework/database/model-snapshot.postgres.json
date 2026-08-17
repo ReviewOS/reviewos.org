@@ -9637,6 +9637,19 @@
               "table": "runner_queues",
               "column": "id"
             }
+          },
+          {
+            "name": "stop_requested",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "enumValues": [
+              "graceful",
+              "forced"
+            ],
+            "enumTypeName": "runners_stop_requested_type"
           }
         ],
         "indexes": [
@@ -10159,7 +10172,7 @@
       }
     ]
   },
-  "hash": "a2850ec281a01a3feb05a0160f0e4c40d41597fb8a299b543d3b025840478760",
+  "hash": "eb4f1e9a3b70eaa7a0cdde77069f39ca8fd9b369188cb886b810327cce786a6d",
   "dialect": "postgres",
-  "updatedAt": "2026-08-17T16:14:36.350Z"
+  "updatedAt": "2026-08-17T16:24:49.259Z"
 }

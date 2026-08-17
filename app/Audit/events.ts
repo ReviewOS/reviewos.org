@@ -93,6 +93,8 @@ export type AuditEventName =
   | 'fleet:repository-assigned'
   | 'fleet:repository-unassigned'
   | 'fleet:runner-assigned'
+  | 'fleet:runner-created'
+  | 'fleet:runner-stopped'
   | 'audit:exported'
 
 /**
@@ -143,6 +145,8 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'fleet:repository-assigned',
   'fleet:repository-unassigned',
   'fleet:runner-assigned',
+  'fleet:runner-created',
+  'fleet:runner-stopped',
   'audit:exported',
 ] as const
 

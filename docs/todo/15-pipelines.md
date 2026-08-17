@@ -1175,17 +1175,46 @@ a macOS arm64 control plane:
 The credential is made on the instance and carried over, because a fleet machine has no database to
 register itself in - which is exactly what a registration token is for.
 
-- [ ] Runner pools: a named group of queues plus the workflows permitted to use them. A workflow in
+- [x] Runner pools: a named group of queues plus the workflows permitted to use them. A workflow in
       one pool cannot dispatch to, read artifacts from, or trigger a workflow in another unless a
       rule says so.
-- [ ] Queues within a pool, named for infrastructure rather than for teams, with pause and resume so
+
+      **A pool serves the repositories it lists, and every repository when it lists none.** The empty
+      list is what every existing install has, so nobody is quietly given a boundary they did not
+      ask for; adding one repository is the act of drawing it. The refusal names the pool but *not*
+      its other repositories - on a shared instance that list is the map of who is working on what.
+
+      The narrowing from the line above: permission is per *repository* rather than per workflow, and
+      it governs which machines take the work rather than artifacts and triggers. A workflow-level
+      rule needs a name for a workflow that survives being renamed, and artifact and trigger scoping
+      is a second boundary with its own failure modes - both are worth doing after somebody has run
+      the first one.
+- [x] Queues within a pool, named for infrastructure rather than for teams, with pause and resume so
       an operator can drain one without deleting it
+
+      Draining is the operation the row exists for. Every other way to take machines out of service
+      loses something: deleting runners loses their identity and their history, disabling them one
+      at a time is a list somebody has to keep, and turning them off leaves jobs waiting on a
+      machine that is not coming back. Pausing says "no new work here", lets what is running finish,
+      and is undone by one call - **the jobs stay queued**, which is the difference between a drain
+      and an outage. The reason travels to the run page, because the person who returns to a stuck
+      queue is usually not the person who drained it.
 - [ ] Registration tokens scoped to one pool, rotatable, revocable, with a first-use and last-use
       record. Registration credentials never enter a job environment (phase 9 rule).
 - [ ] Runner tags, set at registration and by a startup hook, queried by a step's `agents` selector.
       Unmatched selectors leave a job queued with a visible reason rather than silently forever.
-- [ ] Runner lifecycle visible in the interface: connecting, idle, accepted, running, stopping,
+- [x] Runner lifecycle visible in the interface: connecting, idle, accepted, running, stopping,
       stopped, lost, with the job it is on and the time in state
+
+      Six states, derived rather than stored: `never-seen`, `idle`, `running`, `stopping`, `lost`,
+      `disabled`. A status column has to be written by whoever causes the change, and **the one
+      change nobody causes - a machine going quiet - is the one that matters**, so the lifecycle is
+      the lease, the last poll and the stop somebody asked for, read together.
+
+      `lost` outranks `stopping` and `running` on purpose: a machine asked to stop that then goes
+      quiet has stopped without saying so, and a machine holding a job whose lease has lapsed is
+      exactly what the reclaim sweep is about. `never-seen` is the first-run confusion made visible -
+      a credential somebody made and a command nobody started.
 - [x] Ephemeral runners: disconnect after one job, or after an idle timeout, which is what makes an
       autoscaling group safe
 
@@ -1197,12 +1226,54 @@ register itself in - which is exactly what a registration token is for.
 
       Verified on a real machine: a runner started with `--idle-timeout 6` against an empty queue
       exited on its own.
-- [ ] Graceful stop that lets the current job finish, and a forced stop that does not, both from the
+- [x] Graceful stop that lets the current job finish, and a forced stop that does not, both from the
       API
-- [ ] A metrics endpoint reporting queue depth, waiting jobs per queue, and runner counts by state,
+
+      Both on `/api/instance/fleet`. They differ in one thing: what happens to the job the machine
+      is holding. Graceful takes no new work and lets it finish; **forced puts the job back in the
+      queue rather than cancelling it** - the work is fine, it is the machine that is going away,
+      and somebody watching a pull request should not see their build fail because an autoscaler
+      shrank the fleet. It counts as an attempt, so a machine force-stopped repeatedly cannot hand
+      one job round a fleet forever.
+
+      The machine is told **when it next asks for work**, because that is the only moment this
+      instance can tell it anything: a runner is somebody else's machine, possibly behind a
+      firewall, and there is no connection to send a signal down. The request is cleared when it is
+      acknowledged, or a machine an operator brought back would stop again immediately.
+- [x] A metrics endpoint reporting queue depth, waiting jobs per queue, and runner counts by state,
       in a shape an autoscaler can poll. This is the whole interface an autoscaler needs.
-- [ ] Reference autoscaler for at least one substrate, plus documentation of the polling contract for
+
+      On the existing `/api/metrics`, in Prometheus exposition format, because that is what every
+      scraper and every autoscaler already reads - a JSON shape of our own would be a format each
+      operator has to write an exporter for. `reviewos_ci_jobs_waiting`, `_jobs_running`,
+      `_jobs_oldest_waiting_seconds` and `reviewos_ci_runners{lifecycle}`, all per queue.
+
+      **Every series is emitted at zero**, which is the detail that decides whether the contract
+      works: a gauge that disappears when it reaches zero is how a scaler concludes there is no work
+      when what happened is that nobody reported any. `unassigned` is a real queue name, carrying
+      the machines nobody put in a queue and the jobs whose `runs-on:` matches no runner anywhere -
+      on an instance that has started using pools, that bucket is where the surprises are.
+- [x] Reference autoscaler for at least one substrate, plus documentation of the polling contract for
       the ones we do not write
+
+      [`docs/autoscaling.md`](../autoscaling.md): the contract, what a scaler has to do itself, and a
+      hundred-line shell script against Hetzner Cloud that is deliberately boring.
+
+      **The interesting part is that it has no scale-down path.** The runner exits on its own when
+      the queue has been empty for five minutes and the machine shuts itself off, so nothing outside
+      has to answer "is it mid-job" - which is the question a scaler cannot answer and the reason
+      autoscaled CI kills builds. `stop-runner` exists for the cases the runner cannot know about: a
+      spot instance being reclaimed, a queue drained for maintenance.
+
+      Machine preparation is **pantry, not a container image**: `pantry install git node@22` on a
+      general-purpose machine, and a machine that needs a different version tomorrow installs it
+      rather than being rebuilt. There is no Dockerfile anywhere in that document, which is the
+      point.
+
+      The binary comes from the instance itself - `GET /api/runner/download?target=linux-x64`,
+      public and uncredentialed because the file holds no secret and does nothing until it is given
+      a URL and a token. That makes the version question answer itself: the binary a machine fetches
+      is the one built for the instance it is about to talk to.
 - [ ] Pool maintainers: a role that can manage queues, tokens, and workflow assignment without being
       an instance administrator
 - [ ] Tests: a job with an impossible selector, a runner lost mid-job, a drained queue, a revoked

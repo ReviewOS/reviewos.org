@@ -2,6 +2,8 @@ import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
+import { hashToken } from './authenticate'
+import { runnerLifecycle } from './fleet'
 import { auditFrom } from '../Git/audit'
 import { currentActor } from '../Identity/lookup'
 
@@ -37,15 +39,19 @@ export default new Action({
         'assign-repository',
         'unassign-repository',
         'assign-runner',
+        'stop-runner',
+        'create-runner',
       ]),
     },
     name: { rule: schema.string() },
     slug: { rule: schema.string() },
+    labels: { rule: schema.string() },
     reason: { rule: schema.string() },
     pool: { rule: schema.number() },
     queue: { rule: schema.number() },
     runner: { rule: schema.number() },
     repository: { rule: schema.number() },
+    force: { rule: schema.boolean() },
   },
 
   responses: {
@@ -187,6 +193,128 @@ export default new Action({
       return response.json(await fleet())
     }
 
+    if (operation === 'create-runner') {
+      /*
+       * Registering a machine over the API, which is what an autoscaler needs.
+       *
+       * `buddy runner:local --register` is an operator at a shell on the
+       * instance's own host; a scaler is a program somewhere else that has to
+       * make a credential seconds before a machine boots. Same row, same
+       * hashing, different caller - and the credential is returned once here
+       * for the same reason it is printed once there.
+       */
+      const name = String(request.get('name') ?? '').trim() || `runner-${Date.now()}`
+      const queueId = Number(request.get('queue'))
+
+      const { generateToken } = await import('../Tokens/secret')
+      const secret = generateToken()
+
+      const labels = String(request.get('labels') ?? 'ubuntu-latest,self-hosted')
+        .split(',')
+        .map(label => label.trim())
+        .filter(Boolean)
+
+      const created: any = await db
+        .insertInto('runners')
+        .values({
+          name: name.slice(0, 200),
+          /*
+           * Instance-scoped, because a scaler making a machine for a queue is
+           * making it for whatever that queue serves - and the pool is where
+           * the boundary is drawn now. A repository-scoped runner is still
+           * available and is what `--register --scope` is for.
+           */
+          scope_type: 'instance',
+          scope_id: null,
+          token_hash: hashToken(secret.token),
+          labels: labels.join('\n'),
+          state: 'active',
+          version: '1',
+          runner_queue_id: Number.isInteger(queueId) && queueId > 0 ? queueId : null,
+        } as any)
+        .returning(['id'])
+        .executeTakeFirst()
+
+      await auditEvent('fleet:runner-created', await entry(request, user, { runner: Number(created?.id), name, queue: queueId })).catch(() => null)
+
+      return response.json({
+        runner: {
+          id: Number(created?.id),
+          name,
+          labels,
+          // Shown once. The column holds a hash, and a credential in a
+          // database in plain text is a credential in every backup.
+          token: secret.token,
+        },
+      })
+    }
+
+    if (operation === 'stop-runner') {
+      const runnerId = Number(request.get('runner'))
+
+      if (!Number.isInteger(runnerId) || runnerId <= 0)
+        return response.json({ error: 'Which runner?' }, 422)
+
+      const forced = request.get('force') === true || String(request.get('force') ?? '') === 'true'
+
+      await db
+        .updateTable('runners')
+        .set({ stop_requested: forced ? 'forced' : 'graceful' } as any)
+        .where('id', '=', runnerId)
+        .execute()
+
+      let returned = 0
+
+      if (forced) {
+        /*
+         * The job it is holding goes back to the queue, and is **not**
+         * cancelled: the work is fine, it is the machine that is going away.
+         * Same shape as a lapsed lease, including the attempt counter, so a
+         * machine that is force-stopped repeatedly cannot hand one job round a
+         * fleet forever.
+         */
+        const held: any[] = await db
+          .selectFrom('workflow_jobs')
+          .select(['id', 'attempt'])
+          .where('runner_id', '=', String(runnerId))
+          .where('state', '=', 'running')
+          .execute()
+
+        for (const job of held) {
+          await db
+            .updateTable('workflow_jobs')
+            .set({
+              state: 'queued',
+              runner_id: null,
+              lease_expires_at: null,
+              job_token_hash: null,
+              attempt: Number(job.attempt ?? 1) + 1,
+              condition_reason: 'The machine running this was stopped, so the job went back to the queue.',
+            } as any)
+            .where('id', '=', Number(job.id))
+            .where('state', '=', 'running')
+            .execute()
+
+          returned += 1
+        }
+      }
+
+      await auditEvent('fleet:runner-stopped', await entry(request, user, { runner: runnerId, forced, returned })).catch(() => null)
+
+      return response.json({
+        runner: { id: runnerId, stop: forced ? 'forced' : 'graceful' },
+        // How many jobs went back to the queue, so a script can tell whether it
+        // just interrupted something.
+        returned,
+        /*
+         * The machine is told the next time it polls, which is the only moment
+         * this instance can tell it anything. Said in the answer so nobody
+         * waits for a state change that arrives on the runner's schedule.
+         */
+        note: 'The runner is told when it next asks for work.',
+      })
+    }
+
     const runnerId = Number(request.get('runner'))
     const queueId = Number(request.get('queue'))
 
@@ -212,7 +340,44 @@ async function fleet(): Promise<Record<string, unknown>> {
   const pools: any[] = await db.selectFrom('runner_pools').select(['id', 'name', 'slug', 'description']).execute()
   const queues: any[] = await db.selectFrom('runner_queues').select(['id', 'runner_pool_id', 'name', 'state', 'paused_reason']).execute()
   const assigned: any[] = await db.selectFrom('runner_pool_repositories').select(['runner_pool_id', 'repository_id']).execute()
-  const runners: any[] = await db.selectFrom('runners').select(['id', 'name', 'state', 'labels', 'runner_queue_id', 'last_seen_at']).execute()
+  const runners: any[] = await db
+    .selectFrom('runners')
+    .select(['id', 'name', 'state', 'labels', 'runner_queue_id', 'last_seen_at', 'stop_requested'])
+    .execute()
+
+  /*
+   * The jobs machines are holding, for the lifecycle below. One query for the
+   * fleet rather than one per runner: a hundred-machine fleet asking the same
+   * question a hundred times is how a status page becomes the slowest thing on
+   * the instance.
+   */
+  const held: any[] = await db
+    .selectFrom('workflow_jobs')
+    .select(['runner_id', 'lease_expires_at'])
+    .where('state', '=', 'running')
+    .execute()
+
+  const now = new Date()
+
+  const describe = (runner: any): Record<string, unknown> => {
+    const holding = held.find(job => String(job.runner_id ?? '') === String(runner.id))
+    const lease = holding?.lease_expires_at ? Date.parse(String(holding.lease_expires_at)) : Number.NaN
+
+    return {
+      id: Number(runner.id),
+      name: String(runner.name),
+      state: String(runner.state),
+      // What it is *doing*, which is the question a fleet screen is asked.
+      lifecycle: runnerLifecycle({
+        state: String(runner.state),
+        lastSeenAt: runner.last_seen_at ? String(runner.last_seen_at) : null,
+        stopRequested: runner.stop_requested ? String(runner.stop_requested) : null,
+        holdsJob: Boolean(holding),
+        leaseLapsed: Boolean(holding) && Number.isFinite(lease) && lease <= now.getTime(),
+      }, now),
+      last_seen_at: runner.last_seen_at ? String(runner.last_seen_at) : null,
+    }
+  }
 
   return {
     pools: pools.map(pool => ({
@@ -241,7 +406,7 @@ async function fleet(): Promise<Record<string, unknown>> {
           reason: queue.paused_reason ? String(queue.paused_reason) : null,
           runners: runners
             .filter(runner => Number(runner.runner_queue_id ?? 0) === Number(queue.id))
-            .map(runner => ({ id: Number(runner.id), name: String(runner.name), state: String(runner.state) })),
+            .map(describe),
         })),
     })),
     /*
@@ -249,9 +414,7 @@ async function fleet(): Promise<Record<string, unknown>> {
      * instance that has started using pools, a runner outside them is the one
      * that will surprise somebody.
      */
-    unassigned: runners
-      .filter(runner => !runner.runner_queue_id)
-      .map(runner => ({ id: Number(runner.id), name: String(runner.name), state: String(runner.state) })),
+    unassigned: runners.filter(runner => !runner.runner_queue_id).map(describe),
   }
 }
 

@@ -80,6 +80,15 @@ route.post('/instance/admin', 'Actions/Ops/AdminAction')
  * an instance has a fleet at all is not something to confirm to a stranger.
  */
 route.post('/instance/fleet', 'Actions/Runner/FleetAction')
+/*
+ * The runner binary, so an autoscaler's cloud-init has a URL.
+ *
+ * Public and uncredentialed on purpose: the file contains no secret and does
+ * nothing until it is given a URL and a token. Requiring a credential would
+ * mean every cloud-init holding one *before* the runner credential it is
+ * actually there to use.
+ */
+route.get('/runner/download', 'Actions/Runner/DownloadRunnerAction')
 
 /*
  * The OpenAPI document, at a stable public URL.

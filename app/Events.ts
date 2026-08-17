@@ -167,5 +167,7 @@ export default {
   'fleet:repository-assigned': ['RecordAudit'],
   'fleet:repository-unassigned': ['RecordAudit'],
   'fleet:runner-assigned': ['RecordAudit'],
+  'fleet:runner-created': ['RecordAudit'],
+  'fleet:runner-stopped': ['RecordAudit'],
   'audit:exported': ['RecordAudit'],
 } satisfies Events

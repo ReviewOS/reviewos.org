@@ -11,8 +11,8 @@
 // one that eventually leaks.
 
 import { describe, expect, test } from 'bun:test'
-import type { QueueFacts } from '../../app/Actions/Runner/fleet'
-import { queueAccepts } from '../../app/Actions/Runner/fleet'
+import type { QueueFacts, RunnerObservation } from '../../app/Actions/Runner/fleet'
+import { queueAccepts, runnerLifecycle } from '../../app/Actions/Runner/fleet'
 
 function queue(over: Partial<QueueFacts> = {}): QueueFacts {
   return {
@@ -93,5 +93,65 @@ describe('a paused queue', () => {
     // Draining beats permission: a queue that is paused is paused for
     // everybody, which is the whole point of taking machines out of service.
     expect(queueAccepts(queue({ state: 'paused', repositoryIds: [7] }), 7).ok).toBe(false)
+  })
+})
+
+/*
+ * What a runner is *doing*, as opposed to what an operator set it to.
+ *
+ * `state` is administrative and answers the wrong question when a fleet is
+ * misbehaving. The question is which machines are working, which are sitting
+ * there, and which have gone quiet - and the last one is the only state nobody
+ * sets, which is exactly why it has to be derived rather than stored.
+ */
+describe('what a runner is doing', () => {
+  const now = new Date('2026-03-04T12:00:00.000Z')
+
+  function seen(secondsAgo: number): string {
+    return new Date(now.getTime() - secondsAgo * 1000).toISOString()
+  }
+
+  function observation(over: Partial<RunnerObservation> = {}): RunnerObservation {
+    return {
+      state: 'active',
+      lastSeenAt: seen(5),
+      stopRequested: null,
+      holdsJob: false,
+      leaseLapsed: false,
+      ...over,
+    }
+  }
+
+  test('polling with nothing to do is idle', () => {
+    expect(runnerLifecycle(observation(), now)).toBe('idle')
+  })
+
+  test('holding a job is running', () => {
+    expect(runnerLifecycle(observation({ holdsJob: true }), now)).toBe('running')
+  })
+
+  test('a credential nobody has used says so, rather than looking idle', () => {
+    // The commonest first-run confusion: a runner was registered, the command
+    // was never started, and the fleet screen shows a machine that is fine.
+    expect(runnerLifecycle(observation({ lastSeenAt: null }), now)).toBe('never-seen')
+  })
+
+  test('switched off outranks everything', () => {
+    expect(runnerLifecycle(observation({ state: 'disabled', holdsJob: true }), now)).toBe('disabled')
+  })
+
+  test('asked to stop, still holding, is stopping', () => {
+    expect(runnerLifecycle(observation({ stopRequested: 'graceful', holdsJob: true }), now)).toBe('stopping')
+  })
+
+  test('and a machine that went quiet is lost, whatever it was doing', () => {
+    /*
+     * Lost outranks stopping and running because it is the one that is not
+     * true by assumption: a machine asked to stop that then goes quiet has
+     * stopped without saying so.
+     */
+    expect(runnerLifecycle(observation({ lastSeenAt: seen(600) }), now)).toBe('lost')
+    expect(runnerLifecycle(observation({ lastSeenAt: seen(600), stopRequested: 'graceful' }), now)).toBe('lost')
+    expect(runnerLifecycle(observation({ holdsJob: true, leaseLapsed: true }), now)).toBe('lost')
   })
 })

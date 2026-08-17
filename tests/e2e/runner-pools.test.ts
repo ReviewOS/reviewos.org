@@ -22,6 +22,7 @@ const created = {
   name: '',
   runnerIds: [] as number[],
   poolIds: [] as number[],
+  runnerTokens: {} as Record<number, string>,
 }
 
 let available = false
@@ -73,13 +74,15 @@ async function runnerFacts(id: number) {
 }
 
 async function makeRunner(repositoryId: number): Promise<any> {
+  const secret = unique('tok')
+
   const row: any = await db
     .insertInto('runners')
     .values({
       name: unique('runner'),
       scope_type: 'repository',
       scope_id: repositoryId,
-      token_hash: hashToken(unique('tok')),
+      token_hash: hashToken(secret),
       labels: 'ubuntu-latest',
       state: 'active',
     })
@@ -87,6 +90,9 @@ async function makeRunner(repositoryId: number): Promise<any> {
     .executeTakeFirst()
 
   created.runnerIds.push(Number(row.id))
+  // Kept so a test can speak the protocol rather than only call the function
+  // behind it: what a runner is *told* is the half that matters for stopping.
+  created.runnerTokens[Number(row.id)] = secret
 
   return runnerFacts(Number(row.id))
 }
@@ -334,5 +340,115 @@ describe('draining a queue', () => {
     const claim = await claimNextJob(runner)
 
     expect(claim).not.toBeNull()
+  }, 120_000)
+})
+
+/*
+ * Stopping a machine, which an autoscaler does far more often than a person
+ * does. Both halves matter and they differ in one thing: what happens to the
+ * job it is holding.
+ */
+describe('stopping a runner', () => {
+  test('a graceful stop takes no new work, and the machine is told when it asks', async () => {
+    if (!available)
+      return
+
+    const runner = await makeRunner(created.repositoryId)
+
+    await freshRun(created.repositoryId, 'c1'.repeat(20))
+
+    const { status, body } = await fleet({ operation: 'stop-runner', runner: runner.id })
+
+    expect(status).toBe(200)
+    expect(body.runner.stop).toBe('graceful')
+    // Nothing was interrupted, because nothing was running.
+    expect(body.returned).toBe(0)
+
+    // No new work, even though a job is sitting right there for it.
+    expect(await claimNextJob(runner)).toBeNull()
+
+    /*
+     * And the request is cleared once the machine has asked - a stop that
+     * stayed set would stop it again the next time it started, which is how a
+     * machine an operator brought back never comes back.
+     */
+    const answer = await fetch(`http://127.0.0.1:${port}/api/runner/claim`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${created.runnerTokens[runner.id]}`, 'Content-Type': 'application/json', 'X-Runner-Protocol': '1' },
+      body: '{}',
+    })
+
+    const claim = await answer.json()
+
+    expect(claim.job).toBeNull()
+    expect(claim.stop).toBe('graceful')
+
+    const after: any = await db.selectFrom('runners').select(['stop_requested']).where('id', '=', runner.id).executeTakeFirst()
+
+    expect(after.stop_requested).toBeNull()
+  }, 120_000)
+
+  test('a forced stop puts the job it was holding back in the queue, not in the bin', async () => {
+    if (!available)
+      return
+
+    const runner = await makeRunner(created.repositoryId)
+
+    await freshRun(created.repositoryId, 'c2'.repeat(20))
+
+    const claim = await claimNextJob(runner)
+
+    expect(claim).not.toBeNull()
+
+    const { body } = await fleet({ operation: 'stop-runner', runner: runner.id, force: true })
+
+    expect(body.runner.stop).toBe('forced')
+    expect(body.returned).toBe(1)
+
+    const job: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['state', 'runner_id', 'attempt', 'condition_reason'])
+      .where('id', '=', claim!.jobId)
+      .executeTakeFirst()
+
+    /*
+     * Queued, not cancelled. The work is fine; it is the machine that is going
+     * away, and somebody watching a pull request should not see their build
+     * fail because an autoscaler shrank the fleet.
+     */
+    expect(String(job.state)).toBe('queued')
+    expect(job.runner_id).toBeNull()
+    // Counted, so a machine force-stopped repeatedly cannot hand one job round
+    // a fleet forever.
+    expect(Number(job.attempt)).toBe(2)
+    expect(String(job.condition_reason)).toContain('stopped')
+  }, 120_000)
+})
+
+describe('the numbers an autoscaler polls', () => {
+  test('are per queue, and are reported at zero rather than disappearing', async () => {
+    if (!available)
+      return
+
+    const { collectFromDatabase, render, resetMetrics } = await import('../../app/Ops/metrics')
+
+    resetMetrics()
+    await collectFromDatabase()
+
+    const text = render()
+
+    /*
+     * A gauge that disappears when it reaches zero is how a scaler concludes
+     * there is no work, when what actually happened is that the series stopped
+     * being reported.
+     */
+    expect(text).toContain('reviewos_ci_jobs_waiting')
+    expect(text).toContain('reviewos_ci_runners')
+    expect(text).toContain('lifecycle="idle"')
+    expect(text).toContain('queue="unassigned"')
+
+    // And the help text, because a metric nobody can interpret is one an
+    // operator graphs wrong.
+    expect(text).toContain('# HELP reviewos_ci_jobs_waiting')
   }, 120_000)
 })

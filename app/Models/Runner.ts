@@ -50,6 +50,27 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * A stop somebody asked for: `graceful` or `forced`.
+     *
+     * Set by an operator, cleared when the machine acknowledges by polling.
+     * The two differ in what happens to the job it is holding: a graceful stop
+     * lets it finish, and a forced one puts it back in the queue for another
+     * machine - **not** cancelled, because the work is fine and it is the
+     * machine that is going away.
+     *
+     * A column rather than a signal, because the instance cannot signal
+     * anything: the runner is somebody else's machine, possibly behind a
+     * firewall, and the only moment it can be told anything is when it asks
+     * for work.
+     */
+    stop_requested: {
+      order: 13,
+      fillable: true,
+      validation: { rule: schema.enum(['graceful', 'forced']) },
+      factory: () => null,
+    },
+
     /** What a person calls it in a list: `mac-mini-01`. */
     name: {
       order: 1,
