@@ -753,8 +753,19 @@ cannot talk back to the runner is a workflow that fails on its second line.
       works while the thing it caches is reachable is not a cache.
 - [x] An allowlist policy at instance and owner level over which action sources may be used, since
       `uses:` is arbitrary code selection by anyone who can edit a workflow file
-- [ ] Tests: every resolution form, a pinned sha that does not match, an action outside the
+- [x] Tests: every resolution form, a pinned sha that does not match, an action outside the
       allowlist, an unreachable upstream with a warm cache, and a local action outside the repository
+
+      All five, against real git over `file://` rather than against a mock, which is the only way
+      the resolution cases mean anything - tag, branch, commit sha and subdirectory each resolve
+      differently and the differences are the whole feature. A branch is the form people reach for
+      without noticing (`@main` means "whatever is there today") and it had no test at all.
+
+      The warm-cache case removes the upstream rather than misconfiguring it, because a cache that
+      only works while the thing it caches is reachable is not a cache. Its other half is that a
+      **tag fails honestly** with the upstream gone: a tag moves, so answering one from the cache
+      would mean serving whatever it pointed at last time and calling it current. A pinned sha is
+      different in kind - a sha *is* the identity, so a directory named after one cannot be stale.
 
 ### First run
 

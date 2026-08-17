@@ -140,6 +140,19 @@ describe('fetching an action', () => {
     expect(again.sha).toBe(state.secondSha)
   }, 60_000)
 
+  /*
+   * A branch, which is the third resolution form and the one people reach for
+   * without noticing: `uses: owner/action@main` is a reference that means
+   * "whatever is there today", and it has to resolve like any other.
+   */
+  test('by branch, which resolves to whatever that branch is now', async () => {
+    const result = await fetchAction(parseActionRef('owner/action@main'), fetchOptions())
+
+    expect(result.ok).toBe(true)
+    expect(result.sha).toBe(state.secondSha)
+    expect(await Bun.file(join(String(result.path), 'action.yml')).text()).toContain('greetings')
+  }, 60_000)
+
   test('a reference that does not exist fails with what git said', async () => {
     const result = await fetchAction(parseActionRef('owner/action@v99'), fetchOptions())
 
@@ -199,5 +212,42 @@ describe('what the policy decides before any of that', () => {
 
     expect(result.ok).toBe(false)
     expect(result.path).toBeNull()
+  }, 60_000)
+})
+
+/*
+ * The case the cache exists for, rather than the case it is nice for.
+ *
+ * A cache that only works while the thing it caches is reachable is not a
+ * cache. The upstream is *removed* here - not merely misconfigured - so the
+ * only way the fetch can succeed is from what an earlier one kept.
+ */
+describe('an upstream that is gone', () => {
+  test('a warm cache keeps a pinned reference working', async () => {
+    // Fetched while the upstream was still there.
+    const warm = await fetchAction(parseActionRef(`owner/action@${state.sha}`), fetchOptions())
+
+    expect(warm.ok).toBe(true)
+
+    rmSync(join(state.temp, 'origin'), { recursive: true, force: true })
+
+    const again = await fetchAction(parseActionRef(`owner/action@${state.sha}`), fetchOptions())
+
+    expect(again.ok).toBe(true)
+    expect(again.cached).toBe(true)
+    expect(await Bun.file(join(String(again.path), 'action.yml')).text()).toContain('hello')
+  }, 60_000)
+
+  test('and a tag fails honestly rather than serving a guess', async () => {
+    /*
+     * A tag moves, so answering it from the cache would mean serving whatever
+     * it pointed at last time and calling it current. The failure names the
+     * upstream, which is the sentence that sends somebody to the right place:
+     * the network, not their workflow.
+     */
+    const result = await fetchAction(parseActionRef('owner/action@v1'), fetchOptions())
+
+    expect(result.ok).toBe(false)
+    expect(result.reason).toContain('owner/action')
   }, 60_000)
 })
