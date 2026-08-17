@@ -113,6 +113,12 @@ const alreadyIn = Boolean(viewer)
           </div>
         </form>
 
+        {{-- After the form, not before it. A returning reader with a password
+            should not have to read past four buttons to find the field they
+            came for, and a provider row above the form is how a sign-in page
+            teaches people they have no local account when they do. --}}
+        <SocialSignIn :nextPath="next" />
+
         <p class="auth-line muted">
           No account? <a href="/register">Create one</a>.
           Forgotten your password? <a href="/forgot-password">Reset it</a>.

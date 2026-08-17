@@ -324,6 +324,20 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/auth/{provider}
+   */
+  getAuthProvider(input: { "provider": string; "next"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/auth/{provider}", input ?? {}, ["next"], false, options)
+  },
+
+  /**
+   * GET /api/auth/{provider}/callback
+   */
+  getAuthProviderCallback(input: { "provider": string; "code"?: string; "state"?: string; "error"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/auth/{provider}/callback", input ?? {}, ["code", "state", "error"], false, options)
+  },
+
+  /**
    * GET /api/authors
    */
   getAuthors(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -3520,6 +3534,13 @@ export function createClient(config: ClientConfig) {
    */
   getExplore(input?: { "topic"?: string; "language"?: string; "days"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/api/explore", input ?? {}, ["topic", "language", "days"], false, options)
+  },
+
+  /**
+   * GET /api/featured
+   */
+  getFeatured(input?: { "limit"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/featured", input ?? {}, ["limit"], false, options)
   },
 
   /**

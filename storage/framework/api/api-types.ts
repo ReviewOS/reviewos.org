@@ -743,6 +743,52 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/auth/{provider}": {
+    get: {
+    parameters: {
+      query?: { "next"?: string }
+      header?: never
+      path: { "provider": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/auth/{provider}/callback": {
+    get: {
+    parameters: {
+      query?: { "code"?: string; "state"?: string; "error"?: string }
+      header?: never
+      path: { "provider": string }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/authors": {
     get: {
     parameters: {
@@ -9395,6 +9441,29 @@ export interface paths {
     get: {
     parameters: {
       query?: { "topic"?: string; "language"?: string; "days"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/featured": {
+    get: {
+    parameters: {
+      query?: { "limit"?: number }
       header?: never
       path?: never
       cookie?: never

@@ -188,6 +188,28 @@ route.post('/auth/register', 'Actions/Auth/RegisterAction').middleware('throttle
 route.post('/auth/logout', 'Actions/Auth/LogoutAction')
 
 /*
+ * Signing in with an account somebody already has.
+ *
+ * Under `/api` with the rest of auth rather than at the root, and that is a
+ * deployment fact rather than a preference: this application serves file-based
+ * stx views for everything outside `/api`, so a route at `/auth/github` is a
+ * route nothing reaches - `[owner]/[repository]` catches it first and reports
+ * that there is no account called auth. The provider consoles are configured
+ * to match, and `config/services.ts` defaults to these paths so an operator
+ * who pastes what the config says gets a working OAuth application.
+ *
+ * `GET` for both halves, which OAuth2's redirect flow requires: the provider
+ * returns the browser with a top-level navigation. That is why the state
+ * cookie in `SocialRedirectAction` is doing so much work - see the note there.
+ *
+ * Throttled, and tighter than sign-in. These are the only unauthenticated
+ * endpoints that make outbound requests to somebody else's API, so an
+ * unlimited callback is a way to spend our rate limit at GitHub from anywhere.
+ */
+route.get('/auth/{provider}/callback', 'Actions/Auth/SocialCallbackAction').middleware('throttle:20,5m')
+route.get('/auth/{provider}', 'Actions/Auth/SocialRedirectAction').middleware('throttle:20,5m')
+
+/*
  * Forgotten passwords and unverified addresses.
  *
  * The reset endpoint is one action for both halves - asking for a link and
@@ -458,6 +480,8 @@ route.get('/repos/search', 'Actions/Browse/SearchCodeAction')
  * a leak to one person but a listing.
  */
 route.get('/explore', 'Actions/Explore/ExploreAction')
+// What the landing page shows, so a client does not have to scrape it.
+route.get('/featured', 'Actions/Explore/FeaturedAction')
 route.get('/discover', 'Actions/Feed/DiscoverFeedAction')
 route.get('/repos/compare', 'Actions/Browse/CompareAction')
 

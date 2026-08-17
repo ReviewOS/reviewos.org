@@ -172,3 +172,6 @@ storage/framework/core/defaults/*
 /.github/protocol/reports/
 /storage/lfs
 /storage/typesense
+
+# Throwaway probe scripts. One got swept into a commit already.
+scratch-*.ts

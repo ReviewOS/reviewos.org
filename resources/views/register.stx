@@ -78,6 +78,12 @@ const alreadyIn = Boolean(viewer)
           </div>
         </form>
 
+        {{-- The same component as the sign-in page, and the same flow behind
+            it: a provider that identifies somebody with no account here makes
+            one. So this reads as "create an account with" without needing a
+            second set of buttons that say so. --}}
+        <SocialSignIn />
+
         <p class="auth-line muted">
           Already have one? <a href="/login">Sign in</a>.
         </p>

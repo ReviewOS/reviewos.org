@@ -10,8 +10,8 @@ hero:
       text: Roadmap
       link: /todo/
     - theme: alt
-      text: Source
-      link: https://github.com/ReviewOS/reviewos.org
+      text: Browse the source
+      link: https://reviewos.org/reviewos/reviewos.org
 features:
   - title: Review is the primary object
     details: Approvals, requested changes, and threads anchored to a file, line, and side of the diff. Not a tab bolted onto a pull request.

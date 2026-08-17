@@ -12,6 +12,18 @@
  * review states inside the product, so the brand cannot borrow them.
  */
 import { SOURCE_CLONE_URL, SOURCE_PATH } from '../functions/site'
+import { featured } from '../../app/Actions/Explore/featured'
+
+/*
+ * The repositories shown below the argument.
+ *
+ * `featured()` never throws and answers `[]` on any failure, which is the
+ * property this page needs: it is the only database read on the landing page,
+ * and stx renders a page with every variable undefined and no error at all
+ * when a server script throws. A landing page that silently blanks because
+ * Postgres was restarting is not a trade worth making for one section.
+ */
+const highlights = await featured()
 
 const siteUrl = 'https://reviewos.org'
 
@@ -706,8 +718,60 @@ const nots = [
         }
       }
 
+      /* The featured repositories. One column on a phone, and the cards are
+         links rather than cards with links in them, so the whole target is
+         tappable and the keyboard reaches each one once. */
+      .highlights {
+        display: grid;
+        gap: 12px;
+        margin-top: 32px;
+      }
+
+      .highlight {
+        display: grid;
+        gap: 7px;
+        padding: 18px 20px;
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel);
+        background: var(--surface);
+        text-decoration: none;
+      }
+
+      .highlight:hover { border-color: var(--accent); }
+
+      .highlight:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      .highlight-slug {
+        font-family: var(--mono, ui-monospace, monospace);
+        font-size: 14.5px;
+        font-weight: 500;
+        color: var(--text);
+      }
+
+      .highlight-owner { color: var(--muted); font-weight: 400; }
+
+      .highlight-text {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .highlight-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+
+      .highlight-chip {
+        padding: 2px 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
       @media (min-width: 768px) {
         .nav-links { display: flex; }
+        .highlights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .hero { padding-top: 96px; }
         .thesis-quote { grid-template-columns: 1.05fr 1fr; gap: 56px; }
         .nots { grid-template-columns: 1fr 1fr; }
@@ -723,6 +787,7 @@ const nots = [
         .bento { grid-template-columns: repeat(3, 1fr); }
         .cell-wide { grid-column: span 2; }
         .cell-tall { grid-row: span 2; }
+        .highlights { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .footer-inner { grid-template-columns: 1.6fr repeat(4, 1fr); gap: 32px; }
       }
     </style>
@@ -832,6 +897,50 @@ const nots = [
           @endforeach
         </div>
       </section>
+
+      {{-- Proof, placed where the argument runs out.
+
+          Everything above this point is a claim about what the product does.
+          This is the instance doing it: real repositories, real star counts,
+          real last-pushed times, each one a link into the code browser the
+          page has been describing. It renders nothing on an instance with no
+          featured repositories, which is the right behaviour for a fresh
+          self-hosted copy - an empty grid under a confident heading is worse
+          than no section. --}}
+      @if (highlights.length > 0)
+        <section class="section section-sep shell">
+          <p class="eyebrow">On this instance</p>
+          <h2 class="section-title">Hosted here, reviewed here</h2>
+          <p class="section-lede">
+            Not screenshots. Every one of these is a repository on this instance, served by the
+            code browser and reviewed on the diff described above.
+          </p>
+
+          <div class="highlights">
+            @foreach (highlights as repository)
+              <a class="highlight" href="/{{ repository.owner }}/{{ repository.name }}">
+                <span class="highlight-slug">
+                  <span class="highlight-owner">{{ repository.owner }}/</span>{{ repository.name }}
+                </span>
+                <span class="highlight-text">{{ repository.note ?? repository.description ?? '' }}</span>
+                <span class="highlight-meta">
+                  @if (repository.language)
+                    <span class="highlight-chip">{{ repository.language }}</span>
+                  @endif
+                  @if (repository.stars > 0)
+                    <span class="highlight-chip">{{ repository.stars }} stars</span>
+                  @endif
+                </span>
+              </a>
+            @endforeach
+          </div>
+
+          <p class="phase-note">
+            More of it, and what changed on it today, is on
+            <a href="/discover">Discover</a>.
+          </p>
+        </section>
+      @endif
 
       <section class="section section-sep shell">
         <p class="eyebrow">Where it is</p>

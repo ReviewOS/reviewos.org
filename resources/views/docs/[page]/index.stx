@@ -1,0 +1,36 @@
+<script server>
+/**
+ * One segment under `/docs`: `/docs/getting-started`, `/docs/architecture`,
+ * and `/docs/todo/` once the trailing slash is normalised away.
+ *
+ * A directory with an `index.stx` in it rather than a `[page].stx` beside
+ * `index.stx`, and the difference is not cosmetic. The view router ranks an
+ * index file above a parameter file, so `docs/[page].stx` lost to
+ * `[owner]/[repository]/index.stx` and every top-level documentation page
+ * rendered as a repository that does not exist - the same 404-wearing-another
+ * -page's-clothes that this directory exists to fix, one level in.
+ */
+import { readDocsPage } from '../../../functions/docs'
+
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+
+const page = await readDocsPage(String(params.page ?? ''))
+
+if (page.status !== 200)
+  setStatus(page.status)
+</script>
+
+@if (page.redirect)
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta http-equiv="refresh" content="0; url={{ page.redirect }}">
+      <link rel="canonical" href="{{ page.redirect }}">
+      <title>Redirecting</title>
+    </head>
+    <body><p>This page has moved to <a href="{{ page.redirect }}">{{ page.redirect }}</a>.</p></body>
+  </html>
+@else
+  {!! page.html !!}
+@endif

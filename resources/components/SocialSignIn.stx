@@ -1,0 +1,101 @@
+<script server>
+/**
+ * Sign in with an account somebody already has.
+ *
+ * Drawn from `configuredSocialProviders()` by way of `app/Actions/Auth/social`,
+ * so a provider whose keys are not set never reaches a reader as a button that
+ * fails. That check belongs to the framework because only it knows that Apple
+ * has no static client secret and so cannot be tested for one - a hand-rolled
+ * `clientId && clientSecret` silently classifies a fully configured Apple as
+ * absent.
+ *
+ * Renders nothing at all when no provider is configured, which is the state a
+ * fresh self-hosted instance is in. A heading over an empty row, or worse a
+ * row of buttons that redirect into a provider error page, both read as a
+ * broken sign-in page; no providers is not an error and should not look like
+ * one.
+ *
+ * Inside a guard that cannot throw, for the reason written at length in
+ * `ReviewQueueBadge.stx`: a throwing stx server script renders its page with
+ * every variable undefined and reports nothing, and this one is on the two
+ * pages that must never fail to render.
+ */
+import { socialButtons } from '../../app/Actions/Auth/social'
+
+const next = typeof nextPath === 'string' ? nextPath : ''
+
+let providers = []
+try {
+  providers = socialButtons(next)
+}
+catch {
+  providers = []
+}
+</script>
+
+@if (providers.length > 0)
+  <div class="social-signin">
+    <div class="social-rule"><span>or continue with</span></div>
+
+    <div class="social-buttons">
+      @foreach (providers as provider)
+        <a class="social-button" href="{{ provider.href }}" rel="nofollow">
+          <i class="{{ provider.icon }}" aria-hidden="true"></i>
+          {{ provider.label }}
+        </a>
+      @endforeach
+    </div>
+  </div>
+@endif
+
+<style>
+  .social-signin { margin-top: 22px; }
+
+  .social-rule {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+
+  .social-rule::before,
+  .social-rule::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  /* Auto-fit rather than a fixed column count: this renders one button on an
+     instance with only GitHub configured and four on ours, and neither should
+     need a media query per case. */
+  .social-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+  }
+
+  .social-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-control, 6px);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13.5px;
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .social-button:hover { background: var(--surface-tint); }
+
+  .social-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+</style>

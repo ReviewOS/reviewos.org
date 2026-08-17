@@ -21,12 +21,18 @@ const config: BunPressOptions = {
 
   nav: [
     { text: 'Roadmap', link: '/todo/' },
+    { text: 'Discover', link: 'https://reviewos.org/discover' },
     {
       text: 'Project',
       items: [
-        { text: 'Source', link: 'https://github.com/ReviewOS/reviewos.org' },
-        { text: 'Issues', link: 'https://github.com/ReviewOS/reviewos.org/issues' },
+        // Ours first. The docs argue for self-hosting a forge; sending a
+        // reader to GitHub to read this project's own code undercuts the
+        // argument on the way past. The GitHub mirror stays listed, labelled,
+        // because it is still where releases are cut.
+        { text: 'Source', link: 'https://reviewos.org/reviewos/reviewos.org' },
+        { text: 'Issues', link: 'https://reviewos.org/reviewos/reviewos.org/issues' },
         { text: 'Changelog', link: 'https://github.com/ReviewOS/reviewos.org/blob/main/CHANGELOG.md' },
+        { text: 'GitHub mirror', link: 'https://github.com/ReviewOS/reviewos.org' },
       ],
     },
   ],
@@ -91,6 +97,13 @@ const config: BunPressOptions = {
             { text: '11 - Self-hosting and operations', link: '/todo/11-self-hosting-deploy' },
             { text: '12 - The API and agents', link: '/todo/12-api-and-agents' },
             { text: '13 - Mirroring', link: '/todo/13-mirroring' },
+            // 14 and 15 existed as files, were listed in the roadmap's own
+            // table, and were built to HTML - and were missing from here, so
+            // the two largest phases were reachable only from inside another
+            // page. The sidebar is the roadmap's index; a phase absent from it
+            // is a phase nobody browsing finds.
+            { text: '14 - The diff engine', link: '/todo/14-diff-engine' },
+            { text: '15 - Pipelines', link: '/todo/15-pipelines' },
           ],
         },
       ],

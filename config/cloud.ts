@@ -766,6 +766,17 @@ export const tsCloud: TsCloudConfig = {
         // one renders its empty state - which looks like a working site with
         // nothing in it rather than a broken one.
         'bun node_modules/@stacksjs/buddy/dist/cli.js migrate',
+        // The documentation site, built into `dist/docs` where
+        // `Actions/Docs/ServeDocsAction` reads it.
+        //
+        // Built on the box rather than shipped, because the output is thirty
+        // odd HTML files regenerated from `docs/` in under a second, and a
+        // committed build is a build that goes stale silently. Without this
+        // step `/docs` answers "the documentation has not been built" - which
+        // is at least honest, unlike what it did before the route existed:
+        // fall through to the owner page and report that there is no account
+        // called docs.
+        'bun node_modules/@stacksjs/buddy/dist/cli.js build:docs',
       ],
       // The scheduler is what makes a mirror a mirror rather than a snapshot.
       // `app/Scheduler.ts` runs MirrorSweep, which fetches every mirror whose

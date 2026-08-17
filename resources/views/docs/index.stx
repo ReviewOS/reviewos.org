@@ -1,0 +1,22 @@
+<script server>
+/**
+ * `/docs`, the documentation home.
+ *
+ * Its own file because the catch-all next to it does not win at this depth:
+ * a single segment matches `[owner]/index.stx`, which answered "there is no
+ * account called docs here" - the exact 404-wearing-a-profile-page this whole
+ * directory exists to fix. Every page reads through the same
+ * `readDocsPage`, so the three views here differ only in which path they hand
+ * it.
+ */
+import { readDocsPage } from '../../functions/docs'
+
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+
+const page = await readDocsPage('')
+
+if (page.status !== 200)
+  setStatus(page.status)
+</script>
+
+{!! page.html !!}

@@ -35,6 +35,26 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       the alternative genuinely does better
 - [x] Index pages at `/features`, `/for`, and `/compare`
 - [x] Footer linking every feature, use case, and comparison
+- [x] Navigation reordered around the product rather than the argument: Discover promoted to the
+      top bar on both the landing page and the shared marketing layout, Use cases and Compare
+      demoted to the footer, which now links every page in both catalogs rather than the subset
+      that fitted in a mega panel
+- [x] Sign in and sign up in the top bar, on the marketing pages and inside the product. The
+      landing page's only call to action was "self-host it", so somebody who wanted an account on
+      this instance had to guess the URL; `/login` and `/register` both existed and nothing
+      pointed at either. `AccountNav` replaces `SettingsLink`, which rendered nothing at all to a
+      signed-out reader
+- [x] Social sign-in on both auth pages, drawn from the framework's `configuredSocialProviders()`
+      so a provider whose keys are missing never renders as a button that fails. GitHub, Google,
+      Apple and the rest light up as their keys are set; see `app/Actions/Auth/social.ts`
+- [x] "Browse the source" points at this instance rather than at GitHub, along with the clone
+      command, the nav, both footers, and the docs hero. A forge that sends its own readers to a
+      competitor to read its own code has not made its case. The GitHub mirror stays linked and
+      labelled
+- [x] Featured repositories on the landing page: real repositories on this instance, with live
+      star counts and languages, placed where the argument runs out. Curated in
+      `app/Actions/Explore/featured.ts` rather than computed, because trending and recently-active
+      both rank by accidents of the import on a freshly mirrored instance
 - [ ] Pricing page, if a hosted offering ever exists
 - [ ] Per-feature screenshots, once the review interface renders real data
 
@@ -77,6 +97,24 @@ feature, a page per use case, and comparisons that say plainly what the alternat
 ## Documentation site
 
 - [x] bunpress configured through `config/docs.ts`, served by `./buddy dev:docs`
+- [x] The built site actually served at `/docs` in production. It was not, and the symptom was
+      misread for a while as "the roadmap page is empty": nothing served `/docs` at all, so every
+      documentation URL fell through to `[owner]/index.stx` and rendered "There is no account
+      called docs here" - a not-found wearing a profile page. `resources/views/docs/` reads
+      bunpress's output; the deploy builds it in `preStart`.
+
+      Written first as a route with an action behind it, which is the shape the attachment and git
+      routes use, and it never answered: this application resolves file-based stx views for
+      everything outside `/api`, and the route registry belongs to the API process. Two further
+      shapes lost to the view router's ranking before the working one - a `[page].stx` beside an
+      `index.stx` loses to `[owner]/[repository]/index.stx`, and a `[page]/index.stx` wins. Social
+      sign-in moved under `/api/auth/...` for the same reason.
+- [x] Phases 14 and 15 in the docs sidebar. Both existed as files, were named in the roadmap's own
+      table, and were built to HTML; neither was in `config/docs.ts`, so the two largest phases
+      were reachable only from inside another page.
+- [x] `.md` cross-links resolve. The roadmap files link to each other as `./00-bootstrap.md`,
+      which is correct in the repository and on GitHub and which bunpress does not rewrite, so
+      both names answer and the extensionless one is canonical.
 - [x] Roadmap published as task lists that render as checkboxes
 - [x] Roadmap index counts and "not started" states are checked by `tests/unit/roadmap.test.ts`, so
       completing work cannot leave the summary silently stale

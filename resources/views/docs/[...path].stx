@@ -1,0 +1,67 @@
+<script server>
+/**
+ * The documentation site, served by this application.
+ *
+ * `/docs` answered 404 in production for every page, the roadmap included.
+ * Not "the roadmap page is empty": nothing served `/docs` at all, so the URL
+ * fell through to `[owner]/index.stx` and rendered "There is no account called
+ * docs here" - a not-found wearing a profile page, which is why it read as an
+ * empty roadmap rather than as a missing site.
+ *
+ * ## Why a view rather than a route
+ *
+ * This was first written as `route.get('/docs/*')` with an action behind it,
+ * which is the shape the attachment and git routes use, and it did not answer.
+ * The server this application is deployed with resolves file-based stx views
+ * for everything outside `/api`; the route registry is loaded by the API
+ * process. A route at `/docs` is therefore a route nothing reaches, and the
+ * catch-all view is the only thing that sits in front of `[owner]`.
+ *
+ * ## Where the files are
+ *
+ * `dist/docs/.bunpress`, written by `./buddy build:docs`. The `.bunpress`
+ * segment is bunpress's own convention rather than a mistake to correct here -
+ * its `preview` and `deploy` commands both read `<outDir>/.bunpress` - so this
+ * reads what the builder writes. The deploy builds it; see the `preStart` step
+ * in `config/cloud.ts`.
+ *
+ * The page is emitted whole, with no layout of its own: bunpress writes
+ * complete documents, and wrapping one in the product's shell would give it
+ * two `<head>` elements and two navigations.
+ */
+import { readDocsPage } from '../../functions/docs'
+
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+
+const requested = String(params.path ?? '')
+const page = await readDocsPage(requested)
+
+if (page.status !== 200)
+  setStatus(page.status)
+</script>
+
+@if (page.redirect)
+  {{-- `.md` links resolve to the page they became.
+
+      The roadmap files link to each other as `./00-bootstrap.md`, which is
+      correct in the repository and on GitHub, and bunpress does not rewrite
+      those to routes. Rather than edit forty cross-links into a form that is
+      wrong everywhere except here, both names answer and one is canonical.
+      A meta refresh rather than a 302 because a view renders a body, not a
+      Location header; the anchor underneath it is what a reader without
+      scripting or with a strict extension follows. --}}
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta http-equiv="refresh" content="0; url={{ page.redirect }}">
+      <link rel="canonical" href="{{ page.redirect }}">
+      <title>Redirecting</title>
+    </head>
+    <body>
+      <p>This page has moved to <a href="{{ page.redirect }}">{{ page.redirect }}</a>.</p>
+    </body>
+  </html>
+@else
+  {!! page.html !!}
+@endif
