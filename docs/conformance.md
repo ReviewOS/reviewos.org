@@ -7,7 +7,7 @@ is accepted and does nothing has not been implemented - the fact that it has not
 hidden. So every key here has a status and a sentence, including the ones that are missing and
 the ones that are deliberately different.
 
-34 keys behave as Actions does, 10 differ on purpose, 7 are not implemented yet, and 1 is refused.
+35 keys behave as Actions does, 10 differ on purpose, 6 are not implemented yet, and 1 is refused.
 
 Generated from the conformance table.
 
@@ -47,6 +47,7 @@ These do what Actions does. A workflow using only these keys behaves the same he
 | `steps[*].working-directory` | step | Resolved against the workspace. |
 | `steps[*].id` | step | Recorded, and what `steps.<id>.outputs`, `.outcome` and `.conclusion` are keyed on. |
 | `steps[*].if` | step | Evaluated by the runner against what the steps before it produced, so `steps.<id>.outputs`, `job.status`, `needs` and `always()` all work. A condition naming no status function carries the implied `success() &&`, and no condition means `success()` - so a step after a failure is skipped unless it asked not to be. A skipped step says which condition skipped it rather than vanishing. |
+| `steps[*].timeout-minutes` | step | Enforced per step by the runner, which is the narrow and more useful of the two timeouts: a job allowed sixty minutes that hangs in a thirty-second health check spends fifty-nine of them proving nothing. A step stopped this way says so rather than reading as an ordinary failure. |
 | `${{ }} operators` | workflow | Comparison, `&&`, `||`, `!`, indexing and the star filter, with Actions' coercion rules copied deliberately. |
 | `workflow commands` | step | `::error::`, `::warning::`, `::notice::`, `::group::`, `::add-mask::` and `::stop-commands::`. An `::error file=…::` becomes an annotation on the diff. |
 | `GITHUB_ENV, GITHUB_PATH, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY` | step | Written per step and applied to the steps after it; `GITHUB_OUTPUT` is what fills `steps.<id>.outputs`, and `GITHUB_STEP_SUMMARY` is rendered as markdown on the run and on the pull request's checks. |
@@ -66,7 +67,7 @@ These work, and deliberately not the way Actions does. Every one is a decision y
 | `steps[*].shell` | step | Recorded and inherited, and the local runner runs `sh` regardless. A runner that only has one shell should say so rather than refuse a file for naming another. |
 | `${{ }} functions` | workflow | `contains`, `startsWith`, `endsWith`, `format`, `join`, `toJSON`, `fromJSON` and the status functions all work. `hashFiles` is refused rather than answered: it reads a checked-out tree the control plane does not have, and a wrong hash restores the wrong cache. |
 | `GITHUB_EVENT_PATH` | step | Written per job and populated. The shapes are this instance's webhook payloads rather than GitHub's, so one integration sees one set of shapes whether it arrived over a webhook or in a job - the common fields (`ref`, `after`, `repository`, `sender`, `pull_request.base.ref`) line up, and the rest do not. Nothing in it carries a URL. |
-| `reviewos.wait / block / trigger / group / if-changed / retry` | job | This instance's own extensions, and the only keys here that are not Actions': a barrier, a gate a person opens, a job that starts another run, a label that groups jobs on the screen, per-job path gating for a monorepository, and an automatic retry with a required cap. All four live under one `reviewos:` key so there is one thing to delete, and **GitHub refuses a file that uses them** rather than ignoring them - which is the right failure, since a `block:` that GitHub ignored would be a deployment approval that approves itself. Documented in [extensions](./extensions.md). |
+| `reviewos.wait / block / trigger / group / if-changed / retry / priority` | job | This instance's own extensions, and the only keys here that are not Actions': a barrier, a gate a person opens, a job that starts another run, a label that groups jobs on the screen, per-job path gating for a monorepository, an automatic retry with a required cap, and a queue priority. All four live under one `reviewos:` key so there is one thing to delete, and **GitHub refuses a file that uses them** rather than ignoring them - which is the right failure, since a `block:` that GitHub ignored would be a deployment approval that approves itself. Documented in [extensions](./extensions.md). |
 | `contexts` | workflow | `github`, `env`, `job`, `steps`, `needs`, `matrix`, `inputs` and `runner` are readable, and `reviewos` is `github` under this forge's own name. `secrets`, `vars`, `strategy` and `jobs` are not populated yet, and an expression reading one is left as written rather than becoming an empty string. |
 
 ## Not implemented yet
@@ -81,7 +82,6 @@ These are read and do nothing yet. A workflow using one is told - on its run, or
 | `jobs.<id>.container` | job | Parsed and refused at run time: this instance has no container isolation yet, and pretending otherwise would run the steps on the host. |
 | `jobs.<id>.services` | job | Parsed; no service containers are started, and a job that needs one is told rather than failing on a closed port. |
 | `jobs.<id>.environment` | job | Parsed; deployment environments and their protection rules are phase 9 work. |
-| `steps[*].timeout-minutes` | step | Parsed; the runner's own ceiling applies instead. |
 
 ## Refused
 

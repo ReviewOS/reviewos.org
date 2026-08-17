@@ -290,6 +290,7 @@ export default new Action({
         'workflow_version_steps.shell as shell',
         'workflow_version_steps.continue_on_error as continue_on_error',
         'workflow_version_steps.env as env',
+        'workflow_version_steps.timeout_minutes as timeout_minutes',
       ])
       .where('workflow_runs.id', '=', claimed.runId)
       .where('workflow_version_jobs.job_id', '=', claimed.jobKey)
@@ -434,6 +435,10 @@ export default new Action({
           with: readJson(step.inputs),
           env: readJson(step.env),
           continue_on_error: step.continue_on_error === true,
+          // The narrow timeout, which the runner applies to this step alone.
+          timeout_minutes: step.timeout_minutes === null || step.timeout_minutes === undefined
+            ? null
+            : Number(step.timeout_minutes),
         })),
       },
     })

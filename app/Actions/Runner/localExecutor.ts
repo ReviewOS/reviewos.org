@@ -442,6 +442,17 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         // precedence `Workflow/env.ts` describes for the levels above it - and
         // its values are expressions too.
         environment: { ...environment, ...interpolateValues(step.env ?? {}, context) },
+        /*
+         * The step's own timeout, when it has one.
+         *
+         * Narrower than the job's and the more useful of the two: a job
+         * allowed sixty minutes that hangs in a thirty-second health check
+         * spends fifty-nine of them proving nothing. Falls back to the
+         * runner's own ceiling, which exists so that nothing hangs forever.
+         */
+        timeoutMs: Number.isFinite(Number(step.timeout_minutes)) && Number(step.timeout_minutes) > 0
+          ? Number(step.timeout_minutes) * 60_000
+          : undefined,
         onOutput: (text, stream) => send(text, stream),
       })
 
@@ -1240,6 +1251,8 @@ async function runStep(input: {
   command: string
   cwd: string
   environment: Record<string, string>
+  /** The step's own `timeout-minutes`, in milliseconds. The ceiling otherwise. */
+  timeoutMs?: number
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
 }): Promise<StepResult> {
   const child = Bun.spawn(['/bin/sh', '-c', input.command], {
@@ -1262,14 +1275,31 @@ async function runStep(input: {
       await input.onOutput(decoder.decode(chunk), name)
   }
 
-  const timeout = setTimeout(() => child.kill(), STEP_TIMEOUT_MS)
+  let killed = false
+
+  const timeout = setTimeout(() => {
+    killed = true
+    child.kill()
+  }, input.timeoutMs ?? STEP_TIMEOUT_MS)
 
   try {
     await Promise.all([pump(child.stdout as any, 'stdout'), pump(child.stderr as any, 'stderr')])
 
     const exitCode = await child.exited
 
-    return { ok: exitCode === 0, exitCode }
+    if (killed) {
+      /*
+       * Said out loud, because a killed step exits with a signal and reads as
+       * an ordinary failure otherwise - which sends somebody looking for the
+       * bug in a command that was working fine and simply took too long.
+       */
+      await input.onOutput(
+        `This step hit its ${Math.round((input.timeoutMs ?? STEP_TIMEOUT_MS) / 60_000)}-minute timeout and was stopped.\n`,
+        'stderr',
+      )
+    }
+
+    return { ok: !killed && exitCode === 0, exitCode }
   }
   finally {
     clearTimeout(timeout)

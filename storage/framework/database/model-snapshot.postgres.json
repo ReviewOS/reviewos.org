@@ -8500,6 +8500,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "priority",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
           }
         ],
         "indexes": [
@@ -8648,6 +8657,14 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": false
+          },
+          {
+            "name": "timeout_minutes",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8961,6 +8978,15 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": 1
+          },
+          {
+            "name": "priority",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
           }
         ],
         "indexes": [
@@ -9862,7 +9888,7 @@
       }
     ]
   },
-  "hash": "466275ec62b4c70793673bcc12c4b9efb229453b3a9146355c17d482567fbb28",
+  "hash": "c5c6bce0746459c5764edbb20956bce4c583976b3acf30c9b8720e9d2bc65d7a",
   "dialect": "postgres",
-  "updatedAt": "2026-08-17T15:57:33.877Z"
+  "updatedAt": "2026-08-17T16:06:17.806Z"
 }

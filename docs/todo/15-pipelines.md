@@ -1013,8 +1013,25 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       Backoff and manual-retry policy are not implemented: a retry that waits needs a scheduled
       wake-up rather than a state change, and the manual half is a re-run button that does not
       exist yet.
-- [ ] `timeout_in_minutes`, per step, with a workflow default and an instance ceiling
-- [ ] `priority`, so a deploy jumps a queue full of pull request checks
+- [x] `timeout_in_minutes`, per step, with a workflow default and an instance ceiling
+
+      `timeout-minutes:` on a step, which is Actions' own key and was parsed by nothing until now:
+      the runner applied its own two-hour ceiling to every step and the workflow's number went
+      nowhere. The narrow one is the useful one - a job allowed sixty minutes that hangs in a
+      thirty-second health check spends fifty-nine of them proving nothing - and a step stopped this
+      way **says so**, because a killed process exits with a signal and otherwise reads as an
+      ordinary failure in a command that was working fine.
+
+      The ceiling stays underneath as the default, so nothing hangs forever whatever the file says.
+- [x] `priority`, so a deploy jumps a queue full of pull request checks
+
+      `reviewos: { priority: 10 }`, read by the claim on every poll - which is why it is a column
+      rather than a value in the settings blob. Equal-priority jobs stay first in, first out,
+      because a queue that reorders equal work is one where somebody's build can starve.
+
+      **It orders a queue, it does not preempt.** A job already running is not stopped for a more
+      important one: that would mean killing work somebody is waiting on to start work somebody else
+      is waiting on, which needs a policy rather than a number.
 - [ ] `parallelism`, expanding one step into N identical jobs that differ only by index and total
 - [ ] `matrix`, expanding across named dimensions, with `adjustments` that add a single combination,
       skip one, or soft-fail one, because the useful matrix is never the full cross product

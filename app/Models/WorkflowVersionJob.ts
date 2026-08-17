@@ -164,6 +164,15 @@ export default defineModel({
       factory: () => null,
     },
 
+    /** `reviewos.priority:` - which job leaves the queue first. Higher wins. */
+    priority: {
+      order: 48,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number() },
+      factory: () => 0,
+    },
+
     /** `reviewos.group:` - the label several jobs share on the run screen. */
     group_label: {
       order: 46,

@@ -242,6 +242,28 @@ job taking down a fleet one machine at a time.
 **Actions has manual re-runs** of a whole workflow or its failed jobs, and no
 automatic retry at all.
 
+### `priority` - which job leaves the queue first
+
+```yaml
+  deploy:
+    runs-on: ubuntu-latest
+    reviewos:
+      priority: 10
+    steps: [{ run: ./deploy }]
+```
+
+Higher goes first; zero is the default; negative means after everything else,
+which is where a nightly cleanup belongs. Equal-priority jobs stay first in,
+first out, because a queue that reorders equal work is one where somebody's
+build can starve.
+
+It orders a queue, it does not preempt. A job already running is not stopped for
+a more important one: that would mean killing work somebody is waiting on to
+start work somebody else is waiting on, which needs a policy rather than a
+number.
+
+**Actions has no equivalent.**
+
 ### `group` - a label
 
 ```yaml
@@ -265,7 +287,7 @@ against.
 |---|---|
 | Portability | A file using `reviewos:` does not run on GitHub. It is refused, not ignored. |
 | Migration in | Nothing. An Actions workflow uses none of this and behaves identically. |
-| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; `if-changed` becomes a `dorny/paths-filter`-style action plus a step-level `if:`; `retry` becomes a `nick-fields/retry`-style action or a manual re-run; a `group` becomes nothing, since GitHub has no grouping. |
+| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; `if-changed` becomes a `dorny/paths-filter`-style action plus a step-level `if:`; `retry` becomes a `nick-fields/retry`-style action or a manual re-run; `priority` becomes nothing, since GitHub's queue has no order you can influence; a `group` becomes nothing, since GitHub has no grouping. |
 
 The engine underneath is documented in
 [the pipelines roadmap](https://github.com/stacksjs/reviewos/blob/main/docs/todo/15-pipelines.md),

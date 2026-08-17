@@ -203,6 +203,20 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * Which job leaves the queue first, copied from the definition.
+     *
+     * On the run's job because the claim reads it, and the claim must not join
+     * three tables to answer "what next".
+     */
+    priority: {
+      order: 46,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number() },
+      factory: () => 0,
+    },
+
     /** The label this job shares with the others in its group. */
     group_label: {
       order: 41,

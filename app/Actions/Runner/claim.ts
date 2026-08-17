@@ -105,6 +105,16 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
     query = query.where('repositories.owner_id', '=', runner.scopeId)
 
   return query
+    /*
+     * Priority first, then age.
+     *
+     * `reviewos: { priority: 10 }` on a deploy is what stops it waiting behind
+     * two hundred pull request checks, and the deploy is the one somebody is
+     * watching. Age breaks the tie, so equal-priority work is still first in,
+     * first out - a queue that reorders equal jobs is a queue where somebody's
+     * build can starve.
+     */
+    .orderBy('workflow_jobs.priority', 'desc')
     .orderBy('workflow_jobs.id', 'asc')
     .limit(limit)
     .execute()

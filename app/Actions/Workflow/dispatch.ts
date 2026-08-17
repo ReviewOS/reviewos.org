@@ -553,7 +553,7 @@ async function createJobs(
       // The policy the run is judged by, copied onto it below.
       'fail_fast', 'max_parallel', 'timeout_minutes', 'continue_on_error',
       // And what kind of job it is, which decides whether a runner ever sees it.
-      'kind', 'settings', 'group_label', 'if_changed',
+      'kind', 'settings', 'group_label', 'if_changed', 'priority',
     ])
     .where('workflow_version_id', '=', versionId)
     .orderBy('position')
@@ -688,6 +688,7 @@ async function createJobs(
           kind: job.kind ?? 'command',
           settings: job.settings ?? null,
           group_label: job.group_label ?? null,
+          priority: Number(job.priority ?? 0),
         } as any)
         .returning(['id'])
         .executeTakeFirst()

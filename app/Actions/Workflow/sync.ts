@@ -246,6 +246,7 @@ async function insertVersion(
         kind: job.kind,
         settings: Object.keys(job.settings).length > 0 ? JSON.stringify(job.settings) : null,
         group_label: job.group,
+        priority: job.priority,
         if_changed: job.ifChanged.length > 0 ? job.ifChanged.join('\n') : null,
       } as any)
       .returning(['id'])
@@ -270,6 +271,7 @@ async function insertVersion(
           working_directory: step.workingDirectory,
           shell: step.shell,
           continue_on_error: step.continueOnError,
+          timeout_minutes: step.timeoutMinutes,
           condition: step.if,
         } as any)
         .execute()

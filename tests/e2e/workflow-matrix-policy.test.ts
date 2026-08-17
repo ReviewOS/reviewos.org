@@ -407,3 +407,53 @@ describe('timeout-minutes', () => {
     expect(String(job?.condition_reason)).toContain('timeout')
   }, 120_000)
 })
+
+/*
+ * Priority: which job leaves the queue first.
+ *
+ * One line long as a use case - a deploy behind two hundred pull request
+ * checks waits for all of them, and the deploy is the one somebody is
+ * watching - and impossible to add later without changing the claim, which is
+ * why it is a column the queue reads rather than a value in a blob.
+ */
+describe('priority', () => {
+  test('a higher-priority job is handed out first, and equal work stays first in first out', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('9a'.repeat(20))
+    const runner = await makeRunner()
+
+    // Three jobs added after the run's own, in declaration order, with the
+    // last one marked urgent.
+    for (const [index, [key, priority]] of ([['first', 0], ['second', 0], ['urgent', 10]] as const).entries()) {
+      await db.insertInto('workflow_jobs').values({
+        workflow_run_id: runId,
+        job_id: `p-${key}`,
+        name: key,
+        position: 50 + index,
+        state: 'queued',
+        runs_on: 'ubuntu-latest',
+        priority,
+      }).execute()
+    }
+
+    const taken: string[] = []
+
+    for (let poll = 0; poll < 12; poll++) {
+      const claim = await claimNextJob(runner)
+
+      if (!claim)
+        break
+
+      if (String(claim.jobKey).startsWith('p-'))
+        taken.push(String(claim.jobKey))
+
+      await reportJob(runner, { jobId: claim.jobId, state: 'succeeded' })
+    }
+
+    // The urgent one jumps the two ahead of it; those two keep their order,
+    // because a queue that reorders equal jobs is one where a build can starve.
+    expect(taken).toEqual(['p-urgent', 'p-first', 'p-second'])
+  }, 120_000)
+})

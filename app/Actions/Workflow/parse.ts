@@ -47,6 +47,14 @@ export interface WorkflowStep {
   shell: string | null
   /** `continue-on-error:`: the step fails and the job carries on. */
   continueOnError: boolean
+  /**
+   * `timeout-minutes:` on the step.
+   *
+   * Narrower than the job's, and the useful one: a job allowed sixty minutes
+   * that hangs in a thirty-second health check spends fifty-nine of them
+   * proving nothing.
+   */
+  timeoutMinutes: number | null
   /** The command to run. Exactly one of `run` or `uses` is set. */
   run: string | null
   /** The action to use, recorded verbatim and never resolved here. */
@@ -161,6 +169,14 @@ export interface WorkflowJob {
    * that does not say otherwise.
    */
   ifChanged: string[]
+  /**
+   * `reviewos.priority:` - which job leaves the queue first.
+   *
+   * Its own field rather than a key in `settings`, because it has its own
+   * column: the claim orders by it on every poll, and a value the queue reads
+   * that often does not belong inside a JSON blob.
+   */
+  priority: number
 }
 
 export interface WorkflowConcurrency {
@@ -336,7 +352,7 @@ const JOB_KEYS = new Set([
 /** What a job *is*, which Actions has one of and this engine has five. */
 export type JobKind = 'command' | 'wait' | 'block' | 'trigger'
 
-const EXTENSION_KEYS = new Set(['wait', 'block', 'trigger', 'group', 'if-changed', 'retry'])
+const EXTENSION_KEYS = new Set(['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority'])
 
 const STEP_KEYS = new Set([
   'id', 'name', 'run', 'uses', 'with', 'env', 'if',
@@ -649,11 +665,11 @@ function extensionOf(
   jobLine: number,
   source: string,
   errors: WorkflowError[],
-): { kind: JobKind, settings: Record<string, unknown>, group: string | null, ifChanged: string[] } {
+): { kind: JobKind, settings: Record<string, unknown>, group: string | null, ifChanged: string[], priority: number } {
   const raw = asRecord(body.reviewos)
 
   if (!raw)
-    return { kind: 'command', settings: {}, group: null, ifChanged: [] }
+    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0 }
 
   for (const key of Object.keys(raw)) {
     if (!EXTENSION_KEYS.has(key)) {
@@ -678,6 +694,7 @@ function extensionOf(
    */
   const ifChanged = asStringList(raw['if-changed'])
   const retry = retryFrom(raw.retry, id, jobLine, source, errors)
+  const priority = priorityFrom(raw.priority, id, jobLine, source, errors)
 
   const kinds = (['wait', 'block', 'trigger'] as const).filter(key => key in raw)
 
@@ -688,11 +705,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: { retry }, group, ifChanged }
+    return { kind: 'command', settings: retry ? { retry } : {}, group, ifChanged, priority }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: { retry }, group, ifChanged }
+    return { kind: 'command', settings: retry ? { retry } : {}, group, ifChanged, priority }
 
   if (ifChanged.length > 0) {
     /*
@@ -721,6 +738,7 @@ function extensionOf(
   if (kind === 'wait') {
     return {
       ifChanged,
+      priority,
       kind,
       settings: {
         // The variant Buildkite calls `continue_on_failure`: a barrier that
@@ -733,9 +751,9 @@ function extensionOf(
   }
 
   if (kind === 'trigger')
-    return { kind, settings: triggerFrom(raw.trigger, id, jobLine, source, errors), group, ifChanged }
+    return { kind, settings: triggerFrom(raw.trigger, id, jobLine, source, errors), group, ifChanged, priority }
 
-  return { kind, settings: blockFrom(raw.block, id, jobLine, source, errors), group, ifChanged }
+  return { kind, settings: blockFrom(raw.block, id, jobLine, source, errors), group, ifChanged, priority }
 }
 
 /** `reviewos.block:` - the prompt, and the fields collected on the way through. */
@@ -811,6 +829,44 @@ function blockFrom(
   }
 
   return { prompt, fields }
+}
+
+/**
+ * `reviewos.priority:` - which job leaves the queue first.
+ *
+ * Higher goes first, zero is the default, and negative is allowed and means
+ * "after everything else". The case it exists for is one line long: a deploy
+ * behind two hundred pull request checks waits for all of them, and the deploy
+ * is the one somebody is watching.
+ *
+ * It orders a *queue*, it does not preempt: a job already running is not
+ * stopped for a more important one. Preemption would mean killing work
+ * somebody is waiting on to start work somebody else is waiting on, which
+ * needs a policy rather than a number.
+ */
+function priorityFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): number {
+  if (value === undefined || value === null)
+    return 0
+
+  const priority = Number(value)
+
+  if (!Number.isInteger(priority)) {
+    errors.push({
+      line: lineOf(source, 'priority', jobLine),
+      message: `\`priority:\` in job \`${id}\` is not a whole number`,
+      fix: 'Write `priority: 10`. Higher goes first; the default is 0.',
+    })
+
+    return 0
+  }
+
+  return Math.max(-1000, Math.min(1000, priority))
 }
 
 /**
@@ -1248,6 +1304,9 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
         // needs the expression engine, and reading it as truthy text would make
         // every such step unfailable.
         continueOnError: step['continue-on-error'] === true,
+        timeoutMinutes: typeof step['timeout-minutes'] === 'number' && Number.isFinite(step['timeout-minutes'])
+          ? Number(step['timeout-minutes'])
+          : null,
         if: typeof step.if === 'string' ? step.if : null,
       })
     })
@@ -1296,6 +1355,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       settings: extension.settings,
       group: extension.group,
       ifChanged: extension.ifChanged,
+      priority: extension.priority,
     })
   }
 

@@ -411,3 +411,67 @@ describe('retry', () => {
 `).join(' ')).toContain('not flaky, it is broken')
   })
 })
+
+describe('priority', () => {
+  test('is a whole number on the job, higher first', () => {
+    const [deploy] = jobs(`jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    reviewos:
+      priority: 10
+    steps:
+      - run: ./deploy
+`)
+
+    expect(deploy!.priority).toBe(10)
+  })
+
+  test('defaults to zero, and negative means after everything else', () => {
+    const [plain, later] = jobs(`jobs:
+  plain:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make
+  nightly-cleanup:
+    runs-on: ubuntu-latest
+    reviewos:
+      priority: -5
+    steps:
+      - run: ./cleanup
+`)
+
+    expect(plain!.priority).toBe(0)
+    expect(later!.priority).toBe(-5)
+  })
+
+  test('and something that is not a number is refused rather than read as one', () => {
+    expect(errorsIn(`jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    reviewos:
+      priority: high
+    steps:
+      - run: ./deploy
+`).join(' ')).toContain('not a whole number')
+  })
+})
+
+describe('a step timeout', () => {
+  test('is read per step, which is the narrow one', () => {
+    const [job] = jobs(`jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - run: ./health-check
+        timeout-minutes: 1
+      - run: make
+`)
+
+    // A job allowed sixty minutes that hangs in a thirty-second health check
+    // spends fifty-nine of them proving nothing.
+    expect(job!.timeoutMinutes).toBe(60)
+    expect(job!.steps[0]!.timeoutMinutes).toBe(1)
+    expect(job!.steps[1]!.timeoutMinutes).toBeNull()
+  })
+})

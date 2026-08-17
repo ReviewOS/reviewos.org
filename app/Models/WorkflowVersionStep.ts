@@ -118,6 +118,19 @@ export default defineModel({
       factory: () => false,
     },
 
+    /**
+     * `timeout-minutes:` on the step, which is the narrow one.
+     *
+     * A job allowed sixty minutes that hangs in a thirty-second health check
+     * spends fifty-nine of them proving nothing.
+     */
+    timeout_minutes: {
+      order: 25,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
     working_directory: {
       order: 8,
       fillable: true,
