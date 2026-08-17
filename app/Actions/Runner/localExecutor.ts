@@ -26,6 +26,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { fetchAction } from './actionCache'
 import { checkPolicy, defaultPolicy, parseActionRef } from './actionRef'
 import type { ActionDefinition } from './actionFile'
 import { inputEnvironment, missingInputs, parseActionFile } from './actionFile'
@@ -59,6 +60,10 @@ export interface LocalRunnerOptions {
    * one they should have to make.
    */
   policy?: ReturnType<typeof defaultPolicy>
+  /** Where fetched actions are kept, one directory per commit. */
+  actionCacheRoot?: string
+  /** Where a host's repositories actually live, for a mirror or an air-gapped instance. */
+  actionOrigins?: Record<string, string>
   /** Called with each line the runner wants to say, so a command can print it. */
   say?: (line: string) => void
 }
@@ -230,6 +235,8 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
           workspace,
           job,
           policy: options.policy ?? defaultPolicy(),
+          cacheRoot: options.actionCacheRoot ?? 'storage/framework/runtime/actions',
+          origins: options.actionOrigins,
           environment: { ...environmentFor(job, workspace), ...carried },
           onOutput: (text, stream) => send(text, stream),
         })
@@ -490,6 +497,8 @@ async function runAction(input: {
   workspace: string
   job: any
   policy: ReturnType<typeof defaultPolicy>
+  cacheRoot: string
+  origins?: Record<string, string>
   environment: Record<string, string>
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
 }): Promise<{ ok: boolean, reason: string }> {
@@ -502,21 +511,45 @@ async function runAction(input: {
     return { ok: false, reason: decision.reason }
   }
 
-  if (reference.kind !== 'local') {
-    /*
-     * Allowed by policy, and still not runnable here yet: fetching a remote
-     * action needs the cache and the ref resolution that come next. Reported
-     * as a failure rather than skipped, because a workflow whose action did
-     * not run did not do what it says it did.
-     */
-    const reason = `\`${input.uses}\` is allowed but this runner cannot fetch remote actions yet`
+  if (reference.kind === 'container') {
+    const reason = `\`${input.uses}\` is a container action, which needs a container this runner does not have`
 
     await input.onOutput(`${reason}\n`, 'stderr')
 
     return { ok: false, reason }
   }
 
-  const directory = join(input.workspace, String(reference.path))
+  /*
+   * A remote action is fetched into a cache keyed by the commit it resolved
+   * to, so the second job that uses it does no network at all.
+   */
+  let directory: string
+
+  if (reference.kind === 'remote') {
+    const fetched = await fetchAction(reference, {
+      root: resolve(input.cacheRoot),
+      origins: input.origins,
+      // The same default the policy checked against, so a reference that passed
+      // the policy for one host cannot be fetched from another.
+      defaultHost: input.policy.defaultHost,
+    })
+
+    if (!fetched.ok || !fetched.path) {
+      await input.onOutput(`${fetched.reason}\n`, 'stderr')
+
+      return { ok: false, reason: fetched.reason }
+    }
+
+    await input.onOutput(
+      `${fetched.cached ? 'Using cached' : 'Fetched'} ${reference.repository}@${String(fetched.sha).slice(0, 12)}\n`,
+      'stdout',
+    )
+
+    directory = fetched.path
+  }
+  else {
+    directory = join(input.workspace, String(reference.path))
+  }
   const file = ['action.yml', 'action.yaml']
     .map(candidate => join(directory, candidate))
     .find(candidate => existsSync(candidate))

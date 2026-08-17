@@ -527,8 +527,16 @@ cannot talk back to the runner is a workflow that fails on its second line.
       than followed, because doing it without the depth limit and cycle check the
       reusable-workflow path already has is the version that recurses forever.
 - [ ] Container actions: `uses: docker://registry/image:tag`
-- [ ] Remote actions by owner and name with a configurable default host, plus fully qualified URLs,
-      so an instance can point at its own mirror, a public mirror, or GitHub
+- [x] Remote actions by owner and name with a configurable default host, plus fully qualified URLs.
+
+      An origins map decides where a host's repositories actually live, so `actions.example` can
+      point at an internal mirror, at this instance, or at a directory on disk. That is the same
+      mechanism the mirroring box below wants rather than a second one - and it is what lets the
+      test suite exercise real fetching over `file://` on a machine with no network.
+
+      A reference naming no host is refused with a reason rather than resolved against github.com.
+      That guess is the one the policy layer already declines to make, and making it here instead
+      would have moved the decision somewhere nobody would look for it.
 - [x] Ref resolution by tag, branch, and commit sha, with sha pinning enforceable by policy.
 
       The reference forms are read and the policy decides: **the default is closed** - local actions
@@ -540,10 +548,23 @@ cannot talk back to the runner is a workflow that fails on its second line.
       a seven-character prefix can be brute-forced onto a different object, so accepting one would
       make `requirePinnedSha` a setting that reads as protection and is not.
 
-      Fetching a remote action is the half that is left: allowed by policy and still refused by the
-      runner, with a message saying which, rather than silently skipped.
-- [ ] An action cache on the instance, so a fleet of runners does not each fetch the same action, and
-      so an instance can keep working when the upstream host does not
+      **Fetching works now.** A remote reference is fetched with a shallow fetch of the one object
+      the reference names - which is the only form that handles a tag, a branch and a sha without
+      guessing which it was - and checked out into a cache keyed by the resolved commit.
+- [x] An action cache on the instance, so a fleet of runners does not each fetch the same action, and
+      so an instance can keep working when the upstream host does not.
+
+      **Keyed by the resolved commit rather than by the reference**, so `@v4` and the sha behind it
+      are one entry - which is what makes the second job's fetch free rather than a fetch. A pinned
+      reference is answered from the cache without touching the network at all, because a sha *is*
+      the identity and a directory named after one cannot be stale; a tag is resolved every time,
+      because it moves, and only the resulting commit is reused.
+
+      Two jobs fetching the same commit at once is a race with no loser: the second finds the first
+      one's directory already there and drops its own copy, since same sha means same bytes.
+
+      The cache is per-runner today. An instance-side cache is what a *fleet* needs and is the next
+      step; one runner sharing a filesystem with itself already gets the whole benefit.
 - [ ] Mirroring of the actions a repository actually uses into the instance ([phase 13](./13-mirroring.md)
       already mirrors repositories), so an air-gapped install is a supported configuration
 - [x] An allowlist policy at instance and owner level over which action sources may be used, since
