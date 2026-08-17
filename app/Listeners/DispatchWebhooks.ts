@@ -50,6 +50,7 @@ export default {
     // only a transition is an event, so a monitor in alarm for a month sends
     // one message.
     'test:monitor',
+    'test:flaky',
   ],
 
   async handle(payload: EventSubject & { event?: NotificationEvent }, eventName?: string): Promise<void> {

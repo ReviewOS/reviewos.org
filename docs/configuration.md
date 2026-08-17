@@ -919,12 +919,27 @@ writing objects into somebody else's directory.
 - `LANG`
 - `PATH`
 
-## Set on a runner, not on the instance
+## Set where the work runs, not on the instance
 
-The runner is compiled into a binary and copied to a machine that is not this one, so these
-are set *there* rather than in this instance's `.env`. Each has a command-line flag too, and
-the flag wins.
+Two programs read their configuration somewhere else: the runner, compiled into a binary and
+copied to a machine that is not this one, and `buddy tests:report`, run by whatever CI a
+repository already uses. These are set *there* rather than in this instance's `.env`. Each
+has a command-line flag too, and the flag wins.
 
+- `BUILDKITE_BRANCH`, read by `app/Commands/ReportTests.ts`
+- `BUILDKITE_BUILD_ID`, read by `app/Commands/ReportTests.ts`
+- `BUILDKITE_COMMIT`, read by `app/Commands/ReportTests.ts`
+- `CI_COMMIT_REF_NAME`, read by `app/Commands/ReportTests.ts`
+- `CI_COMMIT_SHA`, read by `app/Commands/ReportTests.ts`
+- `CI_JOB_ID`, read by `app/Commands/ReportTests.ts`
+- `GITHUB_REF_NAME`, read by `app/Commands/ReportTests.ts`
+- `GITHUB_RUN_ATTEMPT`, read by `app/Commands/ReportTests.ts`
+- `GITHUB_RUN_ID`, read by `app/Commands/ReportTests.ts`
+- `GITHUB_SHA`, read by `app/Commands/ReportTests.ts`
+- `REVIEWOS_REF_NAME`, read by `app/Commands/ReportTests.ts`
 - `REVIEWOS_REGISTRATION_TOKEN`, read by `app/Actions/Runner/standalone.ts`
-- `REVIEWOS_URL`, read by `app/Actions/Runner/standalone.ts`
+- `REVIEWOS_REPOSITORY`, read by `app/Commands/ReportTests.ts`
+- `REVIEWOS_SHA`, read by `app/Commands/ReportTests.ts`
+- `REVIEWOS_TOKEN`, read by `app/Commands/ReportTests.ts`
+- `REVIEWOS_URL`, read by `app/Actions/Runner/standalone.ts`, `app/Commands/ReportTests.ts`
 - `REVIEWOS_WORKSPACE`, read by `app/Actions/Runner/standalone.ts`

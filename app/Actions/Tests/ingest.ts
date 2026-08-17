@@ -27,6 +27,7 @@
  */
 
 import { db } from '@stacksjs/database'
+import { notifyProgramsOnly } from '../../Notifications/emit'
 
 export interface IngestInput {
   repositoryId: number
@@ -190,7 +191,7 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
     .where('id', '=', runId)
     .execute()
 
-  const newlyFlaky = await detectFlakes(touched)
+  const newlyFlaky = await detectFlakes(touched, { repositoryId: input.repositoryId, headSha: input.headSha })
 
   return {
     ok: true,
@@ -218,7 +219,7 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
  * Returns the ones that were *not* already marked, so a caller can say what
  * this run discovered rather than repeating what it already knew.
  */
-export async function detectFlakes(testIds: readonly number[]): Promise<string[]> {
+export async function detectFlakes(testIds: readonly number[], announce?: { repositoryId: number, headSha: string }): Promise<string[]> {
   const newly: string[] = []
 
   for (const testId of testIds) {
@@ -255,7 +256,12 @@ export async function detectFlakes(testIds: readonly number[]): Promise<string[]
     const test: any = await db
       .selectFrom('managed_tests')
       .innerJoin('test_suites', 'test_suites.id', '=', 'managed_tests.test_suite_id')
-      .select(['managed_tests.flaky as flaky', 'managed_tests.name as name', 'managed_tests.scope as scope'])
+      .select([
+        'managed_tests.flaky as flaky',
+        'managed_tests.name as name',
+        'managed_tests.scope as scope',
+        'test_suites.slug as suite',
+      ])
       .where('managed_tests.id', '=', testId)
       .executeTakeFirst()
 
@@ -269,8 +275,33 @@ export async function detectFlakes(testIds: readonly number[]): Promise<string[]
       .where('id', '=', testId)
       .execute()
 
-    if (test && test.flaky !== true)
+    if (test && test.flaky !== true) {
       newly.push(`${String(test.scope ?? '')}${test.scope ? ' › ' : ''}${String(test.name)}`)
+
+      /*
+       * The transition, to whatever is listening.
+       *
+       * Emitted here rather than by the caller because *here* is where the
+       * crossing is known: the row said steady a line ago and says flaky now,
+       * and reconstructing that afterwards would mean asking the database what
+       * it used to think.
+       *
+       * Never awaited for its effect and never able to fail an ingestion. A
+       * webhook is a consequence of the result being recorded, not a condition
+       * of it.
+       */
+      if (announce) {
+        await announceFlaky({
+          repositoryId: announce.repositoryId,
+          headSha: announce.headSha,
+          id: testId,
+          suite: String(test.suite ?? ''),
+          scope: String(test.scope ?? ''),
+          name: String(test.name),
+          reason,
+        }).catch(() => null)
+      }
+    }
   }
 
   return newly
@@ -330,4 +361,58 @@ async function testFor(suiteId: number, scope: string, name: string): Promise<{ 
     .executeTakeFirst()
 
   return { id: Number(created?.id), state: 'enabled' }
+}
+
+/**
+ * One test that just became unreliable, to programs.
+ *
+ * Webhook-only, like the monitor transitions: nobody wants an inbox entry per
+ * flaky test, and the receiver that does want to know is a dashboard or an
+ * agent deciding whether a red build is evidence about the diff in front of it.
+ */
+async function announceFlaky(input: {
+  repositoryId: number
+  headSha: string
+  id: number
+  suite: string
+  scope: string
+  name: string
+  reason: string
+}): Promise<void> {
+  const repository: any = await db
+    .selectFrom('repositories')
+    .select(['name', 'owner_type', 'owner_id'])
+    .where('id', '=', input.repositoryId)
+    .executeTakeFirst()
+
+  if (!repository)
+    return
+
+  const owner: any = String(repository.owner_type) === 'user'
+    ? await db.selectFrom('users').select(['handle']).where('id', '=', Number(repository.owner_id)).executeTakeFirst()
+    : await db.selectFrom('organizations').select(['handle']).where('id', '=', Number(repository.owner_id)).executeTakeFirst()
+
+  await notifyProgramsOnly('test:flaky', {
+    // Nobody clicked; a result arrived and a threshold was crossed. Zero reads
+    // as "the system" everywhere else this happens.
+    actorId: 0,
+    actorHandle: '',
+    repositoryId: input.repositoryId,
+    owner: String(owner?.handle ?? ''),
+    repository: String(repository.name ?? ''),
+    subjectType: 'repository',
+    subjectId: input.repositoryId,
+    title: `${input.scope ? `${input.scope} › ` : ''}${input.name} is flaky`,
+    test: {
+      id: input.id,
+      suite: input.suite,
+      scope: input.scope,
+      name: input.name,
+      // Which of the two shapes it was, because they mean different things to
+      // whoever reads this: disagreeing about one commit is usually a race,
+      // passing only after a retry is usually a timeout.
+      reason: input.reason,
+      head_sha: input.headSha,
+    },
+  } as any)
 }

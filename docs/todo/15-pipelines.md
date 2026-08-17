@@ -1919,8 +1919,21 @@ already commits us to the principle. These are the pipeline-specific pieces.
       The test that named tools one at a time now walks every tool's path against `routes/api.ts`.
       A tool whose endpoint was renamed always 404s, and a model handed one of those does not
       conclude the tool is broken - it concludes the task is impossible and abandons the work.
-- [ ] Webhook events for every run, job, and test transition, redelivered through
+- [x] Webhook events for every run, job, and test transition, redelivered through
       [phase 5](./05-notifications-webhooks.md)
+
+      `run:transitioned` and `job:transitioned` carry the new state in `action`, so one
+      subscription covers a whole lifecycle. `test:monitor` carries `alarm` or `recovered`.
+      `test:flaky` fires when a test crosses from steady to unreliable - **once**, not on every
+      run, because the test that has been flaky for a month is not news and a receiver told about
+      it every time writes a filter that hides the one that broke today.
+
+      Emitted where the crossing is known rather than by the caller: the row said steady a line
+      ago and says flaky now, and reconstructing that afterwards means asking the database what it
+      used to think. Never awaited for its effect, and unable to fail an ingestion - a webhook is a
+      consequence of the result being recorded, not a condition of it.
+
+      All four ride phase 5's delivery, so redelivery, signing and the delivery log come for free.
 - [ ] Notifications on run outcome, per workflow and per step, to the channels phase 5 already
       delivers, with a rule set rather than an on/off switch
 - [ ] A status badge endpoint, cached, for a workflow on a branch

@@ -335,6 +335,23 @@ Both dates come back on a monitor: `evaluated_at` moves every hour,
 `changed_at` only on a transition. The difference is how you tell "this rule
 says everything is fine" from "this rule has not run since March".
 
+## Webhooks
+
+Two events, both **transitions**:
+
+- **`test:flaky`** - a test crossed from steady to unreliable. Once, not on
+  every run: the test that has been flaky for a month is not news, and a
+  receiver told about it every time writes a filter that hides the one that
+  broke today. `test.reason` says which shape it was, because they mean
+  different things - disagreeing about one commit is usually a race, passing
+  only after a retry is usually a timeout.
+- **`test:monitor`** - a rule you wrote changed state, with `alarm` or
+  `recovered` in `action`.
+
+Both are webhook-only. Nobody wants an inbox entry per flaky test, and the
+receiver that wants to know is a dashboard or an agent deciding whether a red
+build is evidence about the diff in front of it.
+
 ## What is not built yet
 
 Stated plainly, because a half-built feature you discover yourself is worse than

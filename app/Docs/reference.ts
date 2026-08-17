@@ -360,6 +360,7 @@ function describeEvent(event: string): string {
     'run:transitioned': 'a workflow run changed state; `action` is the new one',
     'job:transitioned': 'one job of a run changed state; `action` is the new one',
     'test:monitor': 'a rule about the tests changed state; `action` is `alarm` or `recovered`',
+    'test:flaky': 'a test crossed from steady to unreliable, once rather than every run',
   }
 
   return sentences[event] ?? 'see the payload module'

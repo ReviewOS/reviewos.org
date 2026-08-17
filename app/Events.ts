@@ -99,6 +99,13 @@ export default {
    * event. A monitor in alarm for a month sends one message.
    */
   'test:monitor': ['DispatchWebhooks'],
+  /*
+   * A test crossed from steady to flaky. Webhook-only again, and rate-limited
+   * by being a transition: the test that has been flaky for a month is not
+   * news, and a receiver told about it every run writes a filter that hides
+   * the one that broke today.
+   */
+  'test:flaky': ['DispatchWebhooks'],
   'pr:merged': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'pr:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'review:requested': ['Notify', 'DispatchWebhooks'],

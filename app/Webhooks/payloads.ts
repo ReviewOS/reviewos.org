@@ -119,6 +119,19 @@ export const WEBHOOK_EVENTS = [
    * somebody wrote for a program to act on.
    */
   'test:monitor',
+  /*
+   * A test became unreliable.
+   *
+   * A *transition*, like the monitor above and for the same reason: the test
+   * that has been flaky for a month is not news, and a receiver told about it
+   * on every run writes a filter that hides the one that broke today. It fires
+   * when a test crosses from steady to flaky and not again.
+   *
+   * Worth its own event rather than folding into `test:monitor`: a monitor is
+   * a rule somebody wrote, and this is a fact about one test that nobody had
+   * to ask for.
+   */
+  'test:flaky',
 ] as const
 
 export type WebhookEvent = typeof WEBHOOK_EVENTS[number]
@@ -180,6 +193,26 @@ export interface WebhookPayload extends Envelope {
   job?: JobDetail
   /** The rule that changed its mind, on `test:monitor`. */
   monitor?: MonitorDetail
+  /** The test that became unreliable, on `test:flaky`. */
+  test?: TestDetail
+}
+
+/**
+ * A test that just crossed from steady to flaky.
+ *
+ * `reason` is which of the two shapes it was - disagreeing about one commit, or
+ * passing only after a retry - because they mean different things to whoever
+ * reads this: the first is usually a race, the second is usually a timeout.
+ */
+export interface TestDetail {
+  id: number
+  suite: string
+  /** The file or class the reporter gave. Empty when it gave none. */
+  scope: string
+  name: string
+  reason: string
+  /** The commit whose results made it flaky. */
+  head_sha: string
 }
 
 /**
@@ -259,6 +292,7 @@ const ACTIONS: Record<string, string> = {
   'job:transitioned': 'transitioned',
   // Also a fallback: a real monitor payload carries `alarm` or `recovered`.
   'test:monitor': 'changed',
+  'test:flaky': 'flaky',
 }
 
 /**
@@ -295,7 +329,7 @@ export interface CheckDetail {
  */
 export function webhookPayload(
   event: NotificationEvent | string,
-  subject: EventSubject & { detail?: string, check?: CheckDetail, run?: RunDetail, job?: JobDetail, monitor?: MonitorDetail },
+  subject: EventSubject & { detail?: string, check?: CheckDetail, run?: RunDetail, job?: JobDetail, monitor?: MonitorDetail, test?: TestDetail },
   at: string,
 ): WebhookPayload {
   const owner = String(subject.owner ?? '')
@@ -343,6 +377,7 @@ export function webhookPayload(
     ...(subject.run ? { run: subject.run } : {}),
     ...(subject.job ? { job: subject.job } : {}),
     ...(subject.monitor ? { monitor: subject.monitor } : {}),
+    ...(subject.test ? { test: subject.test } : {}),
   }
 }
 

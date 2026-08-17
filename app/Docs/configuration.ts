@@ -343,11 +343,12 @@ export function renderConfiguration(entries: EnvEntry[], reads: Map<string, stri
 
   if (runnerRead.length > 0) {
     out.push(
-      '## Set on a runner, not on the instance',
+      '## Set where the work runs, not on the instance',
       '',
-      'The runner is compiled into a binary and copied to a machine that is not this one, so these',
-      'are set *there* rather than in this instance\'s `.env`. Each has a command-line flag too, and',
-      'the flag wins.',
+      'Two programs read their configuration somewhere else: the runner, compiled into a binary and',
+      'copied to a machine that is not this one, and `buddy tests:report`, run by whatever CI a',
+      'repository already uses. These are set *there* rather than in this instance\'s `.env`. Each',
+      'has a command-line flag too, and the flag wins.',
       '',
       ...runnerRead.map(name => `- \`${name}\`, read by ${(reads.get(name) ?? []).map(path => `\`${path}\``).join(', ')}`),
       '',
@@ -357,9 +358,17 @@ export function renderConfiguration(entries: EnvEntry[], reads: Map<string, stri
   return `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`
 }
 
-/** Whether a variable is only ever read by the runner binary. */
+/**
+ * Whether a variable belongs to a program that runs somewhere else.
+ *
+ * Two of them: the runner binary, copied to a machine that is not this one,
+ * and the test collector, run by whatever CI a repository already uses. Both
+ * read their configuration *there*, so listing them under "add a line to
+ * `.env.example`" would be telling an operator to configure this instance for
+ * a program that does not run on it.
+ */
 function runnerOnly(name: string, reads: Map<string, string[]>): boolean {
   const paths = reads.get(name) ?? []
 
-  return paths.length > 0 && paths.every(path => path.includes('Runner/standalone'))
+  return paths.length > 0 && paths.every(path => path.includes('Runner/standalone') || path.includes('Commands/ReportTests'))
 }

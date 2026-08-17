@@ -854,6 +854,55 @@ describe('the monitors endpoint', () => {
   }, 120_000)
 })
 
+describe('the flaky transition as an event', () => {
+  test('fires once, when a test crosses from steady to flaky', async () => {
+    if (!available)
+      return
+
+    const { listen } = await import('@stacksjs/events')
+    const seen: any[] = []
+
+    listen('test:flaky', (payload: any) => {
+      seen.push(payload)
+    })
+
+    await ingest({
+      suite: 'events',
+      key: 'event-green',
+      headSha: '3a'.repeat(20),
+      executions: [{ scope: 'e/a.test.ts', name: 'wobbles', result: 'passed' }],
+    })
+
+    // Steady so far, so nothing to say.
+    expect(seen).toHaveLength(0)
+
+    await ingest({
+      suite: 'events',
+      key: 'event-red',
+      headSha: '3a'.repeat(20),
+      executions: [{ scope: 'e/a.test.ts', name: 'wobbles', result: 'failed', failureMessage: 'raced' }],
+    })
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]?.test).toMatchObject({ suite: 'events', scope: 'e/a.test.ts', name: 'wobbles' })
+    expect(String(seen[0]?.test?.reason)).toContain('same commit')
+
+    /*
+     * And not again. The test that has been flaky for a month is not news, and
+     * a receiver told about it on every run writes a filter - which hides the
+     * one that broke today.
+     */
+    await ingest({
+      suite: 'events',
+      key: 'event-red-again',
+      headSha: '3b'.repeat(20),
+      executions: [{ scope: 'e/a.test.ts', name: 'wobbles', result: 'failed', failureMessage: 'raced again' }],
+    })
+
+    expect(seen).toHaveLength(1)
+  }, 120_000)
+})
+
 /** The repository this file created, named as a function so it reads in place. */
 function created_repository(): number {
   return created.repositoryId
