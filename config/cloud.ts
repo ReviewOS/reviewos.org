@@ -767,9 +767,14 @@ export const tsCloud: TsCloudConfig = {
         // repository storage at all while looking completely healthy. An
         // absolute target cannot be read relative to anything and is the only
         // form that stays correct wherever the link is written.
-        'mkdir -p "$(cd .. && pwd)/shared/storage/repos"',
+        //
+        // `../..` and not `..`: these run from the release directory
+        // (`<site>/releases/<sha>`), so one level up is `releases/` and two
+        // is the site root that holds `shared/`. Getting this wrong is what
+        // produced `releases/shared/storage/repos`, a path nothing creates.
+        'mkdir -p "$(cd ../.. && pwd)/shared/storage/repos"',
         'rm -rf storage/repos',
-        'ln -sfn "$(cd .. && pwd)/shared/storage/repos" storage/repos',
+        'ln -sfn "$(cd ../.. && pwd)/shared/storage/repos" storage/repos',
         // A dangling link here is silent and total, so it is checked rather
         // than assumed: better to fail the deploy than to serve an instance
         // whose repositories are not there.

@@ -11,7 +11,7 @@
  * place rather than inside a route handler.
  */
 
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { REPOSITORY_ROOT } from '../Actions/Git/storage'
 import { draining } from './shutdown'
@@ -221,16 +221,42 @@ async function repositoryStorage(writeProbe: boolean): Promise<Check> {
   return await timed('repository storage', async () => {
     const root = REPOSITORY_ROOT
 
-    if (!writeProbe) {
-      // The cheap half, for a liveness probe: the directory is there.
-      mkdirSync(root, { recursive: true })
-      return undefined
+    /*
+     * Checked, never created.
+     *
+     * This used to `mkdirSync(root, { recursive: true })` before looking, and
+     * that one line defeated the entire check - including the case the comment
+     * above describes. A deploy shipped `storage/repos` as a symlink pointing
+     * at a path that does not exist; the probe created a real directory in its
+     * place, wrote a file into it, and reported healthy. The instance ran with
+     * no repository storage at all, answering 200 to everything, while 151
+     * mirrors were registered against a directory nothing else could see.
+     *
+     * A health check that repairs what it is inspecting cannot report on it.
+     * Creating repository storage is the deploy's job, and its absence is
+     * exactly the condition worth shouting about.
+     */
+    if (!existsSync(root)) {
+      return {
+        status: 'fail' as const,
+        detail: `repository storage is missing at ${root} - the deploy did not create it, or a symlink points somewhere that does not exist`,
+      }
     }
+
+    if (!statSync(root).isDirectory()) {
+      return {
+        status: 'fail' as const,
+        detail: `repository storage at ${root} is not a directory`,
+      }
+    }
+
+    // The cheap half, for a liveness probe: it is there and it is a directory.
+    if (!writeProbe)
+      return undefined
 
     const probe = join(root, `.health-${process.pid}`)
 
     try {
-      mkdirSync(root, { recursive: true })
       writeFileSync(probe, 'ok')
     }
     finally {
