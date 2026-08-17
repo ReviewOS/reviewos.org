@@ -518,6 +518,20 @@ export async function createJobsForRun(
   context?: ConcurrencyContext,
 ): Promise<void> {
   await createJobs(runId, versionId, context)
+
+  /*
+   * Settled once, immediately, because a run may have work to do before any
+   * machine is involved.
+   *
+   * A barrier at the top of a graph is satisfied the moment the run exists, a
+   * gate is waiting for a person from the first second, and a trigger has a run
+   * to start. Waiting for the first claim to move the graph would leave a
+   * run whose every job is the control plane's own sitting at `queued` with
+   * nothing that could ever poll it.
+   */
+  const { settleRun } = await import('./settle')
+
+  await settleRun(runId)
 }
 
 async function createJobs(
@@ -534,6 +548,8 @@ async function createJobs(
       'uses', 'call_with',
       // The policy the run is judged by, copied onto it below.
       'fail_fast', 'max_parallel', 'timeout_minutes', 'continue_on_error',
+      // And what kind of job it is, which decides whether a runner ever sees it.
+      'kind', 'settings', 'group_label',
     ])
     .where('workflow_version_id', '=', versionId)
     .orderBy('position')
@@ -628,9 +644,17 @@ async function createJobs(
           // somebody scanning a failed run already recognises.
           name: callName(prefix, values ? `${job.name ?? job.job_id} (${labelFor(values)})` : (job.name ?? job.job_id)),
           position: position++,
+          /*
+           * `blocked` for everything the control plane resolves itself, even
+           * with nothing to wait for.
+           *
+           * `queued` means "a runner may take this", and a gate that no runner
+           * may take would sit in it forever. The settler moves them out on
+           * the same pass that unblocks the rest of the graph.
+           */
           state: !decision.run
             ? 'skipped'
-            : (needs.length > 0 ? 'blocked' : 'queued'),
+            : (needs.length > 0 || String(job.kind ?? 'command') !== 'command' ? 'blocked' : 'queued'),
           needs: job.needs,
           runs_on: job.runs_on,
           matrix_values: values ? JSON.stringify(values) : null,
@@ -647,6 +671,9 @@ async function createJobs(
           max_parallel: job.max_parallel ?? null,
           timeout_minutes: job.timeout_minutes ?? null,
           continue_on_error: job.continue_on_error === true,
+          kind: job.kind ?? 'command',
+          settings: job.settings ?? null,
+          group_label: job.group_label ?? null,
         } as any)
         .returning(['id'])
         .executeTakeFirst()

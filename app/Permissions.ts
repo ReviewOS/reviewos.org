@@ -67,6 +67,15 @@ export const REPOSITORY_ABILITIES = {
   // can touch anything the workflow can touch. Anybody who may *see* a workflow
   // is not therefore somebody who may run it.
   'workflow:dispatch': 'write',
+  /*
+   * Opening a gate is its own power, and the most consequential of the three.
+   *
+   * A `block:` job is what a deployment approval *is*: whoever opens it is
+   * saying the change may go to production. Folding it into `workflow:cancel`
+   * would mean anybody who can stop a build can also approve a release, which
+   * is exactly backwards - stopping is safe and approving is not.
+   */
+  'workflow:approve': 'write',
   // Managing the label and milestone *sets* is a heavier power than applying
   // them: deleting a label strips it from every issue that carried it, and
   // deleting a milestone empties it. Applying one stays at triage above.

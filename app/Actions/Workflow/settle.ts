@@ -18,6 +18,7 @@
  */
 
 import { db } from '@stacksjs/database'
+import { createJobsForRun } from './dispatch'
 import type { JobState } from './states'
 import { effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
 
@@ -32,14 +33,35 @@ import { effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unr
  * Plain prose, no markup: it is rendered as text on the run page, and backticks
  * that read as code in a file read as typing mistakes on a screen.
  */
+/**
+ * How far a chain of triggers may go.
+ *
+ * Five, which is more than any real pipeline nests and few enough that a loop
+ * costs five runs rather than a database. The same shape as the reusable
+ * workflow call depth, and for the same reason.
+ */
+export const MAX_TRIGGER_DEPTH = 5
+
 export const FAIL_FAST_REASON = 'Stopped because another combination of this matrix failed and fail-fast is on.'
 
 async function jobsOfRun(runId: number): Promise<any[]> {
   return db
     .selectFrom('workflow_jobs')
-    .select(['id', 'job_id', 'state', 'needs', 'continue_on_error', 'fail_fast'])
+    .select(['id', 'job_id', 'state', 'needs', 'continue_on_error', 'fail_fast', 'kind', 'settings'])
     .where('workflow_run_id', '=', runId)
     .execute()
+}
+
+/** A job's `reviewos:` settings, which are JSON in a column. */
+function settingsOf(job: any): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(String(job?.settings ?? '{}'))
+
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  }
+  catch {
+    return {}
+  }
 }
 
 /**
@@ -57,6 +79,8 @@ function graphRows(jobs: readonly any[]): Array<{
   needs: string | null
   continue_on_error: boolean
   fail_fast: boolean
+  allow_failure: boolean
+  kind: string
 }> {
   return jobs.map(job => ({
     id: Number(job.id),
@@ -65,11 +89,44 @@ function graphRows(jobs: readonly any[]): Array<{
     needs: job.needs ?? null,
     continue_on_error: job.continue_on_error === true,
     fail_fast: job.fail_fast !== false,
+    // A barrier that was told to let the run past a failure. The graph reads
+    // this; nothing else needs to know it came from `wait:`.
+    allow_failure: settingsOf(job).continueOnFailure === true,
+    kind: String(job.kind ?? 'command'),
   }))
 }
 
 /** The run's state after settling it, which is what the caller announces. */
 export async function settleRun(runId: number, now: Date = new Date()): Promise<string> {
+  /*
+   * Settled to a fixed point rather than in one pass.
+   *
+   * A pass can move the graph in a way that lets the next one move it again: a
+   * barrier satisfies itself the moment its dependencies finish, and the gate
+   * behind it becomes eligible *in the same instant* - but eligibility was
+   * computed from rows read before the barrier moved. One pass left the gate
+   * blocked until something unrelated happened to settle the run again, which
+   * is the shape of bug that looks like "sometimes the approval never appears".
+   *
+   * Bounded, because a fixed-point loop with a bug in it is an infinite one.
+   * Ten is far more than the deepest chain of control-plane jobs a graph can
+   * have, since each pass resolves a whole layer.
+   */
+  for (let pass = 0; pass < 10; pass++) {
+    if (!await settleOnce(runId, now))
+      break
+  }
+
+  return recordRunState(runId, now)
+}
+
+/**
+ * One pass over the graph. Answers whether anything moved.
+ *
+ * Split out from `settleRun` so the loop above has something to ask.
+ */
+async function settleOnce(runId: number, now: Date): Promise<boolean> {
+  let moved = false
   let jobs = await jobsOfRun(runId)
 
   /*
@@ -105,8 +162,10 @@ export async function settleRun(runId: number, now: Date = new Date()): Promise<
       .execute()
   }
 
-  if (casualties.cancel.length > 0 || casualties.stop.length > 0)
+  if (casualties.cancel.length > 0 || casualties.stop.length > 0) {
+    moved = true
     jobs = await jobsOfRun(runId)
+  }
 
   // Anything that can never run now, so the run can finish rather than wait on
   // a job whose dependency failed.
@@ -121,13 +180,52 @@ export async function settleRun(runId: number, now: Date = new Date()): Promise<
       .execute()
   }
 
-  if (unreachable.length > 0)
+  if (unreachable.length > 0) {
+    moved = true
     jobs = await jobsOfRun(runId)
+  }
 
   // And anything whose dependencies have now all succeeded.
   const ready = eligibleJobs(graphRows(jobs))
 
   for (const job of ready) {
+    /*
+     * A job whose dependencies are satisfied, and what happens to it depends
+     * on what kind of job it is.
+     *
+     * Only a `command` job joins the queue. The rest are the control plane's
+     * own work: a barrier is *already* satisfied by having got here, a gate
+     * waits for a person, and a trigger starts another run. None of them may
+     * ever be handed to a machine - a runner deciding a deployment approval is
+     * not a scheduling mistake, it is the gate not existing.
+     */
+    if (job.kind === 'wait') {
+      await db
+        .updateTable('workflow_jobs')
+        .set({ state: 'succeeded', started_at: now.toISOString(), finished_at: now.toISOString() } as any)
+        .where('id', '=', job.id)
+        .where('state', '=', 'blocked')
+        .execute()
+
+      continue
+    }
+
+    if (job.kind === 'block') {
+      await db
+        .updateTable('workflow_jobs')
+        .set({ state: 'paused', started_at: now.toISOString() } as any)
+        .where('id', '=', job.id)
+        .where('state', '=', 'blocked')
+        .execute()
+
+      continue
+    }
+
+    if (job.kind === 'trigger') {
+      await startTrigger(runId, job.id, now)
+      continue
+    }
+
     await db
       .updateTable('workflow_jobs')
       .set({ state: 'queued' } as any)
@@ -136,6 +234,17 @@ export async function settleRun(runId: number, now: Date = new Date()): Promise<
       .execute()
   }
 
+  return moved || ready.length > 0
+}
+
+/**
+ * What the run itself now is, written down.
+ *
+ * Separate from the passes above because it is the *answer* rather than a step:
+ * running it inside the loop would mean a run flickering through states nobody
+ * was ever going to see.
+ */
+async function recordRunState(runId: number, now: Date): Promise<string> {
   const settled = await jobsOfRun(runId)
   const state = runStateFromJobs(graphRows(settled).map(effectiveState))
 
@@ -162,7 +271,216 @@ export async function settleRun(runId: number, now: Date = new Date()): Promise<
       // this one overwrite a conclusion with a staler one.
       .where('state', '=', from)
       .execute()
+
+    // And whoever was waiting on this run from another one. Nothing else would
+    // ever look at that job again: it is in a different run entirely.
+    await settleAwaitingTriggers(runId, state, now)
   }
 
   return state
+}
+
+/**
+ * Start the run a trigger job asks for, and record what happened.
+ *
+ * The job itself never reaches a machine: starting a run is the control plane's
+ * own work, and spending a runner to make one HTTP-shaped decision would be a
+ * machine held open for the length of another pipeline.
+ *
+ * **A trigger that cannot resolve fails rather than passing quietly.** A
+ * pipeline whose "deploy" stage silently did nothing is the failure mode this
+ * whole phase exists to avoid, and a green run that triggered no deployment is
+ * exactly that shape.
+ */
+async function startTrigger(runId: number, jobId: number, now: Date): Promise<void> {
+  const job: any = await db
+    .selectFrom('workflow_jobs')
+    .select(['settings', 'job_id'])
+    .where('id', '=', jobId)
+    .executeTakeFirst()
+
+  const settings = settingsOf(job)
+  const wanted = String(settings.workflow ?? '').trim()
+
+  const run: any = await db
+    .selectFrom('workflow_runs')
+    .select(['repository_id', 'event_ref', 'head_sha', 'actor_id', 'trigger_depth'])
+    .where('id', '=', runId)
+    .executeTakeFirst()
+
+  const fail = async (reason: string): Promise<void> => {
+    await db
+      .updateTable('workflow_jobs')
+      .set({
+        state: 'failed',
+        started_at: now.toISOString(),
+        finished_at: now.toISOString(),
+        condition_reason: reason,
+      } as any)
+      .where('id', '=', jobId)
+      .where('state', '=', 'blocked')
+      .execute()
+  }
+
+  if (!run || !wanted) {
+    await fail('This job triggers a workflow but does not say which one.')
+    return
+  }
+
+  /*
+   * The loop guard, and it is not optional.
+   *
+   * A workflow that triggers a workflow that triggers the first one is a run
+   * factory: every trigger makes a *new* run, so no row is ever in a state
+   * that could notice the cycle. One integer carried down bounds it, and the
+   * refusal says what happened rather than the run simply stopping.
+   */
+  const depth = Number(run.trigger_depth ?? 0)
+
+  if (depth >= MAX_TRIGGER_DEPTH) {
+    await fail(`This is ${depth} triggers deep, which is where this instance stops following them.`)
+    return
+  }
+
+  /*
+   * Matched on the path or the name, because both are what somebody writes:
+   * `release.yml` is the file and `Release` is what the workflow calls itself,
+   * and refusing one of them would be a rule nobody can remember.
+   */
+  const candidates: any[] = await db
+    .selectFrom('workflows')
+    .select(['id', 'name', 'path', 'state'])
+    .where('repository_id', '=', Number(run.repository_id))
+    .execute()
+
+  const target = candidates.find(row => String(row.path) === wanted)
+    ?? candidates.find(row => String(row.path).endsWith(`/${wanted}`))
+    ?? candidates.find(row => String(row.name) === wanted)
+
+  if (!target) {
+    await fail(`No workflow in this repository is called \`${wanted}\`.`)
+    return
+  }
+
+  if (String(target.state) !== 'active') {
+    await fail(`\`${wanted}\` is ${String(target.state)}, so triggering it would start nothing.`)
+    return
+  }
+
+  const version: any = await db
+    .selectFrom('workflow_versions')
+    .select(['id'])
+    .where('workflow_id', '=', Number(target.id))
+    .orderBy('id', 'desc')
+    .executeTakeFirst()
+
+  if (!version) {
+    await fail(`\`${wanted}\` has no parsed version to run.`)
+    return
+  }
+
+  const previous: any = await db
+    .selectFrom('workflow_runs')
+    .select(['number'])
+    .where('repository_id', '=', Number(run.repository_id))
+    .orderBy('number', 'desc')
+    .limit(1)
+    .executeTakeFirst()
+
+  const started: any = await db
+    .insertInto('workflow_runs')
+    .values({
+      workflow_version_id: Number(version.id),
+      repository_id: Number(run.repository_id),
+      number: Number(previous?.number ?? 0) + 1,
+      state: 'queued',
+      /*
+       * Its own event name rather than `workflow_dispatch`.
+       *
+       * A triggered run was not started by a person pressing a button, and a
+       * screen that says it was is a screen that sends somebody looking for
+       * whoever pressed it. It also keeps the redelivery index out of the way:
+       * two triggers from two runs of the same commit are two runs.
+       */
+      event: 'workflow_trigger',
+      event_ref: `${String(run.event_ref ?? '')}#trigger/${runId}/${String(job?.job_id ?? '')}`,
+      head_sha: String(run.head_sha ?? ''),
+      definition_sha: String(run.head_sha ?? ''),
+      /*
+       * Trusted, because the run that triggered it was: an untrusted run is a
+       * fork's code, and a fork's code that could trigger a trusted run would
+       * be a way around every check this phase makes. A trigger cannot raise
+       * its own trust level.
+       */
+      trusted: true,
+      actor_id: run.actor_id ?? null,
+      trigger_depth: depth + 1,
+      dispatch_inputs: settings.inputs && Object.keys(settings.inputs as object).length > 0
+        ? JSON.stringify(settings.inputs)
+        : null,
+    } as any)
+    .returning(['id'])
+    .executeTakeFirst()
+
+  const startedId = Number(started?.id)
+
+  await createJobsForRun(startedId, Number(version.id))
+
+  /*
+   * Async by default, which is Buildkite's default and the right one: a
+   * trigger that waits turns one stuck run into two. `await: true` keeps this
+   * job running until the run it started finishes, and the child's own settle
+   * closes it.
+   */
+  const awaiting = settings.await === true
+
+  await db
+    .updateTable('workflow_jobs')
+    .set({
+      state: awaiting ? 'running' : 'succeeded',
+      started_at: now.toISOString(),
+      finished_at: awaiting ? null : now.toISOString(),
+      triggered_run_id: startedId,
+      outputs: JSON.stringify({ run_id: String(startedId) }),
+    } as any)
+    .where('id', '=', jobId)
+    .where('state', '=', 'blocked')
+    .execute()
+}
+
+/**
+ * Close the trigger jobs that were waiting on this run.
+ *
+ * The other half of `await: true`. Called when a run reaches a terminal state,
+ * because the job that started it is in another run entirely and nothing else
+ * would ever look at it again.
+ */
+export async function settleAwaitingTriggers(runId: number, state: string, now: Date = new Date()): Promise<void> {
+  if (!['succeeded', 'failed', 'cancelled'].includes(state))
+    return
+
+  const waiting: any[] = await db
+    .selectFrom('workflow_jobs')
+    .select(['id', 'workflow_run_id'])
+    .where('triggered_run_id', '=', runId)
+    .where('state', '=', 'running')
+    .execute()
+
+  for (const job of waiting) {
+    await db
+      .updateTable('workflow_jobs')
+      .set({
+        // The triggered run's verdict, carried back. A trigger that waited and
+        // then reported success whatever happened would be a gate that is not
+        // one.
+        state: state === 'succeeded' ? 'succeeded' : state,
+        finished_at: now.toISOString(),
+        condition_reason: `The run this triggered ${state}.`,
+      } as any)
+      .where('id', '=', Number(job.id))
+      .where('state', '=', 'running')
+      .execute()
+
+    await settleRun(Number(job.workflow_run_id), now)
+  }
 }

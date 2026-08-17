@@ -79,6 +79,16 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
     // `queued` is the ordinary case; `running` is the one whose lease may have
     // lapsed, which is how work is recovered from a machine that died.
     .where('workflow_jobs.state', 'in', ['queued', 'running'])
+    /*
+     * Command jobs only, and this is a rule rather than an optimisation.
+     *
+     * A barrier, a gate and a trigger are the control plane's own work: they
+     * are satisfied by their dependencies, by a person, or by starting another
+     * run. Handing a gate to a machine would not be a scheduling mistake - it
+     * would be the gate not existing, with a runner deciding a deployment
+     * approval.
+     */
+    .where('workflow_jobs.kind', '=', 'command')
 
   // Narrowed in SQL where it is cheap and safe to do so. The authoritative
   // check is still `runnerReaches`, so a mistake here costs a wasted row rather

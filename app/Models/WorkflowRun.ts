@@ -175,6 +175,23 @@ export default defineModel({
      * typed. A person reading a run later needs to know what it ran with, and
      * "the default applied" is exactly the fact that is otherwise invisible.
      */
+    /**
+     * How many triggers deep this run is.
+     *
+     * A workflow that triggers a workflow that triggers the first one is a run
+     * factory, and nothing else in the model stops it: every trigger makes a
+     * *new* run, so there is no row to notice the loop. The depth is carried
+     * down and refused past a ceiling, which bounds it with one integer rather
+     * than with a cycle check over definitions that can change between runs.
+     */
+    trigger_depth: {
+      order: 42,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number() },
+      factory: () => 0,
+    },
+
     dispatch_inputs: {
       order: 41,
       fillable: true,

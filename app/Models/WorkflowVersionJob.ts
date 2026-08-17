@@ -126,6 +126,38 @@ export default defineModel({
       factory: () => false,
     },
 
+    /**
+     * What kind of job this is: `command`, `wait`, `block` or `trigger`.
+     *
+     * A column rather than an inference, because everything downstream asks
+     * this question and none of it should have to re-read a settings blob to
+     * answer it - the claim in particular, which must never hand a gate to a
+     * machine.
+     */
+    kind: {
+      order: 44,
+      fillable: true,
+      default: 'command',
+      validation: { rule: schema.enum(['command', 'wait', 'block', 'trigger']) },
+      factory: () => 'command',
+    },
+
+    /** The kind's own configuration, as JSON. Empty for a command job. */
+    settings: {
+      order: 45,
+      fillable: true,
+      validation: { rule: schema.string().max(20_000) },
+      factory: () => null,
+    },
+
+    /** `reviewos.group:` - the label several jobs share on the run screen. */
+    group_label: {
+      order: 46,
+      fillable: true,
+      validation: { rule: schema.string().max(200) },
+      factory: () => null,
+    },
+
     fail_fast: {
       order: 31,
       fillable: true,

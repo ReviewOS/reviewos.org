@@ -83,6 +83,15 @@ export default defineModel({
         rule: schema.enum([
           'blocked', 'queued', 'running', 'cancelling',
           'cancelled', 'failed', 'skipped', 'succeeded',
+          /*
+           * `paused` is a gate waiting for a person.
+           *
+           * Not `blocked`, which means "waiting for another job" and is
+           * something the graph will resolve on its own: nothing resolves this
+           * one but somebody deciding, and a run screen that cannot tell the
+           * two apart cannot show the button.
+           */
+          'paused',
         ]),
       },
       factory: () => 'blocked',
@@ -169,6 +178,73 @@ export default defineModel({
      * conclusion something nobody can reconstruct. A run has to stay readable
      * after the file moved on.
      */
+
+    /**
+     * What kind of job this is, copied from the definition.
+     *
+     * `command` is the only kind a runner may claim. The others are the
+     * control plane's own work - a barrier its dependencies satisfy, a gate a
+     * person opens, a trigger that starts another run - and handing one to a
+     * machine would mean a runner deciding a deployment approval.
+     */
+    kind: {
+      order: 39,
+      fillable: true,
+      default: 'command',
+      validation: { rule: schema.enum(['command', 'wait', 'block', 'trigger']) },
+      factory: () => 'command',
+    },
+
+    /** The kind's configuration, copied so a finished run stays readable. */
+    settings: {
+      order: 40,
+      fillable: true,
+      validation: { rule: schema.string().max(20_000) },
+      factory: () => null,
+    },
+
+    /** The label this job shares with the others in its group. */
+    group_label: {
+      order: 41,
+      fillable: true,
+      validation: { rule: schema.string().max(200) },
+      factory: () => null,
+    },
+
+    /**
+     * Who opened this gate, and when.
+     *
+     * On the job rather than only in the audit log: "who approved this
+     * deployment" is a question asked while looking at the run, and an answer
+     * that lives somewhere else is one nobody finds.
+     */
+    approved_by_id: {
+      order: 42,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    approved_at: {
+      order: 43,
+      fillable: true,
+      validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
+
+    /**
+     * The run a `trigger` job started.
+     *
+     * Both a link for the screen and the thread `await: true` is closed by:
+     * the job waiting is in another run entirely, so when the triggered run
+     * finishes there is nothing else that would ever look at it again.
+     */
+    triggered_run_id: {
+      order: 44,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
 
     /** `strategy.fail-fast`: one combination failing stops the rest. */
     fail_fast: {

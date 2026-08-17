@@ -241,6 +241,11 @@ async function insertVersion(
         fail_fast: job.failFast,
         max_parallel: job.maxParallel,
         continue_on_error: job.continueOnError,
+        // The step model's own columns. A job with no `reviewos:` key is a
+        // command job, which is every job an Actions workflow can write.
+        kind: job.kind,
+        settings: Object.keys(job.settings).length > 0 ? JSON.stringify(job.settings) : null,
+        group_label: job.group,
       } as any)
       .returning(['id'])
       .executeTakeFirst()

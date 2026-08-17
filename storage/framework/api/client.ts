@@ -5462,6 +5462,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/workflow-runs/approve
+   */
+  postReposWorkflowRunsApprove(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "job"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "job"?: { "job_id"?: string; "state"?: string }; "run"?: { "number"?: number; "state"?: string }; "outputs"?: Record<string, unknown> }>> {
+    return request(config, "POST", "/api/repos/workflow-runs/approve", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/repos/workflow-runs/artifact
    */
   getReposWorkflowRunsArtifact(input: { "owner"?: string; "repo"?: string; "id": number }, options?: RequestOptions): Promise<ApiResult<unknown>> {

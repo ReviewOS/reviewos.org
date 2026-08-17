@@ -8459,6 +8459,39 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": false
+          },
+          {
+            "name": "kind",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "command",
+            "enumValues": [
+              "command",
+              "wait",
+              "block",
+              "trigger"
+            ],
+            "enumTypeName": "workflow_version_jobs_kind_type"
+          },
+          {
+            "name": "settings",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "group_label",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 200
           }
         ],
         "indexes": [
@@ -8687,7 +8720,8 @@
               "cancelled",
               "failed",
               "skipped",
-              "succeeded"
+              "succeeded",
+              "paused"
             ],
             "enumTypeName": "workflow_jobs_state_type"
           },
@@ -8852,6 +8886,64 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": false
+          },
+          {
+            "name": "kind",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "command",
+            "enumValues": [
+              "command",
+              "wait",
+              "block",
+              "trigger"
+            ],
+            "enumTypeName": "workflow_jobs_kind_type"
+          },
+          {
+            "name": "settings",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "group_label",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 200
+          },
+          {
+            "name": "approved_by_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "approved_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "triggered_run_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -9081,6 +9173,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "trigger_depth",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
           }
         ],
         "indexes": [
@@ -9744,7 +9845,7 @@
       }
     ]
   },
-  "hash": "adf1e07a3bda09e242548f0085c98e087ce0d71e2759119303c609085136a604",
+  "hash": "ef2c5cf0a23bc00a7c5fa7d9911e3269a5ae97607296e54f8ed00d2e534f46a0",
   "dialect": "postgres",
-  "updatedAt": "2026-08-17T14:19:41.124Z"
+  "updatedAt": "2026-08-17T15:16:20.027Z"
 }

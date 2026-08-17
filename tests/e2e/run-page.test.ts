@@ -593,3 +593,78 @@ describe('a repository with no workflows', () => {
     expect(html).not.toContain('Start with one of these')
   }, 60_000)
 })
+
+/*
+ * A gate on the screen. The engine's half is tested elsewhere; this is the
+ * half that decides whether anybody can actually use it - a run holding for a
+ * person, with the prompt, the fields, and a button only somebody who may
+ * approve is shown.
+ */
+describe('a run waiting at a gate', () => {
+  let number = 0
+
+  test('shows the prompt and the fields the workflow declared', async () => {
+    if (!available)
+      return
+
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_versions.id', 'desc')
+      .executeTakeFirst()
+
+    number = await makeRun(Number(version.id), 'waiting', 'succeeded', '', 'ab'.repeat(20))
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', number)
+      .executeTakeFirst()
+
+    await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: 'approve',
+      name: 'Approve the deploy',
+      position: 9,
+      state: 'paused',
+      kind: 'block',
+      group_label: 'Release',
+      settings: JSON.stringify({
+        prompt: 'Deploy to production?',
+        fields: [
+          { key: 'where', type: 'select', label: 'where', required: false, default: null, options: ['staging', 'production'] },
+        ],
+      }),
+    }).execute()
+
+    const html = await page(`/${created.handle}/${created.name}/run/${number}`, created.ownerToken)
+
+    expect(html).toContain('Deploy to production?')
+    /*
+     * The option element specifically, not just the word: it can only come
+     * from the field loop, and the first version of this test passed while
+     * that loop rendered nothing at all.
+     */
+    expect(html).toContain('name="where"')
+    expect(html).toContain('<option value="production"')
+    // The group prints once, as a heading over the jobs that share it.
+    expect(html).toContain('Release')
+    expect(html).toContain('/api/repos/workflow-runs/approve')
+  }, 60_000)
+
+  test('and a reader who may not approve is told who can, not shown a button', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}/run/${number}`)
+
+    // The prompt is still worth showing: everybody deserves to know the run is
+    // waiting for a person rather than for a machine.
+    expect(html).toContain('Deploy to production?')
+    expect(html).not.toContain('/api/repos/workflow-runs/approve')
+    expect(html).toContain('write access')
+  }, 60_000)
+})

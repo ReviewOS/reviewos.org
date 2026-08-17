@@ -898,21 +898,80 @@ extra five are genuinely useful, so the engine carries all of them. In Actions s
 appear as job-level keys rather than as new step types, which is the pattern for everything in this
 phase: **familiar surface, larger engine.**
 
-- [ ] **Command step.** One or more shell commands, or a `uses:` action. The only kind that consumes
+- [x] **Command step.** One or more shell commands, or a `uses:` action. The only kind that consumes
       a runner, and the only one an Actions workflow writes directly.
-- [ ] **Wait step.** A barrier. Everything before it must finish before anything after it starts,
+
+      The default, and the only kind the claim will hand to a machine - which is a rule rather than
+      an optimisation. The other three are the control plane's own work, and a runner deciding a
+      deployment approval would not be a scheduling mistake, it would be the gate not existing.
+- [x] **Wait step.** A barrier. Everything before it must finish before anything after it starts,
       with a variant that continues on failure. `needs:` covers most of this; an explicit barrier
       covers the rest.
-- [ ] **Block step.** Pauses the run until a human unblocks it. The approval gate, and the primitive
+
+      `reviewos: { wait: true }`, **normalized into `needs:` at parse time** so the graph a reader
+      sees is the graph that runs: the barrier needs every job declared before it, and every job
+      after it that named no dependencies of its own needs the barrier. A job with an explicit
+      `needs:` keeps it, because that is a statement about the graph and a barrier must not quietly
+      widen it.
+
+      `continue-on-failure: true` is the variant, and it is the graph-level twin of `if: always()`:
+      the dependencies still have to be *finished*, since the point of a barrier is that everything
+      before it is over - only their verdict stops mattering. It reaches the graph as
+      `allow_dependency_failure`, which is the attribute two sections down.
+- [x] **Block step.** Pauses the run until a human unblocks it. The approval gate, and the primitive
       phase 9's "waiting steps" already describes. Reached from Actions syntax through
       `environment:` protection rules.
-- [ ] **Input step.** Pauses and collects typed fields (text, select, boolean) from the person
+
+      `reviewos: { block: 'Deploy to production?' }`. The job sits in **`paused`**, which is its own
+      job state rather than `blocked`: `blocked` means "waiting for another job" and the graph
+      resolves it on its own, where nothing resolves this but somebody deciding. A screen that
+      cannot tell the two apart cannot show the button, which is the whole difference between a gate
+      and a hang. The run reads `waiting` rather than `running`, because nothing is running.
+
+      **Its own ability, `workflow:approve`.** Not `workflow:cancel`: stopping a build is safe and
+      approving a release is not, and folding them together would mean anybody who can stop a run
+      can also ship one. Who opened it is recorded on the job, because "who approved this
+      deployment" is asked while looking at the run.
+- [x] **Input step.** Pauses and collects typed fields (text, select, boolean) from the person
       unblocking it, which become available to later steps.
-- [ ] **Trigger step.** Starts a run of another workflow, in this repository or another, passing
+
+      **Folded into the block step rather than given a row of its own**, because a block with fields
+      *is* an input step and two names for one row is how a model grows a spelling problem. The
+      typed values become the job's **outputs**, so a later job reads
+      `needs.approve.outputs.version` exactly as it reads any other job's output - inventing a
+      second mechanism for "values a person typed" would be a second thing to learn for a value that
+      behaves identically.
+
+      `string`, `boolean` and `select`, and a `select` declares its options. A value outside them is
+      refused **with the options listed**: the entire reason to declare them is that somebody can be
+      told which ones there are rather than reading "invalid input".
+- [x] **Trigger step.** Starts a run of another workflow, in this repository or another, passing
       commit, branch, environment, and metadata. Async by default, awaitable on request. Actions
       reaches this through `workflow_call` and `repository_dispatch`.
-- [ ] **Group step.** Nests steps under one label so a run with two hundred jobs reads as eight
+
+      In this repository, for now: a cross-repository trigger is the same policy question as a
+      cross-repository `uses:`, and answering it here would answer it in the wrong place. Async by
+      default, which is Buildkite's default and the right one - a trigger that waits turns one stuck
+      run into two - with `await: true` keeping the job running until the run it started finishes
+      and **carrying that run's verdict back**, since a trigger that waited and then reported
+      success whatever happened would be a gate that is not one.
+
+      Three rules that are not optional. A triggered run is **trusted because the run that triggered
+      it was**, so a fork's pull request cannot trigger a trusted one: a trigger cannot raise its own
+      trust level. It carries a **depth with a ceiling of five**, because a workflow that triggers a
+      workflow that triggers the first one is a run factory and nothing else in the model would
+      notice - every trigger makes a *new* run, so there is no row to catch the loop. And a trigger
+      that cannot resolve **fails, with the reason on the job**: a pipeline whose deploy stage
+      silently did nothing, and a green run to go with it, is the failure this phase exists to
+      avoid.
+- [x] **Group step.** Nests steps under one label so a run with two hundred jobs reads as eight
       things. Groups carry their own dependency edges and rollup state.
+
+      **A label rather than a container**, which is a deliberate narrowing of what the line asks for.
+      Nesting jobs inside jobs would change every query that reads a run, and it would let a screen
+      re-sort the jobs - and a run page that disagrees with the order in the file is a page nobody
+      can check the file against. The heading prints once, over the jobs that share it, in declared
+      order. Dependency edges stay between jobs, where `needs:` already puts them.
 
 ### Step attributes
 
@@ -975,9 +1034,19 @@ spelling for a thing people can already say:
 | `priority` | (none) | Additive. |
 | `plugins` | `uses:` | Different mechanisms, overlapping purpose. See the plugins section. |
 
-- [ ] Every additive key above is documented as an extension, in one place, with what happens when a
+- [x] Every additive key above is documented as an extension, in one place, with what happens when a
       workflow using it is taken back to GitHub. An extension nobody can find, or that silently
       breaks portability, is worse than not having it.
+
+      [`docs/extensions.md`](../extensions.md), and there is exactly one key to document because
+      **everything additive lives under `reviewos:` on a job**. An extension spread across five new
+      top-level keys is five things to find when a workflow moves; this is one to delete and one
+      word to grep for when somebody asks what in a repository is not portable.
+
+      What happens on GitHub is stated first rather than in a footnote: **the file is refused**,
+      since GitHub does not accept a job key it does not know. That is the right failure. A key
+      GitHub silently ignored would mean a `block:` gate that is simply not there on the other
+      side - a deployment approval that approves itself.
 
 ### Dynamic definitions
 

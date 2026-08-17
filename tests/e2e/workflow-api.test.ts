@@ -755,3 +755,143 @@ describe('an issue or a release starting a run', () => {
     expect(after.length).toBe(before.length)
   })
 })
+
+/*
+ * Opening a gate over the API, which is the same action the run page's form
+ * posts to. A control the interface has and the API does not is how a product
+ * grows a second, undocumented way to change its own state.
+ */
+describe('approving a paused gate', () => {
+  /** A run holding at a gate, with two fields to answer. */
+  async function pausedRun(sha: string): Promise<number> {
+    const number = await makeRun('waiting', sha)
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', number)
+      .executeTakeFirst()
+
+    await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: 'approve',
+      name: 'Approve',
+      position: 5,
+      state: 'paused',
+      kind: 'block',
+      settings: JSON.stringify({
+        prompt: 'Deploy to production?',
+        fields: [
+          { key: 'version', type: 'string', required: true, label: 'version', default: null, options: [] },
+          { key: 'where', type: 'select', required: false, label: 'where', default: null, options: ['staging', 'production'] },
+        ],
+      }),
+    }).execute()
+
+    return number
+  }
+
+  test('a stranger cannot open somebody else\'s gate', async () => {
+    if (!available)
+      return
+
+    const number = await pausedRun('e1'.repeat(20))
+
+    const { status } = await api(
+      `/api/repos/workflow-runs/approve?owner=${created.handle}&repo=${created.name}&number=${number}&job=approve&version=1.0.0`,
+      { method: 'POST' },
+    )
+
+    // Approving a release is the most consequential button on the page, and it
+    // is not something an anonymous caller does.
+    expect(status).not.toBe(200)
+  })
+
+  test('a missing required field is refused, with the field named', async () => {
+    if (!available)
+      return
+
+    const number = await pausedRun('e2'.repeat(20))
+
+    const { status, body } = await api(
+      `/api/repos/workflow-runs/approve?owner=${created.handle}&repo=${created.name}&number=${number}&job=approve`,
+      { method: 'POST', headers: { Authorization: `Bearer ${created.token}`, Accept: 'application/json' } },
+    )
+
+    expect(status).toBe(422)
+    expect(String(body.problems?.join(' '))).toContain('version')
+  })
+
+  test('a select outside its options is refused, and says which they are', async () => {
+    if (!available)
+      return
+
+    const number = await pausedRun('e3'.repeat(20))
+
+    const { status, body } = await api(
+      `/api/repos/workflow-runs/approve?owner=${created.handle}&repo=${created.name}&number=${number}&job=approve&version=1.0.0&where=producton`,
+      { method: 'POST', headers: { Authorization: `Bearer ${created.token}`, Accept: 'application/json' } },
+    )
+
+    // The whole reason to declare options is that somebody can be told which
+    // ones there are, rather than reading "invalid input".
+    expect(status).toBe(422)
+    expect(String(body.problems?.join(' '))).toContain('staging')
+  })
+
+  test('and a caller who may opens it, with their answers as the job\'s outputs', async () => {
+    if (!available)
+      return
+
+    const number = await pausedRun('e4'.repeat(20))
+
+    const { status, body } = await api(
+      `/api/repos/workflow-runs/approve?owner=${created.handle}&repo=${created.name}&number=${number}&job=approve&version=1.2.3&where=production`,
+      { method: 'POST', headers: { Authorization: `Bearer ${created.token}`, Accept: 'application/json' } },
+    )
+
+    expect(status).toBe(200)
+    expect(body.job.state).toBe('succeeded')
+    expect(body.outputs).toEqual({ version: '1.2.3', where: 'production' })
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', number)
+      .executeTakeFirst()
+
+    const job: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['state', 'outputs', 'approved_by_id'])
+      .where('workflow_run_id', '=', Number(run.id))
+      .where('job_id', '=', 'approve')
+      .executeTakeFirst()
+
+    expect(String(job.state)).toBe('succeeded')
+    // Who opened it, on the row: "who approved this deployment" is a question
+    // asked while looking at the run.
+    expect(Number(job.approved_by_id)).toBe(created.ownerId)
+    expect(JSON.parse(String(job.outputs))).toEqual({ version: '1.2.3', where: 'production' })
+  })
+
+  test('pressing it twice is a conflict rather than an error', async () => {
+    if (!available)
+      return
+
+    const number = await pausedRun('e5'.repeat(20))
+    const url = `/api/repos/workflow-runs/approve?owner=${created.handle}&repo=${created.name}&number=${number}&job=approve&version=1.0.0`
+    const headers = { Authorization: `Bearer ${created.token}`, Accept: 'application/json' }
+
+    expect((await api(url, { method: 'POST', headers })).status).toBe(200)
+
+    // Two people looking at the same run and both pressing is an ordinary
+    // thing that happens; the second has not made a mistake and needs to be
+    // told it is already open.
+    const second = await api(url, { method: 'POST', headers })
+
+    expect(second.status).toBe(409)
+    expect(String(second.body.reason)).toContain('already')
+  })
+})

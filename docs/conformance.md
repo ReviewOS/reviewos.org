@@ -7,7 +7,7 @@ is accepted and does nothing has not been implemented - the fact that it has not
 hidden. So every key here has a status and a sentence, including the ones that are missing and
 the ones that are deliberately different.
 
-34 keys behave as Actions does, 9 differ on purpose, 7 are not implemented yet, and 1 is refused.
+34 keys behave as Actions does, 10 differ on purpose, 7 are not implemented yet, and 1 is refused.
 
 Generated from the conformance table.
 
@@ -66,6 +66,7 @@ These work, and deliberately not the way Actions does. Every one is a decision y
 | `steps[*].shell` | step | Recorded and inherited, and the local runner runs `sh` regardless. A runner that only has one shell should say so rather than refuse a file for naming another. |
 | `${{ }} functions` | workflow | `contains`, `startsWith`, `endsWith`, `format`, `join`, `toJSON`, `fromJSON` and the status functions all work. `hashFiles` is refused rather than answered: it reads a checked-out tree the control plane does not have, and a wrong hash restores the wrong cache. |
 | `GITHUB_EVENT_PATH` | step | Written per job and populated. The shapes are this instance's webhook payloads rather than GitHub's, so one integration sees one set of shapes whether it arrived over a webhook or in a job - the common fields (`ref`, `after`, `repository`, `sender`, `pull_request.base.ref`) line up, and the rest do not. Nothing in it carries a URL. |
+| `reviewos.wait / block / trigger / group` | job | This instance's own extensions, and the only keys here that are not Actions': a barrier, a gate a person opens, a job that starts another run, and a label that groups jobs on the screen. All four live under one `reviewos:` key so there is one thing to delete, and **GitHub refuses a file that uses them** rather than ignoring them - which is the right failure, since a `block:` that GitHub ignored would be a deployment approval that approves itself. Documented in [extensions](./extensions.md). |
 | `contexts` | workflow | `github`, `env`, `job`, `steps`, `needs`, `matrix`, `inputs` and `runner` are readable, and `reviewos` is `github` under this forge's own name. `secrets`, `vars`, `strategy` and `jobs` are not populated yet, and an expression reading one is left as written rather than becoming an empty string. |
 
 ## Not implemented yet

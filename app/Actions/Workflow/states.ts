@@ -20,6 +20,15 @@ export type RunState =
 export type JobState =
   | 'blocked' | 'queued' | 'running' | 'cancelling'
   | 'cancelled' | 'failed' | 'skipped' | 'succeeded'
+  /*
+   * A gate waiting for a person.
+   *
+   * Deliberately not `blocked`, which means "waiting for another job" and is
+   * something the graph resolves on its own. Nothing resolves this but
+   * somebody deciding, and a screen that cannot tell the two apart cannot show
+   * the button - which is the entire difference between a gate and a hang.
+   */
+  | 'paused'
 
 /** A state nothing can leave. */
 export const TERMINAL_RUN_STATES: readonly RunState[] = ['cancelled', 'failed', 'succeeded']
@@ -56,7 +65,14 @@ const RUN_TRANSITIONS: Record<RunState, readonly RunState[]> = {
 const JOB_TRANSITIONS: Record<JobState, readonly JobState[]> = {
   // A blocked job can be skipped without ever running, which is what happens
   // when what it needed failed.
-  blocked: ['queued', 'cancelled', 'skipped', 'failed'],
+  blocked: ['queued', 'paused', 'cancelled', 'skipped', 'failed'],
+  /*
+   * A paused gate goes to `succeeded` when somebody opens it and `cancelled`
+   * when somebody stops the run. It has no way to `failed`: a gate nobody
+   * opened did not fail, and reporting it as a failure would put a red cross
+   * on somebody's commit for a decision that was never made.
+   */
+  paused: ['succeeded', 'cancelled', 'skipped'],
   queued: ['running', 'cancelling', 'cancelled', 'skipped', 'failed'],
   running: ['cancelling', 'cancelled', 'failed', 'succeeded'],
   cancelling: ['cancelled', 'failed', 'succeeded'],
@@ -100,6 +116,17 @@ export function runStateFromJobs(states: readonly JobState[]): RunState {
   if (states.some(state => state === 'cancelling'))
     return 'cancelling'
 
+  /*
+   * A run with a gate open is `waiting`, not `running`.
+   *
+   * The difference is who it is waiting for. `running` says a machine is
+   * working; `waiting` says nothing will happen until a person does something,
+   * which is the only state where a spinner is somebody's fault rather than
+   * the instance's.
+   */
+  if (states.some(state => state === 'paused') && !states.some(state => state === 'running'))
+    return 'waiting'
+
   const unfinished = states.some(state => !isTerminalJob(state))
 
   if (unfinished) {
@@ -135,6 +162,16 @@ export interface GraphJob {
   continue_on_error?: boolean | null
   /** `strategy.fail-fast`, defaulting to Actions' `true` when unrecorded. */
   fail_fast?: boolean | null
+  /**
+   * Whether this job runs even when what it needed did not succeed.
+   *
+   * The roadmap's `allow_dependency_failure`, and what a `wait:` barrier with
+   * `continue-on-failure: true` sets. It is the graph-level twin of
+   * `if: always()`: the dependencies still have to be *finished*, because the
+   * point of a barrier is that everything before it is over - only their
+   * verdict stops mattering.
+   */
+  allow_failure?: boolean | null
 }
 
 /**
@@ -209,7 +246,14 @@ export function eligibleJobs<T extends GraphJob>(jobs: readonly T[]): T[] {
     if (job.state !== 'blocked')
       return false
 
-    return needsOf(job).every(need => groupState(groups.get(need) ?? []) === 'succeeded')
+    return needsOf(job).every((need) => {
+      const state = groupState(groups.get(need) ?? [])
+
+      if (job.allow_failure === true)
+        return state !== 'pending' && state !== 'missing'
+
+      return state === 'succeeded'
+    })
   })
 }
 
@@ -243,6 +287,11 @@ export function unreachableJobs<T extends GraphJob>(jobs: readonly T[]): T[] {
 
   return jobs.filter((job) => {
     if (job.state !== 'blocked')
+      return false
+
+    // A job that said it survives a failed dependency is never unreachable:
+    // that is the whole of what it asked for.
+    if (job.allow_failure === true)
       return false
 
     return needsOf(job).some(need => failed(need))

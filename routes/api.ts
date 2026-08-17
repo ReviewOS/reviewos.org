@@ -714,6 +714,13 @@ route.post('/repos/workflow-runs/cancel', 'Actions/Workflow/CancelWorkflowRunAct
 // `workflow_dispatch`: the trigger with no event behind it. Write access, since
 // starting a run spends the instance's runners.
 route.post('/repos/workflows/dispatch', 'Actions/Workflow/DispatchWorkflowAction').middleware('auth')
+/*
+ * Opening a gate: a `reviewos.block:` job waiting for a person.
+ *
+ * Its own ability rather than `workflow:cancel`, because stopping a build is
+ * safe and approving a release is not.
+ */
+route.post('/repos/workflow-runs/approve', 'Actions/Workflow/ApproveWorkflowJobAction').middleware('auth')
 
 /**
  * The runner protocol.

@@ -135,6 +135,23 @@ export interface WorkflowJob {
    * treating it as fatal is what makes people delete the job instead.
    */
   continueOnError: boolean
+  /**
+   * What kind of job this is.
+   *
+   * `command` is the only kind that consumes a runner and the only one an
+   * Actions workflow can write. The others are decided by the control plane -
+   * a barrier is satisfied by its dependencies, a gate by a person, a trigger
+   * by starting another run - which is why none of them can be claimed.
+   */
+  kind: JobKind
+  /** The extension's own configuration, by kind. Empty for a command job. */
+  settings: Record<string, unknown>
+  /**
+   * `reviewos.group:` - a label several jobs share so a run of two hundred
+   * reads as eight things. A label rather than a container, because nesting
+   * jobs inside jobs would change every query that reads a run.
+   */
+  group: string | null
 }
 
 export interface WorkflowConcurrency {
@@ -289,7 +306,28 @@ const JOB_KEYS = new Set([
   'name', 'runs-on', 'needs', 'if', 'steps', 'env', 'timeout-minutes',
   'strategy', 'continue-on-error', 'container', 'services', 'outputs',
   'permissions', 'concurrency', 'defaults', 'environment', 'uses', 'with', 'secrets',
+  /*
+   * The one key that is not Actions'.
+   *
+   * Everything this instance can do beyond Actions lives under `reviewos:`,
+   * and it is one key on purpose. An extension spread across five new
+   * top-level keys is five things to find and delete when a workflow moves;
+   * this is one, and grepping for it finds every place a repository has
+   * stepped outside the portable surface.
+   *
+   * It is a one-way door and the documentation says so: GitHub refuses a
+   * workflow with a job key it does not know, so a file using this does not
+   * run there. Refusing loudly is the right failure - the alternative is a
+   * `block:` that GitHub ignores, which means a deployment gate that silently
+   * is not there.
+   */
+  'reviewos',
 ])
+
+/** What a job *is*, which Actions has one of and this engine has five. */
+export type JobKind = 'command' | 'wait' | 'block' | 'trigger'
+
+const EXTENSION_KEYS = new Set(['wait', 'block', 'trigger', 'group'])
 
 const STEP_KEYS = new Set([
   'id', 'name', 'run', 'uses', 'with', 'env', 'if',
@@ -576,6 +614,202 @@ export function callOutputsFrom(value: unknown): Array<{ name: string, descripti
   })
 }
 
+/**
+ * The `reviewos:` block on a job: what kind of job it is, and its settings.
+ *
+ * Everything here is *additive*. A job with no `reviewos:` key is a command
+ * job, which is every job an Actions workflow can write, and nothing about how
+ * those behave changes because this exists.
+ *
+ * The kinds and what decides them:
+ *
+ * - **wait** - a barrier. Satisfied by its dependencies rather than by a
+ *   machine, and normalized into `needs:` below so the graph a reader sees is
+ *   the graph that runs.
+ * - **block** - a gate. Waits for a person, optionally collecting typed fields
+ *   from whoever unblocks it, which become the job's outputs. Buildkite calls
+ *   the second one an input step; folding it in is the honest shape, because a
+ *   block with fields *is* an input step and having two names for one row is
+ *   how a model grows a spelling problem.
+ * - **trigger** - starts a run of another workflow, and does not consume a
+ *   runner to do it.
+ */
+function extensionOf(
+  body: Record<string, unknown>,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): { kind: JobKind, settings: Record<string, unknown>, group: string | null } {
+  const raw = asRecord(body.reviewos)
+
+  if (!raw)
+    return { kind: 'command', settings: {}, group: null }
+
+  for (const key of Object.keys(raw)) {
+    if (!EXTENSION_KEYS.has(key)) {
+      errors.push({
+        line: lineOf(source, key, jobLine),
+        message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
+        fix: 'The keys are `wait`, `block`, `trigger` and `group`.',
+      })
+    }
+  }
+
+  const group = typeof raw.group === 'string' && raw.group.trim() ? raw.group.trim() : null
+  const kinds = (['wait', 'block', 'trigger'] as const).filter(key => key in raw)
+
+  if (kinds.length > 1) {
+    errors.push({
+      line: jobLine,
+      message: `Job \`${id}\` is a ${kinds.join(' and a ')} at once`,
+      fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
+    })
+
+    return { kind: 'command', settings: {}, group }
+  }
+
+  if (kinds.length === 0)
+    return { kind: 'command', settings: {}, group }
+
+  const kind = kinds[0]!
+
+  if (Array.isArray(body.steps) && body.steps.length > 0) {
+    errors.push({
+      line: jobLine,
+      message: `Job \`${id}\` is a \`${kind}\` job and also has steps`,
+      fix: 'A wait, block or trigger job runs no commands. Move the steps into a job of their own.',
+    })
+  }
+
+  if (kind === 'wait') {
+    return {
+      kind,
+      settings: {
+        // The variant Buildkite calls `continue_on_failure`: a barrier that
+        // lets the run past it even when something before it failed, which is
+        // how a "publish the results whatever happened" stage is written.
+        continueOnFailure: asRecord(raw.wait)?.['continue-on-failure'] === true,
+      },
+      group,
+    }
+  }
+
+  if (kind === 'trigger')
+    return { kind, settings: triggerFrom(raw.trigger, id, jobLine, source, errors), group }
+
+  return { kind, settings: blockFrom(raw.block, id, jobLine, source, errors), group }
+}
+
+/** `reviewos.block:` - the prompt, and the fields collected on the way through. */
+function blockFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): Record<string, unknown> {
+  // `block: Deploy?` is the short form, because a gate with nothing to collect
+  // is most of them.
+  if (typeof value === 'string')
+    return { prompt: value, fields: [] }
+
+  const body = asRecord(value) ?? {}
+  const prompt = typeof body.prompt === 'string' ? body.prompt : 'Continue?'
+  const fields: Array<Record<string, unknown>> = []
+
+  for (const [index, entry] of (Array.isArray(body.fields) ? body.fields : []).entries()) {
+    const field = asRecord(entry)
+    const where = `field ${index + 1} of job \`${id}\``
+
+    if (!field) {
+      errors.push({
+        line: jobLine,
+        message: `${where} is not a mapping`,
+        fix: 'Each field is a `-` item with `key:` and `type:` under it.',
+      })
+      continue
+    }
+
+    const key = typeof field.key === 'string' ? field.key.trim() : ''
+    const type = typeof field.type === 'string' ? field.type.trim() : 'string'
+
+    if (!key) {
+      errors.push({
+        line: jobLine,
+        message: `${where} has no \`key\``,
+        fix: 'Give it a `key:`, which is the name later jobs read it by.',
+      })
+      continue
+    }
+
+    if (!['string', 'boolean', 'select'].includes(type)) {
+      errors.push({
+        line: lineOf(source, 'type', jobLine),
+        message: `\`${type}\` is not a field type, in ${where}`,
+        fix: 'The types are `string`, `boolean` and `select`.',
+      })
+      continue
+    }
+
+    const options = (Array.isArray(field.options) ? field.options : []).map(option => String(option))
+
+    if (type === 'select' && options.length === 0) {
+      errors.push({
+        line: jobLine,
+        message: `${where} is a \`select\` with no options`,
+        fix: 'Add `options:` with the values somebody may choose.',
+      })
+      continue
+    }
+
+    fields.push({
+      key,
+      type,
+      label: typeof field.label === 'string' ? field.label : key,
+      required: field.required === true,
+      default: field.default === undefined ? null : String(field.default),
+      options,
+    })
+  }
+
+  return { prompt, fields }
+}
+
+/** `reviewos.trigger:` - which workflow to start, and what to pass it. */
+function triggerFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): Record<string, unknown> {
+  if (typeof value === 'string')
+    return { workflow: value, inputs: {}, await: false }
+
+  const body = asRecord(value) ?? {}
+  const workflow = typeof body.workflow === 'string' ? body.workflow.trim() : ''
+
+  if (!workflow) {
+    errors.push({
+      line: lineOf(source, 'trigger', jobLine),
+      message: `Job \`${id}\` triggers nothing`,
+      fix: 'Name the workflow to start, for example `workflow: release.yml`.',
+    })
+  }
+
+  return {
+    workflow,
+    inputs: asRecord(body.inputs) ?? {},
+    /*
+     * Async by default, which is Buildkite's default and the right one: a
+     * trigger that waits turns one stuck run into two, and the common use -
+     * "start the deploy pipeline" - has nothing to wait for.
+     */
+    await: body.await === true,
+  }
+}
+
 /** `workflow_call.secrets`: names the called workflow says it needs. */
 export function callSecretsFrom(value: unknown): Array<{ name: string, description: string, required: boolean }> {
   const record = asRecord(value)
@@ -798,13 +1032,18 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
 
     const runsOn = runsOnFrom(body['runs-on'])
     const callsAnother = typeof body.uses === 'string' && body.uses.length > 0
+    const extension = extensionOf(body, id, jobLine, source, errors)
 
     /*
      * A job that calls another workflow has no `runs-on`, and requiring one
      * refused every reusable-workflow caller ever written. Its jobs run on
      * whatever the *called* workflow says, which is the point of calling it.
+     *
+     * Nor does a wait, block or trigger job: none of them reaches a machine at
+     * all, so asking which machine would be asking about something that does
+     * not happen.
      */
-    if (runsOn.length === 0 && !callsAnother) {
+    if (runsOn.length === 0 && !callsAnother && extension.kind === 'command') {
       errors.push({
         line: jobLine,
         message: `Job \`${id}\` does not say what it runs on`,
@@ -813,7 +1052,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
     }
 
     const rawSteps = Array.isArray(body.steps) ? body.steps : []
-    if (rawSteps.length === 0 && !('uses' in body)) {
+    if (rawSteps.length === 0 && !('uses' in body) && extension.kind === 'command') {
       errors.push({
         line: jobLine,
         message: `Job \`${id}\` has no steps`,
@@ -922,7 +1161,38 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       // expression here is read by nothing yet, and reading `${{ inputs.soft }}`
       // as truthy text would make a job unfailable by accident.
       continueOnError: body['continue-on-error'] === true,
+      kind: extension.kind,
+      settings: extension.settings,
+      group: extension.group,
     })
+  }
+
+  /*
+   * A barrier is sugar for `needs:`, resolved here.
+   *
+   * Buildkite's wait step is positional - everything before it finishes before
+   * anything after it starts - and this turns that into edges: the barrier
+   * needs every job declared before it, and every job declared after it needs
+   * the barrier unless it named its own dependencies.
+   *
+   * Done once, at parse time, so **the graph a reader sees is the graph that
+   * runs**. The alternative is a dispatcher that knows about positions, which
+   * means a run page that cannot explain why a job is waiting without
+   * re-deriving the file.
+   */
+  for (const [index, job] of jobs.entries()) {
+    if (job.kind !== 'wait')
+      continue
+
+    const before = jobs.slice(0, index).map(other => other.id)
+    const after = jobs.slice(index + 1)
+
+    job.needs = [...new Set([...job.needs, ...before])]
+
+    for (const later of after) {
+      if (later.needs.length === 0)
+        later.needs = [job.id]
+    }
   }
 
   const known = new Set(jobs.map(job => job.id))

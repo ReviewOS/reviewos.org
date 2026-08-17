@@ -277,6 +277,59 @@ const runnerFacts = anyQueued
       }))
   : []
 
+/**
+ * A gate's prompt and fields, out of the settings column.
+ *
+ * Unreadable settings mean a gate with no fields rather than a page that
+ * fails: the gate is the point, and a field list this cannot parse should not
+ * be the reason nobody can approve a deployment.
+ */
+function gateOf(settings: unknown): { prompt: string, fields: any[] } {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+
+    return {
+      prompt: typeof parsed?.prompt === 'string' ? parsed.prompt : 'Continue?',
+      fields: Array.isArray(parsed?.fields) ? parsed.fields : [],
+    }
+  }
+  catch {
+    return { prompt: 'Continue?', fields: [] }
+  }
+}
+
+/*
+ * Who opened each gate, by handle.
+ *
+ * "Who approved this deployment" is a question asked while looking at the run,
+ * so the answer is on the row rather than in an audit log somewhere else.
+ */
+const approverIds = [...new Set(jobRows.map(job => Number(job.approved_by_id ?? 0)).filter(Boolean))]
+
+const approvers = new Map<number, string>(
+  approverIds.length > 0
+    ? (await db.selectFrom('users').select(['id', 'handle']).where('id', 'in', approverIds).execute())
+        .map((row: any) => [Number(row.id), String(row.handle)])
+    : [],
+)
+
+const canApprove = Boolean(repoAccess?.can?.('workflow:approve'))
+
+/*
+ * The runs this one triggered, by number.
+ *
+ * A trigger job whose only trace is an id is a dead end on a screen: the point
+ * of the kind is that it started something, and the reader wants to open it.
+ */
+const triggeredIds = [...new Set(jobRows.map(job => Number(job.triggered_run_id ?? 0)).filter(Boolean))]
+
+const triggeredNumbers = new Map<number, number>(
+  triggeredIds.length > 0
+    ? (await db.selectFrom('workflow_runs').select(['id', 'number']).where('id', 'in', triggeredIds).execute())
+        .map((row: any) => [Number(row.id), Number(row.number)])
+    : [],
+)
+
 const jobs = jobRows.map((job) => {
   const needs = String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
 
@@ -317,6 +370,28 @@ const jobs = jobRows.map((job) => {
      * wrong when it was `fail-fast` or a timeout that stopped it.
      */
     reason: job.condition_reason ? String(job.condition_reason) : '',
+    /*
+     * What kind of job this is. `command` is the only one a machine runs; the
+     * rest are the control plane's own work and read differently on a screen -
+     * a gate with no logs is waiting for somebody, not stuck.
+     */
+    kind: String(job.kind ?? 'command'),
+    group: job.group_label ? String(job.group_label) : '',
+    /*
+     * A gate's prompt and fields, flattened onto the job rather than nested.
+     *
+     * `@foreach (job.gate.fields as field)` inside `@foreach (jobs as job)`
+     * renders nothing: stx resolves a *property* of a loop variable but not a
+     * path through one, and the failure is an empty region rather than an
+     * error. One level is the shape that works.
+     */
+    gatePrompt: String(job.kind ?? '') === 'block' ? gateOf(job.settings).prompt : '',
+    gateFields: String(job.kind ?? '') === 'block' ? gateOf(job.settings).fields : [],
+    /** Only a gate that is actually waiting, and only for somebody who may open it. */
+    openable: String(job.state) === 'paused' && canApprove,
+    approvedBy: approvers.get(Number(job.approved_by_id ?? 0)) ?? '',
+    triggeredRun: job.triggered_run_id ? Number(job.triggered_run_id) : 0,
+    triggeredRunNumber: triggeredNumbers.get(Number(job.triggered_run_id ?? 0)) ?? 0,
     /*
      * The summary, rendered here rather than in the template.
      *
@@ -375,6 +450,20 @@ const jobs = jobRows.map((job) => {
     })),
   }
 })
+
+/*
+ * The heading each group prints once.
+ *
+ * Computed as a pass over the jobs in their declared order rather than by
+ * grouping them into containers: a run screen that re-sorts jobs disagrees with
+ * the file it came from, and the order is what a reader is checking against.
+ */
+let lastGroup = ''
+
+for (const job of jobs) {
+  job.groupHeading = job.group && job.group !== lastGroup ? job.group : ''
+  lastGroup = job.group || lastGroup
+}
 
 const ref = String(run?.event_ref ?? '')
 const branch = ref.startsWith('refs/heads/')
@@ -457,6 +546,17 @@ const base = `/${ownerHandle}/${repositoryName}`
 
       <div class="jobs">
         @foreach (jobs as job)
+          {{--
+            A group heading, when this job's group differs from the one before
+            it. A run of two hundred jobs reads as eight things this way, and
+            the jobs stay in the order the file declared rather than being
+            re-sorted into containers - which would make a run screen disagree
+            with the file it came from.
+          --}}
+          @if (job.groupHeading)
+            <h3 class="job-group">{{ job.groupHeading }}</h3>
+          @endif
+
           <article class="panel job">
             <header class="job-head">
               <span class="run-dot run-{{ job.tone }}" aria-hidden="true"></span>
@@ -520,6 +620,62 @@ const base = `/${ownerHandle}/${repositoryName}`
               <section class="job-summary">
                 {!! job.summaryHtml !!}
               </section>
+            @endif
+
+            {{--
+              A gate waiting for a person, and the form that opens it. Posted
+              to the same public action the API calls, like the cancel control
+              above it.
+            --}}
+            @if (job.gatePrompt && job.state === 'paused')
+              <div class="job-gate">
+                <p class="job-gate-prompt">{{ job.gatePrompt }}</p>
+
+                @if (job.openable)
+                  <form method="post" action="/api/repos/workflow-runs/approve" class="job-gate-form">
+                    <CsrfField />
+                    <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                    <input type="hidden" name="repo" value="{{ repositoryName }}">
+                    <input type="hidden" name="number" value="{{ runNumber }}">
+                    <input type="hidden" name="job" value="{{ job.jobId }}">
+
+                    @foreach (job.gateFields as field)
+                      <label class="job-gate-field">
+                        <span>{{ field.label }}</span>
+
+                        @if (field.type === 'select')
+                          <select name="{{ field.key }}">
+                            @foreach (field.options as option)
+                              <option value="{{ option }}">{{ option }}</option>
+                            @endforeach
+                          </select>
+                        @elseif (field.type === 'boolean')
+                          <select name="{{ field.key }}">
+                            <option value="false">false</option>
+                            <option value="true">true</option>
+                          </select>
+                        @else
+                          <input type="text" name="{{ field.key }}" value="{{ field.default ?? '' }}">
+                        @endif
+                      </label>
+                    @endforeach
+
+                    <button class="button" type="submit">Approve</button>
+                  </form>
+                @else
+                  <p class="muted job-gate-note">Somebody with write access to this repository can open this.</p>
+                @endif
+              </div>
+            @endif
+
+            @if (job.approvedBy)
+              <p class="muted job-meta">Opened by {{ job.approvedBy }}</p>
+            @endif
+
+            @if (job.triggeredRun)
+              <p class="muted job-meta">
+                Started <a href="/{{ ownerHandle }}/{{ repositoryName }}/run/{{ job.triggeredRunNumber }}">run #{{ job.triggeredRunNumber }}</a>
+              </p>
             @endif
 
             @if (job.log || job.live)
@@ -701,6 +857,27 @@ const base = `/${ownerHandle}/${repositoryName}`
   .job-summary th, .job-summary td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 
   .job-fix { opacity: 0.85; }
+
+  .job-group {
+    margin: 22px 0 2px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .job-gate {
+    margin: 10px 0 0;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  .job-gate-prompt { margin: 0 0 10px; font-weight: 600; }
+  .job-gate-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+  .job-gate-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .job-gate-note { margin: 0; font-size: 13px; }
 
   .log > summary {
     cursor: pointer;
