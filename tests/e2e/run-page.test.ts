@@ -33,6 +33,18 @@ function unique(prefix: string): string {
   return `${prefix}${Buffer.from(crypto.getRandomValues(new Uint8Array(5))).toString('hex')}`
 }
 
+/** The commit a run is about, for a test that has to file a check against it. */
+async function headShaOfRun(number: number): Promise<string> {
+  const run: any = await db
+    .selectFrom('workflow_runs')
+    .select(['head_sha'])
+    .where('repository_id', '=', created.repositoryId)
+    .where('number', '=', number)
+    .executeTakeFirst()
+
+  return String(run?.head_sha ?? '')
+}
+
 /** The page as a reader receives it, optionally signed in. */
 async function page(path: string, token?: string): Promise<string> {
   const answer = await fetch(`http://127.0.0.1:${port}${path}`, {
@@ -212,6 +224,54 @@ describe('the run screen', () => {
     })
 
     expect(answer.status).toBe(404)
+  })
+})
+
+/*
+ * A step summary is the one part of a run written *for a reader* - the table of
+ * what was built, the three numbers somebody wanted - and it was being kept on
+ * the check and shown nowhere. A run page with ten thousand lines of output and
+ * not the paragraph the job wrote has the two the wrong way round.
+ */
+describe('what a job wrote about itself', () => {
+  test('the step summary renders as markdown on the run', async () => {
+    if (!available)
+      return
+
+    const sha = await headShaOfRun(created.finished)
+
+    await db.insertInto('check_runs').values({
+      repository_id: created.repositoryId,
+      head_sha: sha,
+      // Filed under the job's name, which is how the annotation endpoint files
+      // it and how this page finds it.
+      name: 'Build the thing',
+      status: 'completed',
+      conclusion: 'success',
+      provider: 'workflow',
+      summary: '### Built it\n\n| package | size |\n| --- | --- |\n| app | 1.2 MB |\n',
+    } as any).execute()
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
+
+    expect(html).toContain('Built it')
+    // Markdown, not the literal pipes and dashes somebody would otherwise be
+    // reading off the screen.
+    expect(html).toContain('<table')
+    expect(html).toContain('1.2 MB')
+    expect(html).not.toContain('| --- |')
+  })
+
+  test('and a summary cannot take the page\'s own heading ids', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
+
+    // Headings come from a step's markdown, which is to say from anybody who
+    // can push. An id is a global name on the page, so user-chosen ones live
+    // in their own namespace.
+    expect(html).toContain('id="summary-')
   })
 })
 

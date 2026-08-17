@@ -22,6 +22,7 @@ import { explainWaiting } from '../../../../functions/runs'
 // `resources/components/RepoBrowser.stx`.
 const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 import { cookieJarFromHeader } from '../../../../functions/identity'
+import { renderMarkdown } from '../../../../functions/markdown'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
@@ -72,6 +73,33 @@ const jobRows: any[] = run
       .orderBy('position')
       .execute()
   : []
+
+/*
+ * What each job wrote to `GITHUB_STEP_SUMMARY`.
+ *
+ * A step summary is markdown a job wrote about itself - the table of what it
+ * built, the diff of what changed, the three numbers somebody actually wanted -
+ * and it is the one part of a run that is *written for a reader* rather than
+ * printed for a log. Leaving it only on the check meant a run page that showed
+ * ten thousand lines of output and not the paragraph the job wrote to be read.
+ *
+ * Keyed by job name against this run's commit, which is how the annotation
+ * endpoint files it.
+ */
+const summaryRows: any[] = run && jobRows.length > 0
+  ? await db
+      .selectFrom('check_runs')
+      .select(['name', 'summary'])
+      .where('repository_id', '=', Number(repoRow?.id ?? 0))
+      .where('head_sha', '=', String(run.head_sha))
+      .execute()
+  : []
+
+const summaryByName = new Map<string, string>(
+  summaryRows
+    .filter(row => String(row.summary ?? '').trim())
+    .map(row => [String(row.name), String(row.summary)]),
+)
 
 // Every step in the run in one query rather than one per job.
 const stepRows: any[] = jobRows.length > 0
@@ -281,6 +309,25 @@ const jobs = jobRows.map((job) => {
      */
     reason: job.condition_reason ? String(job.condition_reason) : '',
     /*
+     * The summary, rendered here rather than in the template.
+     *
+     * It is markdown from a step, which is to say from whoever can push to the
+     * repository, so it goes through the same constructed-HTML renderer every
+     * issue body does - nothing is sanitized, the HTML is built tag by tag from
+     * a closed set. Rendering in the template would mean markup assembled where
+     * nobody escaped it.
+     */
+    summaryHtml: summaryByName.has(job.name ? String(job.name) : String(job.job_id))
+      ? renderMarkdown(summaryByName.get(job.name ? String(job.name) : String(job.job_id))!, {
+          owner: ownerHandle,
+          repository: repositoryName,
+          // Headings come from a step's markdown, and an id is a global name on
+          // the page: without a prefix a summary titled "files" could steal the
+          // page's own anchor.
+          headingIdPrefix: `summary-${Number(job.id)}-`,
+        })
+      : '',
+    /*
      * A red job on a green run, said out loud.
      *
      * `continue-on-error` is the one case where a failed job is not a problem,
@@ -444,6 +491,18 @@ const base = `/${ownerHandle}/${repositoryName}`
               @endif
             </p>
 
+            {{--
+              What the job wrote about itself, before what it printed. A run
+              page that shows ten thousand lines of output and not the
+              paragraph the job wrote to be read has the two the wrong way
+              round.
+            --}}
+            @if (job.summaryHtml)
+              <section class="job-summary">
+                {!! job.summaryHtml !!}
+              </section>
+            @endif
+
             @if (job.log || job.live)
               <details class="log"@if (job.live) open @endif>
                 <summary>Output</summary>
@@ -605,6 +664,22 @@ const base = `/${ownerHandle}/${repositoryName}`
   /* Closed by default: a run with six jobs is a page of scrollback otherwise,
     and the reader opening this usually wants the one that failed. */
   .log { margin-top: 10px; }
+
+  .job-summary {
+    margin: 10px 0 0;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2, var(--surface));
+    font-size: 14px;
+    line-height: 1.55;
+    overflow-x: auto;
+  }
+
+  .job-summary > :first-child { margin-top: 0; }
+  .job-summary > :last-child { margin-bottom: 0; }
+  .job-summary table { border-collapse: collapse; }
+  .job-summary th, .job-summary td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 
   .log > summary {
     cursor: pointer;

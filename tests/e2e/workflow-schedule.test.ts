@@ -198,10 +198,21 @@ describe('the schedule sweep', () => {
 
     const before = (await runsHere()).length
 
-    // Swept a second ago: a minutely cron has not come round again.
-    await lastSweptAt(new Date(Date.now() - 1000))
+    /*
+     * Both ends of the window are pinned, and to the same instant.
+     *
+     * The first version of this swept "a second ago" against a `* * * * *`
+     * cron and failed roughly once in sixty runs - a minute boundary landing
+     * inside that second really is an occurrence, so the sweep was right and
+     * the test was wrong. A test whose truth depends on which second of the
+     * minute it runs in is worse than no test: it teaches people to re-run the
+     * suite until it goes green.
+     */
+    const instant = new Date('2026-03-04T05:06:07.000Z')
 
-    const result = await sweepSchedules()
+    await lastSweptAt(instant)
+
+    const result = await sweepSchedules(instant)
 
     expect(result.created).toBe(0)
     expect((await runsHere()).length).toBe(before)

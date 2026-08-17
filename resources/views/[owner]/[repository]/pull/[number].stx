@@ -19,7 +19,7 @@ import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, 
 // exporting one name is what breaks the auto-import barrel for every function
 // in the product, so the convenience went.
 import { blockedBy, buildStack, orphanMessage, orphanReason, stackSummary } from '../../../../functions/stack'
-import { renderMarkdownHighlighted } from '../../../../functions/markdown'
+import { renderMarkdown, renderMarkdownHighlighted } from '../../../../functions/markdown'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
@@ -249,7 +249,28 @@ const annotatedPaths = new Set((checks?.annotations ?? []).map((one: any) => Str
  * misconfigured CI leaves every commit in, and rendering it the same as one
  * that passed is how nobody notices for a month.
  */
-const checkEntries = checks?.entries ?? []
+/*
+ * A check's summary is markdown, and on this page it was printed as text.
+ *
+ * It is what a job wrote *for a reader* - the table of what it built, the three
+ * numbers somebody wanted - and a `| --- |` row rendered literally in a
+ * paragraph is the one place the product looked like it did not know what it
+ * was showing. Rendered through the same constructed-HTML renderer as an issue
+ * body, because it comes from whoever can push to the repository.
+ */
+const checkEntries = (checks?.entries ?? []).map((entry: any) => ({
+  ...entry,
+  summaryHtml: String(entry.summary ?? '').trim()
+    ? renderMarkdown(String(entry.summary), {
+        owner,
+        repository: repositoryName,
+        // A summary heading called "files" must not be able to take the id the
+        // page's own tab uses.
+        headingIdPrefix: `check-${String(entry.id ?? entry.name ?? '')}-`,
+      })
+    : '',
+}))
+
 const checksState = String(checks?.state ?? 'neutral')
 
 const checksTone = checksState === 'success'
@@ -742,8 +763,8 @@ const statePill = pullRequest
                         @endif
                       </p>
 
-                      @if (entry.summary)
-                        <p class="checks-summary">{{ entry.summary }}</p>
+                      @if (entry.summaryHtml)
+                        <div class="checks-summary">{!! entry.summaryHtml !!}</div>
                       @endif
                     </li>
                   @endforeach
@@ -1072,7 +1093,11 @@ const statePill = pullRequest
     color: var(--muted);
   }
   .checks-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12.5px; margin: 4px 0 0 17px; }
-  .checks-summary { font-size: 13px; margin: 5px 0 0 17px; }
+  .checks-summary { font-size: 13px; margin: 5px 0 0 17px; overflow-x: auto; }
+  .checks-summary > :first-child { margin-top: 0; }
+  .checks-summary > :last-child { margin-bottom: 0; }
+  .checks-summary table { border-collapse: collapse; }
+  .checks-summary th, .checks-summary td { border: 1px solid var(--border); padding: 3px 7px; text-align: left; }
   .checks-note { font-size: 12.5px; margin-top: 12px; }
 
   /* A check's findings, in the diff. Bordered on the left rather than boxed:

@@ -581,8 +581,20 @@ cannot talk back to the runner is a workflow that fails on its second line.
 - [x] File-based protocol: `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_STATE`, and
       `GITHUB_STEP_SUMMARY`, with the multiline delimiter form, under both `GITHUB_*` and
       `REVIEWOS_*` names
-- [ ] Step summaries render as markdown on the run and, where they belong to a check, on the pull
+- [x] Step summaries render as markdown on the run and, where they belong to a check, on the pull
       request
+
+      A step summary is the one part of a run written *for a reader* rather than printed for a log:
+      the table of what was built, the diff of what changed, the three numbers somebody actually
+      wanted. It was being collected, filed on the check, and shown nowhere on the run - a page with
+      ten thousand lines of output and not the paragraph the job wrote has the two the wrong way
+      round. On the pull request it was printed as text, so a markdown table arrived as literal
+      pipes and dashes.
+
+      Rendered through the same constructed-HTML renderer as an issue body, because it comes from
+      whoever can push to the repository: nothing is sanitized, the HTML is built tag by tag from a
+      closed set. Headings get a per-job id prefix, since a summary titled "files" must not be able
+      to take the id the page's own tab uses.
 - [x] The default environment variable set: `GITHUB_REPOSITORY`, `GITHUB_SHA`, `GITHUB_REF`,
       `GITHUB_REF_NAME`, `GITHUB_HEAD_REF`, `GITHUB_BASE_REF`, `GITHUB_WORKSPACE`, `GITHUB_ACTOR`,
       `GITHUB_RUN_ID`, `GITHUB_RUN_NUMBER`, `GITHUB_RUN_ATTEMPT`, `GITHUB_EVENT_NAME`,

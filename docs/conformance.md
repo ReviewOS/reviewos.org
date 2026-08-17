@@ -49,7 +49,7 @@ These do what Actions does. A workflow using only these keys behaves the same he
 | `steps[*].if` | step | Evaluated by the runner against what the steps before it produced, so `steps.<id>.outputs`, `job.status`, `needs` and `always()` all work. A step whose condition is false says so in the log rather than vanishing. |
 | `${{ }} operators` | workflow | Comparison, `&&`, `||`, `!`, indexing and the star filter, with Actions' coercion rules copied deliberately. |
 | `workflow commands` | step | `::error::`, `::warning::`, `::notice::`, `::group::`, `::add-mask::` and `::stop-commands::`. An `::error file=…::` becomes an annotation on the diff. |
-| `GITHUB_ENV, GITHUB_PATH, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY` | step | Written per step and applied to the steps after it; `GITHUB_OUTPUT` is what fills `steps.<id>.outputs`. |
+| `GITHUB_ENV, GITHUB_PATH, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY` | step | Written per step and applied to the steps after it; `GITHUB_OUTPUT` is what fills `steps.<id>.outputs`, and `GITHUB_STEP_SUMMARY` is rendered as markdown on the run and on the pull request's checks. |
 | `default environment variables` | step | The set a workflow expects - `GITHUB_REPOSITORY`, `GITHUB_REF`, `GITHUB_REF_NAME`, `GITHUB_HEAD_REF`, `GITHUB_BASE_REF`, `GITHUB_SHA`, `GITHUB_ACTOR`, `GITHUB_WORKFLOW`, `GITHUB_JOB`, `GITHUB_RUN_ID`, `GITHUB_RUN_NUMBER`, `GITHUB_EVENT_NAME`, `GITHUB_EVENT_PATH`, `GITHUB_SERVER_URL`, `GITHUB_API_URL`, `RUNNER_OS` and the rest - each also set as `REVIEWOS_*`. `GITHUB_SERVER_URL` is the address the runner actually reached rather than a configured one, because a URL that does not resolve from a runner is worse than none. |
 
 ## Different on purpose
