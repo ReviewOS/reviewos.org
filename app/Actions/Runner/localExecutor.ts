@@ -26,6 +26,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { checkPolicy, defaultPolicy, parseActionRef } from './actionRef'
+import type { ActionDefinition } from './actionFile'
+import { inputEnvironment, missingInputs, parseActionFile } from './actionFile'
 import { CommandReader } from './commands'
 
 export interface LocalRunnerOptions {
@@ -47,6 +50,15 @@ export interface LocalRunnerOptions {
    * that a remote one cannot, and it is the reason it is worth having.
    */
   reposRoot?: string
+  /**
+   * Where actions may come from.
+   *
+   * The closed default - local actions and nothing else - because an action is
+   * code from somewhere else that a repository's workflow runs on this
+   * instance's runners. Turning that on is an operator's decision, and it is
+   * one they should have to make.
+   */
+  policy?: ReturnType<typeof defaultPolicy>
   /** Called with each line the runner wants to say, so a command can print it. */
   say?: (line: string) => void
 }
@@ -209,14 +221,41 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     for (const [index, step] of steps.entries()) {
       const name = String(step.name ?? step.run ?? step.uses ?? `step ${index + 1}`)
 
-      /*
-       * `uses:` is not executed. Resolving an action means fetching and running
-       * somebody else's code, which needs the action resolution and caching
-       * that phase 15 has not built - and guessing at it would run the wrong
-       * thing rather than nothing.
-       */
       if (step.uses) {
-        await send(`::group::${name}\nSkipped: this runner does not resolve actions yet (\`uses: ${step.uses}\`).\n::endgroup::\n`)
+        await send(`::group::${name}\n`)
+
+        const result = await runAction({
+          uses: String(step.uses),
+          with: step.with ?? {},
+          workspace,
+          job,
+          policy: options.policy ?? defaultPolicy(),
+          environment: { ...environmentFor(job, workspace), ...carried },
+          onOutput: (text, stream) => send(text, stream),
+        })
+
+        await flush()
+        await send('::endgroup::\n')
+
+        if (!result.ok) {
+          /*
+           * `continue-on-error` decided here rather than at the end.
+           *
+           * A step that says the job survives its failure is a step whose
+           * failure is expected, and treating it as fatal turns an optional
+           * lint into a broken pipeline. The message still goes to the log,
+           * because "expected to fail" is not "not worth mentioning".
+           */
+          if (step.continue_on_error) {
+            await send(`${name} failed, and the step says the job continues: ${result.reason}\n`, 'stderr')
+            continue
+          }
+
+          failed = `${name}: ${result.reason}`
+          await send(`${failed}\n`, 'stderr')
+          break
+        }
+
         continue
       }
 
@@ -240,7 +279,9 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       const result = await runStep({
         command: String(step.run),
         cwd: step.working_directory ? join(workspace, String(step.working_directory)) : workspace,
-        environment,
+        // A step's own `env:` is the narrowest level, so it wins - the same
+        // precedence `Workflow/env.ts` describes for the levels above it.
+        environment: { ...environment, ...(step.env ?? {}) },
         onOutput: (text, stream) => send(text, stream),
       })
 
@@ -263,6 +304,11 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       await send('::endgroup::\n')
 
       if (!result.ok) {
+        if (step.continue_on_error) {
+          await send(`${name} exited ${result.exitCode}, and the step says the job continues\n`, 'stderr')
+          continue
+        }
+
         failed = `${name} exited ${result.exitCode}`
         await send(`${failed}\n`, 'stderr')
         break
@@ -424,6 +470,191 @@ async function checkoutCode(input: {
   return clone.ok
     ? { ok: true, reason: 'checked out' }
     : { ok: false, reason: `the checkout failed (git exited ${clone.exitCode})` }
+}
+
+/**
+ * Run a `uses:` step.
+ *
+ * Local actions only, for now, and the refusal for everything else is a
+ * *message* rather than silence: a step that did nothing and said nothing is
+ * the failure people spend an afternoon on.
+ *
+ * A composite action's steps run here, in order, with the caller's environment
+ * plus the action's inputs. That is most of what an action is in practice -
+ * repositories' own actions are nearly all composite - and it needs nothing
+ * this runner does not already have.
+ */
+async function runAction(input: {
+  uses: string
+  with: Record<string, unknown>
+  workspace: string
+  job: any
+  policy: ReturnType<typeof defaultPolicy>
+  environment: Record<string, string>
+  onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
+}): Promise<{ ok: boolean, reason: string }> {
+  const reference = parseActionRef(input.uses)
+  const decision = checkPolicy(reference, input.policy)
+
+  if (!decision.allowed) {
+    await input.onOutput(`${decision.reason}\n`, 'stderr')
+
+    return { ok: false, reason: decision.reason }
+  }
+
+  if (reference.kind !== 'local') {
+    /*
+     * Allowed by policy, and still not runnable here yet: fetching a remote
+     * action needs the cache and the ref resolution that come next. Reported
+     * as a failure rather than skipped, because a workflow whose action did
+     * not run did not do what it says it did.
+     */
+    const reason = `\`${input.uses}\` is allowed but this runner cannot fetch remote actions yet`
+
+    await input.onOutput(`${reason}\n`, 'stderr')
+
+    return { ok: false, reason }
+  }
+
+  const directory = join(input.workspace, String(reference.path))
+  const file = ['action.yml', 'action.yaml']
+    .map(candidate => join(directory, candidate))
+    .find(candidate => existsSync(candidate))
+
+  if (!file) {
+    const reason = `no \`action.yml\` at \`${reference.path}\``
+
+    await input.onOutput(`${reason}\n`, 'stderr')
+
+    return { ok: false, reason }
+  }
+
+  const definition = parseActionFile(read(file))
+
+  if (definition.error) {
+    await input.onOutput(`${definition.error}\n`, 'stderr')
+
+    return { ok: false, reason: definition.error }
+  }
+
+  const supplied: Record<string, string> = {}
+
+  for (const [name, value] of Object.entries(input.with ?? {}))
+    supplied[name] = value === null || value === undefined ? '' : String(value)
+
+  for (const missing of missingInputs(definition, supplied))
+    await input.onOutput(`::warning::\`${missing}\` is a required input of this action and was not given\n`, 'stdout')
+
+  const environment = {
+    ...input.environment,
+    ...inputEnvironment(definition, supplied),
+    // Where the action's own files are, which is what an action reads to find
+    // anything it ships alongside its entry point.
+    GITHUB_ACTION_PATH: directory,
+  }
+
+  if (definition.kind === 'composite')
+    return runComposite(definition, input.workspace, environment, input.onOutput)
+
+  if (definition.kind === 'javascript')
+    return runJavaScript(definition, directory, input.workspace, environment, input.onOutput)
+
+  const reason = `\`${input.uses}\` is a ${definition.kind} action, which needs a container this runner does not have`
+
+  await input.onOutput(`${reason}\n`, 'stderr')
+
+  return { ok: false, reason }
+}
+
+/** A composite action: its steps, in order, in the caller's workspace. */
+async function runComposite(
+  definition: ActionDefinition,
+  workspace: string,
+  environment: Record<string, string>,
+  onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>,
+): Promise<{ ok: boolean, reason: string }> {
+  for (const [index, step] of definition.steps.entries()) {
+    const name = step.name ?? step.run ?? step.uses ?? `step ${index + 1}`
+
+    /*
+     * A composite step that itself `uses:` something is refused rather than
+     * followed. Nesting is real and worth supporting, and doing it without the
+     * depth limit and cycle check the reusable-workflow path already has would
+     * be the version that recurses forever.
+     */
+    if (step.uses) {
+      const reason = `\`${name}\` uses another action, which this runner does not nest yet`
+
+      await onOutput(`${reason}\n`, 'stderr')
+
+      return { ok: false, reason }
+    }
+
+    if (!step.run)
+      continue
+
+    await onOutput(`::group::${name}\n`, 'stdout')
+
+    const result = await runStep({
+      command: step.run,
+      /*
+       * A composite step's working directory defaults to the *workspace*, not
+       * to the action's own directory. Actions is explicit about this and it
+       * reads as wrong until you write one: an action's steps operate on the
+       * repository that called them, and `GITHUB_ACTION_PATH` is how it reaches
+       * its own files.
+       */
+      cwd: step.workingDirectory ? join(workspace, step.workingDirectory) : workspace,
+      environment: { ...environment, ...step.env },
+      onOutput,
+    })
+
+    await onOutput('::endgroup::\n', 'stdout')
+
+    if (!result.ok)
+      return { ok: false, reason: `${name} exited ${result.exitCode}` }
+  }
+
+  return { ok: true, reason: 'every step of the action succeeded' }
+}
+
+/**
+ * A JavaScript action: its entry point, run with the runtime this host has.
+ *
+ * Bun rather than node, and the log says so. An action written for `node20`
+ * that depends on something Bun does not implement will fail in a way its
+ * author can read, which is better than this runner refusing every JavaScript
+ * action for not having a node binary it may well have.
+ */
+async function runJavaScript(
+  definition: ActionDefinition,
+  directory: string,
+  workspace: string,
+  environment: Record<string, string>,
+  onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>,
+): Promise<{ ok: boolean, reason: string }> {
+  const entry = join(directory, String(definition.main))
+
+  if (!existsSync(entry)) {
+    const reason = `this action's \`main:\` names \`${definition.main}\`, which is not in the action's directory`
+
+    await onOutput(`${reason}\n`, 'stderr')
+
+    return { ok: false, reason }
+  }
+
+  await onOutput(`Running ${definition.main} with bun (the action asked for ${definition.runtime}).\n`, 'stdout')
+
+  const result = await runStep({
+    command: `bun ${JSON.stringify(entry)}`,
+    cwd: workspace,
+    environment,
+    onOutput,
+  })
+
+  return result.ok
+    ? { ok: true, reason: 'the action exited zero' }
+    : { ok: false, reason: `the action exited ${result.exitCode}` }
 }
 
 /**

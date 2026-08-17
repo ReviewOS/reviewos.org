@@ -84,6 +84,31 @@ jobs:
           echo "carried: \$BUILT"
           echo "### Built it" >> "\$GITHUB_STEP_SUMMARY"
           echo "::warning file=marker.txt,line=1,title=Nit::Could say more"
+      - name: Use a local action
+        uses: ./.reviewos/actions/greet
+        with:
+          who: reviewer
+      - name: Refuse an action from the internet
+        uses: actions/checkout@v4
+        continue-on-error: true
+`
+
+/** A composite action in the repository, which is most of what an action is. */
+const ACTION = `name: Greet
+description: Greets somebody
+inputs:
+  who:
+    description: Who to greet
+    default: world
+runs:
+  using: composite
+  steps:
+    - name: Greet them
+      shell: bash
+      run: echo "greetings, \$INPUT_WHO"
+    - name: Prove the workspace is the caller's
+      shell: bash
+      run: cat marker.txt
 `
 
 beforeAll(async () => {
@@ -132,6 +157,9 @@ beforeAll(async () => {
 
     writeFileSync(join(work, '.reviewos', 'workflows', 'local.yml'), WORKFLOW)
     writeFileSync(join(work, 'marker.txt'), 'this came from the repository\n')
+
+    mkdirSync(join(work, '.reviewos', 'actions', 'greet'), { recursive: true })
+    writeFileSync(join(work, '.reviewos', 'actions', 'greet', 'action.yml'), ACTION)
 
     await git(work, 'add', '-A')
     await git(work, 'commit', '-m', 'a workflow and a marker')
@@ -399,6 +427,59 @@ describe('the local runner', () => {
     // "Local failed" is what the reader already knew.
     expect(String(check.name)).toBe('greet')
     expect(String(check.provider)).toBe('workflow')
+  }, 60_000)
+
+  /*
+   * A local composite action, which is most of what an action is in practice:
+   * repositories' own actions are nearly all composite, and running one needs
+   * nothing this runner does not already have.
+   */
+  test('a local composite action runs, with its inputs and the caller\'s workspace', async () => {
+    if (!available)
+      return
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .innerJoin('workflow_jobs', 'workflow_jobs.id', '=', 'workflow_job_logs.workflow_job_id')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select(['workflow_job_logs.content as content'])
+      .where('workflow_runs.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_job_logs.sequence')
+      .execute()
+
+    const text = logs.map(row => String(row.content ?? '')).join('')
+
+    // `with: { who: reviewer }` reached the action as INPUT_WHO.
+    expect(text).toContain('greetings, reviewer')
+
+    /*
+     * And its steps ran in the *caller's* workspace rather than the action's
+     * own directory - which reads as wrong until you write an action: its steps
+     * operate on the repository that called them.
+     */
+    expect(text.split('greetings, reviewer')[1]).toContain('this came from the repository')
+  }, 60_000)
+
+  /*
+   * The closed default. An action is code from somewhere else that a
+   * repository's workflow runs on this instance's runners, so fetching one is
+   * an operator's decision rather than a workflow author's.
+   */
+  test('an action from the internet is refused, with the reason in the log', async () => {
+    if (!available)
+      return
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .innerJoin('workflow_jobs', 'workflow_jobs.id', '=', 'workflow_job_logs.workflow_job_id')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select(['workflow_job_logs.content as content'])
+      .where('workflow_runs.repository_id', '=', created.repositoryId)
+      .execute()
+
+    const text = logs.map(row => String(row.content ?? '')).join('')
+
+    expect(text).toContain('no default action host')
   }, 60_000)
 
   test('a second claim finds nothing, because the job is finished', async () => {

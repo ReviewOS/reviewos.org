@@ -23,6 +23,23 @@ import { claimNextJob } from './claim'
  * by [the threat model](../../../docs/ci-threat-model.md) an untrusted run
  * never receives one at all.
  */
+/** A stored JSON column as an object, or nothing when it holds nothing readable. */
+function readJson(value: unknown): Record<string, unknown> {
+  const text = String(value ?? '').trim()
+
+  if (!text)
+    return {}
+
+  try {
+    const parsed = JSON.parse(text)
+
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  }
+  catch {
+    return {}
+  }
+}
+
 /**
  * The owner's handle, for the `owner/name` a runner clones by.
  *
@@ -121,6 +138,13 @@ export default new Action({
         'workflow_version_steps.command as command',
         'workflow_version_steps.uses as uses',
         'workflow_version_steps.working_directory as working_directory',
+        // What the step passes to what it uses, and whether the job survives
+        // its failure. Both were stored and neither was sent, so a `uses:` step
+        // ran with no inputs and `continue-on-error` did nothing.
+        'workflow_version_steps.inputs as inputs',
+        'workflow_version_steps.shell as shell',
+        'workflow_version_steps.continue_on_error as continue_on_error',
+        'workflow_version_steps.env as env',
       ])
       .where('workflow_runs.id', '=', claimed.runId)
       .where('workflow_version_jobs.job_id', '=', claimed.jobKey)
@@ -159,6 +183,12 @@ export default new Action({
           run: step.command ?? null,
           uses: step.uses ?? null,
           working_directory: step.working_directory ?? null,
+          shell: step.shell ?? null,
+          // `with:` and `env:` are JSON as stored; a runner should not have to
+          // know that, so they are sent as objects.
+          with: readJson(step.inputs),
+          env: readJson(step.env),
+          continue_on_error: step.continue_on_error === true,
         })),
       },
     })

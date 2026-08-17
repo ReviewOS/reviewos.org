@@ -509,16 +509,44 @@ cannot talk back to the runner is a workflow that fails on its second line.
 
 ### Resolving `uses:`
 
-- [ ] Local actions: `uses: ./.reviewos/actions/thing`
+- [x] Local actions: `uses: ./.reviewos/actions/thing`.
+
+      Composite actions run properly - their steps in order, with `with:` arriving as `INPUT_*` the
+      way every action written against Actions reads it, and **in the caller's workspace rather than
+      the action's own directory**, which reads as wrong until you write one: an action's steps
+      operate on the repository that called them, and `GITHUB_ACTION_PATH` is how it reaches its own
+      files. That covers most of what an action is in practice, since repositories' own actions are
+      nearly all composite.
+
+      JavaScript actions run their `main:` with Bun, and the log says so rather than pretending to
+      be node - an action that depends on something Bun does not implement fails in a way its author
+      can read. A path that climbs out of the workspace is not a reference at all: on a host runner,
+      the directory above the checkout is the rest of the machine.
+
+      Nesting - a composite step that itself `uses:` something - is refused with a message rather
+      than followed, because doing it without the depth limit and cycle check the
+      reusable-workflow path already has is the version that recurses forever.
 - [ ] Container actions: `uses: docker://registry/image:tag`
 - [ ] Remote actions by owner and name with a configurable default host, plus fully qualified URLs,
       so an instance can point at its own mirror, a public mirror, or GitHub
-- [ ] Ref resolution by tag, branch, and commit sha, with sha pinning enforceable by policy
+- [x] Ref resolution by tag, branch, and commit sha, with sha pinning enforceable by policy.
+
+      The reference forms are read and the policy decides: **the default is closed** - local actions
+      always, and nothing from anywhere else until an operator names a host. An unqualified
+      `actions/checkout@v4` means nothing without a configured default host, and says so rather than
+      guessing at github.com.
+
+      Only a full forty-character sha counts as pinned. A short sha is ambiguous by construction and
+      a seven-character prefix can be brute-forced onto a different object, so accepting one would
+      make `requirePinnedSha` a setting that reads as protection and is not.
+
+      Fetching a remote action is the half that is left: allowed by policy and still refused by the
+      runner, with a message saying which, rather than silently skipped.
 - [ ] An action cache on the instance, so a fleet of runners does not each fetch the same action, and
       so an instance can keep working when the upstream host does not
 - [ ] Mirroring of the actions a repository actually uses into the instance ([phase 13](./13-mirroring.md)
       already mirrors repositories), so an air-gapped install is a supported configuration
-- [ ] An allowlist policy at instance and owner level over which action sources may be used, since
+- [x] An allowlist policy at instance and owner level over which action sources may be used, since
       `uses:` is arbitrary code selection by anyone who can edit a workflow file
 - [ ] Tests: every resolution form, a pinned sha that does not match, an action outside the
       allowlist, an unreachable upstream with a warm cache, and a local action outside the repository
