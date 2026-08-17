@@ -8,6 +8,12 @@ The whole surface is five endpoints. That is deliberate - a protocol an operator
 can hold in their head is one they can debug at three in the morning with
 `curl`.
 
+**If you do not want to write one**, this instance ships a runner that speaks it:
+`./buddy build:runner --target linux-x64` compiles the executor into a single
+file with nothing to install on the machine that runs it. See
+[self-hosting](./self-hosting.md#a-fleet). The rest of this page is for the case
+where you would rather write your own, which is a supported thing to do.
+
 ## Registering a runner
 
 A runner is a row an operator creates, with a token it holds and a scope that

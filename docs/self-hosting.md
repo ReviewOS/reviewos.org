@@ -373,18 +373,53 @@ supervises your other processes:
 bun run --bun ./buddy runner:local
 ```
 
-For a runner on a **different machine**, register there and carry the credential
-over:
+### A fleet
+
+For machines that are not the instance's, compile the runner into one file:
+
+```sh
+./buddy build:runner --target linux-x64
+```
+
+It is the same executor `runner:local` uses, compiled - not a second
+implementation that drifts - and it needs nothing installed on the machine that
+runs it: no Bun, no application checkout, no database driver. Targets are
+`linux-x64`, `linux-arm64`, `macos-x64`, `macos-arm64`, `windows-x64` and `host`.
+
+On the instance, make a credential per machine:
 
 ```sh
 ./buddy runner:local --register --name build-01 --labels ubuntu-latest,self-hosted
-./buddy runner:local --url https://reviewos.example --token <the credential>
+```
+
+Copy the binary and the credential to the machine, and run it:
+
+```sh
+./reviewos-runner --url https://reviewos.example --token <the credential>
 ```
 
 Re-running `--register` with the same name rotates the credential rather than
-making a second runner, so a leaked token is fixed by one command. Anything else
-that speaks [the runner protocol](./runner-protocol.md) works too: it is five
-HTTP endpoints and no SDK.
+making a second runner, so a leaked token is fixed by one command.
+
+Two differences from a runner on the instance's own host, both because the code
+is somewhere else: it **clones over HTTP** rather than from the bare repository
+on disk, and it cannot register itself, which is what carrying a credential over
+is for. A public repository clones anonymously; a private one needs a token whose
+bearer may read it.
+
+**Ephemeral runners**, which is what makes an autoscaling group safe to write:
+
+```sh
+./reviewos-runner --url … --token … --jobs 1                 # one job, then exit
+./reviewos-runner --url … --token … --idle-timeout 300       # exit after 5 idle minutes
+```
+
+A machine that shuts itself down when the queue is empty costs nothing between
+builds, and it knows whether it is mid-job where a scaler outside it would have
+to guess.
+
+Anything else that speaks [the runner protocol](./runner-protocol.md) works too:
+it is five HTTP endpoints and no SDK.
 
 When a run sits at "queued", the run page says why rather than spinning - no
 runner registered, none that reaches this repository, or none carrying the labels

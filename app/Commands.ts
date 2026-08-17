@@ -65,4 +65,11 @@ export default {
    * has said where, and typing this is that.
    */
   'runner:local': 'RunnerLocal',
+  /*
+   * The runner as a program to copy to a fleet machine. The same executor
+   * `runner:local` uses, compiled: a fleet is machines that are not this one,
+   * and installing the whole application on a build agent is not a reasonable
+   * thing to ask.
+   */
+  'build:runner': 'BuildRunner',
 } satisfies CommandRegistry

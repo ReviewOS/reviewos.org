@@ -1093,6 +1093,31 @@ output, which covers the common case and nothing else.
 Buildkite's agent is the part of it that is open source, and the part people trust it for. Phase 9
 defines the protocol; this is the fleet management around it.
 
+**The protocol has been run as a fleet, on machines that are not the instance's**, which is worth
+recording because everything below is easy to design against a runner that only ever runs next to
+the control plane. `./buddy build:runner --target linux-x64` compiles the *same executor*
+`runner:local` uses into one file with no runtime to install - it compiles at all because nothing
+under `app/Actions/Runner/` touches the framework or the database, and a runner that needed a
+database connection is one you could only run on the instance's own box.
+
+What a real run showed, with two runners on a Linux x86-64 machine in another country claiming from
+a macOS arm64 control plane:
+
+- A three-way matrix spread across both runners, with `max-parallel: 2` holding the third
+  combination back until a slot opened.
+- The **checkout over HTTP**, since there is no `storage/repos` on a fleet machine. A same-host
+  runner still clones from disk; which one happens is a fact about where the runner is rather than a
+  setting.
+- `RUNNER_OS=Linux` and `RUNNER_ARCH=X64` on the runner while the control plane was `macOS`/`ARM64`,
+  which is the environment set being *about the machine that runs the job* rather than about the
+  instance.
+- A `wait` barrier resolving with **no runner at all** (`runner_id` null), and the job after it
+  running only once the barrier had.
+- Job outputs read back from `$GITHUB_OUTPUT` across the wire, and a step-level `if:` gated on one.
+
+The credential is made on the instance and carried over, because a fleet machine has no database to
+register itself in - which is exactly what a registration token is for.
+
 - [ ] Runner pools: a named group of queues plus the workflows permitted to use them. A workflow in
       one pool cannot dispatch to, read artifacts from, or trigger a workflow in another unless a
       rule says so.
@@ -1104,8 +1129,17 @@ defines the protocol; this is the fleet management around it.
       Unmatched selectors leave a job queued with a visible reason rather than silently forever.
 - [ ] Runner lifecycle visible in the interface: connecting, idle, accepted, running, stopping,
       stopped, lost, with the job it is on and the time in state
-- [ ] Ephemeral runners: disconnect after one job, or after an idle timeout, which is what makes an
+- [x] Ephemeral runners: disconnect after one job, or after an idle timeout, which is what makes an
       autoscaling group safe
+
+      `--jobs 1` and `--idle-timeout <seconds>`, both on the runner itself. That placement is the
+      point: **the runner knows whether it is mid-job** where a scaler outside it has to guess, and
+      guessing wrong means killing a machine in the middle of somebody's build. The idle clock runs
+      from the last *job* rather than the last poll, so a runner that has been busy does not shut
+      down because the queue emptied for one cycle.
+
+      Verified on a real machine: a runner started with `--idle-timeout 6` against an empty queue
+      exited on its own.
 - [ ] Graceful stop that lets the current job finish, and a forced stop that does not, both from the
       API
 - [ ] A metrics endpoint reporting queue depth, waiting jobs per queue, and runner counts by state,

@@ -249,7 +249,20 @@ export function renderConfiguration(entries: EnvEntry[], reads: Map<string, stri
   // somebody can only discover by reading the source, which is the same as
   // undocumented. Listed rather than hidden, because the list is the to-do.
   const undeclared = [...reads.keys()]
-    .filter(name => !declared.has(name) && !GIT_SET.has(name))
+    .filter(name => !declared.has(name) && !GIT_SET.has(name) && !runnerOnly(name, reads))
+    .sort()
+
+  /*
+   * Variables the *runner* reads, which are a different kind of thing.
+   *
+   * The runner is compiled into a binary and copied to a machine that is not
+   * this one, so its variables are set on that machine and belong in nobody's
+   * `.env`. Listing them under "add a line to `.env.example`" would be telling
+   * an operator to configure the instance for a program that does not run on
+   * it.
+   */
+  const runnerRead = [...reads.keys()]
+    .filter(name => runnerOnly(name, reads))
     .sort()
 
   const out: string[] = [
@@ -328,5 +341,25 @@ export function renderConfiguration(entries: EnvEntry[], reads: Map<string, stri
     )
   }
 
+  if (runnerRead.length > 0) {
+    out.push(
+      '## Set on a runner, not on the instance',
+      '',
+      'The runner is compiled into a binary and copied to a machine that is not this one, so these',
+      'are set *there* rather than in this instance\'s `.env`. Each has a command-line flag too, and',
+      'the flag wins.',
+      '',
+      ...runnerRead.map(name => `- \`${name}\`, read by ${(reads.get(name) ?? []).map(path => `\`${path}\``).join(', ')}`),
+      '',
+    )
+  }
+
   return `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`
+}
+
+/** Whether a variable is only ever read by the runner binary. */
+function runnerOnly(name: string, reads: Map<string, string[]>): boolean {
+  const paths = reads.get(name) ?? []
+
+  return paths.length > 0 && paths.every(path => path.includes('Runner/standalone'))
 }

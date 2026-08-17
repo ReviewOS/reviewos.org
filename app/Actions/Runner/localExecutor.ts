@@ -22,7 +22,7 @@
  * be exercised most, not bypassed.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
@@ -42,6 +42,16 @@ export interface LocalRunnerOptions {
   idleMs?: number
   /** Stop after this many jobs. Zero means keep going. */
   maxJobs?: number
+  /**
+   * Stop after this long with nothing to do, in milliseconds. Zero waits
+   * forever.
+   *
+   * What makes an autoscaling group safe to write: a machine that shuts itself
+   * down when the queue is empty costs nothing between builds, and the
+   * alternative - a scaler that decides when to kill a runner - has to guess
+   * whether the runner is mid-job. This one knows.
+   */
+  idleTimeoutMs?: number
   /** Where to check code out. A temporary directory per job by default. */
   workspaceRoot?: string
   /**
@@ -65,6 +75,16 @@ export interface LocalRunnerOptions {
   actionCacheRoot?: string
   /** Where a host's repositories actually live, for a mirror or an air-gapped instance. */
   actionOrigins?: Record<string, string>
+  /**
+   * A credential for cloning over HTTP, for a runner that is not on the
+   * instance's own machine.
+   *
+   * An access token, sent as basic auth the way `git` sends one. Public
+   * repositories need none; a private one needs a token whose bearer may read
+   * it, which is an operator's decision rather than something a runner can
+   * mint for itself.
+   */
+  cloneToken?: string
   /** Called with each line the runner wants to say, so a command can print it. */
   say?: (line: string) => void
 }
@@ -210,6 +230,12 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       fullName: String(job.repository_full_name ?? ''),
       sha: String(job.run?.head_sha ?? ''),
       workspace,
+      /*
+       * Where to clone from when the bare repository is not on this machine,
+       * which is every runner that is not the instance's own host.
+       */
+      baseUrl: options.baseUrl,
+      cloneToken: options.cloneToken,
       onOutput: (text, stream) => send(text, stream),
     })
 
@@ -554,12 +580,16 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
   const outcomes: JobOutcome[] = []
   const idle = options.idleMs ?? 5000
   const limit = options.maxJobs ?? 0
+  const idleTimeout = options.idleTimeoutMs ?? 0
+
+  let idleSince = Date.now()
 
   for (;;) {
     const outcome = await runOnce(options)
 
     if (outcome) {
       outcomes.push(outcome)
+      idleSince = Date.now()
 
       if (limit > 0 && outcomes.length >= limit)
         return outcomes
@@ -568,6 +598,14 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
     }
 
     if (limit > 0)
+      return outcomes
+
+    /*
+     * Measured from the last job rather than from the last poll, so a runner
+     * that has been busy does not shut down the moment the queue empties for
+     * one cycle.
+     */
+    if (idleTimeout > 0 && Date.now() - idleSince >= idleTimeout)
       return outcomes
 
     await new Promise(resolve => setTimeout(resolve, idle))
@@ -764,6 +802,8 @@ async function checkoutCode(input: {
   fullName: string
   sha: string
   workspace: string
+  baseUrl?: string
+  cloneToken?: string
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
 }): Promise<{ ok: boolean, reason: string }> {
   if (!input.fullName || !input.sha)
@@ -776,16 +816,48 @@ async function checkoutCode(input: {
    * on this host", which sends somebody looking in the wrong place.
    */
   const bare = resolve(input.reposRoot, `${input.fullName}.git`)
+  const onHost = existsSync(bare)
 
-  if (!existsSync(bare))
-    return { ok: false, reason: `no repository on this host at ${bare}` }
+  /*
+   * Two sources, and which one is used is a fact about *where this runner is*
+   * rather than a setting.
+   *
+   * On the instance's own machine the bare repository is right there:
+   * `--no-hardlinks` so a step running `git gc` cannot write into the objects
+   * everybody pushes to, no network, and no credential. On any other machine
+   * there is nothing on disk, so it clones over the instance's ordinary git
+   * endpoint - the same URL a person would.
+   */
+  const source = onHost ? bare : `${String(input.baseUrl ?? '').replace(/\/$/, '')}/${input.fullName}.git`
+
+  if (!onHost && !input.baseUrl)
+    return { ok: false, reason: `no repository on this host at ${bare}, and nowhere to clone it from` }
 
   await input.onOutput(`::group::Checkout\n${input.fullName} at ${input.sha.slice(0, 8)}\n`, 'stdout')
 
   const clone = await runStep({
-    command: `git clone --no-hardlinks --quiet '${bare}' . && git checkout --quiet '${input.sha}'`,
+    command: onHost
+      ? `git clone --no-hardlinks --quiet '${source}' . && git checkout --quiet '${input.sha}'`
+      // A shallow fetch of the one commit, which is what a remote runner
+      // actually needs: the history is the instance's, not this machine's.
+      : `git init --quiet . && git remote add origin '${source}' && git fetch --quiet --depth 1 origin '${input.sha}' && git checkout --quiet FETCH_HEAD`,
     cwd: input.workspace,
-    environment: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: input.workspace, GIT_TERMINAL_PROMPT: '0' },
+    environment: {
+      PATH: process.env.PATH ?? '/usr/bin:/bin',
+      HOME: input.workspace,
+      GIT_TERMINAL_PROMPT: '0',
+      /*
+       * The credential, when there is one, through an askpass helper rather
+       * than in the URL: a token in a remote URL is written into
+       * `.git/config`, which is inside the workspace a step can read.
+       */
+      ...(input.cloneToken && !onHost
+        ? {
+            GIT_ASKPASS: askpassFor(input.workspace, input.cloneToken),
+            GIT_CONFIG_PARAMETERS: `'credential.helper='`,
+          }
+        : {}),
+    },
     onOutput: input.onOutput,
   })
 
@@ -794,6 +866,23 @@ async function checkoutCode(input: {
   return clone.ok
     ? { ok: true, reason: 'checked out' }
     : { ok: false, reason: `the checkout failed (git exited ${clone.exitCode})` }
+}
+
+/**
+ * A one-line askpass script holding the clone credential.
+ *
+ * Outside the workspace, mode 0700, and removed with the workspace's parent
+ * when the job ends. The alternative - `https://token@host/...` - writes the
+ * credential into `.git/config` *inside the checkout*, where the repository's
+ * own steps can read it.
+ */
+function askpassFor(workspace: string, token: string): string {
+  const path = join(workspace, '..', `.reviewos-askpass-${process.pid}`)
+
+  writeFileSync(path, `#!/bin/sh\ncase "$1" in\n  Username*) echo "x-access-token" ;;\n  *) echo ${JSON.stringify(token)} ;;\nesac\n`)
+  chmodSync(path, 0o700)
+
+  return path
 }
 
 /**

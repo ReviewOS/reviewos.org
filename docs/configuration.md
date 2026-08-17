@@ -889,7 +889,7 @@ once. Nothing runs unless somebody starts the runner, so leaving this unset is
 the same as having no execution plane, which is the default this instance
 ships with.
 
-Read by `app/Commands/RunnerLocal.ts`.
+Read by `app/Actions/Runner/standalone.ts`, `app/Commands/RunnerLocal.ts`.
 
 ### `REVIEWOS_ACTION_STORE`
 
@@ -918,3 +918,12 @@ writing objects into somebody else's directory.
 - `HOME`
 - `LANG`
 - `PATH`
+
+## Set on a runner, not on the instance
+
+The runner is compiled into a binary and copied to a machine that is not this one, so these
+are set *there* rather than in this instance's `.env`. Each has a command-line flag too, and
+the flag wins.
+
+- `REVIEWOS_URL`, read by `app/Actions/Runner/standalone.ts`
+- `REVIEWOS_WORKSPACE`, read by `app/Actions/Runner/standalone.ts`
