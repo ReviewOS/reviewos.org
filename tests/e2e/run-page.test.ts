@@ -79,7 +79,12 @@ async function makeRun(versionId: number, state: string, jobState: string, log: 
     workflow_job_id: Number(job.id),
     position: 0,
     name: 'Compile',
-    state: jobState,
+    /*
+     * A step has no `queued` state, and that is deliberate rather than an
+     * omission: a step waiting for its job is not waiting in a queue, it simply
+     * has not begun. `pending` is what the model calls that.
+     */
+    state: jobState === 'queued' ? 'pending' : jobState,
     attempts: 1,
   }).execute()
 
@@ -405,4 +410,66 @@ describe('a log the runner sent as events', () => {
     expect(html).toContain('&lt;script&gt;')
     expect(html).not.toContain('<script>alert(1)</script>')
   })
+})
+
+/*
+ * The most expensive screen in a forge is a run that sits at "queued" with a
+ * spinner: it looks like the instance is thinking, so people wait, then wait
+ * longer, then ask in a chat channel. The instance knew the answer the whole
+ * time.
+ */
+describe('a run that is waiting for a runner', () => {
+  test('says why, and which labels would have matched', async () => {
+    if (!available)
+      return
+
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .executeTakeFirst()
+
+    /*
+     * The job is queued; its step is `pending`, which is the state a step has
+     * before anything has run it. `queued` is a *job* state and not a step one -
+     * the two enums are deliberately different, because a step waiting for its
+     * job is not waiting in a queue.
+     */
+    const number = await makeRun(Number(version.id), 'queued', 'queued', '', 'e'.repeat(40))
+
+    // A job asking for something no runner here has.
+    await db
+      .updateTable('workflow_jobs')
+      .set({ runs_on: 'macos-14' } as any)
+      .where('workflow_run_id', '=', (await db
+        .selectFrom('workflow_runs')
+        .select(['id'])
+        .where('repository_id', '=', created.repositoryId)
+        .where('number', '=', number)
+        .executeTakeFirst() as any).id)
+      .execute()
+
+    const runner: any = await db.insertInto('runners').values({
+      name: `page-${Buffer.from(crypto.getRandomValues(new Uint8Array(4))).toString('hex')}`,
+      scope_type: 'instance',
+      scope_id: null,
+      token_hash: 'x'.repeat(64),
+      labels: 'ubuntu-latest\nself-hosted',
+      state: 'active',
+      version: '1',
+    }).returning(['id']).executeTakeFirst()
+
+    try {
+      const html = await page(`/${created.handle}/${created.name}/run/${number}`, created.ownerToken)
+
+      // Both halves: what it asked for, and what it could have asked for.
+      expect(html).toContain('macos-14')
+      expect(html).toContain('ubuntu-latest')
+      expect(html).toContain('No runner here has')
+    }
+    finally {
+      await db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute().catch(() => {})
+    }
+  }, 60_000)
 })

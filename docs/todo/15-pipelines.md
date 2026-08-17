@@ -635,8 +635,27 @@ survive contact with a self-hosted forge unless we make it.
       those to a repository's script would make the runner a way to read every repository on the
       instance. `uses:` steps are skipped with a line saying so, since resolving an action is the
       next box rather than this one.
-- [ ] The interface says clearly when a run is queued because no runner matches, and which labels
-      would have matched, instead of a spinner
+- [x] The interface says clearly when a run is queued because no runner matches, and which labels
+      would have matched, instead of a spinner.
+
+      A run sitting at "queued" with a spinner is the most expensive screen in a forge: it looks
+      like the instance is thinking, so people wait, then wait longer, then ask in a chat channel -
+      and the instance knew the answer the whole time. Five answers, and each sends somebody
+      somewhere different:
+
+      - no runners are registered at all;
+      - none of them reaches this repository, which is a scope problem rather than a label one;
+      - none has the labels this job asked for - and the message names **what the runners that
+        could take it do have**, which is the half that tells somebody what to write instead;
+      - every runner that matches is disabled, which means "turn that one back on" rather than
+        "change your `runs-on`";
+      - a runner matches and will take it on its next poll, which is a real answer rather than an
+        absence.
+
+      Computed from the same rules the claim protocol uses to hand work out, because a screen that
+      explains a decision the dispatcher did not make is worse than a spinner. On the run page and
+      in the run detail, and read only when something is actually waiting - a finished run has
+      nothing to explain.
 - [ ] A repository with no workflows offers starter templates that are real Actions workflows
 
 ### Where the compatible forges stop, and we do not

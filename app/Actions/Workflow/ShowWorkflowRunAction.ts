@@ -1,6 +1,8 @@
 import { Action } from '@stacksjs/actions'
 import { explainEnv } from './env'
+import { splitLabels } from '../Runner/protocol'
 import { defaultsOf, resolveDefaults } from './defaults'
+import { explainWaiting } from './waiting'
 import { resolvePermissions } from './permissions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
@@ -37,6 +39,29 @@ function envFor(job: any, definitionJobs: readonly any[], version: any): any[] {
     from: entry.level,
     overrides: entry.overridden,
   }))
+}
+
+/** Why a queued job has not been picked up, in the shape a screen can render. */
+function waitingFor(job: any, repositoryId: number, ownerId: number, runners: any[]): any {
+  const explained = explainWaiting(
+    {
+      id: Number(job.id),
+      state: String(job.state),
+      runsOn: String(job.runs_on ?? '').split('\n').map(line => line.trim()).filter(Boolean),
+      repositoryId,
+      ownerId,
+      runnerId: job.runner_id === null ? null : Number(job.runner_id),
+      leaseExpiresAt: job.lease_expires_at ?? null,
+    },
+    runners,
+  )
+
+  return {
+    kind: explained.kind,
+    summary: explained.summary,
+    wanted: explained.wanted,
+    available: explained.available,
+  }
 }
 
 /** What this job's token may do, with the level of the file that decided it. */
@@ -126,6 +151,29 @@ export default new Action({
      * by the job id the run copied, because a run's job carries its name and
      * state but not the file's environment.
      */
+    /*
+     * The runners this instance has, for explaining why a queued job is still
+     * queued. One query for the whole run rather than one per job: a fleet is
+     * tens of rows and a run can be tens of jobs.
+     *
+     * Only read when something is actually waiting - a finished run has nothing
+     * to explain, and a query per page view for a screen nobody is puzzled by
+     * is a query nobody asked for.
+     */
+    const waiting = jobs.some(job => String(job.state) === 'queued' || String(job.state) === 'blocked')
+
+    const runners: any[] = waiting
+      ? await db.selectFrom('runners').select(['id', 'state', 'scope_type', 'scope_id', 'labels']).execute()
+      : []
+
+    const runnerFacts = runners.map(runner => ({
+      id: Number(runner.id),
+      state: String(runner.state),
+      scopeType: String(runner.scope_type),
+      scopeId: runner.scope_id === null ? null : Number(runner.scope_id),
+      labels: splitLabels(runner.labels),
+    }))
+
     const definitionJobs: any[] = await db
       .selectFrom('workflow_version_jobs')
       .select(['job_id', 'env', 'permissions', 'default_shell', 'default_working_directory'])
@@ -217,6 +265,18 @@ export default new Action({
            * time by the run's `trusted` column, not here.
            */
           permissions: permissionsFor(job, definitionJobs, version),
+          /*
+           * Why this job has not started, when it has not.
+           *
+           * A run sitting at "queued" with nothing else on the screen is the
+           * most expensive page in a forge: it looks like the instance is
+           * thinking, so people wait, and the instance knew the answer the
+           * whole time - no runner has `macos-14`, or the only one that
+           * matches was switched off this morning.
+           */
+          waiting: String(job.state) === 'queued'
+            ? waitingFor(job, Number(run.repository_id), Number(repository.owner_id ?? 0), runnerFacts)
+            : null,
           name: job.name ?? null,
           state: String(job.state),
           needs: String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean),

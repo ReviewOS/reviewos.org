@@ -111,3 +111,14 @@ import { eventsFromText as eventsFromTextImpl, renderLog as renderLogImpl } from
 
 export const renderLog = renderLogImpl
 export const eventsFromText = eventsFromTextImpl
+
+/**
+ * Why a queued job is still queued.
+ *
+ * Re-exported one name at a time, for the reason above: `export … from` leaves
+ * every binding undefined rather than failing, which is the worst way for an
+ * import to be wrong.
+ */
+import { explainWaiting as explainWaitingImpl } from '../../app/Actions/Workflow/waiting'
+
+export const explainWaiting = explainWaitingImpl
