@@ -15371,7 +15371,7 @@ export interface paths {
   "/api/runner/download": {
     get: {
     parameters: {
-      query?: never
+      query?: { "target"?: string }
       header?: never
       path?: never
       cookie?: never

@@ -25351,7 +25351,16 @@
       "get": {
         "summary": "/api/runner/download",
         "operationId": "get__api_runner_download",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "The binary, as an octet stream."

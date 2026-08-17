@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { existsSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -34,6 +35,13 @@ export default new Action({
   name: 'DownloadRunner',
   description: 'The compiled runner binary for a fleet machine',
   method: 'GET',
+
+  validations: {
+    // Declared so the published reference can say what this takes: an
+    // endpoint whose only input is undocumented is one somebody has to read
+    // the source to call.
+    target: { rule: schema.string() },
+  },
 
   responses: {
     200: { description: 'The binary, as an octet stream.' },

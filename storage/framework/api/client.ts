@@ -5604,8 +5604,8 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/runner/download
    */
-  getRunnerDownload(options?: RequestOptions): Promise<ApiResult<unknown>> {
-    return request(config, "GET", "/api/runner/download", {}, [], false, options)
+  getRunnerDownload(input?: { "target"?: string }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "GET", "/api/runner/download", input ?? {}, ["target"], false, options)
   },
 
   /**
