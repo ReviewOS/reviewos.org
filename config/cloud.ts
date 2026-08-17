@@ -767,16 +767,24 @@ export const tsCloud: TsCloudConfig = {
         // nothing in it rather than a broken one.
         'bun node_modules/@stacksjs/buddy/dist/cli.js migrate',
         // The documentation site, built into `dist/docs` where
-        // `Actions/Docs/ServeDocsAction` reads it.
+        // `resources/views/docs/` reads it.
         //
         // Built on the box rather than shipped, because the output is thirty
         // odd HTML files regenerated from `docs/` in under a second, and a
-        // committed build is a build that goes stale silently. Without this
-        // step `/docs` answers "the documentation has not been built" - which
-        // is at least honest, unlike what it did before the route existed:
-        // fall through to the owner page and report that there is no account
-        // called docs.
-        'bun node_modules/@stacksjs/buddy/dist/cli.js build:docs',
+        // committed build is a build that goes stale silently.
+        //
+        // **bunpress directly, not `buddy build:docs`.** That command shells
+        // out to a `bunpress` binary and expects to find it on `$PATH`;
+        // `node_modules/.bin` is on a developer's PATH and is not on the one
+        // preStart runs with, so the step died with
+        // `Executable not found in $PATH: "bunpress"` and left no `dist/` at
+        // all. The failure was invisible from outside: the app started
+        // normally and every documentation URL answered with the view's own
+        // "the documentation has not been built" notice, which reads as a
+        // missing build rather than a broken deploy step. Naming the entry
+        // point removes the lookup, and with it the dependence on how the
+        // shell that runs this happens to be configured.
+        'bun node_modules/@stacksjs/bunpress/dist/bin/cli.js build',
       ],
       // The scheduler is what makes a mirror a mirror rather than a snapshot.
       // `app/Scheduler.ts` runs MirrorSweep, which fetches every mirror whose

@@ -45,12 +45,12 @@ export interface FeaturedRepository {
  * which is most popular.
  */
 export const FEATURED: readonly { slug: string, note: string | null }[] = [
-  { slug: 'stacksjs/stacks', note: 'The full-stack TypeScript framework ReviewOS itself is built on.' },
+  { slug: 'stacks/stacks', note: 'The full-stack TypeScript framework ReviewOS itself is built on.' },
   { slug: 'reviewos/reviewos.org', note: 'This forge, hosting itself. The review screen you are reading about, reviewing its own changes.' },
-  { slug: 'stacksjs/bun-query-builder', note: 'The typed query builder behind every read on this page.' },
-  { slug: 'stacksjs/stx', note: 'The templating engine rendering this page on the server.' },
+  { slug: 'stacks/bun-query-builder', note: 'The typed query builder behind every read on this page.' },
+  { slug: 'stacks/stx', note: 'The templating engine rendering this page on the server.' },
   { slug: 'pantry-pm/pantry', note: 'The package manager that installs Postgres and git for a fresh checkout.' },
-  { slug: 'stacksjs/bunpress', note: 'The documentation engine behind /docs.' },
+  { slug: 'stacks/bunpress', note: 'The documentation engine behind /docs.' },
 ]
 
 /**

@@ -17,10 +17,12 @@
 import { profileFeed, withHandles } from '../../../app/Actions/Feed/read'
 import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
 import { relativeTime } from '../../functions/browse'
+import { aliasTarget, pathUnderOwner } from '../../functions/aliases'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
 // `resources/components/RepoBrowser.stx`.
 const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+const setHeader = typeof setResponseHeader === 'function' ? setResponseHeader : () => {}
 
 const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
@@ -49,9 +51,37 @@ const organization: any = account
         .executeTakeFirst()
     : null
 
+/*
+ * A handle that is taken and points somewhere else.
+ *
+ * Only on a miss, so a live account always wins and an alias can never shadow
+ * one - and the query costs nothing on the common path, because it runs only
+ * where the page was about to 404 anyway. 301 rather than 302: the canonical
+ * handle is the answer, and every cache and crawler should learn it once.
+ */
+const movedTo = (!account && !organization) ? await aliasTarget(handle) : null
+const movedPath = movedTo ? pathUnderOwner(String(serveContext?.path ?? `/${handle}`), movedTo) : ''
+
+
+/*
+ * A redirect page rather than a 301, and not by choice.
+ *
+ * `setResponseStatus` reaches the response and `setResponseHeader` does not:
+ * the binding writes into the router's header bag and something downstream
+ * discards it, so a 301 set from a view arrives with no `Location` at all -
+ * which is a broken response, worse than the 404 it replaced. Verified by
+ * setting a probe header and watching it never appear.
+ *
+ * So the status stays 200 and the page does the work: `rel=canonical` is what
+ * a crawler reads, the refresh is what a browser follows, and the link is what
+ * somebody with neither can click. When the framework's header binding is
+ * fixed this becomes four lines and a real 301.
+ */
+
 // A page that renders "no such account" under a 200 tells a crawler, a cache
-// and an uptime check that the page is fine. Only the render knows.
-if (!account && !organization)
+// and an uptime check that the page is fine. Only the render knows. An aliased
+// handle is not missing - it has moved - so it keeps its 200 and says so.
+if (!account && !organization && !movedTo)
   setStatus(404)
 
 const isSelf = Boolean(viewer && account && Number(viewer.id) === Number(account.id))
@@ -154,7 +184,14 @@ const found = Boolean(account || organization)
 
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
-    @if (!found)
+    @if (movedTo)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">Moved</h1>
+        <p class="muted" style="margin-top: 6px;">
+          <code>{{ handle }}</code> is now <a href="{{ movedPath }}">{{ movedTo }}</a>.
+        </p>
+      </div>
+    @elseif (!found)
       <div class="panel" style="padding: 32px; text-align: center;">
         <h1 style="font-size: 20px;">Not found</h1>
         <p class="muted" style="margin-top: 6px;">There is no account called {{ handle }} here.</p>
