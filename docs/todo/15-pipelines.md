@@ -1102,9 +1102,31 @@ Every one of these has to survive normalization into rows (phase 9: no workflow-
 has to be expressible in the validator that runs before a definition ever reaches a runner. The names
 below are the internal model's; the Actions key that maps onto each is noted where it is not obvious.
 
-- [ ] `key`, `label`, and a stable identity that survives re-uploads within a run
-- [ ] `depends_on`, accepting several keys, plus `allow_dependency_failure` so a step can run after a
+- [x] `key`, `label`, and a stable identity that survives re-uploads within a run
+
+      Actions already has both: the job id is the key and `name:` is the label, so adopting a
+      second vocabulary would mean two names for one thing in every message, screen and error.
+
+      The identity half is real work and it is done in `Workflow/upload.ts`: a generated job whose
+      key is already in the run is **refused with the name**, rather than merged or renamed.
+      `needs:` is by name and two jobs sharing one is how a matrix is expressed, so silently adding
+      a second `build` would change what every existing `needs: build` waits for - a graph nobody
+      wrote.
+- [x] `depends_on`, accepting several keys, plus `allow_dependency_failure` so a step can run after a
       failure on purpose
+
+      `needs:` *is* `depends_on` and takes a list, so the first half was Actions compatibility
+      already. The second was reachable only from a `wait:` barrier, which meant the
+      "publish the results whatever happened" stage had to be written as a barrier even when it was
+      an ordinary job.
+
+      `reviewos: { allow-dependency-failure: true }` now says it on any job, and reaches the graph
+      as the **same flag** the barrier sets rather than as a second mechanism - one rule with two
+      spellings is one that disagrees with itself a year later.
+
+      It is the graph-level twin of `if: always()`, and the distinction is kept: the dependencies
+      still have to be *finished*, only their verdict stops mattering. A job that needed a failed
+      one and did not ask is skipped, as before.
 - [ ] `if`, a conditional expression over a documented, sandboxed variable set: branch, tag, commit
       message, trigger source, changed paths, prior step outcomes, and declared inputs. No arbitrary
       reads of control-plane state.

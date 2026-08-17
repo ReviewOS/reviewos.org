@@ -100,6 +100,11 @@ export interface WorkflowJob {
   softFail: { any: boolean, statuses: number[] } | null
   /** `reviewos.branches:` - which branches this job runs on, `!` to exclude. */
   branches: string[]
+  /**
+   * `reviewos.allow-dependency-failure:` - this job runs even when what it
+   * needed did not succeed. The dependencies still have to be *finished*.
+   */
+  allowDependencyFailure: boolean
   env: Record<string, string>
   /**
    * `outputs:` on the job, as written.
@@ -232,6 +237,8 @@ interface ExtensionResult {
   softFail: { any: boolean, statuses: number[] } | null
   /** `branches:` - the shorthand for the most common `if:`, negation included. */
   branches: string[]
+  /** `allow-dependency-failure:` - run after a failed dependency, on purpose. */
+  allowDependencyFailure: boolean
 }
 
 export interface WorkflowService {
@@ -445,6 +452,10 @@ const EXTENSION_KEYS = new Set([
   'skip',
   'soft-fail',
   'branches',
+  // The graph-level twin of `if: always()`, for any job rather than only a
+  // barrier: the dependencies still have to be finished, and their verdict
+  // stops mattering.
+  'allow-dependency-failure',
 ])
 
 const STEP_KEYS = new Set([
@@ -762,14 +773,14 @@ function extensionOf(
   const raw = asRecord(body.reviewos)
 
   if (!raw)
-    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [] }
+    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false }
 
   for (const key of Object.keys(raw)) {
     if (!EXTENSION_KEYS.has(key)) {
       errors.push({
         line: lineOf(source, key, jobLine),
         message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
-        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `skip`, `soft-fail` and `branches`.',
+        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
       })
     }
   }
@@ -793,6 +804,7 @@ function extensionOf(
   const skip = skipFrom(raw.skip)
   const softFail = softFailFrom(raw['soft-fail'])
   const branches = branchesFrom(raw.branches)
+  const allowDependencyFailure = raw['allow-dependency-failure'] === true
 
   const kinds = (['wait', 'block', 'trigger'] as const).filter(key => key in raw)
 
@@ -803,11 +815,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: settingsOf(retry, agents), group, ifChanged, priority, skip, softFail, branches }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: settingsOf(retry, agents), group, ifChanged, priority, skip, softFail, branches }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure }
 
   if (ifChanged.length > 0) {
     /*
@@ -842,19 +854,53 @@ function extensionOf(
       branches,
       kind,
       settings: {
-        // The variant Buildkite calls `continue_on_failure`: a barrier that
-        // lets the run past it even when something before it failed, which is
-        // how a "publish the results whatever happened" stage is written.
-        continueOnFailure: asRecord(raw.wait)?.['continue-on-failure'] === true,
+        /*
+         * The variant Buildkite calls `continue_on_failure`: a barrier that
+         * lets the run past it even when something before it failed, which is
+         * how a "publish the results whatever happened" stage is written.
+         *
+         * The same flag `allow-dependency-failure` sets on an ordinary job, so
+         * a barrier is not a special case in the graph - it is the one place
+         * this was reachable before, and one rule reaching the graph two ways
+         * is the sort of thing that disagrees with itself later.
+         */
+        continueOnFailure: asRecord(raw.wait)?.['continue-on-failure'] === true || allowDependencyFailure,
       },
       group,
+      allowDependencyFailure,
     }
   }
 
-  if (kind === 'trigger')
-    return { kind, settings: triggerFrom(raw.trigger, id, jobLine, source, errors), group, ifChanged, priority, skip, softFail, branches }
+  if (kind === 'trigger') {
+    return {
+      kind,
+      settings: settingsWithAllowance(triggerFrom(raw.trigger, id, jobLine, source, errors), allowDependencyFailure),
+      group,
+      ifChanged,
+      priority,
+      skip,
+      softFail,
+      branches,
+      allowDependencyFailure,
+    }
+  }
 
-  return { kind, settings: blockFrom(raw.block, id, jobLine, source, errors), group, ifChanged, priority, skip, softFail, branches }
+  return {
+    kind,
+    settings: settingsWithAllowance(blockFrom(raw.block, id, jobLine, source, errors), allowDependencyFailure),
+    group,
+    ifChanged,
+    priority,
+    skip,
+    softFail,
+    branches,
+    allowDependencyFailure,
+  }
+}
+
+/** `allow-dependency-failure:` on a job, in the shape the settler reads. */
+function settingsWithAllowance(settings: Record<string, unknown>, allow: boolean): Record<string, unknown> {
+  return allow ? { ...settings, continueOnFailure: true } : settings
 }
 
 /**
@@ -1665,6 +1711,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       skip: extension.skip,
       softFail: extension.softFail,
       branches: extension.branches,
+      allowDependencyFailure: extension.allowDependencyFailure,
       env: asStringMap(body.env),
       outputs: asStringMap(body.outputs),
       uses: typeof body.uses === 'string' && body.uses.length > 0 ? body.uses : null,

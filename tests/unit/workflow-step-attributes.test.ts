@@ -144,3 +144,54 @@ describe('soft-fail', () => {
     expect(softFailOutcome(null, 1)).toEqual({ tolerated: false, reason: '' })
   })
 })
+
+describe('allow-dependency-failure', () => {
+  test('a job can run after a dependency failed, on purpose', () => {
+    /*
+     * The "publish the results whatever happened" stage. It reaches the graph
+     * as the same `continueOnFailure` flag a `wait:` barrier's
+     * `continue-on-failure` sets - one rule, one path, rather than two spellings
+     * that disagree with each other a year later.
+     */
+    const parsed = parseWorkflow(`
+name: ci
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./test
+  publish-results:
+    runs-on: ubuntu-latest
+    needs: [test]
+    reviewos:
+      allow-dependency-failure: true
+    steps:
+      - run: ./publish
+`)
+
+    expect(parsed.ok).toBe(true)
+
+    const publish = parsed.workflow?.jobs?.find(one => one.id === 'publish-results')
+
+    expect(publish?.allowDependencyFailure).toBe(true)
+    expect(publish?.settings.continueOnFailure).toBe(true)
+  })
+
+  test('and a job that did not ask keeps the ordinary rule', () => {
+    const parsed = parseWorkflow(`
+name: ci
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make
+`)
+
+    const build = parsed.workflow?.jobs?.[0]
+
+    expect(build?.allowDependencyFailure).toBe(false)
+    expect(build?.settings.continueOnFailure).toBeUndefined()
+  })
+})

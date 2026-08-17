@@ -581,3 +581,30 @@ runner, a timeout) is **not** tolerated by a status list.
 The job still reports `failed`. A screen that showed a tolerated failure as
 passing is one where nobody finds out the linter has been failing for a month;
 what changes is that the run does not fail with it.
+
+## `allow-dependency-failure`
+
+The "publish the results whatever happened" stage:
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps: [{ run: ./test }]
+
+  publish-results:
+    runs-on: ubuntu-latest
+    needs: [test]
+    reviewos:
+      allow-dependency-failure: true
+    steps: [{ run: ./publish }]
+```
+
+It is the graph-level twin of `if: always()`, and the difference matters: the
+dependencies still have to be **finished**, only their verdict stops mattering.
+A job that needed a failed one and did not ask for this is skipped, as it always
+was.
+
+It reaches the graph as the same flag a `wait:` barrier's `continue-on-failure`
+sets, rather than as a second mechanism. One rule with two spellings is one that
+disagrees with itself a year later.

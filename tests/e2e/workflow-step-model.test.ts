@@ -766,3 +766,79 @@ jobs:
     expect(row.continue_on_error).toBe(true)
   }, 120_000)
 })
+
+/*
+ * `allow-dependency-failure`, in the graph.
+ *
+ * The unit test says the parser reads it and that it reaches the graph as the
+ * same flag a barrier's `continue-on-failure` sets. This says the settler acts
+ * on it: the job runs after a failed dependency, and the jobs that did *not*
+ * ask are skipped as they always were.
+ */
+describe('a job that runs after a failure on purpose', () => {
+  test('is queued while its ordinary sibling is skipped', async () => {
+    if (!available)
+      return
+
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path: '.github/workflows/whatever-happened.yml',
+      source: `name: Whatever happened
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./test
+  publish-results:
+    runs-on: ubuntu-latest
+    needs: [test]
+    reviewos:
+      allow-dependency-failure: true
+    steps:
+      - run: ./publish
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - run: ./deploy
+`,
+      sha: 'f'.repeat(40),
+    })
+
+    const result = await dispatchPush({
+      repositoryId: created.repositoryId,
+      event: { ref: 'refs/heads/main' },
+      headSha: unique('f').padEnd(40, '0').slice(0, 40),
+    })
+
+    let runId = 0
+
+    for (const candidate of result.created) {
+      if (jobNamed(await jobsOf(candidate), 'publish-results'))
+        runId = candidate
+    }
+
+    expect(runId).toBeGreaterThan(0)
+
+    const test = jobNamed(await jobsOf(runId), 'test')
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'failed', finished_at: new Date().toISOString() } as any)
+      .where('id', '=', Number(test.id))
+      .execute()
+
+    await settleRun(runId)
+
+    const rows = await jobsOf(runId)
+
+    // The whole point: results are published whatever happened.
+    expect(String(jobNamed(rows, 'publish-results').state)).toBe('queued')
+
+    // And the deploy is not, because it never asked for that.
+    expect(String(jobNamed(rows, 'deploy').state)).toBe('skipped')
+  }, 120_000)
+})
