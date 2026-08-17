@@ -134,11 +134,34 @@ written down here so it does not get relitigated:
       tree. A file that is gone now retires its workflow, in a `removed` state kept apart from
       `disabled` - a workflow somebody switched off has to stay off when the file comes back, and
       one state for both would let a revert resurrect it.
-- [ ] A conformance suite pinned to a corpus of widely used public workflows, run in CI, reporting
+- [x] A conformance suite pinned to a corpus of widely used public workflows, run in CI, reporting
       which constructs pass, which are unimplemented, and which are refused on purpose. The report is
       published. Silence about a gap is how Gitea's ignored `concurrency:` surprised people.
+
+      The corpus is in `tests/fixtures/conformance/` - workflows in the shapes people actually
+      write: a version matrix, a release on a tag, a container build with services, a reusable
+      workflow, a nightly with a composite action, an issue labeller. Every one is parsed on every
+      test run, and a failure names the file and the errors rather than a count.
+
+      The report is [`docs/conformance.md`](../conformance.md), generated from a table that is the
+      source of truth, with a drift test: a key whose behaviour changes without its line changing
+      fails rather than misleading somebody quietly for a year.
+
+      It caught its first bug immediately, which is the argument for having it: **a workflow
+      triggered only on `issues` was refused as naming no event at all.** The trigger had been
+      implemented, dispatched and tested, and left out of the one list that decides whether a file
+      is valid - so a labeller, the second thing anybody automates, could not be registered.
 - [ ] Where behavior deliberately differs from GitHub, it is documented per key with the reason, and
-      the parser emits a warning naming the difference rather than quietly doing something else
+      the parser emits a warning naming the difference rather than quietly doing something else.
+
+      **The documentation half is done**: every key with a status and a sentence in
+      [`docs/conformance.md`](../conformance.md), and a test asserting that every `differs` and
+      `refused` row gives a reason rather than only a claim. Six keys currently differ on purpose -
+      `on: release` defaulting to published, permissions defaulting closed, `continue-on-error` as a
+      literal, and so on - and each says why next to what.
+
+      What is left is the parser emitting the difference as a warning on the workflow itself, so
+      somebody reads it where they are rather than on a page they have to find.
 
 ### Workflow syntax
 
@@ -656,7 +679,17 @@ survive contact with a self-hosted forge unless we make it.
       explains a decision the dispatcher did not make is worse than a spinner. On the run page and
       in the run detail, and read only when something is actually waiting - a finished run has
       nothing to explain.
-- [ ] A repository with no workflows offers starter templates that are real Actions workflows
+- [x] A repository with no workflows offers starter templates that are real Actions workflows.
+
+      Six of them, on the workflows page's empty state, ordered by the languages this instance has
+      already measured - and nothing hidden, because a suggestion that removes options is one that
+      is wrong at somebody's expense.
+
+      Every starter is parsed *and dispatch-checked* by a test: it is not enough that a template
+      reads well, it has to be a file this instance would actually run, and one whose triggers
+      nothing dispatches would sit there saying "runs on nothing". They are deliberately small and
+      carry no placeholder to fill in - a starter that needs editing before it works is an editing
+      task, an editing task is a decision, and a decision is where people stop.
 
 ### Where the compatible forges stop, and we do not
 

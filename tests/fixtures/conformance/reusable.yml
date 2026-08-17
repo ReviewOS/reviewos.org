@@ -1,0 +1,29 @@
+# A reusable workflow and its caller, which is how a monorepo stops repeating
+# itself.
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+    outputs:
+      artifact:
+        description: What was built
+        value: ${{ jobs.compile.outputs.name }}
+    secrets:
+      REGISTRY_TOKEN:
+        required: false
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.build.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: build
+        run: |
+          echo "name=app-${{ inputs.target }}.tar.gz" >> "$GITHUB_OUTPUT"
+          make build TARGET=${{ inputs.target }}

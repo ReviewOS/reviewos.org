@@ -1,0 +1,23 @@
+# A nightly job with conditions and a composite action from the repository.
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    if: github.repository_owner != 'forks'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          who: nightly
+      - name: Audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+      - name: Report
+        if: always()
+        run: echo "::notice::audit finished"

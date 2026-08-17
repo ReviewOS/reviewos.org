@@ -1,0 +1,36 @@
+# A container build, with services and a job container - the two things this
+# instance parses and refuses rather than pretending to run.
+name: Container
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Where to deploy
+        required: true
+        type: choice
+        options: [staging, production]
+      dry-run:
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: node:22-alpine
+      env:
+        NODE_ENV: test
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+    steps:
+      - uses: actions/checkout@v4
+      - run: apk add --no-cache make
+      - run: make integration

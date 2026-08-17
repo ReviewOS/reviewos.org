@@ -18,6 +18,7 @@
  */
 import { repositoryForView } from '../../../../functions/repo'
 import { relativeTime } from '../../../../functions/browse'
+import { startersFor } from '../../../../functions/runs'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script.
 const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
@@ -164,6 +165,31 @@ const rows = workflows.map((workflow) => {
  * teaches people the product is broken.
  */
 const canDispatch = typeof repoAccess?.can === 'function' && repoAccess.can('workflow:dispatch')
+
+/*
+ * What to offer a repository that has none.
+ *
+ * "No workflows are registered" is true and useless: this is where somebody
+ * decides whether CI here is worth the afternoon, and a file they can copy that
+ * actually runs is the difference between trying it and closing the tab.
+ *
+ * Ordered by the languages this instance already measured, and nothing is
+ * hidden - a suggestion that removes options is one that is wrong at somebody's
+ * expense.
+ */
+const languages = repoRow
+  ? (await db
+      .selectFrom('repository_languages')
+      .select(['name'])
+      .where('repository_id', '=', Number(repoRow.id))
+      .orderBy('bytes', 'desc')
+      .limit(4)
+      .execute()
+      .catch(() => []))
+      .map(row => String(row.name ?? '').toLowerCase())
+  : []
+
+const starters = rows.length === 0 ? startersFor(languages) : []
 </script>
 
 @layout('app')
@@ -192,13 +218,32 @@ const canDispatch = typeof repoAccess?.can === 'function' && repoAccess.can('wor
       </p>
 
       @if (rows.length === 0)
-        <div class="panel" style="padding: 28px; text-align: center; margin-top: 16px;">
-          <p class="muted">No workflows are registered.</p>
-          <p class="muted" style="margin-top: 6px; font-size: 13px;">
+        <div class="panel" style="padding: 28px; margin-top: 16px;">
+          <p class="muted" style="text-align: center;">No workflows are registered.</p>
+          <p class="muted" style="margin-top: 6px; font-size: 13px; text-align: center;">
             Add one under <code>.github/workflows</code> or <code>.reviewos/workflows</code> and push
             it. They are read from the default branch, and <code>.reviewos/workflows</code> wins when
             both exist.
           </p>
+        </div>
+
+        <h2 class="starters-title">Start with one of these</h2>
+        <p class="muted starters-note">
+          Every one is a real GitHub Actions workflow. Copy it into your repository, push, and it
+          runs here - and it would run there too, which is the point.
+        </p>
+
+        <div class="starters">
+          @foreach (starters as template)
+            <details class="starter panel">
+              <summary class="starter-head">
+                <span class="starter-name">{{ template.name }}</span>
+                <span class="muted starter-path"><code>{{ template.path }}</code></span>
+              </summary>
+              <p class="muted starter-description">{{ template.description }}</p>
+              <pre class="starter-code"><code>{{ template.content }}</code></pre>
+            </details>
+          @endforeach
         </div>
       @else
         <div class="workflows">
@@ -341,4 +386,32 @@ const canDispatch = typeof repoAccess?.can === 'function' && repoAccess.can('wor
   }
 
   .workflow-run button { justify-self: start; }
+
+  .starters-title { font-size: 15px; font-weight: 600; margin: 24px 0 4px; }
+  .starters-note { font-size: 12.5px; margin: 0 0 12px; }
+  .starters { display: grid; gap: 8px; }
+  .starter { padding: 12px 16px; }
+
+  .starter-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 550;
+  }
+
+  .starter-path { font-size: 12px; font-weight: 400; }
+  .starter-description { font-size: 12.5px; margin: 8px 0 0; }
+
+  .starter-code {
+    margin: 10px 0 0;
+    padding: 12px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.5;
+    border: 1px solid var(--line);
+    border-radius: var(--r-field, 8px);
+    background: var(--bg);
+  }
 </style>

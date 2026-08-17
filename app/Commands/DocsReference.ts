@@ -2,6 +2,7 @@ import type { CLI } from '@stacksjs/types'
 import process from 'node:process'
 import { Glob } from 'bun'
 import { checkedVariables, envReads, parseEnvExample, renderConfiguration } from '../Docs/configuration'
+import { renderConformance } from '../Docs/conformance'
 import { declaredRoutes, renderApiReference, renderWebhookReference } from '../Docs/reference'
 import { parseTokens, renderDesign } from '../Docs/tokens'
 
@@ -104,6 +105,16 @@ export default function (cli: CLI) {
         { path: 'docs/api.md', body: renderApiReference(spec, at, routes) },
         { path: 'docs/webhooks.md', body: renderWebhookReference(at) },
         { path: 'docs/design.md', body: renderDesign(tokens, 'from the stylesheets that declare it') },
+        {
+          path: 'docs/conformance.md',
+          /*
+           * Its own provenance, like the configuration page: this table comes
+           * from the conformance data and the code it describes, not from the
+           * OpenAPI document, and borrowing that version would be a small lie
+           * a reader catches and then distrusts the rest of.
+           */
+          body: renderConformance('from the conformance table'),
+        },
         {
           path: 'docs/configuration.md',
           // Its own provenance line: this page comes from `.env.example` and

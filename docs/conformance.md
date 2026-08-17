@@ -1,0 +1,87 @@
+# Workflow conformance
+
+What this instance does with every key a workflow can contain.
+
+The point of publishing it: **silence about a gap is how a forge surprises people.** A key that
+is accepted and does nothing has not been implemented - the fact that it has not has been
+hidden. So every key here has a status and a sentence, including the ones that are missing and
+the ones that are deliberately different.
+
+28 keys behave as Actions does, 6 differ on purpose, 12 are not implemented yet, and 1 is refused.
+
+Generated from the conformance table.
+
+## Supported
+
+These do what Actions does. A workflow using only these keys behaves the same here.
+
+| Key | Where | What this instance does |
+| --- | --- | --- |
+| `on.push` | on | Starts runs, with `branches`, `tags`, `paths` and their `-ignore` forms. |
+| `on.pull_request` | on | Starts runs on opened, synchronize and reopened, with `types`, `branches` and `paths`. The definition comes from the base branch. |
+| `on.pull_request_target` | on | Asked as its own question against the same version, so a workflow naming only `pull_request` is never started as this. |
+| `on.workflow_dispatch` | on | Startable by hand or by API, with inputs of every type checked against what the workflow declared. |
+| `on.schedule` | on | Swept every minute; a workflow never swept before waits for its next occurrence rather than firing immediately. |
+| `on.issues` | on | Starts runs on opened and closed, with `types`. |
+| `on.issue_comment` | on | Starts runs when a comment is created, with `types`. |
+| `on.workflow_call` | on | Declares inputs, outputs and secrets, and makes the workflow callable by another in the same repository. |
+| `name` | workflow | Names the workflow everywhere it appears. |
+| `env` | workflow | Inherited by every job and step, with the narrowest level winning. |
+| `defaults.run` | workflow | `shell` and `working-directory` are inherited by steps; nothing declared anywhere leaves the choice to the runner. |
+| `concurrency` | workflow | Groups runs and cancels superseded ones with `cancel-in-progress`. A group whose expression cannot be resolved is no group at all. |
+| `jobs.<id>.runs-on` | job | Matched against a runner's labels, as a string, a list, or a `group`/`labels` mapping. |
+| `jobs.<id>.needs` | job | Orders the graph, refuses a cycle by name, and skips a job whose dependency did not succeed rather than leaving it blocked forever. |
+| `jobs.<id>.if` | job | Evaluated when the run is created; a job whose condition is false is `skipped` with the reason recorded. |
+| `jobs.<id>.strategy.matrix` | job | Expanded at parse time, including `include` and `exclude`; each combination is its own job. |
+| `jobs.<id>.env` | job | Overrides the workflow's for this job's steps. |
+| `jobs.<id>.permissions` | job | Replaces the workflow's rather than adding to it, which is Actions' rule. |
+| `jobs.<id>.concurrency` | job | A group of its own, resolved against the run and the matrix combination. |
+| `steps[*].run` | step | Executed by the runner, in the workspace, with the job's environment. |
+| `steps[*].uses` | step | Local, composite and JavaScript actions run; remote ones are fetched and cached, under a policy that allows no host by default. |
+| `steps[*].with` | step | Passed to an action as `INPUT_*`, with the action's declared defaults filled in. |
+| `steps[*].env` | step | The narrowest environment level, applied over the job's and the workflow's. |
+| `steps[*].working-directory` | step | Resolved against the workspace. |
+| `steps[*].id` | step | Recorded, and used to key a step's outputs. |
+| `${{ }} operators` | workflow | Comparison, `&&`, `||`, `!`, indexing and the star filter, with Actions' coercion rules copied deliberately. |
+| `workflow commands` | step | `::error::`, `::warning::`, `::notice::`, `::group::`, `::add-mask::` and `::stop-commands::`. An `::error file=…::` becomes an annotation on the diff. |
+| `GITHUB_ENV, GITHUB_PATH, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY` | step | Written per step and applied to the steps after it. |
+
+## Different on purpose
+
+These work, and deliberately not the way Actions does. Every one is a decision you should be able to disagree with, so the reason is next to it.
+
+| Key | Where | What this instance does |
+| --- | --- | --- |
+| `on.release` | on | Defaults to `published` only, where Actions defaults to every activity type. A draft release starting a deployment is the surprise nobody wants; naming `types` opts back in. |
+| `permissions` | workflow | Mapped onto this instance's token scopes, and the default is read-only rather than depending on an organization setting, so a workflow behaves the same on every instance. `write-all` does not grant administration. |
+| `jobs.<id>.uses` | job | Local reusable workflows are called and their jobs shown in the run. A cross-repository call is refused with a reason rather than half done. |
+| `steps[*].continue-on-error` | step | Honoured as a literal `true` only. An expression needs the expression engine at step time, and reading it as truthy text would make every such step unfailable. |
+| `steps[*].shell` | step | Recorded and inherited, and the local runner runs `sh` regardless. A runner that only has one shell should say so rather than refuse a file for naming another. |
+| `${{ }} functions` | workflow | `contains`, `startsWith`, `endsWith`, `format`, `join`, `toJSON`, `fromJSON` and the status functions all work. `hashFiles` is refused rather than answered: it reads a checked-out tree the control plane does not have, and a wrong hash restores the wrong cache. |
+
+## Not implemented yet
+
+These are read and do nothing yet. A workflow using one is told - on its run, or on the workflow page - rather than left to wonder why nothing happened.
+
+| Key | Where | What this instance does |
+| --- | --- | --- |
+| `on.workflow_run` | on | Recognised and recorded; no run is started, and the workflow page says so. |
+| `on.repository_dispatch` | on | Recognised and recorded; there is no endpoint to send one yet. |
+| `run-name` | workflow | Accepted and not yet used; runs are named for their workflow. |
+| `jobs.<id>.strategy.fail-fast` | job | Stored; cancelling the siblings of a failed combination needs the execution plane. |
+| `jobs.<id>.strategy.max-parallel` | job | Stored; nothing limits how many combinations run at once yet. |
+| `jobs.<id>.timeout-minutes` | job | Stored; the runner enforces its own two-hour ceiling per step. |
+| `jobs.<id>.container` | job | Parsed and refused at run time: this instance has no container isolation yet, and pretending otherwise would run the steps on the host. |
+| `jobs.<id>.services` | job | Parsed; no service containers are started, and a job that needs one is told rather than failing on a closed port. |
+| `jobs.<id>.environment` | job | Parsed; deployment environments and their protection rules are phase 9 work. |
+| `jobs.<id>.outputs` | job | Parsed; reading one from a dependent job needs the steps to have run. |
+| `steps[*].if` | step | Stored as written; step-level conditions need the contexts a step produces, which arrive with step outputs. |
+| `steps[*].timeout-minutes` | step | Parsed; the runner's own ceiling applies instead. |
+
+## Refused
+
+These will not be implemented in this form.
+
+| Key | Where | What this instance does |
+| --- | --- | --- |
+| `::set-output::, ::save-state::` | step | The deprecated command forms are logged as ordinary text rather than honoured. The file protocol replaced them, and a line that vanished is worse than one that did nothing. |

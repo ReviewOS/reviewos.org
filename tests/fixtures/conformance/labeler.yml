@@ -1,0 +1,18 @@
+# The other thing people automate first: reacting to an issue.
+name: Triage
+
+on:
+  issues:
+    types: [opened, reopened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Label it
+        run: echo "labelling ${{ github.event.number }}"

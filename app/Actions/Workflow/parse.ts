@@ -691,6 +691,12 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
   const recognised = triggers.push !== null
     || triggers.pullRequest !== null
     || triggers.pullRequestTarget !== null
+    // The subject triggers. Left out of this list when they were added, which
+    // meant a workflow triggered *only* on issues - a labeller, the second
+    // thing anybody automates - was refused as naming no event at all.
+    || triggers.issues !== null
+    || triggers.issueComment !== null
+    || triggers.release !== null
     || triggers.schedule.length > 0
     || triggers.dispatch
     || triggers.reusable

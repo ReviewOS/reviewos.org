@@ -473,3 +473,59 @@ describe('a run that is waiting for a runner', () => {
     }
   }, 60_000)
 })
+
+/*
+ * The empty state of the workflows page, which is where somebody decides
+ * whether CI here is worth the afternoon. "No workflows are registered" is true
+ * and useless; a file they can copy that actually runs is the difference
+ * between trying it and closing the tab.
+ */
+describe('a repository with no workflows', () => {
+  test('is offered starters that are real Actions workflows', async () => {
+    if (!available)
+      return
+
+    // Its own repository, because this page is about *not* having workflows and
+    // the one above has three.
+    const handle = created.handle
+    const name = unique('empty')
+
+    const repository: any = await db.insertInto('repositories').values({
+      owner_type: 'user',
+      owner_id: created.ownerId,
+      name,
+      visibility: 'public',
+      default_branch: 'main',
+      disk_path: `${handle}/${name}.git`,
+    }).returning(['id']).executeTakeFirst()
+
+    try {
+      const html = await page(`/${handle}/${name}/workflows`, created.ownerToken)
+
+      expect(html).toContain('No workflows are registered')
+      expect(html).toContain('Start with one of these')
+
+      // A starter is only worth offering if it runs here *and* would run on
+      // GitHub, which is what makes the compatibility claim checkable rather
+      // than something to believe.
+      expect(html).toContain('npm ci')
+      expect(html).toContain('workflow_dispatch')
+      expect(html).toContain('cron')
+    }
+    finally {
+      await db.deleteFrom('repositories').where('id', '=', Number(repository.id)).execute().catch(() => {})
+    }
+  }, 60_000)
+
+  test('and a repository that has one is not', async () => {
+    if (!available)
+      return
+
+    // The starters are an empty state, not an advertisement: a page that keeps
+    // suggesting templates to somebody who already has CI is one they learn to
+    // scroll past.
+    const html = await page(`/${created.handle}/${created.name}/workflows`, created.ownerToken)
+
+    expect(html).not.toContain('Start with one of these')
+  }, 60_000)
+})

@@ -122,3 +122,13 @@ export const eventsFromText = eventsFromTextImpl
 import { explainWaiting as explainWaitingImpl } from '../../app/Actions/Workflow/waiting'
 
 export const explainWaiting = explainWaitingImpl
+
+/**
+ * Starter workflows for a repository that has none.
+ *
+ * One name at a time again: `export … from` leaves every binding undefined
+ * rather than failing, which is the worst way for an import to be wrong.
+ */
+import { startersFor as startersForImpl } from '../../app/Actions/Workflow/templates'
+
+export const startersFor = startersForImpl
