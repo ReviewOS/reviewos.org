@@ -192,6 +192,30 @@ missing-history problem into a broken build. A file nobody has timed is assumed
 to cost what a typical file costs rather than nothing: zero would mean adding it
 never changes which node is cheapest, so every new file lands on the same one.
 
+## On the pull request
+
+The checks tab carries a **Tests** panel: which tests failed and what they said,
+per-suite counts, and the sentence that is the reason to build any of this.
+
+> This branch made 1 test flaky
+> `unit/b.test.ts` newly-flaky
+>
+> 6 unreliable tests were already flaky on main, so this branch did not cause
+> them.
+
+"There are seven flaky tests" is a sentence a reviewer learns to skip, because
+it is true of every pull request in the repository - flakiness elsewhere is
+stored as a property of the test, so a test that has been unreliable on main for
+a month decorates every branch that touches nothing near it.
+
+So flakiness is measured twice, by the same rule, over two slices of history:
+this branch's, and the base's. The difference is the finding, and it is the only
+part a reviewer has to act on.
+
+A commit nothing has reported results for says so. It is not shown as green -
+that is the state a misconfigured collector leaves every commit in, and
+rendering it like a passing suite is how nobody notices for a month.
+
 ## What is not built yet
 
 Stated plainly, because a half-built feature you discover yourself is worse than
@@ -199,8 +223,7 @@ one that was never promised:
 
 - **Monitors and actions** - a rule that watches a test and raises an alarm once
   per transition.
-- **Trends and the pull request surface** - reliability and duration over time,
-  and telling a test a branch made flaky from one that was already flaky on the
-  base.
+- **Trends** - reliability and duration over time, per test, per suite and per
+  branch, with the slowest and least reliable surfaced without a query.
 - **Retention** - execution rows are kept indefinitely today. Reporting a large
   suite on every commit will grow that table, and there is no policy yet.

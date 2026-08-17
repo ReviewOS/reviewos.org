@@ -14,6 +14,7 @@ import { repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
 import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists, checksPanel, annotationsByLine, annotationsForLine, renderAnnotations } from '../../../../functions/review'
+import { testSummaryForPull } from '../../../../functions/tests'
 // The stack helpers from the module that owns them. They used to be
 // re-exported by `review.ts` so this line could be one import; two modules
 // exporting one name is what breaks the auto-import barrel for every function
@@ -233,6 +234,55 @@ try {
 catch {
   checks = null
 }
+
+/*
+ * What the tests said, and whether this branch is what made them unreliable.
+ *
+ * "There are seven flaky tests" is a sentence a reviewer learns to skip. "Six
+ * of these were already flaky on main, and this branch made the seventh flaky"
+ * is one they act on - so the flakiness is measured twice, over this branch's
+ * history and over the base's, rather than read off a flag on the test.
+ *
+ * Guarded like the checks read above and for the same reason: a throw here
+ * renders the entire review screen with every binding undefined.
+ */
+let tests: any = null
+try {
+  if (pullRequest && repoRow) {
+    tests = await testSummaryForPull({
+      repositoryId: Number(repoRow.id),
+      headSha: String(pullRequest.head_sha),
+      headBranch: String(pullRequest.head_branch ?? ''),
+      baseBranch: String(pullRequest.base_branch ?? ''),
+    })
+  }
+}
+catch {
+  tests = null
+}
+
+const testSuites = tests?.suites ?? []
+const testFailures = tests?.failures ?? []
+
+/*
+ * Flattened for the template, and capped.
+ *
+ * A suite that broke in three hundred places is a suite where the first ten
+ * failures say everything and the rest is scrolling, so the count is carried
+ * separately and said in words.
+ */
+const testNewlyFlaky = tests?.newlyFlaky ?? []
+const testAlreadyFlaky = tests?.alreadyFlaky ?? []
+const shownFailures = testFailures.slice(0, 10)
+const hiddenFailures = Math.max(0, testFailures.length - shownFailures.length)
+const testsReported = tests?.reported === true
+const testsTone = !testsReported ? 'muted' : tests?.verdict === 'failed' ? 'bad' : 'good'
+
+const testsHeadline = !testsReported
+  ? 'No test results reported for this commit'
+  : tests?.verdict === 'failed'
+    ? `${tests?.counts?.failed ?? 0} failing of ${(tests?.counts?.passed ?? 0) + (tests?.counts?.failed ?? 0)}`
+    : `${tests?.counts?.passed ?? 0} passing`
 
 // Keyed by file, side and line, so a row does not scan the whole list.
 const annotationIndex = annotationsByLine(checks?.annotations ?? [])
@@ -773,6 +823,76 @@ const statePill = pullRequest
 
               @if (requiredChecks.length === 0)
                 <p class="muted checks-note">No checks are required on this branch, so none of this blocks a merge.</p>
+              @endif
+            </section>
+
+            {{-- Tests, as their own panel rather than a line inside a check.
+                A check says "the job failed"; this says which tests, and
+                whether they were already unreliable before this branch. --}}
+            <section class="panel" style="padding: 15px 17px; margin-top: 16px;">
+              <h2 class="side-heading">Tests</h2>
+
+              <p class="checks-rollup checks-{{ testsTone }}">
+                <span class="run-dot run-{{ testsTone }}" aria-hidden="true"></span>
+                {{ testsHeadline }}
+              </p>
+
+              @if (!testsReported)
+                <p class="muted side-empty">Nothing has reported test results for this commit.</p>
+              @endif
+
+              @foreach (testSuites as suite)
+                <p class="muted checks-meta">
+                  <span class="mono">{{ suite.suite }}</span>
+                  <span>{{ suite.passed }} passed</span>
+                  <span>{{ suite.failed }} failed</span>
+                  @if (suite.skipped > 0)
+                    <span>{{ suite.skipped }} skipped</span>
+                  @endif
+                  @if (suite.mutedFailures > 0)
+                    <span>{{ suite.mutedFailures }} muted failing</span>
+                  @endif
+                </p>
+              @endforeach
+
+              @foreach (shownFailures as failure)
+                <div class="checks-entry">
+                  <div class="checks-entry-head">
+                    <span class="run-dot run-bad" aria-hidden="true"></span>
+                    <span class="checks-name">{{ failure.name }}</span>
+                    @if (failure.muted)
+                      <span class="checks-badge">Muted</span>
+                    @endif
+                  </div>
+                  <p class="muted checks-meta">
+                    <span class="mono">{{ failure.scope }}</span>
+                    @if (failure.message)
+                      <span>{{ failure.message }}</span>
+                    @endif
+                  </p>
+                </div>
+              @endforeach
+
+              @if (hiddenFailures > 0)
+                <p class="muted checks-note">and {{ hiddenFailures }} more failing.</p>
+              @endif
+
+              {{-- The finding worth the whole feature: this branch made these
+                  unreliable, and those were unreliable already. --}}
+              @if (testNewlyFlaky.length > 0)
+                <p class="checks-rollup checks-warn">
+                  <span class="run-dot run-warn" aria-hidden="true"></span>
+                  This branch made {{ testNewlyFlaky.length }} test@if (testNewlyFlaky.length !== 1)s@endif flaky
+                </p>
+                @foreach (testNewlyFlaky as one)
+                  <p class="muted checks-meta"><span class="mono">{{ one.scope }}</span> <span>{{ one.name }}</span></p>
+                @endforeach
+              @endif
+
+              @if (testAlreadyFlaky.length > 0)
+                <p class="muted checks-note">
+                  {{ testAlreadyFlaky.length }} unreliable test@if (testAlreadyFlaky.length !== 1)s were@else was@endif already flaky on {{ pullRequest.base_branch }}, so this branch did not cause @if (testAlreadyFlaky.length !== 1)them@else it@endif.
+                </p>
               @endif
             </section>
           @endif

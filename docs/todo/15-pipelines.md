@@ -1686,8 +1686,22 @@ should work for a repository that has not moved its CI here yet.
       is the obvious default and it hides: adding zero never changes which node is cheapest, so
       every new file lands on the same node - the pull request that added twelve test files would
       put all twelve on one.
-- [ ] Test results appear on the pull request, and a newly flaky test introduced by a branch is
+- [x] Test results appear on the pull request, and a newly flaky test introduced by a branch is
       distinguishable from one that was already flaky on the base
+
+      A Tests panel on the checks tab: which tests failed and what they said, the per-suite counts,
+      and the sentence nobody else writes - "this branch made 1 test flaky", against "6 were
+      already flaky on main, so this branch did not cause them".
+
+      **The distinction is measured, not read off a flag.** Flakiness elsewhere is a property of
+      the test, so a test unreliable on main for a month decorates every pull request that touches
+      nothing near it, and "there are seven flaky tests" becomes a sentence reviewers skip. Here
+      the same rule runs twice, over this branch's history and over the base's, and the difference
+      is the only part anybody has to act on.
+
+      A commit nothing has reported on says so rather than showing green, which is the rule the
+      checks rollup beside it already follows: green for unmeasured is how a misconfigured
+      collector goes unnoticed for a month. `tests/e2e/pull-tests.test.ts`.
 - [ ] Retention policy on execution data, configurable, with the storage cost stated
 - [ ] REST API, webhooks, and generated OpenAPI for suites, runs, executions, and states
 
