@@ -758,9 +758,22 @@ export const tsCloud: TsCloudConfig = {
         // what stops a deploy from taking the repositories with it - which is
         // exactly what happened the first time they were excluded from the
         // tarball without somewhere else to live.
-        'mkdir -p ../shared/storage/repos',
+        //
+        // The link target is resolved from the *link's* directory, not from
+        // the working directory these commands run in. `../../shared/...`
+        // written at `<release>/storage/repos` therefore points at
+        // `releases/shared/...`, which does not exist - so the link dangled,
+        // `storage/repos` resolved to nothing, and the instance had no
+        // repository storage at all while looking completely healthy. An
+        // absolute target cannot be read relative to anything and is the only
+        // form that stays correct wherever the link is written.
+        'mkdir -p "$(cd .. && pwd)/shared/storage/repos"',
         'rm -rf storage/repos',
-        'ln -sfn ../../shared/storage/repos storage/repos',
+        'ln -sfn "$(cd .. && pwd)/shared/storage/repos" storage/repos',
+        // A dangling link here is silent and total, so it is checked rather
+        // than assumed: better to fail the deploy than to serve an instance
+        // whose repositories are not there.
+        'test -d storage/repos/ || { echo "storage/repos does not resolve" >&2; exit 1; }',
         // Migrate on every deploy. Without it a fresh box serves the app
         // against a database that does not exist, and every page that reads
         // one renders its empty state - which looks like a working site with
