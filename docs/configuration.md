@@ -891,6 +891,19 @@ ships with.
 
 Read by `app/Commands/RunnerLocal.ts`.
 
+### `REVIEWOS_ACTION_STORE`
+
+Default: `storage/actions`, and the line is commented out.
+
+Where mirrored actions are kept.
+
+`storage/actions` by default. The mirrors of a busy instance are the one part
+of `storage/` that grows without anybody adding anything, so this exists to
+put them on a disk with room. Nothing is mirrored at all until the action
+policy allows a host, which it does not by default.
+
+Read by `app/Actions/Actions/store.ts`.
+
 ## Set by git, not by you
 
 Git hands these to a hook on every push, per repository. A value for one of them in `.env`

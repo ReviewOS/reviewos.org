@@ -40,5 +40,13 @@ export default {
   // Registers nothing; configures the renderer. See the file for why it must
   // load with the routes rather than in any one server's boot script.
   views: { path: 'views', prefix: '' },
+  /*
+   * The mirrored actions, at the root and *before* `git`.
+   *
+   * `/actions/{host}/{owner}/{name}.git/info/refs` would otherwise be caught by
+   * git's `{owner}/{repository}` patterns, which would read `actions` as an
+   * owner and answer 404 for a repository nobody has.
+   */
+  actions: { path: 'actions', prefix: '' },
   git: { path: 'git', prefix: '' },
 } satisfies RouteRegistry

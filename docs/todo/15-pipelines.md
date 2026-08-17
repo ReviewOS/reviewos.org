@@ -563,10 +563,35 @@ cannot talk back to the runner is a workflow that fails on its second line.
       Two jobs fetching the same commit at once is a race with no loser: the second finds the first
       one's directory already there and drops its own copy, since same sha means same bytes.
 
-      The cache is per-runner today. An instance-side cache is what a *fleet* needs and is the next
-      step; one runner sharing a filesystem with itself already gets the whole benefit.
-- [ ] Mirroring of the actions a repository actually uses into the instance ([phase 13](./13-mirroring.md)
-      already mirrors repositories), so an air-gapped install is a supported configuration
+      **The instance-side cache exists now too**, and it is the same thing as mirroring: the
+      instance keeps bare mirrors under `storage/actions/{host}/{owner}/{name}.git` and serves them
+      over the ordinary git protocol, so a runner points its origins map at
+      `https://instance/actions/github.com` and everything else about fetching stays exactly as it
+      was. Ten runners then fetch from here instead of from the internet.
+
+      Read-only and unauthenticated on purpose: what is here is public code mirrored from a public
+      host, carrying no repository's contents and no user's data, and requiring a credential would
+      mean every runner in a fleet holding one to fetch things anybody can download.
+      `git-receive-pack` is not served at all - a mirror that could be pushed to is a supply chain
+      with a hole in it, and the whole value of mirroring `actions/checkout` here is that what this
+      serves is what upstream had.
+- [x] Mirroring of the actions a repository actually uses into the instance ([phase 13](./13-mirroring.md)
+      already mirrors repositories), so an air-gapped install is a supported configuration.
+
+      **What is mirrored is what is used**, read out of the workflow versions this instance has
+      already parsed rather than from a list somebody maintains: a list drifts the moment a workflow
+      changes, and the failure of a stale one is a build that breaks because the single action
+      nobody added is the one it needed. Only the newest version of each active workflow counts, and
+      only references the policy would actually allow - mirroring an action nobody may run is a
+      network request with no possible use.
+
+      Swept hourly. `git remote update --prune` on an unchanged repository transfers nothing, and a
+      tag deleted upstream disappears here rather than being served forever; the reason to run it
+      when everything is fine is that the day it matters is the day the upstream is down, and a
+      mirror last updated a week ago is missing exactly the tag somebody pushed yesterday.
+
+      The test deletes the upstream before fetching through the instance, because a cache that only
+      works while the thing it caches is reachable is not a cache.
 - [x] An allowlist policy at instance and owner level over which action sources may be used, since
       `uses:` is arbitrary code selection by anyone who can edit a workflow file
 - [ ] Tests: every resolution form, a pinned sha that does not match, an action outside the

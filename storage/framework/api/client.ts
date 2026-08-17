@@ -114,6 +114,20 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /actions/{host}/{owner}/{repository}/git-upload-pack
+   */
+  postActionsHostOwnerRepositoryGitUploadPack(input: { "host": string; "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/actions/{host}/{owner}/{repository}/git-upload-pack", input ?? {}, [], false, options)
+  },
+
+  /**
+   * GET /actions/{host}/{owner}/{repository}/info/refs
+   */
+  getActionsHostOwnerRepositoryInfoRefs(input: { "host": string; "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/actions/{host}/{owner}/{repository}/info/refs", input ?? {}, [], false, options)
+  },
+
+  /**
    * POST /ai/ask
    */
   postAiAsk(input?: { body?: { "question"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

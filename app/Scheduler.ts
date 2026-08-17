@@ -84,6 +84,20 @@ export default function () {
     .job('DispatchScheduledWorkflows')
     .everyMinute()
 
+  /*
+   * The actions this instance's workflows use, kept current.
+   *
+   * Hourly, and cheap when nothing changed: `git remote update` on an unchanged
+   * repository transfers nothing. The reason to run it when everything is fine
+   * is that the day it matters is the day the upstream host is down, and a
+   * mirror last updated a week ago is missing exactly the tag somebody pushed
+   * yesterday. Sweeps nothing at all on an instance whose policy allows no
+   * remote actions, which is the default.
+   */
+  schedule
+    .job('MirrorActions')
+    .hourly()
+
   // Run a custom action every five minutes
   // schedule.action('CleanupTempFiles').everyFiveMinutes()
 

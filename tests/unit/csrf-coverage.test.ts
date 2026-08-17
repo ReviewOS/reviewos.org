@@ -51,6 +51,18 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
       + '`::error file=...::` from a compiler becomes a message on the diff.',
   },
   {
+    file: 'routes/actions.ts',
+    count: 2,
+    because: 'the two git routes that serve mirrored actions to runners. There '
+      + 'is no session and no cookie anywhere in a git fetch: the client is '
+      + '`git`, it holds no ambient credential for this instance, and what it '
+      + 'is fetching is public code mirrored from a public host - no '
+      + 'repository contents and no user data. Both are read-only, and '
+      + '`git-receive-pack` is deliberately not served at all, so there is '
+      + 'nothing here for a forged post to change even if a browser could be '
+      + 'made to send one.',
+  },
+  {
     file: 'routes/notifications.ts',
     count: 1,
     because: 'RFC 8058 one-click unsubscribe. Gmail posts cross-origin with no '
