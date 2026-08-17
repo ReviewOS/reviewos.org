@@ -332,20 +332,38 @@ written down here so it does not get relitigated:
       own steps and event, quoting is the author's job exactly as it is there, and anything
       unresolvable is left as written rather than becoming an empty string that silently changes what
       the command means.
-- [ ] `container:` and `services:` on a job, with `image`, `env`, `ports`, `volumes`, `options`, and
-      health-checked service startup before the first step
+- [x] `services:` on a job, with `image` and `env`, and health-checked service startup before the
+      first step. **`container:` is not**, and the reason has not changed.
 
-      Still not implemented, and still refused at run time with a reason rather than run on the
-      host. What *has* changed is that the common case behind `container:` now has an answer: a
-      `container: node:20` is usually asking for a toolchain rather than for isolation, and a pantry
-      dependency file in the repository gets that with no image, no registry and nothing to bake -
-      the runner installs what the file names and puts it on `PATH` for every step. See
-      [extensions](../extensions.md).
+      pantry starts sixty-eight of exactly the things people put in `services:`, so the image name
+      is read as *what the workflow meant* rather than as an artifact to fetch: `postgres:16`,
+      `postgres:16-alpine` and `docker.io/library/postgres` are all "a Postgres, please". A step
+      reaches it on loopback through `$POSTGRES_HOST`, `$POSTGRES_PORT` and `$POSTGRES_URL`, named
+      after the workflow's own key.
 
-      That is deliberately not called container support. Isolation is a separate machine, which an
-      autoscaled fleet already gives you one of per job; `services:` needs something that can start
-      and health-check a database next to a job, and pantry has services but wiring them per job is
-      its own piece of work.
+      **An image nothing here can serve fails the job before a step runs**, with the image named
+      and the known list printed. That is the decision worth defending: carrying on produces a
+      connection refused three minutes later, in a log nobody reads to the bottom, and the person
+      debugging it has no reason to suspect the `services:` line at all. A job that genuinely needs
+      an arbitrary image needs a runner with a container engine, which this is not.
+
+      **Started is not ready**, and the health check is the point: Postgres accepts connections a
+      second or two after the process exists, so a first step that connects immediately fails on a
+      fast machine and passes on a slow one. A service already running is used rather than
+      restarted and is not stopped afterwards - pantry's services belong to the machine, and
+      stopping one would take down the database another job on the same runner is mid-query
+      against.
+
+      The readiness check was verified against a live service on this machine, and the refusal path
+      against a port nothing is on. Worth writing down from the same session: `pantry start
+      memcached` printed `✓ Started memcached (healthy)` and `pantry status memcached` said
+      `failed` a second later, with no log file written - which is the exact disagreement the port
+      check exists to survive, and a pantry bug worth chasing separately.
+
+      `container:` remains refused at run time with a reason rather than run on the host. Isolation
+      is a separate machine, which an autoscaled fleet already gives you one of per job; and the
+      common case behind `container: node:20` is a toolchain, which a pantry dependency file
+      already answers with no image and no registry.
 - [ ] `concurrency:` with `group` and `cancel-in-progress`, at workflow and job level. Actions has
       this and Gitea ignores it; the Buildkite concurrency engine in this file implements it properly
       rather than partially.

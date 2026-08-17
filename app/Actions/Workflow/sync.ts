@@ -58,8 +58,15 @@ export function digestOf(source: string): string {
  * repository, so a workflow author cannot lower the bar for their own deploy
  * by editing the file the deploy is written in.
  */
-function settingsWith(settings: Record<string, unknown>, environment: string | null): string | null {
-  const merged = environment ? { ...settings, environment } : settings
+function settingsWith(settings: Record<string, unknown>, environment: string | null, services: readonly unknown[] = []): string | null {
+  const merged = {
+    ...settings,
+    ...(environment ? { environment } : {}),
+    // The services ride here too, for the same reason: a run copies its
+    // settings forward, and a runner reads what the file asked for rather than
+    // going back to the definition it may no longer match.
+    ...(services.length > 0 ? { services } : {}),
+  }
 
   return Object.keys(merged).length > 0 ? JSON.stringify(merged) : null
 }
@@ -260,7 +267,7 @@ async function insertVersion(
         // The step model's own columns. A job with no `reviewos:` key is a
         // command job, which is every job an Actions workflow can write.
         kind: job.kind,
-        settings: settingsWith(job.settings, job.environment),
+        settings: settingsWith(job.settings, job.environment, job.services),
         group_label: job.group,
         priority: job.priority,
         if_changed: job.ifChanged.length > 0 ? job.ifChanged.join('\n') : null,

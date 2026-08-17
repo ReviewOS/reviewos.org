@@ -31,6 +31,8 @@ import { checkPolicy, defaultPolicy, parseActionRef } from './actionRef'
 import type { ActionDefinition } from './actionFile'
 import { inputEnvironment, missingInputs, parseActionFile } from './actionFile'
 import { CommandReader } from './commands'
+import type { ServiceRequest } from './services'
+import { resolveServices, serviceEnvironment, waitForPort } from './services'
 import { interpolate, shouldRun } from '../Workflow/expression'
 
 export interface LocalRunnerOptions {
@@ -326,6 +328,29 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     const toolchain = options.tools === false ? '' : await provideTools(workspace, text => send(text))
 
     /*
+     * `services:` - a database beside the job, started with pantry.
+     *
+     * Before the toolchain would also work; after it is deliberate, because a
+     * repository whose dependency file pins the database version wants pantry
+     * to have read that file first.
+     *
+     * A service this runner cannot serve **fails the job here**, before a step
+     * has run. Carrying on produces a connection refused three minutes later,
+     * in a log nobody reads to the bottom, and the person debugging it has no
+     * reason to suspect the `services:` line at all.
+     */
+    const started = await startServices(job, text => send(text))
+
+    if (!started.ok) {
+      await report(options.baseUrl, jobToken, 'failed', started.reason)
+      say(`job ${job.id} failed: ${started.reason}`)
+
+      return { jobId: Number(job.id), state: 'failed', reason: started.reason }
+    }
+
+    const serviceEnv = started.environment
+
+    /*
      * The upload command, written into the workspace as a script on PATH.
      *
      * A job generating steps needs one line it can run - `reviewos-upload
@@ -410,7 +435,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       const context = expressionContext(job, workspace, {
         status: jobFailed ? 'failure' : 'success',
         steps: stepContext,
-        env: { ...environmentFor(job, workspace), ...carried },
+        env: { ...environmentFor(job, workspace), ...serviceEnv, ...carried },
       })
 
       const decision = shouldRun(step.if, context)
@@ -436,7 +461,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
           policy: options.policy ?? defaultPolicy(),
           cacheRoot: options.actionCacheRoot ?? 'storage/framework/runtime/actions',
           origins: options.actionOrigins,
-          environment: { ...environmentFor(job, workspace), ...carried },
+          environment: { ...environmentFor(job, workspace), ...serviceEnv, ...carried },
           onOutput: (text, stream) => send(text, stream),
         })
 
@@ -475,6 +500,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       const files = stepFiles(workspace, index)
       const environment = {
         ...environmentFor(job, workspace),
+        ...serviceEnv,
         ...carried,
         ...files.environment,
       }
@@ -610,7 +636,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         expressionContext(job, workspace, {
           status: failed ? 'failure' : 'success',
           steps: stepContext,
-          env: { ...environmentFor(job, workspace), ...carried },
+          env: { ...environmentFor(job, workspace), ...serviceEnv, ...carried },
         }),
       )
     }
@@ -803,6 +829,88 @@ function expressionContext(
       tool_cache: join(workspace, '.reviewos-runner', 'tools'),
     },
     env: state.env,
+  }
+}
+
+/**
+ * Start whatever the job's `services:` asked for, with pantry.
+ *
+ * A workflow writing `services: { postgres: { image: postgres:16 } }` wants one
+ * thing: a database on a port before the first step. Every other forge answers
+ * that with a container; this instance has pantry, which starts and
+ * health-checks sixty-eight of exactly these.
+ *
+ * **A service already running is used rather than restarted**, and not stopped
+ * afterwards. Pantry's services are the machine's, not this job's - stopping
+ * one at the end of a job would take down the database another job on the same
+ * runner is mid-query against.
+ */
+type ServiceStart =
+  | { ok: true, environment: Record<string, string> }
+  | { ok: false, reason: string }
+
+async function startServices(job: any, say: (line: string) => Promise<void>): Promise<ServiceStart> {
+  const requests = servicesOf(job)
+
+  if (requests.length === 0)
+    return { ok: true, environment: {} }
+
+  const decision = resolveServices(requests)
+
+  if (!decision.ok)
+    return { ok: false, reason: decision.reason }
+
+  await say('::group::Services\n')
+
+  for (const service of decision.services) {
+    await say(`${service.name}: pantry start ${service.service}\n`)
+
+    const child = Bun.spawn(['pantry', 'start', service.service], { stdout: 'pipe', stderr: 'pipe' })
+
+    await child.exited
+
+    /*
+     * Started is not ready. Postgres accepts connections a second or two after
+     * the process exists, and a first step that connects immediately fails on
+     * a fast machine and passes on a slow one - which is where a whole class
+     * of "flaky CI" comes from.
+     */
+    const ready = await waitForPort(service.port)
+
+    if (!ready) {
+      await say('::endgroup::\n')
+
+      return {
+        ok: false,
+        reason: `\`${service.name}\` never started listening on port ${service.port}. `
+          + 'Check `pantry logs ' + service.service + '` on the runner.',
+      }
+    }
+
+    await say(`${service.name}: ready on 127.0.0.1:${service.port}\n`)
+  }
+
+  await say('::endgroup::\n')
+
+  return { ok: true, environment: serviceEnvironment(decision.services) }
+}
+
+/** A job's `services:`, out of the settings the control plane copied forward. */
+function servicesOf(job: any): ServiceRequest[] {
+  try {
+    const settings = typeof job?.settings === 'string' ? JSON.parse(job.settings) : (job?.settings ?? {})
+    const services = Array.isArray(settings?.services) ? settings.services : []
+
+    return services
+      .filter((one: any) => one && typeof one === 'object' && one.image)
+      .map((one: any) => ({
+        name: String(one.name ?? ''),
+        image: String(one.image),
+        env: (one.env && typeof one.env === 'object' ? one.env : {}) as Record<string, string>,
+      }))
+  }
+  catch {
+    return []
   }
 }
 

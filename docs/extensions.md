@@ -448,3 +448,52 @@ The engine underneath is documented in
 [the pipelines roadmap](https://github.com/stacksjs/reviewos/blob/main/docs/todo/15-pipelines.md),
 including the attributes that exist in the model and do not yet have a key on the
 surface.
+
+## `services:` without containers
+
+A workflow that writes this is asking for one thing - a database on a port
+before the first step runs:
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+      cache:
+        image: redis:7-alpine
+    steps:
+      - run: bun test
+```
+
+Every other forge answers with a container. This runner has pantry, which
+starts and health-checks sixty-eight of exactly these, so the image name is
+read as **what the workflow meant** rather than as an artifact to fetch:
+`postgres:16`, `postgres:16-alpine` and `docker.io/library/postgres` are all
+"a Postgres, please".
+
+A step reaches it on loopback, and the variables are named after the workflow's
+own key:
+
+```
+$POSTGRES_HOST=127.0.0.1  $POSTGRES_PORT=5432  $POSTGRES_URL=postgres://127.0.0.1:5432
+```
+
+**An image nothing here can serve fails the job before a step runs**, with the
+image named and the known list printed. Carrying on would produce a connection
+refused three minutes later, in a log nobody reads to the bottom, and the person
+debugging it has no reason to suspect the `services:` line at all. A job that
+genuinely needs an arbitrary image needs a runner with a container engine, which
+this is not.
+
+**Started is not ready.** Postgres accepts connections a second or two after the
+process exists, so the runner waits for the port rather than for the command -
+that gap is where a whole class of flaky CI comes from.
+
+A service already running is used rather than restarted, and is not stopped when
+the job ends: pantry's services belong to the machine, and stopping one would
+take down the database another job on the same runner is mid-query against.
+
+`container:` is still not implemented, and the reason has not changed - see
+above.

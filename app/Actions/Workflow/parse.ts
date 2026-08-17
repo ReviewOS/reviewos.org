@@ -84,6 +84,16 @@ export interface WorkflowJob {
    * their own deploy by editing the file the deploy is written in.
    */
   environment: string | null
+  /**
+   * `services:` on the job, as name, image and env.
+   *
+   * Kept as what the workflow asked for rather than as anything resolved: this
+   * instance starts services with pantry, and which pantry service an image
+   * means is a fact about the *runner*, not about the file. A runner with a
+   * container engine could read the same job differently, and neither should
+   * have to re-parse the document to find out.
+   */
+  services: WorkflowService[]
   env: Record<string, string>
   /**
    * `outputs:` on the job, as written.
@@ -201,6 +211,16 @@ export interface WorkflowJob {
  * not, because only the newest commit's result is going to be read.
  */
 export type IntermediateRuns = 'run' | 'skip' | 'cancel'
+
+/** One `services:` entry: what to start beside the job. */
+export interface WorkflowService {
+  /** The key in the workflow, which is the hostname Actions would give it. */
+  name: string
+  image: string
+  env: Record<string, string>
+  /** `ports:` as written. Informational here - a host service listens where it listens. */
+  ports: string[]
+}
 
 export interface WorkflowConcurrency {
   group: string
@@ -1179,6 +1199,40 @@ export function environmentFrom(value: unknown): string | null {
   return typeof name === 'string' && name.trim() ? name.trim() : null
 }
 
+/**
+ * `services:` into a list.
+ *
+ * Actions' shape is a map of name to definition, and the name matters: it is
+ * what a step uses to reach the thing. A service with no `image` is dropped
+ * rather than refused - the key alone says nothing about what to start, and a
+ * parse error would fail a workflow over a line that means nothing either way.
+ */
+export function servicesFrom(value: unknown): WorkflowService[] {
+  const record = asRecord(value)
+
+  if (!record)
+    return []
+
+  const services: WorkflowService[] = []
+
+  for (const [name, raw] of Object.entries(record)) {
+    const body = asRecord(raw)
+    const image = typeof body?.image === 'string' ? body.image.trim() : ''
+
+    if (!image)
+      continue
+
+    services.push({
+      name: String(name),
+      image,
+      env: asStringMap(body?.env),
+      ports: asStringList(body?.ports),
+    })
+  }
+
+  return services
+}
+
 export function defaultsFrom(value: unknown): { shell: string | null, workingDirectory: string | null } {
   const run = asRecord(asRecord(value)?.run)
 
@@ -1499,6 +1553,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       if: typeof body.if === 'string' ? body.if : null,
       timeoutMinutes: typeof timeout === 'number' && Number.isFinite(timeout) ? timeout : null,
       environment: environmentFrom(body.environment),
+      services: servicesFrom(body.services),
       env: asStringMap(body.env),
       outputs: asStringMap(body.outputs),
       uses: typeof body.uses === 'string' && body.uses.length > 0 ? body.uses : null,
