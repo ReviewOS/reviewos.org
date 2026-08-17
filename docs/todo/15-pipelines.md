@@ -463,13 +463,25 @@ written down here so it does not get relitigated:
 This is where compatibility is actually won or lost. A workflow file that parses but whose steps
 cannot talk back to the runner is a workflow that fails on its second line.
 
-- [ ] Workflow commands on stdout: `::error::`, `::warning::`, `::notice::` with `file`, `line`,
+- [x] Workflow commands on stdout: `::error::`, `::warning::`, `::notice::` with `file`, `line`,
       `col`, and `endLine`, plus `::group::`, `::endgroup::`, `::debug::`, `::add-mask::`,
       `::add-matcher::`, and `::stop-commands::`
-- [ ] `::error file=...,line=...::` becomes a check annotation, which becomes a comment on the diff
+- [x] `::error file=...,line=...::` becomes a check annotation, which becomes a comment on the diff.
+
+      The whole path is held by a test: a step prints the line, the runner parses it, the annotation
+      endpoint records it against a check named for the *job* - "greet failed" is useful, "CI
+      failed" is what the reader already knew - and the diff renders it in the gutter. That is the
+      reason to implement the format exactly rather than approximately: every linter, compiler and
+      test runner people already use has an Actions reporter, and honouring it means those reporters
+      work here unchanged.
+
+      Read defensively at both ends. A path is a string a step printed rather than a file this
+      instance verified, and the count is capped at two hundred in the runner *and* in the endpoint,
+      because the runner is the part this instance does not control. Annotations replace rather than
+      append, so a retried job does not leave two of everything on one line.
       line. This is the sentence where the Actions ecosystem and this project's whole premise meet,
       and every linter, compiler wrapper and test reporter already emits it.
-- [ ] File-based protocol: `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_STATE`, and
+- [x] File-based protocol: `GITHUB_OUTPUT`, `GITHUB_ENV`, `GITHUB_PATH`, `GITHUB_STATE`, and
       `GITHUB_STEP_SUMMARY`, with the multiline delimiter form, under both `GITHUB_*` and
       `REVIEWOS_*` names
 - [ ] Step summaries render as markdown on the run and, where they belong to a check, on the pull
@@ -485,7 +497,15 @@ cannot talk back to the runner is a workflow that fails on its second line.
       `GITHUB_TOKEN` and the ecosystem assumes it exists.
 - [ ] The API endpoints that automatic token is used against by common actions, at
       `GITHUB_API_URL`, in the same shapes, so `actions/github-script` and friends work
-- [ ] Secret masking in logs, including values registered at runtime with `::add-mask::`
+- [x] Secret masking in logs, including values registered at runtime with `::add-mask::`.
+
+      **Masked in the runner, before anything crosses the wire.** A value masked server-side has
+      already been written down by the time it is hidden, which is a masking feature that does not
+      mask. The command's own line is dropped rather than logged, since `::add-mask::hunter2`
+      contains the secret it is asking to hide.
+
+      Longest secret first, so one containing another leaves no fragment behind; values under three
+      characters are not masked at all, or every log becomes asterisks.
 
 ### Resolving `uses:`
 

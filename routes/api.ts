@@ -732,6 +732,9 @@ route.post('/runner/heartbeat', 'Actions/Runner/HeartbeatAction').skipCsrf()
 route.post('/runner/report', 'Actions/Runner/ReportJobAction').skipCsrf()
 route.post('/runner/logs', 'Actions/Runner/AppendLogAction').skipCsrf()
 route.post('/runner/artifacts', 'Actions/Runner/UploadArtifactAction').skipCsrf()
+// What a job's steps said about the code: `::error file=...,line=...::` becomes
+// a check annotation, which is what the diff renders in the gutter.
+route.post('/runner/annotations', 'Actions/Runner/AnnotateAction').skipCsrf()
 
 // Reading is the repository's permission, not the runner's: a log is the
 // repository's data, and somebody who cannot see the code cannot see what

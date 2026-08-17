@@ -32,8 +32,8 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
   },
   {
     file: 'routes/api.ts',
-    count: 7,
-    because: 'the MCP endpoint, the mirror webhook, and the five runner routes. '
+    count: 8,
+    because: 'the MCP endpoint, the mirror webhook, and the six runner routes. '
       + 'MCP reads its bearer itself and refuses a request without one before '
       + 'anything else happens; the mirror webhook is signed over its body by an '
       + 'upstream forge that holds no cookie; the runner endpoints authenticate a '
@@ -46,7 +46,9 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
       + 'until an audit noticed that its intended caller had never once got '
       + 'through. The fifth runner route is the artifact upload, which is the '
       + 'same machine sending the same job credential with a body of bytes '
-      + 'instead of a body of JSON.',
+      + 'instead of a body of JSON, and the sixth is the annotation report - a '
+      + 'job saying what its steps found, on the same job credential, so that '
+      + '`::error file=...::` from a compiler becomes a message on the diff.',
   },
   {
     file: 'routes/notifications.ts',
@@ -143,17 +145,18 @@ describe('CSRF exemptions', () => {
 
 describe('what is not exempt', () => {
   test('the API surface is protected apart from the documented routes', async () => {
-    // Ninety-odd state-changing routes in one file, six exemptions. The route
+    // Ninety-odd state-changing routes in one file, eight exemptions. The route
     // count is asserted as a floor rather than a number, so adding an endpoint
     // does not fail this test - which is the kind of failure people learn to
     // update without reading. The exemption count is exact, because that is the
     // number worth noticing a change in, and it is what caught the runner
     // routes arriving without anybody writing down why they were exempt - once
-    // for the first three, and again for the log append.
+    // for the first three, again for the log append, and again for the
+    // annotation report.
     const source = await Bun.file('routes/api.ts').text()
     const unsafe = (source.match(/route\.(post|put|patch|delete)\(/g) ?? []).length
 
     expect(unsafe).toBeGreaterThan(50)
-    expect(await skipCount('routes/api.ts')).toBe(7)
+    expect(await skipCount('routes/api.ts')).toBe(8)
   })
 })

@@ -5553,6 +5553,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/runner/annotations
+   */
+  postRunnerAnnotations(input?: { body?: { "summary"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "recorded"?: number; "check_run"?: number }>> {
+    return request(config, "POST", "/api/runner/annotations", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/runner/artifacts
    */
   postRunnerArtifacts(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

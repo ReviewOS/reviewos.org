@@ -22,10 +22,11 @@
  * be exercised most, not bypassed.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { CommandReader } from './commands'
 
 export interface LocalRunnerOptions {
   /** Where this instance is, for the runner protocol. */
@@ -109,8 +110,58 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     mkdirSync(workspace, { recursive: true })
 
   let sequence = 1
+
+  /*
+   * Every byte a step prints goes through the command reader before it goes
+   * anywhere else.
+   *
+   * That ordering is the point: `::add-mask::` has to hide a value in the same
+   * chunk that introduced it, and an annotation has to be collected before the
+   * text is shipped. Doing it server-side instead would mean the secret
+   * crossing the wire first, which is a masking feature that does not mask.
+   */
+  const reader = new CommandReader()
+  const annotations: any[] = []
+  const summary: string[] = []
+
+  let pending = ''
+
   const send = async (text: string, stream: 'stdout' | 'stderr' = 'stdout'): Promise<void> => {
-    await append(options.baseUrl, jobToken, sequence++, text, stream)
+    pending += text
+
+    const lines = pending.split('\n')
+    pending = lines.pop() ?? ''
+
+    const kept: string[] = []
+
+    for (const line of lines) {
+      const result = reader.read(line)
+
+      if (result.annotation)
+        annotations.push(result.annotation)
+
+      if (result.line !== null)
+        kept.push(result.line)
+    }
+
+    if (kept.length > 0)
+      await append(options.baseUrl, jobToken, sequence++, `${kept.join('\n')}\n`, stream)
+  }
+
+  /** Anything left in the buffer when a step ends, which is a line without its newline. */
+  const flush = async (stream: 'stdout' | 'stderr' = 'stdout'): Promise<void> => {
+    if (!pending)
+      return
+
+    const result = reader.read(pending)
+
+    pending = ''
+
+    if (result.annotation)
+      annotations.push(result.annotation)
+
+    if (result.line !== null)
+      await append(options.baseUrl, jobToken, sequence++, `${result.line}\n`, stream)
   }
 
   try {
@@ -144,6 +195,17 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     const steps: any[] = Array.isArray(job.steps) ? job.steps : []
     let failed: string | null = null
 
+    /*
+     * What one step tells the next.
+     *
+     * `GITHUB_ENV` and `GITHUB_PATH` are files a step appends to, read after it
+     * exits and applied to every step after it. A step exporting a variable in
+     * its own shell cannot affect the next one - each is its own process - and
+     * this file is the whole reason Actions can pretend otherwise.
+     */
+    const carried: Record<string, string> = {}
+    let extraPath = ''
+
     for (const [index, step] of steps.entries()) {
       const name = String(step.name ?? step.run ?? step.uses ?? `step ${index + 1}`)
 
@@ -165,12 +227,38 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
       await send(`::group::${name}\n`)
 
+      const files = stepFiles(workspace, index)
+      const environment = {
+        ...environmentFor(job, workspace),
+        ...carried,
+        ...files.environment,
+      }
+
+      if (extraPath)
+        environment.PATH = `${extraPath}:${environment.PATH}`
+
       const result = await runStep({
         command: String(step.run),
         cwd: step.working_directory ? join(workspace, String(step.working_directory)) : workspace,
-        environment: environmentFor(job, workspace),
+        environment,
         onOutput: (text, stream) => send(text, stream),
       })
+
+      await flush()
+
+      // What the step wrote to its files, applied to the ones after it.
+      const written = readStepFiles(files)
+
+      Object.assign(carried, written.environment)
+
+      if (written.path)
+        extraPath = extraPath ? `${written.path}:${extraPath}` : written.path
+
+      if (written.summary)
+        summary.push(written.summary)
+
+      for (const value of written.masks)
+        reader.addMask(value)
 
       await send('::endgroup::\n')
 
@@ -181,7 +269,30 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       }
     }
 
+    await flush()
+
     const state = failed ? 'failed' : 'succeeded'
+
+    /*
+     * Annotations and the summary go before the conclusion, on purpose.
+     *
+     * Reporting the conclusion is what makes a run terminal, and a check that
+     * arrives after its run has finished is a check nobody was waiting for.
+     * This way the diff has the annotations by the time the run says it failed.
+     */
+    if (annotations.length > 0 || summary.length > 0) {
+      await post(options.baseUrl, '/api/runner/annotations', jobToken, {
+        annotations: annotations.slice(0, 200).map(annotation => ({
+          level: annotation.level,
+          message: annotation.message,
+          path: annotation.path,
+          start_line: annotation.startLine,
+          end_line: annotation.endLine,
+          title: annotation.title,
+        })),
+        summary: summary.join('\n').slice(0, 60_000),
+      })
+    }
 
     await report(options.baseUrl, jobToken, state, failed ?? '')
     say(`job ${job.id} ${state}`)
@@ -313,6 +424,124 @@ async function checkoutCode(input: {
   return clone.ok
     ? { ok: true, reason: 'checked out' }
     : { ok: false, reason: `the checkout failed (git exited ${clone.exitCode})` }
+}
+
+/**
+ * The files a step writes back through.
+ *
+ * One set per step rather than one per job: a step reading the previous step's
+ * `GITHUB_OUTPUT` by accident is a bug that only appears when two steps write
+ * the same key, which is the day nobody is looking.
+ */
+function stepFiles(workspace: string, index: number): {
+  environment: Record<string, string>
+  paths: { env: string, path: string, output: string, summary: string, state: string }
+} {
+  const directory = join(workspace, '.reviewos-runner')
+
+  mkdirSync(directory, { recursive: true })
+
+  const paths = {
+    env: join(directory, `env-${index}`),
+    path: join(directory, `path-${index}`),
+    output: join(directory, `output-${index}`),
+    summary: join(directory, `summary-${index}`),
+    state: join(directory, `state-${index}`),
+  }
+
+  for (const file of Object.values(paths))
+    writeFileSync(file, '')
+
+  return {
+    paths,
+    environment: {
+      GITHUB_ENV: paths.env,
+      GITHUB_PATH: paths.path,
+      GITHUB_OUTPUT: paths.output,
+      GITHUB_STEP_SUMMARY: paths.summary,
+      GITHUB_STATE: paths.state,
+    },
+  }
+}
+
+/** What a step wrote to its files, read after it exited. */
+function readStepFiles(files: ReturnType<typeof stepFiles>): {
+  environment: Record<string, string>
+  path: string
+  summary: string
+  masks: string[]
+} {
+  const environment = parseEnvFile(read(files.paths.env))
+  const outputs = parseEnvFile(read(files.paths.output))
+
+  return {
+    environment,
+    // Each line is a directory, and later steps look in the most recently added
+    // first - which is what `GITHUB_PATH` means and the opposite of appending.
+    path: read(files.paths.path).split('\n').map(line => line.trim()).filter(Boolean).reverse().join(':'),
+    summary: read(files.paths.summary).trim(),
+    /*
+     * Nothing here is masked automatically. An output is not a secret - it is
+     * usually a version number or a filename - and masking every one of them
+     * would turn a log into asterisks. A step that produced something secret
+     * says so with `::add-mask::`.
+     */
+    masks: Object.keys(outputs).length > 0 ? [] : [],
+  }
+}
+
+function read(path: string): string {
+  try {
+    return readFileSync(path, 'utf8')
+  }
+  catch {
+    return ''
+  }
+}
+
+/**
+ * `NAME=value` per line, and the heredoc form for values with newlines.
+ *
+ * The heredoc exists because a value containing a newline would otherwise be
+ * indistinguishable from two variables, and a certificate or a multi-line
+ * message is a perfectly ordinary thing to pass between steps.
+ */
+export function parseEnvFile(text: string): Record<string, string> {
+  const values: Record<string, string> = {}
+  const lines = text.split('\n')
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index] ?? ''
+
+    if (!line.trim())
+      continue
+
+    const heredoc = /^([A-Z_][A-Z0-9_]*)<<(\S+)$/i.exec(line.trim())
+
+    if (heredoc) {
+      const [, name, marker] = heredoc
+      const body: string[] = []
+
+      index++
+
+      while (index < lines.length && lines[index]?.trim() !== marker) {
+        body.push(lines[index] ?? '')
+        index++
+      }
+
+      values[String(name)] = body.join('\n')
+      continue
+    }
+
+    const separator = line.indexOf('=')
+
+    if (separator <= 0)
+      continue
+
+    values[line.slice(0, separator).trim()] = line.slice(separator + 1)
+  }
+
+  return values
 }
 
 /** Run one command, streaming its output as it arrives. */

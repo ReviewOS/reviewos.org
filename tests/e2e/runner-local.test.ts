@@ -74,6 +74,16 @@ jobs:
         run: echo "hello from the runner"
       - name: Read the checkout
         run: cat marker.txt
+      - name: Pass something on
+        run: |
+          echo "BUILT=yes" >> "\$GITHUB_ENV"
+          echo "::add-mask::topsecretvalue"
+          echo "the token is topsecretvalue"
+      - name: Read what the last step set
+        run: |
+          echo "carried: \$BUILT"
+          echo "### Built it" >> "\$GITHUB_STEP_SUMMARY"
+          echo "::warning file=marker.txt,line=1,title=Nit::Could say more"
 `
 
 beforeAll(async () => {
@@ -291,6 +301,104 @@ describe('the local runner', () => {
      * the product looks broken rather than incomplete.
      */
     expect(text).toContain('this came from the repository')
+  }, 60_000)
+
+  /*
+   * The file protocol: a step tells the next one something by writing to a file
+   * whose path is in the environment. Each step is its own process, so there is
+   * no other way for `BUILT=yes` to survive - and this is what lets a workflow
+   * copied from Actions behave the way its author expected.
+   */
+  test('what one step writes to GITHUB_ENV, the next one reads', async () => {
+    if (!available)
+      return
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .innerJoin('workflow_jobs', 'workflow_jobs.id', '=', 'workflow_job_logs.workflow_job_id')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select(['workflow_job_logs.content as content'])
+      .where('workflow_runs.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_job_logs.sequence')
+      .execute()
+
+    const text = logs.map(row => String(row.content ?? '')).join('')
+
+    expect(text).toContain('carried: yes')
+  }, 60_000)
+
+  /*
+   * Masking, which has to happen in the runner rather than on the server: a
+   * value masked after it crossed the wire has already been written down.
+   */
+  test('a value registered with ::add-mask:: never reaches the log', async () => {
+    if (!available)
+      return
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .innerJoin('workflow_jobs', 'workflow_jobs.id', '=', 'workflow_job_logs.workflow_job_id')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select(['workflow_job_logs.content as content'])
+      .where('workflow_runs.repository_id', '=', created.repositoryId)
+      .execute()
+
+    const text = logs.map(row => String(row.content ?? '')).join('')
+
+    expect(text).not.toContain('topsecretvalue')
+    expect(text).toContain('the token is ***')
+    // The command that registered it is dropped too: logging it would publish
+    // the value in the act of protecting it.
+    expect(text).not.toContain('::add-mask::')
+  }, 60_000)
+
+  /*
+   * The path this whole protocol exists for: a tool that knows nothing about
+   * this instance prints a line, and a reviewer sees a message on line 1 of
+   * `marker.txt`.
+   */
+  test('a ::warning file=...:: becomes a check annotation on the diff', async () => {
+    if (!available)
+      return
+
+    const annotations: any[] = await db
+      .selectFrom('check_annotations')
+      .innerJoin('check_runs', 'check_runs.id', '=', 'check_annotations.check_run_id')
+      .select([
+        'check_annotations.path as path',
+        'check_annotations.start_line as start_line',
+        'check_annotations.level as level',
+        'check_annotations.title as title',
+        'check_annotations.message as message',
+      ])
+      .where('check_runs.repository_id', '=', created.repositoryId)
+      .execute()
+
+    expect(annotations).toHaveLength(1)
+    expect(annotations[0]).toMatchObject({
+      path: 'marker.txt',
+      level: 'warning',
+      title: 'Nit',
+      message: 'Could say more',
+    })
+    expect(Number(annotations[0].start_line)).toBe(1)
+  }, 60_000)
+
+  test('and the step summary lands on the check', async () => {
+    if (!available)
+      return
+
+    const check: any = await db
+      .selectFrom('check_runs')
+      .select(['summary', 'provider', 'name'])
+      .where('repository_id', '=', created.repositoryId)
+      .executeTakeFirst()
+
+    expect(String(check.summary)).toContain('Built it')
+    // Named for the job rather than the workflow: "greet failed" is useful,
+    // "Local failed" is what the reader already knew.
+    expect(String(check.name)).toBe('greet')
+    expect(String(check.provider)).toBe('workflow')
   }, 60_000)
 
   test('a second claim finds nothing, because the job is finished', async () => {
