@@ -159,5 +159,13 @@ export default {
   'admin:granted': ['RecordAudit'],
   'admin:revoked': ['RecordAudit'],
   'admin:job-retried': ['RecordAudit'],
+  // The fleet: boundary changes that are invisible after the fact.
+  'fleet:pool-created': ['RecordAudit'],
+  'fleet:queue-created': ['RecordAudit'],
+  'fleet:queue-paused': ['RecordAudit'],
+  'fleet:queue-resumed': ['RecordAudit'],
+  'fleet:repository-assigned': ['RecordAudit'],
+  'fleet:repository-unassigned': ['RecordAudit'],
+  'fleet:runner-assigned': ['RecordAudit'],
   'audit:exported': ['RecordAudit'],
 } satisfies Events

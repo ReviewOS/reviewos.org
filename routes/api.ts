@@ -73,6 +73,13 @@ route.post('/instance/settings', 'Actions/Ops/InstanceSettingsAction')
  * so whether an instance has an administration API is not confirmable by asking.
  */
 route.post('/instance/admin', 'Actions/Ops/AdminAction')
+/*
+ * The fleet: pools, queues, draining, and which machines serve what.
+ *
+ * Administrative, and answers 404 rather than 403 to everybody else - whether
+ * an instance has a fleet at all is not something to confirm to a stranger.
+ */
+route.post('/instance/fleet', 'Actions/Runner/FleetAction')
 
 /*
  * The OpenAPI document, at a stable public URL.

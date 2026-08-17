@@ -80,6 +80,19 @@ export type AuditEventName =
   | 'admin:granted'
   | 'admin:revoked'
   | 'admin:job-retried'
+  /*
+   * The fleet. Worth recording because these are boundary changes that are
+   * invisible afterwards: adding the first repository to a pool is the moment
+   * it stops serving every repository, removing the last one is the moment it
+   * starts again, and a paused queue is why nothing has built since lunch.
+   */
+  | 'fleet:pool-created'
+  | 'fleet:queue-created'
+  | 'fleet:queue-paused'
+  | 'fleet:queue-resumed'
+  | 'fleet:repository-assigned'
+  | 'fleet:repository-unassigned'
+  | 'fleet:runner-assigned'
   | 'audit:exported'
 
 /**
@@ -123,6 +136,13 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'admin:granted',
   'admin:revoked',
   'admin:job-retried',
+  'fleet:pool-created',
+  'fleet:queue-created',
+  'fleet:queue-paused',
+  'fleet:queue-resumed',
+  'fleet:repository-assigned',
+  'fleet:repository-unassigned',
+  'fleet:runner-assigned',
   'audit:exported',
 ] as const
 

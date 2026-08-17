@@ -266,6 +266,42 @@ const canCancel = Boolean(run)
  */
 const anyQueued = jobRows.some(job => String(job.state) === 'queued')
 
+/*
+ * The queues runners serve, so the explanation below can tell a drained queue
+ * from a machine that is switched off. Read once for the page rather than per
+ * job: a run with forty queued jobs asks the same question forty times.
+ */
+const queueRows: any[] = anyQueued
+  ? await db
+      .selectFrom('runner_queues')
+      .innerJoin('runner_pools', 'runner_pools.id', '=', 'runner_queues.runner_pool_id')
+      .select([
+        'runner_queues.id as id',
+        'runner_queues.name as name',
+        'runner_queues.state as state',
+        'runner_queues.paused_reason as paused_reason',
+        'runner_pools.id as pool_id',
+        'runner_pools.name as pool_name',
+      ])
+      .execute()
+  : []
+
+const poolRepositoryRows: any[] = queueRows.length > 0
+  ? await db.selectFrom('runner_pool_repositories').select(['runner_pool_id', 'repository_id']).execute()
+  : []
+
+const queuesById = new Map<number, any>(queueRows.map((row: any) => [Number(row.id), {
+  id: Number(row.id),
+  name: String(row.name),
+  state: String(row.state),
+  poolId: Number(row.pool_id),
+  poolName: String(row.pool_name),
+  pausedReason: row.paused_reason ? String(row.paused_reason) : null,
+  repositoryIds: poolRepositoryRows
+    .filter((entry: any) => Number(entry.runner_pool_id) === Number(row.pool_id))
+    .map((entry: any) => Number(entry.repository_id)),
+}]))
+
 const runnerFacts = anyQueued
   ? (await db.selectFrom('runners').select(['id', 'state', 'scope_type', 'scope_id', 'labels']).execute())
       .map(runner => ({
@@ -274,6 +310,7 @@ const runnerFacts = anyQueued
         scopeType: String(runner.scope_type),
         scopeId: runner.scope_id === null ? null : Number(runner.scope_id),
         labels: String(runner.labels ?? '').split('\n').map(line => line.trim()).filter(Boolean),
+        queue: queuesById.get(Number(runner.runner_queue_id ?? 0)) ?? null,
       }))
   : []
 

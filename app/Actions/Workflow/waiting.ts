@@ -13,6 +13,8 @@
  * the dispatcher did not make is worse than a spinner.
  */
 
+import type { QueueFacts } from '../Runner/fleet'
+import { queueAccepts } from '../Runner/fleet'
 import type { JobFacts, RunnerFacts } from '../Runner/protocol'
 import { runnerReaches, runnerSatisfies } from '../Runner/protocol'
 
@@ -23,6 +25,10 @@ export type WaitingKind =
   | 'no-labels'
   | 'all-busy'
   | 'all-disabled'
+  /** Every matching runner is in a queue somebody drained. */
+  | 'queue-paused'
+  /** Every matching runner is in a pool that does not serve this repository. */
+  | 'pool-refuses'
 
 export interface WaitingExplanation {
   kind: WaitingKind
@@ -59,7 +65,19 @@ export interface WaitingExplanation {
  * that is about to be taken, and saying "waiting for a runner to poll" is
  * honest where "queued" is not.
  */
-export function explainWaiting(job: JobFacts, runners: readonly RunnerFacts[]): WaitingExplanation {
+/**
+ * A runner, and the queue it serves when it serves one.
+ *
+ * The screen has to know about queues because the dispatcher does: a job that
+ * every machine refuses because somebody drained a queue looks identical, from
+ * the outside, to a job nothing has labels for - and the two have opposite
+ * remedies.
+ */
+export interface FleetRunner extends RunnerFacts {
+  queue?: QueueFacts | null
+}
+
+export function explainWaiting(job: JobFacts, runners: readonly FleetRunner[]): WaitingExplanation {
   const wanted = [...job.runsOn]
 
   if (runners.length === 0) {
@@ -114,7 +132,36 @@ export function explainWaiting(job: JobFacts, runners: readonly RunnerFacts[]): 
     }
   }
 
-  const active = matching.filter(runner => runner.state === 'active')
+  /*
+   * The fleet rules, before the enabled check.
+   *
+   * A drained queue and a pool that refuses this repository are both "the
+   * machines exist and will not take it", which is a different sentence from
+   * "the machines are switched off" and a different thing to do about it.
+   * Asked of the same function the claim uses, so the screen cannot explain a
+   * decision the dispatcher did not make.
+   */
+  const admitted = matching.filter(runner => queueAccepts(runner.queue ?? null, job.repositoryId).ok)
+
+  if (matching.length > 0 && admitted.length === 0) {
+    const refusal = matching
+      .map(runner => queueAccepts(runner.queue ?? null, job.repositoryId))
+      .find(verdict => !verdict.ok)
+
+    if (refusal && !refusal.ok) {
+      return {
+        kind: refusal.kind,
+        summary: refusal.reason,
+        fix: refusal.kind === 'queue-paused'
+          ? 'Resume the queue when the machines are back, or register a runner in another one.'
+          : 'Add this repository to that pool, or give it a pool of its own.',
+        wanted,
+        available,
+      }
+    }
+  }
+
+  const active = admitted.filter(runner => runner.state === 'active')
 
   if (active.length === 0) {
     return {

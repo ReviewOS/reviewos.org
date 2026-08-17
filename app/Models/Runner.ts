@@ -35,6 +35,21 @@ export default defineModel({
   },
 
   attributes: {
+    /**
+     * The queue this machine serves, when the fleet has been given a shape.
+     *
+     * Null is the ordinary case and is not a gap: a runner in no queue is
+     * matched by label and by scope exactly as every runner was before pools
+     * existed, so an instance that never opens the fleet screen never notices
+     * it. Joining a queue is what puts a machine inside a pool's boundary.
+     */
+    runner_queue_id: {
+      order: 12,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
     /** What a person calls it in a list: `mac-mini-01`. */
     name: {
       order: 1,

@@ -14391,6 +14391,73 @@
         }
       }
     },
+    "/api/instance/fleet": {
+      "post": {
+        "summary": "/api/instance/fleet",
+        "operationId": "post__api_instance_fleet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The fleet as it now stands."
+          },
+          "404": {
+            "description": "Not an administrator. The endpoint does not admit it exists."
+          },
+          "422": {
+            "description": "The operation needs something it was not given."
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "list",
+                      "create-pool",
+                      "create-queue",
+                      "pause-queue",
+                      "resume-queue",
+                      "assign-repository",
+                      "unassign-repository",
+                      "assign-runner"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "pool": {
+                    "type": "number"
+                  },
+                  "queue": {
+                    "type": "number"
+                  },
+                  "runner": {
+                    "type": "number"
+                  },
+                  "repository": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/instance/settings": {
       "post": {
         "summary": "/api/instance/settings",

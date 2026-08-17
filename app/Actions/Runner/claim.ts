@@ -17,6 +17,8 @@
 import { db } from '@stacksjs/database'
 import { announceJob, announceRunIfMoved } from '../Workflow/announce'
 import { hashToken } from './authenticate'
+import type { QueueFacts } from './fleet'
+import { queueAccepts } from './fleet'
 import type { JobFacts, RunnerFacts } from './protocol'
 import { leaseUntil, mayClaim, splitLabels } from './protocol'
 
@@ -143,10 +145,28 @@ export async function claimNextJob(
   runner: RunnerFacts,
   now: Date = new Date(),
 ): Promise<ClaimedJob | null> {
+  /*
+   * The queue this machine serves, read once rather than per candidate.
+   *
+   * Null for a runner in no queue, which is the ordinary case and means the
+   * fleet rules do not apply - a runner that predates pools behaves exactly as
+   * it did.
+   */
+  const queue = await queueOf(runner.id)
+
   for (const row of await candidates(runner)) {
     const facts = factsOf(row)
 
     if (!mayClaim(runner, facts, now).ok)
+      continue
+
+    /*
+     * The fleet rules: a paused queue hands out nothing, and a pool serves the
+     * repositories it lists. Checked here rather than in SQL because the same
+     * function answers the run page's "why is this queued", and two
+     * implementations of a boundary is one that eventually leaks.
+     */
+    if (!queueAccepts(queue, facts.repositoryId).ok)
       continue
 
     if (await overParallelLimit(row))
@@ -324,4 +344,47 @@ export async function heartbeat(
     .execute()
 
   return changedSomething(result) ? expires : null
+}
+
+/**
+ * The queue a runner serves, with everything the rules need, in one read.
+ *
+ * Per claim rather than per candidate: a runner polling every few seconds is
+ * the most frequent query on the instance, and this is three joins that answer
+ * the same way for every job it is about to consider.
+ */
+export async function queueOf(runnerId: number): Promise<QueueFacts | null> {
+  const row: any = await db
+    .selectFrom('runners')
+    .innerJoin('runner_queues', 'runner_queues.id', '=', 'runners.runner_queue_id')
+    .innerJoin('runner_pools', 'runner_pools.id', '=', 'runner_queues.runner_pool_id')
+    .select([
+      'runner_queues.id as id',
+      'runner_queues.name as name',
+      'runner_queues.state as state',
+      'runner_queues.paused_reason as paused_reason',
+      'runner_pools.id as pool_id',
+      'runner_pools.name as pool_name',
+    ])
+    .where('runners.id', '=', runnerId)
+    .executeTakeFirst()
+
+  if (!row)
+    return null
+
+  const permitted: any[] = await db
+    .selectFrom('runner_pool_repositories')
+    .select(['repository_id'])
+    .where('runner_pool_id', '=', Number(row.pool_id))
+    .execute()
+
+  return {
+    id: Number(row.id),
+    name: String(row.name),
+    state: String(row.state),
+    poolId: Number(row.pool_id),
+    poolName: String(row.pool_name),
+    pausedReason: row.paused_reason ? String(row.paused_reason) : null,
+    repositoryIds: permitted.map(entry => Number(entry.repository_id)),
+  }
 }

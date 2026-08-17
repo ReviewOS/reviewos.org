@@ -3593,6 +3593,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/instance/fleet
+   */
+  postInstanceFleet(input?: { body?: { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "assign-repository" | "unassign-repository" | "assign-runner"; "name"?: string; "slug"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/instance/fleet", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/instance/settings
    */
   postInstanceSettings(input?: { body?: { "key"?: string; "value"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
