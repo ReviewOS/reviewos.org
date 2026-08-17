@@ -11,6 +11,8 @@
  * Accent: one deep teal, everywhere. Green, red, and orange are reserved for
  * review states inside the product, so the brand cannot borrow them.
  */
+import { SOURCE_CLONE_URL, SOURCE_PATH } from '../functions/site'
+
 const siteUrl = 'https://reviewos.org'
 
 const siteDescription = 'An open source, self-hostable git forge built around code review. Stacked pull requests, review threads that survive a force-push, and a diff that stays fast at a hundred files.'
@@ -710,6 +712,10 @@ const nots = [
         .thesis-quote { grid-template-columns: 1.05fr 1fr; gap: 56px; }
         .nots { grid-template-columns: 1fr 1fr; }
         .host { grid-template-columns: 1fr 1fr; gap: 56px; }
+        {{-- Two columns of links at this width, wrapping. The footer carries
+            Use cases and Compare now that they are off the top bar, so it is
+            five columns rather than three and cannot be one row until there
+            is room for one. --}}
         .footer-inner { grid-template-columns: 2fr 1fr 1fr; }
       }
 
@@ -717,6 +723,7 @@ const nots = [
         .bento { grid-template-columns: repeat(3, 1fr); }
         .cell-wide { grid-column: span 2; }
         .cell-tall { grid-row: span 2; }
+        .footer-inner { grid-template-columns: 1.6fr repeat(4, 1fr); gap: 32px; }
       }
     </style>
   </head>
@@ -737,8 +744,16 @@ const nots = [
 
         <div class="hero-actions settle">
           <a class="button button-solid" href="/docs/todo/">Read the roadmap</a>
-          <a class="button button-quiet" href="https://github.com/ReviewOS/reviewos.org">
-            <i class="i-hugeicons-github" aria-hidden="true"></i>
+          {{-- Our own code browser, not GitHub's.
+
+              This link is the page's one chance to show rather than tell, and
+              it spent it sending readers to the product being argued against.
+              A reader who clicks it now lands in the repository browser they
+              have just spent a screen reading claims about, which either
+              stands up or does not - and either answer is more useful than a
+              paragraph. The GitHub mirror is still linked from the footer. --}}
+          <a class="button button-quiet" href="{{ SOURCE_PATH }}">
+            <i class="i-hugeicons-source-code" aria-hidden="true"></i>
             Browse the source
           </a>
         </div>
@@ -891,7 +906,7 @@ const nots = [
               <i class="i-hugeicons-source-code" aria-hidden="true"></i>
               install
             </div>
-            <pre><code><span class="prompt">$</span> git clone https://github.com/ReviewOS/reviewos.org.git
+            <pre><code><span class="prompt">$</span> git clone {{ SOURCE_CLONE_URL }}
 <span class="prompt">$</span> cd reviewos.org
 <span class="prompt">$</span> ./buddy setup
 

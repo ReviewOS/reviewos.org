@@ -264,6 +264,37 @@ export default defineModel({
     },
 
     /**
+     * The job that uploaded this one, when it was not in the file.
+     *
+     * A run's graph is what it *became*, not only what was declared: a job that
+     * generates steps after looking at the repository is the whole point of
+     * uploads, and a screen that showed only the original file would be
+     * describing a run nobody had.
+     */
+    uploaded_by_job_id: {
+      order: 47,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    /**
+     * How many uploads deep this job is.
+     *
+     * A job uploaded by an uploaded job is depth two. Bounded, because the
+     * failure mode is a run that generates work forever - and unlike a trigger
+     * loop, this one stays inside a single run where no other limit would
+     * notice it.
+     */
+    upload_depth: {
+      order: 48,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number() },
+      factory: () => 0,
+    },
+
+    /**
      * The run a `trigger` job started.
      *
      * Both a link for the screen and the thread `await: true` is closed by:

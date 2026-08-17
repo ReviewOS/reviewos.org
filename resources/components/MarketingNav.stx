@@ -2,14 +2,43 @@
 /**
  * The landing page navigation.
  *
- * Carries the same Features, Use cases, and Compare menus as the rest of the
- * marketing site, built from the one catalog in resources/functions/marketing
- * so a page and its menu entry cannot drift apart.
+ * Carries the Features menu, built from the one catalog in
+ * resources/functions/marketing so a page and its menu entry cannot drift
+ * apart.
  *
- * The menus are `<details>` elements: no JavaScript, they work before any
+ * **Use cases and Compare are not here, deliberately.** They are the two menus
+ * a reader opens once, before deciding, and never again - which makes them
+ * footer material. Giving them the same weight as the product pushed Discover,
+ * the one item that shows this instance has real work on it, off the bar
+ * entirely. A forge whose navigation offers three marketing menus and no way
+ * to see a repository is arguing rather than demonstrating. Both still exist,
+ * with every page linked, in `MarketingFooter`.
+ *
+ * The menu is a `<details>` element: no JavaScript, it works before any
  * hydration, and the keyboard already knows how a disclosure behaves.
  */
-import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../functions/marketing'
+import { FEATURE_GROUPS, featuresIn } from '../functions/marketing'
+import { SOURCE_PATH } from '../functions/site'
+import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+/*
+ * Who is reading, if anybody.
+ *
+ * Inside a guard that cannot throw, for the reason written at length in
+ * `ReviewQueueBadge.stx`: an stx server script that throws renders its page
+ * with every variable undefined and says nothing, so a failed session read
+ * here would blank the landing page rather than show a signed-out nav.
+ */
+let viewer = null
+try {
+  viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+}
+catch {
+  viewer = null
+}
 </script>
 
 <template>
@@ -43,48 +72,29 @@ import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../functions
         </div>
       </details>
 
-      <details class="mega">
-        <summary>Use cases <span class="mega-chevron" aria-hidden="true"></span></summary>
-        <div class="mega-cases mega-panel">
-          <div class="mega-grid mega-grid-single">
-            @foreach (USE_CASES as useCase)
-              <a class="mega-item" href="/for/{{ useCase.slug }}">
-                <span class="mega-item-name">{{ useCase.name }}</span>
-                <span class="mega-item-text">{{ useCase.summary }}</span>
-              </a>
-            @endforeach
-          </div>
-          <div class="mega-foot">
-            <span class="mega-foot-note">Who this is built for.</span>
-            <a class="mega-foot-link" href="/for">All use cases</a>
-          </div>
-        </div>
-      </details>
-
-      <details class="mega">
-        <summary>Compare <span class="mega-chevron" aria-hidden="true"></span></summary>
-        <div class="mega-cases mega-panel">
-          <div class="mega-grid mega-grid-single">
-            @foreach (COMPARISONS as comparison)
-              <a class="mega-item" href="/compare/{{ comparison.slug }}">
-                <span class="mega-item-name">{{ comparison.name }}</span>
-                <span class="mega-item-text">{{ comparison.summary }}</span>
-              </a>
-            @endforeach
-          </div>
-          <div class="mega-foot">
-            <span class="mega-foot-note">Written to be fair, not flattering.</span>
-            <a class="mega-foot-link" href="/compare">All comparisons</a>
-          </div>
-        </div>
-      </details>
-
+      {{-- Second, and above the docs. Discover is the only item on this bar
+          that answers "is anybody actually using this", and the answer is a
+          page of real repositories rather than a paragraph claiming there
+          are some. --}}
+      <a href="/discover">Discover</a>
+      <a href="{{ SOURCE_PATH }}">Source</a>
       <a href="/docs/todo/">Roadmap</a>
       <a href="/docs">Docs</a>
-      <a href="https://github.com/ReviewOS/reviewos.org">Source</a>
     </nav>
 
-    <a class="button button-solid nav-cta" href="/docs">Self-host it</a>
+    {{-- Sign in and sign up, which the landing page did not offer at all: the
+        only call to action was "self-host it", so somebody who wanted an
+        account on *this* instance had to guess the URL. Signed in, the pair
+        collapses to one link into the product, because offering to sign in a
+        reader who already is says the session is not working. --}}
+    <div class="nav-auth">
+      @if (viewer)
+        <a class="button button-solid nav-cta" href="/reviews">Open ReviewOS</a>
+      @else
+        <a class="nav-signin" href="/login">Sign in</a>
+        <a class="button button-solid nav-cta" href="/register">Sign up</a>
+      @endif
+    </div>
   </header>
 </template>
 
@@ -172,4 +182,23 @@ import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../functions
 
   .mega-foot-note { color: var(--muted); }
   .mega-foot-link { color: var(--accent-text); font-weight: 500; text-decoration: none; }
+
+  .nav-auth { display: flex; align-items: center; gap: 14px; }
+
+  .nav-signin {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .nav-signin:hover { color: var(--accent-text); }
+
+  /* Below the point where the bar stops fitting, the CTA is the one that has
+     to survive: somebody on a phone who wants an account still needs the
+     button, and "Sign in" is one tap further inside the page it leads to. */
+  @media (max-width: 640px) {
+    .nav-signin { display: none; }
+  }
 </style>

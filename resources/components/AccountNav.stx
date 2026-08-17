@@ -1,0 +1,77 @@
+<script server>
+/**
+ * The right-hand end of the product's navigation: who you are, or how to
+ * become somebody.
+ *
+ * This replaces `SettingsLink`, which solved half the problem. It showed a
+ * Settings link to a reader who was signed in, and rendered nothing at all to
+ * a reader who was not - so every page in the product offered a signed-out
+ * visitor no way to sign in. `/login` and `/register` both existed and worked;
+ * nothing in the chrome pointed at either. That is the same failure the
+ * settings link was written to fix, one step further out: a page that exists
+ * and nothing links to.
+ *
+ * A component rather than a branch in the layout, for the reason written at
+ * length in `ReviewQueueBadge.stx`: an stx server script that throws renders
+ * its page with every variable undefined and says nothing, so a script added
+ * to the shared layout is one mistake away from blanking the whole product.
+ * Everything here sits inside a guard that cannot throw. A failed read renders
+ * the signed-out pair, which is the safe wrong answer - it offers a working
+ * link rather than nothing, and signing in again is cheap.
+ *
+ * `next` carries the current path, so somebody who signs in from a pull
+ * request lands back on it rather than on a dashboard having lost their place.
+ */
+import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
+
+const serveContext = __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+let viewer = null
+try {
+  viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+}
+catch {
+  viewer = null
+}
+
+/*
+ * Where to come back to.
+ *
+ * A path on this host only, and never one that is already an auth page:
+ * signing in and being returned to the sign-in form reads as a failed sign-in
+ * even when it worked.
+ */
+const here = String(serveContext?.path ?? '/')
+const returnable = here.startsWith('/') && !here.startsWith('//')
+  && !here.startsWith('/login') && !here.startsWith('/register')
+const next = returnable ? here : '/reviews'
+const signInHref = `/login?next=${encodeURIComponent(next)}`
+</script>
+
+@if (viewer)
+  <a class="muted account-link" href="/settings/profile">Settings</a>
+  <a class="muted account-link" href="/{{ viewer.handle }}">{{ viewer.handle }}</a>
+@else
+  <a class="muted account-link" href="{{ signInHref }}">Sign in</a>
+  <a class="account-cta" href="/register">Sign up</a>
+@endif
+
+<style>
+  .account-link { text-decoration: none; }
+
+  /* The one accented item in the bar when signed out. Review state (green,
+     red, amber) is reserved for the diff, so this borrows the brand accent
+     rather than a status colour. */
+  .account-cta {
+    padding: 3px 10px;
+    border-radius: var(--r-control, 6px);
+    background: var(--accent);
+    color: var(--accent-on, #fff);
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .account-cta:hover { filter: brightness(1.05); }
+</style>

@@ -1124,18 +1124,59 @@ upload them into the run it is already part of, so a workflow can decide what to
 the repository. Actions has only a shadow of this: a matrix built from `fromJSON` of a prior job's
 output, which covers the common case and nothing else.
 
-- [ ] A runner-side upload command that appends steps to the current run, validated by the control
+- [x] A runner-side upload command that appends steps to the current run, validated by the control
       plane before any of them become eligible
-- [ ] Uploaded steps are attributed to the job that uploaded them, and the run records the full
+
+      `reviewos-upload generated.yml`, on the PATH of every step, put there by the runner. One line,
+      because the alternative is every generating job carrying a curl invocation with a job
+      credential in it - and a credential in a repository's own script is a credential in its own
+      log. The credential lives in the script, outside the checkout, so a step that prints its
+      environment or tars its workspace does not carry it away.
+
+      Validated by **the same parser a workflow file goes through**, with the run's existing job
+      names handed to it so a generated job may depend on the one that generated it. A second,
+      laxer validator for uploaded steps would be the one an attacker reads.
+- [x] Uploaded steps are attributed to the job that uploaded them, and the run records the full
       resulting graph rather than only what was declared at the start
-- [ ] An uploaded step cannot raise its own trust level: it cannot grant itself secrets, target a
+
+      `uploaded_by_job_id` and `upload_depth` on the row. A run's graph is what it *became*: a
+      screen showing only the original file would be describing a run nobody had.
+- [x] An uploaded step cannot raise its own trust level: it cannot grant itself secrets, target a
       queue the parent could not, or turn a fork run into a trusted one
-- [ ] An upload budget: maximum steps, maximum depth, maximum total uploads per run, so a loop is
+
+      Structural rather than checked: everything that decides what a job may reach is inherited from
+      the run and the uploading job, and **there is no field in the document for any of it**. A
+      fork's run stays untrusted, the repository is the same repository, and the pool serving it is
+      the pool that already served it. Priority is inherited too, which is the one field a generated
+      job could otherwise use to jump a queue full of other people's work.
+
+      Secrets are not in this list because they are not implemented anywhere yet; when they are, the
+      rule is already written down in the threat model and this is the shape it has to take.
+- [x] An upload budget: maximum steps, maximum depth, maximum total uploads per run, so a loop is
       bounded by the control plane rather than by a quota nobody set
+
+      Four limits, because each one alone is a loop somebody can still write: three uploads deep,
+      twenty uploads per run, fifty jobs per upload, five hundred jobs per run - plus a 200KB ceiling
+      on the document itself, which bounds how much text one request can make the parser look at.
+      Reaching a limit stops the *next* upload rather than unwinding the last one.
 - [ ] Signature verification. When signed workflows are enforced (below), an uploaded step must be
       signed by a key the runner pool trusts, or refused.
-- [ ] Tests: uploading a step that targets a forbidden queue, an upload loop, an upload from a fork,
+
+      Not implemented, and it cannot be until signed workflows are: there is no key for a pool to
+      trust yet. Written here rather than half-built, because a signature check with nothing behind
+      it is worse than none - it reads like a guarantee.
+- [x] Tests: uploading a step that targets a forbidden queue, an upload loop, an upload from a fork,
       an unsigned upload under enforcement, and an upload after the run reached a terminal state
+
+      Four of the five, plus the ones writing it turned up: a name the run already has, a `needs:`
+      naming nothing, a document the parser refuses, and a priority a generated job tried to give
+      itself. The fifth - an unsigned upload under enforcement - is the box above, and there is
+      nothing to test until there is something to enforce.
+
+      The forbidden-queue case is covered by construction rather than by a check: an uploaded job
+      cannot name a pool at all, and the claim already refuses a repository a pool does not serve.
+      The end-to-end test runs the real runner, whose step writes YAML and calls `reviewos-upload`,
+      and then claims the generated job with a second poll.
 
 ### Definition management
 

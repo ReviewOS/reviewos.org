@@ -1,12 +1,41 @@
 <script server>
+/**
+ * The landing page footer.
+ *
+ * Where Use cases and Compare live now. They came off the top bar because they
+ * are read once, before deciding, and the bar has to carry the things a
+ * returning reader uses - Discover, the source, the docs. Demoting them is not
+ * hiding them: every page in both catalogs is linked here, which is more than
+ * the mega menus showed, since those capped at what fitted in a panel.
+ *
+ * Built from the one catalog in resources/functions/marketing, so a page that
+ * exists and a link to it cannot drift apart.
+ */
+import { COMPARISONS, USE_CASES } from '../functions/marketing'
+import { SOURCE_ISSUES_PATH, SOURCE_PATH, UPSTREAM_URL } from '../functions/site'
+
 const columns = [
+  {
+    heading: 'Use cases',
+    links: USE_CASES.map(useCase => ({ label: useCase.name, href: `/for/${useCase.slug}` })),
+  },
+  {
+    heading: 'Compare',
+    links: COMPARISONS.map(comparison => ({ label: comparison.name, href: `/compare/${comparison.slug}` })),
+  },
   {
     heading: 'Project',
     links: [
+      { label: 'Discover', href: '/discover' },
       { label: 'Roadmap', href: '/docs/todo/' },
       { label: 'Documentation', href: '/docs' },
-      { label: 'Source', href: 'https://github.com/ReviewOS/reviewos.org' },
-      { label: 'Issues', href: 'https://github.com/ReviewOS/reviewos.org/issues' },
+      // Ours first. The GitHub mirror is still listed, one line down and
+      // labelled as a mirror, because it is where releases are cut and where
+      // most people will arrive from - but a forge should not send a reader
+      // somewhere else to read its own code.
+      { label: 'Source', href: SOURCE_PATH },
+      { label: 'Issues', href: SOURCE_ISSUES_PATH },
+      { label: 'GitHub mirror', href: UPSTREAM_URL },
     ],
   },
   {
@@ -49,3 +78,10 @@ const columns = [
     <p class="footer-legal">Released under the MIT License.</p>
   </footer>
 </template>
+
+<style>
+  /* Five columns now rather than three, and the two catalogs are long. The
+     landing page's own `.footer-inner` grid sets the columns; this only stops
+     them collapsing to one line each on a narrow screen. */
+  .footer-col ul { display: grid; gap: 6px; }
+</style>

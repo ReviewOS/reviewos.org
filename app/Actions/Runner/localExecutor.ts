@@ -322,6 +322,16 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      */
     const toolchain = options.tools === false ? '' : await provideTools(workspace, text => send(text))
 
+    /*
+     * The upload command, written into the workspace as a script on PATH.
+     *
+     * A job generating steps needs one line it can run - `reviewos-upload
+     * steps.yml` - rather than a curl invocation with a credential in it. The
+     * credential stays in the script, outside the checkout, so a step that
+     * prints its own environment does not print it.
+     */
+    const uploadPath = writeUploadCommand(workspace, options.baseUrl, jobToken)
+
     const steps: any[] = Array.isArray(job.steps) ? job.steps : []
     let failed: string | null = null
     /*
@@ -471,6 +481,11 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
        */
       if (toolchain)
         environment.PATH = `${toolchain}:${environment.PATH}`
+
+      // The upload command, ahead of the toolchain so a repository cannot
+      // shadow it with a binary of its own name.
+      if (uploadPath)
+        environment.PATH = `${uploadPath}:${environment.PATH}`
 
       if (extraPath)
         environment.PATH = `${extraPath}:${environment.PATH}`
@@ -763,6 +778,52 @@ function expressionContext(
       tool_cache: join(workspace, '.reviewos-runner', 'tools'),
     },
     env: state.env,
+  }
+}
+
+/**
+ * Write `reviewos-upload` into a directory on the job's PATH.
+ *
+ * One line for a job that generates steps: `reviewos-upload generated.yml`, or
+ * the same document on stdin. The alternative is every generating job carrying
+ * a curl invocation with a job credential in it, which is a credential in a
+ * repository's own script and eventually in its own log.
+ *
+ * The credential lives in this script rather than in the environment, and the
+ * script lives *outside* the checkout - so a step that prints its environment,
+ * or a `tar` of the workspace, does not carry it.
+ */
+function writeUploadCommand(workspace: string, baseUrl: string, jobToken: string): string {
+  try {
+    const directory = join(workspace, '..', `.reviewos-bin-${process.pid}`)
+
+    mkdirSync(directory, { recursive: true })
+
+    const path = join(directory, 'reviewos-upload')
+
+    writeFileSync(path, `#!/bin/sh
+# Add generated jobs to this run. Usage: reviewos-upload [file]
+set -e
+steps=$(cat "\${1:--}")
+exec curl -sS -X POST ${JSON.stringify(`${baseUrl.replace(/\/$/, '')}/api/runner/upload`)} \
+  -H "Authorization: Bearer ${jobToken}" \
+  -H 'Content-Type: application/json' \
+  -H 'X-Runner-Protocol: 1' \
+  --data-binary "$(printf '%s' "$steps" | ${JSON.stringify(process.execPath)} -e 'process.stdout.write(JSON.stringify({ steps: require("fs").readFileSync(0, "utf8") }))')"
+`)
+
+    chmodSync(path, 0o700)
+
+    return directory
+  }
+  catch {
+    /*
+     * A workspace this cannot write to is one where the job still runs. The
+     * upload command is a convenience over an HTTP endpoint that is still
+     * there, and failing the job over it would be refusing to run a build
+     * because a nicety was unavailable.
+     */
+    return ''
   }
 }
 

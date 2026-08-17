@@ -192,6 +192,21 @@ export default defineModel({
       factory: () => 0,
     },
 
+    /**
+     * How many times a job in this run has uploaded steps.
+     *
+     * The budget lives on the run rather than per job, because the thing worth
+     * bounding is what the *run* can grow into: ten jobs uploading twice each
+     * is the same twenty uploads as one job uploading twenty times.
+     */
+    uploads: {
+      order: 43,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number() },
+      factory: () => 0,
+    },
+
     dispatch_inputs: {
       order: 41,
       fillable: true,

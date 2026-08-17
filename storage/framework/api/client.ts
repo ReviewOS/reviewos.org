@@ -5637,6 +5637,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/runner/upload
+   */
+  postRunnerUpload(input: { body: { "steps": string } }, options?: RequestOptions): Promise<ApiResult<{ "added"?: Array<number>; "reason"?: string }>> {
+    return request(config, "POST", "/api/runner/upload", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/search
    */
   getSearch(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

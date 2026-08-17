@@ -943,3 +943,100 @@ describe('a repository that declares its tools', () => {
     expect(text).toContain('git version')
   }, 60_000)
 })
+
+/*
+ * A job generating jobs, through the command the runner puts on its PATH.
+ *
+ * Its own run rather than the shared fixture: an upload adds work, so a run
+ * that does it is not finished when its first job is - and every other test in
+ * this file asserts on a run that is.
+ */
+describe('a job that uploads steps', () => {
+  test('adds them to its own run, and a runner picks them up', async () => {
+    if (!available)
+      return
+
+    const { runOnce } = await import('../../app/Actions/Runner/localExecutor')
+
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_versions.id', 'desc')
+      .executeTakeFirst()
+
+    const job: any = await db.insertInto('workflow_version_jobs').values({
+      workflow_version_id: Number(version.id),
+      job_id: 'generate',
+      name: 'Generate',
+      position: 40,
+      runs_on: 'ubuntu-latest',
+    }).returning(['id']).executeTakeFirst()
+
+    /*
+     * The command is one line, which is the point: the alternative is every
+     * generating job carrying a curl invocation with a job credential in it,
+     * and a credential in a repository's own script is a credential in its own
+     * log.
+     */
+    await db.insertInto('workflow_version_steps').values({
+      workflow_version_job_id: Number(job.id),
+      position: 0,
+      name: 'Generate the work',
+      command: [
+        'cat > generated.yml <<\'YAML\'',
+        'shard-a:',
+        '  runs-on: ubuntu-latest',
+        '  steps:',
+        '    - run: echo shard a',
+        'YAML',
+        'reviewos-upload generated.yml',
+      ].join('\n'),
+    }).execute()
+
+    const run: any = await db.insertInto('workflow_runs').values({
+      workflow_version_id: Number(version.id),
+      repository_id: created.repositoryId,
+      number: 800,
+      state: 'queued',
+      event: 'push',
+      event_ref: 'refs/heads/generated',
+      head_sha: created.headSha,
+      definition_sha: created.headSha,
+      trusted: true,
+    }).returning(['id']).executeTakeFirst()
+
+    await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: 'generate',
+      name: 'Generate',
+      position: 0,
+      state: 'queued',
+      runs_on: 'ubuntu-latest',
+    }).execute()
+
+    const outcome = await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' })
+
+    expect(outcome?.state).toBe('succeeded')
+
+    const jobs: any[] = await db
+      .selectFrom('workflow_jobs')
+      .select(['job_id', 'state', 'uploaded_by_job_id'])
+      .where('workflow_run_id', '=', Number(run.id))
+      .execute()
+
+    const generated = jobs.find(row => String(row.job_id) === 'shard-a')
+
+    expect(generated).toBeTruthy()
+    // Attributed to the job that made it, and ready for a machine.
+    expect(Number(generated.uploaded_by_job_id)).toBeGreaterThan(0)
+    expect(String(generated.state)).toBe('queued')
+
+    // And a runner takes it, which is the half that makes the feature real
+    // rather than a row in a table.
+    const second = await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' })
+
+    expect(second?.state).toBe('succeeded')
+  }, 180_000)
+})

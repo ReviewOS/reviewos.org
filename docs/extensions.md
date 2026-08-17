@@ -363,13 +363,60 @@ Three properties worth knowing:
   drift from the first in the one place where being wrong means building against
   the wrong compiler.
 
+## Generated steps
+
+A job can add jobs to the run it is already in - the pipeline decides what to do
+after looking at the repository, which is the thing a static file cannot do.
+
+```yaml
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          ./what-changed > generated.yml   # writes a `jobs:` block
+          reviewos-upload generated.yml
+```
+
+`reviewos-upload` is on the PATH of every step, put there by the runner. It
+takes a file or stdin, and the document is the `jobs:` mapping on its own -
+what a program generating steps has in its hands.
+
+The uploaded jobs join the run: they can `needs:` jobs that are already there,
+they show on the run page attributed to the job that made them, and a runner
+picks them up as soon as they are eligible.
+
+**What an upload cannot do**, because these are the properties that decide
+whether the feature can exist at all:
+
+- **Raise its own trust level.** A fork's run stays untrusted, the repository
+  stays the same repository, and the pool serving it stays the pool that already
+  served it. The document says *what* to run, never *where* or *as whom* - there
+  is no field for it and no code that reads one.
+- **Give itself a priority.** Priority is inherited from the job that uploaded,
+  so a generated job cannot jump a queue full of other people's work.
+- **Outlive the run.** A finished run takes nothing, however alive the machine
+  still is - accepting a late upload would add work to a run whose conclusion has
+  already been reported to a branch protection rule.
+- **Loop.** Three limits, because each alone is a loop somebody can still write:
+  three uploads deep, twenty uploads per run, fifty jobs per upload, five hundred
+  jobs per run.
+
+The document goes through **the same parser as a workflow file**, so every rule
+that refuses a bad job in a repository refuses it here - cycles, unknown keys, a
+job with no `runs-on`. A second, laxer validator for uploaded steps would be the
+one an attacker reads.
+
+**Actions has a shadow of this**: a matrix built from `fromJSON` of a prior job's
+output, where the number of jobs can vary but not what they are.
+
 ## What this costs
 
 | | |
 |---|---|
 | Portability | A file using `reviewos:` does not run on GitHub. It is refused, not ignored. |
 | Migration in | Nothing. An Actions workflow uses none of this and behaves identically. |
-| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; `if-changed` becomes a `dorny/paths-filter`-style action plus a step-level `if:`; `retry` becomes a `nick-fields/retry`-style action or a manual re-run; `priority` becomes nothing, since GitHub's queue has no order you can influence; `agents` becomes a label somebody has to keep in step with the machines; a `group` becomes nothing, since GitHub has no grouping. |
+| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; `if-changed` becomes a `dorny/paths-filter`-style action plus a step-level `if:`; `retry` becomes a `nick-fields/retry`-style action or a manual re-run; `priority` becomes nothing, since GitHub's queue has no order you can influence; `agents` becomes a label somebody has to keep in step with the machines; generated steps become a `fromJSON` matrix, which covers the case where only the *number* varies; a `group` becomes nothing, since GitHub has no grouping. |
 
 The engine underneath is documented in
 [the pipelines roadmap](https://github.com/stacksjs/reviewos/blob/main/docs/todo/15-pipelines.md),

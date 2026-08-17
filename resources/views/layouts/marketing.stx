@@ -5,11 +5,31 @@
  * The navigation is built from the catalog in resources/functions/marketing.ts,
  * so a feature page and its menu entry cannot drift apart.
  *
- * The mega menus are `<details>` elements. No JavaScript, they work before
- * hydration and on a page that never hydrates, and a keyboard reaches them
+ * The mega menu is a `<details>` element. No JavaScript, it works before
+ * hydration and on a page that never hydrates, and a keyboard reaches it
  * because the browser already knows how a disclosure behaves.
+ *
+ * Use cases and Compare are footer-only here, matching `MarketingNav` on the
+ * landing page: they are read once before deciding, and the bar has to carry
+ * what a returning reader uses. The footer below links every page in both
+ * catalogs, which is more than the menus fitted.
  */
 import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../../functions/marketing'
+import { SOURCE_ISSUES_PATH, SOURCE_PATH, UPSTREAM_URL } from '../../functions/site'
+import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+// Guarded, and never allowed to throw: a failed session read here would render
+// every marketing page with each variable undefined and no error anywhere.
+let viewer = null
+try {
+  viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+}
+catch {
+  viewer = null
+}
 </script>
 
 <!DOCTYPE html>
@@ -366,49 +386,19 @@ import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../../functi
             </div>
           </details>
 
-          <details class="mega">
-            <summary>Use cases <span class="mega-chevron" aria-hidden="true"></span></summary>
-            <div class="mega-cases mega-panel">
-              <div class="mega-grid">
-                @foreach (USE_CASES as useCase)
-                  <a class="mega-item" href="/for/{{ useCase.slug }}">
-                    <span class="mega-item-name">{{ useCase.name }}</span>
-                    <span class="mega-item-text">{{ useCase.summary }}</span>
-                  </a>
-                @endforeach
-              </div>
-              <div class="mega-foot">
-                <span class="muted">Who this is built for.</span>
-                <a href="/for" style="color: var(--accent-text); font-weight: 500;">All use cases</a>
-              </div>
-            </div>
-          </details>
-
-          <details class="mega">
-            <summary>Compare <span class="mega-chevron" aria-hidden="true"></span></summary>
-            <div class="mega-cases mega-panel">
-              <div class="mega-grid">
-                @foreach (COMPARISONS as comparison)
-                  <a class="mega-item" href="/compare/{{ comparison.slug }}">
-                    <span class="mega-item-name">{{ comparison.name }}</span>
-                    <span class="mega-item-text">{{ comparison.summary }}</span>
-                  </a>
-                @endforeach
-              </div>
-              <div class="mega-foot">
-                <span class="muted">Written to be fair, not flattering.</span>
-                <a href="/compare" style="color: var(--accent-text); font-weight: 500;">All comparisons</a>
-              </div>
-            </div>
-          </details>
-
+          <a class="nav-link" href="/discover">Discover</a>
+          <a class="nav-link" href="{{ SOURCE_PATH }}">Source</a>
           <a class="nav-link" href="/docs">Docs</a>
           <a class="nav-link" href="/docs/todo/">Roadmap</a>
         </div>
 
         <div class="nav-right">
-          <a class="btn" href="https://github.com/ReviewOS/reviewos.org">GitHub</a>
-          <a class="btn btn-primary" href="/docs/install">Self-host it</a>
+          @if (viewer)
+            <a class="btn btn-primary" href="/reviews">Open ReviewOS</a>
+          @else
+            <a class="btn" href="/login">Sign in</a>
+            <a class="btn btn-primary" href="/register">Sign up</a>
+          @endif
         </div>
       </nav>
     </header>
@@ -452,9 +442,14 @@ import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../../functi
           </div>
           <div>
             <p class="footer-title">Project</p>
+            <a class="footer-link" href="/discover">Discover</a>
             <a class="footer-link" href="/docs">Documentation</a>
             <a class="footer-link" href="/docs/todo/">Roadmap</a>
-            <a class="footer-link" href="https://github.com/ReviewOS/reviewos.org">Source</a>
+            {{-- Ours, then the mirror. Labelled, so nobody clicks the second
+                one expecting it to be somewhere else. --}}
+            <a class="footer-link" href="{{ SOURCE_PATH }}">Source</a>
+            <a class="footer-link" href="{{ SOURCE_ISSUES_PATH }}">Issues</a>
+            <a class="footer-link" href="{{ UPSTREAM_URL }}">GitHub mirror</a>
             <a class="footer-link" href="/docs/install">Self-hosting</a>
           </div>
         </div>

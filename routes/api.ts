@@ -767,6 +767,14 @@ route.post('/runner/artifacts', 'Actions/Runner/UploadArtifactAction').skipCsrf(
 // What a job's steps said about the code: `::error file=...,line=...::` becomes
 // a check annotation, which is what the diff renders in the gutter.
 route.post('/runner/annotations', 'Actions/Runner/AnnotateAction').skipCsrf()
+/*
+ * Steps a job generated, added to its own run.
+ *
+ * The job token names the job, so an uploaded document never gets to say which
+ * run it belongs to - which is what makes "an upload cannot raise its own trust
+ * level" enforceable rather than promised.
+ */
+route.post('/runner/upload', 'Actions/Runner/UploadStepsAction').skipCsrf()
 
 // Reading is the repository's permission, not the runner's: a log is the
 // repository's data, and somebody who cannot see the code cannot see what

@@ -8987,6 +8987,23 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": 0
+          },
+          {
+            "name": "uploaded_by_job_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "upload_depth",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
           }
         ],
         "indexes": [
@@ -9219,6 +9236,15 @@
           },
           {
             "name": "trigger_depth",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "uploads",
             "type": "integer",
             "isPrimaryKey": false,
             "isUnique": false,
@@ -10417,7 +10443,7 @@
       }
     ]
   },
-  "hash": "90392a878ffdf9c657afbd42f79a2d70276aff2b3756ca3d9ed20a8adc323421",
+  "hash": "6d9bd59c5144371fa3dd88236018db57a1c6c3e6b775cc1e0069985c2f6b81ac",
   "dialect": "postgres",
-  "updatedAt": "2026-08-17T17:12:56.759Z"
+  "updatedAt": "2026-08-17T17:26:23.480Z"
 }

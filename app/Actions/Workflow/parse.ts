@@ -1178,7 +1178,21 @@ export function cyclicJobs(jobs: readonly WorkflowJob[]): string[] {
  * being thrown: somebody fixing a workflow file wants the list, and a parser
  * that reveals one problem per push is a parser people work around by pushing.
  */
-export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResult {
+/**
+ * Options that change what a valid document *is*, rather than how it is read.
+ *
+ * There is exactly one, and it exists for uploaded steps: a job generated
+ * mid-run may depend on a job that is already in the run and therefore not in
+ * the document being parsed. Without this the parser would refuse the whole
+ * upload, and the alternative - a second, laxer validator for uploaded steps -
+ * would be the one an attacker reads.
+ */
+export interface ParseOptions {
+  /** Job ids that exist outside this document and may be named in `needs:`. */
+  knownJobs?: readonly string[]
+}
+
+export function parseWorkflow(source: string, path = 'workflow.yml', options: ParseOptions = {}): ParseResult {
   const errors: WorkflowError[] = []
   /*
    * A refused workflow carries no warnings.
@@ -1472,7 +1486,12 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
     }
   }
 
-  const known = new Set(jobs.map(job => job.id))
+  /*
+   * Jobs this document declares, plus any the caller says already exist. The
+   * second half is empty for a workflow file and holds the run's jobs for an
+   * upload.
+   */
+  const known = new Set([...jobs.map(job => job.id), ...(options.knownJobs ?? [])])
 
   for (const job of jobs) {
     for (const need of job.needs) {

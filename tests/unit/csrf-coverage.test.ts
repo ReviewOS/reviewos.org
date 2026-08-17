@@ -32,8 +32,8 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
   },
   {
     file: 'routes/api.ts',
-    count: 8,
-    because: 'the MCP endpoint, the mirror webhook, and the six runner routes. '
+    count: 9,
+    because: 'the MCP endpoint, the mirror webhook, and the seven runner routes. '
       + 'MCP reads its bearer itself and refuses a request without one before '
       + 'anything else happens; the mirror webhook is signed over its body by an '
       + 'upstream forge that holds no cookie; the runner endpoints authenticate a '
@@ -48,7 +48,10 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
       + 'same machine sending the same job credential with a body of bytes '
       + 'instead of a body of JSON, and the sixth is the annotation report - a '
       + 'job saying what its steps found, on the same job credential, so that '
-      + '`::error file=...::` from a compiler becomes a message on the diff.',
+      + '`::error file=...::` from a compiler becomes a message on the diff. The '
+      + 'seventh is the step upload - a job adding jobs it generated to its own '
+      + 'run, on the same job credential, which is what makes the uploaded '
+      + 'document unable to say which run it belongs to.',
   },
   {
     file: 'routes/actions.ts',
@@ -157,18 +160,18 @@ describe('CSRF exemptions', () => {
 
 describe('what is not exempt', () => {
   test('the API surface is protected apart from the documented routes', async () => {
-    // Ninety-odd state-changing routes in one file, eight exemptions. The route
+    // Ninety-odd state-changing routes in one file, nine exemptions. The route
     // count is asserted as a floor rather than a number, so adding an endpoint
     // does not fail this test - which is the kind of failure people learn to
     // update without reading. The exemption count is exact, because that is the
     // number worth noticing a change in, and it is what caught the runner
     // routes arriving without anybody writing down why they were exempt - once
     // for the first three, again for the log append, and again for the
-    // annotation report.
+    // annotation report, and once more for the step upload.
     const source = await Bun.file('routes/api.ts').text()
     const unsafe = (source.match(/route\.(post|put|patch|delete)\(/g) ?? []).length
 
     expect(unsafe).toBeGreaterThan(50)
-    expect(await skipCount('routes/api.ts')).toBe(8)
+    expect(await skipCount('routes/api.ts')).toBe(9)
   })
 })

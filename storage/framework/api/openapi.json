@@ -25735,6 +25735,117 @@
         }
       }
     },
+    "/api/runner/upload": {
+      "post": {
+        "summary": "/api/runner/upload",
+        "operationId": "post__api_runner_upload",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The jobs that were added.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "added": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Refused: the run is finished, the budget is spent, or the document is not valid. `problems` lists what was wrong.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "This runner speaks a protocol version the server does not.",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-Runner-Protocol-Supported": {
+                "description": "The protocol version, or range of versions, this server speaks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "steps": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "steps"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search": {
       "get": {
         "summary": "/api/search",
