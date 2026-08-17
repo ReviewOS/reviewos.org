@@ -1884,8 +1884,26 @@ already commits us to the principle. These are the pipeline-specific pieces.
       from an editor, not from a diverged run three weeks later.
 - [ ] Terraform provider covering workflows, schedules, pools, queues, tokens, and secrets, because
       a fleet that cannot be declared is a fleet that drifts
-- [ ] MCP surface for runs, logs, and test results, so a coding agent can read a failure without
+- [x] MCP surface for runs, logs, and test results, so a coding agent can read a failure without
       scraping a page
+
+      Four tools beside the review ones: `list_workflow_runs`, `read_workflow_run`, `read_job_log`,
+      `read_tests`. Each is a call to this instance's own API carrying the token the connection
+      authenticated with, like every other tool here - so there is no second permission check to
+      disagree with the first.
+
+      `read_job_log` takes the cursor from the previous call, because an agent re-reading a
+      hundred-thousand-line log to find the four new lines is an agent spending its context on
+      nothing.
+
+      `read_tests` earns its place with one sentence in its description: check whether a test is
+      already flaky before blaming the diff in front of you. A test unreliable for a month is not
+      evidence about this change, and an agent without that fact writes a confident and wrong
+      review.
+
+      The test that named tools one at a time now walks every tool's path against `routes/api.ts`.
+      A tool whose endpoint was renamed always 404s, and a model handed one of those does not
+      conclude the tool is broken - it concludes the task is impossible and abandons the work.
 - [ ] Webhook events for every run, job, and test transition, redelivered through
       [phase 5](./05-notifications-webhooks.md)
 - [ ] Notifications on run outcome, per workflow and per step, to the channels phase 5 already

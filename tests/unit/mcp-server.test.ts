@@ -96,6 +96,26 @@ describe('the tool list', () => {
      */
     expect(TOOLS.map(tool => tool.name)).not.toContain('read_check_output')
   })
+
+  it('and every path it does offer is a route this instance actually serves', async () => {
+    /*
+     * The general form of the same rule. A tool whose path was renamed, or
+     * written from memory, always 404s - and a model handed one of those does
+     * not conclude the tool is broken, it concludes the task is impossible and
+     * abandons the line of work.
+     *
+     * Checked against the route file rather than against a list here, so
+     * moving an endpoint fails this test instead of silently breaking agents.
+     */
+    const routes = await Bun.file('routes/api.ts').text()
+
+    for (const tool of TOOLS) {
+      const path = tool.call.path.replace(/^\/api/, '')
+      const declared = new RegExp(`route\\.${tool.call.method.toLowerCase()}\\('${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`)
+
+      expect({ tool: tool.name, served: declared.test(routes) }).toEqual({ tool: tool.name, served: true })
+    }
+  })
 })
 
 describe('calling a tool', () => {

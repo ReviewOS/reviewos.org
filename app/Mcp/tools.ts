@@ -159,6 +159,90 @@ export const TOOLS: ToolDefinition[] = [
     },
     call: { method: 'POST', path: '/api/repos/pulls/reviews' },
   },
+  /*
+   * CI, for the agent whose job is to explain a failure.
+   *
+   * The reason to have these at all: an agent asked "why did this fail" and
+   * given only the pull request has two options, and both are bad - guess from
+   * the diff, or tell the person to go and read the log themselves. The log is
+   * the answer, and it is one call away.
+   */
+  {
+    name: 'list_workflow_runs',
+    description:
+      'CI runs for a repository, newest first. Filter by `branch`, `sha`, or `state` (queued, '
+      + 'running, succeeded, failed, cancelled). Start here when asked why something is red.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...repository,
+        branch: { type: 'string', description: 'Branch name, without refs/heads/' },
+        sha: { type: 'string', description: 'The commit, full or abbreviated' },
+        state: { type: 'string', description: 'queued, running, succeeded, failed, or cancelled' },
+        per_page: { type: 'integer', description: 'Runs per page, up to 100' },
+      },
+      required: ['owner', 'repo'],
+    },
+    call: {
+      method: 'GET',
+      path: '/api/repos/workflow-runs',
+      query: ['owner', 'repo', 'branch', 'sha', 'state', 'per_page'],
+    },
+  },
+  {
+    name: 'read_workflow_run',
+    description:
+      'One run: every job, its state, and the steps inside it, with the numeric job ids '
+      + 'read_job_log needs. A job that is `paused` is waiting for a person - a deployment '
+      + 'approval or a gate - rather than stuck.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...repository,
+        number: { type: 'integer', description: 'The run number, as shown in the interface' },
+      },
+      required: ['owner', 'repo', 'number'],
+    },
+    call: { method: 'GET', path: '/api/repos/workflow-runs/show', query: ['owner', 'repo', 'number'] },
+  },
+  {
+    name: 'read_job_log',
+    description:
+      'The output of one job, by its numeric id from read_workflow_run. Pass `after` with the '
+      + 'cursor from the previous call to read only what is new, rather than the whole log again.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...repository,
+        job: { type: 'integer', description: 'The numeric job id, from read_workflow_run' },
+        after: { type: 'integer', description: 'Cursor from a previous call' },
+      },
+      required: ['owner', 'repo', 'job'],
+    },
+    call: { method: 'GET', path: '/api/repos/workflow-runs/log', query: ['owner', 'repo', 'job', 'after'] },
+  },
+  {
+    name: 'read_tests',
+    description:
+      'Tests this repository has reported, with their state and whether they are flaky. '
+      + '`operation` is "list", "flaky" (only the unreliable ones), "quarantined" (muted or '
+      + 'skipped, with `overdue` on the ones past their review date), or "history" with `test` for '
+      + 'one test\'s recent runs. **Check this before blaming a change for a red build**: a test '
+      + 'that has been flaky for a month is not evidence about the diff in front of you.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...repository,
+        operation: { type: 'string', enum: ['list', 'flaky', 'quarantined', 'history'] },
+        suite: { type: 'string', description: 'Limit to one suite' },
+        test: { type: 'integer', description: 'For history: the test id from a listing' },
+        limit: { type: 'integer' },
+      },
+      required: ['owner', 'repo', 'operation'],
+    },
+    call: { method: 'POST', path: '/api/repos/tests/manage' },
+  },
+
 ]
 
 /*
