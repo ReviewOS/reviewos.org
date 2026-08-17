@@ -527,6 +527,10 @@ describe('a run that is waiting for a runner', () => {
       expect(html).toContain('macos-14')
       expect(html).toContain('ubuntu-latest')
       expect(html).toContain('No runner here has')
+
+      // And what to do about it, because the reader here can act on it: this
+      // page is fetched with the owner's token.
+      expect(html).toContain('runs-on')
     }
     finally {
       await db.deleteFrom('runners').where('id', '=', Number(runner.id)).execute().catch(() => {})

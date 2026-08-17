@@ -339,6 +339,57 @@ anything asynchronous: no mirror syncs, no webhooks, no notification email. The
 health endpoint reports it - a job that has been waiting more than five minutes
 is `degraded` with "is a worker running?" - which is the fastest way to notice.
 
+## Running CI
+
+Nothing executes a workflow until you say where. That is a deliberate default
+rather than an omission: a forge that runs repository code the moment somebody
+pushes a file has decided, on your behalf, that the code is trustworthy and the
+machine is expendable.
+
+For one team on one box, the answer is one command on the instance's own host:
+
+```sh
+./buddy runner:local
+```
+
+It registers a runner for this host the first time, keeps the credential in
+`storage/framework/runtime/runner-local.token` (mode `0600`), answers to
+`ubuntu-latest`, `self-hosted` and `local`, and starts taking jobs. A workflow
+copied from GitHub with `runs-on: ubuntu-latest` runs without anything else being
+configured, which is the point of that label being in the default set.
+
+**It is not a security boundary, and it says so on every start.** A step runs as
+the user who started the runner, on the host the control plane is on, with that
+user's files and network. Right for one team running code they wrote; wrong for
+anything where the code and the machine have different owners. A fork's pull
+request is refused by the runner itself rather than by a setting, because
+untrusted code on the control plane's own host is the one combination that turns
+CI into somebody else's shell.
+
+Stop it with ctrl-c. To run it as a service, run the same command under whatever
+supervises your other processes:
+
+```sh
+bun run --bun ./buddy runner:local
+```
+
+For a runner on a **different machine**, register there and carry the credential
+over:
+
+```sh
+./buddy runner:local --register --name build-01 --labels ubuntu-latest,self-hosted
+./buddy runner:local --url https://reviewos.example --token <the credential>
+```
+
+Re-running `--register` with the same name rotates the credential rather than
+making a second runner, so a leaked token is fixed by one command. Anything else
+that speaks [the runner protocol](./runner-protocol.md) works too: it is five
+HTTP endpoints and no SDK.
+
+When a run sits at "queued", the run page says why rather than spinning - no
+runner registered, none that reaches this repository, or none carrying the labels
+the job asked for, with the labels that *would* have matched listed next to it.
+
 ## Health
 
 `GET /api/health` checks the three things that can be broken while the process

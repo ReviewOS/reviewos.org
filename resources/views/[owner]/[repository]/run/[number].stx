@@ -245,6 +245,15 @@ const workflow: any = version
  * a cancel button everybody can press is a denial of service with an
  * affordance.
  */
+/*
+ * Who is shown the remedy for a stuck run.
+ *
+ * The same ability the cancel control asks for. Somebody who can stop a run is
+ * somebody who is responsible for this repository's CI, which is the closest
+ * this page can get to "would know what to do with a command".
+ */
+const canAdminister = Boolean(repoAccess?.can?.('workflow:cancel'))
+
 const canCancel = Boolean(run)
   && !runIsFinished(String(run.state))
   && Boolean(repoAccess?.can?.('workflow:cancel'))
@@ -466,6 +475,16 @@ const base = `/${ownerHandle}/${repositoryName}`
             --}}
             @if (job.waitingBecause && job.waitingBecause.kind !== 'ready')
               <p class="job-waiting">{{ job.waitingBecause.summary }}</p>
+
+              {{--
+                And what to do about it, to the people who can. Everybody
+                deserves to know why a run is stuck; only somebody who
+                administers the instance can act on "run this command", and a
+                shell command shown to every visitor is noise.
+              --}}
+              @if (canAdminister && job.waitingBecause.fix)
+                <p class="job-waiting job-fix">{{ job.waitingBecause.fix }}</p>
+              @endif
             @endif
 
             {{--
@@ -680,6 +699,8 @@ const base = `/${ownerHandle}/${repositoryName}`
   .job-summary > :last-child { margin-bottom: 0; }
   .job-summary table { border-collapse: collapse; }
   .job-summary th, .job-summary td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+
+  .job-fix { opacity: 0.85; }
 
   .log > summary {
     cursor: pointer;

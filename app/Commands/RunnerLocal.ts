@@ -1,4 +1,6 @@
 import type { CLI } from '@stacksjs/types'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 
 // Imported rather than relied on as a global: `db` is a server auto-import, and
@@ -26,6 +28,16 @@ import { generateToken } from '../Actions/Tokens/secret'
  * host is the one combination that turns CI into somebody else's shell.
  */
 
+/**
+ * Where this host keeps the credential it registered for itself.
+ *
+ * Under `storage/framework/runtime/`, which is machine-local and gitignored
+ * along with everything else there. Written `0600`: it is a credential that can
+ * claim any job on the instance, and a file anybody on the box can read is a
+ * runner anybody on the box can impersonate.
+ */
+const CREDENTIAL_FILE = 'storage/framework/runtime/runner-local.token'
+
 interface RunnerOptions {
   url?: string
   token?: string
@@ -48,17 +60,33 @@ export default function (cli: CLI) {
     .option('--jobs <count>', 'Stop after this many jobs', { default: '0' })
     .action(async (options: RunnerOptions) => {
       if (options.register) {
-        await registerRunner(options)
+        await registerRunner(options, { print: true })
         return
       }
 
-      const token = String(options.token ?? process.env.REVIEWOS_RUNNER_TOKEN ?? '').trim()
+      /*
+       * The credential, found or made.
+       *
+       * This used to be two commands - register, copy the token out of the
+       * output, start with it - and the second step was friction with no
+       * safety behind it: the same operator, at the same shell, on the
+       * instance's own machine. The argument that matters is that **this
+       * instance runs nothing until somebody types this**, and typing it is
+       * that. So `./buddy runner:local` is the whole of the first run now.
+       *
+       * An explicit `--token` still wins, which is how a runner on a *second*
+       * machine works: register there, carry the credential over, pass it in.
+       */
+      let token = String(options.token ?? process.env.REVIEWOS_RUNNER_TOKEN ?? '').trim()
+      let registered = false
+
+      if (!token)
+        token = readCredential()
 
       if (!token) {
-        console.error('A runner credential is required. Run `buddy runner:local --register` once to make one,')
-        console.error('then pass it with --token or in REVIEWOS_RUNNER_TOKEN.')
-        process.exitCode = 1
-        return
+        token = await registerRunner(options, { print: false })
+        writeCredential(token)
+        registered = true
       }
 
       const url = String(options.url ?? 'http://localhost:3000').replace(/\/$/, '')
@@ -71,7 +99,12 @@ export default function (cli: CLI) {
        * paragraph exists to prevent.
        */
       console.log('ReviewOS local runner')
+
+      if (registered)
+        console.log(`  registered: \`${String(options.name ?? 'local')}\`, credential kept in ${CREDENTIAL_FILE}`)
+
       console.log(`  instance:   ${url}`)
+      console.log(`  labels:     ${labelsOf(options).join(', ')}`)
       console.log('  isolation:  none - steps run as this user, on this machine')
       console.log('  forks:      refused; an untrusted run needs an isolated runner')
       console.log('')
@@ -106,12 +139,9 @@ export default function (cli: CLI) {
  * whom "authenticate first" means "you already have the database". Anybody
  * else registering a runner does it through the admin interface.
  */
-async function registerRunner(options: RunnerOptions): Promise<void> {
+async function registerRunner(options: RunnerOptions, output: { print: boolean }): Promise<string> {
   const name = String(options.name ?? 'local')
-  const labels = String(options.labels ?? 'ubuntu-latest,self-hosted,local')
-    .split(',')
-    .map(label => label.trim())
-    .filter(Boolean)
+  const labels = labelsOf(options)
 
   const secret = generateToken()
 
@@ -149,15 +179,67 @@ async function registerRunner(options: RunnerOptions): Promise<void> {
       .execute()
   }
 
-  console.log(`Runner \`${name}\` registered for the whole instance, answering to: ${labels.join(', ')}`)
-  console.log('')
-  console.log('Its credential, shown once:')
-  console.log('')
-  console.log(`  ${secret.token}`)
-  console.log('')
-  console.log('Start it with:')
-  console.log('')
-  console.log(`  ./buddy runner:local --token ${secret.token}`)
-  console.log('')
-  console.log('Steps run as this user, on this machine, with no isolation. Fork pull requests are refused.')
+  if (output.print) {
+    console.log(`Runner \`${name}\` registered for the whole instance, answering to: ${labels.join(', ')}`)
+    console.log('')
+    console.log('Its credential, shown once:')
+    console.log('')
+    console.log(`  ${secret.token}`)
+    console.log('')
+    console.log('Start it with:')
+    console.log('')
+    console.log(`  ./buddy runner:local --token ${secret.token}`)
+    console.log('')
+    console.log('Steps run as this user, on this machine, with no isolation. Fork pull requests are refused.')
+  }
+
+  return secret.token
+}
+
+/**
+ * The labels this runner answers to.
+ *
+ * `ubuntu-latest` is in the default set deliberately: it is what every workflow
+ * copied from Actions says, and a new instance where the first `runs-on:`
+ * anybody writes matches nothing is an instance where CI appears to be broken.
+ * Naming it here is a claim about *what the label means* - "the machine the
+ * instance is on" - which is the honest reading for a single-tenant install and
+ * is stated on every start rather than assumed.
+ */
+function labelsOf(options: RunnerOptions): string[] {
+  return String(options.labels ?? 'ubuntu-latest,self-hosted,local')
+    .split(',')
+    .map(label => label.trim())
+    .filter(Boolean)
+}
+
+/** The credential this host wrote for itself, if it has one. */
+function readCredential(): string {
+  const path = resolve(CREDENTIAL_FILE)
+
+  if (!existsSync(path))
+    return ''
+
+  try {
+    return readFileSync(path, 'utf8').trim()
+  }
+  catch {
+    /*
+     * Unreadable is treated as absent rather than fatal. The recovery is to
+     * register again, which rotates the credential - and a runner that refuses
+     * to start because of a file permission is a runner nobody can fix at
+     * three in the morning.
+     */
+    return ''
+  }
+}
+
+function writeCredential(token: string): void {
+  const path = resolve(CREDENTIAL_FILE)
+
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, `${token}\n`)
+  // Before anybody else can read it. A credential that can claim any job on
+  // the instance is not a world-readable file.
+  chmodSync(path, 0o600)
 }

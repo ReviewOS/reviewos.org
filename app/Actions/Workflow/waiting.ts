@@ -28,6 +28,16 @@ export interface WaitingExplanation {
   kind: WaitingKind
   /** One sentence, for the screen. */
   summary: string
+  /**
+   * What to do about it, for a reader who can.
+   *
+   * Separate from the summary because the audiences are different: everybody
+   * looking at a stuck run deserves to know *why*, and only somebody who
+   * administers the instance can act on "run this command". A page that shows
+   * a shell command to every visitor is noise; one that shows nobody is a
+   * paragraph that stops one word short of useful.
+   */
+  fix: string
   /** What the job asked for. */
   wanted: string[]
   /**
@@ -56,6 +66,9 @@ export function explainWaiting(job: JobFacts, runners: readonly RunnerFacts[]): 
     return {
       kind: 'no-runners',
       summary: 'No runners are registered on this instance, so nothing can pick this job up.',
+      // The first run of a new instance lands here, every time, and it is the
+      // one moment where the whole feature looks broken rather than unconfigured.
+      fix: 'On the machine this instance runs on: `./buddy runner:local`. It registers a runner for this host, answers to `ubuntu-latest`, and starts taking jobs. Steps run with no isolation, which is right for one team on one box and wrong for anything else.',
       wanted,
       available: [],
     }
@@ -67,6 +80,7 @@ export function explainWaiting(job: JobFacts, runners: readonly RunnerFacts[]): 
     return {
       kind: 'none-reach',
       summary: 'No runner is registered for this repository, or for an owner or instance that includes it.',
+      fix: 'Register a runner scoped to this repository, its owner, or the whole instance.',
       wanted,
       available: [],
     }
@@ -94,6 +108,7 @@ export function explainWaiting(job: JobFacts, runners: readonly RunnerFacts[]): 
     return {
       kind: 'no-labels',
       summary: `No runner here has ${list(wanted)}. The runners that could take this job have ${list(available)}.`,
+      fix: `Change this job's \`runs-on:\` to a label a runner has, or give a runner ${list(wanted)}.`,
       wanted,
       available,
     }
@@ -107,6 +122,7 @@ export function explainWaiting(job: JobFacts, runners: readonly RunnerFacts[]): 
       summary: matching.length === 1
         ? 'The only runner that matches this job is disabled.'
         : `All ${matching.length} runners that match this job are disabled.`,
+      fix: 'Enable it in the admin area, or register another runner with these labels.',
       wanted,
       available,
     }
@@ -117,6 +133,9 @@ export function explainWaiting(job: JobFacts, runners: readonly RunnerFacts[]): 
     summary: active.length === 1
       ? 'A runner matches this job and will take it on its next poll.'
       : `${active.length} runners match this job; the next one to poll will take it.`,
+    // Nothing to fix: this is the ordinary case, and inventing advice for it
+    // would teach people to ignore the line that matters.
+    fix: '',
     wanted,
     available,
   }

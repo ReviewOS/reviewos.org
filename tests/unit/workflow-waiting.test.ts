@@ -117,3 +117,35 @@ describe('explaining a queued job', () => {
     expect(answer.kind).toBe('ready')
   })
 })
+
+/*
+ * The remedy, not just the diagnosis.
+ *
+ * A new instance lands on `no-runners` every single time, and it is the one
+ * moment where the whole feature looks broken rather than unconfigured. The
+ * page shows this only to somebody who can act on it - a shell command in front
+ * of every visitor is noise - which is why it is a separate field rather than
+ * more sentences in the summary.
+ */
+describe('what to do about it', () => {
+  test('an instance with no runners is told the command that fixes it', () => {
+    const explanation = explainWaiting(job, [])
+
+    expect(explanation.kind).toBe('no-runners')
+    expect(explanation.fix).toContain('buddy runner:local')
+  })
+
+  test('a label mismatch names both ways out of it', () => {
+    const explanation = explainWaiting({ ...job, runsOn: ['macos-14'] }, [runner({ labels: ['ubuntu-latest'] })])
+
+    expect(explanation.kind).toBe('no-labels')
+    expect(explanation.fix).toContain('runs-on')
+    expect(explanation.fix).toContain('macos-14')
+  })
+
+  test('and a job that is about to run is offered no advice at all', () => {
+    // Inventing something to say here would teach people to skim the line that
+    // matters.
+    expect(explainWaiting(job, [runner({ labels: ['ubuntu-latest'] })]).fix).toBe('')
+  })
+})

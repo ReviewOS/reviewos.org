@@ -761,9 +761,34 @@ cannot talk back to the runner is a workflow that fails on its second line.
 Actions users do not provision anything. They push a file and it runs. That expectation does not
 survive contact with a self-hosted forge unless we make it.
 
-- [ ] A single documented command brings up a runner and registers it with the instance
-- [ ] A default queue exists on a new instance, so `runs-on: ubuntu-latest` resolves to something
+- [x] A single documented command brings up a runner and registers it with the instance
+
+      `./buddy runner:local`, and that is now the whole of it. It used to be two: register, copy the
+      credential out of the output, start with `--token`. The second step was friction with no
+      safety behind it - the same operator, at the same shell, on the instance's own machine - and
+      the argument that actually matters is unchanged: **this instance runs nothing until somebody
+      types this**, and typing it is that. The credential is kept in
+      `storage/framework/runtime/runner-local.token` at mode `0600`, because a file that can claim
+      any job on the instance is not a world-readable one.
+
+      `--register` stays, for the case it is really for: a runner on a *second* machine, where the
+      credential has to be carried over. Re-registering rotates rather than duplicating, so a leak
+      is fixed by one command. Documented in [self-hosting](../self-hosting.md#running-ci), with the
+      no-isolation tradeoff stated where somebody deciding will read it.
+- [x] A default queue exists on a new instance, so `runs-on: ubuntu-latest` resolves to something
       without configuration
+
+      `ubuntu-latest` is in the local runner's default labels, alongside `self-hosted` and `local`.
+      It is what every workflow copied from Actions says, and a new instance where the first
+      `runs-on:` anybody writes matches nothing is an instance where CI appears to be broken rather
+      than unconfigured. Naming it is a claim about what the label *means* here - "the machine the
+      instance is on" - which is the honest reading for a single-tenant install and is printed on
+      every start rather than assumed.
+
+      The other half is the empty state. A job that can never be taken already said why; it now also
+      says **what to do about it**, and only to somebody who could - the ability the cancel control
+      asks for. A shell command in front of every visitor is noise; a paragraph that stops one word
+      short of useful is worse.
 - [x] Optionally, the instance ships with one local runner enabled for single-tenant installs, off by
       default for multi-tenant ones, with the tradeoff stated plainly rather than buried.
 
