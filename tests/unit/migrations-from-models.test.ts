@@ -75,6 +75,76 @@ describe('the migration corpus', () => {
 describe('what the models declare reaches the SQL', () => {
   const modelFiles = readdirSync(MODELS).filter(name => name.endsWith('.ts'))
 
+  /**
+   * A table nobody describes.
+   *
+   * The other checks here all start from the models and look for their effect
+   * in the SQL. This one goes the other way, and it is the direction that was
+   * missing: a table can be created by a migration with no model behind it at
+   * all, and then nothing in this file notices. The generator does not notice
+   * either - it emits what the models say, so a table they do not mention is
+   * simply outside its world.
+   *
+   * `password_resets` sat in exactly that blind spot. The framework's auth step
+   * creates it, the framework's own `sendEmail` writes an `expires_at` the
+   * table did not have, and the repair was a hand-written `ALTER` describing a
+   * column no model knew about. Every reset link this forge sent was invalid,
+   * for as long as the schema had been built from models, and every test in
+   * the password-reset suite passed - because a request that writes a token
+   * and a request that writes nothing answer identically on purpose.
+   *
+   * Framework tables are the point rather than an exception to it. Overriding
+   * one is a file in `app/Models/`, which is cheap; the cost of not having it
+   * is a column the schema owns and the models cannot see.
+   */
+  it('has a model for every table the corpus touches', () => {
+    const declared = new Set(
+      modelFiles.flatMap((name) => {
+        const source = readFileSync(join(MODELS, name), 'utf8')
+        const table = /\btable:\s*'([^']+)'/.exec(source)?.[1]
+
+        return table ? [table] : []
+      }),
+    )
+
+    /*
+     * Framework-owned tables this application does not describe and has no
+     * reason to. Each one is a deliberate decision rather than a backlog: the
+     * application never reads or writes them, so a model would be a
+     * description with no reader. Anything the application *touches* belongs
+     * in `app/Models/` instead of on this list.
+     */
+    const frameworkOwned = new Set([
+      'migrations',
+      'passkeys',
+      'sessions',
+      'personal_access_tokens',
+    ])
+
+    /*
+     * `ALTER` as well as `CREATE`, and that is the whole point.
+     *
+     * Matching only `CREATE TABLE` misses precisely the case this was written
+     * for: `password_resets` is created by the framework's auth step, not by
+     * any migration here, so the corpus never names it except in the one
+     * hand-written `ALTER` that added the missing column. A check that reads
+     * only creations looks straight past a table this repository is actively
+     * patching - which is the strongest possible signal that it owns it and
+     * ought to describe it.
+     */
+    const touched = [
+      ...[...corpus.matchAll(/CREATE TABLE(?: IF NOT EXISTS)? "([^"]+)"/g)].map(match => match[1]),
+      ...[...corpus.matchAll(/ALTER TABLE "([^"]+)"/g)].map(match => match[1]),
+    ]
+
+    const undescribed = [...new Set(touched)]
+      .filter(table => !declared.has(table) && !frameworkOwned.has(table))
+      .sort()
+
+    expect(undescribed).toEqual([])
+  })
+
+
   it('reads the models', () => {
     expect(modelFiles.length).toBeGreaterThan(10)
   })
