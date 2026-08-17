@@ -714,9 +714,31 @@ cannot talk back to the runner is a workflow that fails on its second line.
       One thing it cost: the runner directory is created *after* the checkout, because `git clone`
       refuses a directory that already holds anything. Writing the payload first turned every job
       into "destination path '.' already exists".
-- [ ] An automatic per-job token, scoped to the run and the repository, expiring with the job,
+- [x] An automatic per-job token, scoped to the run and the repository, expiring with the job,
       honouring the `permissions:` block, and never granted to a fork run by default. This is
       `GITHUB_TOKEN` and the ecosystem assumes it exists.
+
+      `permissions:` had been parsed, stored and shown on the run screen since the beginning and
+      acted on by nothing - the same defect as `fail-fast` and `timeout-minutes` before it: a key a
+      reviewer reads as a control that controls nothing. Now it decides what the token carries.
+
+      **Scoped to one repository**, `selection: selected` with exactly one row attached. A job that
+      can comment on the repository it is building must not be able to comment on every repository
+      its actor can reach, and a token that could is why people are afraid of CI holding
+      credentials at all.
+
+      **A fork's pull request gets read access whatever its own workflow file declares**, because
+      the workflow in a fork's branch is the fork's code. That rule lives in one pure function with
+      a test on it, since it is the one most likely to be lost in a refactor.
+
+      Revoked when the job reports and expiring within the hour regardless - the expiry is the
+      backstop for a runner that dies without reporting, not the mechanism. It travels with the
+      secrets rather than beside them, which buys `${{ secrets.GITHUB_TOKEN }}` working as written
+      and the value being masked by the same pass that masks every stored secret.
+
+      Found writing the test: `where('revoked_at', 'is', null)` compiles to a bound parameter in
+      this builder and matches nothing, so the revocation silently did nothing. `whereNull` is the
+      spelling, and two other files in this codebase already carry that note.
 - [ ] The API endpoints that automatic token is used against by common actions, at
       `GITHUB_API_URL`, in the same shapes, so `actions/github-script` and friends work
 - [x] Secret masking in logs, including values registered at runtime with `::add-mask::`.

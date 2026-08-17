@@ -75,3 +75,42 @@ Every secret is sealed with it, so changing it makes all of them undecryptable -
 they are skipped, and jobs fail at the line that needs them. Set them again
 after a rotation. There is no re-encrypt command yet, and pretending otherwise
 would be worse than saying so.
+
+## The automatic token
+
+Every job is handed one, as `${{ secrets.GITHUB_TOKEN }}` and `${{ github.token }}`:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sX POST "$GITHUB_API_URL/repos/pulls/comments" \
+            -H "Authorization: Bearer $TOKEN" -d '…'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+**`permissions:` is what decides.** A workflow that says nothing gets a token
+that can read the repository and nothing else - on every instance, forever.
+Actions' own default depends on an organization setting, which is a footgun this
+instance declines to reproduce. A job's `permissions:` replaces the workflow's
+rather than adding to it, and a key this instance has no scope for (`packages:`,
+`id-token:`) is reported rather than silently granting nothing.
+
+**It reaches one repository.** The row is `selection: selected` with exactly one
+repository attached: a job that can comment on the repository it is building
+must not be able to comment on every repository its actor can reach.
+
+**A fork's pull request gets read access whatever its workflow file declares.**
+The workflow in a fork's branch is the fork's code, and it does not get to
+decide what it may do to the repository it forked.
+
+It is revoked when the job reports, and expires within the hour regardless -
+the expiry is the backstop for a runner that dies without reporting, not the
+mechanism.

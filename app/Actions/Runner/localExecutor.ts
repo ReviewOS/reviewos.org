@@ -790,6 +790,12 @@ function expressionContext(
     workspace,
     server_url: String(job?.server_url ?? ''),
     api_url: String(job?.api_url ?? ''),
+    /*
+     * `github.token`, which is the other name half the ecosystem reads the
+     * automatic credential by. The same value as `secrets.GITHUB_TOKEN`, so an
+     * action written either way works and neither is a second thing to mint.
+     */
+    token: String((job?.secrets as any)?.GITHUB_TOKEN ?? ''),
   }
 
   return {

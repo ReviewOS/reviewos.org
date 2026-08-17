@@ -857,7 +857,7 @@ A token for importing and mirroring from GitHub. Read when a mirror has no
 stored credential of its own, and by `buddy import:github`. A personal access
 token with read access to the repositories you intend to import.
 
-Read by `app/Actions/Mirror/credentials.ts`, `app/Commands/ImportGitHub.ts`, `app/Jobs/ImportRepositoryJob.ts`.
+Read by `app/Actions/Mirror/credentials.ts`, `app/Actions/Runner/ClaimJobAction.ts`, `app/Actions/Runner/localExecutor.ts`, `app/Actions/Workflow/secrets.ts`, `app/Commands/ImportGitHub.ts`, `app/Jobs/ImportRepositoryJob.ts`.
 
 ### `GITHUB_CLONE_BASE`
 

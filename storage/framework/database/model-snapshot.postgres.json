@@ -11656,10 +11656,86 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "owner_aliases",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "handle",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 39
+          },
+          {
+            "name": "owner_type",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "enumValues": [
+              "user",
+              "organization"
+            ],
+            "enumTypeName": "owner_aliases_owner_type_type"
+          },
+          {
+            "name": "owner_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "owner_aliases_handle_index",
+            "columns": [
+              "handle"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "owner_aliases_handle_unique",
+            "columns": [
+              "handle"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "0f235803b2d0b1358f548fc9c2cf1e2c5cfe9f9bf92db436bccaa002888d0067",
+  "hash": "45301b2ed3292564130f73a32686bb3d5db2c3fe60696b962b0bd5bd818dbf49",
   "dialect": "postgres",
-  "updatedAt": "2026-08-17T20:58:27.061Z"
+  "updatedAt": "2026-08-17T21:06:48.125Z"
 }

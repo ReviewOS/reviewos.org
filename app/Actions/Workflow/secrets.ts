@@ -166,6 +166,16 @@ export async function secretsForJob(input: {
   trusted: boolean
   environment: string | null
   approved: boolean
+  /**
+   * Values this instance minted for the job rather than stored - the automatic
+   * API token, today.
+   *
+   * They travel with the secrets rather than beside them, which buys two
+   * things: `${{ secrets.GITHUB_TOKEN }}` works the way every workflow already
+   * expects, and the value is masked in the log by the same pass that masks
+   * every stored secret.
+   */
+  extra?: Record<string, string>
 }): Promise<Record<string, string>> {
   const environmentId = input.environment ? await environmentIdOf(input.repositoryId, input.environment) : null
 
@@ -177,7 +187,7 @@ export async function secretsForJob(input: {
     approved: input.approved,
   })
 
-  const values: Record<string, string> = {}
+  const values: Record<string, string> = { ...(input.extra ?? {}) }
 
   for (const row of chosen) {
     try {

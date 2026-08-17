@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
+import { mintJobToken } from '../Workflow/jobToken'
 import { secretsForJob } from '../Workflow/secrets'
 import { variablesFor } from '../Workflow/variables'
 import { db } from '@stacksjs/database'
@@ -248,7 +249,7 @@ export default new Action({
       .selectFrom('workflow_versions')
       .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
       .innerJoin('workflow_runs', 'workflow_runs.workflow_version_id', '=', 'workflow_versions.id')
-      .select(['workflows.name as name', 'workflows.path as path'])
+      .select(['workflows.name as name', 'workflows.path as path', 'workflow_versions.permissions as permissions'])
       .where('workflow_runs.id', '=', claimed.runId)
       .executeTakeFirst()
 
@@ -288,7 +289,11 @@ export default new Action({
     const definitionJob: any = await db
       .selectFrom('workflow_version_jobs')
       .innerJoin('workflow_runs', 'workflow_runs.workflow_version_id', '=', 'workflow_version_jobs.workflow_version_id')
-      .select(['workflow_version_jobs.outputs as outputs', 'workflow_version_jobs.env as env'])
+      .select([
+        'workflow_version_jobs.outputs as outputs',
+        'workflow_version_jobs.env as env',
+        'workflow_version_jobs.permissions as permissions',
+      ])
       .where('workflow_runs.id', '=', claimed.runId)
       .where('workflow_version_jobs.job_id', '=', claimed.jobKey)
       .executeTakeFirst()
@@ -323,6 +328,25 @@ export default new Action({
       .where('workflow_version_jobs.job_id', '=', claimed.jobKey)
       .orderBy('workflow_version_steps.position')
       .execute()
+
+    /*
+     * The token this job talks to the API with.
+     *
+     * `permissions:` has been parsed, stored and shown on the run screen since
+     * the beginning and acted on by nothing - the same defect as `fail-fast`
+     * and `timeout-minutes` before it. Minted here because this is where the
+     * trust flag is: a fork's pull request gets read access whatever its own
+     * workflow file declares about itself.
+     */
+    const minted = await mintJobToken({
+      runId: claimed.runId,
+      jobId: claimed.jobId,
+      repositoryId: claimed.repositoryId,
+      actorId: context?.actor_id ? Number(context.actor_id) : null,
+      trusted: Boolean(context?.trusted),
+      workflowPermissions: workflow?.permissions ?? null,
+      jobPermissions: definitionJob?.permissions ?? null,
+    })
 
     return runnerJson({
       job: {
@@ -421,6 +445,13 @@ export default new Action({
           trusted: Boolean(context?.trusted),
           environment: environmentOfJob(jobRow?.settings),
           approved: Boolean(jobRow?.approved_at),
+          /*
+           * The automatic token joins the secrets rather than sitting beside
+           * them, which buys two things for free: `${{ secrets.GITHUB_TOKEN }}`
+           * works the way every workflow already expects, and the value is
+           * masked in the log by the same pass that masks every other secret.
+           */
+          extra: minted ? { GITHUB_TOKEN: minted.token, REVIEWOS_JOB_TOKEN: minted.token } : {},
         }),
         /*
          * The event, in the shape a webhook receiver would have got.

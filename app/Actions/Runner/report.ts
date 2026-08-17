@@ -16,6 +16,7 @@ import { db } from '@stacksjs/database'
 import { announceJob, announceRunIfMoved } from '../Workflow/announce'
 import type { JobState } from '../Workflow/states'
 import { canJobMove } from '../Workflow/states'
+import { revokeJobTokens } from '../Workflow/jobToken'
 import { settleRun } from '../Workflow/settle'
 import type { RunnerFacts } from './protocol'
 import { mayReport, splitLabels } from './protocol'
@@ -223,6 +224,16 @@ export async function reportJob(
       .execute()
       .catch(() => null)
   }
+
+  /*
+   * The job's API token dies with the job.
+   *
+   * Revoked here rather than left to expire, because an hour is a long time
+   * for a credential nothing needs any more - and the expiry stays as the
+   * backstop for the runner that dies without reporting, which is the case
+   * this line cannot cover.
+   */
+  await revokeJobTokens(Number(row.run_id), Number(row.id), now)
 
   const before = await currentRunState(Number(row.run_id))
   const runState = await settleRun(Number(row.run_id), now)

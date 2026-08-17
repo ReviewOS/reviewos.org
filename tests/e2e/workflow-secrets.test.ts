@@ -259,3 +259,103 @@ describe('delivery to a job', () => {
       .toEqual(['environment', 'repository'])
   }, 120_000)
 })
+
+/*
+ * The automatic token, against the real tables.
+ *
+ * The unit tests hold what it may do; this holds that the row it creates is
+ * actually scoped - a token that says `selection: 'selected'` and has no
+ * repository attached would reach everything, which is the failure this whole
+ * design is built to avoid.
+ */
+describe('the automatic job token', () => {
+  test('is scoped to one repository, carries the resolved permissions, and expires', async () => {
+    if (!available)
+      return
+
+    const { mintJobToken, revokeJobTokens } = await import('../../app/Actions/Workflow/jobToken')
+
+    const minted = await mintJobToken({
+      runId: 9001,
+      jobId: 4242,
+      repositoryId: created.repositoryId,
+      actorId: created.ownerId,
+      trusted: true,
+      workflowPermissions: { 'contents': 'write', 'pull-requests': 'write' },
+      jobPermissions: null,
+    })
+
+    expect(minted?.token).toBeTruthy()
+
+    const row: any = await db
+      .selectFrom('access_tokens')
+      .select(['id', 'selection', 'expires_at', 'revoked_at'])
+      .where('id', '=', Number(minted!.id))
+      .executeTakeFirst()
+
+    expect(String(row.selection)).toBe('selected')
+    expect(new Date(String(row.expires_at)).getTime()).toBeGreaterThan(Date.now())
+
+    const repositories: any[] = await db
+      .selectFrom('access_token_repositories')
+      .select(['repository_id'])
+      .where('access_token_id', '=', Number(minted!.id))
+      .execute()
+
+    // The line that makes "scoped" true rather than claimed.
+    expect(repositories.map(one => Number(one.repository_id))).toEqual([created.repositoryId])
+
+    const permissions: any[] = await db
+      .selectFrom('access_token_permissions')
+      .select(['scope', 'level'])
+      .where('access_token_id', '=', Number(minted!.id))
+      .execute()
+
+    expect(permissions.map(one => `${one.scope}:${one.level}`).sort())
+      .toEqual(['contents:write', 'pull_requests:write'])
+
+    /*
+     * And it dies with the job. An hour is a long time for a credential
+     * nothing needs any more, so the expiry is the backstop rather than the
+     * mechanism.
+     */
+    await revokeJobTokens(9001, 4242)
+
+    const after: any = await db
+      .selectFrom('access_tokens')
+      .select(['revoked_at'])
+      .where('id', '=', Number(minted!.id))
+      .executeTakeFirst()
+
+    expect(after.revoked_at).toBeTruthy()
+
+    await db.deleteFrom('access_tokens').where('id', '=', Number(minted!.id)).execute()
+  }, 120_000)
+
+  test('and a fork gets read access however its workflow file asks', async () => {
+    if (!available)
+      return
+
+    const { mintJobToken } = await import('../../app/Actions/Workflow/jobToken')
+
+    const minted = await mintJobToken({
+      runId: 9002,
+      jobId: 4243,
+      repositoryId: created.repositoryId,
+      actorId: created.ownerId,
+      trusted: false,
+      workflowPermissions: { 'contents': 'write', 'issues': 'write' },
+      jobPermissions: null,
+    })
+
+    const permissions: any[] = await db
+      .selectFrom('access_token_permissions')
+      .select(['scope', 'level'])
+      .where('access_token_id', '=', Number(minted!.id))
+      .execute()
+
+    expect(permissions.map(one => `${one.scope}:${one.level}`)).toEqual(['contents:read'])
+
+    await db.deleteFrom('access_tokens').where('id', '=', Number(minted!.id)).execute()
+  }, 120_000)
+})
