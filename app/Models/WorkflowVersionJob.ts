@@ -150,6 +150,20 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * `reviewos.if-changed:` - path globs, one per line, this job needs one of.
+     *
+     * One per line rather than JSON because it is a list of strings and
+     * `needs` next to it already is: two spellings for "a list in a column" is
+     * one more thing to remember when reading a row.
+     */
+    if_changed: {
+      order: 47,
+      fillable: true,
+      validation: { rule: schema.string().max(4000) },
+      factory: () => null,
+    },
+
     /** `reviewos.group:` - the label several jobs share on the run screen. */
     group_label: {
       order: 46,

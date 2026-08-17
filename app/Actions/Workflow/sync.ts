@@ -246,6 +246,7 @@ async function insertVersion(
         kind: job.kind,
         settings: Object.keys(job.settings).length > 0 ? JSON.stringify(job.settings) : null,
         group_label: job.group,
+        if_changed: job.ifChanged.length > 0 ? job.ifChanged.join('\n') : null,
       } as any)
       .returning(['id'])
       .executeTakeFirst()

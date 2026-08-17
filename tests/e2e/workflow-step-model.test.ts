@@ -412,3 +412,92 @@ describe('a trigger that cannot resolve', () => {
     expect(await runState(Number(run.id))).toBe('failed')
   }, 60_000)
 })
+
+/*
+ * The monorepository case, which is the one that decides whether a big
+ * repository is usable here at all: the workflow runs on every push, and what
+ * it *runs* depends on what moved.
+ */
+describe('if-changed', () => {
+  const MONOREPO = `name: Monorepo
+on: push
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    reviewos:
+      if-changed: packages/api/**
+    steps:
+      - run: make api
+  web:
+    runs-on: ubuntu-latest
+    reviewos:
+      if-changed: packages/web/**
+    steps:
+      - run: make web
+  always:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make lint
+`
+
+  async function runWith(changed: string[], sha: string): Promise<any[]> {
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path: '.github/workflows/monorepo.yml',
+      source: MONOREPO,
+      sha: 'f'.repeat(40),
+    })
+
+    const result = await dispatchPush({
+      repositoryId: created.repositoryId,
+      event: { ref: 'refs/heads/main', changed },
+      headSha: sha,
+    })
+
+    for (const candidate of result.created) {
+      const rows = await jobsOf(candidate)
+
+      if (jobNamed(rows, 'api'))
+        return rows
+    }
+
+    return []
+  }
+
+  test('a push into one package runs that package and skips the others', async () => {
+    if (!available)
+      return
+
+    const rows = await runWith(['packages/api/src/index.ts', 'packages/api/README.md'], '1a'.repeat(20))
+
+    expect(jobNamed(rows, 'api').state).toBe('queued')
+    expect(jobNamed(rows, 'web').state).toBe('skipped')
+
+    // A job that named no globs is a job that always runs.
+    expect(jobNamed(rows, 'always').state).toBe('queued')
+
+    /*
+     * And the reason is on the row. The whole value of skipping a job in a
+     * monorepository is being able to see why without opening the file.
+     */
+    expect(String(jobNamed(rows, 'web').condition_reason)).toContain('packages/web/**')
+  }, 60_000)
+
+  test('and a push whose paths are unknown runs everything', async () => {
+    if (!available)
+      return
+
+    /*
+     * Empty means *unknown* rather than "nothing changed" - a force push, a
+     * first push, a rewrite past the ceiling. The two failures are not equal:
+     * a job that runs when it need not have costs a few machine-minutes, and a
+     * job skipped when it should have run is a broken commit nobody noticed.
+     */
+    const rows = await runWith([], '1b'.repeat(20))
+
+    expect(jobNamed(rows, 'api').state).toBe('queued')
+    expect(jobNamed(rows, 'web').state).toBe('queued')
+  }, 60_000)
+})

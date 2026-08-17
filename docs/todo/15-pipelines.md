@@ -1008,8 +1008,26 @@ below are the internal model's; the Actions key that maps onto each is noted whe
 - [ ] `cancel_on_build_failing`, so long jobs stop when a sibling has already sunk the run
 - [ ] `checkout` options: submodules, clone depth, LFS, sparse paths, clean behavior, and skipping
       checkout entirely
-- [ ] `if_changed`, path-glob gating evaluated against the run's diff. The monorepository primitive,
+- [x] `if_changed`, path-glob gating evaluated against the run's diff. The monorepository primitive,
       and the one that decides whether a big repository is usable here at all.
+
+      `reviewos: { if-changed: packages/api/** }` on a job. Actions filters the *whole workflow* on
+      `on.push.paths`, which is the wrong grain for a repository with twelve packages in it: the
+      workflow has to run, and what it runs is the question.
+
+      Decided at dispatch, like `if:`, so a job that is not going to run is `skipped` **with the
+      reason on the row** from the moment the run exists rather than queued and quietly ignored. The
+      reason names the globs, because the value of skipping a job in a monorepository is being able
+      to see why without opening the file.
+
+      **Unknown paths mean the job runs.** The changed list is empty when the instance could not work
+      out what moved - a force push, a first push, a rewrite past the ceiling - and the two failures
+      are not equal: a job that runs when it need not have costs a few machine-minutes, and a job
+      skipped when it should have run is a broken commit nobody noticed.
+
+      A barrier or a gate cannot carry it, and that is refused rather than allowed: a barrier that
+      only sometimes exists changes the shape of the graph, and a deployment gate that vanishes
+      because no file matched is a gate that approves itself.
 - [ ] `notify`, per step, distinct from workflow-level notification
 - [ ] Tests: every attribute above round-trips definition to normalized rows to execution, and the
       validator rejects each one's malformed forms with a file location and a fix

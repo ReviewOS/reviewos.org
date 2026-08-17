@@ -22,6 +22,7 @@
 import { db } from '@stacksjs/database'
 import type { ConcurrencyContext } from './concurrency'
 import { resolveGroup } from './concurrency'
+import { globMatches } from './triggers'
 import { shouldRun } from './expression'
 import type { SubjectEventName } from './triggers'
 import { subjectStartsRun } from './triggers'
@@ -346,6 +347,7 @@ async function createPullRequestRun(
     headRef: input.event.headBranch ?? '',
     baseRef: input.event.baseBranch,
     number: input.number ?? null,
+    changed: input.event.changed ?? [],
   }
 
   const group = resolveGroup(version.concurrency_group, context)
@@ -417,6 +419,8 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
     eventName: 'push',
     ref: input.event.ref,
     sha: input.headSha,
+    // What the push touched, so a job can say which paths it cares about.
+    changed: input.event.changed ?? [],
   }
 
   const group = resolveGroup(version.concurrency_group, context)
@@ -549,7 +553,7 @@ async function createJobs(
       // The policy the run is judged by, copied onto it below.
       'fail_fast', 'max_parallel', 'timeout_minutes', 'continue_on_error',
       // And what kind of job it is, which decides whether a runner ever sees it.
-      'kind', 'settings', 'group_label',
+      'kind', 'settings', 'group_label', 'if_changed',
     ])
     .where('workflow_version_id', '=', versionId)
     .orderBy('position')
@@ -628,6 +632,16 @@ async function createJobs(
         ? shouldRun(job.condition, conditionContext(context, values))
         : { run: true, reason: 'no condition context' }
 
+      /*
+       * `if-changed:`, decided here for the same reason `if:` is: a job that
+       * is not going to run should say so from the moment the run exists,
+       * rather than being queued and then quietly ignored.
+       */
+      const paths = pathDecision(job.if_changed, context?.changed ?? [])
+
+      const runs = decision.run && paths.run
+      const why = !decision.run ? decision.reason : paths.reason
+
       const created: any = await db
         .insertInto('workflow_jobs')
         .values({
@@ -638,7 +652,7 @@ async function createJobs(
           job_id: prefix ? `${prefix}/${job.job_id}` : job.job_id,
           concurrency_group: group,
           condition: job.condition ?? null,
-          condition_reason: job.condition ? decision.reason : null,
+          condition_reason: runs ? (job.condition ? decision.reason : null) : why,
           // Actions' shape: `test (ubuntu-latest, 20)`. The values without
           // their keys, because that is what fits in a job list and what
           // somebody scanning a failed run already recognises.
@@ -652,7 +666,7 @@ async function createJobs(
            * may take would sit in it forever. The settler moves them out on
            * the same pass that unblocks the rest of the graph.
            */
-          state: !decision.run
+          state: !runs
             ? 'skipped'
             : (needs.length > 0 || String(job.kind ?? 'command') !== 'command' ? 'blocked' : 'queued'),
           needs: job.needs,
@@ -892,4 +906,35 @@ function labelFor(values: Record<string, unknown>): string {
   return Object.values(values)
     .map(value => (value !== null && typeof value === 'object' ? JSON.stringify(value) : String(value)))
     .join(', ')
+}
+
+/**
+ * Whether a job's `if-changed:` globs match what this event touched.
+ *
+ * **Unknown paths mean the job runs.** The changed list is empty when the
+ * instance could not work out what moved - a force push, a first push, a
+ * rewrite past the ceiling - and the two failures are not equal: a job that
+ * runs when it need not have costs a machine for a few minutes, and a job that
+ * is skipped when it should have run is a broken commit nobody noticed.
+ */
+function pathDecision(globs: unknown, changed: readonly string[]): { run: boolean, reason: string } {
+  const patterns = String(globs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
+
+  if (patterns.length === 0)
+    return { run: true, reason: '' }
+
+  if (changed.length === 0)
+    return { run: true, reason: '' }
+
+  const matched = changed.some(path => patterns.some(pattern => globMatches(pattern, path)))
+
+  return matched
+    ? { run: true, reason: '' }
+    : {
+        run: false,
+        // Named rather than "did not match": the whole value of skipping a job
+        // in a monorepository is being able to see *why* it was skipped without
+        // opening the file.
+        reason: `Nothing this push changed matches ${patterns.map(pattern => `\`${pattern}\``).join(', ')}.`,
+      }
 }

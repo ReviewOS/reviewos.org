@@ -152,6 +152,15 @@ export interface WorkflowJob {
    * jobs inside jobs would change every query that reads a run.
    */
   group: string | null
+  /**
+   * `reviewos.if-changed:` - path globs this job needs one of.
+   *
+   * Actions filters the whole workflow on `on.push.paths`, which is the wrong
+   * grain for a repository with twelve packages in it: the workflow runs, and
+   * *what* it runs is the question. Empty means "always", which is every job
+   * that does not say otherwise.
+   */
+  ifChanged: string[]
 }
 
 export interface WorkflowConcurrency {
@@ -327,7 +336,7 @@ const JOB_KEYS = new Set([
 /** What a job *is*, which Actions has one of and this engine has five. */
 export type JobKind = 'command' | 'wait' | 'block' | 'trigger'
 
-const EXTENSION_KEYS = new Set(['wait', 'block', 'trigger', 'group'])
+const EXTENSION_KEYS = new Set(['wait', 'block', 'trigger', 'group', 'if-changed'])
 
 const STEP_KEYS = new Set([
   'id', 'name', 'run', 'uses', 'with', 'env', 'if',
@@ -640,11 +649,11 @@ function extensionOf(
   jobLine: number,
   source: string,
   errors: WorkflowError[],
-): { kind: JobKind, settings: Record<string, unknown>, group: string | null } {
+): { kind: JobKind, settings: Record<string, unknown>, group: string | null, ifChanged: string[] } {
   const raw = asRecord(body.reviewos)
 
   if (!raw)
-    return { kind: 'command', settings: {}, group: null }
+    return { kind: 'command', settings: {}, group: null, ifChanged: [] }
 
   for (const key of Object.keys(raw)) {
     if (!EXTENSION_KEYS.has(key)) {
@@ -657,6 +666,18 @@ function extensionOf(
   }
 
   const group = typeof raw.group === 'string' && raw.group.trim() ? raw.group.trim() : null
+
+  /*
+   * `if-changed:` - the monorepository primitive.
+   *
+   * Actions filters the *whole workflow* on `on.push.paths`, which is the
+   * wrong grain for a repository with twelve packages in it: the workflow has
+   * to run, and what it runs depends on what moved. Per-job globs are the
+   * difference between a monorepository that is usable here and one where
+   * every push runs everything.
+   */
+  const ifChanged = asStringList(raw['if-changed'])
+
   const kinds = (['wait', 'block', 'trigger'] as const).filter(key => key in raw)
 
   if (kinds.length > 1) {
@@ -666,11 +687,25 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: {}, group }
+    return { kind: 'command', settings: {}, group, ifChanged }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: {}, group }
+    return { kind: 'command', settings: {}, group, ifChanged }
+
+  if (ifChanged.length > 0) {
+    /*
+     * A barrier or a gate that only sometimes exists would silently change the
+     * shape of the graph - the jobs after a skipped barrier would have nothing
+     * to wait for - and a deployment gate that vanishes because no file matched
+     * is a gate that approves itself.
+     */
+    errors.push({
+      line: lineOf(source, 'if-changed', jobLine),
+      message: `Job \`${id}\` is a \`${kinds[0]}\` job, which cannot be skipped by \`if-changed\``,
+      fix: 'Put `if-changed:` on the jobs that do the work, not on the barrier or gate between them.',
+    })
+  }
 
   const kind = kinds[0]!
 
@@ -684,6 +719,7 @@ function extensionOf(
 
   if (kind === 'wait') {
     return {
+      ifChanged,
       kind,
       settings: {
         // The variant Buildkite calls `continue_on_failure`: a barrier that
@@ -696,9 +732,9 @@ function extensionOf(
   }
 
   if (kind === 'trigger')
-    return { kind, settings: triggerFrom(raw.trigger, id, jobLine, source, errors), group }
+    return { kind, settings: triggerFrom(raw.trigger, id, jobLine, source, errors), group, ifChanged }
 
-  return { kind, settings: blockFrom(raw.block, id, jobLine, source, errors), group }
+  return { kind, settings: blockFrom(raw.block, id, jobLine, source, errors), group, ifChanged }
 }
 
 /** `reviewos.block:` - the prompt, and the fields collected on the way through. */
@@ -1164,6 +1200,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       kind: extension.kind,
       settings: extension.settings,
       group: extension.group,
+      ifChanged: extension.ifChanged,
     })
   }
 

@@ -8492,6 +8492,14 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 200
+          },
+          {
+            "name": "if_changed",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -9845,7 +9853,7 @@
       }
     ]
   },
-  "hash": "ef2c5cf0a23bc00a7c5fa7d9911e3269a5ae97607296e54f8ed00d2e534f46a0",
+  "hash": "93d787cf6472526fdad40bc11e73dc603dbfcde2f58e632eabb9479509623bf7",
   "dialect": "postgres",
-  "updatedAt": "2026-08-17T15:16:20.027Z"
+  "updatedAt": "2026-08-17T15:50:31.326Z"
 }

@@ -291,3 +291,53 @@ describe('groups', () => {
     expect(one!.kind).toBe('command')
   })
 })
+
+describe('if-changed, the monorepository primitive', () => {
+  test('is a list of globs on the job', () => {
+    const [api, web] = jobs(`jobs:
+  api:
+    runs-on: ubuntu-latest
+    reviewos:
+      if-changed:
+        - packages/api/**
+        - package.json
+    steps:
+      - run: make api
+  web:
+    runs-on: ubuntu-latest
+    reviewos:
+      if-changed: packages/web/**
+    steps:
+      - run: make web
+`)
+
+    expect(api!.ifChanged).toEqual(['packages/api/**', 'package.json'])
+    // The single-glob form, because most jobs have one.
+    expect(web!.ifChanged).toEqual(['packages/web/**'])
+  })
+
+  test('a job that says nothing always runs', () => {
+    const [job] = jobs(`jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make
+`)
+
+    expect(job!.ifChanged).toEqual([])
+  })
+
+  test('and a barrier or a gate cannot be skipped by it', () => {
+    /*
+     * A barrier that only sometimes exists changes the shape of the graph -
+     * the jobs after it would have nothing to wait for - and a deployment gate
+     * that vanishes because no file matched is a gate that approves itself.
+     */
+    expect(errorsIn(`jobs:
+  gate:
+    reviewos:
+      block: Ship?
+      if-changed: packages/api/**
+`).join(' ')).toContain('cannot be skipped by')
+  })
+})

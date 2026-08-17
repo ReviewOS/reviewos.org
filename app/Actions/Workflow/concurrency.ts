@@ -30,6 +30,14 @@ export interface ConcurrencyContext {
   /** The pull request's number, when there is one. */
   number?: number | null
   /**
+   * The paths this run's event touched, for per-job `if-changed`.
+   *
+   * Empty means *unknown* rather than "nothing changed", which is the same
+   * convention the trigger filters use: a job whose globs cannot be checked
+   * runs, because the visible failure is better than the invisible one.
+   */
+  changed?: readonly string[]
+  /**
    * This job's matrix combination, when it has one.
    *
    * Offered to a *job's* group expression, because a matrix job whose group

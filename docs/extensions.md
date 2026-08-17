@@ -162,6 +162,44 @@ Three rules worth knowing:
 workflow's jobs inside your run, rather than starting a run of its own) and
 `repository_dispatch` (which needs a token and an HTTP call from inside a step).
 
+### `if-changed` - run this job only when these paths moved
+
+```yaml
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    reviewos:
+      if-changed: packages/api/**
+    steps: [{ run: make api }]
+
+  web:
+    runs-on: ubuntu-latest
+    reviewos:
+      if-changed:
+        - packages/web/**
+        - package.json
+    steps: [{ run: make web }]
+```
+
+A job whose globs match nothing this push touched is **skipped, with the reason
+on the row** - not queued and quietly ignored. A job that names no globs always
+runs.
+
+**When the instance cannot tell what changed, the job runs.** A force push, a
+first push, or a rewrite past the internal ceiling all leave the changed list
+empty, and the two failures are not equal: a job that runs when it need not have
+costs a few machine-minutes, and a job skipped when it should have run is a
+broken commit nobody noticed.
+
+A `wait` or `block` job cannot carry it, and the file is refused if one does. A
+barrier that only sometimes exists changes the shape of the graph, and a gate
+that vanishes because no file matched is a gate that approves itself.
+
+**Actions has `on.push.paths`**, which filters the whole workflow. That is the
+right tool for "do not run CI for a documentation change" and the wrong one for
+a repository with twelve packages in it, where the workflow has to run and the
+question is what it runs.
+
 ### `group` - a label
 
 ```yaml
@@ -185,7 +223,7 @@ against.
 |---|---|
 | Portability | A file using `reviewos:` does not run on GitHub. It is refused, not ignored. |
 | Migration in | Nothing. An Actions workflow uses none of this and behaves identically. |
-| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; a `group` becomes nothing, since GitHub has no grouping. |
+| Migration out | Delete the `reviewos:` keys. A `wait` becomes `needs:`; a `block` becomes an environment protection rule; a `trigger` becomes `workflow_call` or an API call in a step; `if-changed` becomes a `dorny/paths-filter`-style action plus a step-level `if:`; a `group` becomes nothing, since GitHub has no grouping. |
 
 The engine underneath is documented in
 [the pipelines roadmap](https://github.com/stacksjs/reviewos/blob/main/docs/todo/15-pipelines.md),
