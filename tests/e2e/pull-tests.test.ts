@@ -64,6 +64,15 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
   return stdout.trim()
 }
 
+async function testsPage(query = ''): Promise<string> {
+  const answer = await fetch(
+    `http://127.0.0.1:${port}/${created.handle}/${created.name}/tests${query}`,
+    { headers: { Accept: 'text/html' } },
+  )
+
+  return await answer.text()
+}
+
 async function checksTab(): Promise<string> {
   const answer = await fetch(
     `http://127.0.0.1:${port}/${created.handle}/${created.name}/pull/1?tab=checks`,
@@ -311,5 +320,68 @@ describe('the tests panel on a pull request', () => {
       .where('repository_id', '=', created.repositoryId)
       .where('number', '=', 1)
       .execute()
+  }, 180_000)
+})
+
+/*
+ * The repository's own tests page.
+ *
+ * Every number on it is derivable from the execution table by anybody willing
+ * to write SQL, which means in practice nobody looks: the slow test that got
+ * slower over four months is invisible until somebody wonders why CI takes
+ * eleven minutes. The page is the whole feature, so these assertions are about
+ * what it says rather than what it computes.
+ */
+describe('the repository tests page', () => {
+  test('shows the suites, where the time goes, and what fails', async () => {
+    if (!available)
+      return
+
+    const rendered = text(await testsPage())
+
+    expect(rendered).toContain('Suites')
+    expect(rendered).toContain('Where the time goes')
+    expect(rendered).toContain('Least reliable')
+    expect(rendered).toContain('plainly broken')
+  }, 180_000)
+
+  test('and says how much it could not rank rather than ranking it anyway', async () => {
+    if (!available)
+      return
+
+    /*
+     * Four runs is not a reliability measurement, and a page that presents one
+     * as though it were teaches people to distrust the rest of it. The fixture
+     * has two runs per branch, so every test here is below the threshold.
+     */
+    const rendered = text(await testsPage())
+
+    expect(rendered).toMatch(/too few runs in this window to rank/)
+  }, 180_000)
+
+  test('a repository nobody has reported for gets the instructions, not an empty table', async () => {
+    if (!available)
+      return
+
+    const other = unique('repo')
+
+    await db.insertInto('repositories').values({
+      owner_type: 'user',
+      owner_id: created.ownerId,
+      name: other,
+      visibility: 'public',
+      default_branch: 'main',
+      disk_path: `${created.handle}/${other}.git`,
+    }).execute()
+
+    const answer = await fetch(`http://127.0.0.1:${port}/${created.handle}/${other}/tests`, { headers: { Accept: 'text/html' } })
+    const rendered = text(await answer.text())
+
+    // The reason this page is empty is almost always that nobody has pointed a
+    // collector at it, and "no data" leaves them to go and find the docs.
+    expect(rendered).toContain('No test results have been reported')
+    expect(rendered).toContain('/api/repos/tests/ingest')
+
+    await db.deleteFrom('repositories').where('name', '=', other).execute()
   }, 180_000)
 })

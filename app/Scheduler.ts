@@ -62,6 +62,19 @@ export default function () {
     .job('WarnExpiringTokens')
     .daily()
 
+  /*
+   * Per-execution test history, past the retention setting.
+   *
+   * Daily and just before the git maintenance below, so the two heavy nightly
+   * jobs are next to each other rather than scattered through the night. It is
+   * a delete over rows nothing is reading, batched so it never holds a lock
+   * long enough for a push to notice.
+   */
+  schedule
+    .job('ExpireTestHistory')
+    .daily()
+    .at('03:10')
+
   // Packing repositories and letting go of deletions past the retention window.
   // Nightly and early, because `git gc` on a large repository is the most
   // expensive thing this server does and nobody wants to be cloning while it

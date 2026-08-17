@@ -1,0 +1,290 @@
+<script server>
+/**
+ * A repository's tests over the last month: what costs the most, what fails
+ * the most, and what is switched off.
+ *
+ * Every number here is derivable from the execution table by anybody willing to
+ * write SQL, which means in practice nobody looks. The slow test that got
+ * slower over four months is invisible until somebody wonders why CI takes
+ * eleven minutes, and the quarantined test nobody reviewed is invisible
+ * forever - so this page exists to be the place you find both without asking.
+ *
+ * It states its own evidence. A ranking computed from four executions is not a
+ * measurement, and a page that presents it as one teaches people to distrust
+ * the rest of it.
+ */
+import { repositoryForView } from '../../../functions/repo'
+import { testTrends } from '../../../functions/tests'
+
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+const serveContext = __stxServeContext
+
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
+
+if (!repoRow)
+  setStatus(404)
+
+/*
+ * The query string, through `useRoute()` rather than the `search` binding.
+ *
+ * `search` is declared on some request paths and not others, and an undeclared
+ * identifier is a ReferenceError that takes every variable in this script with
+ * it - the page then renders its not-found branch as though the repository did
+ * not exist, which is exactly what it did the first time this was written.
+ */
+const query: Record<string, string> = useRoute().query ?? {}
+const branch = String(query.branch ?? '').trim()
+
+/*
+ * Guarded, like every other read on a review screen: a throw in this script
+ * renders the whole page with every binding undefined, so a repository with
+ * odd data would produce a blank page rather than an empty one.
+ */
+let trends: any = null
+try {
+  if (repoRow)
+    trends = await testTrends({ repositoryId: Number(repoRow.id), branch: branch || null })
+}
+catch {
+  trends = null
+}
+
+function milliseconds(value: number): string {
+  const total = Number(value) || 0
+
+  if (total < 1000)
+    return `${Math.round(total)}ms`
+
+  if (total < 60_000)
+    return `${(total / 1000).toFixed(1)}s`
+
+  return `${Math.round(total / 60_000)}m ${Math.round((total % 60_000) / 1000)}s`
+}
+
+/** A share as a percentage, or a dash when there was not enough to measure. */
+function share(value: number | null): string {
+  return value === null ? '-' : `${(value * 100).toFixed(1)}%`
+}
+
+const suites = (trends?.suites ?? []).map((suite: any) => ({
+  suite: String(suite.suite),
+  runs: Number(suite.runs ?? 0),
+  tests: Number(suite.tests ?? 0),
+  failures: Number(suite.failures ?? 0),
+  reliability: share(suite.reliability ?? null),
+  total: milliseconds(Number(suite.totalMs ?? 0)),
+}))
+
+const slowest = (trends?.slowest ?? []).map((test: any) => ({
+  scope: String(test.scope ?? ''),
+  name: String(test.name),
+  suite: String(test.suite),
+  samples: Number(test.samples ?? 0),
+  average: milliseconds(Number(test.averageMs ?? 0)),
+  total: milliseconds(Number(test.totalMs ?? 0)),
+}))
+
+const leastReliable = (trends?.leastReliable ?? []).map((test: any) => ({
+  scope: String(test.scope ?? ''),
+  name: String(test.name),
+  suite: String(test.suite),
+  samples: Number(test.samples ?? 0),
+  failures: Number(test.failures ?? 0),
+  reliability: share(test.reliability ?? null),
+  flaky: test.flaky === true,
+  owner: test.owner ? String(test.owner) : '',
+}))
+
+const quarantined = (trends?.quarantined ?? []).map((test: any) => ({
+  scope: String(test.scope ?? ''),
+  name: String(test.name),
+  suite: String(test.suite),
+  state: String(test.state),
+}))
+
+const days = Number(trends?.days ?? 30)
+const thin = Number(trends?.thin ?? 0)
+const overdue = Number(trends?.overdue ?? 0)
+const reported = suites.length > 0
+const base = `/${ownerHandle}/${repositoryName}`
+</script>
+
+@layout('app')
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repoRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+      </div>
+    @else
+      <header class="repo-head">
+        <h1 class="repo-title">
+          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
+        </h1>
+        <p class="muted" style="margin-top: 6px;">
+          Tests over the last {{ days }} days@if (branch) on <code>{{ branch }}</code>@endif
+        </p>
+      </header>
+
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="tests" />
+
+      @if (!reported)
+        {{-- The empty state carries the instructions, because the reason this
+            page is empty is almost always that nobody has pointed a collector
+            at it yet - and a page that says only "no data" leaves them to go
+            and find the documentation. --}}
+        <div class="panel" style="padding: 28px; margin-top: 16px;">
+          <p class="muted">No test results have been reported for this repository.</p>
+          <p class="muted" style="margin-top: 8px; font-size: 13px;">
+            Results are accepted from any CI, including one that is not this instance's:
+            post a JUnit report to <code>/api/repos/tests/ingest</code> with a credential that may
+            report checks. A job running here can use <code>reviewos-split</code> to shard a suite
+            once there is enough history to shard it by.
+          </p>
+        </div>
+      @else
+        <section class="panel" style="padding: 15px 17px; margin-top: 16px;">
+          <h2 class="side-heading">Suites</h2>
+
+          <table class="tests-table">
+            <thead>
+              <tr><th>Suite</th><th>Runs</th><th>Tests</th><th>Failures</th><th>Passing</th><th>Time</th></tr>
+            </thead>
+            <tbody>
+              @foreach (suites as suite)
+                <tr>
+                  <td class="mono">{{ suite.suite }}</td>
+                  <td>{{ suite.runs }}</td>
+                  <td>{{ suite.tests }}</td>
+                  <td>{{ suite.failures }}</td>
+                  <td>{{ suite.reliability }}</td>
+                  <td>{{ suite.total }}</td>
+                </tr>
+              @endforeach
+            </tbody>
+          </table>
+        </section>
+
+        <section class="panel" style="padding: 15px 17px; margin-top: 16px;">
+          <h2 class="side-heading">Where the time goes</h2>
+
+          {{-- Ranked by total rather than by mean: a 40ms test that runs in
+              every one of two thousand executions costs more than the one
+              nine-second test, and the total is what the wall clock feels. --}}
+          <p class="muted checks-note">Ranked by total time over the window, not by the slowest single run.</p>
+
+          <table class="tests-table">
+            <thead>
+              <tr><th>Test</th><th>Runs</th><th>Average</th><th>Total</th></tr>
+            </thead>
+            <tbody>
+              @foreach (slowest as test)
+                <tr>
+                  <td><span class="mono">{{ test.scope }}</span> {{ test.name }}</td>
+                  <td>{{ test.samples }}</td>
+                  <td>{{ test.average }}</td>
+                  <td>{{ test.total }}</td>
+                </tr>
+              @endforeach
+            </tbody>
+          </table>
+        </section>
+
+        <section class="panel" style="padding: 15px 17px; margin-top: 16px;">
+          <h2 class="side-heading">Least reliable</h2>
+
+          @if (leastReliable.length === 0)
+            <p class="muted side-empty">Nothing failed in the window.</p>
+          @else
+            <table class="tests-table">
+              <thead>
+                <tr><th>Test</th><th>Runs</th><th>Failures</th><th>Passing</th><th>Owner</th></tr>
+              </thead>
+              <tbody>
+                @foreach (leastReliable as test)
+                  <tr>
+                    <td>
+                      <span class="mono">{{ test.scope }}</span> {{ test.name }}
+                      @if (test.flaky)
+                        <span class="checks-badge">Flaky</span>
+                      @endif
+                    </td>
+                    <td>{{ test.samples }}</td>
+                    <td>{{ test.failures }}</td>
+                    <td>{{ test.reliability }}</td>
+                    <td class="muted">{{ test.owner ? test.owner : 'nobody' }}</td>
+                  </tr>
+                @endforeach
+              </tbody>
+            </table>
+          @endif
+
+          {{-- What was left out, and why. A ranking computed from four
+              executions is not a measurement, and a page that presents it as
+              one teaches people to distrust the rest of it. --}}
+          @if (thin > 0)
+            <p class="muted checks-note">{{ thin }} test@if (thin !== 1)s have@else has@endif too few runs in this window to rank.</p>
+          @endif
+        </section>
+
+        @if (quarantined.length > 0)
+          <section class="panel" style="padding: 15px 17px; margin-top: 16px;">
+            <h2 class="side-heading">Quarantined</h2>
+
+            @foreach (quarantined as test)
+              <p class="muted checks-meta">
+                <span class="mono">{{ test.scope }}</span>
+                <span>{{ test.name }}</span>
+                <span class="checks-badge">{{ test.state }}</span>
+              </p>
+            @endforeach
+
+            @if (overdue > 0)
+              <p class="checks-rollup checks-warn">
+                <span class="run-dot run-warn" aria-hidden="true"></span>
+                {{ overdue }} @if (overdue !== 1)are@else is@endif past the review date @if (overdue !== 1)they were@else it was@endif muted with
+              </p>
+            @endif
+          </section>
+        @endif
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+  .tests-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 13px;
+  }
+
+  .tests-table th {
+    text-align: left;
+    font-weight: 550;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .tests-table td {
+    padding: 7px 8px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+
+  /* Numbers read as a column when they are the same width, and a duration
+    column that jitters is one nobody scans. */
+  .tests-table td:not(:first-child) { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .tests-table tr:last-child td { border-bottom: none; }
+</style>

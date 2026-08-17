@@ -154,6 +154,10 @@ storage/framework/cache/
 /storage/framework/frontend-dist
 /storage/framework/desktop-dist
 
+# Mail previews the local mail driver writes when a test sends anything. They
+# are the rendered email, one file per send, and a test run produces dozens.
+logs/mail/
+
 # Per-package runtime logs created when building a core package in place
 storage/framework/core/**/storage/logs/
 storage/framework/**/storage/logs/

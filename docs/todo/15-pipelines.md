@@ -1657,8 +1657,22 @@ should work for a repository that has not moved its CI here yet.
       which is exactly what skipping it destroys.
 - [ ] Monitors and actions: a rule that watches a test over time, raises an alarm when a condition
       holds, recovers when it stops, and fires an action once per transition rather than per run
-- [ ] Reliability and duration trends per test, per suite, and per branch, with the slowest and least
+- [x] Reliability and duration trends per test, per suite, and per branch, with the slowest and least
       reliable surfaced without a query
+
+      A Tests tab on the repository, beside Runs. "Without a query" is the whole requirement: every
+      number on it is derivable from the execution table by anybody willing to write SQL, which
+      means in practice nobody looks, and the slow test that got slower over four months stays
+      invisible until somebody wonders why CI takes eleven minutes.
+
+      **Ranked by total time, not by the slowest single run.** A 40ms test that runs in every one
+      of two thousand executions costs more than the one nine-second test, and the total is what
+      the wall clock feels.
+
+      The page states its own evidence: a test with fewer than five runs in the window is not
+      ranked, and the number left out is shown. A reliability figure computed from four executions
+      is not a measurement, and presenting it as one teaches people to distrust the rest of the
+      page. `?branch=` narrows it, which is what makes "per branch" true rather than claimed.
 - [x] **Test splitting**: a client that distributes a suite across parallel jobs using historical
       timing, so `parallelism` stops meaning "split alphabetically and hope"
 
@@ -1702,7 +1716,22 @@ should work for a repository that has not moved its CI here yet.
       A commit nothing has reported on says so rather than showing green, which is the rule the
       checks rollup beside it already follows: green for unmeasured is how a misconfigured
       collector goes unnoticed for a month. `tests/e2e/pull-tests.test.ts`.
-- [ ] Retention policy on execution data, configurable, with the storage cost stated
+- [x] Retention policy on execution data, configurable, with the storage cost stated
+
+      `test_retention_days`, an instance setting, default 90, swept daily. Executions are the one
+      table in this product that grows with how often *machines* run rather than with how much
+      people do - two thousand tests reported on every commit is two thousand rows per push.
+
+      The cost is stated rather than left to be discovered: about 220 bytes per execution with
+      indexes, so two thousand tests at ten pushes a day for ninety days is roughly 400MB. Zero
+      keeps everything and the setting's own description says the cost is then unbounded, because
+      finding that out from a full disk is the failure worth spending a sentence on.
+
+      **Tests, suites, mutes, owners and reasons are never swept**, only executions and the runs
+      they belonged to. Those are decisions somebody recorded rather than data that accumulated,
+      and a sweep that took the mute with the history would silently un-quarantine a test. Batched
+      at two hundred runs, because the first sweep on a year of history is otherwise one statement
+      against millions of rows holding a lock long enough for pushes to time out.
 - [ ] REST API, webhooks, and generated OpenAPI for suites, runs, executions, and states
 
       The two endpoints and their OpenAPI are generated and published; the webhook events are not,

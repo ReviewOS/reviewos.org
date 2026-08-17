@@ -554,3 +554,93 @@ describe('splitting a suite by what it has cost', () => {
     expect(String(body.note)).toContain('No timing history')
   }, 120_000)
 })
+
+/*
+ * Retention: the promise the setting makes, kept.
+ *
+ * Execution rows grow with how often machines run rather than with how much
+ * people do, so this is the one table with no natural ceiling. What the sweep
+ * must not do is take the decisions somebody recorded - the mute, the reason,
+ * the owner - along with the data that merely piled up.
+ */
+describe('retention', () => {
+  test('deletes old executions and the runs they belonged to, and keeps the tests', async () => {
+    if (!available)
+      return
+
+    const { sweepTestExecutions } = await import('../../app/Actions/Tests/retention')
+
+    await ingest({
+      suite: 'retention',
+      key: 'old-run',
+      headSha: 'f'.repeat(40),
+      executions: [{ scope: 'old/a.test.ts', name: 'ancient', result: 'passed' }],
+    })
+
+    const suite: any = await db
+      .selectFrom('test_suites')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('slug', '=', 'retention')
+      .executeTakeFirst()
+
+    // Dated back past any plausible policy, which is the only way to make an
+    // "older than the window" test that does not depend on the window.
+    const old = new Date(Date.now() - 400 * 86_400_000).toISOString()
+
+    await db.updateTable('test_runs').set({ created_at: old } as any).where('test_suite_id', '=', Number(suite.id)).execute()
+
+    const before = await db
+      .selectFrom('test_executions')
+      .innerJoin('managed_tests', 'managed_tests.id', '=', 'test_executions.managed_test_id')
+      .select(db.fn.count('test_executions.id').as('count'))
+      .where('managed_tests.test_suite_id', '=', Number(suite.id))
+      .executeTakeFirst()
+
+    expect(Number((before as any).count)).toBeGreaterThan(0)
+
+    const outcome = await sweepTestExecutions()
+
+    expect(outcome.ok).toBe(true)
+    expect(outcome.removed).toBeGreaterThan(0)
+
+    const after = await db
+      .selectFrom('test_executions')
+      .innerJoin('managed_tests', 'managed_tests.id', '=', 'test_executions.managed_test_id')
+      .select(db.fn.count('test_executions.id').as('count'))
+      .where('managed_tests.test_suite_id', '=', Number(suite.id))
+      .executeTakeFirst()
+
+    expect(Number((after as any).count)).toBe(0)
+
+    /*
+     * The test row survives. Its mute, its owner and its reason are decisions
+     * somebody made rather than data that accumulated, and a sweep that takes
+     * them is a sweep that silently un-quarantines a test.
+     */
+    const test: any = await db
+      .selectFrom('managed_tests')
+      .select(['id', 'name'])
+      .where('test_suite_id', '=', Number(suite.id))
+      .executeTakeFirst()
+
+    expect(String(test?.name)).toBe('ancient')
+  }, 120_000)
+
+  test('and leaves recent history alone', async () => {
+    if (!available)
+      return
+
+    const { sweepTestExecutions } = await import('../../app/Actions/Tests/retention')
+
+    const before: any = await db.selectFrom('test_executions').select(db.fn.count('id').as('count')).executeTakeFirst()
+
+    await sweepTestExecutions()
+
+    const after: any = await db.selectFrom('test_executions').select(db.fn.count('id').as('count')).executeTakeFirst()
+
+    // Everything this file reported is minutes old, so a second sweep that
+    // removes anything at all is a sweep deleting on the wrong comparison.
+    expect(Number(after.count)).toBe(Number(before.count))
+  }, 120_000)
+})

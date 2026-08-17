@@ -216,6 +216,45 @@ A commit nothing has reported results for says so. It is not shown as green -
 that is the state a misconfigured collector leaves every commit in, and
 rendering it like a passing suite is how nobody notices for a month.
 
+## Trends, on the repository's own page
+
+`/{owner}/{repository}/tests` - a Tests tab beside Runs. Three questions, and
+they are the ones nobody writes the SQL for:
+
+- **Where the time goes.** Ranked by *total* time over the window, not by the
+  slowest single run: a 40ms test that runs in every one of two thousand
+  executions costs more than the one nine-second test, and the total is what the
+  wall clock feels.
+- **Least reliable.** Failure counts and the passing share, with an owner
+  column, so a flaky test has an addressee.
+- **What is switched off**, and how much of it is past its review date.
+
+The page states its own evidence. A test with fewer than five runs in the window
+is not ranked, and the count of what was left out is shown - a reliability
+figure computed from four executions is not a measurement, and presenting it as
+one teaches people to distrust the rest of the page.
+
+## Retention, and what the history costs
+
+Execution rows are the one table here that grows with how often *machines* run
+rather than with how much people do: two thousand tests reported on every commit
+writes two thousand rows per push.
+
+- **`test_retention_days`** is an instance setting, default **90**. Zero keeps
+  everything, and the description says so, because that is the one value whose
+  cost has no ceiling.
+- **About 220 bytes per execution**, indexes included. Two thousand tests, ten
+  pushes a day, ninety days is roughly **400MB**. Worth knowing before you point
+  a collector at a large suite rather than after.
+- A daily job deletes executions past the window, and the runs they belonged to,
+  in batches - the first sweep on an instance that has been recording for a year
+  is otherwise one statement against millions of rows, holding a lock long
+  enough for pushes to time out.
+
+**Tests, suites, mutes, owners and reasons are never swept.** Those are
+decisions somebody recorded; the executions are data that accumulated. A sweep
+that took the mute with the history would silently un-quarantine a test.
+
 ## What is not built yet
 
 Stated plainly, because a half-built feature you discover yourself is worse than
@@ -223,7 +262,3 @@ one that was never promised:
 
 - **Monitors and actions** - a rule that watches a test and raises an alarm once
   per transition.
-- **Trends** - reliability and duration over time, per test, per suite and per
-  branch, with the slowest and least reliable surfaced without a query.
-- **Retention** - execution rows are kept indefinitely today. Reporting a large
-  suite on every commit will grow that table, and there is no policy yet.

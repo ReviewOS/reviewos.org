@@ -104,6 +104,30 @@ export const SETTINGS = {
   },
 
   /**
+   * How long per-execution test history is kept.
+   *
+   * The one table in this product that grows without a ceiling: a suite of two
+   * thousand tests reported on every commit writes two thousand rows per push,
+   * so a busy repository produces millions a month. Everything else here is
+   * bounded by how much people do - this is bounded by how often a machine
+   * does it.
+   *
+   * A setting rather than a constant because the right number is a property of
+   * the instance, not of the software: ninety days covers a release cycle and
+   * a bisect through one, and an instance with a small disk and a loud CI
+   * wants thirty. Zero keeps everything, which is a choice somebody should be
+   * able to make and should have to make deliberately.
+   */
+  test_retention_days: {
+    type: 'number',
+    min: 0,
+    max: 3650,
+    fallback: '90',
+    describes: 'Days of per-test execution history kept. 0 keeps everything, and the table then grows without bound.',
+    enforcedIn: 'app/Actions/Tests/retention.ts',
+  },
+
+  /**
    * The name this instance calls itself.
    *
    * Cosmetic, and the one entry here that is. It earns its place because it is
