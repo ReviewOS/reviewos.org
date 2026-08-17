@@ -127,15 +127,35 @@ jobs:
   },
 
   'Environment protection rules': {
-    /*
-     * Not built, and this test is how that was noticed: the parser accepts
-     * `environment:` and nothing is wired to phase 9's environments, so the
-     * required reviewers and wait timers the row implies do not exist. The
-     * `block` step is a manual gate, which is a different thing - it is written
-     * into the workflow rather than attached to the environment being deployed
-     * to, so it protects nothing a workflow author did not choose to protect.
-     */
-    pending: '`environment:` on a job, wired to phase 9',
+    live: async () => {
+      const { parseWorkflow } = await import('../../app/Actions/Workflow/parse')
+
+      const parsed = parseWorkflow(`
+name: ship
+on: push
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: echo hi
+`)
+
+      expect(parsed.ok).toBe(true)
+      expect(parsed.workflow?.jobs?.[0]?.environment).toBe('production')
+
+      const { decideGate, mayApprove } = await import('../../app/Actions/Workflow/environments')
+      const rules = { id: 1, name: 'production', waitMinutes: 10, reviewers: [7], branches: ['main'] }
+      const now = new Date('2026-03-01T12:00:00.000Z')
+
+      // Reviewers hold it, the wrong branch is refused outright, and the
+      // person who started the run cannot approve their own deploy. Parsing
+      // the key and running the job anyway was the state this row described
+      // as *(planned)* until it was built.
+      expect(decideGate({ rules, ref: 'refs/heads/main', readyAt: now, now, approved: false }).verdict).toBe('hold')
+      expect(decideGate({ rules, ref: 'refs/heads/spike', readyAt: now, now, approved: false }).verdict).toBe('refuse')
+      expect(mayApprove(rules, 7, 7).ok).toBe(false)
+    },
   },
 
   'Test intelligence of any kind': {

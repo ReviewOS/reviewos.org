@@ -18,6 +18,8 @@
  */
 
 import { db } from '@stacksjs/database'
+import type { GateDecision } from './environments'
+import { decideGate, environmentRules } from './environments'
 import { createJobsForRun } from './dispatch'
 import type { JobState } from './states'
 import { effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
@@ -47,7 +49,7 @@ export const FAIL_FAST_REASON = 'Stopped because another combination of this mat
 async function jobsOfRun(runId: number): Promise<any[]> {
   return db
     .selectFrom('workflow_jobs')
-    .select(['id', 'job_id', 'state', 'needs', 'continue_on_error', 'fail_fast', 'kind', 'settings'])
+    .select(['id', 'job_id', 'state', 'needs', 'continue_on_error', 'fail_fast', 'kind', 'settings', 'approved_at', 'started_at'])
     .where('workflow_run_id', '=', runId)
     .execute()
 }
@@ -226,6 +228,45 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
       continue
     }
 
+    /*
+     * A command job naming an environment answers to that environment's rules
+     * before it joins the queue.
+     *
+     * Checked here rather than at claim time because a job held for approval
+     * must be *visible* as held: a job that sits in the queue and is quietly
+     * refused every time a runner asks for it looks like a fleet problem, and
+     * somebody goes and restarts runners.
+     */
+    /*
+     * The graph row carries what the graph needs; the environment lives on the
+     * database row, so the gate is asked with that one. Reading it off the
+     * graph row silently found `undefined` and ran every protected deploy,
+     * which is exactly the failure this feature exists to prevent.
+     */
+    const gate = await gateFor(runId, jobs.find(row => Number(row.id) === Number(job.id)) ?? job, now)
+
+    if (gate.verdict === 'refuse') {
+      await db
+        .updateTable('workflow_jobs')
+        .set({ state: 'failed', finished_at: now.toISOString(), condition_reason: gate.reason } as any)
+        .where('id', '=', job.id)
+        .where('state', '=', 'blocked')
+        .execute()
+
+      continue
+    }
+
+    if (gate.verdict === 'hold') {
+      await db
+        .updateTable('workflow_jobs')
+        .set({ state: 'paused', started_at: now.toISOString(), condition_reason: gate.reason } as any)
+        .where('id', '=', job.id)
+        .where('state', '=', 'blocked')
+        .execute()
+
+      continue
+    }
+
     await db
       .updateTable('workflow_jobs')
       .set({ state: 'queued' } as any)
@@ -235,6 +276,51 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
   }
 
   return moved || ready.length > 0
+}
+
+/**
+ * What this job's environment does to it, if it named one.
+ *
+ * The rules are read from the repository, never from the workflow: the file
+ * says *where* a job deploys, and the repository says what that costs. A
+ * workflow author who could set their own wait timer has a wait timer of zero.
+ */
+export async function gateFor(runId: number, job: any, now: Date): Promise<GateDecision> {
+  const name = String(settingsOf(job).environment ?? '')
+
+  if (!name)
+    return { verdict: 'run' }
+
+  const run: any = await db
+    .selectFrom('workflow_runs')
+    .select(['repository_id', 'event_ref'])
+    .where('id', '=', runId)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!run)
+    return { verdict: 'run' }
+
+  const rules = await environmentRules(Number(run.repository_id), name)
+
+  /*
+   * The timer runs from when this job *first* became ready, which is the
+   * moment it was held - `started_at`, written when it was paused.
+   *
+   * Measuring from now instead restarts the clock on every sweep, so a
+   * ten-minute wait never elapses and the deploy is held forever. It is also
+   * not the run's start: a long build must not eat the window that exists for
+   * somebody to notice the deploy and stop it.
+   */
+  const readyAt = job.started_at ? new Date(String(job.started_at)) : now
+
+  return decideGate({
+    rules,
+    ref: String(run.event_ref ?? ''),
+    readyAt: Number.isFinite(readyAt.getTime()) ? readyAt : now,
+    now,
+    approved: Boolean(job.approved_at),
+  })
 }
 
 /**

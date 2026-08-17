@@ -49,6 +49,21 @@ export function digestOf(source: string): string {
   return new Bun.CryptoHasher('sha256').update(source).digest('hex')
 }
 
+/**
+ * The job's settings, carrying `environment:` when it named one.
+ *
+ * Beside the other per-job facts a run copies forward, rather than in a column
+ * of its own. What the name *means* is not stored here at all: the wait timer,
+ * the reviewers and the branch policy live on the environment in the
+ * repository, so a workflow author cannot lower the bar for their own deploy
+ * by editing the file the deploy is written in.
+ */
+function settingsWith(settings: Record<string, unknown>, environment: string | null): string | null {
+  const merged = environment ? { ...settings, environment } : settings
+
+  return Object.keys(merged).length > 0 ? JSON.stringify(merged) : null
+}
+
 /** The lines a filter is stored as, or null when there is no filter. */
 function lines(values: readonly string[]): string | null {
   return values.length > 0 ? values.join('\n') : null
@@ -245,7 +260,7 @@ async function insertVersion(
         // The step model's own columns. A job with no `reviewos:` key is a
         // command job, which is every job an Actions workflow can write.
         kind: job.kind,
-        settings: Object.keys(job.settings).length > 0 ? JSON.stringify(job.settings) : null,
+        settings: settingsWith(job.settings, job.environment),
         group_label: job.group,
         priority: job.priority,
         if_changed: job.ifChanged.length > 0 ? job.ifChanged.join('\n') : null,

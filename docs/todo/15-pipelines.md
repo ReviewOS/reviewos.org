@@ -478,8 +478,36 @@ written down here so it does not get relitigated:
       One thing this turned up: the run dedupe index refused a second manual dispatch, having read it
       as a redelivered event. It is partial now (`WHERE event <> 'workflow_dispatch'`) - a manual run
       is not a delivery, and pressing the button twice means two runs.
-- [ ] `environment:` on a job, wired to phase 9's deployment environments and their protection rules,
+- [x] `environment:` on a job, wired to deployment environments and their protection rules,
       including required reviewers and wait timers
+
+      The key was parsed, stored, and honoured by nothing - which is worse than refusing it, since
+      the workflow says the deploy is protected, the run screen shows an environment, and everybody
+      involved believes the opposite.
+
+      **The rules live on the repository, never in the file.** A rule a workflow author can edit is
+      a rule they can remove on the afternoon they are in a hurry, so naming an environment takes
+      push access and configuring one takes `repository:settings`.
+
+      Three rules, each a decision a test holds. Required reviewers, where **the person who started
+      the run may not approve it even when they are on the list** - a reviewer who can approve
+      their own deploy is a rule that reads as two people and behaves as one. A wait timer that
+      releases itself, measured from when the job was first held rather than from now (measuring
+      from now restarts the clock every sweep, so the wait never ends) or from the run's start (a
+      long build would eat the window). And a branch policy that **refuses** rather than holds,
+      because a reviewer repeatedly asked to approve deploys from the wrong branch will eventually
+      approve one.
+
+      An environment the repository has not configured runs normally: `environment: staging` with
+      no `staging` is documentation, and refusing it would break far more workflows than it
+      protects.
+
+      Found while wiring it: the settler's ready-loop hands the *graph* row to each branch, and the
+      graph row carries no settings - so the first version read `undefined` and ran every protected
+      deploy. `tests/e2e/workflow-environment-gates.test.ts` is what caught it.
+
+      Scoped secrets are still not built, and the docs say so: there is no secret store at all yet,
+      so "a deploy credential released only after approval" is not something to claim.
 - [ ] Reusable workflows via `uses:` at job level, local and cross-repository, with inputs, secrets,
       and outputs, and the called workflow's jobs shown in the run rather than collapsed to one box.
 
@@ -886,7 +914,7 @@ which is the whole argument for this phase existing:
 | `concurrency:` groups (ignored by Gitea) | The concurrency engine, ordered and eager |
 | Scheduled workflows (ignored by Gitea) | Schedules with branch, message, and environment |
 | Complex `runs-on` expressions | Queue plus tag selection, with a visible reason when nothing matches |
-| Environment protection rules | Phase 9 deployments, reviewers, wait timers, and scoped secrets *(planned)* |
+| Environment protection rules | Required reviewers, wait timers, and branch policy, with scoped secrets *(planned)* |
 | Test intelligence of any kind | Flaky detection, quarantine, splitting, ownership |
 | Fleet management beyond a registered runner | Pools, queues, autoscaler contract, drain, lifecycle |
 | Signed step dispatch | Signed workflows, enforceable per pool *(planned)* |
@@ -904,9 +932,10 @@ which is the whole argument for this phase existing:
       **It ratchets both ways.** A new row with no claim fails; so does a pending claim whose box
       gets ticked, because at that point the promise should be replaced by a check.
 
-      Writing it did the job immediately: two rows were not true. `environment:` is parsed and
-      wired to nothing, and signed dispatch has no key for a pool to trust. Both now say
-      *(planned)* in the table, which is the correction the test existed to force.
+      Writing it did the job immediately: two rows were not true. `environment:` was parsed and
+      wired to nothing, and signed dispatch has no key for a pool to trust. Both were marked
+      *(planned)*, which is the correction the test existed to force - and the first of them was
+      then built, so the ratchet fired and the promise was replaced by a live check.
 
 ---
 

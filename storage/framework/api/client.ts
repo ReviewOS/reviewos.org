@@ -5014,6 +5014,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/environments
+   */
+  postReposEnvironments(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "list" | "create" | "update" | "delete" | "add-reviewer" | "remove-reviewer"; "name"?: string; "wait_minutes"?: number; "branches"?: string; "description"?: string; "reviewer"?: string } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/environments", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/repos/forks
    */
   postReposForks(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "to"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

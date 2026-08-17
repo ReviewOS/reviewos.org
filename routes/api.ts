@@ -772,6 +772,15 @@ route.post('/repos/workflows/dispatch', 'Actions/Workflow/DispatchWorkflowAction
 route.post('/repos/workflow-runs/approve', 'Actions/Workflow/ApproveWorkflowJobAction').middleware('auth')
 
 /*
+ * Deployment environments and their rules.
+ *
+ * Deliberately not in the workflow file: a rule a workflow author can edit is
+ * a rule they can remove on the afternoon they are in a hurry. The file says
+ * where a job deploys, and this says what that costs.
+ */
+route.post('/repos/environments', 'Actions/Workflow/EnvironmentsAction').middleware('auth')
+
+/*
  * Test intelligence: results from this instance's CI, or from anybody else's.
  *
  * Ingestion takes `check:report`, the ability a CI integration already needs to

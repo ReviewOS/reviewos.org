@@ -81,6 +81,7 @@ const config: BunPressOptions = {
             { text: 'Actions conformance', link: '/conformance' },
             { text: 'Runner autoscaling', link: '/autoscaling' },
             { text: 'Test intelligence', link: '/test-intelligence' },
+            { text: 'Deployment environments', link: '/environments' },
           ],
         },
         {

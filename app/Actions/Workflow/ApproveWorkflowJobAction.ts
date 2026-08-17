@@ -4,6 +4,7 @@ import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { wantsHtml } from '../Auth/session'
 import { authorizeRepository } from '../Repo/authorize'
+import { environmentRules, mayApprove } from './environments'
 import { settleRun } from './settle'
 
 /**
@@ -81,7 +82,7 @@ export default new Action({
 
     const job: any = await db
       .selectFrom('workflow_jobs')
-      .select(['id', 'job_id', 'state', 'settings', 'name'])
+      .select(['id', 'job_id', 'state', 'settings', 'name', 'kind'])
       .where('workflow_run_id', '=', Number(run.id))
       .where('job_id', '=', key)
       .executeTakeFirst()
@@ -104,6 +105,46 @@ export default new Action({
           ? 'Somebody has already opened this gate.'
           : `This job is ${String(job.state)}, so there is nothing waiting for a decision.`,
       }, 409)
+    }
+
+    /*
+     * An environment gate is a different thing from a `block:` gate, though
+     * both are a paused job.
+     *
+     * A block gate is written into the workflow and opened by anybody with
+     * `workflow:approve`. An environment gate is attached to the environment in
+     * the repository, and it names *who* may open it - which is the whole
+     * reason to have one, because a rule a workflow author can edit is a rule
+     * they can remove on the afternoon they are in a hurry.
+     */
+    const environment = String(settingsOf(job.settings).environment ?? '')
+
+    if (environment && String(job.kind ?? 'command') === 'command') {
+      const answer = await approveEnvironment({
+        repositoryId: Number(repository.id),
+        runId: Number(run.id),
+        job,
+        environment,
+        userId: Number(auth.context.user?.id ?? 0),
+        handle: String(auth.context.user?.handle ?? ''),
+      })
+
+      if (!answer.ok)
+        return response.json({ error: answer.error, reason: answer.reason }, answer.status)
+
+      const state = await settleRun(Number(run.id))
+
+      if (wantsHtml(request)) {
+        const owner = String(request.get('owner') ?? '')
+        return response.redirect(`/${owner}/${String(repository.name)}/run/${number}`)
+      }
+
+      return response.json({
+        job: { job_id: String(job.job_id), state: answer.state },
+        run: { number, state },
+        environment,
+        reason: answer.note,
+      })
     }
 
     const declared = fieldsOf(job.settings)
@@ -181,6 +222,99 @@ export default new Action({
     })
   },
 })
+
+/**
+ * Opening the gate an environment puts in front of a deploy.
+ *
+ * Two checks the block gate has no equivalent of, and both are the point of an
+ * environment: the approver must be one of its reviewers, and **must not be
+ * whoever started the run**. A required reviewer who can approve their own
+ * deploy is a rule that reads as two people and behaves as one.
+ *
+ * Approving does not necessarily queue the job. A wait timer that has not
+ * elapsed still holds it, and saying "approved, and it will start in eleven
+ * minutes" is the honest answer - claiming it is running when it is not sends
+ * somebody to look for a runner that has nothing to do.
+ */
+interface EnvironmentApproval {
+  repositoryId: number
+  runId: number
+  job: any
+  environment: string
+  userId: number
+  handle: string
+}
+
+type ApprovalOutcome =
+  | { ok: true, state: string, note: string }
+  | { ok: false, error: string, reason?: string, status: number }
+
+async function approveEnvironment(input: EnvironmentApproval): Promise<ApprovalOutcome> {
+  const rules = await environmentRules(input.repositoryId, input.environment)
+
+  if (!rules)
+    return { ok: false, error: 'That environment does not exist here', status: 404 }
+
+  const run: any = await db
+    .selectFrom('workflow_runs')
+    .select(['actor_id', 'event_ref'])
+    .where('id', '=', input.runId)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  const allowed = mayApprove(rules, input.userId, run?.actor_id ? Number(run.actor_id) : null)
+
+  if (!allowed.ok)
+    return { ok: false, error: 'You may not approve this deploy', reason: allowed.reason, status: 403 }
+
+  const now = new Date()
+
+  await db
+    .updateTable('workflow_jobs')
+    .set({
+      approved_by_id: input.userId || null,
+      approved_at: now.toISOString(),
+      condition_reason: `${rules.name} approved by ${input.handle || 'a reviewer'}.`,
+    } as any)
+    .where('id', '=', Number(input.job.id))
+    .where('state', '=', 'paused')
+    .execute()
+
+  /*
+   * Back to blocked, so the settler decides what happens next by the same code
+   * that decided to hold it. Queueing it here would be a second place that
+   * knows about wait timers, and the two would disagree the first time one
+   * changed.
+   */
+  await db
+    .updateTable('workflow_jobs')
+    .set({ state: 'blocked' } as any)
+    .where('id', '=', Number(input.job.id))
+    .where('state', '=', 'paused')
+    .execute()
+
+  const held = rules.waitMinutes > 0
+
+  return {
+    ok: true,
+    state: held ? 'paused' : 'queued',
+    note: held
+      ? `Approved. ${rules.name} holds a deploy for ${rules.waitMinutes} minutes, so it starts after that.`
+      : `Approved. The deploy is queued.`,
+  }
+}
+
+/** A job's settings, which are JSON in a column. */
+function settingsOf(settings: unknown): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  }
+  catch {
+    return {}
+  }
+}
 
 /** The fields a gate declared, out of the settings column. */
 function fieldsOf(settings: unknown): any[] {

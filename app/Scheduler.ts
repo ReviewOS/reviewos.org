@@ -63,6 +63,17 @@ export default function () {
     .daily()
 
   /*
+   * Deploys held by an environment's wait timer, every minute.
+   *
+   * The timer is written in minutes, so a sweep slower than a minute is a
+   * timer nobody trusts - and a deploy people do not trust to start on its own
+   * is one they start by hand, which is the rule not existing.
+   */
+  schedule
+    .job('ReleaseEnvironmentWaits')
+    .everyMinute()
+
+  /*
    * Test monitors, hourly.
    *
    * They watch days of history, so a shorter cadence asks the same question

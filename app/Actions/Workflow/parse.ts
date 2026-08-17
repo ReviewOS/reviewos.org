@@ -72,6 +72,18 @@ export interface WorkflowJob {
   needs: string[]
   if: string | null
   timeoutMinutes: number | null
+  /**
+   * `environment:` on the job, as a name.
+   *
+   * Actions also accepts `{ name, url }`; the url is where a deploy ended up,
+   * which nothing here records yet, so the name is read out of either form
+   * rather than the object being refused.
+   *
+   * The name alone protects nothing - the rules live on the environment in the
+   * repository. That is the point: a workflow author cannot lower the bar for
+   * their own deploy by editing the file the deploy is written in.
+   */
+  environment: string | null
   env: Record<string, string>
   /**
    * `outputs:` on the job, as written.
@@ -1148,6 +1160,25 @@ export function concurrencyFrom(value: unknown): WorkflowConcurrency | null {
 }
 
 /** `defaults.run`, which every step inherits unless it says otherwise. */
+/**
+ * `environment:` as a name.
+ *
+ * A string, or Actions' object form where the name sits under `name` beside a
+ * `url` this instance does not record. Read rather than refused, because a
+ * workflow that already runs elsewhere should not have to be edited to run
+ * here - and the url is a fact about a finished deploy, not a rule about
+ * whether one may happen.
+ */
+export function environmentFrom(value: unknown): string | null {
+  if (typeof value === 'string')
+    return value.trim() || null
+
+  const record = asRecord(value)
+  const name = record?.name
+
+  return typeof name === 'string' && name.trim() ? name.trim() : null
+}
+
 export function defaultsFrom(value: unknown): { shell: string | null, workingDirectory: string | null } {
   const run = asRecord(asRecord(value)?.run)
 
@@ -1467,6 +1498,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       needs: asStringList(body.needs),
       if: typeof body.if === 'string' ? body.if : null,
       timeoutMinutes: typeof timeout === 'number' && Number.isFinite(timeout) ? timeout : null,
+      environment: environmentFrom(body.environment),
       env: asStringMap(body.env),
       outputs: asStringMap(body.outputs),
       uses: typeof body.uses === 'string' && body.uses.length > 0 ? body.uses : null,
