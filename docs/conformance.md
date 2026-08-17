@@ -7,7 +7,7 @@ is accepted and does nothing has not been implemented - the fact that it has not
 hidden. So every key here has a status and a sentence, including the ones that are missing and
 the ones that are deliberately different.
 
-33 keys behave as Actions does, 7 differ on purpose, 7 are not implemented yet, and 1 is refused.
+34 keys behave as Actions does, 9 differ on purpose, 7 are not implemented yet, and 1 is refused.
 
 Generated from the conformance table.
 
@@ -50,6 +50,7 @@ These do what Actions does. A workflow using only these keys behaves the same he
 | `${{ }} operators` | workflow | Comparison, `&&`, `||`, `!`, indexing and the star filter, with Actions' coercion rules copied deliberately. |
 | `workflow commands` | step | `::error::`, `::warning::`, `::notice::`, `::group::`, `::add-mask::` and `::stop-commands::`. An `::error file=…::` becomes an annotation on the diff. |
 | `GITHUB_ENV, GITHUB_PATH, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY` | step | Written per step and applied to the steps after it; `GITHUB_OUTPUT` is what fills `steps.<id>.outputs`. |
+| `default environment variables` | step | The set a workflow expects - `GITHUB_REPOSITORY`, `GITHUB_REF`, `GITHUB_REF_NAME`, `GITHUB_HEAD_REF`, `GITHUB_BASE_REF`, `GITHUB_SHA`, `GITHUB_ACTOR`, `GITHUB_WORKFLOW`, `GITHUB_JOB`, `GITHUB_RUN_ID`, `GITHUB_RUN_NUMBER`, `GITHUB_EVENT_NAME`, `GITHUB_EVENT_PATH`, `GITHUB_SERVER_URL`, `GITHUB_API_URL`, `RUNNER_OS` and the rest - each also set as `REVIEWOS_*`. `GITHUB_SERVER_URL` is the address the runner actually reached rather than a configured one, because a URL that does not resolve from a runner is worse than none. |
 
 ## Different on purpose
 
@@ -64,6 +65,8 @@ These work, and deliberately not the way Actions does. Every one is a decision y
 | `steps[*].continue-on-error` | step | Honoured as a literal `true` only. An expression needs the expression engine at step time, and reading it as truthy text would make every such step unfailable. |
 | `steps[*].shell` | step | Recorded and inherited, and the local runner runs `sh` regardless. A runner that only has one shell should say so rather than refuse a file for naming another. |
 | `${{ }} functions` | workflow | `contains`, `startsWith`, `endsWith`, `format`, `join`, `toJSON`, `fromJSON` and the status functions all work. `hashFiles` is refused rather than answered: it reads a checked-out tree the control plane does not have, and a wrong hash restores the wrong cache. |
+| `GITHUB_EVENT_PATH` | step | Written per job and populated. The shapes are this instance's webhook payloads rather than GitHub's, so one integration sees one set of shapes whether it arrived over a webhook or in a job - the common fields (`ref`, `after`, `repository`, `sender`, `pull_request.base.ref`) line up, and the rest do not. Nothing in it carries a URL. |
+| `contexts` | workflow | `github`, `env`, `job`, `steps`, `needs`, `matrix`, `inputs` and `runner` are readable, and `reviewos` is `github` under this forge's own name. `secrets`, `vars`, `strategy` and `jobs` are not populated yet, and an expression reading one is left as written rather than becoming an empty string. |
 
 ## Not implemented yet
 

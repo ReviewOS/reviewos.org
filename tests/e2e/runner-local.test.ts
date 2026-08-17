@@ -105,6 +105,16 @@ jobs:
       - name: Runs even after a failure
         if: always()
         run: echo "always ran"
+      - name: Read the environment a workflow expects
+        if: always()
+        run: |
+          echo "repo: \$GITHUB_REPOSITORY on \$GITHUB_REF_NAME (\$GITHUB_REF_TYPE)"
+          echo "workflow: \$GITHUB_WORKFLOW job: \$GITHUB_JOB run: \$GITHUB_RUN_NUMBER"
+          echo "aliased: \$REVIEWOS_REPOSITORY"
+      - name: Read the event payload
+        if: always()
+        run: |
+          echo "payload: \$(cat "\$GITHUB_EVENT_PATH")"
 `
 
 /** A composite action in the repository, which is most of what an action is. */
@@ -546,6 +556,41 @@ describe('the local runner', () => {
     const text = logs.map(row => String(row.content ?? '')).join('')
 
     expect(text).toContain('always ran')
+  }, 60_000)
+
+  /*
+   * The compatibility surface nothing else proves: a step reading the
+   * variables and the payload file that every action ever written assumes are
+   * there. Both fail quietly when they are missing - an action that reads an
+   * unset variable does the wrong thing without complaining, and one that
+   * reads an empty event payload does nothing at all - so the only way to know
+   * is to have a real step print them.
+   */
+  test('a step finds the environment and the event payload an Actions workflow expects', async () => {
+    if (!available)
+      return
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .innerJoin('workflow_jobs', 'workflow_jobs.id', '=', 'workflow_job_logs.workflow_job_id')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select(['workflow_job_logs.content as content'])
+      .where('workflow_runs.repository_id', '=', created.repositoryId)
+      .execute()
+
+    const text = logs.map(row => String(row.content ?? '')).join('')
+
+    expect(text).toContain(`repo: ${created.handle}/${created.name} on main (branch)`)
+    expect(text).toContain('workflow: Local job: greet run: ')
+    // The same value under this forge's own name, so a workflow can say where
+    // it is running without naming somebody else's product.
+    expect(text).toContain(`aliased: ${created.handle}/${created.name}`)
+
+    const line = text.split('payload: ')[1] ?? ''
+
+    expect(line).toContain('"event": "push"')
+    expect(line).toContain(`"full_name": "${created.handle}/${created.name}"`)
+    expect(line).toContain(created.headSha)
   }, 60_000)
 
   test('a second claim finds nothing, because the job is finished', async () => {

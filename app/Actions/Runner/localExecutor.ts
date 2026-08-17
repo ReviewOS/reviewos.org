@@ -220,6 +220,35 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       return { jobId: Number(job.id), state: 'failed', reason: checkout.reason }
     }
 
+  /*
+   * The event payload, on disk, before the first step and after the checkout.
+   *
+   * `GITHUB_EVENT_PATH` points at this. Half the ecosystem reads the payload
+   * rather than the environment - `event.pull_request.base.ref` is how the
+   * changed-files actions work - and an action that finds nothing there does
+   * nothing and says nothing.
+   *
+   * Inside the workspace's own runner directory, alongside the step files,
+   * which means it goes when the workspace goes. A payload left in the host's
+   * temp directory outlives the job that owned it.
+   *
+   * **After the checkout**, which is not a detail: the clone wants an empty
+   * directory and refuses one that already holds anything, so writing this
+   * first turned every job into "destination path '.' already exists".
+   */
+  const runnerDirectory = join(workspace, '.reviewos-runner')
+
+  mkdirSync(join(runnerDirectory, 'temp'), { recursive: true })
+  mkdirSync(join(runnerDirectory, 'tools'), { recursive: true })
+
+  const eventPath = join(runnerDirectory, 'event.json')
+
+  writeFileSync(eventPath, JSON.stringify(job.event ?? {}, null, 2))
+
+  // Read back by `environmentFor`, which is the one place that decides what a
+  // step can see.
+  job.event_path = eventPath
+
     const steps: any[] = Array.isArray(job.steps) ? job.steps : []
     let failed: string | null = null
 
@@ -283,21 +312,11 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
        * it is the reason a step can run after an earlier one failed - which is
        * how anybody uploads logs from a broken build.
        */
-      const context = {
-        github: {
-          workflow: String(job.run?.workflow ?? ''),
-          event_name: String(job.run?.event ?? ''),
-          ref: String(job.run?.ref ?? ''),
-          ref_name: String(job.run?.ref ?? '').replace(/^refs\/(?:heads|tags)\//, ''),
-          sha: String(job.run?.head_sha ?? ''),
-          repository: String(job.repository_full_name ?? ''),
-        },
-        job: { status: jobFailed ? 'failure' : 'success' },
+      const context = expressionContext(job, workspace, {
+        status: jobFailed ? 'failure' : 'success',
         steps: stepContext,
-        needs: job.needs ?? {},
-        matrix: job.matrix_values ?? {},
         env: { ...environmentFor(job, workspace), ...carried },
-      }
+      })
 
       const decision = shouldRun(step.if, context)
 
@@ -465,12 +484,14 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     const resolvedOutputs: Record<string, string> = {}
 
     for (const [name, expression] of Object.entries(declaredOutputs as Record<string, unknown>)) {
-      resolvedOutputs[name] = interpolate(String(expression ?? ''), {
-        steps: stepContext,
-        needs: job.needs ?? {},
-        job: { status: failed ? 'failure' : 'success' },
-        matrix: job.matrix_values ?? {},
-      })
+      resolvedOutputs[name] = interpolate(
+        String(expression ?? ''),
+        expressionContext(job, workspace, {
+          status: failed ? 'failure' : 'success',
+          steps: stepContext,
+          env: { ...environmentFor(job, workspace), ...carried },
+        }),
+      )
     }
 
     const state = failed ? 'failed' : 'succeeded'
@@ -554,6 +575,73 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
 }
 
 /**
+ * The contexts an expression can read.
+ *
+ * One function rather than an object literal per call site, because a `run:`
+ * that interpolates `${{ github.actor }}` and a job output that interpolates
+ * the same thing must see the same value - two literals drift, and the drift
+ * shows up as a value that is right in one place and empty in the other.
+ *
+ * `github` is the ecosystem's name and `reviewos` is the same object under
+ * this forge's, the way the environment variables are aliased: a workflow
+ * should be able to say where it is running without naming somebody else's
+ * product, and one written for Actions should not have to be edited.
+ */
+function expressionContext(
+  job: any,
+  workspace: string,
+  state: { status: string, steps: Record<string, unknown>, env: Record<string, string> },
+): Record<string, unknown> {
+  const run = job?.run ?? {}
+  const ref = String(run.ref ?? '')
+  const full = String(job?.repository_full_name ?? '')
+
+  const github = {
+    workflow: String(run.workflow ?? ''),
+    event_name: String(run.event ?? ''),
+    event: job?.event ?? {},
+    event_path: String(job?.event_path ?? ''),
+    ref,
+    ref_name: ref.replace(/^refs\/(?:heads|tags)\//, ''),
+    ref_type: ref.startsWith('refs/tags/') ? 'tag' : (ref.startsWith('refs/heads/') ? 'branch' : ''),
+    head_ref: String(run.head_ref ?? ''),
+    base_ref: String(run.base_ref ?? ''),
+    sha: String(run.head_sha ?? ''),
+    repository: full,
+    repository_owner: full.split('/')[0] ?? '',
+    actor: String(run.actor ?? ''),
+    triggering_actor: String(run.actor ?? ''),
+    run_id: String(run.id ?? ''),
+    run_number: String(run.number ?? ''),
+    run_attempt: String(run.attempt ?? '1'),
+    job: String(job?.key ?? ''),
+    workspace,
+    server_url: String(job?.server_url ?? ''),
+    api_url: String(job?.api_url ?? ''),
+  }
+
+  return {
+    github,
+    reviewos: github,
+    job: { status: state.status },
+    steps: state.steps,
+    needs: job?.needs ?? {},
+    matrix: job?.matrix_values ?? {},
+    // `inputs` is what a `workflow_dispatch` or a called workflow reads, and it
+    // travels in the event payload because that is where the run recorded it.
+    inputs: (job?.event && typeof job.event === 'object' ? (job.event as any).inputs : null) ?? {},
+    runner: {
+      os: runnerOs(),
+      arch: runnerArch(),
+      name: String(job?.runner_name ?? 'local'),
+      temp: join(workspace, '.reviewos-runner', 'temp'),
+      tool_cache: join(workspace, '.reviewos-runner', 'tools'),
+    },
+    env: state.env,
+  }
+}
+
+/**
  * The environment a step runs with.
  *
  * The default set Actions defines, so a workflow written for it finds what it
@@ -561,26 +649,106 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
  * control plane's own variables include the database credentials, and handing
  * those to a repository's script would make the runner a way to read every
  * repository on the instance.
+ *
+ * **Every name is set twice**, once as `GITHUB_*` and once as `REVIEWOS_*`.
+ * The first is what the ecosystem reads and dropping it would break every
+ * action ever written; the second is what this forge is, and a workflow that
+ * wants to say so should not have to name somebody else's product to do it.
+ * Aliased rather than chosen, because a script that reads one and a script that
+ * reads the other are both right.
+ *
+ * `RUNNER_*` keeps its own prefix. It describes the machine rather than the
+ * forge, and `REVIEWOS_OS` would be a claim about the wrong thing.
  */
 export function environmentFor(job: any, workspace: string): Record<string, string> {
   const run = job?.run ?? {}
+  const ref = String(run.ref ?? '')
 
-  return {
+  const shared: Record<string, string> = {
+    WORKSPACE: workspace,
+    REPOSITORY: String(job?.repository_full_name ?? job?.repository ?? ''),
+    REPOSITORY_OWNER: String(job?.repository_full_name ?? '').split('/')[0] ?? '',
+    SHA: String(run.head_sha ?? ''),
+    REF: ref,
+    // `refs/heads/main` is what git calls it; `main` is what a script wants,
+    // and every workflow that lacks this writes the same `sed` to get it.
+    REF_NAME: ref.replace(/^refs\/(?:heads|tags)\//, ''),
+    REF_TYPE: ref.startsWith('refs/tags/') ? 'tag' : (ref.startsWith('refs/heads/') ? 'branch' : ''),
+    /*
+     * Empty outside a pull request, and empty is the answer rather than an
+     * absence: `if [ -n "$GITHUB_BASE_REF" ]` is how half the ecosystem asks
+     * "am I on a pull request", and an unset variable answers it the same way
+     * a wrong one does not.
+     */
+    HEAD_REF: String(run.head_ref ?? ''),
+    BASE_REF: String(run.base_ref ?? ''),
+    EVENT_NAME: String(run.event ?? ''),
+    EVENT_PATH: String(job?.event_path ?? ''),
+    WORKFLOW: String(run.workflow ?? ''),
+    JOB: String(job?.key ?? ''),
+    RUN_ID: String(run.id ?? ''),
+    RUN_NUMBER: String(run.number ?? ''),
+    RUN_ATTEMPT: String(run.attempt ?? '1'),
+    ACTOR: String(run.actor ?? ''),
+    TRIGGERING_ACTOR: String(run.actor ?? ''),
+    SERVER_URL: String(job?.server_url ?? ''),
+    API_URL: String(job?.api_url ?? ''),
+    RETENTION_DAYS: String(job?.retention_days ?? ''),
+  }
+
+  const environment: Record<string, string> = {
     PATH: process.env.PATH ?? '/usr/bin:/bin',
     HOME: process.env.HOME ?? workspace,
     LANG: process.env.LANG ?? 'en_US.UTF-8',
     CI: 'true',
     GITHUB_ACTIONS: 'true',
     REVIEWOS: 'true',
-    GITHUB_WORKSPACE: workspace,
-    GITHUB_REPOSITORY: String(job?.repository ?? ''),
-    GITHUB_SHA: String(run.head_sha ?? ''),
-    GITHUB_REF: String(run.ref ?? ''),
-    GITHUB_EVENT_NAME: String(run.event ?? ''),
-    GITHUB_RUN_ID: String(run.id ?? ''),
-    GITHUB_RUN_NUMBER: String(run.number ?? ''),
-    GITHUB_JOB: String(job?.key ?? ''),
+    /*
+     * What machine this is, under the names Actions uses. `RUNNER_TEMP` and
+     * `RUNNER_TOOL_CACHE` are inside the workspace rather than in the host's
+     * `/tmp`: a step that writes to a shared temp directory is a step that can
+     * read what the last job left there, and on a single-tenant box the last
+     * job may still have been somebody else's branch.
+     */
+    RUNNER_OS: runnerOs(),
+    RUNNER_ARCH: runnerArch(),
+    RUNNER_NAME: String(job?.runner_name ?? 'local'),
+    RUNNER_ENVIRONMENT: 'self-hosted',
+    RUNNER_TEMP: join(workspace, '.reviewos-runner', 'temp'),
+    RUNNER_TOOL_CACHE: join(workspace, '.reviewos-runner', 'tools'),
   }
+
+  for (const [name, value] of Object.entries(shared)) {
+    environment[`GITHUB_${name}`] = value
+    environment[`REVIEWOS_${name}`] = value
+  }
+
+  return environment
+}
+
+/** Actions' spelling: `Linux`, `macOS`, `Windows`. */
+function runnerOs(): string {
+  if (process.platform === 'darwin')
+    return 'macOS'
+
+  if (process.platform === 'win32')
+    return 'Windows'
+
+  return 'Linux'
+}
+
+/** Actions' spelling: `X86`, `X64`, `ARM`, `ARM64`. */
+function runnerArch(): string {
+  if (process.arch === 'arm64')
+    return 'ARM64'
+
+  if (process.arch === 'arm')
+    return 'ARM'
+
+  if (process.arch === 'ia32')
+    return 'X86'
+
+  return 'X64'
 }
 
 /**

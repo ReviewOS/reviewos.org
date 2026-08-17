@@ -3,6 +3,7 @@ import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { db } from '@stacksjs/database'
 import { authenticateRunner } from './authenticate'
 import { claimNextJob } from './claim'
+import { eventPayload } from '../Workflow/eventPayload'
 
 /**
  * What a runner asks for when it has capacity.
@@ -100,6 +101,44 @@ async function ownerHandleOf(context: any): Promise<string> {
   return String(owner?.handle ?? '')
 }
 
+/**
+ * The ref a run was created against, without the bookkeeping.
+ *
+ * A subject run records `refs/heads/main#issues/7/opened`, because the
+ * redelivery index needs every issue event to look different and they all share
+ * a head commit. That suffix is this instance's own bookkeeping and a step that
+ * checks out `$GITHUB_REF` must never see it.
+ */
+function refOf(context: any): string {
+  return String(context?.event_ref ?? '').split('#')[0] ?? ''
+}
+
+/** The subject half of that ref, for the payload. */
+function subjectOf(eventRef: string): { kind: string, id: string, action: string } | null {
+  const suffix = String(eventRef).split('#')[1]
+
+  if (!suffix)
+    return null
+
+  const [kind, id, action] = suffix.split('/')
+
+  return kind && id ? { kind, id, action: action ?? '' } : null
+}
+
+/** The address this runner reached, scheme and host, with nothing after it. */
+function serverUrlOf(request: any): string {
+  const url = String(request?.url ?? '')
+
+  try {
+    const parsed = new URL(url)
+
+    return `${parsed.protocol}//${parsed.host}`
+  }
+  catch {
+    return ''
+  }
+}
+
 export default new Action({
   name: 'ClaimJob',
   description: 'Take the next job this runner may run',
@@ -154,7 +193,12 @@ export default new Action({
         'workflow_runs.event as event',
         'workflow_runs.event_ref as event_ref',
         'workflow_runs.trusted as trusted',
+        'workflow_runs.actor_id as actor_id',
+        'workflow_runs.pull_request_id as pull_request_id',
+        'workflow_runs.dispatch_inputs as dispatch_inputs',
         'repositories.name as repository',
+        'repositories.visibility as visibility',
+        'repositories.default_branch as default_branch',
         // Where the code is, which every runner needs and none was told. A
         // same-host runner reads the bare repository directly; one on another
         // machine clones the URL. Both need to know which repository this is,
@@ -164,6 +208,38 @@ export default new Action({
       ])
       .where('workflow_runs.id', '=', claimed.runId)
       .executeTakeFirst()
+
+    /*
+     * The workflow's name, the pull request it is about, and who started it.
+     *
+     * All three were read by something and sent by nothing: `github.workflow`
+     * in an expression resolved to an empty string, `GITHUB_BASE_REF` was never
+     * set so every "what changed on this pull request" action compared against
+     * nothing, and `github.actor` was blank on a screen that says who pushed.
+     */
+    const workflow: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .innerJoin('workflow_runs', 'workflow_runs.workflow_version_id', '=', 'workflow_versions.id')
+      .select(['workflows.name as name', 'workflows.path as path'])
+      .where('workflow_runs.id', '=', claimed.runId)
+      .executeTakeFirst()
+
+    const pull: any = context?.pull_request_id
+      ? await db
+          .selectFrom('pull_requests')
+          .select(['number', 'title', 'state', 'draft', 'head_ref', 'base_ref', 'head_sha'])
+          .where('id', '=', Number(context.pull_request_id))
+          .executeTakeFirst()
+      : null
+
+    const actor: any = context?.actor_id
+      ? await db
+          .selectFrom('users')
+          .select(['handle', 'name'])
+          .where('id', '=', Number(context.actor_id))
+          .executeTakeFirst()
+      : null
 
     /*
      * The job's own definition row, for its declared outputs. Read separately
@@ -234,12 +310,35 @@ export default new Action({
           number: Number(context?.run_number ?? 0),
           head_sha: context?.head_sha ?? null,
           event: context?.event ?? null,
-          ref: context?.event_ref ?? null,
+          ref: refOf(context),
+          workflow: workflow?.name ? String(workflow.name) : String(workflow?.path ?? ''),
+          /*
+           * Who started it, by handle. Empty when nothing recorded somebody -
+           * a scheduled run has no actor, and inventing one would put a name
+           * on a decision nobody made.
+           */
+          actor: actor?.handle ? String(actor.handle) : '',
+          // A pull request's branches, which is what half the ecosystem's
+          // "changed files" logic is built on.
+          head_ref: pull?.head_ref ? String(pull.head_ref) : '',
+          base_ref: pull?.base_ref ? String(pull.base_ref) : '',
+          attempt: 1,
           // Said plainly, because a runner may want to refuse work it is not
           // willing to run: an untrusted run is a fork's code.
           trusted: Boolean(context?.trusted),
         },
         repository: context?.repository ?? null,
+        /*
+         * Where this instance is, taken from the address the runner just
+         * reached rather than from configuration.
+         *
+         * A configured URL is the one behind the proxy as often as not, and a
+         * `GITHUB_SERVER_URL` that does not resolve from a runner is worse than
+         * none: every action that builds a link with it produces a link nobody
+         * can follow. The host it called is by definition one it can call.
+         */
+        server_url: serverUrlOf(request),
+        api_url: `${serverUrlOf(request)}/api`,
         /*
          * `owner/name`, which is what a runner needs to find or clone the
          * code. The bare name was ambiguous the moment two owners had a
@@ -263,6 +362,43 @@ export default new Action({
          * job rather than about the definition.
          */
         matrix_values: readJson(jobRow?.matrix_values),
+        /*
+         * The event, in the shape a webhook receiver would have got.
+         *
+         * Written to a file by the runner and pointed at by
+         * `GITHUB_EVENT_PATH`, because half the ecosystem reads the payload
+         * rather than the environment - and an action that finds an empty file
+         * there does nothing and says nothing, which is the shape of
+         * compatibility that looks present and is not.
+         */
+        event: eventPayload({
+          event: String(context?.event ?? ''),
+          ref: refOf(context),
+          sha: String(context?.head_sha ?? ''),
+          runId: claimed.runId,
+          runNumber: Number(context?.run_number ?? 0),
+          repository: {
+            full_name: context ? `${await ownerHandleOf(context)}/${context.repository}` : '',
+            name: String(context?.repository ?? ''),
+            owner: context ? await ownerHandleOf(context) : '',
+            visibility: String(context?.visibility ?? ''),
+            default_branch: String(context?.default_branch ?? ''),
+          },
+          sender: actor ? { handle: String(actor.handle), name: actor.name ? String(actor.name) : null } : null,
+          pullRequest: pull
+            ? {
+                number: Number(pull.number),
+                title: String(pull.title ?? ''),
+                state: String(pull.state ?? ''),
+                draft: pull.draft === true,
+                head_ref: String(pull.head_ref ?? ''),
+                base_ref: String(pull.base_ref ?? ''),
+                head_sha: String(pull.head_sha ?? ''),
+              }
+            : null,
+          inputs: readJson(context?.dispatch_inputs) as Record<string, unknown> | null,
+          subject: subjectOf(String(context?.event_ref ?? '')),
+        }),
         needs: await outputsOfNeeds(claimed.runId, String(claimed.jobKey)),
         /*
          * How long this job is allowed to take, in minutes.

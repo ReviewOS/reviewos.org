@@ -532,6 +532,18 @@ written down here so it does not get relitigated:
 - [ ] Contexts: `github`, `env`, `vars`, `job`, `jobs`, `steps`, `runner`, `secrets`, `strategy`,
       `matrix`, `needs`, `inputs`. A `reviewos` context is the canonical name and `github` is an
       alias, which is the approach Forgejo took and it works.
+
+      **Eight of the twelve are readable now**: `github` (with `actor`, `workflow`, `head_ref`,
+      `base_ref`, `ref_name`, `ref_type`, `run_id`, `run_number`, `run_attempt`, `repository_owner`,
+      `server_url`, `api_url`, `event` and `event_path`), plus `env`, `job`, `steps`, `needs`,
+      `matrix`, `inputs` and `runner`. `reviewos` is the same object under this forge's own name.
+      `secrets`, `vars`, `strategy` and `jobs` are not populated, and an expression reading one is
+      left as written rather than quietly becoming an empty string.
+
+      They are built in one function rather than assembled per call site, because a `run:` and a job
+      output that interpolate the same expression have to see the same value. Half of `github` was
+      being read by the expression evaluator and sent by nothing: `github.workflow` resolved to an
+      empty string on every run, which is the kind of defect that looks like a workflow bug.
 - [x] The expression evaluator is sandboxed and total: no host access, no unbounded evaluation, and a
       documented failure mode for an expression that cannot be resolved.
 
@@ -571,12 +583,47 @@ cannot talk back to the runner is a workflow that fails on its second line.
       `REVIEWOS_*` names
 - [ ] Step summaries render as markdown on the run and, where they belong to a check, on the pull
       request
-- [ ] The default environment variable set: `GITHUB_REPOSITORY`, `GITHUB_SHA`, `GITHUB_REF`,
+- [x] The default environment variable set: `GITHUB_REPOSITORY`, `GITHUB_SHA`, `GITHUB_REF`,
       `GITHUB_REF_NAME`, `GITHUB_HEAD_REF`, `GITHUB_BASE_REF`, `GITHUB_WORKSPACE`, `GITHUB_ACTOR`,
       `GITHUB_RUN_ID`, `GITHUB_RUN_NUMBER`, `GITHUB_RUN_ATTEMPT`, `GITHUB_EVENT_NAME`,
       `GITHUB_EVENT_PATH`, `GITHUB_SERVER_URL`, `GITHUB_API_URL`, and the rest, each aliased
-- [ ] `GITHUB_EVENT_PATH` contains an event payload matching the shape of the webhook payloads from
+
+      All of them, plus `GITHUB_REF_TYPE`, `GITHUB_REPOSITORY_OWNER`, `GITHUB_TRIGGERING_ACTOR` and
+      the `RUNNER_*` set, and **every one is also `REVIEWOS_*`**. Aliased rather than chosen: a
+      script that reads one and a script that reads the other are both right, and a forge that only
+      answers to somebody else's name cannot be described in its own terms. `RUNNER_*` keeps its
+      prefix, because it describes the machine rather than the forge.
+
+      Three decisions worth keeping. `GITHUB_SERVER_URL` is **the address the runner actually
+      reached**, not a configured one: a configured URL is the one behind the proxy as often as not,
+      and every action that builds a link from it would produce a link nobody can follow.
+      `GITHUB_BASE_REF` is **empty rather than absent** outside a pull request, because
+      `if [ -n "$GITHUB_BASE_REF" ]` is how much of the ecosystem asks "am I on a pull request".
+      And `RUNNER_TEMP` and `RUNNER_TOOL_CACHE` are **inside the workspace**, not the host's `/tmp`:
+      a step that writes to a shared temp directory can read what the last job left there, and on a
+      single-tenant box the last job may have been somebody else's branch.
+
+      Deliberately not the whole of the control plane's environment, which holds the database
+      credentials. A runner that passed its own environment through would be a way to read every
+      repository on the instance.
+- [x] `GITHUB_EVENT_PATH` contains an event payload matching the shape of the webhook payloads from
       [phase 5](./05-notifications-webhooks.md), because half the ecosystem parses it
+
+      Written per job into the workspace's runner directory, so it goes when the workspace goes: a
+      payload left in the host's temp directory outlives the job that owned it. The envelope is
+      `Webhooks/payloads.ts`'s - `event`, `repository`, `sender`, and one key named after what
+      happened - with `ref`, `after` and `pull_request.base.ref` under the names the ecosystem's
+      scripts already reach for.
+
+      Built from what the run recorded rather than from the repository as it is today, so a re-run
+      of an old run sees the commit it was created for. **Nothing in it carries a URL**: this
+      instance cannot know its own public address from inside a job, and a payload with a URL that
+      does not resolve is worse than one with none - the environment is where a runner is told,
+      by whoever configured it.
+
+      One thing it cost: the runner directory is created *after* the checkout, because `git clone`
+      refuses a directory that already holds anything. Writing the payload first turned every job
+      into "destination path '.' already exists".
 - [ ] An automatic per-job token, scoped to the run and the repository, expiring with the job,
       honouring the `permissions:` block, and never granted to a fork run by default. This is
       `GITHUB_TOKEN` and the ecosystem assumes it exists.
