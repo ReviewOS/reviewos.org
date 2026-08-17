@@ -391,6 +391,21 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * What this instance does differently with this file, as JSON.
+     *
+     * Recorded with the version rather than recomputed for a page, because the
+     * answer belongs to the file as it was parsed: a workflow registered before
+     * a key was implemented should keep saying what it said until it is pushed
+     * again, which is when its author is looking.
+     */
+    warnings: {
+      order: 52,
+      fillable: true,
+      validation: { rule: schema.string().max(16_000) },
+      factory: () => null,
+    },
+
     /** Cron expressions, one per line. */
     schedules: {
       order: 15,

@@ -144,8 +144,27 @@ const rows = workflows.map((workflow) => {
     inputs = []
   }
 
+  /*
+   * What this instance does differently with this file.
+   *
+   * Not problems - the workflow is registered and runs - which is why they are
+   * shown apart from the reasons it will not. The rule the roadmap sets is that
+   * a deliberate difference is documented *and* said where somebody is looking,
+   * rather than left on a page they have to find.
+   */
+  let differences = []
+
+  try {
+    const stored = version?.warnings ? JSON.parse(String(version.warnings)) : []
+    differences = Array.isArray(stored) ? stored : []
+  }
+  catch {
+    differences = []
+  }
+
   return {
     id: Number(workflow.id),
+    differences,
     name: String(workflow.name ?? workflow.path ?? ''),
     path: String(workflow.path ?? ''),
     state: String(workflow.state ?? 'active'),
@@ -276,6 +295,24 @@ const starters = rows.length === 0 ? startersFor(languages) : []
                 <p class="workflow-problem">{{ problem }}</p>
               @endforeach
 
+              @if (workflow.differences.length > 0)
+                <details class="workflow-differences">
+                  <summary class="muted">
+                    {{ workflow.differences.length }}
+                    {{ workflow.differences.length === 1 ? 'key behaves' : 'keys behave' }}
+                    differently here
+                  </summary>
+                  @foreach (workflow.differences as difference)
+                    <p class="workflow-difference">
+                      <code>{{ difference.key }}</code> — {{ difference.message }}
+                    </p>
+                  @endforeach
+                  <p class="muted workflow-difference-note">
+                    The full table is in <a href="/docs/conformance">the conformance reference</a>.
+                  </p>
+                </details>
+              @endif
+
               @if (workflow.dispatchable && canDispatch)
                 {{--
                   Posted to the same public action the API and the CLI call. A
@@ -368,6 +405,11 @@ const starters = rows.length === 0 ? startersFor(languages) : []
     border-left: 2px solid var(--warn);
     background: var(--panel-2, transparent);
   }
+
+  .workflow-differences { margin-top: 10px; font-size: 12.5px; }
+  .workflow-differences summary { cursor: pointer; }
+  .workflow-difference { margin: 8px 0 0; padding-left: 12px; border-left: 2px solid var(--line); }
+  .workflow-difference-note { margin: 8px 0 0; padding-left: 12px; }
 
   .workflow-run { display: grid; gap: 10px; margin-top: 14px; max-width: 420px; }
   .workflow-input { display: grid; gap: 4px; font-size: 12.5px; }

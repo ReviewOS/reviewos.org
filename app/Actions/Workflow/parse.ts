@@ -20,6 +20,7 @@
  * with no suggestion is the same as no error at all.
  */
 
+import { differencesIn } from './conformance'
 import type { Combination, MatrixDefinition } from './matrix'
 import { combinationLabel, expandMatrix } from './matrix'
 
@@ -242,9 +243,26 @@ export interface NormalizedWorkflow {
   defaults: { shell: string | null, workingDirectory: string | null }
 }
 
+/**
+ * A difference this instance has from Actions, named where the file is read.
+ *
+ * Not an error: the workflow is valid and will be registered. It is the
+ * sentence that stops a difference being a surprise - the roadmap's rule is
+ * that behaviour which deliberately differs is *documented per key with the
+ * reason, and the parser says so rather than quietly doing something else*.
+ */
+export interface WorkflowWarning {
+  /** The key, as the conformance table names it. */
+  key: string
+  /** `differs` for a deliberate divergence, `unimplemented` for a gap. */
+  status: 'differs' | 'unimplemented'
+  /** What this instance does, in the same words the published table uses. */
+  message: string
+}
+
 export type ParseResult =
-  | { ok: true, workflow: NormalizedWorkflow, errors: [] }
-  | { ok: false, workflow: null, errors: WorkflowError[] }
+  | { ok: true, workflow: NormalizedWorkflow, errors: [], warnings: WorkflowWarning[] }
+  | { ok: false, workflow: null, errors: WorkflowError[], warnings: WorkflowWarning[] }
 
 /** Top-level keys Actions defines. Anything else is a typo worth catching. */
 const TOP_LEVEL = new Set(['name', 'on', 'jobs', 'env', 'defaults', 'concurrency', 'permissions', 'run-name'])
@@ -638,7 +656,14 @@ export function cyclicJobs(jobs: readonly WorkflowJob[]): string[] {
  */
 export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResult {
   const errors: WorkflowError[] = []
-  const fail = (): ParseResult => ({ ok: false, workflow: null, errors })
+  /*
+   * A refused workflow carries no warnings.
+   *
+   * Its author has errors to fix, and a list of "by the way, `container:`
+   * behaves differently here" underneath them is noise on top of a problem -
+   * the differences matter once the file is valid enough to run.
+   */
+  const fail = (): ParseResult => ({ ok: false, workflow: null, errors, warnings: [] })
 
   let document: unknown
   try {
@@ -914,6 +939,17 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
   return {
     ok: true,
     errors: [],
+    /*
+     * Read from the same table the published page renders, so a difference
+     * cannot be documented one way and warned about another - and so adding a
+     * divergence without writing down its reason is impossible rather than
+     * merely discouraged.
+     */
+    warnings: differencesIn(root).map(difference => ({
+      key: difference.key,
+      status: difference.status as 'differs' | 'unimplemented',
+      message: difference.behaviour,
+    })),
     workflow: {
       name: typeof root.name === 'string' ? root.name : null,
       triggers,

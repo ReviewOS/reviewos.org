@@ -8212,6 +8212,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "warnings",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -9677,7 +9685,7 @@
       }
     ]
   },
-  "hash": "cf317e07edeca816a800c9eddc91380068079e2afd9add0d71026e6ad6a1daa4",
+  "hash": "f99eda1b5e4143b6c9eb48608dccb2d576a687d3b044e29ec1244ab8bbca7955",
   "dialect": "postgres",
-  "updatedAt": "2026-08-16T23:31:56.881Z"
+  "updatedAt": "2026-08-17T05:01:33.563Z"
 }

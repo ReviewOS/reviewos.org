@@ -12,7 +12,8 @@
 import { describe, expect, test } from 'bun:test'
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { CONFORMANCE, conformanceCounts, renderConformance } from '../../app/Docs/conformance'
+import { CONFORMANCE, conformanceCounts, differencesIn } from '../../app/Actions/Workflow/conformance'
+import { renderConformance } from '../../app/Docs/conformance'
 import { parseWorkflow } from '../../app/Actions/Workflow/parse'
 
 const CORPUS = 'tests/fixtures/conformance'
@@ -125,6 +126,90 @@ describe('the published table', () => {
       expect(page).toContain(entry.key)
 
     expect(page).toContain('silence about a gap')
+  })
+})
+
+describe('the warnings the parser emits', () => {
+  /*
+   * The rule the roadmap sets: a deliberate difference is documented *and* the
+   * parser says so, rather than quietly doing something else. Both come from
+   * the same table, so a difference cannot be documented one way and warned
+   * about another - and adding one without writing down its reason is
+   * impossible rather than discouraged.
+   */
+  test('name the keys a workflow uses that behave differently here', async () => {
+    const source = await Bun.file(join(CORPUS, 'docker.yml')).text()
+    const result = parseWorkflow(source, '.github/workflows/docker.yml')
+
+    const keys = result.warnings.map(warning => warning.key)
+
+    expect(keys).toContain('jobs.<id>.container')
+    expect(keys).toContain('jobs.<id>.services')
+
+    // The words are the published table's words, so a person reading the
+    // warning and a person reading the page are told the same thing.
+    const container = result.warnings.find(warning => warning.key === 'jobs.<id>.container')
+
+    expect(container?.message).toBe(CONFORMANCE.find(entry => entry.key === 'jobs.<id>.container')?.behaviour)
+  })
+
+  test('a workflow using only supported keys warns about nothing', () => {
+    const result = parseWorkflow(
+      'on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: make test\n',
+      '.github/workflows/plain.yml',
+    )
+
+    expect(result.warnings).toEqual([])
+  })
+
+  /*
+   * An ordinary CI workflow, and the two things it is worth telling its author:
+   * `permissions` defaults differently here, and `fail-fast` is stored but not
+   * yet acted on. Neither stops the workflow running, and both are things
+   * somebody would otherwise discover by watching a run behave unexpectedly.
+   */
+  test('and a real workflow gets exactly the notes it should', async () => {
+    const source = await Bun.file(join(CORPUS, 'node-ci.yml')).text()
+    const result = parseWorkflow(source, '.github/workflows/node-ci.yml')
+
+    expect(result.warnings.map(warning => warning.key)).toEqual([
+      'jobs.<id>.strategy.fail-fast',
+      'permissions',
+    ])
+  })
+
+  test('and a release trigger is named as a deliberate difference', async () => {
+    const source = await Bun.file(join(CORPUS, 'release.yml')).text()
+    const result = parseWorkflow(source, '.github/workflows/release.yml')
+
+    const release = result.warnings.find(warning => warning.key === 'on.release')
+
+    expect(release?.status).toBe('differs')
+    expect(release?.message).toContain('published')
+  })
+
+  test('a refused workflow carries no warnings at all', () => {
+    /*
+     * Its author has errors to fix, and "by the way, `container:` behaves
+     * differently here" underneath them is noise on top of a problem. The
+     * differences matter once the file is valid enough to run.
+     */
+    const result = parseWorkflow('jobs:\n  a:\n    container: node\n', '.github/workflows/broken.yml')
+
+    expect(result.ok).toBe(false)
+    expect(result.warnings).toEqual([])
+  })
+
+  test('the same keys warn in the same order every time', () => {
+    // A diff of a run's warnings should show what changed rather than what
+    // moved.
+    const source = 'on: push\njobs:\n  a:\n    runs-on: x\n    container: node\n    services: {}\n    steps: [{ run: x, shell: bash }]\n'
+
+    expect(differencesIn(Bun.YAML.parse(source)).map(entry => entry.key))
+      .toEqual(differencesIn(Bun.YAML.parse(source)).map(entry => entry.key))
+
+    expect(differencesIn(Bun.YAML.parse(source)).map(entry => entry.key))
+      .toEqual([...differencesIn(Bun.YAML.parse(source)).map(entry => entry.key)].sort())
   })
 })
 

@@ -907,4 +907,59 @@ jobs:
     // and calling one that did not is how a pipeline nobody read gets run.
     expect(String(jobs[0].condition_reason)).toContain('workflow_call')
   }, 30_000)
+
+  /*
+   * The other half of "documented per key with the reason": the parser says so
+   * where the file is read, rather than leaving it on a page somebody has to
+   * find. Stored with the version, so a workflow registered before a key was
+   * implemented keeps saying what it said until it is pushed again - which is
+   * when its author is looking.
+   */
+  test('a workflow using a key that behaves differently here is told so', async () => {
+    if (!available)
+      return
+
+    await push('.reviewos/workflows/different.yml', `name: Different
+on:
+  push:
+    paths:
+      - 'different/**'
+  release:
+    types: [published]
+permissions:
+  contents: read
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    container:
+      image: node:22
+    steps:
+      - run: ./ship
+        continue-on-error: true
+`)
+
+    const versionFor = async (): Promise<any> => db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.warnings as warnings'])
+      .where('workflows.path', '=', '.reviewos/workflows/different.yml')
+      .orderBy('workflow_versions.id', 'desc')
+      .executeTakeFirst()
+
+    const version = await waitFor(versionFor, (row: any) => Boolean(row?.warnings))
+    const warnings = JSON.parse(String(version.warnings))
+    const keys = warnings.map((warning: any) => warning.key)
+
+    // Two deliberate differences and one gap, each named where the file is.
+    expect(keys).toContain('on.release')
+    expect(keys).toContain('permissions')
+    expect(keys).toContain('jobs.<id>.container')
+    expect(keys).toContain('steps[*].continue-on-error')
+
+    // And the words are the published table's, so the warning and the page
+    // cannot say different things.
+    const release = warnings.find((warning: any) => warning.key === 'on.release')
+
+    expect(String(release.message)).toContain('published')
+  }, 30_000)
 })

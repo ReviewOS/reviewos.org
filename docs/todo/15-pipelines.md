@@ -151,17 +151,24 @@ written down here so it does not get relitigated:
       triggered only on `issues` was refused as naming no event at all.** The trigger had been
       implemented, dispatched and tested, and left out of the one list that decides whether a file
       is valid - so a labeller, the second thing anybody automates, could not be registered.
-- [ ] Where behavior deliberately differs from GitHub, it is documented per key with the reason, and
+- [x] Where behavior deliberately differs from GitHub, it is documented per key with the reason, and
       the parser emits a warning naming the difference rather than quietly doing something else.
 
-      **The documentation half is done**: every key with a status and a sentence in
-      [`docs/conformance.md`](../conformance.md), and a test asserting that every `differs` and
-      `refused` row gives a reason rather than only a claim. Six keys currently differ on purpose -
-      `on: release` defaulting to published, permissions defaulting closed, `continue-on-error` as a
-      literal, and so on - and each says why next to what.
+      **One table drives all three.** The published page, the conformance test and the parser's
+      warnings read the same data, which is the only arrangement where a difference cannot be
+      documented one way and behave another - and where adding a divergence without writing down its
+      reason is impossible rather than merely discouraged. It lives in the domain rather than under
+      `app/Docs/`, because it is data that happens to be published rather than documentation that
+      happens to be checked.
 
-      What is left is the parser emitting the difference as a warning on the workflow itself, so
-      somebody reads it where they are rather than on a page they have to find.
+      A workflow using a key that differs, or one that is not implemented yet, carries the warning
+      on its version and shows it on the workflows page in the published table's own words. A
+      workflow that fails to parse carries none: its author has errors to fix, and "by the way,
+      `container:` behaves differently here" underneath them is noise on top of a problem.
+
+      An ordinary `ci.yml` gets exactly two notes - `permissions` defaults differently here, and
+      `fail-fast` is stored but not acted on yet - which is the standard this box asks for: both are
+      things somebody would otherwise discover by watching a run behave unexpectedly.
 
 ### Workflow syntax
 

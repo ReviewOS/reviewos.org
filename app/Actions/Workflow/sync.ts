@@ -88,7 +88,7 @@ export async function syncWorkflowFile(input: SyncInput): Promise<SyncResult> {
     }
   }
 
-  const versionId = await insertVersion(workflowId, digest, input, parsed.workflow)
+  const versionId = await insertVersion(workflowId, digest, input, parsed.workflow, parsed.warnings)
 
   return { ok: true, workflowId, versionId, createdVersion: true, errors: [] }
 }
@@ -157,6 +157,7 @@ async function insertVersion(
   digest: string,
   input: SyncInput,
   workflow: NormalizedWorkflow,
+  warnings: readonly { key: string, status: string, message: string }[] = [],
 ): Promise<number> {
   const triggers = workflow.triggers
 
@@ -190,6 +191,7 @@ async function insertVersion(
       pull_request_paths_ignore: lines(triggers.pullRequest?.pathsIgnore ?? []),
       pull_request_types: lines(triggers.pullRequest?.types ?? []),
       dispatch_inputs: triggers.dispatchInputs.length > 0 ? JSON.stringify(triggers.dispatchInputs) : null,
+      warnings: warnings.length > 0 ? JSON.stringify(warnings) : null,
       call_inputs: triggers.callInputs.length > 0 ? JSON.stringify(triggers.callInputs) : null,
       call_outputs: triggers.callOutputs.length > 0 ? JSON.stringify(triggers.callOutputs) : null,
       call_secrets: triggers.callSecrets.length > 0 ? JSON.stringify(triggers.callSecrets) : null,
