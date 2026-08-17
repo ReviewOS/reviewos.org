@@ -94,6 +94,12 @@ export interface WorkflowJob {
    * have to re-parse the document to find out.
    */
   services: WorkflowService[]
+  /** `reviewos.skip:` - the reason this job is off, or null. */
+  skip: string | null
+  /** `reviewos.soft-fail:` - a failure that is reported and does not fail the run. */
+  softFail: { any: boolean, statuses: number[] } | null
+  /** `reviewos.branches:` - which branches this job runs on, `!` to exclude. */
+  branches: string[]
   env: Record<string, string>
   /**
    * `outputs:` on the job, as written.
@@ -213,6 +219,21 @@ export interface WorkflowJob {
 export type IntermediateRuns = 'run' | 'skip' | 'cancel'
 
 /** One `services:` entry: what to start beside the job. */
+/** What `reviewos:` on a job adds, beyond the kind it names. */
+interface ExtensionResult {
+  kind: JobKind
+  settings: Record<string, unknown>
+  group: string | null
+  ifChanged: string[]
+  priority: number
+  /** `skip:` - the reason, or null when the job is not skipped. */
+  skip: string | null
+  /** `soft-fail:` - any failure, or the exit statuses worth tolerating. */
+  softFail: { any: boolean, statuses: number[] } | null
+  /** `branches:` - the shorthand for the most common `if:`, negation included. */
+  branches: string[]
+}
+
 export interface WorkflowService {
   /** The key in the workflow, which is the hostname Actions would give it. */
   name: string
@@ -411,7 +432,20 @@ const JOB_KEYS = new Set([
 /** What a job *is*, which Actions has one of and this engine has five. */
 export type JobKind = 'command' | 'wait' | 'block' | 'trigger'
 
-const EXTENSION_KEYS = new Set(['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents'])
+const EXTENSION_KEYS = new Set([
+  'wait',
+  'block',
+  'trigger',
+  'group',
+  'if-changed',
+  'retry',
+  'priority',
+  'agents',
+  // Buildkite's step attributes, in the three shapes people actually reach for.
+  'skip',
+  'soft-fail',
+  'branches',
+])
 
 const STEP_KEYS = new Set([
   'id', 'name', 'run', 'uses', 'with', 'env', 'if',
@@ -724,18 +758,18 @@ function extensionOf(
   jobLine: number,
   source: string,
   errors: WorkflowError[],
-): { kind: JobKind, settings: Record<string, unknown>, group: string | null, ifChanged: string[], priority: number } {
+): ExtensionResult {
   const raw = asRecord(body.reviewos)
 
   if (!raw)
-    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0 }
+    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [] }
 
   for (const key of Object.keys(raw)) {
     if (!EXTENSION_KEYS.has(key)) {
       errors.push({
         line: lineOf(source, key, jobLine),
         message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
-        fix: 'The keys are `wait`, `block`, `trigger` and `group`.',
+        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `skip`, `soft-fail` and `branches`.',
       })
     }
   }
@@ -756,6 +790,10 @@ function extensionOf(
   const priority = priorityFrom(raw.priority, id, jobLine, source, errors)
   const agents = agentsFrom(raw.agents, id, jobLine, source, errors)
 
+  const skip = skipFrom(raw.skip)
+  const softFail = softFailFrom(raw['soft-fail'])
+  const branches = branchesFrom(raw.branches)
+
   const kinds = (['wait', 'block', 'trigger'] as const).filter(key => key in raw)
 
   if (kinds.length > 1) {
@@ -765,11 +803,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: settingsOf(retry, agents), group, ifChanged, priority }
+    return { kind: 'command', settings: settingsOf(retry, agents), group, ifChanged, priority, skip, softFail, branches }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: settingsOf(retry, agents), group, ifChanged, priority }
+    return { kind: 'command', settings: settingsOf(retry, agents), group, ifChanged, priority, skip, softFail, branches }
 
   if (ifChanged.length > 0) {
     /*
@@ -799,6 +837,9 @@ function extensionOf(
     return {
       ifChanged,
       priority,
+      skip,
+      softFail,
+      branches,
       kind,
       settings: {
         // The variant Buildkite calls `continue_on_failure`: a barrier that
@@ -811,9 +852,76 @@ function extensionOf(
   }
 
   if (kind === 'trigger')
-    return { kind, settings: triggerFrom(raw.trigger, id, jobLine, source, errors), group, ifChanged, priority }
+    return { kind, settings: triggerFrom(raw.trigger, id, jobLine, source, errors), group, ifChanged, priority, skip, softFail, branches }
 
-  return { kind, settings: blockFrom(raw.block, id, jobLine, source, errors), group, ifChanged, priority }
+  return { kind, settings: blockFrom(raw.block, id, jobLine, source, errors), group, ifChanged, priority, skip, softFail, branches }
+}
+
+/**
+ * `skip:` - a job the file itself turns off.
+ *
+ * `true` or a sentence, and the sentence is why this is not just a commented
+ * out job: a skipped step that says *why* is one somebody can decide about
+ * three weeks later, and a commented one is a diff nobody reads.
+ *
+ * The reason shows on the run beside the job, which is where the question is
+ * asked.
+ */
+export function skipFrom(value: unknown): string | null {
+  if (value === true)
+    return 'Skipped by the workflow.'
+
+  if (typeof value === 'string' && value.trim())
+    return value.trim()
+
+  return null
+}
+
+/**
+ * `soft-fail:` - a failure that is reported and does not fail the run.
+ *
+ * `true` for any failure, or a list of exit statuses for the ones worth
+ * tolerating. The list is the shape that earns its place: a linter exiting 1 on
+ * findings is a soft failure, and the same linter exiting 127 because it is not
+ * installed is a broken pipeline pretending to be a clean one.
+ *
+ * Distinct from Actions' `continue-on-error`, which is all-or-nothing, and
+ * stored separately so a run screen can say *tolerated* rather than *passed*.
+ */
+export function softFailFrom(value: unknown): { any: boolean, statuses: number[] } | null {
+  if (value === true)
+    return { any: true, statuses: [] }
+
+  if (Array.isArray(value)) {
+    const statuses = value
+      .map(one => Number(asRecord(one)?.['exit-status'] ?? one))
+      .filter(one => Number.isInteger(one) && one >= 0 && one <= 255)
+
+    return statuses.length > 0 ? { any: false, statuses } : null
+  }
+
+  const record = asRecord(value)
+
+  if (record) {
+    const statuses = asStringList(record['exit-status']).map(Number).filter(one => Number.isInteger(one))
+
+    return statuses.length > 0 ? { any: false, statuses } : { any: record.any === true, statuses: [] }
+  }
+
+  return null
+}
+
+/**
+ * `branches:` - the shorthand for the most common `if:`.
+ *
+ * `[main, 'release/*']`, and `!wip` to exclude. Buildkite's own shape, and it
+ * exists because `if: github.ref == 'refs/heads/main'` is the expression
+ * everybody writes and half of them get wrong - `refs/heads/` is easy to forget
+ * and the failure is silent, since a condition nobody matches is a job that
+ * simply never runs.
+ */
+export function branchesFrom(value: unknown): string[] {
+  return asStringList(value).map(one => one.trim()).filter(Boolean)
 }
 
 /** `reviewos.block:` - the prompt, and the fields collected on the way through. */
@@ -1554,6 +1662,9 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       timeoutMinutes: typeof timeout === 'number' && Number.isFinite(timeout) ? timeout : null,
       environment: environmentFrom(body.environment),
       services: servicesFrom(body.services),
+      skip: extension.skip,
+      softFail: extension.softFail,
+      branches: extension.branches,
       env: asStringMap(body.env),
       outputs: asStringMap(body.outputs),
       uses: typeof body.uses === 'string' && body.uses.length > 0 ? body.uses : null,

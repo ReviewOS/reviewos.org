@@ -17,6 +17,7 @@ import { announceJob, announceRunIfMoved } from '../Workflow/announce'
 import type { JobState } from '../Workflow/states'
 import { canJobMove } from '../Workflow/states'
 import { revokeJobTokens } from '../Workflow/jobToken'
+import { softFailOutcome } from '../Workflow/stepAttributes'
 import { settleRun } from '../Workflow/settle'
 import type { RunnerFacts } from './protocol'
 import { mayReport, splitLabels } from './protocol'
@@ -103,6 +104,7 @@ export async function reportJob(
       'workflow_jobs.runs_on as runs_on',
       'workflow_jobs.runner_id as runner_id',
       'workflow_jobs.lease_expires_at as lease_expires_at',
+      'workflow_jobs.settings as settings',
       'workflow_jobs.workflow_run_id as run_id',
       'workflow_runs.repository_id as repository_id',
       'repositories.owner_id as owner_id',
@@ -121,6 +123,8 @@ export async function reportJob(
     ownerId: Number(row.owner_id),
     runnerId: row.runner_id === null ? null : Number(row.runner_id),
     leaseExpiresAt: row.lease_expires_at ? String(row.lease_expires_at) : null,
+    /** The `reviewos:` attributes the run copied forward, for `soft-fail:`. */
+    settings: row.settings ?? null,
   }
 
   // The state the runner is claiming travels with the question, because one
@@ -171,6 +175,32 @@ export async function reportJob(
 
       return { ok: true, reason: retry.reason, duplicate: false, runState: await currentRunState(Number(row.run_id)) }
     }
+  }
+
+  /*
+   * `soft-fail:` - a failure the workflow said to tolerate.
+   *
+   * Decided here rather than at dispatch because it keys on the exit status,
+   * which does not exist until the job has failed. The job's *own* state stays
+   * `failed`, and `continue_on_error` is what the graph reads - so the run goes
+   * on, the commit does not go red, and the job still says what happened.
+   *
+   * Recorded as a failure rather than rewritten as a success on purpose: a
+   * screen that shows a tolerated failure as passing is one where nobody ever
+   * finds out the linter has been failing for a month.
+   */
+  const soft = softFailOf(facts.settings)
+  const tolerated = input.state === 'failed'
+    ? softFailOutcome(soft, input.exitStatus ?? null)
+    : { tolerated: false, reason: '' }
+
+  if (tolerated.tolerated) {
+    await db
+      .updateTable('workflow_jobs')
+      .set({ continue_on_error: true, condition_reason: tolerated.reason } as any)
+      .where('id', '=', facts.id)
+      .execute()
+      .catch(() => null)
   }
 
   await db
@@ -325,5 +355,24 @@ async function retryDecision(jobId: number, exitStatus: number | null): Promise<
     retrying: true,
     attempt: attempt + 1,
     reason: `Attempt ${attempt} failed${exitStatus === null ? '' : ` (exit ${exitStatus})`}; retrying, ${allowed - attempt + 1} of ${allowed} left.`,
+  }
+}
+
+/** A job's `soft-fail:`, out of the settings the run copied forward. */
+function softFailOf(settings: unknown): { any: boolean, statuses: number[] } | null {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+    const soft = parsed?.softFail
+
+    if (!soft || typeof soft !== 'object')
+      return null
+
+    return {
+      any: soft.any === true,
+      statuses: Array.isArray(soft.statuses) ? soft.statuses.map(Number).filter(Number.isFinite) : [],
+    }
+  }
+  catch {
+    return null
   }
 }

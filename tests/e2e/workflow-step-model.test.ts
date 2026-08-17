@@ -630,3 +630,139 @@ describe('retry', () => {
     expect(jobNamed(await jobsOf(runId), 'flaky').state).toBe('failed')
   }, 120_000)
 })
+
+/*
+ * The three step attributes against the real tables.
+ *
+ * The unit tests hold the rules; this holds where each one is applied, which is
+ * the part that only the engine can be wrong about: `skip` and `branches` at
+ * dispatch, `soft-fail` at the report.
+ */
+describe('step attributes', () => {
+  const ATTRIBUTES = `name: Attributes
+on: push
+jobs:
+  always:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./always
+  only-main:
+    runs-on: ubuntu-latest
+    reviewos:
+      branches: [main]
+    steps:
+      - run: ./deploy
+  never-here:
+    runs-on: ubuntu-latest
+    reviewos:
+      branches: ['!main']
+    steps:
+      - run: ./preview
+  turned-off:
+    runs-on: ubuntu-latest
+    reviewos:
+      skip: The vendor API is down until Tuesday.
+    steps:
+      - run: ./vendor
+  lint:
+    runs-on: ubuntu-latest
+    reviewos:
+      soft-fail: [1]
+    steps:
+      - run: ./lint
+`
+
+  let runId = 0
+
+  test('skip and branches decide when the run is created', async () => {
+    if (!available)
+      return
+
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path: '.github/workflows/attributes.yml',
+      source: ATTRIBUTES,
+      sha: 'c'.repeat(40),
+    })
+
+    const result = await dispatchPush({
+      repositoryId: created.repositoryId,
+      event: { ref: 'refs/heads/main' },
+      headSha: unique('e').padEnd(40, '0').slice(0, 40),
+    })
+
+    for (const candidate of result.created) {
+      const rows = await jobsOf(candidate)
+
+      if (jobNamed(rows, 'turned-off'))
+        runId = candidate
+    }
+
+    expect(runId).toBeGreaterThan(0)
+
+    const rows = await jobsOf(runId)
+
+    // A branch the job names: queued, like any other.
+    expect(String(jobNamed(rows, 'only-main').state)).toBe('queued')
+
+    /*
+     * The two that will never run are `skipped` from the first second, with
+     * the reason on them - rather than sitting in the queue looking like work
+     * nobody has got to, which is how somebody ends up investigating a runner.
+     */
+    const excluded = jobNamed(rows, 'never-here')
+
+    expect(String(excluded.state)).toBe('skipped')
+    expect(String(excluded.condition_reason)).toContain('excluded')
+
+    const off = jobNamed(rows, 'turned-off')
+
+    expect(String(off.state)).toBe('skipped')
+    expect(String(off.condition_reason)).toBe('The vendor API is down until Tuesday.')
+  }, 120_000)
+
+  test('and soft-fail decides at the report, keeping the failure visible', async () => {
+    if (!available)
+      return
+
+    const runner = await makeRunner()
+    const rows = await jobsOf(runId)
+    const lint = jobNamed(rows, 'lint')
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'running', runner_id: String(runner.id), lease_expires_at: new Date(Date.now() + 60_000).toISOString() } as any)
+      .where('id', '=', Number(lint.id))
+      .execute()
+
+    const jobToken: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['job_token_hash'])
+      .where('id', '=', Number(lint.id))
+      .executeTakeFirst()
+
+    expect(jobToken).toBeTruthy()
+
+    await reportJob(runner, { jobId: Number(lint.id), state: 'failed', error: 'findings', exitStatus: 1 })
+
+    const after = jobNamed(await jobsOf(runId), 'lint')
+
+    /*
+     * The job still says it failed - a screen that showed a tolerated failure
+     * as passing is one where nobody finds out the linter has been failing for
+     * a month - and the graph is told not to count it.
+     */
+    expect(String(after.state)).toBe('failed')
+    expect(String(after.condition_reason)).toContain('tolerates')
+
+    const row: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['continue_on_error'])
+      .where('id', '=', Number(lint.id))
+      .executeTakeFirst()
+
+    expect(row.continue_on_error).toBe(true)
+  }, 120_000)
+})

@@ -535,3 +535,49 @@ Two places it is deliberately not identical:
 Every call is this instance's own API with the caller's token, so
 `permissions:` in the workflow is what decides whether a write is allowed.
 There is no second permission check to disagree with the first.
+
+## Step attributes: `skip`, `soft-fail`, `branches`
+
+```yaml
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    reviewos:
+      soft-fail: [1]          # findings do not fail the run; a missing linter does
+      branches: [main, '!wip/*']
+    steps:
+      - run: ./lint
+
+  vendor:
+    runs-on: ubuntu-latest
+    reviewos:
+      skip: The vendor API is down until Tuesday.
+    steps:
+      - run: ./vendor
+```
+
+**`skip` takes a reason**, and that is the difference between a job somebody can
+decide about in three weeks and a commented-out block nobody reads. The reason
+shows on the run beside the job.
+
+**`branches` is the shorthand for the most common `if:`.** `if: github.ref ==
+'refs/heads/main'` is what everybody writes and a good share get wrong -
+`refs/heads/` is easy to forget, and the failure is silent, because a condition
+nobody matches is a job that simply never runs. An exclusion beats an inclusion,
+which is what every other tool with both does and the safer reading: `['*',
+'!release/*']` means *not release*.
+
+Both decide **when the run is created**. A job that will never run reads as
+skipped from the first second, rather than sitting in the queue looking like
+work nobody has got to - which is how somebody ends up investigating a runner.
+
+**`soft-fail` decides at the report**, because it keys on an exit status that
+does not exist until the job has failed. `true` tolerates any failure; a list
+tolerates the ones worth tolerating - a linter exiting 1 on findings is a soft
+failure, and the same linter exiting 127 because it is not installed is a broken
+pipeline wearing a green tick. A failure with no exit status at all (a lost
+runner, a timeout) is **not** tolerated by a status list.
+
+The job still reports `failed`. A screen that showed a tolerated failure as
+passing is one where nobody finds out the linter has been failing for a month;
+what changes is that the run does not fail with it.

@@ -58,10 +58,21 @@ export function digestOf(source: string): string {
  * repository, so a workflow author cannot lower the bar for their own deploy
  * by editing the file the deploy is written in.
  */
-function settingsWith(settings: Record<string, unknown>, environment: string | null, services: readonly unknown[] = []): string | null {
+function settingsWith(
+  settings: Record<string, unknown>,
+  environment: string | null,
+  services: readonly unknown[] = [],
+  attributes: { skip?: string | null, softFail?: unknown, branches?: readonly string[] } = {},
+): string | null {
   const merged = {
     ...settings,
     ...(environment ? { environment } : {}),
+    // Buildkite's step attributes ride here for the same reason the
+    // environment does: a run copies its settings forward, and a runner reads
+    // what the file asked for rather than a definition it may no longer match.
+    ...(attributes.skip ? { skip: attributes.skip } : {}),
+    ...(attributes.softFail ? { softFail: attributes.softFail } : {}),
+    ...(attributes.branches && attributes.branches.length > 0 ? { branches: attributes.branches } : {}),
     // The services ride here too, for the same reason: a run copies its
     // settings forward, and a runner reads what the file asked for rather than
     // going back to the definition it may no longer match.
@@ -267,7 +278,11 @@ async function insertVersion(
         // The step model's own columns. A job with no `reviewos:` key is a
         // command job, which is every job an Actions workflow can write.
         kind: job.kind,
-        settings: settingsWith(job.settings, job.environment, job.services),
+        settings: settingsWith(job.settings, job.environment, job.services, {
+          skip: job.skip,
+          softFail: job.softFail,
+          branches: job.branches,
+        }),
         group_label: job.group,
         priority: job.priority,
         if_changed: job.ifChanged.length > 0 ? job.ifChanged.join('\n') : null,

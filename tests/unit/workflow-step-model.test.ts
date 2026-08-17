@@ -258,11 +258,22 @@ describe('the rules that keep the kinds apart', () => {
   })
 
   test('an unknown reviewos: key names the ones there are', () => {
-    expect(errorsIn(`jobs:
+    /*
+     * The whole list, not a sample of it. A message that names four keys when
+     * eleven exist sends somebody to the documentation for the one they
+     * actually wanted - and `pause` is a plausible typo for at least three of
+     * them.
+     */
+    const message = errorsIn(`jobs:
   odd:
     reviewos:
       pause: true
-`).join(' ')).toContain('`wait`, `block`, `trigger` and `group`')
+`).join(' ')
+
+    expect(message).toContain('`pause` is not a `reviewos:` key')
+
+    for (const key of ['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents', 'skip', 'soft-fail', 'branches'])
+      expect(message).toContain(`\`${key}\``)
   })
 })
 

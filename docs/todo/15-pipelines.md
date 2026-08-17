@@ -1108,9 +1108,39 @@ below are the internal model's; the Actions key that maps onto each is noted whe
 - [ ] `if`, a conditional expression over a documented, sandboxed variable set: branch, tag, commit
       message, trigger source, changed paths, prior step outcomes, and declared inputs. No arbitrary
       reads of control-plane state.
-- [ ] `branches`, including negation, as the shorthand for the most common `if`
-- [ ] `skip`, boolean or a reason string that shows on the run
-- [ ] `soft_fail`, boolean or a list of exit statuses that report failure without failing the run
+- [x] `branches`, including negation, as the shorthand for the most common `if`
+
+      `reviewos: { branches: [main, '!wip/*'] }`, decided when the run is created. It exists
+      because `if: github.ref == 'refs/heads/main'` is the expression everybody writes and a good
+      share get wrong - `refs/heads/` is easy to forget, and the failure is silent, since a
+      condition nobody matches is a job that simply never runs with no error anywhere.
+
+      **An exclusion beats an inclusion**, which is what every other tool carrying both does and
+      the safer reading: `['*', '!release/*']` means *not release*, and the other way round runs a
+      deploy on exactly the branch it was told to avoid. A list of exclusions alone means
+      everywhere else.
+- [x] `skip`, boolean or a reason string that shows on the run
+
+      And `skip: true` still gets a sentence, because the reason is the whole difference between a
+      skipped job somebody can decide about in three weeks and a commented-out block nobody reads.
+
+      Applied at dispatch with `branches`, so a job that will never run is `skipped` from the first
+      second rather than sitting in the queue looking like work nobody has got to - which is how
+      somebody ends up investigating a runner that is behaving perfectly.
+- [x] `soft_fail`, boolean or a list of exit statuses that report failure without failing the run
+
+      `reviewos: { soft-fail: [1] }`, decided **at the report** rather than at dispatch, because it
+      keys on an exit status that does not exist until the job has failed.
+
+      The list is what earns the attribute its place over `continue-on-error`, which is
+      all-or-nothing: a linter exiting 1 on findings is a soft failure, and the same linter exiting
+      127 because it is not installed is a broken pipeline wearing a green tick. A failure with no
+      exit status at all - a lost runner, a timeout - is **not** tolerated by a status list, the
+      same rule `retry` follows.
+
+      The job still records `failed` and the graph is told not to count it. Rewriting it as a
+      success would be the version where nobody finds out the linter has been failing for a
+      month.
 - [x] `retry`, automatic and manual. Automatic retries key on exit status, a lost runner, and a
       timeout, with limits and constant, linear, or exponential backoff. Manual retry can be
       permitted, forbidden, or forbidden with a reason.

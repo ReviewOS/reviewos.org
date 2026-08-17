@@ -20,6 +20,7 @@
  */
 
 import { db } from '@stacksjs/database'
+import { branchDecision, skipDecision } from './stepAttributes'
 import type { ConcurrencyContext } from './concurrency'
 import { resolveGroup } from './concurrency'
 import { globMatches } from './triggers'
@@ -690,8 +691,24 @@ async function createJobs(
        */
       const paths = pathDecision(job.if_changed, context?.changed ?? [])
 
-      const runs = decision.run && paths.run
-      const why = !decision.run ? decision.reason : paths.reason
+      /*
+       * `skip:` and `branches:` decide here rather than at claim time.
+       *
+       * Both are statements about whether this job should exist in this run at
+       * all, and a job that will never run should read as skipped from the
+       * first second - not sit in the queue looking like work nobody has got
+       * to, which is how somebody ends up investigating a runner.
+       */
+      const attributes = settingsOfJob(job.settings)
+      const skipped = skipDecision(attributes.skip)
+      const branch = branchDecision(attributes.branches, String(context?.ref ?? ''))
+
+      const runs = decision.run && paths.run && skipped.run && branch.run
+      const why = !decision.run
+        ? decision.reason
+        : !paths.run
+            ? paths.reason
+            : !skipped.run ? skipped.reason : branch.reason
 
       const created: any = await db
         .insertInto('workflow_jobs')
@@ -969,6 +986,21 @@ function labelFor(values: Record<string, unknown>): string {
  * runs when it need not have costs a machine for a few minutes, and a job that
  * is skipped when it should have run is a broken commit nobody noticed.
  */
+/** A definition job's stored `reviewos:` attributes, which are JSON in a column. */
+function settingsOfJob(settings: unknown): { skip: string | null, branches: string[] } {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+
+    return {
+      skip: typeof parsed?.skip === 'string' ? parsed.skip : null,
+      branches: Array.isArray(parsed?.branches) ? parsed.branches.map(String) : [],
+    }
+  }
+  catch {
+    return { skip: null, branches: [] }
+  }
+}
+
 function pathDecision(globs: unknown, changed: readonly string[]): { run: boolean, reason: string } {
   const patterns = String(globs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
 
