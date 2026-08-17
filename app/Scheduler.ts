@@ -63,6 +63,18 @@ export default function () {
     .daily()
 
   /*
+   * Test monitors, hourly.
+   *
+   * They watch days of history, so a shorter cadence asks the same question
+   * repeatedly to get the same answer - and only a *transition* is an event,
+   * so a monitor in alarm for a month sends one message however often this
+   * runs.
+   */
+  schedule
+    .job('EvaluateTestMonitors')
+    .hourly()
+
+  /*
    * Per-execution test history, past the retention setting.
    *
    * Daily and just before the git maintenance below, so the two heavy nightly

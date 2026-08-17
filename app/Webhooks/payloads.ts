@@ -105,6 +105,20 @@ export const WEBHOOK_EVENTS = [
    * keys to find out which kind it got is one that gets it wrong.
    */
   'status:reported',
+  /*
+   * A test monitor changed its mind.
+   *
+   * One event for both directions, with `alarm` or `recovered` in `action`,
+   * and it is emitted **only on the transition**: the condition is true every
+   * hour it is true, and a receiver told so every hour is a receiver that
+   * writes a filter. The recovery is half the value - a dashboard that only
+   * ever goes red is one people stop reading.
+   *
+   * Webhook-only, like the check and run events, and for the same reason:
+   * nobody wants an inbox entry each time a suite wobbles, and this is a rule
+   * somebody wrote for a program to act on.
+   */
+  'test:monitor',
 ] as const
 
 export type WebhookEvent = typeof WEBHOOK_EVENTS[number]
@@ -164,6 +178,31 @@ export interface WebhookPayload extends Envelope {
   run?: RunDetail
   /** The job, on `job:transitioned`. */
   job?: JobDetail
+  /** The rule that changed its mind, on `test:monitor`. */
+  monitor?: MonitorDetail
+}
+
+/**
+ * A rule about the tests, and what it now reads.
+ *
+ * `measurement` and `samples` travel with it because a receiver acting on an
+ * alarm needs to know how much evidence is behind it: "the failure rate is 40%"
+ * over nine executions is a different message from the same number over nine
+ * thousand.
+ */
+export interface MonitorDetail {
+  id: number
+  /** The suite it watches, or null for all of them together. */
+  suite: string | null
+  /** `fail_rate`, `flaky`, or `duration`. */
+  condition: string
+  /** Percent, a count of tests, or milliseconds, depending on the condition. */
+  threshold: number
+  window_days: number
+  /** `alarm` or `recovered`. Also copied into the envelope's `action`. */
+  action: string
+  measurement: number | null
+  samples: number
 }
 
 /** A workflow run, for the receivers that wait on one. */
@@ -218,6 +257,8 @@ const ACTIONS: Record<string, string> = {
   // Fallbacks only: a real payload carries the state it moved to.
   'run:transitioned': 'transitioned',
   'job:transitioned': 'transitioned',
+  // Also a fallback: a real monitor payload carries `alarm` or `recovered`.
+  'test:monitor': 'changed',
 }
 
 /**
@@ -254,7 +295,7 @@ export interface CheckDetail {
  */
 export function webhookPayload(
   event: NotificationEvent | string,
-  subject: EventSubject & { detail?: string, check?: CheckDetail, run?: RunDetail, job?: JobDetail },
+  subject: EventSubject & { detail?: string, check?: CheckDetail, run?: RunDetail, job?: JobDetail, monitor?: MonitorDetail },
   at: string,
 ): WebhookPayload {
   const owner = String(subject.owner ?? '')
@@ -291,11 +332,17 @@ export function webhookPayload(
         ? String(subject.job.state)
         : subject.run
           ? String(subject.run.state)
-          : (ACTIONS[String(event)] ?? String(event)),
+          // A monitor's action is the direction it moved, which is the field a
+          // receiver switches on: an alarm and its recovery are the same event
+          // name and opposite meanings.
+          : subject.monitor
+            ? String(subject.monitor.action)
+            : (ACTIONS[String(event)] ?? String(event)),
     ...(subject.detail ? { tag: String(subject.detail) } : {}),
     ...(subject.check ? { check: subject.check } : {}),
     ...(subject.run ? { run: subject.run } : {}),
     ...(subject.job ? { job: subject.job } : {}),
+    ...(subject.monitor ? { monitor: subject.monitor } : {}),
   }
 }
 

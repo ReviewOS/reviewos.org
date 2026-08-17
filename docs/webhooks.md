@@ -54,6 +54,7 @@ body: a webhook endpoint that skips the check is an endpoint anybody can post to
 | `run:transitioned` | a workflow run changed state; `action` is the new one |
 | `job:transitioned` | one job of a run changed state; `action` is the new one |
 | `status:reported` | the older commit-status API said something; `action` is its state |
+| `test:monitor` | a rule about the tests changed state; `action` is `alarm` or `recovered` |
 
 `check:reported`, `status:reported`, `run:transitioned` and `job:transitioned` carry an extra
 key - `check`, `run` or `job` - and put the new state in `action`, so one subscription covers a

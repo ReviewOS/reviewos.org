@@ -91,6 +91,14 @@ export default {
    */
   'run:transitioned': ['DispatchWebhooks'],
   'job:transitioned': ['DispatchWebhooks'],
+  /*
+   * A rule about the tests started, or stopped, holding.
+   *
+   * Webhook-only for the same reason as the two above, with one addition: it
+   * is already rate-limited by its own design, since only a *transition* is an
+   * event. A monitor in alarm for a month sends one message.
+   */
+  'test:monitor': ['DispatchWebhooks'],
   'pr:merged': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'pr:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'review:requested': ['Notify', 'DispatchWebhooks'],

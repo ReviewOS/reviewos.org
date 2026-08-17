@@ -1655,8 +1655,34 @@ should work for a repository that has not moved its CI here yet.
       Muted failures are counted, kept in the test's history, and shown - they are only set aside
       when the endpoint reaches a verdict. So the day the test starts passing again is visible,
       which is exactly what skipping it destroys.
-- [ ] Monitors and actions: a rule that watches a test over time, raises an alarm when a condition
+- [x] Monitors and actions: a rule that watches a test over time, raises an alarm when a condition
       holds, recovers when it stops, and fires an action once per transition rather than per run
+
+      Three conditions - `fail_rate`, `flaky`, `duration` - and no expression language, because a
+      general one is a second product to document, test and get wrong.
+
+      **The state lives on the monitor, and that is the whole design.** "Is the failure rate above
+      five percent" is true every hour it is true, so a rule that acted on the answer would send
+      the same alarm twenty-four times a day - and the channel it arrives on is the one that has to
+      work the day it matters. A monitor in alarm for a month sends one message.
+
+      Three decisions the tests hold. A **measurement it could not take is not a recovery**: a
+      suite nobody reported for would otherwise clear an alarm because the reporting broke, which
+      is when the alarm matters most. A **muted test cannot cause one**, since its failures are set
+      aside everywhere else and counting them here would alarm on exactly the tests somebody
+      already decided about. And **exactly at the threshold is not over it**, because "above five
+      percent" is what somebody wrote down.
+
+      The threshold for `fail_rate` is a percentage rather than a share, which is a decision about
+      a trap rather than about taste: `5` typed at a field wanting a share is five hundred percent,
+      a monitor that can never fire, and it reads as covered.
+
+      Found on the way: `schema.double()` is an alias for `float` in ts-validation, so it generates
+      a four-byte column that hands `2.5` back as `2.5000000596046448`. Thresholds are `decimal`,
+      which is exact - and percentages fit its two decimal places, where shares would not.
+
+      Transitions leave as the `test:monitor` webhook with `alarm` or `recovered` in `action`.
+      Webhook-only, like `check:reported`: nobody wants an inbox entry each time a suite wobbles.
 - [x] Reliability and duration trends per test, per suite, and per branch, with the slowest and least
       reliable surfaced without a query
 

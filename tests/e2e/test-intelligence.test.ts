@@ -644,3 +644,217 @@ describe('retention', () => {
     expect(Number(after.count)).toBe(Number(before.count))
   }, 120_000)
 })
+
+/*
+ * Monitors, end to end: the rule fires once, stays quiet while it holds, and
+ * recovers when it stops.
+ *
+ * The "stays quiet" case is the one worth the fixture. Everything else about a
+ * monitor is a query; the reason it is a stored rule rather than a saved search
+ * is that a condition true every hour must not be an alarm every hour.
+ */
+describe('monitors', () => {
+  let monitorId = 0
+
+  test('a rule that has not been crossed says nothing', async () => {
+    if (!available)
+      return
+
+    const { evaluateMonitors } = await import('../../app/Actions/Tests/monitors')
+
+    await ingest({
+      suite: 'monitored',
+      key: 'monitor-green',
+      headSha: '2a'.repeat(20),
+      executions: [
+        { scope: 'm/a.test.ts', name: 'one', result: 'passed' },
+        { scope: 'm/b.test.ts', name: 'two', result: 'passed' },
+      ],
+    })
+
+    const created: any = await db.insertInto('test_monitors').values({
+      repository_id: created_repository(),
+      suite: 'monitored',
+      condition: 'fail_rate',
+      threshold: 25,
+      window_days: 7,
+      state: 'ok',
+      enabled: true,
+    }).returning(['id']).executeTakeFirst()
+
+    monitorId = Number(created?.id)
+
+    const outcome = await evaluateMonitors(created_repository())
+
+    expect(outcome.transitions.filter((one: any) => one.id === monitorId)).toEqual([])
+
+    /*
+     * But it did look, and it recorded when. A rule that says everything is
+     * fine and a rule that has not run since March are indistinguishable
+     * without this.
+     */
+    const row: any = await db.selectFrom('test_monitors').select(['evaluated_at', 'changed_at', 'state']).where('id', '=', monitorId).executeTakeFirst()
+
+    expect(row.evaluated_at).toBeTruthy()
+    expect(row.changed_at).toBeFalsy()
+    expect(String(row.state)).toBe('ok')
+  }, 120_000)
+
+  test('crossing the line alarms exactly once, however often it is evaluated', async () => {
+    if (!available)
+      return
+
+    const { evaluateMonitors } = await import('../../app/Actions/Tests/monitors')
+
+    await ingest({
+      suite: 'monitored',
+      key: 'monitor-red',
+      headSha: '2b'.repeat(20),
+      executions: [
+        { scope: 'm/a.test.ts', name: 'one', result: 'failed', failureMessage: 'broke' },
+        { scope: 'm/b.test.ts', name: 'two', result: 'failed', failureMessage: 'broke' },
+      ],
+    })
+
+    const first = await evaluateMonitors(created_repository())
+
+    expect(first.transitions.find((one: any) => one.id === monitorId)?.to).toBe('alarm')
+
+    // The assertion the whole design exists for.
+    const second = await evaluateMonitors(created_repository())
+
+    expect(second.transitions.find((one: any) => one.id === monitorId)).toBeUndefined()
+  }, 120_000)
+
+  test('and it recovers when the suite does', async () => {
+    if (!available)
+      return
+
+    const { evaluateMonitors } = await import('../../app/Actions/Tests/monitors')
+
+    // Enough passing history to pull the share back under a quarter.
+    for (const key of ['green-1', 'green-2', 'green-3', 'green-4']) {
+      await ingest({
+        suite: 'monitored',
+        key,
+        headSha: `2c${key}`.padEnd(40, '0'),
+        executions: [
+          { scope: 'm/a.test.ts', name: 'one', result: 'passed' },
+          { scope: 'm/b.test.ts', name: 'two', result: 'passed' },
+        ],
+      })
+    }
+
+    const outcome = await evaluateMonitors(created_repository())
+
+    expect(outcome.transitions.find((one: any) => one.id === monitorId)?.to).toBe('recovered')
+
+    const row: any = await db.selectFrom('test_monitors').select(['state']).where('id', '=', monitorId).executeTakeFirst()
+
+    expect(String(row.state)).toBe('ok')
+  }, 120_000)
+
+  test('a muted test cannot put a monitor into alarm', async () => {
+    if (!available)
+      return
+
+    const { evaluateMonitors } = await import('../../app/Actions/Tests/monitors')
+
+    /*
+     * Somebody already decided about this test. A monitor that counted its
+     * failures would alarm on exactly the tests that are under control, and
+     * the quarantine would stop being a decision and become a source of noise.
+     */
+    const suite: any = await db
+      .selectFrom('test_suites')
+      .select(['id'])
+      .where('repository_id', '=', created_repository())
+      .where('slug', '=', 'monitored')
+      .executeTakeFirst()
+
+    await db.updateTable('managed_tests')
+      .set({ state: 'muted', muted_reason: 'known', review_at: '2027-01-01' } as any)
+      .where('name', '=', 'one')
+      .where('test_suite_id', '=', Number(suite.id))
+      .execute()
+
+    await ingest({
+      suite: 'monitored',
+      key: 'monitor-muted',
+      headSha: '2d'.repeat(20),
+      executions: [
+        { scope: 'm/a.test.ts', name: 'one', result: 'failed', failureMessage: 'still broken, and known' },
+        { scope: 'm/b.test.ts', name: 'two', result: 'passed' },
+      ],
+    })
+
+    const outcome = await evaluateMonitors(created_repository())
+
+    expect(outcome.transitions.find((one: any) => one.id === monitorId)).toBeUndefined()
+  }, 120_000)
+})
+
+describe('the monitors endpoint', () => {
+  async function monitors(body: Record<string, unknown>): Promise<any> {
+    const answer = await fetch(`http://127.0.0.1:${port}/api/repos/tests/monitors`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${created.token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ owner: created.handle, repo: created.name, ...body }),
+    })
+
+    return { status: answer.status, body: await answer.json().catch(() => null) }
+  }
+
+  test('writes a rule and hands back both of its dates', async () => {
+    if (!available)
+      return
+
+    const { status, body } = await monitors({ operation: 'create', suite: 'browser', condition: 'fail_rate', threshold: 2.5, window_days: 14 })
+
+    expect(status).toBe(200)
+
+    // 2.5 comes back as 2.5. A four-byte float would hand back
+    // 2.5000000596046448, and a threshold that does not survive the round trip
+    // is one somebody tries to correct and cannot.
+    expect(body.monitor).toMatchObject({ suite: 'browser', condition: 'fail_rate', threshold: 2.5, state: 'ok' })
+
+    // Never evaluated, so both are null - which is the state that says "this
+    // rule has never run" rather than "everything is fine".
+    expect(body.monitor.evaluated_at).toBeNull()
+    expect(body.monitor.changed_at).toBeNull()
+  }, 120_000)
+
+  test('and refuses a failure rate that could never be crossed', async () => {
+    if (!available)
+      return
+
+    /*
+     * Above a hundred percent, no execution history can cross it. A monitor
+     * that can never fire is worse than none: it reads as covered.
+     */
+    const { status, body } = await monitors({ operation: 'create', condition: 'fail_rate', threshold: 500 })
+
+    expect(status).toBe(422)
+    expect(String(body.reason)).toContain('between 0 and 100')
+  }, 120_000)
+
+  test('but 500 is a fine threshold in milliseconds', async () => {
+    if (!available)
+      return
+
+    // The same number, meaning half a second, on the condition whose unit is
+    // milliseconds. The refusal above is about the unit, not the digit.
+    const { status } = await monitors({ operation: 'create', condition: 'duration', threshold: 500, suite: 'browser' })
+
+    expect(status).toBe(200)
+  }, 120_000)
+})
+
+/** The repository this file created, named as a function so it reads in place. */
+function created_repository(): number {
+  return created.repositoryId
+}

@@ -789,6 +789,16 @@ route.post('/repos/tests/manage', 'Actions/Tests/ManageTestAction').middleware('
  */
 route.post('/repos/tests/split', 'Actions/Tests/SplitTestsAction').middleware('auth')
 
+/*
+ * Rules that watch a suite over time.
+ *
+ * A monitor fires on the *transition* and nothing else, which is the whole
+ * difference between a rule and a saved query: a condition that is true every
+ * hour would otherwise be an alarm every hour, and the channel it arrives on is
+ * the one that has to work the day it matters.
+ */
+route.post('/repos/tests/monitors', 'Actions/Tests/MonitorTestsAction').middleware('auth')
+
 /**
  * The runner protocol.
  *

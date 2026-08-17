@@ -5448,6 +5448,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/tests/monitors
+   */
+  postReposTestsMonitors(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "list" | "create" | "update" | "delete" | "evaluate"; "monitor"?: number; "suite"?: string; "condition"?: "flaky" | "fail_rate" | "duration"; "threshold"?: number; "window_days"?: number; "enabled"?: boolean } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/tests/monitors", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/repos/tests/split
    */
   postReposTestsSplit(input?: { body?: { "owner"?: string; "repo"?: string; "suite"?: string; "nodes"?: number; "index"?: number } }, options?: RequestOptions): Promise<ApiResult<{ "items"?: Array<string>; "estimated_ms"?: number; "unknown"?: number; "note"?: string }>> {

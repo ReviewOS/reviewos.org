@@ -255,10 +255,57 @@ writes two thousand rows per push.
 decisions somebody recorded; the executions are data that accumulated. A sweep
 that took the mute with the history would silently un-quarantine a test.
 
+## Monitors
+
+A rule that watches a suite and says something **once**, when the answer
+changes.
+
+```sh
+curl -sX POST https://reviewos.example/api/repos/tests/monitors \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"owner":"acme","repo":"widgets","operation":"create",
+       "suite":"browser","condition":"fail_rate","threshold":5,"window_days":14}'
+```
+
+| Condition | Measures | Threshold is |
+|---|---|---|
+| `fail_rate` | share of executions that failed | a **percentage**, 0 to 100 |
+| `flaky` | tests that disagree with themselves | a count |
+| `duration` | what one run of the suite costs | milliseconds |
+
+`fail_rate` is a percentage rather than a share from zero to one because
+somebody typing `5` at a field that wants a share has written five hundred
+percent, and the monitor they just made can never fire - which is worse than no
+monitor, since it reads as covered.
+
+**Only the transition is an event.** "Is the failure rate above five percent" is
+true every hour it is true; a rule that acted on the answer would send the same
+alarm twenty-four times a day, and the channel it arrives on is the one that has
+to work the day it matters. So a monitor in alarm for a month sends one message.
+
+The recovery is an event too. Somebody told a suite is unreliable has no way to
+learn it is fine again, and a dashboard that only ever goes red is one people
+stop reading.
+
+A **muted test cannot put a monitor into alarm.** Its failures are already set
+aside everywhere else, and counting them here would alarm on exactly the tests
+somebody has already decided about.
+
+And **a measurement it could not take is not a recovery**: a suite nobody
+reported for this week has no failure rate, and reading that as "back to normal"
+would clear an alarm because the reporting broke - which is when the alarm
+matters most.
+
+Evaluated hourly. `operation: "evaluate"` runs it now, which is what you want
+the moment after writing a rule. Transitions arrive as the `test:monitor`
+webhook, with `alarm` or `recovered` in `action` - webhook-only, because nobody
+wants an inbox entry every time a suite wobbles.
+
+Both dates come back on a monitor: `evaluated_at` moves every hour,
+`changed_at` only on a transition. The difference is how you tell "this rule
+says everything is fine" from "this rule has not run since March".
+
 ## What is not built yet
 
 Stated plainly, because a half-built feature you discover yourself is worse than
 one that was never promised:
-
-- **Monitors and actions** - a rule that watches a test and raises an alarm once
-  per transition.

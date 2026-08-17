@@ -46,6 +46,10 @@ export default {
     // covers queued through finished.
     'run:transitioned',
     'job:transitioned',
+    // A rule about the tests changed its mind. Rate-limited by its own design:
+    // only a transition is an event, so a monitor in alarm for a month sends
+    // one message.
+    'test:monitor',
   ],
 
   async handle(payload: EventSubject & { event?: NotificationEvent }, eventName?: string): Promise<void> {

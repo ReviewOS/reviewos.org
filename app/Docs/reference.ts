@@ -359,6 +359,7 @@ function describeEvent(event: string): string {
     'status:reported': 'the older commit-status API said something; `action` is its state',
     'run:transitioned': 'a workflow run changed state; `action` is the new one',
     'job:transitioned': 'one job of a run changed state; `action` is the new one',
+    'test:monitor': 'a rule about the tests changed state; `action` is `alarm` or `recovered`',
   }
 
   return sentences[event] ?? 'see the payload module'
