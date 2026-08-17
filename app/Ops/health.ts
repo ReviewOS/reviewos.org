@@ -238,14 +238,14 @@ async function repositoryStorage(writeProbe: boolean): Promise<Check> {
      */
     if (!existsSync(root)) {
       return {
-        status: 'fail' as const,
+        status: 'failed' as const,
         detail: `repository storage is missing at ${root} - the deploy did not create it, or a symlink points somewhere that does not exist`,
       }
     }
 
     if (!statSync(root).isDirectory()) {
       return {
-        status: 'fail' as const,
+        status: 'failed' as const,
         detail: `repository storage at ${root} is not a directory`,
       }
     }
