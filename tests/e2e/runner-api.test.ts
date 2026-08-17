@@ -462,9 +462,26 @@ describe('the run lifecycle, as a program hears it', () => {
   }
 
   /** Deliveries so far, waited for: the dispatch is deliberately not awaited. */
-  async function settled(atLeast: number): Promise<any[]> {
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      const rows: any[] = await db
+  /*
+   * Wait for the deliveries this test is about, not for a number of them.
+   *
+   * This waited for a *count*, and a count is a proxy that the wrong rows
+   * satisfy: three deliveries arrive as run:running, job:running and
+   * run:succeeded well before job:succeeded is written, so the poll returned
+   * happy and the assertion then failed on content it had never waited for.
+   * Green on a fast machine, red on a loaded one - which is exactly how this
+   * passed on laptops and failed in CI.
+   *
+   * Waiting on the predicate makes the wait and the assertion the same
+   * question. The timeout still exists, and still returns whatever it has, so
+   * a genuine regression fails on the assertion with the real rows in the
+   * message rather than on a bare timeout.
+   */
+  async function settledUntil(done: (rows: any[]) => boolean): Promise<any[]> {
+    let rows: any[] = []
+
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      rows = await db
         .selectFrom('webhook_deliveries')
         .select(['event', 'payload'])
         .where('webhook_id', '=', hookId)
@@ -472,13 +489,28 @@ describe('the run lifecycle, as a program hears it', () => {
         .orderBy('id', 'asc')
         .execute()
 
-      if (rows.length >= atLeast)
+      if (done(rows))
         return rows
 
       await new Promise(resolve => setTimeout(resolve, 100))
     }
 
-    return []
+    return rows
+  }
+
+  /** Did a `job:` or `run:` delivery report this action? */
+  function reported(rows: any[], event: string, action: string): boolean {
+    return rows.some((row) => {
+      if (String(row.event) !== event)
+        return false
+
+      try {
+        return JSON.parse(String(row.payload))?.action === action
+      }
+      catch {
+        return false
+      }
+    })
   }
 
   test('a claim and a report tell it what happened, in order', async () => {
@@ -494,7 +526,12 @@ describe('the run lifecycle, as a program hears it', () => {
 
     await call('/runner/report', { state: 'succeeded' }, token)
 
-    const sent = await settled(3)
+    // The three the assertions below read: the job running, the job
+    // succeeding, and the run succeeding.
+    const sent = await settledUntil(rows =>
+      reported(rows, 'job:transitioned', 'running')
+      && reported(rows, 'job:transitioned', 'succeeded')
+      && reported(rows, 'run:transitioned', 'succeeded'))
     const events = sent.map(row => String(row.event))
 
     // Job running, job succeeded, run succeeded. The run's own "running" may

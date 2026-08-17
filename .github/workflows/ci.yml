@@ -259,6 +259,16 @@ jobs:
           MAIL_MAILER: smtp
           MAIL_HOST: 127.0.0.1
           MAIL_PORT: '1'
+          # Required application config, not a test setting. Everything that
+          # signs or encrypts reads it, and `generateVerificationToken` is the
+          # *first* statement in `sendVerificationEmail` - so without a key it
+          # throws before the `email_verifications` row is written, the action
+          # swallows the error by design (a down mail transport is not the
+          # reader's problem), and the endpoint answers 200 having done
+          # nothing. The test asserting "the row is the evidence" was right and
+          # the environment was wrong. Not a real key; it never leaves the
+          # runner.
+          APP_KEY: base64:Zm9yLWNpLW9ubHktbm90LWEtcmVhbC1hcHAta2V5LXg9
         run: bun run test
 
       # `bun run test` shells out to `buddy test`, which only globs
@@ -289,6 +299,31 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
+
+      # Is there anything here to compile?
+      #
+      # The compile step below already answered this and skipped, but only
+      # after the two expensive setup steps had run to prepare for it. One of
+      # them, `pantry install`, is what has been failing: `pantry.lock` is
+      # generated on a developer's machine, so it pins versions that resolve on
+      # darwin and omits the linux-only transitive dependencies entirely -
+      # `openldap.org@2.6.13` and `util-linux@2.41.3` came back VersionNotFound
+      # on the runner. So the job was installing a system package tree, on the
+      # critical path to every deploy, in order to skip the one step that tree
+      # was for.
+      #
+      # Asked once here instead. A vendored core flips every step below back
+      # on, which is the layout this job was written for; a core-less app - the
+      # default, and what this one is - now says so and stops.
+      - name: Is the framework vendored here
+        id: vendored
+        run: |
+          if [ -d storage/framework/core ]; then
+            echo 'yes=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'yes=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::compile: this app resolves the framework from npm and has no vendored storage/framework/core; nothing to compile.'
+          fi
 
       - name: Setup Pantry
         uses: pantry-pm/pantry/packages/action@8826c8e3a511995aa0e70a6f0c8b4289f751fa96 # v0.10.50
@@ -325,6 +360,7 @@ jobs:
       # passed here while the release still failed on a package `pantry.lock`
       # held back. So this installs the same tree the release does.
       - name: Install the pantry tree
+        if: steps.vendored.outputs.yes == 'true'
         run: pantry install
 
       # The binaries are built only by the release job, on a tag, after npm
@@ -335,11 +371,8 @@ jobs:
       # the cheap half of `compile:all`.
       # See above: nothing to compile when the framework comes from npm.
       - name: Compile the buddy binary
+        if: steps.vendored.outputs.yes == 'true'
         run: |
-          if [ ! -d storage/framework/core ]; then
-            echo "::notice::Compile the buddy binary: this app resolves the framework from npm and has no vendored storage/framework/core; skipping."
-            exit 0
-          fi
           cd storage/framework/core/buddy
           bun run compile:linux-x64
 
@@ -363,9 +396,24 @@ jobs:
           version: '0.10.50'
           install: 'false'
 
+      # `--config=/dev/null`, so the application's preloader does not run.
+      #
+      # This job installs nothing, deliberately: the script imports `node:fs`
+      # and nothing else, and installing the whole tree to read a ref and print
+      # a name would cost minutes on the critical path to every deploy. But
+      # `bunfig.toml` preloads `storage/framework/defaults/resources/plugins/preloader.ts`
+      # for *every* `bun` invocation in this directory, and that needs
+      # `@stacksjs/path` from `node_modules` - so the job failed with an ENOENT
+      # about a package the script never asked for, and passed only when an
+      # `actions/cache` hit happened to leave `node_modules` lying around. A
+      # job that works or not depending on a cache is a job that will fail on
+      # the day it matters.
+      #
+      # An empty config gives a dependency-free script a dependency-free
+      # runtime, which is what it always was.
       - name: Resolve provisioned deployment target
         id: target
-        run: bun .github/scripts/deploy/resolve-target.ts --ref "$GITHUB_REF" --github-output "$GITHUB_OUTPUT"
+        run: bun --config=/dev/null .github/scripts/deploy/resolve-target.ts --ref "$GITHUB_REF" --github-output "$GITHUB_OUTPUT"
 
   deploy:
     if: >-

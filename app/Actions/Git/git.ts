@@ -100,6 +100,38 @@ export function dependencyPath(root = process.cwd()): string | null {
   return existsSync(bin) ? bin : null
 }
 
+/**
+ * The identity git falls back to when the caller does not supply one.
+ *
+ * A forge writes commits nobody typed: a merge commit, a squash, the rebase
+ * behind a stack landing. Those are the instance acting, not a person, and
+ * until now they carried no identity at all - so git looked for one in
+ * `~/.gitconfig` and the commit was attributed to whatever the *box* happened
+ * to be configured with. On a box with no identity configured, which is every
+ * fresh server and every CI runner, git refuses outright:
+ *
+ *     Committer identity unknown
+ *
+ * and the merge fails. The pull request stays open, the API answers as though
+ * nothing went wrong, and the cause is a machine setting rather than anything
+ * in the request. That is how "the parent landing rebases the child and the
+ * cascade merges it" passed on every laptop and failed in CI.
+ *
+ * So the instance names itself. Anything that knows the real actor - a push, a
+ * commit written on somebody's behalf - passes `GIT_AUTHOR_*` through `extra`
+ * and overrides this; see `write.ts`. The fallback is the committer of last
+ * resort, not a way to lose attribution.
+ *
+ * `.invalid` is reserved by RFC 2606 and can never be a real domain, which is
+ * the right shape for an address that must never receive mail.
+ */
+const INSTANCE_IDENTITY = {
+  GIT_AUTHOR_NAME: 'ReviewOS',
+  GIT_AUTHOR_EMAIL: 'noreply@reviewos.invalid',
+  GIT_COMMITTER_NAME: 'ReviewOS',
+  GIT_COMMITTER_EMAIL: 'noreply@reviewos.invalid',
+} as const
+
 /** The environment every git child gets: no prompts, no host config, our binaries. */
 export function gitEnvironment(extra: Record<string, string> = {}): Record<string, string> {
   const bin = dependencyPath()
@@ -108,6 +140,8 @@ export function gitEnvironment(extra: Record<string, string> = {}): Record<strin
   return {
     ...process.env as Record<string, string>,
     ...(path ? { PATH: path } : {}),
+    // Before `extra`, so a caller that knows who is acting still wins.
+    ...INSTANCE_IDENTITY,
     ...extra,
     // Never let a repository's own config change how we read it, and never let
     // git prompt: a hung credential prompt would hold the request open.
