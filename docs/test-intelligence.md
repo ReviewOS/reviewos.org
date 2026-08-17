@@ -58,6 +58,36 @@ Nothing here can reach back and change what your test runner already did - it
 exited before these results were sent. The endpoint tells you what this instance
 concludes; using it is your choice.
 
+## The first-party collector
+
+For a repository whose tests run under Bun, the whole of it is one command:
+
+```sh
+./buddy tests:report \
+  --url https://reviewos.example \
+  --repository acme/widgets \
+  --suite unit
+```
+
+`$REVIEWOS_TOKEN` supplies the credential, and the commit, branch and
+idempotency key are read from whatever CI is running it - `GITHUB_SHA`,
+`BUILDKITE_COMMIT`, `CI_COMMIT_SHA`, and their siblings. The key is the run
+**and the attempt**: a rerun is a different report of the same commit, and
+keying on the run alone would drop exactly the results that show the flake.
+
+It is deliberately thin. Bun already emits JUnit XML, so the collector carries
+the four facts a report needs and a test runner does not know, and nothing else.
+A collector that reimplemented the reporting would be a second thing to keep
+working.
+
+**It exits with the test runner's status, not the endpoint's.** A network
+failure while reporting must not turn a passing suite red, and a failing suite
+stays red when the report never arrives - losing the evidence is not the same as
+the commit being wrong. `--use-verdict` inverts that deliberately, so a muted
+test stops failing the build.
+
+Anything that emits JUnit works the same way with `curl`, which is most things.
+
 ## The two formats
 
 **JUnit XML** because every framework in every language can emit it and most

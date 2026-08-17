@@ -1680,11 +1680,26 @@ should work for a repository that has not moved its CI here yet.
       `tests/unit/test-junit.test.ts` proves `&xxe;` stays text, and that a truncated report keeps
       the cases before the cut rather than being thrown away whole.
 
-- [ ] First-party collectors for the frameworks people actually use, starting with the ones this
+- [x] First-party collectors for the frameworks people actually use, starting with the ones this
       repository could use on itself, and a documented protocol so the rest are writable by anyone
 
-      The protocol is written (`docs/test-intelligence.md`); the collectors are not. Anything that
-      emits JUnit already works, which is most things, so this is convenience rather than reach.
+      `./buddy tests:report --url ... --repository owner/name --suite unit`, which is the one this
+      repository can point at itself. Bun already emits JUnit, so the collector carries the four
+      facts a report needs and a test runner does not know - repository, commit, branch, and an
+      idempotency key - and nothing else. A collector that reimplemented the reporting would be a
+      second thing to keep working.
+
+      The key is the run **and the attempt**, because a rerun is a different report of the same
+      commit and keying on the run alone drops exactly the results that show a flake.
+
+      **It exits with the test runner's status, not the endpoint's.** A network failure while
+      reporting must not turn a passing suite red, and a failing suite stays red when the report
+      never arrives: losing the evidence is not the same as the commit being wrong.
+      `--use-verdict` inverts that on purpose, which is how a muted test stops failing a build.
+
+      Verified against a stub instance: seven tests in, seven `<testcase>` elements out, posted
+      with the credential, the suite, the sha and the key, and the answer printed back including
+      the newly-flaky list.
 
 - [x] Per-execution: result, duration, retries, failure message, stack, and the job it ran in
 - [x] Tags as dimensions on an execution, for filtering and aggregation

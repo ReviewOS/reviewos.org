@@ -72,4 +72,12 @@ export default {
    * thing to ask.
    */
   'build:runner': 'BuildRunner',
+  /*
+   * Run the tests and report the results, from any CI.
+   *
+   * Thin on purpose: Bun already emits JUnit, so this carries the four facts a
+   * report needs and a test runner does not know - repository, commit, branch,
+   * and an idempotency key - and nothing else.
+   */
+  'tests:report': 'ReportTests',
 } satisfies CommandRegistry
