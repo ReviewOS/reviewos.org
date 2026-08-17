@@ -23070,6 +23070,224 @@
         }
       }
     },
+    "/api/repos/secrets": {
+      "post": {
+        "summary": "/api/repos/secrets",
+        "operationId": "post__api_repos_secrets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The names that exist, their scopes, and when each was last set. Never a value.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "secrets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "scope": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "type": "string",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An instance-wide or owner-wide secret is not a repository administrator's to set.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No environment by that name here.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A name and a value are required, and the name has to be usable in a shell.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "list",
+                      "set",
+                      "unset"
+                    ]
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "instance",
+                      "owner",
+                      "repository",
+                      "environment"
+                    ]
+                  },
+                  "environment": {
+                    "type": "string"
+                  },
+                  "key": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/settings": {
       "post": {
         "summary": "/api/repos/settings",

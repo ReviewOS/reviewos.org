@@ -54,6 +54,8 @@ every repository an organization has.
 They are readable by anybody who can read the repository, they appear in logs,
 and they are handed to every job **including one from a fork**.
 
-There is no secret store here yet. That is stated rather than approximated with
-a `secret: true` flag on a plain-text table, which is a thing somebody
-eventually forgets to check.
+Secrets are a different thing with a different table: encrypted at rest,
+never readable back, and withheld from a fork's job. See
+[secrets](./secrets.md). Keeping them apart rather than adding a `secret: true`
+flag to this table is deliberate - a boolean on an otherwise plain-text row is a
+thing somebody eventually forgets to check.

@@ -5413,6 +5413,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/secrets
+   */
+  postReposSecrets(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "list" | "set" | "unset"; "scope"?: "instance" | "owner" | "repository" | "environment"; "environment"?: string; "key"?: string; "value"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "secrets"?: Array<{ "key"?: string; "scope"?: string; "updated_at"?: string }> }>> {
+    return request(config, "POST", "/api/repos/secrets", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/repos/settings
    */
   postReposSettings(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

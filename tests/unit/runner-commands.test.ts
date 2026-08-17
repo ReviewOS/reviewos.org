@@ -156,3 +156,32 @@ describe('reading a stream', () => {
     expect(reader.read('printing s3cret').line).toBe('printing ***')
   })
 })
+
+describe('secrets a job was handed', () => {
+  test('are masked before the first step runs, without the workflow asking', async () => {
+    /*
+     * The way a credential reaches a log is never `echo $TOKEN`. It is a curl
+     * that fails and prints the request it tried, or a tool that dumps its
+     * configuration on error - and by then nobody is watching, while the log
+     * is the artefact somebody links to in a chat channel.
+     */
+    const { maskDeliveredSecrets } = await import('../../app/Actions/Runner/localExecutor')
+    const reader = new CommandReader()
+
+    maskDeliveredSecrets(reader, { secrets: { DEPLOY_TOKEN: 'sk-live-9f2a-abcdef', NPM_TOKEN: 'npm-zzz-1' } })
+
+    expect(reader.read('curl failed: Authorization: Bearer sk-live-9f2a-abcdef').line)
+      .toBe('curl failed: Authorization: Bearer ***')
+
+    expect(reader.read('registry=npm-zzz-1').line).toBe('registry=***')
+  })
+
+  test('and a job with none is not changed at all', async () => {
+    const { maskDeliveredSecrets } = await import('../../app/Actions/Runner/localExecutor')
+    const reader = new CommandReader()
+
+    maskDeliveredSecrets(reader, {})
+
+    expect(reader.read('nothing to hide here').line).toBe('nothing to hide here')
+  })
+})

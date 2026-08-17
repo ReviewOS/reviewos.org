@@ -83,6 +83,7 @@ const config: BunPressOptions = {
             { text: 'Test intelligence', link: '/test-intelligence' },
             { text: 'Deployment environments', link: '/environments' },
             { text: 'Workflow variables', link: '/variables' },
+            { text: 'Secrets', link: '/secrets' },
           ],
         },
         {

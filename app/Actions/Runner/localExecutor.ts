@@ -205,6 +205,9 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
    * crossing the wire first, which is a masking feature that does not mask.
    */
   const reader = new CommandReader()
+
+  maskDeliveredSecrets(reader, job)
+
   const annotations: any[] = []
   const summary: string[] = []
 
@@ -782,6 +785,16 @@ function expressionContext(
      * value what it is", and the screen that explains it reads the same one.
      */
     vars: job?.vars ?? {},
+    /*
+     * `secrets`, for `${{ secrets.DEPLOY_TOKEN }}`.
+     *
+     * Readable through the context and **not** injected into the environment,
+     * which is Actions' behaviour and the right one: a workflow that wants a
+     * secret in a variable says so with `env:`, and a step that was never told
+     * about a credential does not have it in its environment where a child
+     * process, a crash dump or a `printenv` would find it.
+     */
+    secrets: job?.secrets ?? {},
     runner: {
       os: runnerOs(),
       arch: runnerArch(),
@@ -791,6 +804,24 @@ function expressionContext(
     },
     env: state.env,
   }
+}
+
+/**
+ * Register every secret this job was given, before the first step runs.
+ *
+ * Registered whether or not the workflow ever prints one, because the way a
+ * credential reaches a log is never `echo $TOKEN` - it is a curl that fails and
+ * prints the request it tried, or a tool that dumps its configuration on error.
+ * By then nobody is watching, and the log is the artefact somebody links to in
+ * a chat channel.
+ *
+ * Masking happens here rather than on the control plane for the reason the
+ * reader's own note gives: server-side masking is a masking feature that lets
+ * the secret cross the wire first.
+ */
+export function maskDeliveredSecrets(reader: CommandReader, job: any): void {
+  for (const value of Object.values((job?.secrets ?? {}) as Record<string, string>))
+    reader.addMask(String(value ?? ''))
 }
 
 /**

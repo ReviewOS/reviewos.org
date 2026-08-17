@@ -789,6 +789,16 @@ route.post('/repos/environments', 'Actions/Workflow/EnvironmentsAction').middlew
 route.post('/repos/variables', 'Actions/Workflow/VariablesAction').middleware('auth')
 
 /*
+ * Secrets: set, removed, and listed by name.
+ *
+ * There is deliberately no endpoint that returns a value. A reveal button is
+ * the feature that turns one compromised session into every credential an
+ * organization has, and its absence costs somebody a trip to their password
+ * manager on the day they need the value back.
+ */
+route.post('/repos/secrets', 'Actions/Workflow/SecretsAction').middleware('auth')
+
+/*
  * Test intelligence: results from this instance's CI, or from anybody else's.
  *
  * Ingestion takes `check:report`, the ability a CI integration already needs to

@@ -75,11 +75,16 @@ and refusing to run those would break far more than it protects. An environment
 protects when it exists and has at least one rule, and `protects: false` comes
 back on one that has none.
 
+## Secrets for one environment
+
+A secret attached to an environment reaches **only** a job deploying there, and
+only after the gate has opened - see [secrets](./secrets.md). That is the
+separation a repository-wide credential cannot express: the deploy token is not
+reachable from the test job in the same run, and not reachable from the deploy
+job either while it waits for a reviewer.
+
 ## What is not built yet
 
-- **Environment-scoped secrets.** There is no secret store at all yet, so a
-  deploy credential released only after approval is not something this can
-  claim. It is the next thing this section needs.
 - **Deployment records** - what went where, when, and the URL it landed on.
   `environment:` accepts Actions' `{ name, url }` form and keeps the name; the
   url is read and discarded.

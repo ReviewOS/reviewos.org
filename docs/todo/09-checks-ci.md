@@ -942,8 +942,28 @@ gate, in order.
 - [ ] Network policy with a safe default and explicit egress controls. A sandbox with unrestricted
       access to instance-local services is not isolated.
 - [ ] CPU, memory, process, disk, output, and wall-time limits enforced outside the job
-- [ ] Secrets encrypted at rest, scoped per environment and job, injected only after authorization,
+- [x] Secrets encrypted at rest, scoped per environment and job, injected only after authorization,
       redacted from logs and structured outputs, and never exposed to untrusted fork workflows
+
+      Sealed with the instance's `APP_KEY`, and **there is no endpoint that returns a value** - a
+      listing gives names. A reveal button is the feature that turns one compromised session into
+      every credential an organization has, and its absence costs somebody a trip to their password
+      manager on the day they need the value back.
+
+      Four scopes, narrowest first, and the environment scope is the one that earns the feature: a
+      deploy credential attached to `production` is unreachable from the test job in the same run,
+      and unreachable from the deploy job itself until the gate opens - otherwise it sits in the
+      job's environment while it waits for a reviewer, which is the window somebody would use.
+
+      Readable as `${{ secrets.NAME }}` and **not** injected into the environment, which is
+      Actions' behaviour and the right one: a step never told about a credential does not have it
+      where a crash dump or a `printenv` would find it. Every delivered value is masked on the
+      runner before the first step runs - masking after the value has crossed the wire is not
+      masking - and a value this instance can no longer decrypt is skipped rather than delivered
+      empty, so the failure lands at the line that uses it.
+
+      Rotating `APP_KEY` makes every secret undecryptable and they have to be set again. There is
+      no re-encrypt command, which the documentation says rather than implying otherwise.
 - [ ] Dependency cache keyed by declared inputs, runtime, architecture, and lockfile digest. Cache
       restore permissions prevent a fork or lower-trust branch from poisoning a protected branch.
 - [x] Artifacts are content-addressed, size-limited, checksummed, access-controlled, and expired by
@@ -1036,8 +1056,15 @@ failed evidence into success.
 - [ ] `app/Models/Deployment.ts` and `DeploymentStatus.ts`, environments, workflow run and commit
       provenance, preview URL, and deployment history
 - [ ] Environment protection rules, including required reviewers, wait timers, and branch policy
-- [ ] Deployment credentials are released only to the deploy job after environment protection
+- [x] Deployment credentials are released only to the deploy job after environment protection
       passes, never to build and test jobs
+
+      The selection happens at the claim, which is the last point where both facts are known: the
+      run's trust flag, and whether this job's gate has opened. A build job in the same run gets
+      the repository's secrets and not the environment's - that separation is the whole reason
+      environment-scoped secrets exist, and `tests/unit/workflow-secrets.test.ts` holds it along
+      with the two cases that would quietly undo it: a fork, and a deploy job that has not been
+      approved yet.
 - [ ] Preview deployments for non-default branches with expiry and a link on the pull request
 - [ ] Gradual deployment stages with health checks, pause, promotion, and rollback expressed as
       durable steps rather than an opaque provider operation

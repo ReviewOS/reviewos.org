@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
+import { secretsForJob } from '../Workflow/secrets'
 import { variablesFor } from '../Workflow/variables'
 import { db } from '@stacksjs/database'
 import { authenticateRunner } from './authenticate'
@@ -280,7 +281,7 @@ export default new Action({
      */
     const jobRow: any = await db
       .selectFrom('workflow_jobs')
-      .select(['matrix_values', 'timeout_minutes'])
+      .select(['matrix_values', 'timeout_minutes', 'settings', 'approved_at'])
       .where('id', '=', claimed.jobId)
       .executeTakeFirst()
 
@@ -403,6 +404,25 @@ export default new Action({
          */
         vars: await variablesFor(claimed.repositoryId, readJson(definitionJob?.env) as Record<string, string> ?? {}),
         /*
+         * `secrets`, decided here and nowhere else.
+         *
+         * This is the last point at which both facts are known: whether the
+         * run is trusted - a fork's pull request gets none, by the threat
+         * model - and whether this job's environment gate has opened, which is
+         * what makes "a deploy credential is released only after protection
+         * passes" true rather than promised.
+         *
+         * A build or test job in the same run gets the repository's secrets
+         * and not the environment's, which is the whole reason environment
+         * secrets exist.
+         */
+        secrets: await secretsForJob({
+          repositoryId: claimed.repositoryId,
+          trusted: Boolean(context?.trusted),
+          environment: environmentOfJob(jobRow?.settings),
+          approved: Boolean(jobRow?.approved_at),
+        }),
+        /*
          * The event, in the shape a webhook receiver would have got.
          *
          * Written to a file by the runner and pointed at by
@@ -483,3 +503,15 @@ export default new Action({
     })
   },
 })
+
+/** The environment a job named, out of its settings column. */
+function environmentOfJob(settings: unknown): string | null {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+
+    return parsed && typeof parsed === 'object' && typeof parsed.environment === 'string' ? parsed.environment : null
+  }
+  catch {
+    return null
+  }
+}

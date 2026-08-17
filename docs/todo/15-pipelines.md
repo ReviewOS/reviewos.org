@@ -580,9 +580,10 @@ written down here so it does not get relitigated:
       the workflow file at claim time, so the runner merges nothing. `reviewos` is the same object
       under this forge's own name.
 
-      `secrets`, `strategy` and `jobs` are not populated, and an expression reading one is left as
-      written rather than quietly becoming an empty string. `secrets` cannot be until there is a
-      secret store, which there is not.
+      `secrets` is populated now too, which makes it ten of twelve: encrypted at rest, chosen per
+      job at the claim, withheld from a fork entirely and from a deploy job until its environment's
+      gate has opened. `strategy` and `jobs` are not, and an expression reading one is left as
+      written rather than quietly becoming an empty string.
 
       They are built in one function rather than assembled per call site, because a `run:` and a job
       output that interpolate the same expression have to see the same value. Half of `github` was
