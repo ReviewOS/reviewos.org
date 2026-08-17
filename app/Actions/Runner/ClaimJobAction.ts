@@ -23,6 +23,24 @@ import { claimNextJob } from './claim'
  * by [the threat model](../../../docs/ci-threat-model.md) an untrusted run
  * never receives one at all.
  */
+/**
+ * The owner's handle, for the `owner/name` a runner clones by.
+ *
+ * One query per claim, which is one query per job rather than per poll: a
+ * claim that found nothing never reaches here.
+ */
+async function ownerHandleOf(context: any): Promise<string> {
+  const table = String(context.owner_type) === 'organization' ? 'organizations' : 'users'
+
+  const owner: any = await db
+    .selectFrom(table as any)
+    .select(['handle'])
+    .where('id', '=', Number(context.owner_id))
+    .executeTakeFirst()
+
+  return String(owner?.handle ?? '')
+}
+
 export default new Action({
   name: 'ClaimJob',
   description: 'Take the next job this runner may run',
@@ -78,6 +96,12 @@ export default new Action({
         'workflow_runs.event_ref as event_ref',
         'workflow_runs.trusted as trusted',
         'repositories.name as repository',
+        // Where the code is, which every runner needs and none was told. A
+        // same-host runner reads the bare repository directly; one on another
+        // machine clones the URL. Both need to know which repository this is,
+        // and a bare name is ambiguous across owners.
+        'repositories.owner_type as owner_type',
+        'repositories.owner_id as owner_id',
       ])
       .where('workflow_runs.id', '=', claimed.runId)
       .executeTakeFirst()
@@ -123,6 +147,12 @@ export default new Action({
           trusted: Boolean(context?.trusted),
         },
         repository: context?.repository ?? null,
+        /*
+         * `owner/name`, which is what a runner needs to find or clone the
+         * code. The bare name was ambiguous the moment two owners had a
+         * repository called `api`.
+         */
+        repository_full_name: context ? `${await ownerHandleOf(context)}/${context.repository}` : null,
         steps: steps.map(step => ({
           position: Number(step.position ?? 0),
           name: step.name ?? null,

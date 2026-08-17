@@ -41,18 +41,28 @@ export interface EnvEntry {
 }
 
 /**
- * The variables git sets for a hook, which nobody should put in `.env`.
+ * Variables the system sets, which nobody should put in `.env`.
  *
- * They arrive per push, per repository, from git itself. A value in `.env`
- * would be wrong for every repository but the one it was copied from, and the
- * failure is a push that writes objects into another repository's directory.
+ * The `GIT_*` ones arrive per push, per repository, from git itself: a value in
+ * `.env` would be wrong for every repository but the one it was copied from,
+ * and the failure is a push that writes objects into another repository's
+ * directory.
+ *
+ * `PATH` and `HOME` are the process's own, read where this instance hands an
+ * environment to something it spawns - a git hook, or a step on the local
+ * runner. Declaring them would mean an operator setting the shell's `HOME` in a
+ * web application's configuration file, which is a worse idea than the missing
+ * line this list exists to allow.
  */
 export const GIT_SET = new Set([
   'GIT_DIR',
   'GIT_OBJECT_DIRECTORY',
   'GIT_ALTERNATE_OBJECT_DIRECTORIES',
   'GIT_PUSH_OPTION_COUNT',
+  'GIT_TERMINAL_PROMPT',
   'PATH',
+  'HOME',
+  'LANG',
 ])
 
 const GROUP_TITLES: Record<string, string> = {

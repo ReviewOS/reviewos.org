@@ -511,8 +511,36 @@ survive contact with a self-hosted forge unless we make it.
 - [ ] A single documented command brings up a runner and registers it with the instance
 - [ ] A default queue exists on a new instance, so `runs-on: ubuntu-latest` resolves to something
       without configuration
-- [ ] Optionally, the instance ships with one local runner enabled for single-tenant installs, off by
-      default for multi-tenant ones, with the tradeoff stated plainly rather than buried
+- [x] Optionally, the instance ships with one local runner enabled for single-tenant installs, off by
+      default for multi-tenant ones, with the tradeoff stated plainly rather than buried.
+
+      `./buddy runner:local` - **a command rather than a setting**, which is the whole safety
+      argument: this instance does not execute repository code unless an operator has said where,
+      and typing it is that. `--register` makes the credential once; re-running it rotates the
+      credential rather than making a second runner, so a leak is fixed by one command.
+
+      The tradeoff is printed on every start, not buried here: **no isolation**. A step runs as the
+      user who started the runner, on the host the control plane is on, with that user's files and
+      network. Right for one team on one box running code they wrote; wrong for anything else.
+
+      **A fork's pull request is refused by the runner itself**, not by a flag somebody can set at
+      three in the morning: untrusted code on the control plane's own host is the one combination
+      that turns CI into somebody else's shell. It is reported as failed rather than dropped, so the
+      run still reaches a terminal state instead of holding a pull request's checks open.
+
+      It speaks the ordinary HTTP protocol - claim, logs, report - rather than reaching into the
+      database, so the lease, job-token and late-report rules are exercised rather than bypassed.
+      Two things it does that a remote runner cannot: it clones from the bare repository on disk
+      (`--no-hardlinks`, so a step running `git gc` cannot write into the instance's own objects),
+      and **it checks out before the first step**. Actions leaves that to `actions/checkout`, which
+      needs action resolution this phase has not built - without the checkout every copied workflow
+      would run in an empty directory and read as a broken product rather than an incomplete one.
+
+      A step's environment is the documented default set, deliberately *not* this process's
+      environment: the control plane's own variables include the database credentials, and handing
+      those to a repository's script would make the runner a way to read every repository on the
+      instance. `uses:` steps are skipped with a line saying so, since resolving an action is the
+      next box rather than this one.
 - [ ] The interface says clearly when a run is queued because no runner matches, and which labels
       would have matched, instead of a spinner
 - [ ] A repository with no workflows offers starter templates that are real Actions workflows

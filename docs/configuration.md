@@ -876,6 +876,21 @@ Default: unset.
 
 Read by `app/Actions/Git/hooks.ts`.
 
+### `REVIEWOS_RUNNER_TOKEN`
+
+Default: unset.
+
+The credential the local runner authenticates with.
+
+Only for single-tenant installs running `buddy runner:local`, which executes
+this instance's jobs on this host with no isolation - steps run as the user
+who started it. Make one with `buddy runner:local --register`, which prints it
+once. Nothing runs unless somebody starts the runner, so leaving this unset is
+the same as having no execution plane, which is the default this instance
+ships with.
+
+Read by `app/Commands/RunnerLocal.ts`.
+
 ## Set by git, not by you
 
 Git hands these to a hook on every push, per repository. A value for one of them in `.env`
@@ -886,4 +901,7 @@ writing objects into somebody else's directory.
 - `GIT_DIR`
 - `GIT_OBJECT_DIRECTORY`
 - `GIT_PUSH_OPTION_COUNT`
+- `GIT_TERMINAL_PROMPT`
+- `HOME`
+- `LANG`
 - `PATH`

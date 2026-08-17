@@ -58,4 +58,11 @@ export default {
   'git:scan': 'GitScan',
   'git:ssh': 'GitSsh',
   'push:keys': 'PushKeys',
+
+  /*
+   * The single-tenant execution plane. A command rather than a setting on
+   * purpose: this instance does not execute repository code unless an operator
+   * has said where, and typing this is that.
+   */
+  'runner:local': 'RunnerLocal',
 } satisfies CommandRegistry
