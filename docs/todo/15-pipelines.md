@@ -886,14 +886,27 @@ which is the whole argument for this phase existing:
 | `concurrency:` groups (ignored by Gitea) | The concurrency engine, ordered and eager |
 | Scheduled workflows (ignored by Gitea) | Schedules with branch, message, and environment |
 | Complex `runs-on` expressions | Queue plus tag selection, with a visible reason when nothing matches |
-| Environment protection rules | Phase 9 deployments, reviewers, wait timers, and scoped secrets |
+| Environment protection rules | Phase 9 deployments, reviewers, wait timers, and scoped secrets *(planned)* |
 | Test intelligence of any kind | Flaky detection, quarantine, splitting, ownership |
 | Fleet management beyond a registered runner | Pools, queues, autoscaler contract, drain, lifecycle |
-| Signed step dispatch | Signed workflows, enforceable per pool |
+| Signed step dispatch | Signed workflows, enforceable per pool *(planned)* |
 | Annotations on the diff | The reason this project exists |
 
-- [ ] Each row above has a test proving the difference, because a comparison table in marketing that
+- [x] Each row above has a test proving the difference, because a comparison table in marketing that
       no test defends becomes false without anybody noticing
+
+      `tests/unit/comparison-claims.test.ts`. Every row is either a **live claim**, checked by
+      exercising the capability rather than importing the module - a concurrency group actually
+      resolved, a tag selector actually matched and actually refused, an annotation landing on the
+      row a reviewer is reading - or a **pending claim** naming the roadmap box that would make it
+      true.
+
+      **It ratchets both ways.** A new row with no claim fails; so does a pending claim whose box
+      gets ticked, because at that point the promise should be replaced by a check.
+
+      Writing it did the job immediately: two rows were not true. `environment:` is parsed and
+      wired to nothing, and signed dispatch has no key for a pool to trust. Both now say
+      *(planned)* in the table, which is the correction the test existed to force.
 
 ---
 
