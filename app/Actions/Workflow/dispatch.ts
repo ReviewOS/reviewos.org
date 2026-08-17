@@ -532,6 +532,8 @@ async function createJobs(
       'job_id', 'name', 'position', 'runs_on', 'needs', 'matrix',
       'concurrency_group', 'job_cancel_in_progress', 'condition',
       'uses', 'call_with',
+      // The policy the run is judged by, copied onto it below.
+      'fail_fast', 'max_parallel', 'timeout_minutes', 'continue_on_error',
     ])
     .where('workflow_version_id', '=', versionId)
     .orderBy('position')
@@ -632,6 +634,19 @@ async function createJobs(
           needs: job.needs,
           runs_on: job.runs_on,
           matrix_values: values ? JSON.stringify(values) : null,
+          /*
+           * Copied onto the run, like `needs` and `condition` above.
+           *
+           * These four decide what the run's outcome *means* - whether a
+           * failure failed it, whether its siblings were stopped, how long it
+           * was allowed to take - and reading them back from a definition that
+           * has since been edited would make a finished run's conclusion
+           * something nobody can reconstruct.
+           */
+          fail_fast: job.fail_fast !== false,
+          max_parallel: job.max_parallel ?? null,
+          timeout_minutes: job.timeout_minutes ?? null,
+          continue_on_error: job.continue_on_error === true,
         } as any)
         .returning(['id'])
         .executeTakeFirst()

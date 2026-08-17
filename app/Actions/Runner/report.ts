@@ -6,16 +6,17 @@
  * *run* now is, unblock whatever was waiting on this job, and skip whatever can
  * no longer happen.
  *
- * That last one matters more than it reads. A job whose dependency failed sits
- * in `blocked` forever unless something moves it, and a run with a blocked job
- * never reaches a terminal state - which means a pull request whose checks
- * never resolve, holding a merge open on work that stopped minutes ago.
+ * That last part is [`Workflow/settle.ts`](../Workflow/settle.ts), shared with
+ * the sweep. A report is not the only thing that moves a run's graph, and two
+ * copies of "what does this failure unblock" is how the two paths end up
+ * disagreeing about the same run.
  */
 
 import { db } from '@stacksjs/database'
 import { announceJob, announceRunIfMoved } from '../Workflow/announce'
 import type { JobState } from '../Workflow/states'
-import { canJobMove, eligibleJobs, runStateFromJobs, unreachableJobs } from '../Workflow/states'
+import { canJobMove } from '../Workflow/states'
+import { settleRun } from '../Workflow/settle'
 import type { RunnerFacts } from './protocol'
 import { mayReport, splitLabels } from './protocol'
 
@@ -215,95 +216,7 @@ export async function reportJob(
   return { ok: true, reason: 'recorded', duplicate: false, runState }
 }
 
-async function jobsOfRun(runId: number): Promise<any[]> {
-  return db
-    .selectFrom('workflow_jobs')
-    .select(['id', 'job_id', 'state', 'needs'])
-    .where('workflow_run_id', '=', runId)
-    .execute()
-}
-
 async function currentRunState(runId: number): Promise<string> {
   const run: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
   return String(run?.state ?? 'queued')
-}
-
-/**
- * Move everything this job's result unblocked, and close the run if it is done.
- *
- * Derived from the jobs rather than accumulated, so a control plane that
- * restarted mid-run reaches the same answer as one that watched every
- * transition. An accumulated status is a second source of truth that drifts.
- */
-async function settleRun(runId: number, now: Date): Promise<string> {
-  let jobs = await jobsOfRun(runId)
-
-  // Anything that can never run now, so the run can finish rather than wait on
-  // a job whose dependency failed.
-  const unreachable = unreachableJobs(jobs.map(job => ({
-    job_id: String(job.job_id),
-    state: String(job.state) as JobState,
-    needs: job.needs,
-  })))
-
-  for (const job of unreachable) {
-    const id = jobs.find(row => String(row.job_id) === job.job_id)?.id
-    if (id === undefined)
-      continue
-
-    await db
-      .updateTable('workflow_jobs')
-      .set({ state: 'skipped', finished_at: now.toISOString() } as any)
-      .where('id', '=', Number(id))
-      .where('state', '=', 'blocked')
-      .execute()
-  }
-
-  if (unreachable.length > 0)
-    jobs = await jobsOfRun(runId)
-
-  // And anything whose dependencies have now all succeeded.
-  const ready = eligibleJobs(jobs.map(job => ({
-    job_id: String(job.job_id),
-    state: String(job.state) as JobState,
-    needs: job.needs,
-  })))
-
-  for (const job of ready) {
-    const id = jobs.find(row => String(row.job_id) === job.job_id)?.id
-    if (id === undefined)
-      continue
-
-    await db
-      .updateTable('workflow_jobs')
-      .set({ state: 'queued' } as any)
-      .where('id', '=', Number(id))
-      .where('state', '=', 'blocked')
-      .execute()
-  }
-
-  const settled = await jobsOfRun(runId)
-  const state = runStateFromJobs(settled.map(job => String(job.state) as JobState))
-
-  const run: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
-  const from = String(run?.state ?? 'queued')
-
-  if (from !== state) {
-    await db
-      .updateTable('workflow_runs')
-      .set({
-        state,
-        ...(state === 'succeeded' || state === 'failed' || state === 'cancelled'
-          ? { finished_at: now.toISOString() }
-          : {}),
-      } as any)
-      .where('id', '=', runId)
-      // The run must not move backwards out of a terminal state, and the write
-      // is guarded on the state it was read at so a concurrent report cannot
-      // overwrite a conclusion with a staler one.
-      .where('state', '=', from)
-      .execute()
-  }
-
-  return state
 }

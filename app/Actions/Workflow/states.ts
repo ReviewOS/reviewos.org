@@ -121,25 +121,95 @@ export function runStateFromJobs(states: readonly JobState[]): RunState {
 }
 
 /**
+ * One row of a run, as the graph needs to see it.
+ *
+ * `job_id` is **not** unique in a run: a matrix of four is four rows under one
+ * `job_id`, which is exactly what `needs:` names. Everything below is written
+ * against that fact rather than around it.
+ */
+export interface GraphJob {
+  job_id: string
+  state: JobState
+  needs?: string | null
+  /** `continue-on-error:` on the job, which changes what its failure means. */
+  continue_on_error?: boolean | null
+  /** `strategy.fail-fast`, defaulting to Actions' `true` when unrecorded. */
+  fail_fast?: boolean | null
+}
+
+/**
+ * What a job's state means to everything that reads it.
+ *
+ * A job with `continue-on-error: true` that failed reports `success` to the
+ * jobs that need it and does not fail the run - Actions' rule, and the reason
+ * the key exists at all. The row keeps saying `failed`, because that is what
+ * happened; this is the one place that decides what it *counts as*, so a screen
+ * can show the failure while the graph carries on.
+ */
+export function effectiveState(job: { state: JobState, continue_on_error?: boolean | null }): JobState {
+  return job.state === 'failed' && job.continue_on_error === true ? 'succeeded' : job.state
+}
+
+/** The `needs:` column, which is newline-separated because YAML lists are. */
+function needsOf(job: GraphJob): string[] {
+  return String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
+}
+
+/**
+ * What one name in a `needs:` list has come to, over every row that carries it.
+ *
+ * The aggregate, not the last row - which is the bug this replaces. `needs:
+ * build` on a matrix of four means all four, so one failing combination has to
+ * hold the dependent back even when the other three are green. Keying a map by
+ * `job_id` quietly kept the last combination and ran the deploy that the first
+ * one said not to.
+ */
+function groupState(members: readonly GraphJob[]): JobState | 'pending' | 'missing' {
+  if (members.length === 0)
+    return 'missing'
+
+  const states = members.map(effectiveState)
+
+  if (states.some(state => !isTerminalJob(state)))
+    return 'pending'
+
+  if (states.some(state => state === 'failed'))
+    return 'failed'
+
+  if (states.some(state => state === 'cancelled'))
+    return 'cancelled'
+
+  if (states.every(state => state === 'skipped'))
+    return 'skipped'
+
+  return 'succeeded'
+}
+
+function grouped<T extends GraphJob>(jobs: readonly T[]): Map<string, T[]> {
+  const groups = new Map<string, T[]>()
+
+  for (const job of jobs)
+    groups.set(job.job_id, [...(groups.get(job.job_id) ?? []), job])
+
+  return groups
+}
+
+/**
  * The jobs that can be handed out now.
  *
- * A job is eligible when everything it needs has succeeded. `needs` naming a
+ * A job is eligible when every group it needs has succeeded. `needs` naming a
  * job that is not in the run cannot happen - the validator refused it before a
  * row existed - but it is treated as unsatisfied rather than ignored, because
  * "the graph is missing a job" must not become "run it anyway".
  */
-export function eligibleJobs<T extends { job_id: string, state: JobState, needs?: string | null }>(
-  jobs: readonly T[],
-): T[] {
-  const byId = new Map(jobs.map(job => [job.job_id, job]))
+export function eligibleJobs<T extends GraphJob>(jobs: readonly T[]): T[] {
+  const groups = grouped(jobs)
 
   return jobs.filter((job) => {
     if (job.state !== 'blocked')
       return false
 
-    const needs = String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
-
-    return needs.every(need => byId.get(need)?.state === 'succeeded')
+    return needsOf(job).every(need => groupState(groups.get(need) ?? []) === 'succeeded')
   })
 }
 
@@ -150,32 +220,74 @@ export function eligibleJobs<T extends { job_id: string, state: JobState, needs?
  * `blocked` never reaches a terminal state, and a run that never finishes is
  * one that holds a pull request's checks open with nothing to show for it.
  */
-export function unreachableJobs<T extends { job_id: string, state: JobState, needs?: string | null }>(
-  jobs: readonly T[],
-): T[] {
-  const byId = new Map(jobs.map(job => [job.job_id, job]))
+export function unreachableJobs<T extends GraphJob>(jobs: readonly T[]): T[] {
+  const groups = grouped(jobs)
 
   const failed = (id: string, seen = new Set<string>()): boolean => {
     if (seen.has(id))
       return false
 
     seen.add(id)
-    const job = byId.get(id)
-    if (!job)
+
+    const members = groups.get(id) ?? []
+    const state = groupState(members)
+
+    if (state === 'missing')
       return true
 
-    if (job.state === 'failed' || job.state === 'cancelled' || job.state === 'skipped')
+    if (state === 'failed' || state === 'cancelled' || state === 'skipped')
       return true
 
-    const needs = String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
-    return needs.some(need => failed(need, seen))
+    return members.some(member => needsOf(member).some(need => failed(need, seen)))
   }
 
   return jobs.filter((job) => {
     if (job.state !== 'blocked')
       return false
 
-    const needs = String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
-    return needs.some(need => failed(need))
+    return needsOf(job).some(need => failed(need))
   })
+}
+
+/**
+ * The matrix combinations a failed sibling takes with it.
+ *
+ * `strategy.fail-fast` defaults to **true**, which is the surprising direction
+ * and the one Actions chose: one combination failing cancels the rest. The
+ * argument for it is money - twenty combinations of a broken commit is nineteen
+ * machines proving the same thing - and the argument against it is that the
+ * *interesting* question is usually "which ones broke", which is why the key
+ * exists and why a matrix that sets `fail-fast: false` must be left alone.
+ *
+ * Only within one group. Actions scopes this to the matrix rather than to the
+ * run, and widening it here would mean an unrelated job's failure stopping work
+ * somebody is watching.
+ */
+export function failFastCasualties<T extends GraphJob>(jobs: readonly T[]): { cancel: T[], stop: T[] } {
+  const cancel: T[] = []
+  const stop: T[] = []
+
+  for (const members of grouped(jobs).values()) {
+    if (members.length < 2)
+      continue
+
+    // Unrecorded means Actions' default, not "off": a row written before this
+    // column existed should behave the way the file said.
+    if (members.some(member => member.fail_fast === false))
+      continue
+
+    // A failure the workflow said to allow is not a failure to fail fast on.
+    if (!members.some(member => member.state === 'failed' && member.continue_on_error !== true))
+      continue
+
+    for (const member of members) {
+      if (member.state === 'blocked' || member.state === 'queued')
+        cancel.push(member)
+
+      if (member.state === 'running')
+        stop.push(member)
+    }
+  }
+
+  return { cancel, stop }
 }

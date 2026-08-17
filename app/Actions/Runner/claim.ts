@@ -70,6 +70,7 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
       'workflow_jobs.runs_on as runs_on',
       'workflow_jobs.runner_id as runner_id',
       'workflow_jobs.lease_expires_at as lease_expires_at',
+      'workflow_jobs.max_parallel as max_parallel',
       'workflow_runs.id as run_id',
       'workflow_runs.number as run_number',
       'workflow_runs.repository_id as repository_id',
@@ -126,6 +127,9 @@ export async function claimNextJob(
     const facts = factsOf(row)
 
     if (!mayClaim(runner, facts, now).ok)
+      continue
+
+    if (await overParallelLimit(row))
       continue
 
     const expires = leaseUntil(now)
@@ -214,6 +218,40 @@ export async function claimNextJob(
   }
 
   return null
+}
+
+/**
+ * `strategy.max-parallel`: whether this combination has to wait its turn.
+ *
+ * The key exists for a real constraint rather than for tidiness - a matrix of
+ * twelve against one staging database, or against an API with a rate limit, is
+ * a matrix that has to go three at a time - and a fleet that ignores it turns
+ * that into twelve simultaneous failures nobody can reproduce.
+ *
+ * **Counted, not locked**, and that is a real limit worth stating: two runners
+ * polling in the same instant can both see two running and both take the third
+ * slot. Making it exact needs a lock held across the claim, which costs every
+ * claim on the instance to make a per-matrix limit precise. The failure it
+ * leaves is one extra job; the alternative is a queue that serialises on a
+ * contended row.
+ */
+async function overParallelLimit(row: any): Promise<boolean> {
+  const limit = Number(row.max_parallel ?? 0)
+
+  if (!Number.isFinite(limit) || limit <= 0)
+    return false
+
+  const running: any[] = await db
+    .selectFrom('workflow_jobs')
+    .select(['id'])
+    .where('workflow_run_id', '=', Number(row.run_id))
+    // The other combinations of *this* job, which is what a matrix is: same
+    // `job_id`, one row each.
+    .where('job_id', '=', String(row.job_id))
+    .where('state', 'in', ['running', 'cancelling'])
+    .execute()
+
+  return running.filter(other => Number(other.id) !== Number(row.id)).length >= limit
 }
 
 /**

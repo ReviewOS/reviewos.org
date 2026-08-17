@@ -1,7 +1,6 @@
 import { Job } from '@stacksjs/queue'
 import { db } from '@stacksjs/database'
-import { runStateFromJobs } from '../Actions/Workflow/states'
-import type { JobState } from '../Actions/Workflow/states'
+import { settleRun } from '../Actions/Workflow/settle'
 import { announceRunIfMoved } from '../Actions/Workflow/announce'
 
 /**
@@ -56,6 +55,11 @@ export default new Job({
     // queue for a second machine to run.
     const forced = await forceStalledCancellations(now)
 
+    // And before the reclaim, because a job that ran out of time is not one to
+    // give back to the queue: requeuing it would start the same overrun again
+    // on a different machine.
+    const timedOut = await stopOverrunJobs(now)
+
     const lapsed: any[] = await db
       .selectFrom('workflow_jobs')
       .select(['id', 'workflow_run_id', 'runner_id', 'lease_expires_at'])
@@ -71,7 +75,7 @@ export default new Job({
     })
 
     if (expired.length === 0)
-      return { ok: true, reclaimed: 0, cancelled: forced }
+      return { ok: true, reclaimed: 0, cancelled: forced, timedOut }
 
     const runs = new Set<number>()
 
@@ -99,9 +103,93 @@ export default new Job({
     for (const runId of runs)
       await settle(runId)
 
-    return { ok: true, reclaimed: runs.size > 0 ? expired.length : 0, cancelled: forced }
+    return { ok: true, reclaimed: runs.size > 0 ? expired.length : 0, cancelled: forced, timedOut }
   },
 })
+
+/**
+ * The instance ceiling on how long a job may run.
+ *
+ * Actions' six hours, used when a workflow does not say. It is not an opinion
+ * about how long a job should take - it exists so that nothing runs *forever*,
+ * which is the failure a lease alone cannot catch: a runner that is alive and
+ * heartbeating about a step that hangs will hold its job until somebody
+ * notices, and nobody notices until the pull request is a day old.
+ */
+export const DEFAULT_JOB_TIMEOUT_MINUTES = 360
+
+/**
+ * Stop the jobs that ran past their `timeout-minutes`.
+ *
+ * The control plane's half of a timeout the runner also enforces. Both halves
+ * are needed and they fail differently: the runner knows *which step* the time
+ * went into and can say so, and this one is what happens when the runner is the
+ * thing that is stuck.
+ *
+ * `cancelling` rather than `failed`, for the same reason cancellation is
+ * cooperative everywhere else - the work is on a machine this instance does not
+ * control, and a job declared over while it is still running is a screen
+ * telling somebody something untrue. The lease is revoked in the same write, so
+ * the runner cannot report over the decision, and the grace path above turns it
+ * into `cancelled` when nobody acknowledges.
+ */
+async function stopOverrunJobs(now: Date): Promise<number> {
+  const running: any[] = await db
+    .selectFrom('workflow_jobs')
+    .select(['id', 'workflow_run_id', 'started_at', 'timeout_minutes'])
+    .where('state', '=', 'running')
+    .execute()
+
+  const overrun = running.filter((job) => {
+    const started = job.started_at ? Date.parse(String(job.started_at)) : Number.NaN
+
+    /*
+     * A running job with no start time is left alone rather than stopped.
+     *
+     * There is no clock to judge it by, and guessing "it must have been a
+     * while" would end somebody's build on no evidence. The lease sweep below
+     * still catches it if its runner has gone.
+     */
+    if (!Number.isFinite(started))
+      return false
+
+    const minutes = Number(job.timeout_minutes ?? DEFAULT_JOB_TIMEOUT_MINUTES)
+    const allowed = Number.isFinite(minutes) && minutes > 0 ? minutes : DEFAULT_JOB_TIMEOUT_MINUTES
+
+    return now.getTime() - started >= allowed * 60_000
+  })
+
+  if (overrun.length === 0)
+    return 0
+
+  const runs = new Set<number>()
+  let count = 0
+
+  for (const job of overrun) {
+    const result: any = await db
+      .updateTable('workflow_jobs')
+      .set({
+        state: 'cancelling',
+        lease_expires_at: now.toISOString(),
+        condition_reason: `This job ran past its ${Number(job.timeout_minutes ?? DEFAULT_JOB_TIMEOUT_MINUTES)}-minute timeout.`,
+      } as any)
+      .where('id', '=', Number(job.id))
+      // Guarded on `running`, so a job that finished between the read and the
+      // write keeps the result it reported.
+      .where('state', '=', 'running')
+      .execute()
+
+    if (changed(result)) {
+      count += 1
+      runs.add(Number(job.workflow_run_id))
+    }
+  }
+
+  for (const runId of runs)
+    await settle(runId)
+
+  return count
+}
 
 /**
  * End the jobs nobody acknowledged stopping.
@@ -181,37 +269,29 @@ function changed(result: any): boolean {
   return affected === undefined || affected === null ? false : Number(affected) > 0
 }
 
-/** Recompute a run's state from its jobs, without moving it backwards. */
+/**
+ * Move the run on, and say so.
+ *
+ * The same settler a report uses, which is the point of it being shared: a job
+ * this sweep cancelled unblocks and skips exactly what a job a runner reported
+ * would, and until it did, a force-cancelled job left its dependants in
+ * `blocked` and the run never finished at all.
+ */
 async function settle(runId: number): Promise<void> {
-  const jobs: any[] = await db
-    .selectFrom('workflow_jobs')
-    .select(['state'])
-    .where('workflow_run_id', '=', runId)
-    .execute()
-
-  const next = runStateFromJobs(jobs.map(job => String(job.state) as JobState))
-
   const run: any = await db
     .selectFrom('workflow_runs')
-    .select(['state'])
+    .select(['state', 'repository_id'])
     .where('id', '=', runId)
     .executeTakeFirst()
 
-  const from = String(run?.state ?? '')
+  if (!run)
+    return
+
+  const from = String(run.state ?? '')
+  const next = await settleRun(runId)
+
   if (!from || from === next)
     return
-
-  // Terminal runs are left alone. A finished run must not be reopened by a
-  // late lease expiring underneath it.
-  if (['succeeded', 'failed', 'cancelled'].includes(from))
-    return
-
-  await db
-    .updateTable('workflow_runs')
-    .set({ state: next } as any)
-    .where('id', '=', runId)
-    .where('state', '=', from)
-    .execute()
 
   /*
    * The sweep is the one mover nobody is watching for.
@@ -221,12 +301,5 @@ async function settle(runId: number): Promise<void> {
    * because a machine stopped talking or a grace period ran out, so the event
    * is the *only* way anything downstream finds out.
    */
-  const owning: any = await db
-    .selectFrom('workflow_runs')
-    .select(['repository_id'])
-    .where('id', '=', runId)
-    .executeTakeFirst()
-
-  if (owning)
-    await announceRunIfMoved(Number(owning.repository_id), runId, from, next)
+  await announceRunIfMoved(Number(run.repository_id), runId, from, next)
 }

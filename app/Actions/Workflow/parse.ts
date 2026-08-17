@@ -125,6 +125,16 @@ export interface WorkflowJob {
    */
   failFast: boolean
   maxParallel: number | null
+  /**
+   * `continue-on-error:` on the job: it may fail without failing the run.
+   *
+   * Actions' rule, which reads stranger than it is: a job that fails this way
+   * still shows as failed, and still reports `success` to the jobs that
+   * `needs:` it. The point is a job somebody wants to see the result of and
+   * does not want to block on - a flaky integration suite, a benchmark - and
+   * treating it as fatal is what makes people delete the job instead.
+   */
+  continueOnError: boolean
 }
 
 export interface WorkflowConcurrency {
@@ -908,6 +918,10 @@ export function parseWorkflow(source: string, path = 'workflow.yml'): ParseResul
       // cancels the rest unless the workflow says otherwise.
       failFast: strategy['fail-fast'] !== false,
       maxParallel: typeof maxParallel === 'number' && Number.isFinite(maxParallel) ? maxParallel : null,
+      // Literal `true` only, for the same reason as the step-level one: an
+      // expression here is read by nothing yet, and reading `${{ inputs.soft }}`
+      // as truthy text would make a job unfailable by accident.
+      continueOnError: body['continue-on-error'] === true,
     })
   }
 

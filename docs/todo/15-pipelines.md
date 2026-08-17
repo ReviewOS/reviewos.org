@@ -238,7 +238,7 @@ written down here so it does not get relitigated:
       commit. Without it the second issue would look like the first one redelivered.
 
       The rest are recorded as recognised-but-not-dispatched.
-- [ ] `jobs:` with `needs:`, `outputs:` (**resolved by the runner and handed to dependent jobs as
+- [x] `jobs:` with `needs:`, `outputs:` (**resolved by the runner and handed to dependent jobs as
       `needs.<job>.outputs.<name>`, alongside `needs.<job>.result`**), `if:` (**decided at dispatch now** - a job whose condition is false is
       `skipped` from the moment the run exists, with the reason on the row, rather than queued and
       quietly ignored), `strategy.matrix` including `include`, `exclude`, `fail-fast`,
@@ -257,8 +257,45 @@ written down here so it does not get relitigated:
       every combination it fits without overwriting and appended as its own job when it would, and
       a 256-job ceiling that says what to do rather than starting 400 jobs. Object values compare by
       shape, because `{ node: 20 }` as a matrix value is idiomatic and comparing by identity makes
-      every `exclude` miss. `continue-on-error` and `outputs` are parsed but nothing consumes them
-      yet.
+      every `exclude` miss.
+
+      **`needs:` means every combination**, which is where a real defect lived: the graph kept its
+      jobs in a map keyed by name, and a matrix puts four rows under one name, so the map held
+      whichever combination was written last. A matrix whose first combination failed and whose last
+      succeeded unblocked the deploy that the failure existed to stop. It also meant only one row of
+      a dependent matrix was ever unblocked, leaving the rest in `blocked` until somebody cancelled
+      the run. The graph groups by name now and aggregates, and the same rows carry their ids so the
+      write moves the job it decided about rather than the first one with that name.
+
+      **`fail-fast` works**, and defaults to true the way Actions does: one combination failing
+      cancels the queued siblings and asks the running ones to stop, with the reason on each row -
+      a cancelled job with nothing on it reads as "somebody pressed cancel", which is the wrong
+      thing to go looking for. `fail-fast: false` leaves them alone, which is the only reason to
+      write it.
+
+      **`max-parallel` is honoured at claim time**, by counting the combinations already running.
+      That is a check rather than a lock, stated plainly here and on the conformance page: two
+      runners polling in the same instant can both take the last slot. Making it exact needs a lock
+      held across every claim on the instance, which is a cost paid by every job to make one key
+      precise.
+
+      **`continue-on-error` at job level** does what Actions does and it reads strangely until you
+      need it: the job still shows as failed, the run is not failed by it, and the jobs that
+      `needs:` it are told `success`. The run page says so on the row, because a red job on a green
+      run is otherwise a puzzle. The alternative - treating it as fatal - is what makes people
+      delete the flaky suite instead of watching it.
+
+      **`timeout-minutes` is enforced twice**, and the two halves fail differently. The runner
+      checks between steps and can say *which step* the time went into; the control plane sweeps a
+      job that overran whether or not its runner is still listening. Six hours when the workflow
+      does not say, which is Actions' default and exists so that nothing runs forever rather than
+      as an opinion about how long a job should take.
+
+      One thing the sweep needed on the way: it recomputed only the run's own state, so a job it
+      force-cancelled left its dependants in `blocked` and the run never reached a terminal state at
+      all - a pull request holding on work that ended an hour ago. The graph settler is shared with
+      the reporter now, because two things move a run and two copies of "what does this failure
+      unblock" is how they end up disagreeing about the same run.
 - [x] `runs-on:`, accepting a single label, a list of labels, and a `group`/`labels` object, mapped
       onto queues and runner tags. Complex `runs-on` expressions are in scope; Gitea's not supporting
       them is a known migration blocker.

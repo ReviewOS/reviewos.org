@@ -271,6 +271,23 @@ const jobs = jobRows.map((job) => {
           leaseExpiresAt: job.lease_expires_at ?? null,
         }, runnerFacts)
       : null,
+    /*
+     * Why this job is in the state it is, when the state alone does not say.
+     *
+     * A skipped job has no logs, no steps and no runner - the reason its `if:`
+     * decided that is written at dispatch or it is gone - and a *cancelled* job
+     * with nothing else on the row reads as "somebody pressed cancel", which is
+     * wrong when it was `fail-fast` or a timeout that stopped it.
+     */
+    reason: job.condition_reason ? String(job.condition_reason) : '',
+    /*
+     * A red job on a green run, said out loud.
+     *
+     * `continue-on-error` is the one case where a failed job is not a problem,
+     * and a screen that shows the failure without the permission has somebody
+     * hunting a broken build that the workflow expected.
+     */
+    allowedToFail: job.continue_on_error === true && String(job.state) === 'failed',
     runsOn: String(job.runs_on ?? '').split('\n').map(line => line.trim()).filter(Boolean).join(', '),
     runner: job.runner_id ? String(job.runner_id) : '',
     duration: runDuration(job.started_at, job.finished_at),
@@ -402,6 +419,18 @@ const base = `/${ownerHandle}/${repositoryName}`
             --}}
             @if (job.waitingBecause && job.waitingBecause.kind !== 'ready')
               <p class="job-waiting">{{ job.waitingBecause.summary }}</p>
+            @endif
+
+            {{--
+              And why a job that will never run, or was stopped by something
+              other than a person, ended where it did.
+            --}}
+            @if (job.reason)
+              <p class="job-waiting">{{ job.reason }}</p>
+            @endif
+
+            @if (job.allowedToFail)
+              <p class="job-waiting">This job failed and the workflow allows it to: continue-on-error is set, so the run is not failed by it.</p>
             @endif
 
             <p class="muted job-meta">

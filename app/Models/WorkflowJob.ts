@@ -159,6 +159,51 @@ export default defineModel({
       factory: () => null,
     },
 
+    /*
+     * The four policy columns below are copied from the definition onto the
+     * run, like `needs` and `condition` above them.
+     *
+     * They decide what a *finished* run means - whether a failure failed it,
+     * whether its siblings were stopped, how long it was allowed - and reading
+     * them back from a definition that has since changed would make a run's
+     * conclusion something nobody can reconstruct. A run has to stay readable
+     * after the file moved on.
+     */
+
+    /** `strategy.fail-fast`: one combination failing stops the rest. */
+    fail_fast: {
+      order: 35,
+      fillable: true,
+      default: true,
+      validation: { rule: schema.boolean() },
+      factory: () => true,
+    },
+
+    /** `strategy.max-parallel`: how many combinations may run at once. */
+    max_parallel: {
+      order: 36,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    /** `timeout-minutes:`, after which the job is stopped rather than waited on. */
+    timeout_minutes: {
+      order: 37,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    /** `continue-on-error:`: this job may fail without failing the run. */
+    continue_on_error: {
+      order: 38,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
     needs: {
       order: 6,
       fillable: true,

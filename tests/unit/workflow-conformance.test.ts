@@ -163,19 +163,18 @@ describe('the warnings the parser emits', () => {
   })
 
   /*
-   * An ordinary CI workflow, and the two things it is worth telling its author:
-   * `permissions` defaults differently here, and `fail-fast` is stored but not
-   * yet acted on. Neither stops the workflow running, and both are things
-   * somebody would otherwise discover by watching a run behave unexpectedly.
+   * An ordinary CI workflow, and the one thing worth telling its author:
+   * `permissions` defaults differently here. It used to warn about `fail-fast`
+   * too, and that line went when `fail-fast` started working - which is the
+   * whole point of generating the warnings from the same table the page is
+   * generated from. A difference that gets implemented stops being announced
+   * without anybody having to remember to delete the sentence.
    */
   test('and a real workflow gets exactly the notes it should', async () => {
     const source = await Bun.file(join(CORPUS, 'node-ci.yml')).text()
     const result = parseWorkflow(source, '.github/workflows/node-ci.yml')
 
-    expect(result.warnings.map(warning => warning.key)).toEqual([
-      'jobs.<id>.strategy.fail-fast',
-      'permissions',
-    ])
+    expect(result.warnings.map(warning => warning.key)).toEqual(['permissions'])
   })
 
   test('and a release trigger is named as a deliberate difference', async () => {

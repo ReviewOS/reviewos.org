@@ -109,6 +109,23 @@ export default defineModel({
      * combination cancels the rest. Stored per job because that is where the
      * workflow says it.
      */
+    /**
+     * `continue-on-error:` on the job.
+     *
+     * A job the workflow says may fail without failing the run. Kept apart from
+     * the step-level column of the same name because they answer different
+     * questions - one is "this command may fail", the other is "this whole job
+     * may fail" - and folding them together would make a step's failure decide
+     * a run's conclusion.
+     */
+    continue_on_error: {
+      order: 43,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
     fail_fast: {
       order: 31,
       fillable: true,

@@ -79,19 +79,20 @@ export const CONFORMANCE: ConformanceEntry[] = [
 
   // --------------------------------------------------------------------- job
   { key: 'jobs.<id>.runs-on', level: 'job', status: 'supported', behaviour: 'Matched against a runner\'s labels, as a string, a list, or a `group`/`labels` mapping.' },
-  { key: 'jobs.<id>.needs', level: 'job', status: 'supported', behaviour: 'Orders the graph, refuses a cycle by name, and skips a job whose dependency did not succeed rather than leaving it blocked forever.' },
+  { key: 'jobs.<id>.needs', level: 'job', status: 'supported', behaviour: 'Orders the graph, refuses a cycle by name, and skips a job whose dependency did not succeed rather than leaving it blocked forever. A matrix is every combination of it: `needs: build` waits for all of them and is held back by any one that failed.' },
   { key: 'jobs.<id>.if', level: 'job', status: 'supported', behaviour: 'Evaluated when the run is created; a job whose condition is false is `skipped` with the reason recorded.' },
   { key: 'jobs.<id>.strategy.matrix', level: 'job', status: 'supported', behaviour: 'Expanded at parse time, including `include` and `exclude`; each combination is its own job.' },
-  { key: 'jobs.<id>.strategy.fail-fast', level: 'job', status: 'unimplemented', behaviour: 'Stored; cancelling the siblings of a failed combination needs the execution plane.' },
-  { key: 'jobs.<id>.strategy.max-parallel', level: 'job', status: 'unimplemented', behaviour: 'Stored; nothing limits how many combinations run at once yet.' },
+  { key: 'jobs.<id>.strategy.fail-fast', level: 'job', status: 'supported', behaviour: 'Defaults to true, as it does on Actions: one combination failing cancels the queued siblings and asks the running ones to stop, with the reason on each row. `fail-fast: false` leaves them alone.' },
+  { key: 'jobs.<id>.strategy.max-parallel', level: 'job', status: 'differs', behaviour: 'Honoured at claim time by counting the combinations already running, which is a check rather than a lock: two runners polling in the same instant can both take the last slot. Making it exact would mean a lock held across every claim on the instance.' },
   { key: 'jobs.<id>.env', level: 'job', status: 'supported', behaviour: 'Overrides the workflow\'s for this job\'s steps.' },
   { key: 'jobs.<id>.permissions', level: 'job', status: 'supported', behaviour: 'Replaces the workflow\'s rather than adding to it, which is Actions\' rule.' },
   { key: 'jobs.<id>.concurrency', level: 'job', status: 'supported', behaviour: 'A group of its own, resolved against the run and the matrix combination.' },
   { key: 'jobs.<id>.uses', level: 'job', status: 'differs', behaviour: 'Local reusable workflows are called and their jobs shown in the run. A cross-repository call is refused with a reason rather than half done.' },
-  { key: 'jobs.<id>.timeout-minutes', level: 'job', status: 'unimplemented', behaviour: 'Stored; the runner enforces its own two-hour ceiling per step.' },
+  { key: 'jobs.<id>.timeout-minutes', level: 'job', status: 'supported', behaviour: 'Enforced twice: the runner stops between steps and says which step it was about to run, and the control plane sweeps a job that overran whether or not its runner is listening. Six hours when the workflow does not say, which is Actions\' default.' },
   { key: 'jobs.<id>.container', level: 'job', status: 'unimplemented', behaviour: 'Parsed and refused at run time: this instance has no container isolation yet, and pretending otherwise would run the steps on the host.' },
   { key: 'jobs.<id>.services', level: 'job', status: 'unimplemented', behaviour: 'Parsed; no service containers are started, and a job that needs one is told rather than failing on a closed port.' },
   { key: 'jobs.<id>.environment', level: 'job', status: 'unimplemented', behaviour: 'Parsed; deployment environments and their protection rules are phase 9 work.' },
+  { key: 'jobs.<id>.continue-on-error', level: 'job', status: 'supported', behaviour: 'The job still shows as failed and the run is not failed by it, and the jobs that `needs:` it are told `success` - which is Actions\' rule and the only shape that keeps a flaky suite visible instead of deleted.' },
   { key: 'jobs.<id>.outputs', level: 'job', status: 'supported', behaviour: 'Resolved by the runner once the steps they read have run, stored on the run\'s job, and handed to the jobs that `needs:` it as `needs.<job>.outputs.<name>` alongside `needs.<job>.result`.' },
 
   // -------------------------------------------------------------------- step
@@ -182,13 +183,13 @@ export function differencesIn(root: unknown): Array<{ key: string, status: Confo
     if (!job || typeof job !== 'object')
       continue
 
-    for (const key of ['uses', 'timeout-minutes', 'container', 'services', 'environment', 'outputs'])
+    for (const key of ['uses', 'container', 'services', 'environment'])
       if (key in job)
         note(`jobs.<id>.${key}`)
 
     const strategy = job.strategy && typeof job.strategy === 'object' ? job.strategy : {}
 
-    for (const key of ['fail-fast', 'max-parallel'])
+    for (const key of ['max-parallel'])
       if (key in strategy)
         note(`jobs.<id>.strategy.${key}`)
 

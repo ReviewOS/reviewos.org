@@ -7,7 +7,7 @@ is accepted and does nothing has not been implemented - the fact that it has not
 hidden. So every key here has a status and a sentence, including the ones that are missing and
 the ones that are deliberately different.
 
-30 keys behave as Actions does, 6 differ on purpose, 10 are not implemented yet, and 1 is refused.
+33 keys behave as Actions does, 7 differ on purpose, 7 are not implemented yet, and 1 is refused.
 
 Generated from the conformance table.
 
@@ -30,12 +30,15 @@ These do what Actions does. A workflow using only these keys behaves the same he
 | `defaults.run` | workflow | `shell` and `working-directory` are inherited by steps; nothing declared anywhere leaves the choice to the runner. |
 | `concurrency` | workflow | Groups runs and cancels superseded ones with `cancel-in-progress`. A group whose expression cannot be resolved is no group at all. |
 | `jobs.<id>.runs-on` | job | Matched against a runner's labels, as a string, a list, or a `group`/`labels` mapping. |
-| `jobs.<id>.needs` | job | Orders the graph, refuses a cycle by name, and skips a job whose dependency did not succeed rather than leaving it blocked forever. |
+| `jobs.<id>.needs` | job | Orders the graph, refuses a cycle by name, and skips a job whose dependency did not succeed rather than leaving it blocked forever. A matrix is every combination of it: `needs: build` waits for all of them and is held back by any one that failed. |
 | `jobs.<id>.if` | job | Evaluated when the run is created; a job whose condition is false is `skipped` with the reason recorded. |
 | `jobs.<id>.strategy.matrix` | job | Expanded at parse time, including `include` and `exclude`; each combination is its own job. |
+| `jobs.<id>.strategy.fail-fast` | job | Defaults to true, as it does on Actions: one combination failing cancels the queued siblings and asks the running ones to stop, with the reason on each row. `fail-fast: false` leaves them alone. |
 | `jobs.<id>.env` | job | Overrides the workflow's for this job's steps. |
 | `jobs.<id>.permissions` | job | Replaces the workflow's rather than adding to it, which is Actions' rule. |
 | `jobs.<id>.concurrency` | job | A group of its own, resolved against the run and the matrix combination. |
+| `jobs.<id>.timeout-minutes` | job | Enforced twice: the runner stops between steps and says which step it was about to run, and the control plane sweeps a job that overran whether or not its runner is listening. Six hours when the workflow does not say, which is Actions' default. |
+| `jobs.<id>.continue-on-error` | job | The job still shows as failed and the run is not failed by it, and the jobs that `needs:` it are told `success` - which is Actions' rule and the only shape that keeps a flaky suite visible instead of deleted. |
 | `jobs.<id>.outputs` | job | Resolved by the runner once the steps they read have run, stored on the run's job, and handed to the jobs that `needs:` it as `needs.<job>.outputs.<name>` alongside `needs.<job>.result`. |
 | `steps[*].run` | step | Executed by the runner, in the workspace, with the job's environment and with its `${{ }}` expressions filled in first - which is what makes `echo "${{ steps.build.outputs.name }}"` work. |
 | `steps[*].uses` | step | Local, composite and JavaScript actions run; remote ones are fetched and cached, under a policy that allows no host by default. |
@@ -56,6 +59,7 @@ These work, and deliberately not the way Actions does. Every one is a decision y
 | --- | --- | --- |
 | `on.release` | on | Defaults to `published` only, where Actions defaults to every activity type. A draft release starting a deployment is the surprise nobody wants; naming `types` opts back in. |
 | `permissions` | workflow | Mapped onto this instance's token scopes, and the default is read-only rather than depending on an organization setting, so a workflow behaves the same on every instance. `write-all` does not grant administration. |
+| `jobs.<id>.strategy.max-parallel` | job | Honoured at claim time by counting the combinations already running, which is a check rather than a lock: two runners polling in the same instant can both take the last slot. Making it exact would mean a lock held across every claim on the instance. |
 | `jobs.<id>.uses` | job | Local reusable workflows are called and their jobs shown in the run. A cross-repository call is refused with a reason rather than half done. |
 | `steps[*].continue-on-error` | step | Honoured as a literal `true` only. An expression needs the expression engine at step time, and reading it as truthy text would make every such step unfailable. |
 | `steps[*].shell` | step | Recorded and inherited, and the local runner runs `sh` regardless. A runner that only has one shell should say so rather than refuse a file for naming another. |
@@ -70,9 +74,6 @@ These are read and do nothing yet. A workflow using one is told - on its run, or
 | `on.workflow_run` | on | Recognised and recorded; no run is started, and the workflow page says so. |
 | `on.repository_dispatch` | on | Recognised and recorded; there is no endpoint to send one yet. |
 | `run-name` | workflow | Accepted and not yet used; runs are named for their workflow. |
-| `jobs.<id>.strategy.fail-fast` | job | Stored; cancelling the siblings of a failed combination needs the execution plane. |
-| `jobs.<id>.strategy.max-parallel` | job | Stored; nothing limits how many combinations run at once yet. |
-| `jobs.<id>.timeout-minutes` | job | Stored; the runner enforces its own two-hour ceiling per step. |
 | `jobs.<id>.container` | job | Parsed and refused at run time: this instance has no container isolation yet, and pretending otherwise would run the steps on the host. |
 | `jobs.<id>.services` | job | Parsed; no service containers are started, and a job that needs one is told rather than failing on a closed port. |
 | `jobs.<id>.environment` | job | Parsed; deployment environments and their protection rules are phase 9 work. |

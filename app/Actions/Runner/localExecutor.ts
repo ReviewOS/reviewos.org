@@ -90,6 +90,16 @@ interface StepResult {
  */
 const STEP_TIMEOUT_MS = 2 * 60 * 60 * 1000
 
+/**
+ * The job timeout when the workflow does not set one.
+ *
+ * Actions' six hours, on purpose. It is far longer than any job should take and
+ * that is the point of a default: it exists so that nothing runs *forever*, not
+ * to express an opinion about how long this job should be. A workflow with a
+ * view says `timeout-minutes:` and gets it.
+ */
+const DEFAULT_JOB_TIMEOUT_MINUTES = 360
+
 /** Claim one job and run it, or answer null when there was nothing to take. */
 export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome | null> {
   const say = options.say ?? (() => {})
@@ -214,6 +224,18 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     let failed: string | null = null
 
     /*
+     * When this job runs out of time.
+     *
+     * Checked between steps rather than enforced with one timer over the whole
+     * job: killing a step mid-write leaves a workspace nobody can explain, and
+     * the honest report - "this step is where the time went" - needs the step
+     * boundary anyway. A single step that hangs past the deadline is still
+     * caught, by `STEP_TIMEOUT_MS` inside `runStep`.
+     */
+    const minutes = Number(job.timeout_minutes ?? DEFAULT_JOB_TIMEOUT_MINUTES)
+    const deadline = Date.now() + (Number.isFinite(minutes) && minutes > 0 ? minutes : DEFAULT_JOB_TIMEOUT_MINUTES) * 60_000
+
+    /*
      * What one step tells the next.
      *
      * `GITHUB_ENV` and `GITHUB_PATH` are files a step appends to, read after it
@@ -237,6 +259,22 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
     for (const [index, step] of steps.entries()) {
       const name = String(step.name ?? step.run ?? step.uses ?? `step ${index + 1}`)
+
+      if (Date.now() >= deadline) {
+        /*
+         * Out of time, said here rather than left to the lease.
+         *
+         * The control plane would eventually notice - a job past its deadline
+         * is swept - but "the runner stopped talking" is what that looks like
+         * from the outside, and it sends somebody to check their
+         * infrastructure when the answer is a step that hangs. The runner knows
+         * which step it was about to run, so it says so.
+         */
+        failed = `this job hit its ${minutes}-minute timeout before \`${name}\``
+        jobFailed = true
+        await send(`${failed}\n`, 'stderr')
+        break
+      }
 
       /*
        * The step's own condition, evaluated here rather than at dispatch.

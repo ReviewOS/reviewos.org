@@ -8450,6 +8450,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "continue_on_error",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -8809,6 +8818,40 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "fail_fast",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": true
+          },
+          {
+            "name": "max_parallel",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "timeout_minutes",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "continue_on_error",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -9701,7 +9744,7 @@
       }
     ]
   },
-  "hash": "9cd718a06e681319f35fa4776765fb9950e8fe380cda646b4bfff85d8a3f65b6",
+  "hash": "adf1e07a3bda09e242548f0085c98e087ce0d71e2759119303c609085136a604",
   "dialect": "postgres",
-  "updatedAt": "2026-08-17T14:04:17.790Z"
+  "updatedAt": "2026-08-17T14:19:41.124Z"
 }

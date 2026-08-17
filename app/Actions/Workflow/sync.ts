@@ -240,6 +240,7 @@ async function insertVersion(
         matrix: job.matrix.length > 0 ? JSON.stringify(job.matrix) : null,
         fail_fast: job.failFast,
         max_parallel: job.maxParallel,
+        continue_on_error: job.continueOnError,
       } as any)
       .returning(['id'])
       .executeTakeFirst()

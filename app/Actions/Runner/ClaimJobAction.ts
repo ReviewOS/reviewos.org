@@ -178,7 +178,7 @@ export default new Action({
      */
     const jobRow: any = await db
       .selectFrom('workflow_jobs')
-      .select(['matrix_values'])
+      .select(['matrix_values', 'timeout_minutes'])
       .where('id', '=', claimed.jobId)
       .executeTakeFirst()
 
@@ -264,6 +264,18 @@ export default new Action({
          */
         matrix_values: readJson(jobRow?.matrix_values),
         needs: await outputsOfNeeds(claimed.runId, String(claimed.jobKey)),
+        /*
+         * How long this job is allowed to take, in minutes.
+         *
+         * Sent so the runner can stop it *and say why*. The control plane has
+         * its own backstop for a runner that ignores this or dies holding the
+         * job, but a timeout enforced only by a lease sweep reads as "the
+         * runner disappeared", which sends somebody looking at their
+         * infrastructure instead of at the step that hangs.
+         */
+        timeout_minutes: jobRow?.timeout_minutes === null || jobRow?.timeout_minutes === undefined
+          ? null
+          : Number(jobRow.timeout_minutes),
         steps: steps.map(step => ({
           position: Number(step.position ?? 0),
           name: step.name ?? null,
