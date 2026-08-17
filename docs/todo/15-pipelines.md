@@ -573,12 +573,16 @@ written down here so it does not get relitigated:
       `matrix`, `needs`, `inputs`. A `reviewos` context is the canonical name and `github` is an
       alias, which is the approach Forgejo took and it works.
 
-      **Eight of the twelve are readable now**: `github` (with `actor`, `workflow`, `head_ref`,
+      **Nine of the twelve are readable now**: `github` (with `actor`, `workflow`, `head_ref`,
       `base_ref`, `ref_name`, `ref_type`, `run_id`, `run_number`, `run_attempt`, `repository_owner`,
       `server_url`, `api_url`, `event` and `event_path`), plus `env`, `job`, `steps`, `needs`,
-      `matrix`, `inputs` and `runner`. `reviewos` is the same object under this forge's own name.
-      `secrets`, `vars`, `strategy` and `jobs` are not populated, and an expression reading one is
-      left as written rather than quietly becoming an empty string.
+      `matrix`, `inputs`, `runner`, and now `vars` - resolved across instance, owner, repository and
+      the workflow file at claim time, so the runner merges nothing. `reviewos` is the same object
+      under this forge's own name.
+
+      `secrets`, `strategy` and `jobs` are not populated, and an expression reading one is left as
+      written rather than quietly becoming an empty string. `secrets` cannot be until there is a
+      secret store, which there is not.
 
       They are built in one function rather than assembled per call site, because a `run:` and a job
       output that interpolate the same expression have to see the same value. Half of `github` was
