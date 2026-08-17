@@ -32,8 +32,8 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
   },
   {
     file: 'routes/api.ts',
-    count: 9,
-    because: 'the MCP endpoint, the mirror webhook, and the seven runner routes. '
+    count: 10,
+    because: 'the MCP endpoint, the mirror webhook, and the eight runner routes. '
       + 'MCP reads its bearer itself and refuses a request without one before '
       + 'anything else happens; the mirror webhook is signed over its body by an '
       + 'upstream forge that holds no cookie; the runner endpoints authenticate a '
@@ -167,11 +167,12 @@ describe('what is not exempt', () => {
     // number worth noticing a change in, and it is what caught the runner
     // routes arriving without anybody writing down why they were exempt - once
     // for the first three, again for the log append, and again for the
-    // annotation report, and once more for the step upload.
+    // annotation report, once more for the step upload, and again for the
+    // split a job asks for with its own job token.
     const source = await Bun.file('routes/api.ts').text()
     const unsafe = (source.match(/route\.(post|put|patch|delete)\(/g) ?? []).length
 
     expect(unsafe).toBeGreaterThan(50)
-    expect(await skipCount('routes/api.ts')).toBe(9)
+    expect(await skipCount('routes/api.ts')).toBe(10)
   })
 })

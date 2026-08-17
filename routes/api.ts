@@ -782,6 +782,13 @@ route.post('/repos/workflow-runs/approve', 'Actions/Workflow/ApproveWorkflowJobA
 route.post('/repos/tests/ingest', 'Actions/Tests/IngestTestsAction').middleware('auth')
 route.post('/repos/tests/manage', 'Actions/Tests/ManageTestAction').middleware('auth')
 
+/*
+ * And the reason to report timings in the first place: a POST because the
+ * client sends its file list, not because it changes anything. It reads
+ * history and answers a question.
+ */
+route.post('/repos/tests/split', 'Actions/Tests/SplitTestsAction').middleware('auth')
+
 /**
  * The runner protocol.
  *
@@ -810,6 +817,15 @@ route.post('/runner/annotations', 'Actions/Runner/AnnotateAction').skipCsrf()
  * level" enforceable rather than promised.
  */
 route.post('/runner/upload', 'Actions/Runner/UploadStepsAction').skipCsrf()
+
+/*
+ * Which tests this node should run, for a job on this instance's own runner.
+ *
+ * The job token again: a job that already holds a credential naming it should
+ * not also have to carry a repository token, which would be stored as a secret,
+ * rotated by somebody, and far broader than "read the timings for this suite".
+ */
+route.post('/runner/split', 'Actions/Runner/SplitTestsForJobAction').skipCsrf()
 
 // Reading is the repository's permission, not the runner's: a log is the
 // repository's data, and somebody who cannot see the code cannot see what

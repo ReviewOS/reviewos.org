@@ -140,14 +140,63 @@ whose review date has passed.
 `operation: "own"` puts a name on a test, so a failure has an addressee. A flaky
 test with nobody's name on it stays flaky.
 
+## Splitting a suite across parallel jobs
+
+`parallelism: 8` everywhere else means "cut the file list into eight
+alphabetical pieces and hope". Test files are not uniform - one integration file
+is worth forty unit files - so the alphabetical cut gives one node eleven
+minutes and another forty seconds, and the job takes eleven minutes.
+
+For a job running here, the runner puts the client on the job's PATH:
+
+```yaml
+jobs:
+  test:
+    strategy:
+      matrix:
+        node: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          find tests -name '*.test.ts'             | reviewos-split unit 4 "${{ matrix.node }}"             | xargs bun test
+```
+
+It authenticates with the **job token**, so a sharding job needs no repository
+credential of its own - reading timings is something the credential it already
+holds can do. From another CI, the same answer comes from
+`POST /api/repos/tests/split` with `{ suite, items, nodes, index }` and a
+credential with `repository:read`.
+
+### What it guarantees
+
+**Every item lands on exactly one node.** A test that runs twice wastes a
+machine; a test that runs nowhere silently stopped being run, and nothing
+anywhere will say so.
+
+**Every node computes the same partition** without talking to any other node -
+each asks for the whole split and keeps its slice. So the answer is
+deterministic down to how ties are broken, because a tie broken by chance hands
+two nodes overlapping work and leaves a hole.
+
+The partition itself is longest-processing-time-first: sort by cost descending,
+give each item to whichever node is cheapest so far. It is within 4/3 of optimal
+and the input is estimates anyway - what matters is that the big items are
+placed first, since placing them last is exactly how one node ends up eleven
+minutes long.
+
+### When there is no history
+
+It still answers, with a `note` on stderr saying the split came from nothing.
+The alternative - an error - leaves a node with no list, which turns a
+missing-history problem into a broken build. A file nobody has timed is assumed
+to cost what a typical file costs rather than nothing: zero would mean adding it
+never changes which node is cheapest, so every new file lands on the same one.
+
 ## What is not built yet
 
 Stated plainly, because a half-built feature you discover yourself is worse than
 one that was never promised:
 
-- **Test splitting** - distributing a suite across parallel jobs by historical
-  timing. The timings are recorded; the client that consumes them is not
-  written.
 - **Monitors and actions** - a rule that watches a test and raises an alarm once
   per transition.
 - **Trends and the pull request surface** - reliability and duration over time,

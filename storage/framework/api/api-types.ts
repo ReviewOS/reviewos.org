@@ -14868,6 +14868,32 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/tests/split": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "suite"?: string; "nodes"?: number; "index"?: number } } }
+    responses: {
+      "200": { content: { "application/json": { "items"?: Array<string>; "estimated_ms"?: number; "unknown"?: number; "note"?: string } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/topics": {
     get?: never
     put: {
@@ -15603,6 +15629,32 @@ export interface paths {
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "401": { content: never }
+      "422": { content: never }
+      "426": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/runner/split": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "suite"?: string; "nodes"?: number; "index"?: number } } }
+    responses: {
+      "200": { content: { "application/json": { "items"?: Array<string>; "estimated_ms"?: number; "unknown"?: number; "note"?: string } } }
+      "401": { content: never }
+      "409": { content: never }
       "422": { content: never }
       "426": { content: never }
       "500": { content: never }

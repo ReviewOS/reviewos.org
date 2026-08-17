@@ -332,6 +332,9 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      */
     const uploadPath = writeUploadCommand(workspace, options.baseUrl, jobToken)
 
+    if (uploadPath)
+      writeSplitCommand(uploadPath, options.baseUrl, jobToken)
+
     const steps: any[] = Array.isArray(job.steps) ? job.steps : []
     let failed: string | null = null
     /*
@@ -782,6 +785,53 @@ function expressionContext(
 }
 
 /**
+ * Write `reviewos-split` next to it, for a job that shards a test suite.
+ *
+ * `reviewos-split unit 4 "$INDEX" < files` prints the files this node should
+ * run, one per line, ordered slowest first. Written as a sibling of
+ * `reviewos-upload` and for the same reason: the alternative is every sharding
+ * job carrying a repository credential in its own script, to read timings the
+ * job token can already read.
+ */
+export function writeSplitCommand(directory: string, baseUrl: string, jobToken: string): void {
+  try {
+    const path = join(directory, 'reviewos-split')
+
+    writeFileSync(path, `#!/bin/sh
+# Which of these tests this node should run.
+# Usage: reviewos-split <suite> <nodes> <index> [file]
+set -e
+items=$(cat "\${4:--}")
+printf '%s' "$items" | ${JSON.stringify(process.execPath)} -e '
+const [suite, nodes, index] = process.argv.slice(1)
+const items = require("fs").readFileSync(0, "utf8")
+const answer = await fetch(${JSON.stringify(`${baseUrl.replace(/\/$/, '')}/api/runner/split`)}, {
+  method: "POST",
+  headers: {
+    "Authorization": ${JSON.stringify(`Bearer ${jobToken}`)},
+    "Content-Type": "application/json",
+    "X-Runner-Protocol": "1",
+  },
+  body: JSON.stringify({ suite, nodes: Number(nodes), index: Number(index), items }),
+})
+const body = await answer.json()
+if (!answer.ok) { console.error(body.error || "split refused"); process.exit(1) }
+// The note goes to stderr so a pipe into xargs still works, and so a split
+// computed from no history says so where somebody will read it.
+if (body.note) console.error(body.note)
+process.stdout.write((body.items || []).join("\\n") + "\\n")
+' "$1" "$2" "$3"
+`)
+
+    chmodSync(path, 0o700)
+  }
+  catch {
+    // Same as the upload command: a convenience over an endpoint that is still
+    // there, and not a reason to fail a build.
+  }
+}
+
+/**
  * Write `reviewos-upload` into a directory on the job's PATH.
  *
  * One line for a job that generates steps: `reviewos-upload generated.yml`, or
@@ -793,7 +843,7 @@ function expressionContext(
  * script lives *outside* the checkout - so a step that prints its environment,
  * or a `tar` of the workspace, does not carry it.
  */
-function writeUploadCommand(workspace: string, baseUrl: string, jobToken: string): string {
+export function writeUploadCommand(workspace: string, baseUrl: string, jobToken: string): string {
   try {
     const directory = join(workspace, '..', `.reviewos-bin-${process.pid}`)
 

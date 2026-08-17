@@ -5448,6 +5448,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/tests/split
+   */
+  postReposTestsSplit(input?: { body?: { "owner"?: string; "repo"?: string; "suite"?: string; "nodes"?: number; "index"?: number } }, options?: RequestOptions): Promise<ApiResult<{ "items"?: Array<string>; "estimated_ms"?: number; "unknown"?: number; "note"?: string }>> {
+    return request(config, "POST", "/api/repos/tests/split", input ?? {}, [], true, options)
+  },
+
+  /**
    * PUT /api/repos/topics
    */
   putReposTopics(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -5669,6 +5676,13 @@ export function createClient(config: ClientConfig) {
    */
   postRunnerReport(input?: { body?: { "state"?: "succeeded" | "failed" | "cancelled"; "error"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/runner/report", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/runner/split
+   */
+  postRunnerSplit(input?: { body?: { "suite"?: string; "nodes"?: number; "index"?: number } }, options?: RequestOptions): Promise<ApiResult<{ "items"?: Array<string>; "estimated_ms"?: number; "unknown"?: number; "note"?: string }>> {
+    return request(config, "POST", "/api/runner/split", input ?? {}, [], true, options)
   },
 
   /**

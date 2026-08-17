@@ -473,3 +473,84 @@ describe('the ingest endpoint', () => {
     expect(status).not.toBe(200)
   }, 120_000)
 })
+
+/*
+ * Splitting, against real recorded history.
+ *
+ * The unit tests hold the partition itself; what this proves is the part that
+ * only breaks in the database: that the timings the endpoint reads are the ones
+ * ingestion wrote, per file and averaged over runs rather than summed over
+ * months.
+ */
+describe('splitting a suite by what it has cost', () => {
+  async function split(body: Record<string, unknown>): Promise<any> {
+    const answer = await fetch(`http://127.0.0.1:${port}/api/repos/tests/split`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${created.token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ owner: created.handle, repo: created.name, suite: 'split', ...body }),
+    })
+
+    return { status: answer.status, body: await answer.json().catch(() => null) }
+  }
+
+  test('the slow file and the fast files end up on different nodes', async () => {
+    if (!available)
+      return
+
+    await ingest({
+      suite: 'split',
+      key: 'split-1',
+      executions: [
+        { scope: 'e2e/slow.spec.ts', name: 'a', result: 'passed', durationMs: 120_000 },
+        { scope: 'unit/fast-a.test.ts', name: 'b', result: 'passed', durationMs: 300 },
+        { scope: 'unit/fast-b.test.ts', name: 'c', result: 'passed', durationMs: 200 },
+      ],
+    })
+
+    const items = ['e2e/slow.spec.ts', 'unit/fast-a.test.ts', 'unit/fast-b.test.ts']
+    const zero = await split({ items, nodes: 2, index: 0 })
+    const one = await split({ items, nodes: 2, index: 1 })
+
+    expect(zero.status).toBe(200)
+    expect(zero.body.items).toEqual(['e2e/slow.spec.ts'])
+    expect(one.body.items.sort()).toEqual(['unit/fast-a.test.ts', 'unit/fast-b.test.ts'])
+
+    // Every item, exactly once, which is the property that is silent when it
+    // breaks: a file on no node stopped being tested and nothing says so.
+    expect([...zero.body.items, ...one.body.items].sort()).toEqual([...items].sort())
+    expect(zero.body.estimated_ms).toBeGreaterThan(100_000)
+  }, 120_000)
+
+  test('a file with no history is carried anyway, and the answer says it was guessed at', async () => {
+    if (!available)
+      return
+
+    const { body } = await split({
+      items: ['e2e/slow.spec.ts', 'unit/fast-a.test.ts', 'unit/fast-b.test.ts', 'unit/brand-new.test.ts'],
+      nodes: 2,
+      index: 1,
+    })
+
+    expect([...body.items, ...(await split({ items: ['e2e/slow.spec.ts', 'unit/fast-a.test.ts', 'unit/fast-b.test.ts', 'unit/brand-new.test.ts'], nodes: 2, index: 0 })).body.items])
+      .toContain('unit/brand-new.test.ts')
+    expect(String(body.note)).toContain('no timing history')
+  }, 120_000)
+
+  test('a suite nobody has ever reported still gets a partition, with a note saying so', async () => {
+    if (!available)
+      return
+
+    // The alternative is an error, and a node that gets an error instead of a
+    // list runs nothing at all - a missing-history problem turned into a
+    // broken build.
+    const { status, body } = await split({ suite: 'never-reported', items: 'a.ts\nb.ts\nc.ts\nd.ts', nodes: 2, index: 0 })
+
+    expect(status).toBe(200)
+    expect(body.items).toHaveLength(2)
+    expect(String(body.note)).toContain('No timing history')
+  }, 120_000)
+})

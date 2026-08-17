@@ -1659,10 +1659,33 @@ should work for a repository that has not moved its CI here yet.
       holds, recovers when it stops, and fires an action once per transition rather than per run
 - [ ] Reliability and duration trends per test, per suite, and per branch, with the slowest and least
       reliable surfaced without a query
-- [ ] **Test splitting**: a client that distributes a suite across parallel jobs using historical
+- [x] **Test splitting**: a client that distributes a suite across parallel jobs using historical
       timing, so `parallelism` stops meaning "split alphabetically and hope"
-- [ ] Splitting degrades honestly with no history: deterministic partition, and a note saying it had
+
+      Longest-processing-time-first, which is within 4/3 of optimal and enough - the input is
+      estimates, so chasing an optimal partition of approximate numbers buys nothing. What matters
+      is that the big items are placed first: placing them last is how one node ends up eleven
+      minutes long while another finishes in forty seconds.
+
+      **Two properties matter more than the quality of the partition, because both are silent when
+      they break.** Every item lands on exactly one node - a test that runs twice wastes a machine,
+      a test that runs nowhere stopped being run and nothing says so. And every node computes the
+      same partition without talking to any other, which makes determinism load-bearing down to how
+      ties are broken.
+
+      For a job here the runner writes `reviewos-split` onto the PATH beside `reviewos-upload`, so
+      a sharding job needs no repository credential: the job token it already holds can read the
+      timings. `tests/unit/runner-shell-commands.test.ts` executes both generated scripts, which is
+      how the first one's broken escaping was found - a `\n` in a template literal became a real
+      newline inside a JavaScript string, and nothing type-checks a shell script.
+
+- [x] Splitting degrades honestly with no history: deterministic partition, and a note saying it had
       nothing to work with
+
+      And a file nobody has timed is assumed to cost what a typical file costs, not nothing. Zero
+      is the obvious default and it hides: adding zero never changes which node is cheapest, so
+      every new file lands on the same node - the pull request that added twelve test files would
+      put all twelve on one.
 - [ ] Test results appear on the pull request, and a newly flaky test introduced by a branch is
       distinguishable from one that was already flaky on the base
 - [ ] Retention policy on execution data, configurable, with the storage cost stated
@@ -1679,8 +1702,8 @@ should work for a repository that has not moved its CI here yet.
       proxy answered instead of the file it meant to send, must not read as a suite with no tests -
       which is indistinguishable from a suite that passed.
 
-      Splitting with partial history is a test for a client that is not written; it stays on the
-      splitting line above.
+      Splitting has its own twelve in `tests/unit/test-split.test.ts` and three more over HTTP,
+      including the partial-history case.
 
 ---
 
