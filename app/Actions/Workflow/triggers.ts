@@ -161,6 +161,14 @@ export interface PushEvent {
   changed?: readonly string[]
   /** A deletion introduces no commits and starts nothing. */
   deleted?: boolean
+  /**
+   * The head commit's message, for a job's `if:`.
+   *
+   * `[skip ci]` and `contains(github.event.head_commit.message, 'deploy')` are
+   * the two things people actually write with it, and both are unanswerable
+   * without carrying the message this far.
+   */
+  message?: string
 }
 
 export interface TriggerDecision {

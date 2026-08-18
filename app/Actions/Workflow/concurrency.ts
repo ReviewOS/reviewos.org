@@ -38,6 +38,15 @@ export interface ConcurrencyContext {
    */
   changed?: readonly string[]
   /**
+   * The head commit's message, when the event carried one.
+   *
+   * Part of the documented set a job's `if:` may read - and nothing more than
+   * that: an expression here reads the event, never the control plane.
+   */
+  message?: string
+  /** `workflow_dispatch` inputs, for a job's `if:`. */
+  inputs?: Record<string, unknown>
+  /**
    * This job's matrix combination, when it has one.
    *
    * Offered to a *job's* group expression, because a matrix job whose group

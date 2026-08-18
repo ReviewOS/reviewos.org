@@ -1127,9 +1127,28 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       It is the graph-level twin of `if: always()`, and the distinction is kept: the dependencies
       still have to be *finished*, only their verdict stops mattering. A job that needed a failed
       one and did not ask is skipped, as before.
-- [ ] `if`, a conditional expression over a documented, sandboxed variable set: branch, tag, commit
+- [x] `if`, a conditional expression over a documented, sandboxed variable set: branch, tag, commit
       message, trigger source, changed paths, prior step outcomes, and declared inputs. No arbitrary
       reads of control-plane state.
+
+      The evaluator was already sandboxed; what was missing was half the set. **`ref_type` and the
+      commit message** were the two people reach for on the first day and did not have:
+      `if: github.ref_type == 'tag'` is how a release job is written, and
+      `contains(github.event.head_commit.message, '[skip ci]')` is the filter `on:` cannot express
+      per job. Declared inputs and the changed paths join them.
+
+      The message is the **whole** message rather than the subject, because half the people who
+      write `[skip ci]` put it on the second line - and a condition that only saw the subject would
+      be right most of the time, which is the worst kind of wrong.
+
+      `reviewos.changed` sits under this instance's own name rather than inside `github`: a
+      workflow reading it would not run on GitHub, and a reader deserves to see that in the
+      expression rather than discover it on migration.
+
+      Prior step outcomes stay unavailable at dispatch on purpose - nothing has run - and the
+      evaluator refuses rather than guessing, so the job is skipped with the reason recorded. The
+      test asserts the *shape* of the context as well as its contents, because a sandbox is only a
+      sandbox if something checks its edges.
 - [x] `branches`, including negation, as the shorthand for the most common `if`
 
       `reviewos: { branches: [main, '!wip/*'] }`, decided when the run is created. It exists

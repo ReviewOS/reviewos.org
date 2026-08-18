@@ -608,3 +608,38 @@ was.
 It reaches the graph as the same flag a `wait:` barrier's `continue-on-failure`
 sets, rather than as a second mechanism. One rule with two spellings is one that
 disagrees with itself a year later.
+
+## What a job's `if:` may read
+
+A sandbox, and this is the whole of it:
+
+| | |
+|---|---|
+| `github.ref`, `ref_name`, `ref_type` | the branch or the tag |
+| `github.event_name` | what started the run |
+| `github.sha`, `github.event.head_commit.message` | the commit, and what it said |
+| `github.head_ref`, `github.base_ref` | a pull request's branches |
+| `matrix.*` | this combination |
+| `inputs.*` | what a dispatched run was given |
+| `reviewos.changed` | the paths this event touched |
+
+Every entry is a fact about **this event**. An expression cannot reach a step's
+outcome - nothing has run yet, and the evaluator refuses rather than guesses, so
+the job is skipped with the reason recorded. That is the safe direction: the
+other one runs a deployment because a condition could not be read. And nothing
+about the instance is in scope at all.
+
+Two of these are worth calling out:
+
+```yaml
+    if: github.ref_type == 'tag'                                    # a release job
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"  # per job, not per workflow
+```
+
+The message is the **whole** message, not the subject: half the people who write
+`[skip ci]` put it on the second line, and a condition that only saw the subject
+would be right most of the time, which is the worst kind of wrong.
+
+`reviewos.changed` sits under this instance's own name rather than inside
+`github` because a workflow that reads it would not run on GitHub. A reader
+deserves to see that in the expression rather than discover it on migration.

@@ -1,5 +1,5 @@
 import { db } from '@stacksjs/database'
-import { changedPaths } from '../Actions/Workflow/changed'
+import { changedPaths, commitMessage } from '../Actions/Workflow/changed'
 import { discoverWorkflows } from '../Actions/Workflow/discover'
 import { syncWorkflowFile } from '../Actions/Workflow/sync'
 
@@ -227,12 +227,22 @@ async function dispatchForPush(repository: any, event: any): Promise<void> {
       ? await changedPaths(gitDir, String(update.before ?? ''), String(update.after)).catch(() => [])
       : []
 
+    /*
+     * The message, for a job's `if:`. Read here rather than at dispatch, which
+     * has no repository directory - and empty when it cannot be read, the same
+     * convention the changed paths follow.
+     */
+    const message = gitDir && update.change !== 'deleted'
+      ? await commitMessage(gitDir, String(update.after)).catch(() => '')
+      : ''
+
     await dispatchPush({
       repositoryId: Number(repository.id),
       headSha: String(update.after),
       event: {
         ref: String(update.ref),
         changed,
+        message,
         deleted: update.change === 'deleted',
       },
     }).catch(() => null)

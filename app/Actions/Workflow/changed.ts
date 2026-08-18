@@ -74,3 +74,24 @@ export async function changedPaths(
 
   return [...new Set(paths)]
 }
+
+/**
+ * The head commit's subject and body, for a job's `if:`.
+ *
+ * `%B` rather than `%s`, because `contains(github.event.head_commit.message,
+ * '[skip ci]')` is written against the whole message in every workflow that
+ * uses it - and half the people who write `[skip ci]` put it on the second
+ * line.
+ *
+ * An empty string when the commit cannot be read, which is the same convention
+ * the changed paths follow: unknown reads as *nothing to match on* rather than
+ * as a reason to refuse a run.
+ */
+export async function commitMessage(gitDir: string, sha: string): Promise<string> {
+  if (!gitDir || !sha)
+    return ''
+
+  const result = await runGit(gitDir, ['show', '--no-patch', '--format=%B', sha]).catch(() => null)
+
+  return result?.code === 0 ? result.stdout.trim() : ''
+}

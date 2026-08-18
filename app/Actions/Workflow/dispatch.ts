@@ -423,6 +423,9 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
     sha: input.headSha,
     // What the push touched, so a job can say which paths it cares about.
     changed: input.event.changed ?? [],
+    // And what it said, which is the other half of what a per-job `if:` needs
+    // and what `on:` filters cannot express at all.
+    message: input.event.message ?? '',
   }
 
   const group = resolveGroup(version.concurrency_group, context)
@@ -923,21 +926,58 @@ async function supersedeJobs(
  * is not a thing until a runner reports one - a condition asking for them is
  * refused by `shouldRun` rather than answered with an invented value.
  */
+/**
+ * The same builder, exported for the test that documents the set.
+ *
+ * A sandbox is only a sandbox if something checks its edges, and checking them
+ * through a whole dispatch would mean a database for a question about a plain
+ * object.
+ */
+export function conditionContextForTest(context: ConcurrencyContext, values: Record<string, unknown> | null): Record<string, unknown> {
+  return conditionContext(context, values)
+}
+
 function conditionContext(context: ConcurrencyContext, values: Record<string, unknown> | null): Record<string, unknown> {
   const ref = context.ref ?? ''
 
+  /*
+   * The documented set a job's `if:` may read, and nothing else.
+   *
+   * Branch and tag, the trigger, the commit and its message, the changed
+   * paths, the matrix combination and the declared inputs. Every one of them
+   * is a fact about *this event* - an expression here cannot reach a step's
+   * outcome (nothing has run yet, and `shouldRun` refuses rather than guesses)
+   * and cannot reach the control plane at all.
+   *
+   * `ref_type` and the commit message were the two people reached for and did
+   * not have: `if: github.ref_type == 'tag'` is how a release job is written,
+   * and `contains(github.event.head_commit.message, '[skip ci]')` is the other
+   * half of what `on:` filters cannot express per job.
+   */
   return {
     github: {
       workflow: context.workflow ?? '',
       event_name: context.eventName ?? '',
       ref,
       ref_name: ref.replace(/^refs\/(?:heads|tags)\//, ''),
+      ref_type: ref.startsWith('refs/tags/') ? 'tag' : ref.startsWith('refs/heads/') ? 'branch' : '',
       sha: context.sha ?? '',
       head_ref: context.headRef ?? '',
       base_ref: context.baseRef ?? '',
-      event: context.number ? { number: context.number, pull_request: { number: context.number } } : {},
+      event: {
+        ...(context.number ? { number: context.number, pull_request: { number: context.number } } : {}),
+        head_commit: { id: context.sha ?? '', message: context.message ?? '' },
+      },
     },
     matrix: values ?? {},
+    inputs: context.inputs ?? {},
+    /*
+     * `reviewos.changed` has no Actions equivalent, which is why it is under
+     * this instance's own name rather than smuggled into `github`: a workflow
+     * that reads it is one that would not run on GitHub, and a reader deserves
+     * to see that in the expression rather than discover it on migration.
+     */
+    reviewos: { changed: [...(context.changed ?? [])] },
   }
 }
 
