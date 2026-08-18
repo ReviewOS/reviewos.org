@@ -49,6 +49,94 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * What the step runs, for a job that was **generated** rather than written.
+     *
+     * A job uploaded by another job has no definition rows: it was not in any
+     * workflow file, so `workflow_version_steps` has nothing for it. These
+     * columns are where its commands live, and the claim reads them for exactly
+     * those jobs.
+     *
+     * Null for an ordinary job, whose steps come from the version - copying
+     * them here as well would be two records of one thing, and the one that
+     * drifts is always the copy.
+     */
+    command: {
+      order: 20,
+      fillable: true,
+      validation: { rule: schema.string().max(65_535) },
+      factory: () => null,
+    },
+
+    /** An action reference, for a generated step that uses one. */
+    uses: {
+      order: 21,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
+    /** `with:`, as JSON. */
+    inputs: {
+      order: 22,
+      fillable: true,
+      validation: { rule: schema.string().max(65_535) },
+      factory: () => null,
+    },
+
+    /** `env:`, as JSON. */
+    env: {
+      order: 23,
+      fillable: true,
+      validation: { rule: schema.string().max(65_535) },
+      factory: () => null,
+    },
+
+    working_directory: {
+      order: 24,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
+    shell: {
+      order: 25,
+      fillable: true,
+      validation: { rule: schema.string().max(100) },
+      factory: () => null,
+    },
+
+    /** `if:`, evaluated by the runner because it reads what earlier steps left. */
+    condition: {
+      order: 26,
+      fillable: true,
+      validation: { rule: schema.string().max(2000) },
+      factory: () => null,
+    },
+
+    /** `id:`, which `steps.<id>.outputs` is keyed on. */
+    step_id: {
+      order: 27,
+      fillable: true,
+      validation: { rule: schema.string().max(100) },
+      factory: () => null,
+    },
+
+    continue_on_error: {
+      order: 28,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    timeout_minutes: {
+      order: 29,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
     state: {
       order: 4,
       fillable: true,

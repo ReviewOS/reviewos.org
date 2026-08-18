@@ -296,3 +296,67 @@ describe('a pool that requires signatures', () => {
     expect(verdict.reason).toContain('could not be fetched')
   }, 120_000)
 })
+
+describe('a job another job generated', () => {
+  test('arrives with its commands, signed like any other work', async () => {
+    if (!available)
+      return
+
+    /*
+     * Everything queued put to bed, so the claims below are the two this test
+     * is about rather than whichever job happened to be oldest.
+     */
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelled', finished_at: new Date().toISOString() } as any)
+      .where('state', 'in', ['blocked', 'queued', 'running'])
+      .execute()
+
+    const generator = await claimOne()
+
+    expect(generator).toBeTruthy()
+
+    const { uploadSteps } = await import('../../app/Actions/Workflow/upload')
+
+    const outcome = await uploadSteps(Number(generator.id), `  shard-1:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo shard one
+`)
+
+    expect(outcome.ok).toBe(true)
+
+    // The generator finishes, which is what releases what it generated.
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'succeeded', finished_at: new Date().toISOString() } as any)
+      .where('id', '=', Number(generator.id))
+      .execute()
+
+    const answer = await fetch(`http://127.0.0.1:${port}/api/runner/claim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${TOKEN}`, 'X-Runner-Protocol': '1' },
+      body: '{}',
+    })
+
+    const body: any = await answer.json()
+
+    expect(String(body.job?.key)).toBe('shard-1')
+
+    /*
+     * The commands themselves. A generated job is in no workflow file, so the
+     * version tables have nothing for it - and reading them anyway is how one
+     * reached a runner with an empty step list, ran nothing, and reported
+     * success.
+     */
+    expect(body.job.steps).toHaveLength(1)
+    expect(String(body.job.steps[0].run)).toBe('echo shard one')
+
+    // And the signature covers those commands, so a pool that requires signed
+    // work takes generated work too rather than refusing everything a job
+    // makes.
+    const verdict = await verifyWork({ work: workOf(body.job), signature: body.job.signature, keys: await stepKeys() })
+
+    expect(verdict.ok).toBe(true)
+  }, 120_000)
+})

@@ -1505,19 +1505,28 @@ output, which covers the common case and nothing else.
       twenty uploads per run, fifty jobs per upload, five hundred jobs per run - plus a 200KB ceiling
       on the document itself, which bounds how much text one request can make the parser look at.
       Reaching a limit stops the *next* upload rather than unwinding the last one.
-- [ ] Signature verification. When signed workflows are enforced (below), an uploaded step must be
+- [x] Signature verification. When signed workflows are enforced (below), an uploaded step must be
       signed by a key the runner pool trusts, or refused.
 
-      Not implemented, and it cannot be until signed workflows are: there is no key for a pool to
-      trust yet. Written here rather than half-built, because a signature check with nothing behind
-      it is worse than none - it reads like a guarantee.
+      Generated work is signed at the claim exactly like written work, and a pool with
+      `require_signed_steps` refuses it the same way - the signature is over the steps as the runner
+      receives them, whatever table they came out of. No separate path, which is the point: a second
+      rule for generated steps is the one an attacker reads.
+
+      Writing this found the defect underneath it. **An uploaded job reached a runner with no
+      steps at all.** Its rows were created, the graph was right, the settler released it, and the
+      claim read `workflow_version_steps` - which has nothing for a job that was in no workflow
+      file. So it ran nothing and reported success. A generated job now carries its own commands on
+      its step rows, and the claim reads those for exactly those jobs.
 - [x] Tests: uploading a step that targets a forbidden queue, an upload loop, an upload from a fork,
       an unsigned upload under enforcement, and an upload after the run reached a terminal state
 
-      Four of the five, plus the ones writing it turned up: a name the run already has, a `needs:`
-      naming nothing, a document the parser refuses, and a priority a generated job tried to give
-      itself. The fifth - an unsigned upload under enforcement - is the box above, and there is
-      nothing to test until there is something to enforce.
+      All five now. The first four in `tests/e2e/workflow-uploads.test.ts`, plus the ones writing it
+      turned up: a name the run already has, a `needs:` naming nothing, a document the parser
+      refuses, and a priority a generated job tried to give itself. The fifth is in
+      `tests/e2e/workflow-signed-steps.test.ts`, where a generated job is claimed and its signature
+      checked against the published key - which is also the test that would have caught the empty
+      step list.
 
       The forbidden-queue case is covered by construction rather than by a check: an uploaded job
       cannot name a pool at all, and the claim already refuses a repository a pool does not serve.

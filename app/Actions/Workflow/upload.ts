@@ -228,6 +228,25 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
           name: step.name ?? step.run ?? step.uses ?? `step ${index + 1}`,
           state: 'pending',
           attempts: 0,
+          /*
+           * And what the step actually runs.
+           *
+           * A generated job is in no workflow file, so `workflow_version_steps`
+           * has nothing for it - and until these columns existed, a job
+           * uploaded by another job reached a runner with an empty step list
+           * and did nothing, successfully. The rows were there, the graph was
+           * right, the run went green, and no command had run.
+           */
+          command: step.run ?? null,
+          uses: step.uses ?? null,
+          inputs: step.with && Object.keys(step.with).length > 0 ? JSON.stringify(step.with) : null,
+          env: step.env && Object.keys(step.env).length > 0 ? JSON.stringify(step.env) : null,
+          working_directory: step.workingDirectory ?? null,
+          shell: step.shell ?? null,
+          condition: step.if ?? null,
+          step_id: step.id ?? null,
+          continue_on_error: step.continueOnError === true,
+          timeout_minutes: step.timeoutMinutes ?? null,
         } as any)
         .execute()
         .catch(() => null)

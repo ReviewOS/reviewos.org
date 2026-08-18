@@ -288,7 +288,7 @@ export default new Action({
      */
     const jobRow: any = await db
       .selectFrom('workflow_jobs')
-      .select(['matrix_values', 'timeout_minutes', 'settings', 'approved_at', 'parallel_index', 'parallel_total'])
+      .select(['matrix_values', 'timeout_minutes', 'settings', 'approved_at', 'parallel_index', 'parallel_total', 'uploaded_by_job_id'])
       .where('id', '=', claimed.jobId)
       .executeTakeFirst()
 
@@ -304,7 +304,25 @@ export default new Action({
       .where('workflow_version_jobs.job_id', '=', claimed.jobKey)
       .executeTakeFirst()
 
-    const steps: any[] = await db
+    /*
+     * A generated job's steps come from the run, not from a definition.
+     *
+     * A job uploaded by another job was in no workflow file, so the version
+     * tables have nothing for it - and reading them anyway is how it reached a
+     * runner with an empty step list, did nothing, and reported success. The
+     * row's own columns are the record for exactly those jobs.
+     */
+    const generated = jobRow?.uploaded_by_job_id ? await db
+      .selectFrom('workflow_steps')
+      .select([
+        'position', 'name', 'command', 'uses', 'working_directory',
+        'step_id', 'condition', 'inputs', 'shell', 'continue_on_error', 'env', 'timeout_minutes',
+      ])
+      .where('workflow_job_id', '=', claimed.jobId)
+      .orderBy('position')
+      .execute() : []
+
+    const steps: any[] = generated.length > 0 ? generated : await db
       .selectFrom('workflow_version_steps')
       .innerJoin(
         'workflow_version_jobs',
