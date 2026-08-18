@@ -388,6 +388,47 @@ the instance pays for.
 **Actions has an equivalent** in `actions/upload-artifact`, as a step - which
 means `if: always()` and remembering it.
 
+### `secrets` - which credentials this job needs
+
+```yaml
+  test:
+    runs-on: ubuntu-latest
+    reviewos:
+      secrets: []              # this job needs none
+    steps: [{ run: bun test }]
+
+  ship:
+    runs-on: ubuntu-latest
+    reviewos:
+      secrets: [DEPLOY_KEY]    # and this one needs exactly one
+    steps: [{ run: ./ship }]
+```
+
+Least privilege, per job. Without it a trusted job receives **every** secret in
+scope - which is what Actions does, and is fine right up until a test job's
+dependency is compromised and reads the deploy key that job never needed.
+
+**Saying nothing is not the same as saying none.** A job with no `secrets:` key
+gets what it always got: everything in scope. That is backwards compatibility
+rather than a recommendation. `secrets: []` is a job that has decided it needs
+no credentials, which is worth being able to say about a job that runs somebody
+else's code.
+
+Naming a secret that does not exist is not an error. The same workflow file runs
+on a clone and on an instance where nobody has set it yet, and refusing to parse
+would make a workflow depend on the state of a secret store.
+
+The rules above this one still apply, and asking by name is not a way around
+them: a fork's pull request gets nothing whatever it names, and an environment's
+secret still waits for the gate to open. See [secrets](./secrets.md).
+
+The automatic job token still arrives. It is minted for this job rather than
+stored, and what it may do is decided by `permissions:`.
+
+**Actions has an equivalent only for a called workflow** - `secrets:` on a
+`uses:` job, which passes values down rather than narrowing what this job holds.
+Both keys exist here and they are different questions.
+
 ### `group` - a label
 
 ```yaml

@@ -68,6 +68,23 @@ organization has.
 - **A value this instance can no longer decrypt is skipped**, not delivered
   empty. A job handed an empty credential authenticates as nobody and fails
   somewhere far from the cause; a missing one fails at the line that uses it.
+- **Everything in scope, unless the job narrows it.** A job that says nothing
+  receives every secret it could - Actions' behaviour, and what existing
+  workflows expect. A job that names them receives those and no others:
+
+  ```yaml
+    test:
+      runs-on: ubuntu-latest
+      reviewos:
+        secrets: []            # needs none
+      steps: [{ run: bun test }]
+  ```
+
+  Worth doing on any job that runs code you did not write, which is most of
+  them: a test job holding the deploy key for the length of its run is a
+  credential a compromised dependency can read. `secrets: []` is a job saying it
+  needs none, which is not the same as a job that said nothing. See
+  [extensions](./extensions.md).
 
 ## Rotating `APP_KEY`
 

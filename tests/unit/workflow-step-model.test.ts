@@ -272,7 +272,7 @@ describe('the rules that keep the kinds apart', () => {
 
     expect(message).toContain('`pause` is not a `reviewos:` key')
 
-    for (const key of ['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents', 'parallelism', 'artifact-paths', 'skip', 'soft-fail', 'branches'])
+    for (const key of ['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents', 'parallelism', 'artifact-paths', 'secrets', 'skip', 'soft-fail', 'branches'])
       expect(message).toContain(`\`${key}\``)
   })
 })
@@ -602,6 +602,60 @@ ${many}
     steps:
       - run: ./build
 `).join(' ')).toContain('stops at 20')
+  })
+})
+
+describe('naming secrets on a job', () => {
+  test('is a list, kept in the settings the claim reads', () => {
+    const [deploy] = jobs(`jobs:
+  ship:
+    runs-on: ubuntu-latest
+    reviewos:
+      secrets: [DEPLOY_KEY, NPM_TOKEN]
+    steps:
+      - run: ./ship
+`)
+
+    expect(deploy!.secretNames).toEqual(['DEPLOY_KEY', 'NPM_TOKEN'])
+    expect((deploy!.settings as any).secrets).toEqual(['DEPLOY_KEY', 'NPM_TOKEN'])
+  })
+
+  test('saying nothing is not the same as saying none', () => {
+    /*
+     * `null` means "whatever is in scope", which is what every workflow written
+     * before this existed expects; `[]` means a job that has decided it needs
+     * no credentials. Collapsing the two would either break the first or ignore
+     * the second.
+     */
+    const [quiet, none] = jobs(`jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make
+  sandboxed:
+    runs-on: ubuntu-latest
+    reviewos:
+      secrets: []
+    steps:
+      - run: ./untrusted-thing
+`)
+
+    expect(quiet!.secretNames).toBeNull()
+    expect((quiet!.settings as any).secrets).toBeUndefined()
+
+    expect(none!.secretNames).toEqual([])
+    expect((none!.settings as any).secrets).toEqual([])
+  })
+
+  test('and something that is not a list is refused', () => {
+    expect(errorsIn(`jobs:
+  ship:
+    runs-on: ubuntu-latest
+    reviewos:
+      secrets: 12
+    steps:
+      - run: ./ship
+`).join(' ')).toContain('neither a name nor a list of names')
   })
 })
 

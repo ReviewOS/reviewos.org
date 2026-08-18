@@ -249,6 +249,41 @@ describe('delivery to a job', () => {
     expect(Object.values(build)).not.toContain('production-only')
   }, 120_000)
 
+  test('a job that named what it needs is handed only that, decrypted', async () => {
+    if (!available)
+      return
+
+    await putSecret({ scope: 'repository', scopeId: created.repositoryId, key: 'NPM_TOKEN', value: 'npm-value' })
+
+    /*
+     * Least privilege reaching the real path, not just the pure rule. A test
+     * job holding the deploy key for the length of its run is a credential a
+     * compromised dependency can read, and the job never needed it.
+     */
+    const narrowed = await secretsForJob({
+      repositoryId: created.repositoryId,
+      trusted: true,
+      environment: null,
+      approved: false,
+      only: ['NPM_TOKEN'],
+    })
+
+    expect(narrowed.NPM_TOKEN).toBe('npm-value')
+    expect(narrowed.DEPLOY_TOKEN).toBeUndefined()
+
+    // And a job that named none gets none - which is a thing to be able to say
+    // about a job that runs somebody else's code.
+    const sandboxed = await secretsForJob({
+      repositoryId: created.repositoryId,
+      trusted: true,
+      environment: null,
+      approved: false,
+      only: [],
+    })
+
+    expect(Object.keys(sandboxed)).toEqual([])
+  }, 120_000)
+
   test('the names listing shows both scopes, still without values', async () => {
     if (!available)
       return

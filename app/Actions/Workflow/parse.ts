@@ -228,6 +228,20 @@ export interface WorkflowJob {
    * passed or failed. Surfaced here for the same reason as `parallelism`.
    */
   artifactPaths: string[]
+
+  /**
+   * `reviewos.secrets:` - the secrets this job is to be given.
+   *
+   * `null` when the job named none, which is not the same as `[]`: the first
+   * means "whatever is in scope", the second means "none", and a job may mean
+   * either.
+   *
+   * Not `secrets`, which is already Actions' key for what a *called workflow*
+   * is passed. Two different questions - "which of this repository's secrets
+   * does this job get" and "what do I hand the workflow I am calling" - and one
+   * name for both is how they end up implemented as one thing.
+   */
+  secretNames: string[] | null
 }
 
 /**
@@ -261,6 +275,8 @@ interface ExtensionResult {
   parallelism: number
   /** `artifact-paths:` - globs the runner uploads when the job ends, either way. */
   artifactPaths: string[]
+  /** `secrets:` - the names this job wants, or null when it named none. */
+  secrets: string[] | null
 }
 
 export interface WorkflowService {
@@ -477,6 +493,9 @@ const EXTENSION_KEYS = new Set([
   // is the case that matters, because the failing run is the one with the
   // screenshot in it.
   'artifact-paths',
+  // Which secrets this job needs, so a compromised dependency in a test job
+  // cannot read the deploy key that job never asked for.
+  'secrets',
   // Buildkite's step attributes, in the three shapes people actually reach for.
   'skip',
   'soft-fail',
@@ -802,14 +821,14 @@ function extensionOf(
   const raw = asRecord(body.reviewos)
 
   if (!raw)
-    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0, artifactPaths: [] }
+    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0, artifactPaths: [], secrets: null }
 
   for (const key of Object.keys(raw)) {
     if (!EXTENSION_KEYS.has(key)) {
       errors.push({
         line: lineOf(source, key, jobLine),
         message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
-        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
+        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
       })
     }
   }
@@ -831,6 +850,7 @@ function extensionOf(
   const agents = agentsFrom(raw.agents, id, jobLine, source, errors)
   const parallelism = parallelismFrom(raw.parallelism, id, jobLine, source, errors)
   const artifactPaths = artifactPathsFrom(raw['artifact-paths'], id, jobLine, source, errors)
+  const secrets = secretNamesFrom(raw.secrets, id, jobLine, source, errors)
 
   const skip = skipFrom(raw.skip)
   const softFail = softFailFrom(raw['soft-fail'])
@@ -846,11 +866,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets }
 
   if (ifChanged.length > 0) {
     /*
@@ -915,6 +935,7 @@ function extensionOf(
       allowDependencyFailure,
       parallelism: 0,
       artifactPaths: [],
+      secrets: null,
     }
   }
 
@@ -931,6 +952,7 @@ function extensionOf(
       allowDependencyFailure,
       parallelism: 0,
       artifactPaths: [],
+      secrets: null,
     }
   }
 
@@ -946,6 +968,7 @@ function extensionOf(
     allowDependencyFailure,
     parallelism: 0,
     artifactPaths: [],
+    secrets: null,
   }
 }
 
@@ -1097,7 +1120,13 @@ function blockFrom(
 }
 
 /** The extension settings a command job carries, omitting what it did not say. */
-function settingsOf(retry: Record<string, unknown> | null, agents: string[], parallelism = 0, artifactPaths: string[] = []): Record<string, unknown> {
+function settingsOf(
+  retry: Record<string, unknown> | null,
+  agents: string[],
+  parallelism = 0,
+  artifactPaths: string[] = [],
+  secrets: string[] | null = null,
+): Record<string, unknown> {
   const settings: Record<string, unknown> = {}
 
   if (retry)
@@ -1111,6 +1140,11 @@ function settingsOf(retry: Record<string, unknown> | null, agents: string[], par
 
   if (artifactPaths.length > 0)
     settings.artifactPaths = artifactPaths
+
+  // Stored even when empty, because empty is an answer here: the reader has to
+  // be able to tell "wants none" from "did not say".
+  if (secrets !== null)
+    settings.secrets = secrets
 
   return settings
 }
@@ -1222,6 +1256,49 @@ function priorityFrom(
   }
 
   return Math.max(-1000, Math.min(1000, priority))
+}
+
+/**
+ * `reviewos.secrets:` - which secrets this job is to be given.
+ *
+ * Least privilege, per job. Today a trusted job receives every secret in scope,
+ * which is how Actions behaves and is fine right up until a test job's
+ * dependency is compromised and reads the deploy key that job never needed.
+ * Naming them narrows it to what the file asked for.
+ *
+ * **`secrets: []` means none, and is not the same as saying nothing.** A job
+ * that names an empty list has decided; a job that says nothing has not, and
+ * reading the two the same way would either break every existing workflow or
+ * silently ignore somebody asking for a job with no credentials at all.
+ *
+ * The names are checked against nothing here on purpose. A secret that does not
+ * exist is not an error in the file: the same workflow runs on a fork, on a
+ * clone, and on an instance where somebody has not set it yet, and refusing to
+ * parse would make a workflow file depend on the state of a secret store.
+ */
+function secretNamesFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): string[] | null {
+  if (value === undefined || value === null)
+    return null
+
+  const raw = typeof value === 'string' ? [value] : value
+
+  if (!Array.isArray(raw)) {
+    errors.push({
+      line: lineOf(source, 'secrets', jobLine),
+      message: `\`secrets:\` in job \`${id}\` is neither a name nor a list of names`,
+      fix: 'Write `secrets: [DEPLOY_KEY]`, or `secrets: []` for a job that needs none.',
+    })
+
+    return null
+  }
+
+  return [...new Set(raw.map(one => String(one ?? '').trim()).filter(Boolean))]
 }
 
 /** The most globs one job may name. A list past this is a job uploading a tree. */
@@ -1930,6 +2007,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       priority: extension.priority,
       parallelism: extension.parallelism,
       artifactPaths: extension.artifactPaths,
+      secretNames: extension.secrets,
     })
   }
 

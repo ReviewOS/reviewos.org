@@ -115,3 +115,72 @@ describe('precedence', () => {
     expect(selectSecrets({ rows: [...rows].reverse(), ...TRUSTED })[0]!.sealed).toBe('repository')
   })
 })
+
+describe('a job that names what it needs', () => {
+  const rows = [
+    row({ key: 'DEPLOY_KEY' }),
+    row({ key: 'NPM_TOKEN' }),
+    row({ key: 'SENTRY_DSN' }),
+  ]
+
+  test('gets those and no others', () => {
+    /*
+     * Least privilege, per job. Without it a test job holds the deploy key for
+     * the length of its run, and a compromised dependency in that job reads a
+     * credential the job never needed - which is the supply-chain shape this
+     * whole phase is written against.
+     */
+    const chosen = selectSecrets({ rows, ...TRUSTED, only: ['NPM_TOKEN'] })
+
+    expect(chosen.map(one => one.key)).toEqual(['NPM_TOKEN'])
+  })
+
+  test('naming one that does not exist gets nothing extra, and is not an error', () => {
+    // The same workflow file runs on a clone and on an instance where somebody
+    // has not set the secret yet. A missing secret is a fact about the store,
+    // not a mistake in the file.
+    expect(selectSecrets({ rows, ...TRUSTED, only: ['NOT_SET'] })).toEqual([])
+  })
+
+  test('an empty list means none, which is not what saying nothing means', () => {
+    /*
+     * `secrets: []` is a job that has decided; a job that says nothing has not.
+     * Reading the two the same way would either break every workflow written
+     * before this existed or silently ignore somebody asking for a job with no
+     * credentials at all.
+     */
+    expect(selectSecrets({ rows, ...TRUSTED, only: [] })).toEqual([])
+    expect(selectSecrets({ rows, ...TRUSTED, only: null }).map(one => one.key)).toEqual([
+      'DEPLOY_KEY', 'NPM_TOKEN', 'SENTRY_DSN',
+    ])
+    expect(selectSecrets({ rows, ...TRUSTED }).map(one => one.key)).toHaveLength(3)
+  })
+
+  test('and naming a secret does not get a fork one', () => {
+    // The fork rule is answered before this one, and asking by name must not be
+    // a way around it.
+    expect(selectSecrets({ rows, ...TRUSTED, trusted: false, only: ['DEPLOY_KEY'] })).toEqual([])
+  })
+
+  test('nor one whose environment gate has not opened', () => {
+    const gated = [row({ key: 'PROD_KEY', scope: 'environment', scopeId: 9 })]
+
+    expect(selectSecrets({
+      rows: gated,
+      trusted: true,
+      environment: 'production',
+      environmentId: 9,
+      approved: false,
+      only: ['PROD_KEY'],
+    })).toEqual([])
+
+    expect(selectSecrets({
+      rows: gated,
+      trusted: true,
+      environment: 'production',
+      environmentId: 9,
+      approved: true,
+      only: ['PROD_KEY'],
+    }).map(one => one.key)).toEqual(['PROD_KEY'])
+  })
+})

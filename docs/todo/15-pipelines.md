@@ -1300,8 +1300,25 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       `ubuntu-latest` and wrong for anything with a value in it - a fleet with four GPU models ends
       up with labels called `gpu-a100`, and a label means whatever the person who typed it was
       thinking.
-- [ ] `env`, per step, over a workflow-level `env`, over runner environment
-- [ ] `secrets`, naming secrets to inject rather than embedding them, resolved at dispatch
+- [x] `env`, per step, over a workflow-level `env`, over runner environment
+
+      Actions' own key, with Actions' precedence - workflow, then job, then step, narrowest wins -
+      resolved in one place so the runner and the screen that explains where a value came from read
+      the same answer. The runner's own environment is the base underneath all three.
+- [x] `secrets`, naming secrets to inject rather than embedding them
+
+      `reviewos: { secrets: [DEPLOY_KEY] }`, narrowing what a job receives to what it asked for. A
+      trusted job used to receive every secret in scope, which is Actions' behaviour and is fine
+      until a test job's dependency is compromised and reads a deploy key that job never needed.
+
+      **Saying nothing is not saying none.** No key means everything in scope, which is backwards
+      compatibility rather than advice; `secrets: []` is a job that has decided, and is worth being
+      able to say about a job that runs somebody else's code.
+
+      Resolved at the claim rather than at dispatch, deliberately and unlike the line above: the
+      claim is the last moment both facts are known - whether the run is trusted, and whether the
+      environment's gate has opened - and deciding earlier would mean handing a deploy credential to
+      a job that is still waiting for a reviewer. Naming a secret is not a way around either rule.
 - [x] `artifact_paths`, globs uploaded automatically when the step ends, pass or fail
 
       `reviewos: { artifact-paths: [screenshots/**] }`, collected by the runner after the steps and

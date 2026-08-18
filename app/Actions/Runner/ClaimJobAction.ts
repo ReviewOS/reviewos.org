@@ -469,6 +469,16 @@ export default new Action({
           environment: environmentOfJob(jobRow?.settings),
           approved: Boolean(jobRow?.approved_at),
           /*
+           * What this job asked for, when it asked.
+           *
+           * Null - the job said nothing - keeps the old behaviour of every
+           * secret in scope, which is what Actions does and what every existing
+           * workflow expects. A job that names them gets those and no others,
+           * so a compromised dependency in a test job cannot read the deploy
+           * key that job never needed.
+           */
+          only: secretNamesOfJob(jobRow?.settings),
+          /*
            * The automatic token joins the secrets rather than sitting beside
            * them, which buys two things for free: `${{ secrets.GITHUB_TOKEN }}`
            * works the way every workflow already expects, and the value is
@@ -557,6 +567,26 @@ export default new Action({
     })
   },
 })
+
+/**
+ * The secrets a job asked for, out of its settings column.
+ *
+ * `null` when it named none, which is not the same as `[]`. Unreadable settings
+ * also mean `null` rather than `[]`: a job that suddenly receives no secrets
+ * because a JSON blob would not parse fails in a way nobody can diagnose from
+ * the run page, where the same job receiving what it always did is at worst the
+ * status quo.
+ */
+function secretNamesOfJob(settings: unknown): string[] | null {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+
+    return Array.isArray(parsed?.secrets) ? parsed.secrets.map(String) : null
+  }
+  catch {
+    return null
+  }
+}
 
 /**
  * The globs a job asked to have collected, out of its settings column.

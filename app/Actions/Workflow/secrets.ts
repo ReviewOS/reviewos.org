@@ -69,6 +69,20 @@ export function selectSecrets(input: {
   environmentId: number | null
   /** Whether the environment's gate has been opened for this job. */
   approved: boolean
+  /**
+   * The names this job asked for, when it asked.
+   *
+   * `null` means it named none, and then it gets what it would have got before
+   * this existed: everything in scope. That default is backwards compatibility
+   * rather than a recommendation - a job that names what it needs is a job
+   * whose compromised dependency cannot read the deploy key it never asked
+   * for, and the documentation says so.
+   *
+   * An empty list is *not* the same as `null`. `secrets: []` is a job saying it
+   * wants none, which is a thing somebody may mean and a thing this must not
+   * quietly read as "all of them".
+   */
+  only?: readonly string[] | null
 }): SecretRow[] {
   /*
    * A fork's job gets nothing at all, before any other rule is considered.
@@ -79,8 +93,15 @@ export function selectSecrets(input: {
     return []
 
   const byKey = new Map<string, SecretRow>()
+  const wanted = input.only === null || input.only === undefined ? null : new Set(input.only.map(String))
 
   for (const row of input.rows) {
+    // Narrowed before anything else about the row is considered, because "this
+    // job never asked for it" is a simpler answer than any of the scope rules
+    // below and it holds whatever they say.
+    if (wanted && !wanted.has(row.key))
+      continue
+
     if (row.scope === 'environment') {
       /*
        * An environment's secret needs three things to be true: the job named
@@ -166,6 +187,8 @@ export async function secretsForJob(input: {
   trusted: boolean
   environment: string | null
   approved: boolean
+  /** The names the job asked for, or null when it named none. */
+  only?: readonly string[] | null
   /**
    * Values this instance minted for the job rather than stored - the automatic
    * API token, today.
@@ -185,6 +208,7 @@ export async function secretsForJob(input: {
     environment: input.environment,
     environmentId,
     approved: input.approved,
+    only: input.only ?? null,
   })
 
   const values: Record<string, string> = { ...(input.extra ?? {}) }
