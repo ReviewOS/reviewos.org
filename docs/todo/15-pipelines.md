@@ -2838,10 +2838,29 @@ should work for a repository that has not moved its CI here yet.
       and a sweep that took the mute with the history would silently un-quarantine a test. Batched
       at two hundred runs, because the first sweep on a year of history is otherwise one statement
       against millions of rows holding a lock long enough for pushes to time out.
-- [ ] REST API, webhooks, and generated OpenAPI for suites, runs, executions, and states
+- [x] REST API, webhooks, and generated OpenAPI for suites, runs, executions, and states
 
-      The two endpoints and their OpenAPI are generated and published; the webhook events are not,
-      and belong with the run and job events on the delivery list below rather than on their own.
+      `GET /api/repos/tests?view=suites|runs|executions|states`, because those are four different
+      questions: which suites exist and how the last run went, which runs a suite has had, what
+      happened to individual tests in one run, and what this instance currently believes about a
+      test - steady, flaky, muted, owned, and whether its quarantine review is overdue.
+
+      A page is not an API, which is what this box was really about. A team's own dashboard, a
+      release script that refuses to ship while a suite is red, an agent asking whether the test it
+      is about to change is already flaky: each of those had to scrape HTML or query the database,
+      and both are ways of depending on something nobody promised to keep.
+
+      Reading takes `workflow:read` rather than `contents:read`. Test results say which tests exist
+      and which are failing, which is a shape of a private repository's contents - so they sit with
+      the runs rather than with permission to clone. A public repository answers anonymously, which
+      is what makes a public dashboard possible at all. Executions carry the failure message and not
+      the stack: the stack is the larger half of the row and the half a dashboard never renders.
+
+      The webhook is `test:recorded`, carrying the suite, the branch, the totals and the run id -
+      the totals rather than the executions, because a report of two thousand tests is a delivery
+      that times out on exactly the repositories that matter, and the id is how a receiver asks for
+      the detail. It sits beside `test:flaky` and `test:monitor`, which are thresholds where this is
+      the plain fact that a run happened.
 
 - [x] Tests: ingestion of a malformed report, the same run reported twice, a test renamed between
       runs, flake detection across a rerun, and muting that does not hide the result

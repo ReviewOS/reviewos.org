@@ -373,6 +373,13 @@ Default: `database`.
 Queue Configuration
 Drivers: sync (default, immediate execution), database, redis, sqs, memory
 
+`database` is the deployment default, and not optional in production: the
+framework's fallback is `sync`, which runs every job inline in the request
+that dispatched it - so the whole push pipeline (issue closing, webhooks,
+notifications) would run inside the post-receive request, and a slow webhook
+would hold a `git push` open. Set it, and run a worker (see the queue section
+of docs/self-hosting.md).
+
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `QUEUE_PREFIX`

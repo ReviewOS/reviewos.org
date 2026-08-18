@@ -132,6 +132,18 @@ export const WEBHOOK_EVENTS = [
    * to ask for.
    */
   'test:flaky',
+  /*
+   * A suite reported its results.
+   *
+   * The ingestion event, and the one a dashboard actually waits on: without it
+   * the only way to know a suite has finished is to poll the API that this
+   * event carries the summary of. Not a transition and not a threshold - it is
+   * the fact that a run happened, with its totals.
+   *
+   * Webhook-only, like the rest of these: nobody wants an inbox entry per test
+   * run, and a repository reporting on every push would fill one in a morning.
+   */
+  'test:recorded',
 ] as const
 
 export type WebhookEvent = typeof WEBHOOK_EVENTS[number]
@@ -195,6 +207,33 @@ export interface WebhookPayload extends Envelope {
   monitor?: MonitorDetail
   /** The test that became unreliable, on `test:flaky`. */
   test?: TestDetail
+  /** The suite that reported, on `test:recorded`. */
+  suite?: SuiteDetail
+}
+
+/**
+ * A suite's run, as a receiver reads it.
+ *
+ * The totals rather than the executions: a report of two thousand tests is two
+ * thousand rows, and a webhook body that carried them would be a delivery that
+ * times out on the interesting repositories. Whoever wants the detail asks the
+ * API for it, which is what the `run` id is for.
+ */
+export interface SuiteDetail {
+  /** The suite's slug, which is what the API takes. */
+  suite: string
+  /** The `test_runs` row, for reading the executions back. */
+  run: number
+  branch: string
+  head_sha: string
+  passed: number
+  failed: number
+  skipped: number
+  /** Counted and not held against the run: what a mute does here. */
+  muted_failures: number
+  duration_ms: number
+  /** The workflow run this came from, when it came from one. */
+  workflow_run_id: number | null
 }
 
 /**
@@ -293,6 +332,8 @@ const ACTIONS: Record<string, string> = {
   // Also a fallback: a real monitor payload carries `alarm` or `recovered`.
   'test:monitor': 'changed',
   'test:flaky': 'flaky',
+  // A fallback: a real payload carries `passed` or `failed`.
+  'test:recorded': 'recorded',
 }
 
 /**
@@ -371,13 +412,20 @@ export function webhookPayload(
           // name and opposite meanings.
           : subject.monitor
             ? String(subject.monitor.action)
-            : (ACTIONS[String(event)] ?? String(event)),
+            /*
+             * And a suite's action is its verdict, so a receiver waiting for a
+             * red build reads one field rather than comparing two numbers.
+             */
+            : subject.suite
+              ? (Number(subject.suite.failed) > 0 ? 'failed' : 'passed')
+              : (ACTIONS[String(event)] ?? String(event)),
     ...(subject.detail ? { tag: String(subject.detail) } : {}),
     ...(subject.check ? { check: subject.check } : {}),
     ...(subject.run ? { run: subject.run } : {}),
     ...(subject.job ? { job: subject.job } : {}),
     ...(subject.monitor ? { monitor: subject.monitor } : {}),
     ...(subject.test ? { test: subject.test } : {}),
+    ...(subject.suite ? { suite: subject.suite } : {}),
   }
 }
 

@@ -925,6 +925,13 @@ route.post('/repos/workflow-templates', 'Actions/Workflow/WorkflowTemplatesActio
  * finer grain, and a second scope would mean every existing integration asking
  * for one more permission to tell you more.
  */
+/*
+ * Reading the test intelligence: suites, runs, executions, and what this
+ * instance believes about each test. A page is not an API - a release script
+ * that refuses to ship while a suite is red had to scrape HTML.
+ */
+route.get('/repos/tests', 'Actions/Tests/ReadTestsAction')
+
 route.post('/repos/tests/ingest', 'Actions/Tests/IngestTestsAction').middleware('auth')
 route.post('/repos/tests/manage', 'Actions/Tests/ManageTestAction').middleware('auth')
 

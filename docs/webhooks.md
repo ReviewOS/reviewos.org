@@ -56,6 +56,7 @@ body: a webhook endpoint that skips the check is an endpoint anybody can post to
 | `status:reported` | the older commit-status API said something; `action` is its state |
 | `test:monitor` | a rule about the tests changed state; `action` is `alarm` or `recovered` |
 | `test:flaky` | a test crossed from steady to unreliable, once rather than every run |
+| `test:recorded` | a suite reported its results, with the totals and the run id to read the detail from |
 
 `check:reported`, `status:reported`, `run:transitioned` and `job:transitioned` carry an extra
 key - `check`, `run` or `job` - and put the new state in `action`, so one subscription covers a

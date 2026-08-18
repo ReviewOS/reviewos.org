@@ -69,13 +69,21 @@ export default new Action({
      * says the name, the repository says the path, and asking somebody to
      * translate between them is asking them to look it up first.
      */
-    const workflow = await db
+    /*
+     * Matched here rather than in SQL, the same way the dispatch endpoint does
+     * it: a repository has a handful of workflows, and this builder's
+     * expression callback is not the callable form the `any` was papering over.
+     */
+    const candidates = await db
       .selectFrom('workflows')
       .select(['id', 'name', 'path', 'state'])
       .where('repository_id', '=', Number(auth.context.repository.id))
-      .where((query: any) => query.where('path', '=', key).orWhere('name', '=', key))
-      .executeTakeFirst()
-      .catch(() => null)
+      .execute()
+      .catch(() => [])
+
+    const workflow = candidates.find(row => String(row.path) === key)
+      ?? candidates.find(row => String(row.path).endsWith(`/${key}`))
+      ?? candidates.find(row => String(row.name) === key)
 
     if (!workflow)
       return response.json({ error: 'No such workflow in this repository' }, 404)

@@ -15137,6 +15137,32 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/tests": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "view"?: "suites" | "runs" | "executions" | "states"; "suite"?: string; "branch"?: string; "run"?: number; "test"?: number; "state"?: string; "limit"?: number; "cursor"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "suites"?: Array<Record<string, unknown>>; "runs"?: Array<Record<string, unknown>>; "executions"?: Array<Record<string, unknown>>; "states"?: Array<Record<string, unknown>>; "next"?: number } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/tests/ingest": {
     get?: never
     put?: never

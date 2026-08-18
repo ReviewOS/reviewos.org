@@ -5525,6 +5525,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/tests
+   */
+  getReposTests(input?: { "owner"?: string; "repo"?: string; "view"?: "suites" | "runs" | "executions" | "states"; "suite"?: string; "branch"?: string; "run"?: number; "test"?: number; "state"?: string; "limit"?: number; "cursor"?: number }, options?: RequestOptions): Promise<ApiResult<{ "suites"?: Array<Record<string, unknown>>; "runs"?: Array<Record<string, unknown>>; "executions"?: Array<Record<string, unknown>>; "states"?: Array<Record<string, unknown>>; "next"?: number }>> {
+    return request(config, "GET", "/api/repos/tests", input ?? {}, ["owner", "repo", "view", "suite", "branch", "run", "test", "state", "limit", "cursor"], false, options)
+  },
+
+  /**
    * POST /api/repos/tests/ingest
    */
   postReposTestsIngest(input?: { body?: { "owner"?: string; "repo"?: string; "suite"?: string; "sha"?: string; "branch"?: string; "key"?: string; "format"?: "junit" | "json"; "report"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "run"?: number; "verdict"?: string; "duplicate"?: boolean; "counts"?: { "passed"?: number; "failed"?: number; "skipped"?: number; "muted_failures"?: number }; "newly_flaky"?: Array<string> }>> {

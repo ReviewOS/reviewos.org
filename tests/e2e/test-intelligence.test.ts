@@ -907,3 +907,181 @@ describe('the flaky transition as an event', () => {
 function created_repository(): number {
   return created.repositoryId
 }
+
+/*
+ * Reading it back.
+ *
+ * A page is not an API. A team's own dashboard, a release script that refuses
+ * to ship while a suite is red, an agent asking whether the test it is about to
+ * change is already flaky - each of those had to scrape HTML or query the
+ * database directly, and both are ways of depending on something nobody
+ * promised to keep.
+ */
+describe('the read API', () => {
+  async function read(query: string, token = created.token): Promise<{ status: number, body: any }> {
+    const answer = await fetch(`http://127.0.0.1:${port}/api/repos/tests?owner=${created.handle}&repo=${created.name}&${query}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    })
+
+    return { status: answer.status, body: await answer.json().catch(() => null) }
+  }
+
+  test('lists the suites with the shape of the last run', async () => {
+    if (!available)
+      return
+
+    await ingest({
+      suite: 'readable',
+      headSha: 'e'.repeat(40),
+      branch: 'main',
+      executions: [
+        { name: 'passes', result: 'passed', durationMs: 4 },
+        { name: 'fails', result: 'failed', durationMs: 9, failureMessage: 'expected 1' },
+      ],
+    })
+
+    const { status, body } = await read('view=suites')
+
+    expect(status).toBe(200)
+
+    const suite = body.suites.find((one: any) => one.slug === 'readable')
+
+    expect(suite).toBeTruthy()
+    expect(suite.last_run.passed).toBe(1)
+    expect(suite.last_run.failed).toBe(1)
+    expect(String(suite.last_run.head_sha)).toBe('e'.repeat(40))
+  }, 120_000)
+
+  test('and the runs of one suite, newest first', async () => {
+    if (!available)
+      return
+
+    await ingest({ suite: 'readable', headSha: 'f'.repeat(40), branch: 'main', executions: [{ name: 'passes', result: 'passed', durationMs: 4 }] })
+
+    const { body } = await read('view=runs&suite=readable')
+
+    expect(body.runs.length).toBeGreaterThanOrEqual(2)
+    expect(String(body.runs[0].head_sha)).toBe('f'.repeat(40))
+    expect(body.runs[0].branch).toBe('main')
+  }, 120_000)
+
+  test('and the executions of one run, with the message and not the stack', async () => {
+    if (!available)
+      return
+
+    const runs = await read('view=runs&suite=readable')
+    const runId = Number(runs.body.runs.at(-1).id)
+
+    const { body } = await read(`view=executions&suite=readable&run=${runId}`)
+
+    const failed = body.executions.find((one: any) => one.name === 'fails')
+
+    expect(failed).toBeTruthy()
+    expect(failed.result).toBe('failed')
+    expect(String(failed.failure_message)).toContain('expected 1')
+    // The stack is the larger half of an execution row and the half a dashboard
+    // never renders: whoever wants it asks for the one execution.
+    expect(failed.failure_stack).toBeUndefined()
+  }, 120_000)
+
+  test('and what this instance believes about each test, including an overdue review', async () => {
+    if (!available)
+      return
+
+    const tests = await testsIn('readable')
+
+    // Muted with a review date in the past, which is the row a listing of
+    // quarantined tests exists to surface.
+    await db.updateTable('managed_tests')
+      .set({ state: 'muted', muted_reason: 'flaky under load', review_at: '2020-01-01T00:00:00.000Z' })
+      .where('id', '=', Number(tests.fails.id))
+      .execute()
+
+    const { body } = await read('view=states&suite=readable')
+    const state = body.states.find((one: any) => one.name === 'fails')
+
+    expect(state.state).toBe('muted')
+    expect(state.muted_reason).toBe('flaky under load')
+    // Said outright rather than left to the caller's date arithmetic: a client
+    // that has to compute it is a client that will not.
+    expect(state.review_overdue).toBe(true)
+  }, 120_000)
+
+  test('reads without a credential on a public repository, and refuses a token that lacks the scope', async () => {
+    if (!available)
+      return
+
+    const anonymous = await fetch(`http://127.0.0.1:${port}/api/repos/tests?owner=${created.handle}&repo=${created.name}&view=suites`, {
+      headers: { Accept: 'application/json' },
+    })
+
+    // This repository is public, so its results are as readable as its code -
+    // which is what makes a badge or a public dashboard possible at all.
+    expect(anonymous.status).toBe(200)
+
+    /*
+     * And a token narrows. `contents: read` is permission to clone, not
+     * permission to read what the machines found: test results are the shape of
+     * what a repository contains and which parts of it are failing, so they sit
+     * with the runs.
+     */
+    const { generateToken } = await import('../../app/Actions/Tokens/secret')
+    const secret = generateToken()
+    const row: any = await db.insertInto('access_tokens').values({
+      user_id: created.ownerId,
+      name: 'code only',
+      prefix: secret.prefix,
+      token_hash: secret.hash,
+      selection: 'all',
+      expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+    }).returning(['id']).executeTakeFirst()
+
+    await db.insertInto('access_token_permissions')
+      .values({ access_token_id: Number(row?.id), scope: 'contents', level: 'read' })
+      .execute()
+
+    const narrow = await read('view=suites', secret.token)
+
+    expect(narrow.status).toBe(403)
+    expect(String(narrow.body?.error)).toContain('workflow:read')
+
+    await db.deleteFrom('access_tokens').where('id', '=', Number(row?.id)).execute()
+  }, 120_000)
+})
+
+describe('a suite reporting as an event', () => {
+  test('carries the totals and the run to read the detail from', async () => {
+    if (!available)
+      return
+
+    const { listen } = await import('@stacksjs/events')
+    const seen: any[] = []
+
+    listen('test:recorded', (payload: any) => {
+      seen.push(payload)
+    })
+
+    const outcome = await ingest({
+      suite: 'announced',
+      key: 'announced-1',
+      headSha: '4c'.repeat(20),
+      branch: 'main',
+      executions: [
+        { name: 'one', result: 'passed', durationMs: 3 },
+        { name: 'two', result: 'failed', durationMs: 5, failureMessage: 'nope' },
+      ],
+    })
+
+    expect(seen).toHaveLength(1)
+
+    /*
+     * The totals rather than the executions: a report of two thousand tests is
+     * two thousand rows, and a delivery carrying them is one that times out on
+     * exactly the repositories that matter. The run id is how a receiver asks
+     * for the detail.
+     */
+    expect(seen[0]?.suite).toMatchObject({ suite: 'announced', branch: 'main', passed: 1, failed: 1 })
+    expect(Number(seen[0]?.suite?.run)).toBe(Number(outcome.runId))
+    expect(JSON.stringify(seen[0]?.suite)).not.toContain('nope')
+  }, 120_000)
+})

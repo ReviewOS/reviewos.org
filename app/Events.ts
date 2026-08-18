@@ -106,6 +106,7 @@ export default {
    * the one that broke today.
    */
   'test:flaky': ['DispatchWebhooks'],
+  'test:recorded': ['DispatchWebhooks'],
   'pr:merged': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'pr:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   'review:requested': ['Notify', 'DispatchWebhooks'],

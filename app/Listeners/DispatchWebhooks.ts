@@ -51,6 +51,9 @@ export default {
     // one message.
     'test:monitor',
     'test:flaky',
+    // And the plain fact that a suite reported, with its totals: the event a
+    // dashboard waits on, where the two above are thresholds.
+    'test:recorded',
   ],
 
   async handle(payload: EventSubject & { event?: NotificationEvent }, eventName?: string): Promise<void> {

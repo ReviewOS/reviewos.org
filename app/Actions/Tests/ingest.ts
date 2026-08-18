@@ -91,6 +91,9 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
     return { ok: false, reason: 'this report contains no test results' }
 
   const suite = await suiteFor(input.repositoryId, input.suite)
+  // The slug the suite was stored under, which is what the read API takes and
+  // what a webhook receiver needs to ask about this run.
+  const suiteSlug = slugOfSuite(input.suite)
 
   /*
    * The same run reported twice is answered as success rather than refused.
@@ -192,6 +195,28 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
     .execute()
 
   const newlyFlaky = await detectFlakes(touched, { repositoryId: input.repositoryId, headSha: input.headSha })
+
+  /*
+   * And whoever is waiting to hear that a suite reported.
+   *
+   * The totals rather than the executions: two thousand results is two thousand
+   * rows, and a delivery carrying them is one that times out on exactly the
+   * repositories that matter. The run id is in the body, so a receiver that
+   * wants the detail asks the API for it.
+   *
+   * Never awaited for its effect and never able to fail an ingestion: a webhook
+   * is a consequence of the results being recorded, not a condition of it.
+   */
+  await announceRecorded({
+    repositoryId: input.repositoryId,
+    suite: suiteSlug,
+    runId,
+    branch: input.branch ?? '',
+    headSha: input.headSha,
+    counts,
+    duration,
+    workflowRunId: input.workflowRunId ?? null,
+  }).catch(() => null)
 
   return {
     ok: true,
@@ -318,9 +343,16 @@ export async function detectFlakes(testIds: readonly number[], announce?: { repo
 }
 
 /** The suite by slug, created on first sight. */
+/** The slug a suite name becomes, in one place so the row and the webhook agree. */
+function slugOfSuite(name: string): string {
+  const trimmed = String(name ?? '').trim() || 'default'
+
+  return trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 100) || 'default'
+}
+
 async function suiteFor(repositoryId: number, slug: string): Promise<number> {
   const name = String(slug ?? '').trim() || 'default'
-  const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 100) || 'default'
+  const key = slugOfSuite(name)
 
   const existing = await db
     .selectFrom('test_suites')
@@ -423,6 +455,63 @@ async function announceFlaky(input: {
       // passing only after a retry is usually a timeout.
       reason: input.reason,
       head_sha: input.headSha,
+    },
+  })
+}
+
+/**
+ * Tell the programs that a suite reported.
+ *
+ * Separate from the flaky announcement because the two are different facts: one
+ * is "a run happened, here are the totals", the other is "this test crossed a
+ * threshold". A receiver wanting the first every time and the second rarely
+ * should not have to filter one out of the other.
+ */
+async function announceRecorded(input: {
+  repositoryId: number
+  suite: string
+  runId: number
+  branch: string
+  headSha: string
+  counts: { passed: number, failed: number, skipped: number, mutedFailures: number }
+  duration: number
+  workflowRunId: number | null
+}): Promise<void> {
+  const repository = await db
+    .selectFrom('repositories')
+    .select(['name', 'owner_type', 'owner_id'])
+    .where('id', '=', input.repositoryId)
+    .executeTakeFirst()
+
+  if (!repository)
+    return
+
+  const owner = String(repository.owner_type) === 'user'
+    ? await db.selectFrom('users').select(['handle']).where('id', '=', Number(repository.owner_id)).executeTakeFirst()
+    : await db.selectFrom('organizations').select(['handle']).where('id', '=', Number(repository.owner_id)).executeTakeFirst()
+
+  await notifyProgramsOnly('test:recorded', {
+    // Nobody clicked: a collector posted a report. Zero reads as "the system"
+    // everywhere else this happens.
+    actorId: 0,
+    actorHandle: '',
+    repositoryId: input.repositoryId,
+    owner: String(owner?.handle ?? ''),
+    repository: String(repository.name ?? ''),
+    subjectType: 'repository',
+    subjectId: input.repositoryId,
+    title: `${input.suite}: ${input.counts.passed} passed, ${input.counts.failed} failed`,
+    suite: {
+      suite: input.suite,
+      run: input.runId,
+      branch: input.branch,
+      head_sha: input.headSha,
+      passed: input.counts.passed,
+      failed: input.counts.failed,
+      skipped: input.counts.skipped,
+      muted_failures: input.counts.mutedFailures,
+      duration_ms: input.duration,
+      workflow_run_id: input.workflowRunId,
     },
   })
 }

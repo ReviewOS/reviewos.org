@@ -1,4 +1,4 @@
-import type { CheckDetail, JobDetail, MonitorDetail, RunDetail, TestDetail } from '../Webhooks/payloads'
+import type { CheckDetail, JobDetail, MonitorDetail, RunDetail, SuiteDetail, TestDetail } from '../Webhooks/payloads'
 /**
  * What each domain event says, and to whom.
  *
@@ -58,6 +58,8 @@ export interface EventSubject {
   check?: CheckDetail
   test?: TestDetail
   monitor?: MonitorDetail
+  /** The suite that reported, on `test:recorded`. */
+  suite?: SuiteDetail
 }
 
 export interface Notification {
