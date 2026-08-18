@@ -27,7 +27,7 @@ export default new Action({
   description: 'Instance metrics, in Prometheus exposition format',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     if (!await mayScrape(request)) {
       /*
        * 404, not 403. Whether this instance exposes metrics at all is itself
@@ -54,7 +54,7 @@ export default new Action({
 })
 
 /** Whether this caller may read the numbers. */
-async function mayScrape(request: any): Promise<boolean> {
+async function mayScrape(request: RequestInstance): Promise<boolean> {
   const configured = String(process.env.METRICS_TOKEN ?? '').trim()
 
   if (configured) {

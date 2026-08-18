@@ -26,7 +26,7 @@ export default new Action({
   description: 'Add or remove a reaction on an issue or a comment',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'issue:react')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

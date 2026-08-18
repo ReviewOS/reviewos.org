@@ -64,7 +64,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     /*
      * The same permission as cancelling, and for the same reason: spending the
      * fleet's machines on somebody's repository is a change to that

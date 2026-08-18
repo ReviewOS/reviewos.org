@@ -49,7 +49,7 @@ export default new Action({
     404: { description: 'No such repository or pull request, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:merge')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

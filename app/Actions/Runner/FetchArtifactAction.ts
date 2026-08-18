@@ -46,7 +46,7 @@ export default new Action({
     },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const protocol = protocolOf(request)
 
     if (!protocol.ok)

@@ -30,7 +30,7 @@ export default new Action({
   description: 'Request a password reset link, or use one',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const email = String(request.get('email') ?? '').trim().toLowerCase()
 
     if (!email)

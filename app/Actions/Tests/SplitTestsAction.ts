@@ -51,7 +51,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     // Reading timings is reading. Splitting decides nothing and records
     // nothing; it answers a question about history the caller may already see.
     const auth = await authorizeRepository(request, 'repository:read')

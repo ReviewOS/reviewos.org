@@ -27,7 +27,7 @@ export default new Action({
   description: 'Download a repository at a ref as an archive',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const browse = await browseContext(request)
     if (!browse.ok)
       return response.json({ error: browse.error }, browse.status)

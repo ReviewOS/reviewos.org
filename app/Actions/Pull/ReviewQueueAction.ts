@@ -26,7 +26,7 @@ export default new Action({
   description: 'Pull requests waiting on the authenticated user',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)

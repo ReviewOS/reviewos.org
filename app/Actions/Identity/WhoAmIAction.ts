@@ -22,7 +22,7 @@ export default new Action({
   description: 'The account behind the credential on this request',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     /*
      * `currentActor`, not `currentUser`.
      *

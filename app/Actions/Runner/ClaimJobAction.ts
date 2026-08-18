@@ -134,7 +134,7 @@ function subjectOf(eventRef: string): { kind: string, id: string, action: string
 }
 
 /** The address this runner reached, scheme and host, with nothing after it. */
-function serverUrlOf(request: any): string {
+function serverUrlOf(request: RequestInstance): string {
   const url = String(request?.url ?? '')
 
   try {
@@ -166,7 +166,7 @@ export default new Action({
     },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     /*
      * Before anything else, including the credential.
      *

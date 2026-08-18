@@ -48,7 +48,7 @@ export default new Action({
     422: { description: 'A name is required, the selection must be one of the three, and an expiry that is not a date is refused rather than ignored.' },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const caller = await currentUser(request)
     if (!caller)
       return response.json({ error: 'Unauthenticated' }, 401)
@@ -206,7 +206,7 @@ export default new Action({
  * The alternative was a second endpoint for the browser, which would have meant
  * two implementations of issuing a token and one of them getting a fix.
  */
-function readPermissions(request: any): { scope: string, level: string }[] {
+function readPermissions(request: RequestInstance): { scope: string, level: string }[] {
   const requested = request.get('permissions')
   if (Array.isArray(requested))
     return requested
@@ -236,7 +236,7 @@ function readPermissions(request: any): { scope: string, level: string }[] {
  * A form sends `repository_ids=3,7`, because checkboxes have the same repeated
  * name problem and a comma-separated list survives every parser.
  */
-function readRepositoryIds(request: any): unknown[] {
+function readRepositoryIds(request: RequestInstance): unknown[] {
   const requested = request.get('repository_ids')
   if (Array.isArray(requested))
     return requested
@@ -369,7 +369,7 @@ async function machineAccountFor(
  * Zero is kept. "This token may not open pull requests" is a reasonable thing
  * to say, and rounding it away to the default would do the opposite.
  */
-function hourlyLimits(request: any): Record<string, number> {
+function hourlyLimits(request: RequestInstance): Record<string, number> {
   const columns: Record<string, string> = {
     limit_pull_requests_per_hour: 'limit_pull_requests_per_hour',
     limit_comments_per_hour: 'limit_comments_per_hour',

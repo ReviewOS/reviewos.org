@@ -51,7 +51,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     /*
      * The same ability as dispatching a workflow by hand: this starts runs, and
      * starting a run spends the instance's runners. Anybody who may read a

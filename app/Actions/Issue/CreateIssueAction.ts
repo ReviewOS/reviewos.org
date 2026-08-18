@@ -41,7 +41,7 @@ export default new Action({
     404: { description: 'No such repository or issue, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     // Anyone who can read a repository may open an issue on it; that is what
     // makes an issue tracker useful to people who are not contributors.
     const auth = await authorizeRepository(request, 'issue:open')

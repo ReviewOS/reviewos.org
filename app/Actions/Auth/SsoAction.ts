@@ -28,7 +28,7 @@ export default new Action({
   description: 'Sign in through an OpenID Connect provider',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const config = ssoConfig()
 
     if (!config)

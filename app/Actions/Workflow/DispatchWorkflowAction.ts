@@ -64,7 +64,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'workflow:dispatch')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)
@@ -228,7 +228,7 @@ function parseDeclared(stored: unknown): any[] {
  * `inputs` as an object is what the API takes and what Actions documents; a
  * form posts `inputs[name]` instead, and the interface is a form.
  */
-function suppliedFrom(request: any): Record<string, unknown> {
+function suppliedFrom(request: RequestInstance): Record<string, unknown> {
   const direct = request.get('inputs')
 
   if (direct && typeof direct === 'object' && !Array.isArray(direct))

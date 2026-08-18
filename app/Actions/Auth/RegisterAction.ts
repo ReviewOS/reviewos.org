@@ -25,7 +25,7 @@ export default new Action({
   description: 'Create an account and start a session',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const handle = normalizeHandle(String(request.get('handle') ?? ''))
     const email = String(request.get('email') ?? '').trim().toLowerCase()
     const password = String(request.get('password') ?? '')

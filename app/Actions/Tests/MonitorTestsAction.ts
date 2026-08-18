@@ -45,7 +45,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const operation = String(request.get('operation') ?? 'list').trim()
 
     /*

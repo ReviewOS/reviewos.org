@@ -18,7 +18,7 @@ export default new Action({
   description: 'Recompute whether a pull request merges cleanly',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

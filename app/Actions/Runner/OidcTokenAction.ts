@@ -51,7 +51,7 @@ export default new Action({
     401: { description: 'No job credential, or one this instance does not recognise.' },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const protocol = protocolOf(request)
 
     if (!protocol.ok)
@@ -155,7 +155,7 @@ export default new Action({
 })
 
 /** Where this instance is, as the caller reached it. */
-function issuerOf(request: any): string {
+function issuerOf(request: RequestInstance): string {
   const url = String(request?.url ?? '')
 
   try {

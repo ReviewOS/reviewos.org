@@ -44,7 +44,7 @@ export default new Action({
     error: { rule: schema.string() },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const url = new URL(request.url)
     const name = url.pathname.split('/').filter(Boolean)[1] ?? ''
     const secure = isSecureRequest(request)
@@ -121,7 +121,7 @@ export default new Action({
  * legitimately contain one, and a `next` truncated at `/a/b:c` would send
  * somebody somewhere they did not ask for.
  */
-function readStateCookie(request: any): { state: string, next: string } | null {
+function readStateCookie(request: RequestInstance): { state: string, next: string } | null {
   const header = String(request.headers?.get?.('cookie') ?? request.get?.('cookie') ?? '')
   const match = header.split(';').map(part => part.trim()).find(part => part.startsWith(`${STATE_COOKIE}=`))
 

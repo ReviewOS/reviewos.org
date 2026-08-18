@@ -19,7 +19,7 @@ export default new Action({
   description: 'Edit a pull request title, body, or base branch',
   method: 'PUT',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

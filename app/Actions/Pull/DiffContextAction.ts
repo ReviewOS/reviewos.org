@@ -23,7 +23,7 @@ export default new Action({
   description: 'Render the lines a diff left out between two hunks',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

@@ -29,7 +29,7 @@ export default new Action({
   description: 'Serve an uploaded attachment, if the reader may see its repository',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     // Read off the path rather than through the router's parameter bag, the
     // same way the git routes do: these URLs are mounted at the root and the
     // last segment is the whole request.

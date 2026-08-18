@@ -25,7 +25,7 @@ export default new Action({
   description: 'Send a recorded webhook delivery again',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)
@@ -82,7 +82,7 @@ export default new Action({
 })
 
 /** Whether this arrived from a form rather than from fetch. */
-function wantsHtml(request: any): boolean {
+function wantsHtml(request: RequestInstance): boolean {
   const accept = String(request.header?.('accept') ?? request.headers?.get?.('accept') ?? '')
 
   return accept.includes('text/html')

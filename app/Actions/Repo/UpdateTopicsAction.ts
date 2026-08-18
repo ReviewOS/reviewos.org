@@ -19,7 +19,7 @@ export default new Action({
   description: 'Set the topics on a repository',
   method: 'PUT',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

@@ -28,7 +28,7 @@ export default new Action({
     limit: { rule: schema.number() },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const repositories = await featured()
     const asked = Number(request.get('limit'))
 

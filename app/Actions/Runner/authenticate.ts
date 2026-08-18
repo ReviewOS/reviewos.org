@@ -26,7 +26,7 @@ export function hashToken(token: string): string {
  * log, in the referrer, and in somebody's shell history, and accepting it "for
  * convenience" is how it ends up there.
  */
-export function bearerFrom(request: any): string {
+export function bearerFrom(request: RequestInstance): string {
   const header = String(request?.headers?.get?.('authorization') ?? '')
   const match = /^Bearer\s+(.+)$/i.exec(header.trim())
 
@@ -47,7 +47,7 @@ export interface AuthenticatedRunner {
  * unauthenticated caller *which* of those it was is telling it whether a token
  * exists.
  */
-export async function authenticateRunner(request: any): Promise<AuthenticatedRunner | null> {
+export async function authenticateRunner(request: RequestInstance): Promise<AuthenticatedRunner | null> {
   const token = bearerFrom(request)
   if (!token)
     return null
@@ -103,7 +103,7 @@ export interface AuthenticatedJob {
  * *is* the claim on that job, which is the property the wrong-job case in
  * `protocol.ts` had to be defended against by hand.
  */
-export async function authenticateJob(request: any): Promise<AuthenticatedJob | null> {
+export async function authenticateJob(request: RequestInstance): Promise<AuthenticatedJob | null> {
   const token = bearerFrom(request)
   if (!token)
     return null

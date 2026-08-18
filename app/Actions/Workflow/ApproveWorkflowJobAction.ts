@@ -57,7 +57,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'workflow:approve')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

@@ -28,7 +28,7 @@ export default new Action({
   description: 'Sync a mirrored repository immediately',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

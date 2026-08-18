@@ -27,7 +27,7 @@ export default new Action({
   description: 'The OpenAPI document describing this instance',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const file = Bun.file(path.frameworkPath('api/openapi.json'))
 
     if (!await file.exists()) {

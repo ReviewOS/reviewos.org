@@ -48,7 +48,7 @@ export default new Action({
     credential: { rule: schema.string() },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const user = await currentUser(request)
 
     if (!user)

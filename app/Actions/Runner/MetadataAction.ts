@@ -61,7 +61,7 @@ export default new Action({
     401: { description: 'No job credential, or one this instance does not recognise.' },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const protocol = protocolOf(request)
 
     if (!protocol.ok)

@@ -20,7 +20,7 @@ export default new Action({
   description: 'Create, update or delete a repository label',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'label:manage')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

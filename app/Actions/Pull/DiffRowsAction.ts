@@ -38,7 +38,7 @@ export const MAX_ROW_PATHS = 40
 export const MAX_ROW_WINDOW = 5_000
 
 /** The default-folded hunks a request wants open, or null when none named. */
-function readOpenHunks(request: any): Set<number> | null {
+function readOpenHunks(request: RequestInstance): Set<number> | null {
   const raw = request.get('open')
   if (raw === undefined || raw === null || String(raw) === '')
     return null
@@ -54,7 +54,7 @@ function readOpenHunks(request: any): Set<number> | null {
 }
 
 /** The row window a request asks for, or null for the whole file. */
-function readRange(request: any): { from: number, to: number } | null {
+function readRange(request: RequestInstance): { from: number, to: number } | null {
   const raw = request.get('from')
   if (raw === undefined || raw === null || String(raw) === '')
     return null
@@ -73,7 +73,7 @@ export default new Action({
   description: 'Stream rendered diff rows for named files',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)
@@ -198,7 +198,7 @@ export default new Action({
  * separator seemed safe. Capped so one request cannot ask for the whole diff
  * and undo the point of the mode.
  */
-function readPaths(request: any): string[] {
+function readPaths(request: RequestInstance): string[] {
   const url = new URL(request.url)
   const values = url.searchParams.getAll('path')
 

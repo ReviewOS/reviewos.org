@@ -54,7 +54,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     // The same ability cancelling a run asks for: stopping somebody's build is
     // a change to the repository's state, and seeing a run is not the same as
     // being allowed to stop one.

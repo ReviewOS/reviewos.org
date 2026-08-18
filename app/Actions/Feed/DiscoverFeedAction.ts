@@ -31,7 +31,7 @@ export default new Action({
     },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const before = Number(request.get('before'))
     const page = await withHandles(await discoverFeed({
       before: Number.isInteger(before) && before > 0 ? before : null,

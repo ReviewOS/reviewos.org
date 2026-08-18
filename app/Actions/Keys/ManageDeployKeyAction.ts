@@ -20,7 +20,7 @@ export default new Action({
   description: 'Add or remove a deploy key on a repository',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

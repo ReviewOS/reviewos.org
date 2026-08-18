@@ -25,7 +25,7 @@ export default new Action({
     id: { rule: schema.string() },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     // `currentActor`, not `currentUser`: this endpoint is not about a
     // repository, so there is no ability to check and a fine-grained token is
     // simply a caller. `currentUser` refuses to resolve one on purpose, which

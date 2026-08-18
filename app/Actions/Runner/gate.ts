@@ -10,7 +10,7 @@ import type { ProtocolDecision } from './protocol'
 import { negotiate, PROTOCOL_HEADER, protocolHeaders } from './protocol'
 
 /** The protocol version on a request, from the header a runner sends. */
-export function protocolOf(request: any): ProtocolDecision {
+export function protocolOf(request: RequestInstance): ProtocolDecision {
   const header = String(
     request?.headers?.get?.(PROTOCOL_HEADER)
     ?? request?.headers?.get?.(PROTOCOL_HEADER.toLowerCase())

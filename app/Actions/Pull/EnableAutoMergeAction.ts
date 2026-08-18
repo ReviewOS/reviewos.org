@@ -24,7 +24,7 @@ export default new Action({
   description: 'Merge automatically once requirements are met',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:merge')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

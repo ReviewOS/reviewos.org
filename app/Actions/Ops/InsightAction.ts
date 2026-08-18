@@ -133,7 +133,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const owner = String(request.get('owner') ?? '').trim()
     const repo = String(request.get('repo') ?? '').trim()
 

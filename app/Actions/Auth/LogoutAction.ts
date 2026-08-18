@@ -22,7 +22,7 @@ export default new Action({
   description: 'End the session and revoke its token',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const name = await sessionCookieName()
     const secure = isSecureRequest(request)
 

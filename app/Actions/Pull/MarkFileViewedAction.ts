@@ -19,7 +19,7 @@ export default new Action({
   description: 'Mark a file in a pull request as viewed, or not',
   method: 'PUT',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

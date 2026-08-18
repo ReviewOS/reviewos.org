@@ -59,7 +59,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     // Write access, not read: stopping somebody's build is a change to the
     // repository's state, and anybody who can see a run is not therefore
     // somebody who can stop it.
@@ -163,7 +163,7 @@ export default new Action({
 })
 
 /** Whether this arrived from a form rather than from fetch. */
-function wantsHtml(request: any): boolean {
+function wantsHtml(request: RequestInstance): boolean {
   const accept = String(request.header?.('accept') ?? request.headers?.get?.('accept') ?? '')
 
   return accept.includes('text/html')

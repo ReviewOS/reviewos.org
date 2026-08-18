@@ -18,7 +18,7 @@ export default new Action({
   description: 'Delete a comment on an issue or pull request',
   method: 'DELETE',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

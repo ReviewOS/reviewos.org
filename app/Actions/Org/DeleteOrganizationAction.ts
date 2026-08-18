@@ -29,7 +29,7 @@ export default new Action({
   description: 'Delete an organization that owns nothing',
   method: 'DELETE',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)

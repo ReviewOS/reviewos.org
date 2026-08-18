@@ -24,7 +24,7 @@ export default new Action({
   description: 'Who has worked on the files this pull request changes',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:review')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

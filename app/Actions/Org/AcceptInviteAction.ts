@@ -22,7 +22,7 @@ export default new Action({
   description: 'Accept or decline an invitation to an organization',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)

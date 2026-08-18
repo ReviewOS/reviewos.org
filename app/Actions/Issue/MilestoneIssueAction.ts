@@ -22,7 +22,7 @@ export default new Action({
   description: 'Set or clear the milestone on an issue',
   method: 'PUT',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'issue:milestone')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

@@ -41,7 +41,7 @@ export default new Action({
     id: { rule: schema.number() },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)

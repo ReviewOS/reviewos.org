@@ -26,7 +26,7 @@ export default new Action({
     },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const issuer = issuerOf(request)
 
     return new Response(JSON.stringify({
@@ -56,7 +56,7 @@ export default new Action({
 })
 
 /** Where this instance is, as the caller reached it. */
-function issuerOf(request: any): string {
+function issuerOf(request: RequestInstance): string {
   try {
     const parsed = new URL(String(request?.url ?? ''))
 

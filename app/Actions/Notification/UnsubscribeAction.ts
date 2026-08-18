@@ -31,7 +31,7 @@ export default new Action({
   description: 'Unsubscribe from one thread, from an emailed link',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     // Off the path, so one URL serves both the page and the one-click POST.
     // Read from the pathname the way `ServeAttachmentAction` does rather than
     // through a params binding, which the router does not expose to an action.
@@ -110,7 +110,7 @@ export default new Action({
 })
 
 /** The last path segment, which is where the token is. */
-function tokenFromPath(request: any): string {
+function tokenFromPath(request: RequestInstance): string {
   try {
     return decodeURIComponent(new URL(request.url).pathname.split('/').pop() ?? '')
   }

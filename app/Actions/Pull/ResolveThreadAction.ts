@@ -14,7 +14,7 @@ export default new Action({
   description: 'Resolve or unresolve a review thread',
   method: 'PUT',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:review')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

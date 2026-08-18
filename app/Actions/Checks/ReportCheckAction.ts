@@ -82,7 +82,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     /*
      * `checks:write` rather than `contents:write`.
      *

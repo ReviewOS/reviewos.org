@@ -57,7 +57,7 @@ export default new Action({
     comments: { rule: schema.array() },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:review')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)
@@ -220,7 +220,7 @@ type CommentsRead
  *
  * Absent is fine and means the browser flow: publish whatever drafts exist.
  */
-function readComments(request: any): CommentsRead {
+function readComments(request: RequestInstance): CommentsRead {
   const raw = request.get('comments')
 
   if (raw === undefined || raw === null || raw === '')

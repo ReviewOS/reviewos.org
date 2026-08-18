@@ -24,7 +24,7 @@ export default new Action({
   description: 'Publish, edit or delete a release',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const operation = String(request.get('operation') ?? 'create').trim().toLowerCase()
 
     // Publishing is a write, and so is editing the notes: `repository:settings`

@@ -28,7 +28,7 @@ export default new Action({
     days: { rule: schema.number() },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const topic = String(request.get('topic') ?? '').trim()
     const language = String(request.get('language') ?? '').trim()
 

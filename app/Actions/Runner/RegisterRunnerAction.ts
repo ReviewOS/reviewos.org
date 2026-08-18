@@ -61,7 +61,7 @@ export default new Action({
     426: { description: 'This machine speaks a protocol version the server does not.' },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const protocol = protocolOf(request)
     if (!protocol.ok)
       return refuseProtocol(protocol)

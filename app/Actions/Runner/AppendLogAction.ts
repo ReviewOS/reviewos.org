@@ -43,7 +43,7 @@ export default new Action({
     stream: { rule: schema.enum(['stdout', 'stderr']) },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     /*
      * Before anything else, including the credential.
      *

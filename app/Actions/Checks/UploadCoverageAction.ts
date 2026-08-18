@@ -49,7 +49,7 @@ export default new Action({
     404: { description: 'No such repository, or none this caller may see.' },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'check:report')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

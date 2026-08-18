@@ -16,7 +16,7 @@ export default new Action({
   description: 'Create an organization owned by the caller',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)

@@ -25,7 +25,7 @@ export default new Action({
   description: 'Create a repository for a user or an organization',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)

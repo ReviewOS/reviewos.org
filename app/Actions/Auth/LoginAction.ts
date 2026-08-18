@@ -26,7 +26,7 @@ export default new Action({
   description: 'Sign in and start a session',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const email = String(request.get('email') ?? '').trim().toLowerCase()
     const password = String(request.get('password') ?? '')
     const offeredCode = String(request.get('code') ?? '').trim()
@@ -244,7 +244,7 @@ async function signedIn(
 }
 
 /** What the browser said it was and where it came from. Both untrusted. */
-function deviceOf(request: any): { userAgent: string | null, ipAddress: string | null } {
+function deviceOf(request: RequestInstance): { userAgent: string | null, ipAddress: string | null } {
   return {
     userAgent: String(request?.headers?.get?.('user-agent') ?? '') || null,
     ipAddress: String(request?.headers?.get?.('x-forwarded-for') ?? '').split(',')[0]?.trim()

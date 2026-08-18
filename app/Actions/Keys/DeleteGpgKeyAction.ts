@@ -21,7 +21,7 @@ export default new Action({
   // application goes through a form with a CSRF field.
   method: 'DELETE',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)

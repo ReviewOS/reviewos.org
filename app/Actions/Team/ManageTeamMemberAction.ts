@@ -21,7 +21,7 @@ export default new Action({
   description: 'Add, change, or remove a team member',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const actor = await currentUser(request)
     if (!actor)
       return response.json({ error: 'Unauthenticated' }, 401)

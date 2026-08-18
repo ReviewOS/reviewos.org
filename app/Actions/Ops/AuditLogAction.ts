@@ -45,7 +45,7 @@ export default new Action({
     format: { rule: schema.enum(['json', 'jsonl']) },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const { user } = await currentActor(request)
 
     const organizationId = Number(request.get('organization_id'))
@@ -152,7 +152,7 @@ export default new Action({
  * not the whole one - and silently dropping the filter is how somebody reads a
  * page of unrelated events believing they are looking at one repository's.
  */
-async function repositoryIdFor(request: any): Promise<number | null> {
+async function repositoryIdFor(request: RequestInstance): Promise<number | null> {
   const owner = String(request.get('owner') ?? '').trim().toLowerCase()
   const repo = String(request.get('repo') ?? '').trim()
 

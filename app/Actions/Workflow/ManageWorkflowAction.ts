@@ -45,7 +45,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     /*
      * `workflow:dispatch` rather than a settings ability. Somebody who may
      * start a workflow by hand is the same person who needs to stop one that

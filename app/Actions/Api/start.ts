@@ -110,7 +110,7 @@ export function accepted(row: any, extra: Record<string, unknown> = {}): Respons
 }
 
 /** The idempotency key on this request, or null. */
-function keyFrom(request: any): string | null {
+function keyFrom(request: RequestInstance): string | null {
   const header = String(
     request?.headers?.get?.('idempotency-key') ?? request?.header?.('idempotency-key') ?? '',
   ).trim()

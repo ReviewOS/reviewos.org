@@ -14,7 +14,7 @@ export default new Action({
   description: 'Search repositories, issues, pull requests and people',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const viewer = await currentUser(request)
     const scope = String(request.get?.('scope') ?? 'repositories')
 

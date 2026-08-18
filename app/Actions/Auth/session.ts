@@ -62,7 +62,7 @@ export function clearedCookie(name: string, secure: boolean): string {
 }
 
 /** Whether this request arrived over https, including behind a proxy. */
-export function isSecureRequest(request: any): boolean {
+export function isSecureRequest(request: RequestInstance): boolean {
   const header = (key: string): string =>
     String(request?.header?.(key) ?? request?.headers?.get?.(key) ?? '')
 
@@ -99,7 +99,7 @@ export async function sessionCookieName(): Promise<string> {
  * the page and the API stay in step - two would drift, and the one that drifts
  * is the one nobody is looking at.
  */
-export function wantsHtml(request: any): boolean {
+export function wantsHtml(request: RequestInstance): boolean {
   const accept = String(request?.header?.('accept') ?? request?.headers?.get?.('accept') ?? '')
 
   return accept.includes('text/html')

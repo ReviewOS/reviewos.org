@@ -21,7 +21,7 @@ export default new Action({
   description: 'Apply one change to several issues',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const operation = String(request.get('operation') ?? '')
     if (!isBulkOperation(operation))
       return response.json({ error: 'That is not something this can do' }, 422)

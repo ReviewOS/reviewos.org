@@ -20,7 +20,7 @@ export default new Action({
   description: 'Upload a file and get the markdown that references it',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'attachment:upload')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

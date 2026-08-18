@@ -21,7 +21,7 @@ export default new Action({
   description: 'Tick or untick a task list item',
   method: 'PUT',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'issue:comment')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

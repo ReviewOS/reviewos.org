@@ -47,7 +47,7 @@ export default new Action({
     next: { rule: schema.string() },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     // Read off the path rather than the parameter bag: these routes are
     // mounted at the root, the same way the git and attachment routes are.
     const name = new URL(request.url).pathname.split('/').filter(Boolean)[1] ?? ''

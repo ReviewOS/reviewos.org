@@ -25,7 +25,7 @@ export default new Action({
   description: 'Stream the per-file manifest of a pull request diff',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

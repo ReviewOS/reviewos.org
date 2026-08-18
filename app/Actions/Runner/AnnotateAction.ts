@@ -49,7 +49,7 @@ export default new Action({
     409: { description: 'The runner speaks a protocol version this server does not.' },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const protocol = protocolOf(request)
 
     if (!protocol.ok)

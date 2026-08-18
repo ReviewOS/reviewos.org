@@ -28,7 +28,7 @@ export default new Action({
   description: 'Grant, change, or revoke a person\'s direct access to a repository',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'collaborator:manage')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

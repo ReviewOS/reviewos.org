@@ -27,7 +27,7 @@ export default new Action({
   description: 'The diff between two versions of one file’s proposal',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

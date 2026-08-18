@@ -21,7 +21,7 @@ export default new Action({
   description: 'Serve a file from a repository, unrendered',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const browse = await browseContext(request)
     if (!browse.ok)
       return response.json({ error: browse.error }, browse.status)

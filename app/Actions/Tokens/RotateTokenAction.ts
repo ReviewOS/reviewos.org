@@ -42,7 +42,7 @@ export default new Action({
     404: { description: 'No such token.' },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)

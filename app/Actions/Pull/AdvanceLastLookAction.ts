@@ -25,7 +25,7 @@ export default new Action({
   description: 'Mark a pull request as read up to its current head',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:review')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

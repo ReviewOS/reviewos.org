@@ -37,7 +37,7 @@ export default new Action({
     ref: { rule: schema.string() },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const browse = await browseContext(request)
 
     if (!browse.ok)

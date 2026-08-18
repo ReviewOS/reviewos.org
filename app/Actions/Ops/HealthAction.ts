@@ -28,7 +28,7 @@ export default new Action({
   description: 'Whether the database, the queue and repository storage are working',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     /*
      * `?quick=1` skips the disk write.
      *

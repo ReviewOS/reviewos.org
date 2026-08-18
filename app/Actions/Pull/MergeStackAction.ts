@@ -26,7 +26,7 @@ export default new Action({
   description: 'Merge a stack of pull requests, bottom first',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:merge')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

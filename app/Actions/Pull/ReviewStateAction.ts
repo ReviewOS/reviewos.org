@@ -19,7 +19,7 @@ export default new Action({
   description: 'The signed-in reader\'s progress through a pull request',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

@@ -18,7 +18,7 @@ export default new Action({
   description: 'Create, update, close or delete a milestone',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'milestone:manage')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

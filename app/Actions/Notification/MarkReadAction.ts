@@ -26,7 +26,7 @@ export default new Action({
   description: 'Mark notifications as read',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const user = await currentUser(request)
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)
@@ -139,7 +139,7 @@ function readIds(value: unknown): number[] {
 }
 
 /** Whether this arrived from a form rather than from fetch. */
-function wantsHtml(request: any): boolean {
+function wantsHtml(request: RequestInstance): boolean {
   const accept = String(request.header?.('accept') ?? request.headers?.get?.('accept') ?? '')
 
   return accept.includes('text/html')

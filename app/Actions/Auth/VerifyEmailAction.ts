@@ -26,7 +26,7 @@ export default new Action({
   description: 'Verify an email address, or send the link again',
   method: 'GET',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     if (String(request.method ?? 'GET').toUpperCase() === 'POST')
       return await resend(request)
 
@@ -49,7 +49,7 @@ export default new Action({
 })
 
 /** Send the link again, to the address on the caller's own account. */
-async function resend(request: any): Promise<Response> {
+async function resend(request: RequestInstance): Promise<Response> {
   const user = await currentUser(request)
   if (!user)
     return answer(request, 401, { error: 'Unauthenticated' })

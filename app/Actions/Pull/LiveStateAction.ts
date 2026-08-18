@@ -25,7 +25,7 @@ export default new Action({
   description: 'Current activity on a pull request, and who is watching it',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

@@ -18,7 +18,7 @@ export default new Action({
   description: 'Add a member to an organization',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const actor = await currentUser(request)
     if (!actor)
       return response.json({ error: 'Unauthenticated' }, 401)

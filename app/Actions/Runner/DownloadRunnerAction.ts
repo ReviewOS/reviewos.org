@@ -48,7 +48,7 @@ export default new Action({
     404: { description: 'This instance has not built a runner for that platform, and says which command builds it.' },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const target = String(request.get('target') ?? 'linux-x64').trim()
 
     /*

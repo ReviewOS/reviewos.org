@@ -77,7 +77,7 @@ export default new Action({
     422: { description: 'The operation needs something it was not given.' },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const { user } = await currentActor(request)
 
     /*

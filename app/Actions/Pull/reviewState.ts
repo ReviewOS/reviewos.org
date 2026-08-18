@@ -149,7 +149,7 @@ export async function saveDraft(pullRequestId: number, authorId: number, draft: 
  * browser checks them on the way out of local storage: a draft stored against
  * the wrong line comes back as a comment about code it is not about.
  */
-export function draftFromRequest(request: any): { ok: true, draft: DraftComment | null } | { ok: false, error: string } {
+export function draftFromRequest(request: RequestInstance): { ok: true, draft: DraftComment | null } | { ok: false, error: string } {
   const text = String(request.get('body') ?? '')
   if (text.trim() === '')
     return { ok: true, draft: null }

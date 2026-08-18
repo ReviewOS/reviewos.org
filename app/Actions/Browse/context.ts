@@ -50,7 +50,7 @@ export type BrowseResult =
  * pointing somewhere stale - in which case the row is the one that agrees with
  * what the rest of the interface shows.
  */
-export async function browseContext(request: any): Promise<BrowseResult> {
+export async function browseContext(request: RequestInstance): Promise<BrowseResult> {
   const owner = String(request.get('owner') ?? '').trim().toLowerCase()
   const name = String(request.get('repository') ?? request.get('repo') ?? '').trim()
 
@@ -102,7 +102,7 @@ export async function browseContext(request: any): Promise<BrowseResult> {
  * token, and refusing it here would mean one credential that works for `curl`
  * on one endpoint and not on the next.
  */
-async function fineGrainedToken(request: any): Promise<AuthenticatedToken | null> {
+async function fineGrainedToken(request: RequestInstance): Promise<AuthenticatedToken | null> {
   const header = String(request.headers?.get?.('authorization') ?? '')
 
   if (header.startsWith('Bearer ')) {

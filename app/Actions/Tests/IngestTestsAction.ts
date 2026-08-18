@@ -72,7 +72,7 @@ export default new Action({
 
   responseHeaders: RATE_LIMIT_HEADERS,
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     /*
      * `check:report`, not a scope of its own. A CI integration that may say a
      * commit passed may say which tests did: the finer grain is strictly less

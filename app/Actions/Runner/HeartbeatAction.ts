@@ -41,7 +41,7 @@ export default new Action({
     },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     /*
      * Before anything else, including the credential.
      *

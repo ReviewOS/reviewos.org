@@ -20,7 +20,7 @@ export default new Action({
   description: 'Restore the head branch a merge deleted',
   method: 'POST',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:push')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

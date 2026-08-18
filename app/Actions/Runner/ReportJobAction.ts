@@ -73,7 +73,7 @@ export default new Action({
     error: { rule: schema.string() },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     /*
      * Before anything else, including the credential.
      *

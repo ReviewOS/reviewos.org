@@ -16,7 +16,7 @@ export default new Action({
   description: 'Remove a member from an organization',
   method: 'DELETE',
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const actor = await currentUser(request)
     if (!actor)
       return response.json({ error: 'Unauthenticated' }, 401)

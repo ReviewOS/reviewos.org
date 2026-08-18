@@ -40,7 +40,7 @@ export default new Action({
     limit: { rule: schema.number() },
   },
 
-  async handle(request: any) {
+  async handle(request: RequestInstance) {
     const { user } = await currentActor(request)
 
     if (!user?.is_admin)
