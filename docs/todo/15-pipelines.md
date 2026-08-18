@@ -1997,8 +1997,25 @@ decisions.
       searchable within a run, with retention policy and expiry visible before it happens
 - [ ] Artifacts are downloadable by later steps in the same run by name, which is the only reason
       most artifacts exist
-- [ ] Run metadata: string key/value pairs any job in a run can read or write, with
+- [x] Run metadata: string key/value pairs any job in a run can read or write, with
       compare-and-set so two parallel jobs cannot lose a write
+
+      `reviewos-meta set version 1.4.2` in one job, `reviewos-meta get version` in another, and
+      `POST /api/runner/metadata` underneath. A job that computes a version number, a preview URL or
+      a decision has to hand it to a job that runs later, and both alternatives are worse: an
+      artifact is a file for a string, and an output only reaches jobs that declared `needs:` on the
+      producer - so a value cannot travel sideways or reach a job that was generated after the fact.
+
+      **The compare-and-set is the design.** Without it two parallel jobs each read a list, each
+      append, each write it back, and the second write lands on top of the first with nothing
+      anywhere saying so. The guard is a `WHERE` clause on the version rather than a read followed
+      by a write, because two jobs writing in the same instant would both pass a look-then-write.
+      `if_version: 0` is "only if nobody has set this", which is a lock in one write.
+
+      Scoped to the run rather than the repository: two runs of the same workflow are different
+      commits, and a deploy that read the other run's version number would ship the wrong build. A
+      value over ten kilobytes is refused rather than truncated - that is a file, and a file is an
+      artifact.
 - [x] Run and job state machines exposed exactly as phase 9 defines them, with the interface, API,
       and webhooks reading the same states rather than three vocabularies
 

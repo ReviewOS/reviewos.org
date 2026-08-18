@@ -900,6 +900,14 @@ route.post('/runner/artifacts', 'Actions/Runner/UploadArtifactAction').skipCsrf(
 // a check annotation, which is what the diff renders in the gutter.
 route.post('/runner/annotations', 'Actions/Runner/AnnotateAction').skipCsrf()
 /*
+ * The values one run's jobs pass to each other.
+ *
+ * `action` is `get`, `set` or `list`; `if_version` makes a write a
+ * compare-and-set, which is what stops two parallel jobs losing each other's
+ * contribution. The run comes from the job token rather than from the request.
+ */
+route.post('/runner/metadata', 'Actions/Runner/MetadataAction')
+/*
  * Steps a job generated, added to its own run.
  *
  * The job token names the job, so an uploaded document never gets to say which

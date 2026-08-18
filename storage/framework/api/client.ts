@@ -5742,6 +5742,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/runner/metadata
+   */
+  postRunnerMetadata(input?: { body?: { "action"?: string; "key"?: string; "value"?: string; "if_version"?: number } }, options?: RequestOptions): Promise<ApiResult<{ "entry"?: { "key"?: string; "value"?: string; "version"?: number }; "entries"?: Array<Record<string, unknown>> }>> {
+    return request(config, "POST", "/api/runner/metadata", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/runner/register
    */
   postRunnerRegister(input?: { body?: { "name"?: string; "labels"?: string; "tags"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

@@ -455,8 +455,10 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      */
     const uploadPath = writeUploadCommand(workspace, options.baseUrl, jobToken)
 
-    if (uploadPath)
+    if (uploadPath) {
       writeSplitCommand(uploadPath, options.baseUrl, jobToken)
+      writeMetaCommand(uploadPath, options.baseUrl, jobToken)
+    }
 
     /*
      * `post-checkout` and `pre-command`, now that the code is on disk and the
@@ -1307,6 +1309,53 @@ exec curl -sS -X POST ${JSON.stringify(`${baseUrl.replace(/\/$/, '')}/api/runner
      * because a nicety was unavailable.
      */
     return ''
+  }
+}
+
+/**
+ * `reviewos-meta`, for reading and writing the run's shared values.
+ *
+ * A helper on the PATH rather than a documented curl, for the same reason
+ * `reviewos-upload` is one: the endpoint is three headers and a JSON body, and
+ * a step that has to get those right to hand a version number to the next job
+ * will use an artifact instead.
+ *
+ *     reviewos-meta set version 1.4.2
+ *     reviewos-meta get version
+ *
+ * The token is written into the script rather than into the environment, so a
+ * step that prints its own environment does not print it.
+ */
+export function writeMetaCommand(directory: string, baseUrl: string, jobToken: string): void {
+  try {
+    const path = join(directory, 'reviewos-meta')
+
+    writeFileSync(path, `#!/bin/sh
+# The run's shared values. Usage: reviewos-meta get KEY | set KEY VALUE | list
+set -e
+action="\${1:-list}"
+key="\${2:-}"
+value="\${3:-}"
+body=$(${JSON.stringify(process.execPath)} -e 'process.stdout.write(JSON.stringify({ action: process.argv[1], key: process.argv[2], value: process.argv[3] }))' "$action" "$key" "$value")
+answer=$(curl -sS -X POST ${JSON.stringify(`${baseUrl.replace(/\/$/, '')}/api/runner/metadata`)} \
+  -H "Authorization: Bearer ${jobToken}" \
+  -H 'Content-Type: application/json' \
+  -H 'X-Runner-Protocol: 1' \
+  --data-binary "$body")
+# The value alone for a get, so \`v=$(reviewos-meta get version)\` works; the
+# whole answer otherwise, because a set that was refused has to be readable.
+if [ "$action" = "get" ]; then
+  printf '%s' "$answer" | ${JSON.stringify(process.execPath)} -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{process.stdout.write(JSON.parse(d)?.entry?.value ?? "")}catch{process.stdout.write("")}})'
+else
+  printf '%s' "$answer"
+fi
+`)
+
+    chmodSync(path, 0o700)
+  }
+  catch {
+    // A workspace this cannot write to is one where the job still runs. The
+    // helper is a convenience over an endpoint that is still there.
   }
 }
 

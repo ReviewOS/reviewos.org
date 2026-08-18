@@ -15877,6 +15877,33 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/runner/metadata": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "action"?: string; "key"?: string; "value"?: string; "if_version"?: number } } }
+    responses: {
+      "200": { content: { "application/json": { "entry"?: { "key"?: string; "value"?: string; "version"?: number }; "entries"?: Array<Record<string, unknown>> } } }
+      "401": { content: never }
+      "409": { content: never }
+      "413": { content: never }
+      "422": { content: never }
+      "426": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/runner/register": {
     get?: never
     put?: never
