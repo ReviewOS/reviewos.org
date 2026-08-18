@@ -2549,9 +2549,25 @@ every runner is somebody else's machine.
       the deploy at production" is the question the log is for. The end-to-end test asserts both,
       through a real boot with a bearer token rather than by calling the actions - `actor_id` is
       filled either way, and `access_token_id` is only filled when the request carried one.
-- [ ] Tests: a forged step signature, a rotated key mid-run, an OIDC token used against another
+- [x] Tests: a forged step signature, a rotated key mid-run, an OIDC token used against another
       repository's trust policy, a fork run attempting secret access, and a token with dispatch but
       not admin attempting each admin route
+
+      `tests/e2e/ci-security.test.ts`, against a real boot rather than over plain values, because
+      every one of these fails quietly if it fails: a forged step runs, a rotation kills a run in
+      flight, an identity token opens somebody else's account, a fork reads a deploy key, a narrow
+      token turns out to be wide.
+
+      The forgery is done the way a database writer would do it - payload intact, real signature,
+      one command somebody else's - and the environment variant too, since a step whose command is
+      untouched still runs with whatever it was given. The rotation asserts both directions: work
+      signed before it still verifies, because a rotation that killed every dispatched job is a
+      maintenance task nobody dares run, and a runner holding a stale key set refuses work signed
+      after it rather than treating what it cannot check as consent. The fork claims its own run by
+      id rather than whatever was queued first, and is handed no secrets and refused an identity
+      token - after a trusted claim proves delivery works, so a broken secret path cannot pass as
+      the feature working. The narrow token dispatches successfully first, which is what makes the
+      four refusals that follow about the permission rather than the path.
 
 ---
 
