@@ -125,14 +125,14 @@ export default new Action({
           state: 'cancelled',
           finished_at: now,
           conclusion_reason: `${user?.handle ?? 'somebody'} decided this fork's pull request should not run`,
-        } as any)
+        })
         .where('id', '=', Number(run.id))
         .where('approval_state', '=', 'required')
         .execute()
 
       await db
         .updateTable('workflow_jobs')
-        .set({ state: 'cancelled', finished_at: now } as any)
+        .set({ state: 'cancelled', finished_at: now })
         .where('workflow_run_id', '=', Number(run.id))
         .where('state', 'in', ['blocked', 'queued'])
         .execute()
@@ -163,14 +163,14 @@ export default new Action({
          * many people approved it, which is the whole of the fork policy.
          */
         conclusion_reason: null,
-      } as any)
+      })
       .where('id', '=', Number(run.id))
       .where('approval_state', '=', 'required')
       .execute()
 
     await db
       .updateTable('workflow_jobs')
-      .set({ condition_reason: null } as any)
+      .set({ condition_reason: null })
       .where('workflow_run_id', '=', Number(run.id))
       .where('state', '=', 'blocked')
       .execute()

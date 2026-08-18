@@ -202,7 +202,7 @@ export async function enqueue(input: {
      */
     await db
       .updateTable('merge_queue_entries')
-      .set({ state: 'queued', position, merge_sha: '', reason: '', workflow_run_id: null } as any)
+      .set({ state: 'queued', position, merge_sha: '', reason: '', workflow_run_id: null })
       .where('id', '=', Number(existing.id))
       .execute()
 
@@ -217,7 +217,7 @@ export async function enqueue(input: {
       base_branch: input.baseBranch,
       state: 'queued',
       position,
-    } as any)
+    })
     .returning(['id'])
     .executeTakeFirst()
 
@@ -291,7 +291,7 @@ export async function startNext(input: {
   if (!merged.ok) {
     await db
       .updateTable('merge_queue_entries')
-      .set({ state: 'ejected', reason: `Cannot merge onto what is ahead of it: ${merged.error}` } as any)
+      .set({ state: 'ejected', reason: `Cannot merge onto what is ahead of it: ${merged.error}` })
       .where('id', '=', next.id)
       .execute()
 
@@ -304,7 +304,7 @@ export async function startNext(input: {
 
   await db
     .updateTable('merge_queue_entries')
-    .set({ state: 'testing', merge_sha: merged.sha } as any)
+    .set({ state: 'testing', merge_sha: merged.sha })
     .where('id', '=', next.id)
     .execute()
 
@@ -351,14 +351,14 @@ export async function settleEntry(input: {
 
     await db
       .updateTable('merge_queue_entries')
-      .set({ state: 'ejected', reason: input.reason || 'The run against the prospective merge failed.' } as any)
+      .set({ state: 'ejected', reason: input.reason || 'The run against the prospective merge failed.' })
       .where('id', '=', entry.id)
       .execute()
 
     for (const behind of outcome.requeue) {
       await db
         .updateTable('merge_queue_entries')
-        .set({ state: 'queued', merge_sha: '', workflow_run_id: null } as any)
+        .set({ state: 'queued', merge_sha: '', workflow_run_id: null })
         .where('id', '=', behind.id)
         .execute()
     }
@@ -387,7 +387,7 @@ export async function settleEntry(input: {
     if (!moved || moved.code !== 0) {
       await db
         .updateTable('merge_queue_entries')
-        .set({ state: 'queued', merge_sha: '' } as any)
+        .set({ state: 'queued', merge_sha: '' })
         .where('id', '=', entry.id)
         .execute()
 
@@ -401,13 +401,13 @@ export async function settleEntry(input: {
 
   await db
     .updateTable('merge_queue_entries')
-    .set({ state: 'merged' } as any)
+    .set({ state: 'merged' })
     .where('id', '=', entry.id)
     .execute()
 
   await db
     .updateTable('pull_requests')
-    .set({ state: 'merged', merged_at: new Date().toISOString() } as any)
+    .set({ state: 'merged', merged_at: new Date().toISOString() })
     .where('id', '=', entry.pullRequestId)
     .execute()
     .catch(() => null)

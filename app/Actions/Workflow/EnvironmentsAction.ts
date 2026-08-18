@@ -92,7 +92,7 @@ export default new Action({
           wait_minutes: Math.max(0, Math.min(43_200, Number(request.get('wait_minutes')) || 0)),
           branches: cleanBranches(request.get('branches')),
           description: String(request.get('description') ?? '').slice(0, 500),
-        } as any)
+        })
         .returning(['id'])
         .executeTakeFirst()
 
@@ -154,7 +154,7 @@ export default new Action({
         if (!already) {
           await db
             .insertInto('environment_reviewers')
-            .values({ environment_id: Number(found.id), user_id: Number(user.id) } as any)
+            .values({ environment_id: Number(found.id), user_id: Number(user.id) })
             .execute()
         }
       }

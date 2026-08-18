@@ -36,7 +36,7 @@ export async function releaseElapsedWaits(now: Date = new Date()): Promise<{ rel
 
     await db
       .updateTable('workflow_jobs')
-      .set({ state: 'blocked' } as any)
+      .set({ state: 'blocked' })
       .where('id', '=', Number(job.id))
       .where('state', '=', 'paused')
       .execute()

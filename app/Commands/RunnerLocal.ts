@@ -174,7 +174,7 @@ async function registerRunner(options: RunnerOptions, output: { print: boolean }
     // wants - and it means a leaked token is fixed by running one command.
     await db
       .updateTable('runners')
-      .set({ token_hash: secret.hash, labels: labels.join('\n'), state: 'active' } as any)
+      .set({ token_hash: secret.hash, labels: labels.join('\n'), state: 'active' })
       .where('id', '=', Number(existing.id))
       .execute()
   }
@@ -191,7 +191,7 @@ async function registerRunner(options: RunnerOptions, output: { print: boolean }
         // busy is a lease on a job, not a column here.
         state: 'active',
         version: '1',
-      } as any)
+      })
       .execute()
   }
 

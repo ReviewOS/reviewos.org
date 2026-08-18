@@ -265,7 +265,7 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
           trusted: true,
           actor_id: input.actorId ?? null,
           concurrency_group: group,
-        } as any)
+        })
         .returning(['id'])
         .executeTakeFirst()
 
@@ -378,7 +378,7 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
           // Handed to the job as `github.event.client_payload`, which is the
           // whole reason a caller sends one.
           dispatch_inputs: payload ? JSON.stringify({ client_payload: payload, event_type: input.eventType }) : null,
-        } as any)
+        })
         .returning(['id'])
         .executeTakeFirst()
 
@@ -522,7 +522,7 @@ export async function dispatchWorkflowRun(input: {
               event: String(finished.event ?? ''),
             },
           }),
-        } as any)
+        })
         .returning(['id'])
         .executeTakeFirst()
 
@@ -688,7 +688,7 @@ async function createPullRequestRun(
         trusted,
         actor_id: input.actorId ?? null,
         concurrency_group: group,
-      } as any)
+      })
       .returning(['id'])
       .executeTakeFirst()
 
@@ -705,7 +705,7 @@ async function createPullRequestRun(
     if (approval.required) {
       await db
         .updateTable('workflow_jobs')
-        .set({ state: 'blocked', condition_reason: approval.reason } as any)
+        .set({ state: 'blocked', condition_reason: approval.reason })
         .where('workflow_run_id', '=', runId)
         .where('state', '=', 'queued')
         .execute()
@@ -771,7 +771,7 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
         trusted: true,
         actor_id: input.actorId ?? null,
         concurrency_group: group,
-      } as any)
+      })
       .returning(['id'])
       .executeTakeFirst()
 
@@ -856,14 +856,14 @@ async function supersede(
           state: 'cancelled',
           finished_at: new Date().toISOString(),
           conclusion_reason: 'Skipped: a newer commit arrived before this run started.',
-        } as any)
+        })
         .where('id', '=', Number(run.id))
         .where('state', '=', 'queued')
         .execute()
 
       await db
         .updateTable('workflow_jobs')
-        .set({ state: 'cancelled', finished_at: new Date().toISOString() } as any)
+        .set({ state: 'cancelled', finished_at: new Date().toISOString() })
         .where('workflow_run_id', '=', Number(run.id))
         .where('state', 'in', ['blocked', 'queued'])
         .execute()
@@ -877,7 +877,7 @@ async function supersede(
 
   await db
     .updateTable('workflow_runs')
-    .set({ state: 'cancelling' } as any)
+    .set({ state: 'cancelling' })
     .where('repository_id', '=', repositoryId)
     .where('concurrency_group', '=', group)
     .where('id', '!=', runId)
@@ -943,7 +943,7 @@ async function holdForGroup(input: {
       // minutes is the most expensive screen in a forge. A reader should learn
       // that this is the concurrency key working, not a runner that is missing.
       conclusion_reason: `Waiting for run #${Number(ahead.id)} in concurrency group \`${input.group}\`.`,
-    } as any)
+    })
     .where('id', '=', input.runId)
     .where('state', '=', 'queued')
     .execute()
@@ -995,7 +995,7 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
 
   await db
     .updateTable('workflow_runs')
-    .set({ state: 'queued', conclusion_reason: null } as any)
+    .set({ state: 'queued', conclusion_reason: null })
     .where('id', '=', Number(next.id))
     // Guarded on the state it was read at: two runs finishing at once must not
     // both release the same waiting run and hand its jobs out twice.
@@ -1283,7 +1283,7 @@ async function createJobs(
             settings: plugins.ok ? plugins.settings : (job.settings ?? null),
             group_label: job.group_label ?? null,
             priority: Number(job.priority ?? 0),
-          } as any)
+          })
           .returning(['id'])
           .executeTakeFirst()
 
@@ -1333,7 +1333,7 @@ async function expandCall(input: {
         needs: job.needs,
         runs_on: job.runs_on,
         condition_reason: reason,
-      } as any)
+      })
       .execute()
   }
 
@@ -1414,7 +1414,7 @@ async function expandCall(input: {
       runs_on: job.runs_on,
       // Where the outputs come from when this barrier is released.
       settings: JSON.stringify({ call: { versionId: resolved.target.versionId, prefix: name } }),
-    } as any)
+    })
     .execute()
     .catch(() => null)
 }
@@ -1497,7 +1497,7 @@ async function supersedeJobs(
   for (const sibling of siblings) {
     await db
       .updateTable('workflow_jobs')
-      .set({ state: 'cancelling' } as any)
+      .set({ state: 'cancelling' })
       .where('id', '=', Number(sibling.id))
       .execute()
   }

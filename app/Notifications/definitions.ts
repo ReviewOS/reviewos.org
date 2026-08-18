@@ -1,3 +1,4 @@
+import type { CheckDetail, JobDetail, MonitorDetail, RunDetail, TestDetail } from '../Webhooks/payloads'
 /**
  * What each domain event says, and to whom.
  *
@@ -40,6 +41,23 @@ export interface EventSubject {
   title?: string
   /** Free text the sentence may use: a review verdict, a release tag. */
   detail?: string
+  /**
+   * What the event is *about*, beyond the subject a person subscribes to.
+   *
+   * A webhook receiver reads these: a run's number and state, the job that
+   * moved, the check that was reported, the test that turned flaky, the monitor
+   * that alarmed. They travel here rather than as five more `subjectType`s,
+   * because subscription is to a repository and these are its details.
+   *
+   * Each was being passed with `as any` at the call site, which is the same
+   * thing said less honestly - and left every receiver reading fields no
+   * declaration mentioned.
+   */
+  run?: RunDetail
+  job?: JobDetail
+  check?: CheckDetail
+  test?: TestDetail
+  monitor?: MonitorDetail
 }
 
 export interface Notification {

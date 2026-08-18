@@ -107,13 +107,17 @@ export async function attemptAutoMerge(pullRequestId: number): Promise<AutoMerge
     // and cookie lookups in `currentUser` - which find nothing here, correctly,
     // since `user` has already answered. An empty `Headers` rather than an
     // object with a `get`, so the one member that has a real type has it.
-    const answer: any = await MergePullRequest.handle({
+    const answer = await MergePullRequest.handle({
       get: (key: string) => values[key],
       user: async () => ({ id: Number(pullRequest.auto_merge_by_id) }),
       headers: new Headers(),
-    } as any)
+    } as unknown as RequestInstance)
 
-    const body = await answer.json().catch(() => null)
+    /*
+     * The action answers a `Response` here, whatever its declared return type
+     * allows elsewhere - it is an HTTP action, and this calls it directly.
+     */
+    const body = answer instanceof Response ? await answer.json().catch(() => null) : null
     const merged = body?.state === 'merged'
 
     return {

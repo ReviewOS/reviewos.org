@@ -137,7 +137,7 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
       workflow_run_id: input.workflowRunId ?? null,
       external_key: input.key ?? null,
       source: input.source,
-    } as any)
+    })
     .returning(['id'])
     .executeTakeFirst()
 
@@ -175,7 +175,7 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
         failure_stack: execution.failureStack ? String(execution.failureStack).slice(0, 20_000) : null,
         workflow_job_id: execution.workflowJobId ?? null,
         tags: (execution.tags ?? []).filter(tag => tag.includes('=')).join('\n') || null,
-      } as any)
+      })
       .execute()
   }
 
@@ -187,7 +187,7 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
       skipped: counts.skipped,
       muted_failures: counts.mutedFailures,
       duration_ms: duration,
-    } as any)
+    })
     .where('id', '=', runId)
     .execute()
 
@@ -281,7 +281,7 @@ export async function detectFlakes(testIds: readonly number[], announce?: { repo
          * - which is exactly the question the impact number asks.
          */
         ...(test && test.flaky !== true ? { flaky_since: new Date().toISOString() } : {}),
-      } as any)
+      })
       .where('id', '=', testId)
       .execute()
 
@@ -334,7 +334,7 @@ async function suiteFor(repositoryId: number, slug: string): Promise<number> {
 
   const created = await db
     .insertInto('test_suites')
-    .values({ repository_id: repositoryId, name: name.slice(0, 100), slug: key } as any)
+    .values({ repository_id: repositoryId, name: name.slice(0, 100), slug: key })
     .returning(['id'])
     .executeTakeFirst()
 
@@ -366,7 +366,7 @@ async function testFor(suiteId: number, scope: string, name: string): Promise<{ 
 
   const created = await db
     .insertInto('managed_tests')
-    .values({ test_suite_id: suiteId, scope: cleanScope, name: cleanName, state: 'enabled' } as any)
+    .values({ test_suite_id: suiteId, scope: cleanScope, name: cleanName, state: 'enabled' })
     .returning(['id'])
     .executeTakeFirst()
 
@@ -424,5 +424,5 @@ async function announceFlaky(input: {
       reason: input.reason,
       head_sha: input.headSha,
     },
-  } as any)
+  })
 }

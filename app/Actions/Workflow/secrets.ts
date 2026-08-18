@@ -146,7 +146,7 @@ export async function putSecret(input: {
   if (existing) {
     await db
       .updateTable('workflow_secrets')
-      .set({ sealed: String(sealed), updated_by_id: input.userId ?? null } as any)
+      .set({ sealed: String(sealed), updated_by_id: input.userId ?? null })
       .where('id', '=', Number(existing.id))
       .execute()
 
@@ -161,7 +161,7 @@ export async function putSecret(input: {
       key: input.key,
       sealed: String(sealed),
       updated_by_id: input.userId ?? null,
-    } as any)
+    })
     .execute()
 }
 

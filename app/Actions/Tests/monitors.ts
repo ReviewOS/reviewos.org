@@ -206,7 +206,7 @@ export async function evaluateMonitors(repositoryId?: number, now: Date = new Da
         evaluated_at: now.toISOString(),
         measurement: reading.value ?? 0,
         ...(transition ? { state: transition === 'alarm' ? 'alarm' : 'ok', changed_at: now.toISOString() } : {}),
-      } as any)
+      })
       .where('id', '=', monitor.id)
       .execute()
       .catch(() => null)
@@ -222,8 +222,14 @@ export async function evaluateMonitors(repositoryId?: number, now: Date = new Da
   return outcome
 }
 
-/** One transition, to programs. Never throws: an alarm is not worth failing a sweep over. */
-async function announce(monitor: MonitorRow, transition: Transition, reading: Measurement): Promise<void> {
+/**
+ * One transition, to programs. Never throws: an alarm is not worth failing a
+ * sweep over.
+ *
+ * `transition` is the non-null half of {@link Transition}: this is only called
+ * when something changed, and the payload's `action` says which way.
+ */
+async function announce(monitor: MonitorRow, transition: Exclude<Transition, null>, reading: Measurement): Promise<void> {
   try {
     const repository = await db
       .selectFrom('repositories')
@@ -263,7 +269,7 @@ async function announce(monitor: MonitorRow, transition: Transition, reading: Me
         measurement: reading.value,
         samples: reading.samples,
       },
-    } as any)
+    })
   }
   catch (error) {
     console.error('[tests] could not announce a monitor transition:', error)

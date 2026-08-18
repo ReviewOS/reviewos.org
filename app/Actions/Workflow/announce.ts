@@ -97,7 +97,7 @@ export async function announceRun(repositoryId: number, run: RunFacts): Promise<
         ref: run.ref ? String(run.ref) : null,
         workflow: run.workflowName ? String(run.workflowName) : null,
       },
-    } as any)
+    })
   }
   catch (error) {
     console.error('[workflow] could not announce a run transition:', error)
@@ -131,7 +131,7 @@ export async function announceJob(repositoryId: number, job: JobFacts): Promise<
         // slow job with a sick runner has no other way to join the two.
         runner: job.runnerId ? String(job.runnerId) : null,
       },
-    } as any)
+    })
   }
   catch (error) {
     console.error('[workflow] could not announce a job transition:', error)

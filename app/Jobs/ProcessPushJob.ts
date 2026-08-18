@@ -292,7 +292,7 @@ async function refreshPullRequests(
           number: Number(pullRequest.number),
           title: String(pullRequest.title ?? ''),
           detail: String(update.after),
-        } as any)
+        })
       }
     }
     catch {

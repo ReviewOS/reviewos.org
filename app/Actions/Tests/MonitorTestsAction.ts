@@ -107,7 +107,7 @@ export default new Action({
           window_days: Math.max(1, Math.min(365, Number(request.get('window_days')) || 7)),
           state: 'ok',
           enabled: true,
-        } as any)
+        })
         .returning(['id'])
         .executeTakeFirst()
 

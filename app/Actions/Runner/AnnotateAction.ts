@@ -121,7 +121,7 @@ export default new Action({
     if (existing && summary) {
       await db
         .updateTable('check_runs')
-        .set({ summary } as any)
+        .set({ summary })
         .where('id', '=', checkRunId)
         .execute()
     }
@@ -155,7 +155,7 @@ export default new Action({
           level: annotation.level,
           title: annotation.title,
           message: annotation.message,
-        } as any)
+        })
         .execute()
     }
 
@@ -192,7 +192,7 @@ async function createCheck(repositoryId: number, headSha: string, name: string, 
       // The workflow that produced it, so a reader can tell a check reported by
       // this instance's own runner from one an external system pushed.
       provider: 'workflow',
-    } as any)
+    })
     .returning(['id'])
     .executeTakeFirst()
 

@@ -203,7 +203,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
   for (const job of casualties.cancel) {
     await db
       .updateTable('workflow_jobs')
-      .set({ state: 'cancelled', finished_at: now.toISOString(), condition_reason: FAIL_FAST_REASON } as any)
+      .set({ state: 'cancelled', finished_at: now.toISOString(), condition_reason: FAIL_FAST_REASON })
       .where('id', '=', job.id)
       .where('state', 'in', ['blocked', 'queued'])
       .execute()
@@ -219,7 +219,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
      */
     await db
       .updateTable('workflow_jobs')
-      .set({ state: 'cancelling', lease_expires_at: now.toISOString(), condition_reason: FAIL_FAST_REASON } as any)
+      .set({ state: 'cancelling', lease_expires_at: now.toISOString(), condition_reason: FAIL_FAST_REASON })
       .where('id', '=', job.id)
       .where('state', '=', 'running')
       .execute()
@@ -243,7 +243,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
   for (const job of sunk.cancel) {
     await db
       .updateTable('workflow_jobs')
-      .set({ state: 'cancelled', finished_at: now.toISOString(), condition_reason: CANCEL_ON_FAILING_REASON } as any)
+      .set({ state: 'cancelled', finished_at: now.toISOString(), condition_reason: CANCEL_ON_FAILING_REASON })
       .where('id', '=', job.id)
       .where('state', 'in', ['blocked', 'queued'])
       .execute()
@@ -254,7 +254,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
     // it can no longer report a result over a decision already made.
     await db
       .updateTable('workflow_jobs')
-      .set({ state: 'cancelling', lease_expires_at: now.toISOString(), condition_reason: CANCEL_ON_FAILING_REASON } as any)
+      .set({ state: 'cancelling', lease_expires_at: now.toISOString(), condition_reason: CANCEL_ON_FAILING_REASON })
       .where('id', '=', job.id)
       .where('state', '=', 'running')
       .execute()
@@ -272,7 +272,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
   for (const job of unreachable) {
     await db
       .updateTable('workflow_jobs')
-      .set({ state: 'skipped', finished_at: now.toISOString() } as any)
+      .set({ state: 'skipped', finished_at: now.toISOString() })
       .where('id', '=', job.id)
       .where('state', '=', 'blocked')
       .execute()
@@ -320,7 +320,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
           started_at: now.toISOString(),
           finished_at: now.toISOString(),
           ...(outputs && Object.keys(outputs).length > 0 ? { outputs: JSON.stringify(outputs) } : {}),
-        } as any)
+        })
         .where('id', '=', job.id)
         .where('state', '=', 'blocked')
         .execute()
@@ -331,7 +331,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
     if (job.kind === 'block') {
       await db
         .updateTable('workflow_jobs')
-        .set({ state: 'paused', started_at: now.toISOString() } as any)
+        .set({ state: 'paused', started_at: now.toISOString() })
         .where('id', '=', job.id)
         .where('state', '=', 'blocked')
         .execute()
@@ -364,7 +364,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
     if (gate.verdict === 'refuse') {
       await db
         .updateTable('workflow_jobs')
-        .set({ state: 'failed', finished_at: now.toISOString(), condition_reason: gate.reason } as any)
+        .set({ state: 'failed', finished_at: now.toISOString(), condition_reason: gate.reason })
         .where('id', '=', job.id)
         .where('state', '=', 'blocked')
         .execute()
@@ -375,7 +375,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
     if (gate.verdict === 'hold') {
       await db
         .updateTable('workflow_jobs')
-        .set({ state: 'paused', started_at: now.toISOString(), condition_reason: gate.reason } as any)
+        .set({ state: 'paused', started_at: now.toISOString(), condition_reason: gate.reason })
         .where('id', '=', job.id)
         .where('state', '=', 'blocked')
         .execute()
@@ -391,7 +391,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
        * that waited eight minutes on `needs:` and one second on the fleet must
        * not read as a nine-minute wait for a machine.
        */
-      .set({ state: 'queued', queued_at: now.toISOString() } as any)
+      .set({ state: 'queued', queued_at: now.toISOString() })
       .where('id', '=', job.id)
       .where('state', '=', 'blocked')
       .execute()
@@ -482,7 +482,7 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
         ...(state === 'succeeded' || state === 'failed' || state === 'cancelled'
           ? { finished_at: now.toISOString() }
           : {}),
-      } as any)
+      })
       .where('id', '=', runId)
       // Guarded on the state it was read at, so a concurrent report cannot have
       // this one overwrite a conclusion with a staler one.
@@ -575,7 +575,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
         started_at: now.toISOString(),
         finished_at: now.toISOString(),
         condition_reason: reason,
-      } as any)
+      })
       .where('id', '=', jobId)
       .where('state', '=', 'blocked')
       .execute()
@@ -677,7 +677,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
       dispatch_inputs: settings.inputs && Object.keys(settings.inputs as object).length > 0
         ? JSON.stringify(settings.inputs)
         : null,
-    } as any)
+    })
     .returning(['id'])
     .executeTakeFirst()
 
@@ -701,7 +701,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
       finished_at: awaiting ? null : now.toISOString(),
       triggered_run_id: startedId,
       outputs: JSON.stringify({ run_id: String(startedId) }),
-    } as any)
+    })
     .where('id', '=', jobId)
     .where('state', '=', 'blocked')
     .execute()
@@ -735,7 +735,7 @@ export async function settleAwaitingTriggers(runId: number, state: string, now: 
         state: state === 'succeeded' ? 'succeeded' : state,
         finished_at: now.toISOString(),
         condition_reason: `The run this triggered ${state}.`,
-      } as any)
+      })
       .where('id', '=', Number(job.id))
       .where('state', '=', 'running')
       .execute()

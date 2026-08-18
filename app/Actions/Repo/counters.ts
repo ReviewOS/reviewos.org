@@ -107,7 +107,7 @@ async function recount(
 
     await db
       .updateTable('repositories')
-      .set({ [target]: count } as any)
+      .set({ [target]: count })
       .where('id', '=', repositoryId)
       .execute()
 

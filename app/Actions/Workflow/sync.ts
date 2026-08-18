@@ -177,7 +177,7 @@ async function upsertWorkflow(input: SyncInput, workflow: NormalizedWorkflow): P
       path: input.path,
       name,
       state: 'active',
-    } as any)
+    })
     .returning(['id'])
     .executeTakeFirst()
 
@@ -245,7 +245,7 @@ async function insertVersion(
       intermediate: workflow.intermediate,
       schedules: lines(triggers.schedule),
       unsupported_events: lines(triggers.unsupported),
-    } as any)
+    })
     .returning(['id'])
     .executeTakeFirst()
 
@@ -292,7 +292,7 @@ async function insertVersion(
         group_label: job.group,
         priority: job.priority,
         if_changed: job.ifChanged.length > 0 ? job.ifChanged.join('\n') : null,
-      } as any)
+      })
       .returning(['id'])
       .executeTakeFirst()
 
@@ -317,7 +317,7 @@ async function insertVersion(
           continue_on_error: step.continueOnError,
           timeout_minutes: step.timeoutMinutes,
           condition: step.if,
-        } as any)
+        })
         .execute()
     }
   }

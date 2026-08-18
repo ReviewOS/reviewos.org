@@ -171,7 +171,7 @@ export default new Action({
         // The values that were actually used, defaults filled in - not what was
         // typed. A person reading the run later needs to know what it ran with.
         dispatch_inputs: Object.keys(checked.values).length > 0 ? JSON.stringify(checked.values) : null,
-      } as any)
+      })
       .returning(['id'])
       .executeTakeFirst()
 

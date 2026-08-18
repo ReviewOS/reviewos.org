@@ -108,7 +108,7 @@ export default new Action({
       if (['blocked', 'queued'].includes(state)) {
         await db
           .updateTable('workflow_jobs')
-          .set({ state: 'cancelled', finished_at: now, condition_reason: reason } as any)
+          .set({ state: 'cancelled', finished_at: now, condition_reason: reason })
           .where('id', '=', Number(job.id))
           .where('state', '=', state)
           .execute()
@@ -120,7 +120,7 @@ export default new Action({
       if (state === 'running') {
         await db
           .updateTable('workflow_jobs')
-          .set({ state: 'cancelling', lease_expires_at: now, condition_reason: reason } as any)
+          .set({ state: 'cancelling', lease_expires_at: now, condition_reason: reason })
           .where('id', '=', Number(job.id))
           .where('state', '=', 'running')
           .execute()

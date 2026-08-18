@@ -143,7 +143,7 @@ export default new Action({
         // Which credential put this machine here, kept for after the token is
         // revoked - which is exactly when somebody asks.
         runner_registration_token_id: Number(token.id),
-      } as any)
+      })
       .returning(['id'])
       .executeTakeFirst()
 
@@ -156,7 +156,7 @@ export default new Action({
         first_used_at: token.first_used_at ?? now.toISOString(),
         last_used_at: now.toISOString(),
         uses: Number(token.uses ?? 0) + 1,
-      } as any)
+      })
       .where('id', '=', Number(token.id))
       .execute()
 

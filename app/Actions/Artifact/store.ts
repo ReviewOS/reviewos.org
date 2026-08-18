@@ -118,7 +118,7 @@ export async function storeArtifact(input: StoreInput): Promise<StoreOutcome> {
       content_type: String(input.contentType ?? '').slice(0, 150) || 'application/octet-stream',
       expires_at: retention.at,
       runner_id: input.runnerId ? String(input.runnerId).slice(0, 100) : null,
-    } as any)
+    })
     .returning(['id'])
     .executeTakeFirst()
 

@@ -196,14 +196,14 @@ export async function rerunRun(input: {
         finished_at: null,
         outputs: null,
         condition_reason: null,
-      } as any)
+      })
       .where('id', '=', job.id)
       .execute()
   }
 
   await db
     .updateTable('workflow_runs')
-    .set({ state: 'queued', attempt, finished_at: null, conclusion_reason: null } as any)
+    .set({ state: 'queued', attempt, finished_at: null, conclusion_reason: null })
     .where('id', '=', input.runId)
     .execute()
 

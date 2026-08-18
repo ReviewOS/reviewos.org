@@ -177,7 +177,7 @@ export default new Action({
     if (operation === 'own') {
       const owner = String(request.get('who') ?? '').trim().slice(0, 200)
 
-      await db.updateTable('managed_tests').set({ owner: owner || null } as any).where('id', '=', testId).execute()
+      await db.updateTable('managed_tests').set({ owner: owner || null }).where('id', '=', testId).execute()
 
       return response.json({ test: { id: testId, owner: owner || null } })
     }
@@ -185,7 +185,7 @@ export default new Action({
     if (operation === 'enable') {
       await db
         .updateTable('managed_tests')
-        .set({ state: 'enabled', muted_by_id: null, muted_at: null, muted_reason: null, review_at: null } as any)
+        .set({ state: 'enabled', muted_by_id: null, muted_at: null, muted_reason: null, review_at: null })
         .where('id', '=', testId)
         .execute()
 
@@ -219,7 +219,7 @@ export default new Action({
         muted_at: now,
         muted_reason: reason.slice(0, 1000),
         review_at: review.slice(0, 40),
-      } as any)
+      })
       .where('id', '=', testId)
       .execute()
 

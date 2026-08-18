@@ -242,7 +242,7 @@ export async function claimNextJob(
         // Minted per claim, so recovering a lapsed lease invalidates the dead
         // runner's token in the same write that hands the work on.
         job_token_hash: hashToken(token),
-      } as any)
+      })
       .where('id', '=', facts.id)
 
     update = held
@@ -277,7 +277,7 @@ export async function claimNextJob(
     if (wasQueued) {
       await db
         .updateTable('workflow_runs')
-        .set({ state: 'running', started_at: now.toISOString() } as any)
+        .set({ state: 'running', started_at: now.toISOString() })
         .where('id', '=', Number(row.run_id))
         .where('state', '=', 'queued')
         .execute()
@@ -476,7 +476,7 @@ export async function heartbeat(
 
   const result = await db
     .updateTable('workflow_jobs')
-    .set({ lease_expires_at: expires } as any)
+    .set({ lease_expires_at: expires })
     .where('id', '=', jobId)
     .where('runner_id', '=', String(runner.id))
     .where('state', '=', 'running')

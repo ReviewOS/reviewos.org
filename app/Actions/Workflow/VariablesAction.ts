@@ -160,9 +160,9 @@ export default new Action({
       .executeTakeFirst()
 
     if (existing)
-      await db.updateTable('workflow_variables').set({ value } as any).where('id', '=', Number(existing.id)).execute()
+      await db.updateTable('workflow_variables').set({ value }).where('id', '=', Number(existing.id)).execute()
     else
-      await db.insertInto('workflow_variables').values({ scope_type: scope, scope_id: scopeId, key, value } as any).execute()
+      await db.insertInto('workflow_variables').values({ scope_type: scope, scope_id: scopeId, key, value }).execute()
 
     const resolved = resolveVariables(await settingsFor(repositoryId))
     const effective = resolved.find(one => one.key === key)

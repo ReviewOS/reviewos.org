@@ -114,7 +114,7 @@ export async function mintJobToken(input: {
       // not be able to comment on every repository its actor can reach.
       selection: 'selected',
       expires_at: new Date(now.getTime() + JOB_TOKEN_MINUTES * 60_000).toISOString(),
-    } as any)
+    })
     .returning(['id'])
     .executeTakeFirst()
     .catch(() => null)
@@ -124,14 +124,14 @@ export async function mintJobToken(input: {
 
   await db
     .insertInto('access_token_repositories')
-    .values({ access_token_id: Number(row.id), repository_id: input.repositoryId } as any)
+    .values({ access_token_id: Number(row.id), repository_id: input.repositoryId })
     .execute()
     .catch(() => null)
 
   for (const [scope, level] of Object.entries(grants.granted)) {
     await db
       .insertInto('access_token_permissions')
-      .values({ access_token_id: Number(row.id), scope, level } as any)
+      .values({ access_token_id: Number(row.id), scope, level })
       .execute()
       .catch(() => null)
   }
@@ -155,7 +155,7 @@ export async function mintJobToken(input: {
 export async function revokeJobTokens(runId: number, jobId: number, now: Date = new Date()): Promise<void> {
   await db
     .updateTable('access_tokens')
-    .set({ revoked_at: now.toISOString() } as any)
+    .set({ revoked_at: now.toISOString() })
     .where('name', '=', `Run ${runId}, job ${jobId}`)
     // `whereNull`, not `where(col, 'is', null)`: this builder binds the null as
     // a parameter, so the spelling everybody reaches for first matches nothing

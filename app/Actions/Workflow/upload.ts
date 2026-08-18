@@ -211,7 +211,7 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
         // Attributed, so the run's graph says what it became and who made it so.
         uploaded_by_job_id: Number(job.id),
         upload_depth: depth + 1,
-      } as any)
+      })
       .returning(['id'])
       .executeTakeFirst()
 
@@ -247,7 +247,7 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
           step_id: step.id ?? null,
           continue_on_error: step.continueOnError === true,
           timeout_minutes: step.timeoutMinutes ?? null,
-        } as any)
+        })
         .execute()
         .catch(() => null)
     }
@@ -255,7 +255,7 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
 
   await db
     .updateTable('workflow_runs')
-    .set({ uploads: Number(run.uploads ?? 0) + 1 } as any)
+    .set({ uploads: Number(run.uploads ?? 0) + 1 })
     .where('id', '=', Number(run.id))
     .execute()
 

@@ -106,7 +106,7 @@ export default new Action({
             subjectId: Number(pullRequest.id),
             number,
             title: String(pullRequest.title ?? ''),
-          } as any)
+          })
         }
       }
 

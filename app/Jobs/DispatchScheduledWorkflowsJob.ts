@@ -132,7 +132,7 @@ export function isDue(expressions: readonly string[], after: Date, until: Date):
 async function stamp(workflowId: number, expected: unknown, now: Date): Promise<boolean> {
   let query = db
     .updateTable('workflows')
-    .set({ last_scheduled_at: now.toISOString() } as any)
+    .set({ last_scheduled_at: now.toISOString() })
     .where('id', '=', workflowId)
 
   /*
@@ -210,7 +210,7 @@ async function createScheduledRun(workflow: any, version: any): Promise<boolean>
         actor_id: null,
         concurrency_group: group,
         started_at: null,
-      } as any)
+      })
       .returning(['id'])
       .executeTakeFirst()
 

@@ -193,7 +193,7 @@ export default new Action({
         // same way it reads any other job's.
         outputs: Object.keys(values).length > 0 ? JSON.stringify(values) : null,
         condition_reason: `Opened by ${String(auth.context.user?.handle ?? 'somebody with write access')}.`,
-      } as any)
+      })
       .where('id', '=', Number(job.id))
       // Guarded on the state it was read at, so two people pressing at once
       // means one opening and one being told it is already open.
@@ -275,7 +275,7 @@ async function approveEnvironment(input: EnvironmentApproval): Promise<ApprovalO
       approved_by_id: input.userId || null,
       approved_at: now.toISOString(),
       condition_reason: `${rules.name} approved by ${input.handle || 'a reviewer'}.`,
-    } as any)
+    })
     .where('id', '=', Number(input.job.id))
     .where('state', '=', 'paused')
     .execute()
@@ -288,7 +288,7 @@ async function approveEnvironment(input: EnvironmentApproval): Promise<ApprovalO
    */
   await db
     .updateTable('workflow_jobs')
-    .set({ state: 'blocked' } as any)
+    .set({ state: 'blocked' })
     .where('id', '=', Number(input.job.id))
     .where('state', '=', 'paused')
     .execute()

@@ -171,7 +171,7 @@ export async function reportJob(
           // alternative reports the first attempt's wait twice.
           queued_at: new Date().toISOString(),
           condition_reason: retry.reason,
-        } as any)
+        })
         .where('id', '=', facts.id)
         .where('runner_id', '=', String(runner.id))
         .execute()
@@ -200,7 +200,7 @@ export async function reportJob(
   if (tolerated.tolerated) {
     await db
       .updateTable('workflow_jobs')
-      .set({ continue_on_error: true, condition_reason: tolerated.reason } as any)
+      .set({ continue_on_error: true, condition_reason: tolerated.reason })
       .where('id', '=', facts.id)
       .execute()
       .catch(() => null)
@@ -238,7 +238,7 @@ export async function reportJob(
       // remaining power is to be told "already recorded". It goes when the
       // lease is reclaimed by the sweep, which is the case where the work
       // really did move to somebody else.
-    } as any)
+    })
     .where('id', '=', facts.id)
     .where('runner_id', '=', String(runner.id))
     .execute()
@@ -253,7 +253,7 @@ export async function reportJob(
         runner_id: String(runner.id),
         error: trimmed(input.error),
         finished_at: now.toISOString(),
-      } as any)
+      })
       .execute()
       .catch(() => null)
   }

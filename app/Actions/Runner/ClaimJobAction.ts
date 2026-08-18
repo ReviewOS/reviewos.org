@@ -203,7 +203,7 @@ export default new Action({
           .updateTable('runners')
           // Acknowledged by asking: the machine has been told, and a request
           // that stayed set would stop it again the next time it registered.
-          .set({ stop_requested: null } as any)
+          .set({ stop_requested: null })
           .where('id', '=', runner.facts.id)
           .execute()
 
@@ -434,7 +434,7 @@ export default new Action({
     if (!attached.ok) {
       await db
         .updateTable('workflow_jobs')
-        .set({ state: 'failed', finished_at: new Date().toISOString(), condition_reason: attached.reason } as any)
+        .set({ state: 'failed', finished_at: new Date().toISOString(), condition_reason: attached.reason })
         .where('id', '=', claimed.jobId)
         .execute()
 
@@ -455,7 +455,7 @@ export default new Action({
       if (!verdict.ok) {
         await db
           .updateTable('workflow_jobs')
-          .set({ state: 'failed', finished_at: new Date().toISOString(), condition_reason: verdict.reason } as any)
+          .set({ state: 'failed', finished_at: new Date().toISOString(), condition_reason: verdict.reason })
           .where('id', '=', claimed.jobId)
           .execute()
 

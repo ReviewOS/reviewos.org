@@ -167,7 +167,7 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
          * plain answer says were dropped.
          */
         events: events && clipped === text ? JSON.stringify(events) : null,
-      } as any)
+      })
       .execute()
   }
   catch (error) {

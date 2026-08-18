@@ -137,7 +137,7 @@ export default new Action({
 
       const created = await db
         .insertInto('runner_pools')
-        .values({ name: name.slice(0, 100), slug, description: String(request.get('reason') ?? '').slice(0, 1000) || null } as any)
+        .values({ name: name.slice(0, 100), slug, description: String(request.get('reason') ?? '').slice(0, 1000) || null })
         .returning(['id'])
         .executeTakeFirst()
 
@@ -157,7 +157,7 @@ export default new Action({
 
       await db
         .updateTable('runner_pools')
-        .set({ require_signed_steps: required } as any)
+        .set({ require_signed_steps: required })
         .where('id', '=', poolId)
         .execute()
 
@@ -207,7 +207,7 @@ export default new Action({
         ? [...existing.filter((one: string) => one !== parsed.raw), parsed.raw]
         : existing.filter((one: string) => one !== parsed.raw)
 
-      await db.updateTable('runner_pools').set({ plugins: next.join('\n') } as any).where('id', '=', poolId).execute()
+      await db.updateTable('runner_pools').set({ plugins: next.join('\n') }).where('id', '=', poolId).execute()
 
       // Named at the call site rather than chosen by a ternary: the catalogue
       // test finds an event by searching for the literal, and an event nothing
@@ -255,7 +255,7 @@ export default new Action({
       if (existing)
         await db.updateTable('plugin_policies').set(values as any).where('id', '=', Number(existing.id)).execute()
       else
-        await db.insertInto('plugin_policies').values({ scope_type: 'pool', scope_id: poolId, ...values } as any).execute()
+        await db.insertInto('plugin_policies').values({ scope_type: 'pool', scope_id: poolId, ...values }).execute()
 
       await auditEvent('fleet:plugin-policy-set', await entry(request, user, { pool: poolId, ...values })).catch(() => null)
 
@@ -278,7 +278,7 @@ export default new Action({
 
       const created = await db
         .insertInto('runner_queues')
-        .values({ runner_pool_id: poolId, name: name.slice(0, 100), state: 'active' } as any)
+        .values({ runner_pool_id: poolId, name: name.slice(0, 100), state: 'active' })
         .returning(['id'])
         .executeTakeFirst()
 
@@ -303,7 +303,7 @@ export default new Action({
           // Kept only while paused: a reason left on a running queue is a note
           // about something that is no longer true.
           paused_reason: paused ? (reason || null) : null,
-        } as any)
+        })
         .where('id', '=', queueId)
         .execute()
 
@@ -342,7 +342,7 @@ export default new Action({
         if (!already) {
           await db
             .insertInto('runner_pool_repositories')
-            .values({ runner_pool_id: poolId, repository_id: repositoryId } as any)
+            .values({ runner_pool_id: poolId, repository_id: repositoryId })
             .execute()
         }
       }
@@ -386,7 +386,7 @@ export default new Action({
           .executeTakeFirst()
 
         if (!already)
-          await db.insertInto('runner_pool_maintainers').values({ runner_pool_id: poolId, user_id: userId } as any).execute()
+          await db.insertInto('runner_pool_maintainers').values({ runner_pool_id: poolId, user_id: userId }).execute()
       }
 
       const context = await entry(request, user, { pool: poolId, user: userId })
@@ -426,7 +426,7 @@ export default new Action({
           token_hash: hashToken(secret.token),
           expires_at: String(request.get('expires') ?? '').trim() || null,
           created_by_id: user?.id ?? null,
-        } as any)
+        })
         .returning(['id'])
         .executeTakeFirst()
 
@@ -456,7 +456,7 @@ export default new Action({
          * question with silence - at exactly the moment somebody is asking it
          * because a machine did something surprising.
          */
-        .set({ revoked_at: new Date().toISOString() } as any)
+        .set({ revoked_at: new Date().toISOString() })
         .where('id', '=', tokenId)
         .execute()
 
@@ -503,7 +503,7 @@ export default new Action({
           state: 'active',
           version: '1',
           runner_queue_id: Number.isInteger(queueId) && queueId > 0 ? queueId : null,
-        } as any)
+        })
         .returning(['id'])
         .executeTakeFirst()
 
@@ -531,7 +531,7 @@ export default new Action({
 
       await db
         .updateTable('runners')
-        .set({ stop_requested: forced ? 'forced' : 'graceful' } as any)
+        .set({ stop_requested: forced ? 'forced' : 'graceful' })
         .where('id', '=', runnerId)
         .execute()
 
@@ -565,7 +565,7 @@ export default new Action({
               // is about to do is the one an operator needs measured.
               queued_at: new Date().toISOString(),
               condition_reason: 'The machine running this was stopped, so the job went back to the queue.',
-            } as any)
+            })
             .where('id', '=', Number(job.id))
             .where('state', '=', 'running')
             .execute()
@@ -600,7 +600,7 @@ export default new Action({
       .updateTable('runners')
       // Zero means "no queue", which puts the machine back to being matched by
       // label and scope alone - the way every runner worked before pools.
-      .set({ runner_queue_id: Number.isInteger(queueId) && queueId > 0 ? queueId : null } as any)
+      .set({ runner_queue_id: Number.isInteger(queueId) && queueId > 0 ? queueId : null })
       .where('id', '=', runnerId)
       .execute()
 

@@ -126,7 +126,7 @@ export async function writeMetadata(input: {
           value,
           version: 1,
           updated_by_job_id: input.jobId ?? null,
-        } as any)
+        })
         .execute()
 
       return { ok: true, entry: { key, value, version: 1 } }
@@ -151,7 +151,7 @@ export async function writeMetadata(input: {
 
   const result = await db
     .updateTable('run_metadata')
-    .set({ value, version: next, updated_by_job_id: input.jobId ?? null } as any)
+    .set({ value, version: next, updated_by_job_id: input.jobId ?? null })
     .where('workflow_run_id', '=', input.runId)
     .where('key', '=', key)
     // Guarded on the version read above, which is what makes this a

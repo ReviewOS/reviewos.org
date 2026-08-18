@@ -137,7 +137,7 @@ export async function signingKey(purpose = 'oidc'): Promise<SigningKey> {
 
       await db
         .updateTable('instance_keys')
-        .set({ retired_at: new Date().toISOString() } as any)
+        .set({ retired_at: new Date().toISOString() })
         .where('kid', '=', String(existing.kid))
         .execute()
     }
@@ -176,7 +176,7 @@ export async function generateKey(purpose = 'oidc'): Promise<SigningKey> {
       algorithm: 'RS256',
       public_jwk: JSON.stringify(publicJwk),
       sealed_private: String(await encrypt(JSON.stringify(privateJwk))),
-    } as any)
+    })
     .execute()
 
   return { kid, algorithm: 'RS256', publicJwk, privateJwk }
@@ -192,7 +192,7 @@ export async function generateKey(purpose = 'oidc'): Promise<SigningKey> {
 export async function rotateKey(purpose = 'oidc', now = new Date()): Promise<SigningKey> {
   await db
     .updateTable('instance_keys')
-    .set({ retired_at: now.toISOString() } as any)
+    .set({ retired_at: now.toISOString() })
     .where('purpose', '=', purpose)
     .whereNull('retired_at')
     .execute()

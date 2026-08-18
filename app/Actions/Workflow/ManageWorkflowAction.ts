@@ -97,7 +97,7 @@ export default new Action({
 
     await db
       .updateTable('workflows')
-      .set({ state } as any)
+      .set({ state })
       .where('id', '=', Number(workflow.id))
       .execute()
 

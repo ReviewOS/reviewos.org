@@ -102,7 +102,7 @@ export default new Job({
             lease_expires_at: null,
             job_token_hash: null,
             condition_reason: `Handed to ${attempt} runners and each stopped responding. This job is failing its machine rather than failing on it.`,
-          } as any)
+          })
           .where('id', '=', Number(job.id))
           .where('state', '=', 'running')
           .where('runner_id', '=', String(job.runner_id))
@@ -128,7 +128,7 @@ export default new Job({
           // Reclaimed work waits for a machine from now, not from whenever the
           // lost runner first took it.
           queued_at: new Date().toISOString(),
-        } as any)
+        })
         .where('id', '=', Number(job.id))
         // Guarded on the state and the holder it was read at, so a runner that
         // heartbeated between the read and the write keeps its job. The sweep
@@ -225,7 +225,7 @@ async function stopOverrunJobs(now: Date): Promise<number> {
         state: 'cancelling',
         lease_expires_at: now.toISOString(),
         condition_reason: `This job ran past its ${Number(job.timeout_minutes ?? DEFAULT_JOB_TIMEOUT_MINUTES)}-minute timeout.`,
-      } as any)
+      })
       .where('id', '=', Number(job.id))
       // Guarded on `running`, so a job that finished between the read and the
       // write keeps the result it reported.
@@ -289,7 +289,7 @@ async function forceStalledCancellations(now: Date): Promise<number> {
   for (const job of due) {
     const result = await db
       .updateTable('workflow_jobs')
-      .set({ state: 'cancelled', finished_at: now.toISOString(), job_token_hash: null } as any)
+      .set({ state: 'cancelled', finished_at: now.toISOString(), job_token_hash: null })
       .where('id', '=', Number(job.id))
       // Guarded on `cancelling`, so a runner that acknowledged - or finished -
       // between the read and the write keeps the outcome it reported.

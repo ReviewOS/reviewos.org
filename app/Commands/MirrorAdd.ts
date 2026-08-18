@@ -161,7 +161,7 @@ async function upsertRepository(
       visibility: 'public',
       default_branch: 'main',
       disk_path: diskPath,
-    } as any)
+    })
     .returning(['id'])
     .executeTakeFirst()
 

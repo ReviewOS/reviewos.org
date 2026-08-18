@@ -232,7 +232,7 @@ async function reportCheckRun(request: any, about: About, sha: string, reporterI
   if (!existing) {
     const created = await db
       .insertInto('check_runs')
-      .values({ ...fields, idempotency_key: idempotencyKey, started_at: new Date().toISOString() } as any)
+      .values({ ...fields, idempotency_key: idempotencyKey, started_at: new Date().toISOString() })
       .returning(['id'])
       .executeTakeFirst()
 
@@ -378,5 +378,5 @@ async function announce(about: About, event: 'check:reported' | 'status:reported
     subjectId: about.repositoryId,
     title: `${check.name} on ${check.sha.slice(0, 10)}`,
     check,
-  } as any)
+  })
 }
