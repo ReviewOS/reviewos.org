@@ -80,4 +80,20 @@ export default {
    * and an idempotency key - and nothing else.
    */
   'tests:report': 'ReportTests',
+  /*
+   * The pipeline surface from a terminal: validate, dispatch, inspect, follow,
+   * unblock, cancel, re-run.
+   *
+   * A client of the public API and nothing else. A command that reached the
+   * database would work on the instance's own machine and nowhere else, and
+   * would stop being a test of whether the API is usable by anybody.
+   */
+  'ci:validate': 'Ci',
+  'ci:runs': 'Ci',
+  'ci:run': 'Ci',
+  'ci:logs': 'Ci',
+  'ci:dispatch': 'Ci',
+  'ci:unblock': 'Ci',
+  'ci:cancel': 'Ci',
+  'ci:rerun': 'Ci',
 } satisfies CommandRegistry

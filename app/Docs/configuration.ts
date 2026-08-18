@@ -361,14 +361,19 @@ export function renderConfiguration(entries: EnvEntry[], reads: Map<string, stri
 /**
  * Whether a variable belongs to a program that runs somewhere else.
  *
- * Two of them: the runner binary, copied to a machine that is not this one,
- * and the test collector, run by whatever CI a repository already uses. Both
- * read their configuration *there*, so listing them under "add a line to
- * `.env.example`" would be telling an operator to configure this instance for
- * a program that does not run on it.
+ * Three of them: the runner binary, copied to a machine that is not this one;
+ * the test collector, run by whatever CI a repository already uses; and the
+ * `ci:` commands, which are a client of this instance's API and are as likely
+ * to be run from a laptop as from the box. All three read their configuration
+ * *there*, so listing them under "add a line to `.env.example`" would be
+ * telling an operator to configure this instance for a program that does not
+ * run on it.
  */
 function runnerOnly(name: string, reads: Map<string, string[]>): boolean {
   const paths = reads.get(name) ?? []
 
-  return paths.length > 0 && paths.every(path => path.includes('Runner/standalone') || path.includes('Commands/ReportTests'))
+  return paths.length > 0 && paths.every(path =>
+    path.includes('Runner/standalone')
+    || path.includes('Commands/ReportTests')
+    || path.includes('Commands/Ci'))
 }

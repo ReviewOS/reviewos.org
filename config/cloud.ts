@@ -852,7 +852,10 @@ export const tsCloud: TsCloudConfig = {
          * for public repositories, which is all of these; a private mirror
          * needs a PAT in `MIRROR_TOKEN_<ref>` rather than this.
          */
-        GITHUB_TOKEN: env.GITHUB_TOKEN || '',
+        // `String(...)` because the env helper types a value as
+        // `string | number | true` - a bare `||` leaves the number and the
+        // boolean, and this field is a string.
+        GITHUB_TOKEN: String(env.GITHUB_TOKEN ?? ''),
       },
     },
   },

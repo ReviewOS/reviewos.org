@@ -2169,8 +2169,15 @@ decisions.
 
       Forcing after a deadline is the sweep from phase 9, which already reclaims a lease nobody has
       answered for.
-- [ ] Unblock a block step from the interface, the API, and the CLI, recording who did it, and
+- [x] Unblock a block step from the interface, the API, and the CLI, recording who did it, and
       collecting input fields where declared
+
+      The interface and the API have had it since the step model landed - the gate's fields are
+      rendered as a form and become the job's outputs. `buddy ci:unblock <run> <job>` is the third,
+      with `--input key=value` for each declared field.
+
+      Who opened it comes from the credential rather than from an argument: a CLI that sent a name
+      would be a CLI that could send somebody else's.
 - [x] A run's provenance is always visible: which workflow version, which commit, which trigger,
       which actor or token, which runner, and which pool
 
@@ -2488,8 +2495,26 @@ Buildkite sells reporting on the fleet, and it is the thing an operator opens on
 Buildkite's surface is reachable from a terminal, from Terraform, and from a program, and phase 12
 already commits us to the principle. These are the pipeline-specific pieces.
 
-- [ ] CLI: validate a workflow, dispatch one, follow logs, inspect a run, unblock a step, cancel,
+- [x] CLI: validate a workflow, dispatch one, follow logs, inspect a run, unblock a step, cancel,
       and retry from a step, as a client of the public API only ([phase 12](./12-api-and-agents.md))
+
+      `buddy ci:validate`, `ci:runs`, `ci:run`, `ci:logs --follow`, `ci:dispatch`, `ci:unblock`,
+      `ci:cancel` and `ci:rerun`.
+
+      **A client of the public API and nothing else**, which is the constraint that makes it worth
+      having: a command that reached the database would work on the instance's own machine and
+      nowhere else, and would stop being a test of whether the API is usable by anybody. The e2e
+      runs the real binary against a served instance with a token, the way an operator would - and
+      it found the log endpoint takes a job id where a person has a job name, so the command
+      resolves it and lists the names when it cannot.
+
+      `ci:validate` is the exception that needs no instance and no credential: parsing is this
+      repository's own code, and asking somebody to push a broken file to find out it is broken is
+      the loop it removes.
+
+      Failures say which kind they are. A CLI that prints `{"error":"Not found"}` and exits 1 has
+      told somebody nothing: they cannot tell a wrong token from a wrong repository from an instance
+      that is not running, so each of those says so in words.
 - [ ] Workflows as code: a typed SDK, in the shape Cloudflare's `@cloudflare/ci` demonstrates, where
       the workflow is a program and ordinary control flow expresses the graph. It runs as an
       orchestrator job under the durable-execution rules in

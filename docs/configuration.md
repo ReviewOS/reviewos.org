@@ -938,8 +938,8 @@ has a command-line flag too, and the flag wins.
 - `GITHUB_SHA`, read by `app/Commands/ReportTests.ts`
 - `REVIEWOS_REF_NAME`, read by `app/Commands/ReportTests.ts`
 - `REVIEWOS_REGISTRATION_TOKEN`, read by `app/Actions/Runner/standalone.ts`
-- `REVIEWOS_REPOSITORY`, read by `app/Commands/ReportTests.ts`
+- `REVIEWOS_REPOSITORY`, read by `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
 - `REVIEWOS_SHA`, read by `app/Commands/ReportTests.ts`
-- `REVIEWOS_TOKEN`, read by `app/Commands/ReportTests.ts`
-- `REVIEWOS_URL`, read by `app/Actions/Runner/standalone.ts`, `app/Commands/ReportTests.ts`
+- `REVIEWOS_TOKEN`, read by `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
+- `REVIEWOS_URL`, read by `app/Actions/Runner/standalone.ts`, `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
 - `REVIEWOS_WORKSPACE`, read by `app/Actions/Runner/standalone.ts`
