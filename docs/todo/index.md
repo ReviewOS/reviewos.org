@@ -30,6 +30,18 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | In progress (43/45) |
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (141/171) |
 | [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | Started (165/189) |
+| [16 - Single-node hardening](./16-hardening-scale.md) | Bounded buffers, backpressure, process ceilings, pantry-first infra | Not started (0/33) |
+| [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Not started (0/13) |
+| [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | Not started (0/23) |
+
+Phases 16 through 18 were written after reading Cursor's
+[Git at any scale](https://cursor.com/blog/git-at-any-scale) and auditing this codebase against it.
+They are ordered by dependency, not urgency: 16 hardens the single box and changes no storage
+layout, so it is prerequisite-free and any milestone in it can ship today. 17 (MySQL, then Vitess)
+gates only 18c, the ref ledger; 18a and 18b (the blob store seam and the push WAL) are
+database-agnostic and safe to start independently. The infra stance across all three is
+pantry-first: system dependencies and services come from pantry, gaps in pantry get fixed in
+pantry, and the container path is a convenience rather than the deployment story.
 
 Phase 14 was written after reading Pierre's [DiffsHub](https://diffshub.com) and the Apache 2.0
 packages behind it. It carries the diff engine work that phase 4 refers to but does not describe,
