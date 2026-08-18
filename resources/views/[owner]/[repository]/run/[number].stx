@@ -385,6 +385,46 @@ const triggeredNumbers = new Map<number, number>(
     : [],
 )
 
+/*
+ * Provenance: everything a reader needs to say what produced this run.
+ *
+ * Six facts, and each one is a question somebody asks while looking at a run
+ * they did not start: which file ran, which version of it, what set it off, who
+ * or what asked, and which machine did the work. Scattered across four screens
+ * they are an investigation; on the run they are a paragraph.
+ */
+const actor: any = run?.actor_id
+  ? await db.selectFrom('users').select(['handle']).where('id', '=', Number(run.actor_id)).executeTakeFirst()
+  : null
+
+/*
+ * The machines that ran the jobs, and the pools they belong to.
+ *
+ * `runner_id` is a string on the job - the claim writes it that way - so the
+ * lookup is by text rather than by number, and a machine that has since been
+ * removed leaves the id on the row rather than an empty column: "which machine"
+ * has an answer even when the machine has gone.
+ */
+const runnerIds = [...new Set(jobRows.map((job: any) => String(job.runner_id ?? '')).filter(Boolean))]
+
+const runnerRows: any[] = runnerIds.length > 0
+  ? await db
+      .selectFrom('runners')
+      .leftJoin('runner_queues', 'runner_queues.id', '=', 'runners.runner_queue_id')
+      .leftJoin('runner_pools', 'runner_pools.id', '=', 'runner_queues.runner_pool_id')
+      .select([
+        'runners.id as id',
+        'runners.name as name',
+        'runner_queues.name as queue',
+        'runner_pools.name as pool',
+      ])
+      .where('runners.id', 'in', runnerIds.map(one => Number(one)).filter(one => Number.isFinite(one)))
+      .execute()
+      .catch(() => [])
+  : []
+
+const runnersById = new Map<string, any>(runnerRows.map((row: any) => [String(row.id), row]))
+
 const jobs = jobRows.map((job) => {
   const needs = String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean)
 
@@ -486,7 +526,12 @@ const jobs = jobRows.map((job) => {
      */
     allowedToFail: job.continue_on_error === true && String(job.state) === 'failed',
     runsOn: String(job.runs_on ?? '').split('\n').map(line => line.trim()).filter(Boolean).join(', '),
-    runner: job.runner_id ? String(job.runner_id) : '',
+    runner: job.runner_id
+      ? String(runnersById.get(String(job.runner_id))?.name ?? `runner ${String(job.runner_id)}`)
+      : '',
+    // The pool a job's machine belongs to, which is what an operator asks when
+    // one queue is slow and another is not.
+    pool: job.runner_id ? String(runnersById.get(String(job.runner_id))?.pool ?? '') : '',
     duration: runDuration(job.started_at, job.finished_at),
     /*
      * How long it waited for a machine, kept separate from how long it ran.
@@ -616,6 +661,25 @@ const headSha = run?.head_sha ? String(run.head_sha) : ''
 const definitionSha = run?.definition_sha ? String(run.definition_sha) : ''
 const definitionDiffers = Boolean(headSha && definitionSha && headSha !== definitionSha)
 
+const provenance = run
+  ? {
+      workflow: workflow ? String(workflow.name ?? workflow.path ?? '') : '',
+      path: workflow ? String(workflow.path ?? '') : '',
+      // The digest of the definition, not of the commit: two runs of the same
+      // commit can have run different files if somebody edited the workflow.
+      definition: definitionSha ? shortSha(definitionSha) : '',
+      event: String(run.event ?? ''),
+      ref: String(run.event_ref ?? ''),
+      /*
+       * Who asked. A schedule and a trigger have no person behind them, and
+       * saying so is better than an empty space that reads as a missing name.
+       */
+      actor: actor?.handle ? String(actor.handle) : (run.event === 'schedule' ? 'the schedule' : ''),
+      trusted: run.trusted !== false,
+    }
+  : null
+
+
 const base = `/${ownerHandle}/${repositoryName}`
 </script>
 
@@ -674,6 +738,33 @@ const base = `/${ownerHandle}/${repositoryName}`
           @endif
         </div>
       </div>
+
+      {{--
+        Where this run came from.
+        
+        Six facts a reader needs when they did not start it: which file ran,
+        which version of it, what set it off, on which ref, who asked, and
+        whether it was trusted. Scattered across four screens they are an
+        investigation; here they are a paragraph.
+      --}}
+      @if (provenance)
+        <p class="muted run-provenance">
+          <code>{{ provenance.path }}</code>
+          @if (provenance.definition)
+            at <code>{{ provenance.definition }}</code>
+          @endif
+          · {{ provenance.event }}
+          @if (provenance.ref)
+            on <code>{{ provenance.ref }}</code>
+          @endif
+          @if (provenance.actor)
+            · started by {{ provenance.actor }}
+          @endif
+          @if (!provenance.trusted)
+            · untrusted
+          @endif
+        </p>
+      @endif
 
       @if (definitionDiffers)
         <div class="panel notice">
@@ -886,6 +977,17 @@ const base = `/${ownerHandle}/${repositoryName}`
               stops all of them - a button that did a quarter of what it says
               would be worse than none.
             --}}
+            {{--
+              Which machine did this, and which pool it belongs to - the
+              question an operator asks when one queue is slow and another is
+              not, and the one a run screen usually cannot answer at all.
+            --}}
+            @if (job.runner)
+              <p class="muted checks-meta">
+                ran on {{ job.runner }}@if (job.pool) · {{ job.pool }} pool@endif
+              </p>
+            @endif
+
             @if (job.stoppable)
               <form method="post" action="/api/repos/workflow-runs/cancel-job" class="job-stop">
                 <CsrfField />
@@ -1086,6 +1188,11 @@ const base = `/${ownerHandle}/${repositoryName}`
 
   .job-stop {
     margin: 0 0 10px;
+  }
+
+  .run-provenance {
+    margin-top: 10px;
+    font-size: 12px;
   }
 
   /* Secondary to the run's own controls: stopping one job is a smaller act

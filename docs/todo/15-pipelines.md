@@ -2122,8 +2122,22 @@ decisions.
       answered for.
 - [ ] Unblock a block step from the interface, the API, and the CLI, recording who did it, and
       collecting input fields where declared
-- [ ] A run's provenance is always visible: which workflow version, which commit, which trigger,
+- [x] A run's provenance is always visible: which workflow version, which commit, which trigger,
       which actor or token, which runner, and which pool
+
+      A paragraph under the run's heading - the file, the definition commit it came from, the event,
+      the ref, who started it, and whether the run was trusted - and, on each job, which machine ran
+      it and which pool that machine belongs to.
+
+      Scattered across four screens these are an investigation; together they are the answer to
+      "what produced this". The definition commit is separate from the head commit because two runs
+      of one commit can have run different files, and on a fork's pull request they always do. A run
+      with no person behind it says `the schedule` rather than leaving a space that reads as a
+      missing name.
+
+      Writing this cost a lesson: both new blocks read values declared further down the script, and
+      stx renders a page with every binding undefined rather than reporting the error - so the run
+      page went blank and the failure surfaced as thirteen unrelated assertions.
 - [ ] Keyboard navigation through jobs and log sections, and a run page that is readable with no
       JavaScript for the finished case, in line with the phase 14 rule
 - [ ] Tests: a run page rendered server-side for a finished run, redaction of a secret that appears

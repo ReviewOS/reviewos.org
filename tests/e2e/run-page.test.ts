@@ -634,6 +634,28 @@ describe('the shape of a run', () => {
   })
 })
 
+describe('where a run came from', () => {
+  test('the page says which file, which version, what set it off, and who asked', async () => {
+    if (!available)
+      return
+
+    /*
+     * The six facts somebody needs when they did not start the run. Scattered
+     * across four screens they are an investigation; on the run they are a
+     * paragraph.
+     */
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
+
+    const shown = html.slice(html.indexOf('run-provenance'), html.indexOf('run-provenance') + 400)
+
+    // The file that ran, the version of it, what set the run off, and on which
+    // ref - in one paragraph rather than across four screens.
+    expect(shown).toContain('workflows/ci.yml')
+    expect(shown).toContain('push')
+    expect(shown).toContain('refs/heads/')
+  })
+})
+
 describe('a repository with no workflows', () => {
   test('is offered starters that are real Actions workflows', async () => {
     if (!available)
