@@ -565,3 +565,81 @@ describe('a secret stored as a reference', () => {
     }
   }, 120_000)
 })
+
+/*
+ * The release path: signing material and store credentials.
+ *
+ * The rule mobile delivery needs and every CI product gets wrong: the
+ * certificate and the store password reach the publish step and nothing else.
+ * A build job runs whatever the dependency tree brought with it, and a signing
+ * key in that job's environment is a signing key any of it can read.
+ */
+describe('a publish credential', () => {
+  test('is withheld from the build job in the same run, and released to the publish job after its gate', async () => {
+    if (!available)
+      return
+
+    const { putSecret, secretsForJob } = await import('../../app/Actions/Workflow/secrets')
+    const { db } = await import('@stacksjs/database')
+
+    const environment: any = await db.insertInto('environments').values({
+      repository_id: created.repositoryId,
+      name: 'app-store',
+      wait_minutes: 0,
+      branches: '',
+      description: 'where the signing material lives',
+    }).returning(['id']).executeTakeFirst()
+
+    await putSecret({ scope: 'environment', scopeId: Number(environment.id), key: 'SIGNING_KEY', value: 'the-p12-password' })
+    await putSecret({ scope: 'environment', scopeId: Number(environment.id), key: 'STORE_TOKEN', value: 'the-app-store-token' })
+    await putSecret({ scope: 'repository', scopeId: created.repositoryId, key: 'BUILD_CACHE_TOKEN', value: 'harmless' })
+
+    // The build job: it names no environment, so it is not deploying anywhere.
+    const build = await secretsForJob({
+      repositoryId: created.repositoryId,
+      trusted: true,
+      environment: null,
+      approved: false,
+    })
+
+    expect(build.BUILD_CACHE_TOKEN).toBe('harmless')
+    expect(build.SIGNING_KEY).toBeUndefined()
+    expect(build.STORE_TOKEN).toBeUndefined()
+
+    // And a build job that *asks* for it by name still does not get it: naming
+    // a secret narrows what a job receives, it does not widen it.
+    const asking = await secretsForJob({
+      repositoryId: created.repositoryId,
+      trusted: true,
+      environment: null,
+      approved: false,
+      only: ['SIGNING_KEY', 'STORE_TOKEN'],
+    })
+
+    expect(asking).toEqual({})
+
+    // The publish job, waiting on its gate: still nothing, which is what makes
+    // "released only after protection passes" true rather than promised.
+    const waiting = await secretsForJob({
+      repositoryId: created.repositoryId,
+      trusted: true,
+      environment: 'app-store',
+      approved: false,
+    })
+
+    expect(waiting.SIGNING_KEY).toBeUndefined()
+
+    const publishing = await secretsForJob({
+      repositoryId: created.repositoryId,
+      trusted: true,
+      environment: 'app-store',
+      approved: true,
+    })
+
+    expect(publishing.SIGNING_KEY).toBe('the-p12-password')
+    expect(publishing.STORE_TOKEN).toBe('the-app-store-token')
+
+    await db.deleteFrom('workflow_secrets').where('scope_type', '=', 'environment').where('scope_id', '=', Number(environment.id)).execute()
+    await db.deleteFrom('environments').where('id', '=', Number(environment.id)).execute()
+  }, 120_000)
+})

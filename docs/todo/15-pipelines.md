@@ -2879,13 +2879,51 @@ should work for a repository that has not moved its CI here yet.
 
 Phase 9 owns deployments. Two Buildkite capabilities sit next to them and belong here.
 
-- [ ] Preview environments linked on the pull request, expiring on merge or close, using phase 9's
+- [x] Preview environments linked on the pull request, expiring on merge or close, using phase 9's
       deployment model rather than a second one
-- [ ] macOS runners as a first-class case in documentation and pool configuration: they are how
+
+      `app/Models/Deployment.ts` is that model, and it is one model: a preview is a deployment with a
+      pull request on it. That is what makes expiry a fact rather than a feature - the thing it
+      belongs to closed, so it is no longer current - where a previews table of its own would need a
+      sweeper somebody has to keep in step.
+
+      This instance never deploys anything. A job does, with the credentials its environment released
+      to it, and records what happened: which commit, which environment, what URL came out. So the
+      row is provenance, and the history is what somebody reads when a page is wrong on a Monday and
+      nobody remembers what shipped on Friday. Recording one takes the ability that opens a gate,
+      because writing "production is on this commit" is saying where the product is - and the audit
+      row names the token as well as the person.
+
+      A second push replaces the first rather than adding to it: a branch pushed to five times would
+      otherwise have five live previews, four pointing at URLs that no longer answer, and the page
+      would show whichever the query ordered first. Expiry marks rather than deletes - "what was on
+      this URL last Tuesday" is a question people ask - and it says which way it ended, because
+      merged and closed mean different things. A preview recorded *after* the merge is swept on the
+      next deployment: a slow deploy finishing after the pull request landed is the ordinary case.
+- [x] macOS runners as a first-class case in documentation and pool configuration: they are how
       mobile delivery works and they are the case every CI product handles worst
-- [ ] Signing material and store credentials as environment-scoped secrets released only to the
+
+      In [autoscaling](./autoscaling.md), with the reason they are handled worst: every design
+      assumes a machine is disposable, and Apple's licence ties macOS to Apple hardware - so a mac is
+      bought or rented by the hour rather than created in twenty seconds. Three things follow, and
+      they are the difference between a fleet that works and one that produces a mystery a
+      fortnight: their own pool, because these machines hold signing material and a pool that also
+      takes every repository's pull request checks is one where somebody else's dependency runs
+      beside the keychain; a `cleanup` hook, because `--jobs 1` is not available to a machine that
+      lives a year; and the Xcode version in `--tags`, because a build that needs 16.2 landing on
+      15.4 fails halfway through with an error about a Swift version.
+- [x] Signing material and store credentials as environment-scoped secrets released only to the
       publish step, never to build or test steps
-- [ ] Tests: a preview expiring, a build step attempting to read a publish secret
+
+      The environment scope already did this; what was missing was saying so where somebody shipping
+      an app would look, and proving it. A build job runs whatever the dependency tree brought with
+      it, so a certificate in a repository secret is a certificate any of it can read.
+- [x] Tests: a preview expiring, a build step attempting to read a publish secret
+
+      `tests/e2e/previews.test.ts` and the release-path block in `tests/e2e/workflow-secrets.test.ts`.
+      The build job is tested twice: not receiving the publish credentials, and **not receiving them
+      when it asks for them by name** - naming a secret narrows what a job gets rather than widening
+      it, and a `secrets:` list that could widen would be the feature undoing itself.
 
 ---
 

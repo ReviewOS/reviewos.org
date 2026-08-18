@@ -113,6 +113,16 @@ export type AuditEventName =
   | 'workflow:variable-removed'
   | 'workflow:environment-configured'
   | 'workflow:environment-removed'
+  /*
+   * What was put where.
+   *
+   * A deployment record is what a branch rule, a dashboard and the next
+   * reviewer all read, so writing one is saying where the product is - and
+   * "who said production was on this commit" is the question an incident asks
+   * first.
+   */
+  | 'deployment:recorded'
+  | 'deployment:updated'
   | 'fleet:signatures-required'
   | 'fleet:plugin-attached'
   | 'fleet:plugin-detached'
@@ -190,6 +200,8 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'workflow:variable-removed',
   'workflow:environment-configured',
   'workflow:environment-removed',
+  'deployment:recorded',
+  'deployment:updated',
   'fleet:signatures-required',
   'fleet:plugin-attached',
   'fleet:plugin-detached',

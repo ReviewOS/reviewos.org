@@ -107,8 +107,8 @@ export default {
    */
   'test:flaky': ['DispatchWebhooks'],
   'test:recorded': ['DispatchWebhooks'],
-  'pr:merged': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
-  'pr:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
+  'pr:merged': ['Notify', 'DispatchWebhooks', 'RecordActivity', 'ExpirePreviews'],
+  'pr:closed': ['Notify', 'DispatchWebhooks', 'RecordActivity', 'ExpirePreviews'],
   'review:requested': ['Notify', 'DispatchWebhooks'],
   'review:submitted': ['Notify', 'DispatchWebhooks', 'RecordActivity'],
   /*
@@ -194,6 +194,8 @@ export default {
   'workflow:variable-removed': ['RecordAudit'],
   'workflow:environment-configured': ['RecordAudit'],
   'workflow:environment-removed': ['RecordAudit'],
+  'deployment:recorded': ['RecordAudit'],
+  'deployment:updated': ['RecordAudit'],
   'fleet:signatures-required': ['RecordAudit'],
   'fleet:plugin-attached': ['RecordAudit'],
   'fleet:plugin-detached': ['RecordAudit'],

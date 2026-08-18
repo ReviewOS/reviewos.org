@@ -8969,52 +8969,6 @@ export interface paths {
   }
     trace?: never
   }
-  "/api/deployments": {
-    get: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "commit_hash"?: string; "commit_message"?: string; "branch"?: string; "status"?: string; "environment"?: string; "duration"?: number; "author"?: string; "url"?: string; "error_log"?: string; "created_at"?: string; "updated_at"?: string }> } } }
-      "422": { content: never }
-      "500": { content: never }
-    }
-  }
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/api/deployments/{id}": {
-    get: {
-    parameters: {
-      query?: never
-      header?: never
-      path: { "id": string }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "commit_hash"?: string; "commit_message"?: string; "branch"?: string; "status"?: string; "environment"?: string; "duration"?: number; "author"?: string; "url"?: string; "error_log"?: string; "created_at"?: string; "updated_at"?: string } } } }
-      "422": { content: never }
-      "500": { content: never }
-    }
-  }
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
   "/api/digital-deliveries": {
     get: {
     parameters: {
@@ -13713,6 +13667,32 @@ export interface paths {
     requestBody?: never
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/deployments": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: "list" | "create" | "update" | "deactivate"; "environment"?: string; "sha"?: string; "ref"?: string; "url"?: string; "state"?: "in_progress" | "active" | "failed" | "inactive"; "pull_request"?: number; "run"?: number; "reason"?: string; "id"?: number; "limit"?: number } } }
+    responses: {
+      "200": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
@@ -22114,7 +22094,6 @@ export interface components {
     "Coupon": { "id": number; "uuid": string; "code"?: string; "description"?: string; "status"?: "Active" | "Scheduled" | "Expired"; "is_active"?: boolean; "discount_type"?: "fixed_amount" | "percentage"; "discount_value"?: number; "min_order_amount"?: number; "max_discount_amount"?: number; "free_product_id"?: string; "usage_limit"?: number; "usage_count"?: number; "start_date"?: unknown; "end_date"?: unknown; "product_id"?: number; "created_at"?: string; "updated_at"?: string }
     "Customer": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "total_spent"?: number; "last_order"?: string; "status"?: "Active" | "Inactive"; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }
     "DeliveryRoute": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string }
-    "Deployment": { "id": number; "uuid": string; "commit_hash"?: string; "commit_message"?: string; "branch"?: string; "status"?: string; "environment"?: string; "duration"?: number; "author"?: string; "url"?: string; "error_log"?: string; "created_at"?: string; "updated_at"?: string }
     "DigitalDelivery": { "id": number; "uuid": string; "name"?: string; "description"?: string; "download_limit"?: number; "expiry_days"?: number; "requires_login"?: boolean; "automatic_delivery"?: boolean; "status"?: "active" | "inactive"; "created_at"?: string; "updated_at"?: string }
     "Driver": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string }
     "EmailList": { "id": number; "uuid": string; "name": string; "slug"?: string; "description"?: string; "subscriber_count"?: number; "active_count"?: number; "unsubscribed_count"?: number; "bounced_count"?: number; "status": "active" | "inactive" | "archived"; "is_public"?: number; "double_opt_in"?: number; "created_at"?: string; "updated_at"?: string }

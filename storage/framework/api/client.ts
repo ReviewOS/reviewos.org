@@ -3348,20 +3348,6 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
-   * GET /api/deployments
-   */
-  getDeployments(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "commit_hash"?: string; "commit_message"?: string; "branch"?: string; "status"?: string; "environment"?: string; "duration"?: number; "author"?: string; "url"?: string; "error_log"?: string; "created_at"?: string; "updated_at"?: string }> }>> {
-    return request(config, "GET", "/api/deployments", {}, [], false, options)
-  },
-
-  /**
-   * GET /api/deployments/{id}
-   */
-  getDeploymentsId(input: { "id": string }, options?: RequestOptions): Promise<ApiResult<{ "data": { "id": number; "uuid": string; "commit_hash"?: string; "commit_message"?: string; "branch"?: string; "status"?: string; "environment"?: string; "duration"?: number; "author"?: string; "url"?: string; "error_log"?: string; "created_at"?: string; "updated_at"?: string } }>> {
-    return request(config, "GET", "/api/deployments/{id}", input ?? {}, [], false, options)
-  },
-
-  /**
    * GET /api/digital-deliveries
    */
   getDigitalDeliveries(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "name"?: string; "description"?: string; "download_limit"?: number; "expiry_days"?: number; "requires_login"?: boolean; "automatic_delivery"?: boolean; "status"?: "active" | "inactive"; "created_at"?: string; "updated_at"?: string }> }>> {
@@ -5081,6 +5067,13 @@ export function createClient(config: ClientConfig) {
    */
   postReposDeployKeys(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos/deploy-keys", {}, [], false, options)
+  },
+
+  /**
+   * POST /api/repos/deployments
+   */
+  postReposDeployments(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "list" | "create" | "update" | "deactivate"; "environment"?: string; "sha"?: string; "ref"?: string; "url"?: string; "state"?: "in_progress" | "active" | "failed" | "inactive"; "pull_request"?: number; "run"?: number; "reason"?: string; "id"?: number; "limit"?: number } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/deployments", input ?? {}, [], true, options)
   },
 
   /**
@@ -7032,7 +7025,7 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /deployments/
    */
-  getDeployments2(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  getDeployments(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "GET", "/deployments/", {}, [], false, options)
   },
 

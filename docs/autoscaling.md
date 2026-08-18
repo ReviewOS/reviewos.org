@@ -142,6 +142,79 @@ as the user who started the runner. Isolation is a separate machine, which is
 what an autoscaler is already giving you - one job per machine with `--jobs 1`
 is the strongest boundary this design offers, and it is a strong one.
 
+## macOS machines
+
+Mobile delivery runs on macOS and nothing else can, which makes these the
+machines a fleet cannot treat as cattle: Apple's licence ties macOS to Apple
+hardware, so a mac is a machine somebody bought or a tenant somebody rents by
+the hour rather than an instance an autoscaler creates in twenty seconds. Every
+CI product handles this case worst, and the reason is always the same: a design
+that assumes a machine is disposable, applied to one that is not.
+
+So they are configured like any other runner and labelled honestly:
+
+```sh
+reviewos-runner --url https://reviewos.example --token "$RUNNER_TOKEN" \
+  --labels macos,macos-14,self-hosted \
+  --tags xcode=16.2,arch=arm64,notarization=yes
+```
+
+A job asks for one the same way it asks for anything:
+
+```yaml
+jobs:
+  release:
+    runs-on: macos
+    reviewos:
+      agents:
+        xcode: '16.2'
+```
+
+Three things follow from a mac being long-lived rather than disposable, and they
+are the difference between a fleet that works and one that produces a mystery
+every fortnight:
+
+- **Put them in their own pool.** A pool is a boundary: these machines hold
+  signing material and store credentials, and a pool that also takes pull
+  request checks from every repository on the instance is one where somebody
+  else's dependency runs beside the keychain. `assign-repository` narrows it
+  further, to the repositories that actually ship.
+- **`--jobs 1` is not available to you, so clean up instead.** An ephemeral
+  Linux runner gets a fresh machine per job; a mac gets the same one for a year.
+  The `cleanup` hook is where a derived-data directory, a simulator that stayed
+  running and a keychain that stayed unlocked get dealt with - see
+  [runner hooks](./runner-hooks.md).
+- **Say which Xcode is on it, in `--tags`.** A build that needs 16.2 and lands
+  on 15.4 fails halfway through with an error about a Swift version, which is a
+  worse afternoon than being queued.
+
+**Signing material belongs to an environment, not to the repository.** A
+certificate and a store password in a repository secret reach every job in every
+run, including the build job that runs whatever the dependency tree brought with
+it. In an environment they reach the publish job, after its gate:
+
+```yaml
+jobs:
+  build:
+    runs-on: macos
+    steps:
+      - run: xcodebuild -scheme App archive
+  publish:
+    needs: build
+    runs-on: macos
+    environment: app-store
+    steps:
+      - run: ./publish.sh
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          STORE_TOKEN: ${{ secrets.STORE_TOKEN }}
+```
+
+The build job cannot read either, and asking for them by name does not change
+that: naming a secret narrows what a job receives rather than widening it. See
+[secrets](./secrets.md), and the environment's own reviewers and wait timer in
+[environments](./environments.md).
+
 ## A reference autoscaler
 
 Hetzner Cloud, about a hundred lines, and deliberately boring. Copy it and change

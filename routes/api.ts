@@ -899,6 +899,14 @@ route.post('/repos/variables', 'Actions/Workflow/VariablesAction').middleware('a
 route.post('/repos/workflow-notifications', 'Actions/Workflow/NotificationRulesAction').middleware('auth')
 
 /*
+ * What was put where. This instance never deploys anything: a job does, with
+ * credentials the environment released to it, and records what happened here.
+ * A preview is the same row with a pull request on it, which is what makes it
+ * expire when the pull request does.
+ */
+route.post('/repos/deployments', 'Actions/Deploy/DeploymentsAction').middleware('auth')
+
+/*
  * Secrets: set, removed, and listed by name.
  *
  * There is deliberately no endpoint that returns a value. A reveal button is

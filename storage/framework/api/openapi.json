@@ -18803,194 +18803,6 @@
         }
       }
     },
-    "/api/deployments": {
-      "get": {
-        "summary": "/api/deployments",
-        "operationId": "get__api_deployments",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "integer"
-                          },
-                          "uuid": {
-                            "type": "string",
-                            "format": "uuid"
-                          },
-                          "commit_hash": {
-                            "type": "string",
-                            "minLength": 7,
-                            "maxLength": 40
-                          },
-                          "commit_message": {
-                            "type": "string",
-                            "maxLength": 500
-                          },
-                          "branch": {
-                            "type": "string",
-                            "maxLength": 255
-                          },
-                          "status": {
-                            "type": "string"
-                          },
-                          "environment": {
-                            "type": "string"
-                          },
-                          "duration": {
-                            "type": "number",
-                            "minimum": 0
-                          },
-                          "author": {
-                            "type": "string",
-                            "maxLength": 255
-                          },
-                          "url": {
-                            "type": "string",
-                            "maxLength": 500
-                          },
-                          "error_log": {
-                            "type": "string"
-                          },
-                          "created_at": {
-                            "type": "string",
-                            "format": "date-time"
-                          },
-                          "updated_at": {
-                            "type": "string",
-                            "format": "date-time"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "uuid"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation failed"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        }
-      }
-    },
-    "/api/deployments/{id}": {
-      "get": {
-        "summary": "/api/deployments/{id}",
-        "operationId": "get__api_deployments__id_",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer"
-                        },
-                        "uuid": {
-                          "type": "string",
-                          "format": "uuid"
-                        },
-                        "commit_hash": {
-                          "type": "string",
-                          "minLength": 7,
-                          "maxLength": 40
-                        },
-                        "commit_message": {
-                          "type": "string",
-                          "maxLength": 500
-                        },
-                        "branch": {
-                          "type": "string",
-                          "maxLength": 255
-                        },
-                        "status": {
-                          "type": "string"
-                        },
-                        "environment": {
-                          "type": "string"
-                        },
-                        "duration": {
-                          "type": "number",
-                          "minimum": 0
-                        },
-                        "author": {
-                          "type": "string",
-                          "maxLength": 255
-                        },
-                        "url": {
-                          "type": "string",
-                          "maxLength": 500
-                        },
-                        "error_log": {
-                          "type": "string"
-                        },
-                        "created_at": {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        "updated_at": {
-                          "type": "string",
-                          "format": "date-time"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "uuid"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation failed"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        }
-      }
-    },
     "/api/digital-deliveries": {
       "get": {
         "summary": "/api/digital-deliveries",
@@ -36778,6 +36590,216 @@
           },
           "500": {
             "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/repos/deployments": {
+      "post": {
+        "summary": "/api/repos/deployments",
+        "operationId": "post__api_repos_deployments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The deployments this repository has, newest first.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one this instance does not recognise.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may see this repository but not do this to it, or their token does not carry the permission.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such repository, or one this caller may not see - deliberately the same answer.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A deployment needs an environment and a commit.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "list",
+                      "create",
+                      "update",
+                      "deactivate"
+                    ]
+                  },
+                  "environment": {
+                    "type": "string"
+                  },
+                  "sha": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "in_progress",
+                      "active",
+                      "failed",
+                      "inactive"
+                    ]
+                  },
+                  "pull_request": {
+                    "type": "number"
+                  },
+                  "run": {
+                    "type": "number"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "number"
+                  },
+                  "limit": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -59591,64 +59613,6 @@
           },
           "driver_id": {
             "type": "integer"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "uuid"
-        ]
-      },
-      "Deployment": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "uuid": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "commit_hash": {
-            "type": "string",
-            "minLength": 7,
-            "maxLength": 40
-          },
-          "commit_message": {
-            "type": "string",
-            "maxLength": 500
-          },
-          "branch": {
-            "type": "string",
-            "maxLength": 255
-          },
-          "status": {
-            "type": "string"
-          },
-          "environment": {
-            "type": "string"
-          },
-          "duration": {
-            "type": "number",
-            "minimum": 0
-          },
-          "author": {
-            "type": "string",
-            "maxLength": 255
-          },
-          "url": {
-            "type": "string",
-            "maxLength": 500
-          },
-          "error_log": {
-            "type": "string"
           },
           "created_at": {
             "type": "string",
