@@ -550,3 +550,104 @@ describe('fetching one back inside the run', () => {
     expect((await fetchByName(job.token, 'stale.txt')).status).toBe(404)
   })
 })
+
+describe('annotations, by context', () => {
+  /** Report annotations the way a runner does, with the job's own credential. */
+  async function annotate(token: string, body: Record<string, unknown>) {
+    const answer = await fetch(`http://127.0.0.1:${port}/api/runner/annotations`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'X-Runner-Protocol': '1',
+      },
+      body: JSON.stringify(body),
+    })
+
+    return { status: answer.status, body: await answer.json().catch(() => ({})) as any }
+  }
+
+  async function annotationsOf(checkRunId: number): Promise<string[]> {
+    const rows: any[] = await db
+      .selectFrom('check_annotations')
+      .select(['message'])
+      .where('check_run_id', '=', checkRunId)
+      .orderBy('id')
+      .execute()
+
+    return rows.map(row => String(row.message))
+  }
+
+  test('reporting again replaces, so a re-run does not double every finding', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+
+    const first = await annotate(job.token, {
+      summary: 'one problem',
+      annotations: [{ path: 'src/a.ts', start_line: 1, message: 'first pass' }],
+    })
+
+    const second = await annotate(job.token, {
+      summary: 'one problem',
+      annotations: [{ path: 'src/a.ts', start_line: 1, message: 'second pass' }],
+    })
+
+    expect(first.status).toBe(200)
+    expect(await annotationsOf(Number(second.body.check_run))).toEqual(['second pass'])
+  })
+
+  test('two contexts from one job do not replace each other', async () => {
+    if (!available)
+      return
+
+    /*
+     * The case the context key is for: a job that runs a linter and a type
+     * checker reports two independent sets, and without a key the second would
+     * erase the first - so the last tool to finish would be the only one
+     * anybody saw on the diff.
+     */
+    const job = await claimOne()
+
+    const lint = await annotate(job.token, {
+      summary: 'lint',
+      context: 'lint',
+      annotations: [{ path: 'src/a.ts', start_line: 1, message: 'unused import' }],
+    })
+
+    const types = await annotate(job.token, {
+      summary: 'types',
+      context: 'typecheck',
+      annotations: [{ path: 'src/a.ts', start_line: 2, message: 'not assignable' }],
+    })
+
+    expect(Number(lint.body.check_run)).not.toBe(Number(types.body.check_run))
+    expect(await annotationsOf(Number(lint.body.check_run))).toEqual(['unused import'])
+    expect(await annotationsOf(Number(types.body.check_run))).toEqual(['not assignable'])
+  })
+
+  test('and a job that streams findings can append instead', async () => {
+    if (!available)
+      return
+
+    // A suite that reports as it goes has nothing to send twice, and holding
+    // everything until the end would mean nothing on the diff until it finished.
+    const job = await claimOne()
+
+    await annotate(job.token, {
+      summary: 'streaming',
+      context: 'suite',
+      annotations: [{ path: 'src/a.ts', start_line: 1, message: 'first finding' }],
+    })
+
+    const added = await annotate(job.token, {
+      summary: 'streaming',
+      context: 'suite',
+      append: true,
+      annotations: [{ path: 'src/b.ts', start_line: 2, message: 'second finding' }],
+    })
+
+    expect(await annotationsOf(Number(added.body.check_run))).toEqual(['first finding', 'second finding'])
+  })
+})

@@ -30,6 +30,8 @@ export default new Action({
 
   validations: {
     summary: { rule: schema.string() },
+    context: { rule: schema.string(), required: false },
+    append: { rule: schema.boolean(), required: false },
   },
 
   responses: {
@@ -91,7 +93,18 @@ export default new Action({
      * reader wants on a pull request: "typecheck failed" is useful, "CI failed"
      * is the thing they already knew.
      */
-    const name = String(job.name ?? job.job_id ?? 'job')
+    /*
+     * `context:` names the group these annotations belong to, and the job's own
+     * name is the default because that is what a reader wants on a pull
+     * request: "typecheck failed" is useful, "CI failed" is the thing they
+     * already knew.
+     *
+     * Naming it explicitly is for the job that reports two independent things -
+     * a lint pass and a type pass in one job - which without this would replace
+     * each other, so the last one to report would be the only one anybody saw.
+     */
+    const context = String(request.get('context') ?? '').trim().slice(0, 200)
+    const name = context || String(job.name ?? job.job_id ?? 'job')
 
     const existing: any = await db
       .selectFrom('check_runs')
@@ -114,13 +127,21 @@ export default new Action({
     }
 
     /*
-     * Replaced rather than appended.
+     * Replaced rather than appended, unless the caller asked otherwise.
      *
      * A job that is retried reports again, and two copies of every annotation
-     * on one line is a diff nobody can read. The run is the unit of truth, so
-     * the newest report for a check is the whole of it.
+     * on one line is a diff nobody can read - so the newest report for a
+     * context is the whole of it, and a re-run replaces rather than doubles.
+     *
+     * `append: true` is for the job that reports in pieces: a test suite that
+     * streams findings as it goes has nothing to send twice, and making it hold
+     * everything until the end would mean nothing on the diff until the job
+     * finished.
      */
-    await db.deleteFrom('check_annotations').where('check_run_id', '=', checkRunId).execute()
+    const append = request.get('append') === true || String(request.get('append') ?? '') === 'true'
+
+    if (!append)
+      await db.deleteFrom('check_annotations').where('check_run_id', '=', checkRunId).execute()
 
     for (const annotation of annotations) {
       await db
@@ -138,7 +159,23 @@ export default new Action({
         .execute()
     }
 
-    return runnerJson({ recorded: annotations.length, check_run: checkRunId })
+    /*
+     * A cap on what one context may hold, applied after an append.
+     *
+     * Without it a job that streams findings can grow a check without bound,
+     * and a diff that has to render nine thousand annotations stops being a
+     * diff. The oldest go, because the newest are the ones a reader is looking
+     * at - and it is said in the answer rather than silently.
+     */
+    const total = await countAnnotations(checkRunId)
+    const dropped = total > MAX_PER_CONTEXT ? await trimAnnotations(checkRunId, MAX_PER_CONTEXT) : 0
+
+    return runnerJson({
+      recorded: annotations.length,
+      check_run: checkRunId,
+      context: name,
+      dropped,
+    })
   },
 })
 
@@ -179,6 +216,37 @@ interface ReadAnnotation {
  * renders. The cap is here as well as in the runner because the runner is the
  * part this instance does not control.
  */
+/** The most annotations one context may hold. A diff cannot render more than this. */
+export const MAX_PER_CONTEXT = 500
+
+/** How many this context is holding now. */
+async function countAnnotations(checkRunId: number): Promise<number> {
+  const rows: any[] = await db
+    .selectFrom('check_annotations')
+    .select(['id'])
+    .where('check_run_id', '=', checkRunId)
+    .execute()
+
+  return rows.length
+}
+
+/** Drop the oldest past the cap, and answer how many went. */
+async function trimAnnotations(checkRunId: number, keep: number): Promise<number> {
+  const rows: any[] = await db
+    .selectFrom('check_annotations')
+    .select(['id'])
+    .where('check_run_id', '=', checkRunId)
+    .orderBy('id', 'desc')
+    .execute()
+
+  const doomed = rows.slice(keep).map(row => Number(row.id))
+
+  for (const id of doomed)
+    await db.deleteFrom('check_annotations').where('id', '=', id).execute()
+
+  return doomed.length
+}
+
 function readAnnotations(value: unknown): ReadAnnotation[] {
   const list = Array.isArray(value) ? value : []
   const annotations: ReadAnnotation[] = []

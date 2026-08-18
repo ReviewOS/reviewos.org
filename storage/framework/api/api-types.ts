@@ -15734,7 +15734,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "summary"?: string } } }
+    requestBody?: { content: { "application/json": { "summary"?: string; "context"?: string; "append"?: boolean } } }
     responses: {
       "200": { content: { "application/json": { "recorded"?: number; "check_run"?: number } } }
       "401": { content: never }

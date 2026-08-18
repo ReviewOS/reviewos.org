@@ -2116,6 +2116,8 @@ _Inputs are not declared on `Actions/Pull/ReviewQueueAction`, so they are not li
 | Name | In | Required | Type |
 |---|---|---|---|
 | `summary` | body | optional | string |
+| `context` | body | optional | string |
+| `append` | body | optional | boolean |
 
 | Status | Means |
 |---|---|

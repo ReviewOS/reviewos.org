@@ -1983,8 +1983,24 @@ decisions.
       of `dev` would blank a word everywhere it appears.
 - [ ] Log size ceiling with a documented truncation behavior, and backpressure that slows a runner
       rather than dropping the middle of the log
-- [ ] Annotations: markdown, with a level (success, info, warning, error), a context key so a rerun
+- [x] Annotations: markdown, with a level (success, info, warning, error), a context key so a rerun
       replaces rather than appends, and append semantics when asked for
+
+      Three levels rather than four - `notice`, `warning`, `failure`, which is the set the diff
+      renders and the set the check model already had. A fourth called `success` would be an
+      annotation nobody puts on a line.
+
+      **`context:` names the group**, defaulting to the job's own name because that is what a reader
+      wants on a pull request: "typecheck failed" is useful where "CI failed" is what they already
+      knew. Naming it is for the job that reports two independent things - a lint pass and a type
+      pass - which without a key would replace each other, so the last tool to finish would be the
+      only one anybody saw.
+
+      Replacing is the default, so a re-run does not double every finding on a line. `append: true`
+      is for a suite that streams findings as it goes: it has nothing to send twice, and holding
+      everything until the end would mean nothing on the diff until the job finished. An appended
+      context is capped, oldest first, and says in the answer how many it dropped - a diff that has
+      to render nine thousand annotations stops being a diff.
 - [x] **Annotations render on the diff**, on the file and line they name, on both sides. This is the
       row in the table at the top of this file, and it is the reason to build any of this.
 

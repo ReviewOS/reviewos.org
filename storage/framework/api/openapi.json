@@ -28328,6 +28328,12 @@
                 "properties": {
                   "summary": {
                     "type": "string"
+                  },
+                  "context": {
+                    "type": "string"
+                  },
+                  "append": {
+                    "type": "boolean"
                   }
                 }
               }
