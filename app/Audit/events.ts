@@ -88,6 +88,7 @@ export type AuditEventName =
    */
   | 'fleet:pool-created'
   | 'fleet:queue-created'
+  | 'fleet:signatures-required'
   | 'fleet:queue-paused'
   | 'fleet:queue-resumed'
   | 'fleet:repository-assigned'
@@ -144,6 +145,7 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'admin:revoked',
   'admin:job-retried',
   'fleet:pool-created',
+  'fleet:signatures-required',
   'fleet:queue-created',
   'fleet:queue-paused',
   'fleet:queue-resumed',

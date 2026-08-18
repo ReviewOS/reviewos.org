@@ -7,6 +7,7 @@ import { db } from '@stacksjs/database'
 import { authenticateRunner } from './authenticate'
 import { claimNextJob, stopRequestedFor } from './claim'
 import { eventPayload } from '../Workflow/eventPayload'
+import { signWork } from '../Workflow/stepSignature'
 
 /**
  * What a runner asks for when it has capacity.
@@ -349,6 +350,54 @@ export default new Action({
       jobPermissions: definitionJob?.permissions ?? null,
     })
 
+    const runnerSteps = steps.map(step => ({
+      position: Number(step.position ?? 0),
+      name: step.name ?? null,
+      /*
+       * The step's own id and condition.
+       *
+       * The id is what `steps.<id>.outputs` is keyed on, and the condition
+       * is evaluated by the runner rather than here: a step's `if:` reads
+       * what the steps before it produced, which does not exist until they
+       * have run.
+       */
+      id: step.step_id ?? null,
+      if: step.condition ?? null,
+      run: step.command ?? null,
+      uses: step.uses ?? null,
+      working_directory: step.working_directory ?? null,
+      shell: step.shell ?? null,
+      // `with:` and `env:` are JSON as stored; a runner should not have to
+      // know that, so they are sent as objects.
+      with: readJson(step.inputs),
+      env: readJson(step.env),
+      continue_on_error: step.continue_on_error === true,
+      // The narrow timeout, which the runner applies to this step alone.
+      timeout_minutes: step.timeout_minutes === null || step.timeout_minutes === undefined
+        ? null
+        : Number(step.timeout_minutes),
+    }))
+
+    /*
+     * The signature over the work, which a pool can be set to require.
+     *
+     * Over the mapped steps rather than over the rows, because the runner can
+     * only check what it received: a signature over something the payload does
+     * not carry is one that never verifies. Null when the key cannot be read -
+     * `signWork` says why it declines to fail the claim.
+     */
+    const signature = await signWork({
+      runId: claimed.runId,
+      jobId: claimed.jobId,
+      matrix: readJson(jobRow?.matrix_values) as Record<string, unknown> | null,
+      steps: runnerSteps.map((step: any) => ({
+        run: step.run,
+        uses: step.uses,
+        env: step.env as Record<string, string> | null,
+        workingDirectory: step.working_directory,
+      })),
+    })
+
     return runnerJson({
       job: {
         id: claimed.jobId,
@@ -549,33 +598,16 @@ export default new Action({
         timeout_minutes: jobRow?.timeout_minutes === null || jobRow?.timeout_minutes === undefined
           ? null
           : Number(jobRow.timeout_minutes),
-        steps: steps.map(step => ({
-          position: Number(step.position ?? 0),
-          name: step.name ?? null,
-          /*
-           * The step's own id and condition.
-           *
-           * The id is what `steps.<id>.outputs` is keyed on, and the condition
-           * is evaluated by the runner rather than here: a step's `if:` reads
-           * what the steps before it produced, which does not exist until they
-           * have run.
-           */
-          id: step.step_id ?? null,
-          if: step.condition ?? null,
-          run: step.command ?? null,
-          uses: step.uses ?? null,
-          working_directory: step.working_directory ?? null,
-          shell: step.shell ?? null,
-          // `with:` and `env:` are JSON as stored; a runner should not have to
-          // know that, so they are sent as objects.
-          with: readJson(step.inputs),
-          env: readJson(step.env),
-          continue_on_error: step.continue_on_error === true,
-          // The narrow timeout, which the runner applies to this step alone.
-          timeout_minutes: step.timeout_minutes === null || step.timeout_minutes === undefined
-            ? null
-            : Number(step.timeout_minutes),
-        })),
+        steps: runnerSteps,
+        /*
+         * The signature over those steps, and whether this pool insists on one.
+         *
+         * Both travel with the work rather than being fetched: the runner has
+         * to decide before the first command, and a check it makes a second
+         * request for is a check a broken network turns into a shrug.
+         */
+        signature,
+        require_signed_steps: claimed.requireSignedSteps,
       },
     })
   },

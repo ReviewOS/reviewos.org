@@ -27,6 +27,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { fetchAction } from './actionCache'
+import { verifyWork } from '../Workflow/stepSignature'
 import { checkPolicy, defaultPolicy, parseActionRef } from './actionRef'
 import type { ActionDefinition } from './actionFile'
 import { inputEnvironment, missingInputs, parseActionFile } from './actionFile'
@@ -165,6 +166,50 @@ const STEP_TIMEOUT_MS = 2 * 60 * 60 * 1000
 const DEFAULT_JOB_TIMEOUT_MINUTES = 360
 
 /** Claim one job and run it, or answer null when there was nothing to take. */
+/**
+ * Check the claim's signature against a key this instance publishes.
+ *
+ * Fetched rather than taken from the claim, which is the whole of it: a
+ * signature checked with a key from the same message proves only that the
+ * sender can do arithmetic. The key set comes from a path an operator can curl,
+ * over the same base URL the runner was configured with - so an attacker who
+ * can rewrite that has already replaced the instance.
+ */
+export async function verifySignedWork(baseUrl: string, job: any): Promise<{ ok: boolean, reason: string }> {
+  let keys: any[] = []
+
+  try {
+    const answer = await fetch(`${baseUrl.replace(/\/$/, '')}/.well-known/reviewos-step-keys.json`)
+    const body: any = await answer.json()
+
+    keys = Array.isArray(body?.keys) ? body.keys : []
+  }
+  catch (error) {
+    /*
+     * An unreachable key set is a refusal rather than a pass. The pool asked
+     * for signed work; "I could not check" is not "it was fine", and the
+     * failure mode of the other reading is a network somebody can arrange.
+     */
+    return { ok: false, reason: `its keys could not be fetched (${error instanceof Error ? error.message : String(error)})` }
+  }
+
+  return verifyWork({
+    signature: job.signature ?? null,
+    keys,
+    work: {
+      runId: Number(job.run?.id ?? 0),
+      jobId: Number(job.id ?? 0),
+      matrix: (job.matrix_values ?? null) as Record<string, unknown> | null,
+      steps: (Array.isArray(job.steps) ? job.steps : []).map((step: any) => ({
+        run: step.run ?? null,
+        uses: step.uses ?? null,
+        env: (step.env ?? null) as Record<string, string> | null,
+        workingDirectory: step.working_directory ?? null,
+      })),
+    },
+  })
+}
+
 export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome | null> {
   const say = options.say ?? (() => {})
   const claim = await post(options.baseUrl, '/api/runner/claim', options.token, {})
@@ -198,6 +243,32 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     await report(options.baseUrl, jobToken, 'failed', reason)
 
     return { jobId: Number(job.id), state: 'failed', reason }
+  }
+
+  /*
+   * Whether this instance signed the work, checked before anything of it runs.
+   *
+   * Only when the pool asks for it. A fleet that started refusing every job the
+   * day it upgraded is a fleet nobody upgrades, and the flag travels with the
+   * claim so an operator turning it on covers every machine in the pool rather
+   * than the ones whose config somebody remembered to edit.
+   *
+   * Before the workspace, and before the first hook: the point of the signature
+   * is that unverified work never reaches a shell, and a check made after the
+   * `pre-bootstrap` hook has run is a check that already executed something.
+   */
+  if (job.require_signed_steps === true) {
+    const verdict = await verifySignedWork(options.baseUrl, job)
+
+    if (!verdict.ok) {
+      const reason = `This pool only runs work signed by the instance, and ${verdict.reason}.`
+
+      say(`refusing job ${job.id}: ${reason}`)
+      await append(options.baseUrl, jobToken, 1, `${reason}\n`, 'stderr')
+      await report(options.baseUrl, jobToken, 'failed', reason)
+
+      return { jobId: Number(job.id), state: 'failed', reason }
+    }
   }
 
   const workspace = options.workspaceRoot

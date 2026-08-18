@@ -107,6 +107,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /.well-known/reviewos-step-keys.json
+   */
+  getWellKnownReviewosStepKeysJson(options?: RequestOptions): Promise<ApiResult<{ "keys"?: Array<Record<string, unknown>> }>> {
+    return request(config, "GET", "/.well-known/reviewos-step-keys.json", {}, [], false, options)
+  },
+
+  /**
    * GET /_stacks/mail/preview
    */
   getStacksMailPreview(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -3658,7 +3665,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/instance/fleet
    */
-  postInstanceFleet(input?: { body?: { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "assign-repository" | "unassign-repository" | "assign-runner" | "stop-runner" | "create-runner" | "create-token" | "revoke-token" | "add-maintainer" | "remove-maintainer"; "name"?: string; "slug"?: string; "labels"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number; "force"?: boolean; "token"?: number; "expires"?: string; "user"?: number } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+  postInstanceFleet(input?: { body?: { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "require-signatures" | "assign-repository" | "unassign-repository" | "assign-runner" | "stop-runner" | "create-runner" | "create-token" | "revoke-token" | "add-maintainer" | "remove-maintainer"; "name"?: string; "slug"?: string; "labels"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number; "force"?: boolean; "required"?: boolean; "token"?: number; "expires"?: string; "user"?: number } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
     return request(config, "POST", "/api/instance/fleet", input ?? {}, [], true, options)
   },
 

@@ -1033,7 +1033,7 @@ which is the whole argument for this phase existing:
 | Environment protection rules | Required reviewers, wait timers, and branch policy, with scoped secrets *(planned)* |
 | Test intelligence of any kind | Flaky detection, quarantine, splitting, ownership |
 | Fleet management beyond a registered runner | Pools, queues, autoscaler contract, drain, lifecycle |
-| Signed step dispatch | Signed workflows, enforceable per pool *(planned)* |
+| Signed step dispatch | Signed workflows, enforceable per pool |
 | Annotations on the diff | The reason this project exists |
 
 - [x] Each row above has a test proving the difference, because a comparison table in marketing that
@@ -1671,6 +1671,12 @@ a macOS arm64 control plane:
 The credential is made on the instance and carried over, because a fleet machine has no database to
 register itself in - which is exactly what a registration token is for.
 
+**The compiled entry point now only runs when it is the program.** `standalone.ts` executed on
+import, and everything that walks `app/Actions/` imports every file it finds - so a CLI command that
+happened to load it printed the runner's usage and exited zero. `buddy docs:reference` did nothing,
+successfully, and the generated pages went stale with no error to explain why. `import.meta.main`
+guards it.
+
 - [x] Runner pools: a named group of queues plus the workflows permitted to use them. A workflow in
       one pool cannot dispatch to, read artifacts from, or trigger a workflow in another unless a
       rule says so.
@@ -2230,11 +2236,42 @@ decisions.
 Phase 9's execution-plane gate covers sandboxing. This section is the part that applies even when
 every runner is somebody else's machine.
 
-- [ ] **Signed workflows.** The control plane signs each step it dispatches, over the command,
+- [x] **Signed workflows.** The control plane signs each step it dispatches, over the command,
       environment, plugins, and matrix values; the runner verifies before executing. Without this,
       anyone who can write to the control plane's database can execute arbitrary code on every runner
       in the fleet.
-- [ ] Verification is enforceable per pool, and a pool can be set to refuse any unsigned step
+
+      `app/Actions/Workflow/stepSignature.ts`, signed at the claim and carried with the work. The
+      signature is over a **canonical** encoding - keys sorted, no whitespace - of the run, the job,
+      the matrix combination, and every step's command, `uses:`, environment and working directory.
+      Signing the command alone would leave the environment as the way in, one indirection along:
+      `NODE_OPTIONS`, `LD_PRELOAD`, a `PATH` with somebody's directory first.
+
+      A separate key from the identity one, `purpose: 'steps'` in the same `instance_keys` table,
+      published at `/.well-known/reviewos-step-keys.json` rather than in `jwks.json`. The two say
+      different things - one vouches for *who a job is* to somebody outside, the other for *what a
+      runner should execute* - and one set holding both invites a verifier to accept either
+      statement in place of the other.
+
+      The private half is encrypted with `APP_KEY`, which is why this is worth anything: a writer
+      who has the database and not the process cannot mint a signature. A key that could not be read
+      yields **no signature rather than no work**, because failing the claim would take a fleet down
+      over a feature most instances do not enforce.
+- [x] Verification is enforceable per pool, and a pool can be set to refuse any unsigned step
+
+      `require_signed_steps` on the pool, sent to the machine with the claim rather than configured
+      on the machine: an operator turning it on covers every runner in the pool, not the ones whose
+      config file somebody remembered to edit. `POST /api/instance/fleet` with
+      `operation: require-signatures`, audited, and the answer says the consequence in words -
+      including the honest one, that a runner older than this feature ignores the field.
+
+      The runner checks before the workspace exists and before the first hook, against keys it
+      **fetches**: a signature checked with a key from the same message proves only that the sender
+      can do arithmetic. Keys it cannot fetch are a refusal, not a pass - the pool asked for signed
+      work, and "I could not check" is not "it was fine".
+
+      Off by default. A fleet that started refusing every job the day it upgraded is a fleet nobody
+      upgrades. See [signed work](../signed-work.md).
 - [x] Key management: generation, rotation, and multiple active verification keys during a rotation
 
       `instance_keys`, generated on first use rather than configured - a key an operator has to
@@ -2247,8 +2284,8 @@ every runner is somebody else's machine.
       Every token carries the `kid` of the key that signed it. The private halves are encrypted with
       `APP_KEY`: a backup that leaks one is somebody able to mint a token for any repository here.
 
-      This covers the OIDC keys. Signing dispatched *steps*, the box above, will use the same table
-      with a different `purpose`.
+      This covers the OIDC keys. Signing dispatched *steps*, the box above, uses the same table
+      with `purpose: 'steps'` and a separate published key set.
 - [x] **OIDC.** A job can request a short-lived token, scoped to the run, repository, workflow, and
       branch, to authenticate to an external service without a stored credential. This is how a
       deploy stops needing a long-lived cloud key.

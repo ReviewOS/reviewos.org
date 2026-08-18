@@ -63,6 +63,39 @@
         }
       }
     },
+    "/.well-known/reviewos-step-keys.json": {
+      "get": {
+        "summary": "/.well-known/reviewos-step-keys.json",
+        "operationId": "get___well_known_reviewos_step_keys_json",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "A JWK set. Every key a runner should still accept, including recently retired ones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "keys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/_stacks/mail/preview": {
       "get": {
         "summary": "/_stacks/mail/preview",
@@ -15553,6 +15586,7 @@
                       "create-queue",
                       "pause-queue",
                       "resume-queue",
+                      "require-signatures",
                       "assign-repository",
                       "unassign-repository",
                       "assign-runner",
@@ -15589,6 +15623,9 @@
                     "type": "number"
                   },
                   "force": {
+                    "type": "boolean"
+                  },
+                  "required": {
                     "type": "boolean"
                   },
                   "token": {

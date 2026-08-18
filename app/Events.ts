@@ -176,6 +176,7 @@ export default {
   'admin:job-retried': ['RecordAudit'],
   // The fleet: boundary changes that are invisible after the fact.
   'fleet:pool-created': ['RecordAudit'],
+  'fleet:signatures-required': ['RecordAudit'],
   'fleet:queue-created': ['RecordAudit'],
   'fleet:queue-paused': ['RecordAudit'],
   'fleet:queue-resumed': ['RecordAudit'],

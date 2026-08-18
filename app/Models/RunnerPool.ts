@@ -62,6 +62,26 @@ export default defineModel({
      * whoever made them and to nobody afterwards, and "why can this pool reach
      * that repository" is asked at exactly the wrong moment otherwise.
      */
+    /**
+     * Whether machines in this pool refuse work this instance did not sign.
+     *
+     * Off by default, because a fleet that starts refusing every job the day it
+     * upgrades is a fleet nobody upgrades. On, it closes the hole the signature
+     * exists for: a row inserted into `workflow_version_steps` by anybody with
+     * the database is a command every runner would otherwise execute.
+     *
+     * Per pool rather than per instance, because the machines that need it are
+     * the ones with something worth stealing on them - a deploy pool with cloud
+     * access - and a laptop running `runner:local` is not that.
+     */
+    require_signed_steps: {
+      order: 4,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
     description: {
       order: 3,
       fillable: true,

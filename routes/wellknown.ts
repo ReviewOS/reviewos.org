@@ -15,3 +15,10 @@ import { route } from '@stacksjs/router'
  */
 route.get('/.well-known/jwks.json', 'Actions/Api/JwksAction')
 route.get('/.well-known/openid-configuration', 'Actions/Api/OpenIdConfigurationAction')
+
+/**
+ * And the keys that verify the work this instance hands to its own runners,
+ * kept apart from the identity set above so a verifier cannot mistake one
+ * statement for the other.
+ */
+route.get('/.well-known/reviewos-step-keys.json', 'Actions/Api/StepKeysAction')

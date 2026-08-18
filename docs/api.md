@@ -337,6 +337,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `runner` | body | optional | number |
 | `repository` | body | optional | number |
 | `force` | body | optional | boolean |
+| `required` | body | optional | boolean |
 | `token` | body | optional | number |
 | `expires` | body | optional | string |
 | `user` | body | optional | number |

@@ -48,6 +48,14 @@ export interface ClaimedJob {
    * a job environment - is what the threat model forbids.
    */
   jobToken: string
+  /**
+   * Whether this runner's pool refuses steps this instance did not sign.
+   *
+   * Told to the machine at claim rather than configured on it: an operator who
+   * turns the switch on wants it to hold for every runner in the pool, not for
+   * the ones whose config file somebody remembered to edit.
+   */
+  requireSignedSteps: boolean
 }
 
 /**
@@ -287,6 +295,7 @@ export async function claimNextJob(
       jobKey: String(row.job_id),
       leaseExpiresAt: expires,
       jobToken: token,
+      requireSignedSteps: queue?.requireSignedSteps === true,
     }
   }
 
@@ -486,6 +495,7 @@ export async function queueOf(runnerId: number): Promise<QueueFacts | null> {
       'runner_queues.paused_reason as paused_reason',
       'runner_pools.id as pool_id',
       'runner_pools.name as pool_name',
+      'runner_pools.require_signed_steps as require_signed_steps',
     ])
     .where('runners.id', '=', runnerId)
     .executeTakeFirst()
@@ -505,6 +515,7 @@ export async function queueOf(runnerId: number): Promise<QueueFacts | null> {
     state: String(row.state),
     poolId: Number(row.pool_id),
     poolName: String(row.pool_name),
+    requireSignedSteps: row.require_signed_steps === true || row.require_signed_steps === 1,
     pausedReason: row.paused_reason ? String(row.paused_reason) : null,
     repositoryIds: permitted.map(entry => Number(entry.repository_id)),
   }

@@ -108,89 +108,100 @@ this machine, with this user's files and network. A fork's pull request is
 refused outright.
 `
 
-const options = parse(process.argv.slice(2))
-
-if (!options.url || (!options.token && !options.registrationToken)) {
-  console.error(USAGE)
-  process.exit(options.url || options.token || options.registrationToken ? 1 : 0)
-}
-
-const url = options.url.replace(/\/$/, '')
-
 /*
- * Register first, when that is how this machine was started.
+ * Nothing below runs unless this file *is* the program.
  *
- * The registration credential is used once and then dropped: everything after
- * this authenticates as *this machine*, which is what keeps the threat model's
- * promise that a registration credential never reaches a job environment.
+ * Without the guard, importing it executes it - and everything that walks
+ * `app/Actions/` imports every file it finds. A CLI command that happened to
+ * load this one printed the runner's usage and exited zero, so `buddy
+ * docs:reference` silently did nothing and the pages it generates went stale
+ * with no error to explain why.
  */
-let token = options.token
+if (import.meta.main) {
+  const options = parse(process.argv.slice(2))
 
-if (!token && options.registrationToken) {
-  const answer = await fetch(`${url}/api/runner/register`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${options.registrationToken}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'X-Runner-Protocol': '1',
-    },
-    body: JSON.stringify({
-      name: options.name || `runner-${process.pid}`,
-      labels: options.labels,
-      tags: options.tags,
-    }),
-  })
-
-  const body: any = await answer.json().catch(() => null)
-
-  if (!answer.ok || !body?.runner?.token) {
-    console.error(`Could not register with this instance: ${body?.error ?? answer.status}`)
-    process.exit(1)
+  if (!options.url || (!options.token && !options.registrationToken)) {
+    console.error(USAGE)
+    process.exit(options.url || options.token || options.registrationToken ? 1 : 0)
   }
 
-  token = String(body.runner.token)
+  const url = options.url.replace(/\/$/, '')
 
-  console.log(`Registered as \`${String(body.runner.name)}\` (#${Number(body.runner.id)}).`)
-}
+  /*
+   * Register first, when that is how this machine was started.
+   *
+   * The registration credential is used once and then dropped: everything after
+   * this authenticates as *this machine*, which is what keeps the threat model's
+   * promise that a registration credential never reaches a job environment.
+   */
+  let token = options.token
 
-console.log('ReviewOS runner')
-console.log(`  instance:   ${url}`)
-console.log(`  platform:   ${process.platform} ${process.arch}`)
-console.log('  isolation:  none - steps run as this user, on this machine')
-console.log('  forks:      refused; an untrusted run needs an isolated runner')
-console.log('')
+  if (!token && options.registrationToken) {
+    const answer = await fetch(`${url}/api/runner/register`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${options.registrationToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Runner-Protocol': '1',
+      },
+      body: JSON.stringify({
+        name: options.name || `runner-${process.pid}`,
+        labels: options.labels,
+        tags: options.tags,
+      }),
+    })
 
-/*
- * A workspace under this process's own directory rather than a temporary one.
- *
- * On a fleet machine the temporary directory is often small or on a tmpfs, and
- * a checkout of a large repository is the first thing that fills it. Somewhere
- * predictable also means an operator can look at what a failed job left.
- */
-const workspaceRoot = process.env.REVIEWOS_WORKSPACE ?? undefined
+    const body: any = await answer.json().catch(() => null)
 
-if (options.once) {
-  const outcome = await runOnce({
+    if (!answer.ok || !body?.runner?.token) {
+      console.error(`Could not register with this instance: ${body?.error ?? answer.status}`)
+      process.exit(1)
+    }
+
+    token = String(body.runner.token)
+
+    console.log(`Registered as \`${String(body.runner.name)}\` (#${Number(body.runner.id)}).`)
+  }
+
+  console.log('ReviewOS runner')
+  console.log(`  instance:   ${url}`)
+  console.log(`  platform:   ${process.platform} ${process.arch}`)
+  console.log('  isolation:  none - steps run as this user, on this machine')
+  console.log('  forks:      refused; an untrusted run needs an isolated runner')
+  console.log('')
+
+  /*
+   * A workspace under this process's own directory rather than a temporary one.
+   *
+   * On a fleet machine the temporary directory is often small or on a tmpfs, and
+   * a checkout of a large repository is the first thing that fills it. Somewhere
+   * predictable also means an operator can look at what a failed job left.
+   */
+  const workspaceRoot = process.env.REVIEWOS_WORKSPACE ?? undefined
+
+  if (options.once) {
+    const outcome = await runOnce({
+      baseUrl: url,
+      token,
+      workspaceRoot,
+      say: line => console.log(line),
+    })
+
+    console.log(outcome ? `${outcome.state}: ${outcome.reason}` : 'nothing to run')
+    process.exit(0)
+  }
+
+  console.log('Waiting for work. Stop with ctrl-c.')
+
+  const outcomes = await runLoop({
     baseUrl: url,
     token,
+    maxJobs: options.jobs,
+    idleTimeoutMs: options.idleTimeout * 1000,
     workspaceRoot,
     say: line => console.log(line),
   })
 
-  console.log(outcome ? `${outcome.state}: ${outcome.reason}` : 'nothing to run')
-  process.exit(0)
+  console.log(`Ran ${outcomes.length} ${outcomes.length === 1 ? 'job' : 'jobs'}.`)
 }
-
-console.log('Waiting for work. Stop with ctrl-c.')
-
-const outcomes = await runLoop({
-  baseUrl: url,
-  token,
-  maxJobs: options.jobs,
-  idleTimeoutMs: options.idleTimeout * 1000,
-  workspaceRoot,
-  say: line => console.log(line),
-})
-
-console.log(`Ran ${outcomes.length} ${outcomes.length === 1 ? 'job' : 'jobs'}.`)

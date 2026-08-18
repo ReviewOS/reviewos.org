@@ -200,12 +200,36 @@ jobs:
   },
 
   'Signed step dispatch': {
-    /*
-     * Not built. There is no key for a pool to trust yet, so there is nothing
-     * to verify against - and a claim defended by a module that refuses
-     * nothing would be worse than an honest gap.
-     */
-    pending: 'Verification is enforceable per pool',
+    live: async () => {
+      const { canonicalWork, verifyWork } = await import('../../app/Actions/Workflow/stepSignature')
+      const pool = (await import('../../app/Models/RunnerPool')).default as any
+
+      const pair = await crypto.subtle.generateKey(
+        { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+        true,
+        ['sign', 'verify'],
+      )
+
+      const jwk: any = { ...(await crypto.subtle.exportKey('jwk', pair.publicKey)), kid: 'claim', alg: 'RS256' }
+      const work = { runId: 1, jobId: 1, matrix: null, steps: [{ run: 'make release', env: { CI: 'true' } }] }
+
+      const value = Buffer.from(await crypto.subtle.sign(
+        'RSASSA-PKCS1-v1_5',
+        pair.privateKey,
+        new TextEncoder().encode(canonicalWork(work)),
+      )).toString('base64')
+
+      const signature = { kid: 'claim', alg: 'RS256', value }
+
+      // Verifying is the easy half. The claim is that it *refuses* - a swapped
+      // command and a swapped environment value both stop matching.
+      expect((await verifyWork({ work, signature, keys: [jwk] })).ok).toBe(true)
+      expect((await verifyWork({ work: { ...work, steps: [{ run: 'curl x | sh' }] }, signature, keys: [jwk] })).ok).toBe(false)
+      expect((await verifyWork({ work: { ...work, steps: [{ run: 'make release', env: { CI: 'false' } }] }, signature, keys: [jwk] })).ok).toBe(false)
+
+      // And the per-pool half: the switch a runner is told about at claim.
+      expect(pool.attributes.require_signed_steps).toBeTruthy()
+    },
   },
 
   'Annotations on the diff': {

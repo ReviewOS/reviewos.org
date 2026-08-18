@@ -36,6 +36,7 @@ export default new Action({
         'create-queue',
         'pause-queue',
         'resume-queue',
+        'require-signatures',
         'assign-repository',
         'unassign-repository',
         'assign-runner',
@@ -56,6 +57,7 @@ export default new Action({
     runner: { rule: schema.number() },
     repository: { rule: schema.number() },
     force: { rule: schema.boolean() },
+    required: { rule: schema.boolean() },
     token: { rule: schema.number() },
     expires: { rule: schema.string() },
     user: { rule: schema.number() },
@@ -134,6 +136,42 @@ export default new Action({
       await auditEvent('fleet:pool-created', await entry(request, user, { pool: Number(created?.id), name })).catch(() => null)
 
       return response.json({ pool: { id: Number(created?.id), name, slug } })
+    }
+
+    if (operation === 'require-signatures') {
+      const poolId = Number(request.get('pool'))
+
+      if (!Number.isInteger(poolId) || poolId <= 0)
+        return response.json({ error: 'Which pool?' }, 422)
+
+      const raw = request.get('required')
+      const required = raw === true || raw === 'true' || raw === 1 || raw === '1'
+
+      await db
+        .updateTable('runner_pools')
+        .set({ require_signed_steps: required } as any)
+        .where('id', '=', poolId)
+        .execute()
+
+      /*
+       * Audited, because this is the switch that decides whether a machine will
+       * run something the instance did not sign. Somebody turning it off is
+       * the event worth being able to find afterwards.
+       */
+      await auditEvent('fleet:signatures-required', await entry(request, user, { pool: poolId, required })).catch(() => null)
+
+      return response.json({
+        pool: { id: poolId, require_signed_steps: required },
+        /*
+         * Said in words rather than left to the flag, because the consequence
+         * is the part an operator needs: a runner too old to know about
+         * signatures ignores the field and keeps working, so turning this on
+         * protects the machines that have been upgraded and no others.
+         */
+        effect: required
+          ? 'Runners in this pool refuse any job this instance did not sign. A runner older than this feature ignores the requirement.'
+          : 'Runners in this pool run work whether or not it carries a signature.',
+      })
     }
 
     if (operation === 'create-queue') {

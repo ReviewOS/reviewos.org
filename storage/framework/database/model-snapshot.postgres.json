@@ -10078,6 +10078,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "require_signed_steps",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -12155,10 +12164,111 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "instance_keys",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "purpose",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "oidc",
+            "maxLength": 40
+          },
+          {
+            "name": "kid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "algorithm",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "RS256",
+            "maxLength": 20
+          },
+          {
+            "name": "public_jwk",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "sealed_private",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "retired_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "instance_keys_kid_index",
+            "columns": [
+              "kid"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "instance_keys_purpose_index",
+            "columns": [
+              "purpose",
+              "retired_at"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "311911c775e55f0b9db30a94fcbd991ed73b55255fcdab638f7f1611ba9f3e09",
+  "hash": "0784c900e65f85b297b9c88228e49febbffa8dad008c38c524e524ed08c3459a",
   "dialect": "postgres",
-  "updatedAt": "2026-08-18T05:30:48.914Z"
+  "updatedAt": "2026-08-18T15:11:18.941Z"
 }

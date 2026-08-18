@@ -23,6 +23,7 @@ function queue(over: Partial<QueueFacts> = {}): QueueFacts {
     poolName: 'Deployment',
     pausedReason: null,
     repositoryIds: [],
+    requireSignedSteps: false,
     ...over,
   }
 }

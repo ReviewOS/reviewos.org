@@ -39,6 +39,14 @@ export interface QueueFacts {
    * created it.
    */
   repositoryIds: readonly number[]
+  /**
+   * Whether machines in this pool refuse work this instance did not sign.
+   *
+   * Carried on the queue facts because the claim already reads them, and the
+   * runner needs the answer at the same moment it receives the steps: a flag it
+   * has to fetch separately is one it can be talked out of fetching.
+   */
+  requireSignedSteps: boolean
 }
 
 export type FleetVerdict =

@@ -98,6 +98,11 @@ Required by the gate, and the section to read first.
 - **It does not make cache or artifact contents trustworthy.** They are attacker-controlled bytes.
   Restoring a cache is running whatever the last writer put there, which is why the keying and the
   trust rules below exist.
+- **It protects a runner from a control plane database somebody else can write to only where a pool
+  asks it to.** A row in `workflow_version_steps` is a command every runner would execute, and
+  [signed work](./signed-work.md) closes that - the private key is encrypted with `APP_KEY`, so a
+  writer with the database and not the process cannot mint a signature. It is off by default and
+  enforced per pool, which means an instance that never turned it on has the original exposure.
 - **It does not stop a run from consuming what it was given.** Limits bound the damage; they do not
   prevent a job from using its whole quota to be unhelpful.
 
