@@ -97,7 +97,31 @@ async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason
     if (!repository)
       return { ok: false, reason: 'repository not found' }
 
-    const diskPath = String(repository.disk_path ?? '')
+    /*
+     * Resolved from the owner and the name, not read out of `disk_path`.
+     *
+     * `disk_path` is an absolute path recorded when the row was written, and on
+     * a deploy-by-release layout that is a path inside whichever release was
+     * current at the time - `.../releases/f246ff0/storage/repos/...`. The
+     * release is replaced on the next deploy, so the column is stale within
+     * hours and the fetch fails with "not a git repository" against a
+     * directory that genuinely no longer exists, while the repository sits
+     * untouched in shared storage.
+     *
+     * Everything else in this codebase already resolves the path this way -
+     * `findRepositoryByPath`, `repositoryForView`, the git wire routes - which
+     * is why repository *pages* worked while only the sync failed. This is the
+     * one reader that trusted the column.
+     */
+    const { repositoryPath } = await import('../Actions/Git/storage')
+    const { ownerHandleFor } = await import('../Actions/Repo/owner')
+    const ownerHandle = await ownerHandleFor(repository)
+    const resolved = ownerHandle ? repositoryPath(ownerHandle, String(repository.name)) : { ok: false as const }
+
+    if (!resolved.ok || !resolved.path)
+      return { ok: false, reason: 'repository path did not resolve' }
+
+    const diskPath = resolved.path
 
     /*
      * The credential, which the git side never had.
