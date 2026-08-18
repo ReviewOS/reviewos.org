@@ -85,7 +85,8 @@ export default new Action({
     const number = Number(request.get('number'))
     const pullRequest = await db
       .selectFrom('pull_requests')
-      .select(['id', 'author_id', 'head_sha', 'state'])
+      // `title` among them: the notification below reads it.
+      .select(['id', 'author_id', 'head_sha', 'state', 'title'])
       .where('repository_id', '=', repository.id)
       .where('number', '=', number)
       .executeTakeFirst()

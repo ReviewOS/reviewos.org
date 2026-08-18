@@ -107,7 +107,7 @@ export async function forkApprovalFacts(input: {
 
   const repository = await db
     .selectFrom('repositories')
-    .select(['id', 'visibility', 'owner_type', 'owner_id'])
+    .selectAll()
     .where('id', '=', input.repositoryId)
     .executeTakeFirst()
     .catch(() => undefined)
@@ -132,9 +132,9 @@ export async function forkApprovalFacts(input: {
 
   const canPush = repository
     ? repositoryViewAccess(
-        repository as Parameters<typeof repositoryViewAccess>[0],
+        repository,
         Number(input.actorId),
-        await permissionOn(repository as Parameters<typeof permissionOn>[0], Number(input.actorId)),
+        await permissionOn(repository, Number(input.actorId)),
       ).can('repository:push')
     : false
 

@@ -62,7 +62,9 @@ export default new Action({
     const number = Number(request.get('number'))
     const pullRequest = await db
       .selectFrom('pull_requests')
-      .select(['id', 'state', 'author_id'])
+      // `title` among them: the notification below reads it, and selecting
+      // without it made every review request arrive with an empty title.
+      .select(['id', 'state', 'author_id', 'title'])
       .where('repository_id', '=', repository.id)
       .where('number', '=', number)
       .executeTakeFirst()

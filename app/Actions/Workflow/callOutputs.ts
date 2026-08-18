@@ -45,7 +45,7 @@ function outputsOf(stored: unknown): Record<string, string> {
  * declares `value: ${{ jobs.build.result }}` is asking a reasonable question.
  */
 export function jobsContext(
-  rows: ReadonlyArray<{ job_id: unknown, state: unknown, outputs: unknown }>,
+  rows: ReadonlyArray<Record<string, unknown>>,
   prefix: string,
 ): Record<string, { outputs: Record<string, string>, result: string }> {
   const context: Record<string, { outputs: Record<string, string>, result: string }> = {}

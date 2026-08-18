@@ -145,7 +145,7 @@ function toRecord(row: any): LockRecord {
 }
 
 /** The actor a lock is taken by, from whoever the request authenticated as. */
-export function actorFrom(user: { id: unknown, name?: unknown, handle?: unknown } | null, mayForce = false): Actor | undefined {
+export function actorFrom(user: { id: unknown, name?: unknown, handle?: unknown } | null | undefined, mayForce = false): Actor | undefined {
   if (!user || user.id === undefined || user.id === null)
     return undefined
 

@@ -104,15 +104,34 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
     disk_path: String(repository.disk_path),
     description: repository.description ? String(repository.description) : '',
     parent_id: repository.parent_id === null || repository.parent_id === undefined ? null : Number(repository.parent_id),
-    // Nulls pass through: a row written before the columns existed reads as
-    // allowing everything, and `allowedStrategies` knows that rule.
-    allow_merge_commit: repository.allow_merge_commit ?? null,
-    allow_squash_merge: repository.allow_squash_merge ?? null,
-    allow_rebase_merge: repository.allow_rebase_merge ?? null,
+    /*
+     * Nulls pass through: a row written before the columns existed reads as
+     * allowing everything, and `allowedStrategies` knows that rule. Anything
+     * that is neither a boolean nor null is read as null for the same reason -
+     * a value this cannot make sense of must not read as a *decision*.
+     */
+    allow_merge_commit: flag(repository.allow_merge_commit),
+    allow_squash_merge: flag(repository.allow_squash_merge),
+    allow_rebase_merge: flag(repository.allow_rebase_merge),
     default_merge_strategy: repository.default_merge_strategy ? String(repository.default_merge_strategy) : null,
-    delete_branch_on_merge: repository.delete_branch_on_merge ?? null,
-    count_machine_approvals: repository.count_machine_approvals ?? null,
+    delete_branch_on_merge: flag(repository.delete_branch_on_merge),
+    count_machine_approvals: flag(repository.count_machine_approvals),
   }
+}
+
+/**
+ * A nullable boolean column, as the row actually carries it.
+ *
+ * SQLite answers 0/1, Postgres answers a boolean, and a column added by a later
+ * migration is null on every older row. Null stays null - it means "this
+ * repository never said" - and everything else becomes the boolean it stands
+ * for.
+ */
+function flag(value: unknown): boolean | null {
+  if (value === null || value === undefined)
+    return null
+
+  return typeof value === 'boolean' ? value : Boolean(Number(value))
 }
 
 /**

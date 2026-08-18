@@ -35,6 +35,7 @@
   // Keeping this list tight is the single biggest lever on check time.
   "include": [
     "./types/**/*.d.ts",
+    "../../database/types.d.ts",
     "../../app/**/*.ts",
     "../../config/**/*.ts",
     "../../resources/**/*.ts",

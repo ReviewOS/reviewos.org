@@ -111,12 +111,17 @@ export async function deliverJobNotify(input: { jobId: number, state: string }):
      * code, and a stranger who can open a pull request should not be able to
      * make this instance message a maintainer on demand.
      */
-    if (run.trusted === false || run.trusted === 0)
+    if (run.trusted === false)
       return 0
 
+    /*
+     * The columns the access check reads, and it wants the row's real shape:
+     * `permissionOn` and `repositoryViewAccess` are the same functions every
+     * page asks, and they take a repository rather than a bag of unknowns.
+     */
     const repository = await db
       .selectFrom('repositories')
-      .select(['id', 'name', 'visibility', 'owner_type', 'owner_id'])
+      .selectAll()
       .where('id', '=', Number(run.repository_id))
       .executeTakeFirst()
 
@@ -136,16 +141,12 @@ export async function deliverJobNotify(input: { jobId: number, state: string }):
       .execute()
 
     /*
-     * Three shapes, because this builder answers with all of them - the same
-     * reading the scheduled sweep needs for its compare-and-swap.
+     * How many rows it changed, which the types now say outright. This used to
+     * read three different shapes to find out, because an update answered
+     * `any` - the guess was defensive and it was the only thing that could be
+     * written.
      */
-    const rows = typeof claimed === 'number'
-      ? claimed
-      : Array.isArray(claimed)
-        ? (claimed[0]?.numUpdatedRows ?? claimed.length)
-        : claimed?.numUpdatedRows
-
-    if (Number(rows ?? 0) === 0)
+    if (claimed === 0)
       return 0
 
     const { ownerHandleFor } = await import('../Repo/owner')
