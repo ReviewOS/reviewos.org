@@ -30,6 +30,8 @@ import { fetchAction } from './actionCache'
 import { checkPolicy, defaultPolicy, parseActionRef } from './actionRef'
 import type { ActionDefinition } from './actionFile'
 import { inputEnvironment, missingInputs, parseActionFile } from './actionFile'
+import type { CheckoutOptions } from './checkout'
+import { checkoutPlan } from './checkout'
 import { CommandReader } from './commands'
 import type { ServiceRequest } from './services'
 import { resolveServices, serviceEnvironment, waitForPort } from './services'
@@ -277,6 +279,9 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
        */
       baseUrl: options.baseUrl,
       cloneToken: options.cloneToken,
+      // What the job asked for: a depth, sparse paths, submodules, LFS, or no
+      // checkout at all.
+      options: (job.checkout ?? undefined) as CheckoutOptions | undefined,
       onOutput: (text, stream) => send(text, stream),
     })
 
@@ -1362,6 +1367,8 @@ async function checkoutCode(input: {
   workspace: string
   baseUrl?: string
   cloneToken?: string
+  /** What the workflow asked for, when it asked. */
+  options?: CheckoutOptions
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
 }): Promise<{ ok: boolean, reason: string }> {
   if (!input.fullName || !input.sha)
@@ -1391,14 +1398,24 @@ async function checkoutCode(input: {
   if (!onHost && !input.baseUrl)
     return { ok: false, reason: `no repository on this host at ${bare}, and nowhere to clone it from` }
 
-  await input.onOutput(`::group::Checkout\n${input.fullName} at ${input.sha.slice(0, 8)}\n`, 'stdout')
+  const plan = checkoutPlan({ source, sha: input.sha, onHost, options: input.options })
+
+  if (plan.commands.length === 0) {
+    // A job that asked for no code at all - one that calls an API, or unblocks
+    // something. Said out loud, because an empty workspace with no explanation
+    // is the first thing somebody blames when a step cannot find a file.
+    await input.onOutput(`::group::Checkout\nskipped: the workflow asked for no checkout\n::endgroup::\n`, 'stdout')
+
+    return { ok: true, reason: 'no checkout was asked for' }
+  }
+
+  await input.onOutput(`::group::Checkout\n${input.fullName} at ${input.sha.slice(0, 8)} (${plan.summary})\n`, 'stdout')
 
   const clone = await runStep({
-    command: onHost
-      ? `git clone --no-hardlinks --quiet '${source}' . && git checkout --quiet '${input.sha}'`
-      // A shallow fetch of the one commit, which is what a remote runner
-      // actually needs: the history is the instance's, not this machine's.
-      : `git init --quiet . && git remote add origin '${source}' && git fetch --quiet --depth 1 origin '${input.sha}' && git checkout --quiet FETCH_HEAD`,
+    // Joined with `&&`: each step of a checkout depends on the one before it,
+    // and a sparse-checkout that failed followed by a fetch that succeeded is a
+    // build against the wrong tree with a green checkout above it.
+    command: plan.commands.join(' && '),
     cwd: input.workspace,
     environment: {
       PATH: process.env.PATH ?? '/usr/bin:/bin',

@@ -438,6 +438,12 @@ export default new Action({
          */
         artifact_paths: artifactPathsOfJob(jobRow?.settings),
         /*
+         * What to put in the workspace, and how much of it. Null when the job
+         * said nothing, which is the whole history and everything in it - the
+         * behaviour every workflow written before this key had.
+         */
+        checkout: checkoutOfJob(jobRow?.settings),
+        /*
          * `vars`, resolved across the four levels at claim time.
          *
          * Resolved here rather than sent as four sets for the runner to merge:
@@ -567,6 +573,20 @@ export default new Action({
     })
   },
 })
+
+/** A job's `checkout:` options, out of its settings column. Null when it named none. */
+function checkoutOfJob(settings: unknown): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+
+    return parsed?.checkout && typeof parsed.checkout === 'object' ? parsed.checkout : null
+  }
+  catch {
+    // Unreadable settings mean the default checkout, which is the one that
+    // works for every job rather than the one that skips the code.
+    return null
+  }
+}
 
 /**
  * The secrets a job asked for, out of its settings column.

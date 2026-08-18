@@ -1225,3 +1225,115 @@ describe('artifact-paths', () => {
     expect(logs.map(row => String(row.content ?? '')).join('')).not.toContain('could not publish')
   }, 180_000)
 })
+
+describe('checkout options', () => {
+  /**
+   * One job with the given `reviewos.checkout:` settings, run for real.
+   *
+   * The unit tests hold the commands; this holds what only git can be wrong
+   * about - that they work against a real bare repository on disk.
+   */
+  async function runWithCheckout(name: string, checkout: unknown, command: string): Promise<string> {
+    const { runOnce } = await import('../../app/Actions/Runner/localExecutor')
+
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_versions.id', 'desc')
+      .executeTakeFirst()
+
+    const definition: any = await db.insertInto('workflow_version_jobs').values({
+      workflow_version_id: Number(version.id),
+      job_id: name,
+      name,
+      position: 40,
+      runs_on: 'ubuntu-latest',
+    }).returning(['id']).executeTakeFirst()
+
+    await db.insertInto('workflow_version_steps').values({
+      workflow_version_job_id: Number(definition.id),
+      position: 0,
+      name: 'Look',
+      command,
+    } as any).execute()
+
+    const run: any = await db.insertInto('workflow_runs').values({
+      workflow_version_id: Number(version.id),
+      repository_id: created.repositoryId,
+      number: 800 + Math.floor(Math.random() * 100),
+      state: 'queued',
+      event: 'push',
+      event_ref: `refs/heads/${name}`,
+      head_sha: created.headSha,
+      definition_sha: created.headSha,
+      trusted: true,
+    }).returning(['id']).executeTakeFirst()
+
+    const job: any = await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: name,
+      name,
+      position: 0,
+      state: 'queued',
+      runs_on: 'ubuntu-latest',
+      settings: JSON.stringify({ checkout }),
+    }).returning(['id']).executeTakeFirst()
+
+    await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' })
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .select(['content'])
+      .where('workflow_job_id', '=', Number(job.id))
+      .orderBy('sequence')
+      .execute()
+
+    return logs.map(row => String(row.content ?? '')).join('')
+  }
+
+  test('a shallow checkout has one commit of history, not the repository\'s', async () => {
+    if (!available)
+      return
+
+    /*
+     * The trap: git ignores `--depth` on a local-path clone and hardlinks the
+     * whole object store instead, printing a warning most people never read. If
+     * the `file://` handling were wrong this would quietly say more than one.
+     */
+    const text = await runWithCheckout('shallow', { depth: 1 }, 'git rev-list --count HEAD')
+
+    expect(text).toContain('1')
+    expect(text).not.toContain('fatal')
+  }, 180_000)
+
+  test('a sparse checkout has only the paths it named', async () => {
+    if (!available)
+      return
+
+    const text = await runWithCheckout('sparse', { sparse: ['.reviewos/workflows'] }, 'ls -A .reviewos')
+
+    /*
+     * The directory it named is there and its sibling is not, which is the
+     * whole point on a repository where a suite needs one package out of
+     * twelve.
+     *
+     * Files at the *root* are always present - that is cone mode's rule, not
+     * ours, and it is why this looks one level down rather than at the top.
+     */
+    expect(text).toContain('workflows')
+    expect(text).not.toContain('actions')
+  }, 180_000)
+
+  test('and a job that asked for no checkout gets an empty workspace, with the reason', async () => {
+    if (!available)
+      return
+
+    const text = await runWithCheckout('nocode', { skip: true }, 'ls -A | wc -l')
+
+    // Said out loud, because an empty workspace with no explanation is the
+    // first thing somebody blames when a step cannot find a file.
+    expect(text).toContain('asked for no checkout')
+  }, 180_000)
+})

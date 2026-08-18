@@ -463,6 +463,60 @@ on a run page.
 
 **Actions has no equivalent** beyond `fail-fast` inside a matrix.
 
+### `checkout` - how the code gets here
+
+```yaml
+  test:
+    runs-on: ubuntu-latest
+    reviewos:
+      checkout:
+        depth: 1
+        sparse: [packages/api]
+        submodules: recursive
+        lfs: true
+    steps: [{ run: bun test }]
+
+  notify:
+    runs-on: ubuntu-latest
+    reviewos:
+      checkout: false          # this job needs no code at all
+    steps: [{ run: ./tell-somebody }]
+```
+
+The step every job has and nobody writes, and the one that decides how long half
+of them take: a monorepository with ten years of history behind a two-minute
+suite spends most of its wall clock cloning. Actions makes you write
+`actions/checkout` with four `with:` keys; this is the same four words on the
+job that already exists.
+
+| Option | Means |
+|---|---|
+| `depth` | Commits of history to fetch. `1` is the commit itself; `0` is all of it, and is the default |
+| `sparse` | Only these directories, cone mode |
+| `submodules` | `true` for the top level, `recursive` for theirs too. Always shallow |
+| `lfs` | Pull LFS objects rather than leaving pointer files |
+| `skip` | No checkout at all. `checkout: false` says the same thing |
+
+Two things are worth knowing before you use these.
+
+**A depth on the instance's own machine clones through `file://`.** git ignores
+`--depth` on a local-path clone - it hardlinks the object store instead - and
+prints a warning most people never read. A workflow that asked for a shallow
+clone and silently got ten years of history is an afternoon of debugging, so
+this instance uses the URL form when a depth is asked for.
+
+**Cone mode always keeps the files at the repository root.** That is git's rule
+rather than this instance's: `sparse: [packages/api]` gives you `packages/api`
+and the top-level files, not `packages/api` alone.
+
+There is no `clean`, and its absence is a property of this runner rather than an
+omission: every job gets a workspace of its own, so there is nothing left over
+to clean.
+
+Anything malformed is refused rather than ignored - a checkout that quietly did
+something other than what the file said is a build against the wrong tree, which
+is the one failure where the logs look fine.
+
 ### `group` - a label
 
 ```yaml

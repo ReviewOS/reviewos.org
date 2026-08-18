@@ -272,7 +272,7 @@ describe('the rules that keep the kinds apart', () => {
 
     expect(message).toContain('`pause` is not a `reviewos:` key')
 
-    for (const key of ['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents', 'parallelism', 'artifact-paths', 'secrets', 'cancel-on-build-failing', 'skip', 'soft-fail', 'branches'])
+    for (const key of ['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents', 'parallelism', 'artifact-paths', 'secrets', 'cancel-on-build-failing', 'checkout', 'skip', 'soft-fail', 'branches'])
       expect(message).toContain(`\`${key}\``)
   })
 })
@@ -699,6 +699,108 @@ describe('cancel-on-build-failing', () => {
 
     expect(quiet!.cancelOnBuildFailing).toBe(false)
     expect(stringy!.cancelOnBuildFailing).toBe(false)
+  })
+})
+
+describe('checkout options', () => {
+  test('read into the settings the runner acts on', () => {
+    const [build] = jobs(`jobs:
+  build:
+    runs-on: ubuntu-latest
+    reviewos:
+      checkout:
+        depth: 1
+        submodules: recursive
+        lfs: true
+        sparse: [packages/api]
+    steps:
+      - run: make
+`)
+
+    expect(build!.checkout).toEqual({ depth: 1, submodules: 'recursive', lfs: true, sparse: ['packages/api'] })
+    expect((build!.settings as any).checkout.depth).toBe(1)
+  })
+
+  test('`checkout: false` is the short way to ask for no code at all', () => {
+    // Which is what a job that only calls an API wants, and reads better than
+    // `checkout: { skip: true }`.
+    const [ping] = jobs(`jobs:
+  ping:
+    runs-on: ubuntu-latest
+    reviewos:
+      checkout: false
+    steps:
+      - run: curl https://example.com/deploy
+`)
+
+    expect(ping!.checkout).toEqual({ skip: true })
+  })
+
+  test('saying nothing is the default, and is not the same as an empty mapping', () => {
+    const [quiet, named] = jobs(`jobs:
+  quiet:
+    runs-on: ubuntu-latest
+    steps:
+      - run: make
+  named:
+    runs-on: ubuntu-latest
+    reviewos:
+      checkout: {}
+    steps:
+      - run: make
+`)
+
+    expect(quiet!.checkout).toBeNull()
+    expect(named!.checkout).toEqual({})
+  })
+
+  test('an option nobody has is refused, and the message says why there is no `clean`', () => {
+    /*
+     * `clean` is the obvious next guess, and its absence is a property of this
+     * runner rather than an omission: every job gets a workspace of its own, so
+     * there is nothing to clean.
+     */
+    const message = errorsIn(`jobs:
+  build:
+    runs-on: ubuntu-latest
+    reviewos:
+      checkout:
+        clean: true
+    steps:
+      - run: make
+`).join(' ')
+
+    expect(message).toContain('is not a `checkout:` option')
+    expect(message).toContain('fresh workspace')
+  })
+
+  test('and a malformed depth, submodules or sparse path is refused rather than ignored', () => {
+    // A checkout that silently did something other than what the file said is a
+    // build against the wrong tree, which is the failure where the logs look
+    // fine.
+    expect(errorsIn(`jobs:
+  a:
+    runs-on: ubuntu-latest
+    reviewos:
+      checkout: { depth: shallow }
+    steps: [{ run: make }]
+`).join(' ')).toContain('checkout.depth')
+
+    expect(errorsIn(`jobs:
+  a:
+    runs-on: ubuntu-latest
+    reviewos:
+      checkout: { submodules: sometimes }
+    steps: [{ run: make }]
+`).join(' ')).toContain('checkout.submodules')
+
+    expect(errorsIn(`jobs:
+  a:
+    runs-on: ubuntu-latest
+    reviewos:
+      checkout: { sparse: [/etc] }
+    steps: [{ run: make }]
+`).join(' ')).toContain('not a path in the repository')
   })
 })
 

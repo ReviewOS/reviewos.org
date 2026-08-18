@@ -251,6 +251,15 @@ export interface WorkflowJob {
    * costs no extra read and no column.
    */
   cancelOnBuildFailing: boolean
+
+  /**
+   * `reviewos.checkout:` - how the code gets into the workspace.
+   *
+   * `null` when the job said nothing, which means the default: the whole
+   * history, no submodules, no LFS, everything. Rides in the settings blob to
+   * the runner, which is the only thing that can act on it.
+   */
+  checkout: Record<string, unknown> | null
 }
 
 /**
@@ -288,6 +297,8 @@ interface ExtensionResult {
   secrets: string[] | null
   /** `cancel-on-build-failing:` - stop this job once the run is going to fail. */
   cancelOnBuildFailing: boolean
+  /** `checkout:` - what the runner should put in the workspace, and how much of it. */
+  checkout: Record<string, unknown> | null
 }
 
 export interface WorkflowService {
@@ -510,6 +521,9 @@ const EXTENSION_KEYS = new Set([
   // Stop this job when the run is already going to fail, for the long suite
   // nobody is going to read the result of.
   'cancel-on-build-failing',
+  // How the code gets here: depth, submodules, LFS, sparse paths, or nothing
+  // at all. The step every job has and nobody writes.
+  'checkout',
   // Buildkite's step attributes, in the three shapes people actually reach for.
   'skip',
   'soft-fail',
@@ -835,14 +849,14 @@ function extensionOf(
   const raw = asRecord(body.reviewos)
 
   if (!raw)
-    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0, artifactPaths: [], secrets: null, cancelOnBuildFailing: false }
+    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0, artifactPaths: [], secrets: null, cancelOnBuildFailing: false, checkout: null }
 
   for (const key of Object.keys(raw)) {
     if (!EXTENSION_KEYS.has(key)) {
       errors.push({
         line: lineOf(source, key, jobLine),
         message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
-        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `cancel-on-build-failing`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
+        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `cancel-on-build-failing`, `checkout`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
       })
     }
   }
@@ -869,6 +883,7 @@ function extensionOf(
   // here is read by nothing yet, and treating `${{ inputs.x }}` as truthy text
   // would cancel a job on the strength of a string.
   const cancelOnBuildFailing = raw['cancel-on-build-failing'] === true
+  const checkout = checkoutFrom(raw.checkout, id, jobLine, source, errors)
 
   const skip = skipFrom(raw.skip)
   const softFail = softFailFrom(raw['soft-fail'])
@@ -884,11 +899,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout }
 
   if (ifChanged.length > 0) {
     /*
@@ -955,6 +970,7 @@ function extensionOf(
       artifactPaths: [],
       secrets: null,
       cancelOnBuildFailing: false,
+      checkout: null,
     }
   }
 
@@ -973,6 +989,7 @@ function extensionOf(
       artifactPaths: [],
       secrets: null,
       cancelOnBuildFailing: false,
+      checkout: null,
     }
   }
 
@@ -990,6 +1007,7 @@ function extensionOf(
     artifactPaths: [],
     secrets: null,
     cancelOnBuildFailing: false,
+    checkout: null,
   }
 }
 
@@ -1148,6 +1166,7 @@ function settingsOf(
   artifactPaths: string[] = [],
   secrets: string[] | null = null,
   cancelOnBuildFailing = false,
+  checkout: Record<string, unknown> | null = null,
 ): Record<string, unknown> {
   const settings: Record<string, unknown> = {}
 
@@ -1170,6 +1189,12 @@ function settingsOf(
 
   if (cancelOnBuildFailing)
     settings.cancelOnBuildFailing = true
+
+  // Stored even when empty: `checkout: {}` is a job that named the key and
+  // asked for the defaults, and the runner reads the presence of the object
+  // rather than guessing from its contents.
+  if (checkout !== null)
+    settings.checkout = checkout
 
   return settings
 }
@@ -1281,6 +1306,135 @@ function priorityFrom(
   }
 
   return Math.max(-1000, Math.min(1000, priority))
+}
+
+/** The deepest history a workflow may ask to skip fetching. Beyond this, ask for all of it. */
+export const MAX_CHECKOUT_DEPTH = 10_000
+
+/**
+ * `reviewos.checkout:` - what goes into the workspace, and how much of it.
+ *
+ * The step every job has and nobody writes, and the one that decides how long
+ * half of them take: a monorepository with ten years of history behind a
+ * two-minute suite spends most of its wall clock cloning. Actions makes you
+ * write `actions/checkout` with four `with:` keys; this is the same four words
+ * on the job that already exists.
+ *
+ * Every key is refused rather than ignored when it is malformed. A checkout
+ * that silently did something other than what the file said is a build against
+ * the wrong tree, which is the one failure mode where the logs look fine.
+ */
+function checkoutFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): Record<string, unknown> | null {
+  if (value === undefined || value === null)
+    return null
+
+  // `checkout: false` is the short way to say "do not check anything out",
+  // which is what a job that only calls an API wants and reads better than
+  // `checkout: { skip: true }`.
+  if (value === false)
+    return { skip: true }
+
+  if (value === true)
+    return {}
+
+  const raw = asRecord(value)
+
+  if (!raw) {
+    errors.push({
+      line: lineOf(source, 'checkout', jobLine),
+      message: `\`checkout:\` in job \`${id}\` is neither a mapping nor \`false\``,
+      fix: 'Write `checkout: { depth: 1 }`, or `checkout: false` for a job that needs no code.',
+    })
+
+    return null
+  }
+
+  const known = new Set(['skip', 'depth', 'submodules', 'lfs', 'sparse'])
+  const options: Record<string, unknown> = {}
+
+  for (const key of Object.keys(raw)) {
+    if (!known.has(key)) {
+      errors.push({
+        line: lineOf(source, key, jobLine),
+        message: `\`${key}\` is not a \`checkout:\` option, in job \`${id}\``,
+        /*
+         * `clean` is named here because it is the obvious next guess and its
+         * absence is a property of this runner rather than an omission: every
+         * job gets a workspace of its own, so there is nothing to clean.
+         */
+        fix: 'The options are `skip`, `depth`, `submodules`, `lfs` and `sparse`. Every job here gets a fresh workspace, so there is no `clean`.',
+      })
+    }
+  }
+
+  if (raw.skip !== undefined)
+    options.skip = raw.skip === true
+
+  if (raw.depth !== undefined) {
+    const depth = Number(raw.depth)
+
+    if (!Number.isInteger(depth) || depth < 0 || depth > MAX_CHECKOUT_DEPTH) {
+      errors.push({
+        line: lineOf(source, 'depth', jobLine),
+        message: `\`checkout.depth:\` in job \`${id}\` is not a whole number between 0 and ${MAX_CHECKOUT_DEPTH}`,
+        fix: 'Write `depth: 1` for the commit itself, or `depth: 0` for the whole history.',
+      })
+    }
+    else {
+      options.depth = depth
+    }
+  }
+
+  if (raw.submodules !== undefined) {
+    if (raw.submodules === true || raw.submodules === false || raw.submodules === 'recursive') {
+      options.submodules = raw.submodules
+    }
+    else {
+      errors.push({
+        line: lineOf(source, 'submodules', jobLine),
+        message: `\`checkout.submodules:\` in job \`${id}\` is not \`true\`, \`false\` or \`recursive\``,
+        fix: 'Write `submodules: true` for the top level, or `submodules: recursive` for theirs too.',
+      })
+    }
+  }
+
+  if (raw.lfs !== undefined)
+    options.lfs = raw.lfs === true
+
+  if (raw.sparse !== undefined) {
+    const paths = Array.isArray(raw.sparse) ? raw.sparse : [raw.sparse]
+    const cleaned: string[] = []
+
+    for (const one of paths) {
+      const path = String(one ?? '').trim()
+
+      if (!path)
+        continue
+
+      if (path.startsWith('/') || path.split('/').includes('..')) {
+        errors.push({
+          line: lineOf(source, 'sparse', jobLine),
+          message: `\`checkout.sparse:\` in job \`${id}\` names \`${path}\`, which is not a path in the repository`,
+          fix: 'Name directories inside the repository, like `packages/api`.',
+        })
+
+        continue
+      }
+
+      cleaned.push(path)
+    }
+
+    if (cleaned.length > 0)
+      options.sparse = cleaned
+  }
+
+  return options
 }
 
 /**
@@ -2034,6 +2188,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       artifactPaths: extension.artifactPaths,
       secretNames: extension.secrets,
       cancelOnBuildFailing: extension.cancelOnBuildFailing,
+      checkout: extension.checkout,
     })
   }
 

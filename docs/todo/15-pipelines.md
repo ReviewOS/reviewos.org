@@ -1342,8 +1342,20 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       something failed, and a run-wide default would stop exactly the jobs people lean on hardest
       on the day a build breaks. A failure the workflow tolerates does not count, and a running job
       is asked to stop rather than declared stopped.
-- [ ] `checkout` options: submodules, clone depth, LFS, sparse paths, clean behavior, and skipping
+- [x] `checkout` options: submodules, clone depth, LFS, sparse paths, clean behavior, and skipping
       checkout entirely
+
+      `reviewos: { checkout: { depth: 1, sparse: [packages/api] } }`, and `checkout: false` for a job
+      that needs no code. The commands are built as data in `Runner/checkout.ts` rather than
+      assembled inside the executor, because a checkout is a shell command built from user input and
+      quoting tested by running builds is quoting nobody tested.
+
+      **A depth on this instance's own machine clones through `file://`**: git ignores `--depth` on
+      a local-path clone, hardlinks the whole object store, and prints a warning most people never
+      read - so a workflow that asked for a shallow clone would silently get ten years of history.
+
+      No `clean`, and that is a property of this runner rather than an omission: every job gets a
+      workspace of its own. The parser says so in the error rather than leaving somebody to guess.
 - [x] `if_changed`, path-glob gating evaluated against the run's diff. The monorepository primitive,
       and the one that decides whether a big repository is usable here at all.
 

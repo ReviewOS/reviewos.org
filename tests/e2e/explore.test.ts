@@ -7,6 +7,15 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
+/*
+ * A language nobody else wrote in.
+ *
+ * The index counts every public repository on the instance, so a fixed name
+ * makes the count assertion below depend on what previous runs left behind -
+ * which is how it came to expect 1 and find 32 on a development database.
+ */
+const LANGUAGE = `Zig${Buffer.from(crypto.getRandomValues(new Uint8Array(4))).toString('hex')}`
+
 const created = {
   ownerHandle: '',
   ownerId: 0,
@@ -116,7 +125,7 @@ beforeAll(async () => {
     for (const repositoryId of [created.publicId, created.privateId]) {
       await db.insertInto('repository_languages').values({
         repository_id: repositoryId,
-        language: 'Zig',
+        language: LANGUAGE,
         bytes: 1000,
         percent: 100,
       }).execute()
@@ -181,7 +190,7 @@ describe('what explore never shows', () => {
       ...answer.trending,
       ...answer.recently_active,
       ...(await explore({ topic: 'forge' })).repositories,
-      ...(await explore({ language: 'Zig' })).repositories,
+      ...(await explore({ language: LANGUAGE })).repositories,
     ]
 
     expect(everywhere.some((one: any) => one.name === created.privateName)).toBe(false)
@@ -272,23 +281,31 @@ describe('browsing by', () => {
     if (!available)
       return
 
-    const answer = await explore({ language: 'Zig' })
+    const answer = await explore({ language: LANGUAGE })
     const entry = answer.repositories.find((one: any) => one.name === created.publicName)
 
     expect(entry).toBeDefined()
-    expect(entry.language).toBe('Zig')
+    expect(entry.language).toBe(LANGUAGE)
   }, 60_000)
 
   test('and the language index counts only public repositories', async () => {
     if (!available)
       return
 
-    // Two repositories are written in Zig and one of them is private. An index
-    // that counted both would advertise the existence of the private one by
-    // arithmetic.
-    const zig = (await explore()).languages.find((one: any) => one.language === 'Zig')
+    /*
+     * Two repositories are written in this language and one of them is
+     * private. An index that counted both would advertise the existence of the
+     * private one by arithmetic.
+     *
+     * Read through `languageIndex` with the ceiling lifted rather than through
+     * the endpoint: the endpoint returns the thirty largest languages, and a
+     * fixture language with one repository in it is not one of those on an
+     * instance with anything else on it.
+     */
+    const { languageIndex } = await import('../../app/Actions/Explore/explore')
+    const zig = (await languageIndex(1000)).find(one => one.language === LANGUAGE)
 
-    expect(zig.repositories).toBe(1)
+    expect(zig?.repositories).toBe(1)
   }, 60_000)
 })
 
@@ -316,7 +333,7 @@ describe('the page', () => {
     if (!available)
       return
 
-    const answer = await fetch(`http://127.0.0.1:${port}/explore?language=Zig`, { headers: { Accept: 'text/html' } })
+    const answer = await fetch(`http://127.0.0.1:${port}/explore?language=${LANGUAGE}`, { headers: { Accept: 'text/html' } })
     const html = await answer.text()
 
     expect(answer.status).toBe(200)
