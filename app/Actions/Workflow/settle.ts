@@ -20,7 +20,7 @@
 import { db } from '@stacksjs/database'
 import type { GateDecision } from './environments'
 import { decideGate, environmentRules } from './environments'
-import { createJobsForRun, releaseGroup } from './dispatch'
+import { createJobsForRun, dispatchWorkflowRun, releaseGroup } from './dispatch'
 import type { JobState } from './states'
 import { cancelOnFailingCasualties, effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
 
@@ -426,6 +426,20 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
      * that never happens rather than a deploy that waits.
      */
     if (['succeeded', 'failed', 'cancelled'].includes(state)) {
+      /*
+       * And the workflows that were waiting for *this workflow* to finish.
+       *
+       * `on: workflow_run` is the trigger for the second half of a pipeline
+       * that must not be editable by whoever wrote the first half - a fork's
+       * pull request can change the build and cannot change what publishes it.
+       * It was stored on every version and read by nothing.
+       *
+       * Errors are swallowed: a run that has just concluded must record its
+       * conclusion whatever a dependent workflow does, and a branch protection
+       * rule waiting on this one is not the thing to hold up.
+       */
+      await dispatchWorkflowRun({ runId, activity: 'completed' }).catch(() => null)
+
       const finished: any = await db
         .selectFrom('workflow_runs')
         .select(['repository_id', 'concurrency_group'])

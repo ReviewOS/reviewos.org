@@ -8235,6 +8235,58 @@
               "cancel"
             ],
             "enumTypeName": "workflow_versions_intermediate_type"
+          },
+          {
+            "name": "on_repository_dispatch",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "repository_dispatch_types",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 500
+          },
+          {
+            "name": "on_workflow_run",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
+          },
+          {
+            "name": "workflow_run_workflows",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "workflow_run_types",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 200
+          },
+          {
+            "name": "workflow_run_branches",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -12464,7 +12516,7 @@
       }
     ]
   },
-  "hash": "bf5f735098966ec56dbf11f432fb366fd7cc5a1df5ea59bd56a4ea3b4fd212e5",
+  "hash": "f9518c13f1420b042fbc4bfdf9aec4f6fa0ce48582c88ff03377c0528cfd7742",
   "dialect": "postgres",
-  "updatedAt": "2026-08-18T15:59:24.642Z"
+  "updatedAt": "2026-08-18T16:09:09.632Z"
 }

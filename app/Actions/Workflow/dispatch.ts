@@ -36,6 +36,7 @@ import { subjectStartsRun } from './triggers'
 import { callScope, MAX_CALL_DEPTH, resolveCall } from './reusable'
 import type { PullRequestEvent, PushEvent } from './triggers'
 import { pullRequestStartsRun, pushStartsRun } from './triggers'
+import { repositoryDispatchStartsRun, workflowRunStartsRun } from './triggers'
 
 export interface DispatchResult {
   /** Runs created by this delivery, not runs that exist. */
@@ -77,6 +78,14 @@ async function currentVersions(repositoryId: number): Promise<any[]> {
       'workflow_versions.issue_comment_types as issue_comment_types',
       'workflow_versions.on_release as on_release',
       'workflow_versions.release_types as release_types',
+      // Started by a program, and started by another workflow finishing. Both
+      // were stored on every version and read by nothing.
+      'workflow_versions.on_repository_dispatch as on_repository_dispatch',
+      'workflow_versions.repository_dispatch_types as repository_dispatch_types',
+      'workflow_versions.on_workflow_run as on_workflow_run',
+      'workflow_versions.workflow_run_workflows as workflow_run_workflows',
+      'workflow_versions.workflow_run_types as workflow_run_types',
+      'workflow_versions.workflow_run_branches as workflow_run_branches',
       'workflow_versions.concurrency_group as concurrency_group',
       'workflow_versions.cancel_in_progress as cancel_in_progress',
       'workflow_versions.intermediate as intermediate',
@@ -264,6 +273,264 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
       await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
       await holdForGroup({
         repositoryId: input.repositoryId,
+        runId,
+        group,
+        cancelInProgress: version.cancel_in_progress === true,
+        intermediate: String(version.intermediate ?? 'run'),
+      })
+
+      result.created.push(runId)
+    }
+    catch (error) {
+      if (isDuplicate(error))
+        result.duplicates++
+      else
+        throw error
+    }
+  }
+
+  return result
+}
+
+export interface RepositoryDispatchInput {
+  repositoryId: number
+  /** What the caller called it: `deploy-staging`, `dependency-updated`. */
+  eventType: string
+  /** Whatever the caller sent with it, verbatim, for `github.event.client_payload`. */
+  clientPayload?: Record<string, unknown> | null
+  actorId?: number | null
+}
+
+/**
+ * Create the runs a `repository_dispatch` should start.
+ *
+ * The trigger for everything that happens somewhere else: an external
+ * deployment pipeline saying it finished, a package index saying a dependency
+ * moved, a nightly job on somebody's laptop. Actions has it, this instance
+ * recorded it as recognised-but-inert, and a workflow that named it never ran.
+ *
+ * Recorded against the default branch and trusted, like the issue triggers: the
+ * definition is the registered one and the caller supplied no code, only a
+ * name and a payload.
+ */
+export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput): Promise<DispatchResult> {
+  const result: DispatchResult = { created: [], duplicates: 0, skipped: [] }
+
+  const repository: any = await db
+    .selectFrom('repositories')
+    .select(['id', 'default_branch'])
+    .where('id', '=', input.repositoryId)
+    .executeTakeFirst()
+
+  if (!repository)
+    return result
+
+  const versions = newestPerWorkflow(await currentVersions(input.repositoryId))
+  const ref = `refs/heads/${repository.default_branch || 'main'}`
+  const payload = input.clientPayload && typeof input.clientPayload === 'object' ? input.clientPayload : null
+
+  for (const version of versions) {
+    const decision = repositoryDispatchStartsRun(version, input.eventType)
+
+    if (!decision.run) {
+      if (!decision.reason.includes('does not trigger'))
+        result.skipped.push({ versionId: Number(version.id), reason: decision.reason })
+
+      continue
+    }
+
+    const sha = String(version.source_sha ?? '')
+
+    const context: ConcurrencyContext = {
+      workflow: String(version.workflow_name || version.workflow_path || ''),
+      eventName: 'repository_dispatch',
+      ref,
+      sha,
+    }
+
+    const group = resolveGroup(version.concurrency_group, context)
+
+    try {
+      const run: any = await db
+        .insertInto('workflow_runs')
+        .values({
+          workflow_version_id: Number(version.id),
+          repository_id: input.repositoryId,
+          number: await nextNumber(input.repositoryId),
+          state: 'queued',
+          event: 'repository_dispatch',
+          /*
+           * The event type and the clock in the ref.
+           *
+           * The redelivery index is on (version, ref, head, event), and a
+           * program calling this twice for two different things means two runs
+           * - the same call for the same thing twice usually does as well,
+           * because a caller retrying is a caller that did not hear the first
+           * answer.
+           */
+          event_ref: `${ref}#repository_dispatch/${input.eventType}/${Date.now()}`,
+          head_sha: sha,
+          definition_sha: sha,
+          trusted: true,
+          actor_id: input.actorId ?? null,
+          concurrency_group: group,
+          // Handed to the job as `github.event.client_payload`, which is the
+          // whole reason a caller sends one.
+          dispatch_inputs: payload ? JSON.stringify({ client_payload: payload, event_type: input.eventType }) : null,
+        } as any)
+        .returning(['id'])
+        .executeTakeFirst()
+
+      const runId = Number(run?.id)
+
+      await createJobs(runId, Number(version.id), context)
+      await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
+      await holdForGroup({
+        repositoryId: input.repositoryId,
+        runId,
+        group,
+        cancelInProgress: version.cancel_in_progress === true,
+        intermediate: String(version.intermediate ?? 'run'),
+      })
+
+      result.created.push(runId)
+    }
+    catch (error) {
+      if (isDuplicate(error))
+        result.duplicates++
+      else
+        throw error
+    }
+  }
+
+  return result
+}
+
+/**
+ * Create the runs a finished run should start.
+ *
+ * `workflow_run` exists rather than being expressed with `needs:` because of
+ * trust: the second workflow can be one a fork's pull request may not touch, so
+ * a build produced by an untrusted run is published by something the fork could
+ * not edit. That only holds if the second run is judged on its own terms, which
+ * is why it is recorded **trusted** and against the default branch - it is the
+ * repository's own workflow, started by this instance.
+ *
+ * **A `workflow_run` run does not start another one.** Actions bounds the same
+ * loop with a depth limit; refusing outright is simpler to explain and there is
+ * no honest use for the second hop that `needs:` does not already cover.
+ */
+export async function dispatchWorkflowRun(input: {
+  runId: number
+  /** `completed` or `requested`. */
+  activity?: string
+}): Promise<DispatchResult> {
+  const result: DispatchResult = { created: [], duplicates: 0, skipped: [] }
+  const activity = input.activity ?? 'completed'
+
+  const finished: any = await db
+    .selectFrom('workflow_runs')
+    .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+    .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    .select([
+      'workflow_runs.id as id',
+      'workflow_runs.repository_id as repository_id',
+      'workflow_runs.event as event',
+      'workflow_runs.event_ref as event_ref',
+      'workflow_runs.number as number',
+      'workflow_runs.state as state',
+      'workflow_runs.conclusion_reason as conclusion_reason',
+      'workflows.name as workflow_name',
+      'workflows.path as workflow_path',
+    ])
+    .where('workflow_runs.id', '=', input.runId)
+    .executeTakeFirst()
+
+  if (!finished)
+    return result
+
+  if (String(finished.event) === 'workflow_run')
+    return result
+
+  const repository: any = await db
+    .selectFrom('repositories')
+    .select(['id', 'default_branch'])
+    .where('id', '=', Number(finished.repository_id))
+    .executeTakeFirst()
+
+  if (!repository)
+    return result
+
+  const versions = newestPerWorkflow(await currentVersions(Number(finished.repository_id)))
+  const ref = `refs/heads/${repository.default_branch || 'main'}`
+
+  const triggering = {
+    workflow: String(finished.workflow_name || finished.workflow_path || ''),
+    activity,
+    ref: String(finished.event_ref ?? ref).split('#')[0] ?? ref,
+  }
+
+  for (const version of versions) {
+    const decision = workflowRunStartsRun(version, triggering)
+
+    if (!decision.run) {
+      if (!decision.reason.includes('does not trigger'))
+        result.skipped.push({ versionId: Number(version.id), reason: decision.reason })
+
+      continue
+    }
+
+    const sha = String(version.source_sha ?? '')
+
+    const context: ConcurrencyContext = {
+      workflow: String(version.workflow_name || version.workflow_path || ''),
+      eventName: 'workflow_run',
+      ref,
+      sha,
+    }
+
+    const group = resolveGroup(version.concurrency_group, context)
+
+    try {
+      const run: any = await db
+        .insertInto('workflow_runs')
+        .values({
+          workflow_version_id: Number(version.id),
+          repository_id: Number(finished.repository_id),
+          number: await nextNumber(Number(finished.repository_id)),
+          state: 'queued',
+          event: 'workflow_run',
+          // The run that started this one, so two finishes of the same
+          // workflow are two runs rather than one redelivered.
+          event_ref: `${ref}#workflow_run/${finished.id}/${activity}`,
+          head_sha: sha,
+          definition_sha: sha,
+          trusted: true,
+          concurrency_group: group,
+          dispatch_inputs: JSON.stringify({
+            workflow_run: {
+              id: Number(finished.id),
+              name: triggering.workflow,
+              run_number: Number(finished.number ?? 0),
+              /*
+               * The run's state is its conclusion here: there is no separate
+               * column, and inventing one for this payload would be a second
+               * answer to "how did it go" that could disagree with the first.
+               */
+              conclusion: String(finished.state ?? ''),
+              event: String(finished.event ?? ''),
+            },
+          }),
+        } as any)
+        .returning(['id'])
+        .executeTakeFirst()
+
+      const runId = Number(run?.id)
+
+      await createJobs(runId, Number(version.id), context)
+      await supersede(Number(finished.repository_id), runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
+      await holdForGroup({
+        repositoryId: Number(finished.repository_id),
         runId,
         group,
         cancelInProgress: version.cancel_in_progress === true,

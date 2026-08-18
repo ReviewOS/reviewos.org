@@ -383,6 +383,28 @@ export interface WorkflowTriggers {
   issues: TriggerFilter | null
   issueComment: TriggerFilter | null
   release: TriggerFilter | null
+  /**
+   * `repository_dispatch`: a run started by a program rather than by anything
+   * that happened here.
+   *
+   * The trigger a deployment pipeline outside this instance reaches for, and
+   * the one an integration uses to say "the thing you were waiting for has
+   * happened". Its filter is `types:`, matched against the `event_type` the
+   * caller sends.
+   */
+  repositoryDispatch: TriggerFilter | null
+  /**
+   * `workflow_run`: a workflow that starts when another one finishes.
+   *
+   * `workflows:` names which, by workflow name, and `types:` is `completed` or
+   * `requested`. The reason it exists rather than being expressed with `needs:`
+   * is trust: the second workflow can be one a fork's pull request may not
+   * touch, which is how a build from an untrusted run gets published by
+   * something the fork could not edit.
+   */
+  workflowRun: TriggerFilter | null
+  /** The workflow names a `workflow_run` trigger waits for, as written. */
+  workflowRunWorkflows: string[]
   /** Cron expressions, unvalidated here beyond being strings. */
   schedule: string[]
   /** Whether a person or the API may start this workflow directly. */
@@ -591,6 +613,9 @@ const STEP_KEYS = new Set([
 /** The events this instance can start a run from today. */
 const DISPATCHED_EVENTS = new Set([
   'push', 'pull_request', 'pull_request_target', 'schedule', 'workflow_dispatch',
+  // Started by a program rather than by anything that happened here, and by
+  // another workflow finishing. Both were recognised and inert.
+  'repository_dispatch', 'workflow_run',
   // The issue and release triggers, which this instance already emits events
   // for. A workflow that labels a new issue or publishes on a release is one of
   // the two things people automate first, and there was no reason beyond
@@ -610,7 +635,7 @@ const DISPATCHED_EVENTS = new Set([
  */
 const KNOWN_EVENTS = new Set([
   ...DISPATCHED_EVENTS,
-  'workflow_call', 'workflow_run', 'repository_dispatch',
+  'workflow_call',
   'release', 'create', 'delete', 'fork', 'gollum', 'watch', 'public',
   'issues', 'issue_comment', 'label', 'milestone', 'project', 'project_card',
   'project_column', 'discussion', 'discussion_comment', 'status',
@@ -736,6 +761,9 @@ function triggersFrom(value: unknown): WorkflowTriggers {
     issues: null,
     issueComment: null,
     release: null,
+    repositoryDispatch: null,
+    workflowRun: null,
+    workflowRunWorkflows: [],
     schedule: [],
     dispatch: false,
     dispatchInputs: [],
@@ -759,6 +787,10 @@ function triggersFrom(value: unknown): WorkflowTriggers {
       triggers.issueComment = filter
     else if (name === 'release')
       triggers.release = filter
+    else if (name === 'repository_dispatch')
+      triggers.repositoryDispatch = filter
+    else if (name === 'workflow_run')
+      triggers.workflowRun = filter
     else if (name === 'workflow_dispatch')
       triggers.dispatch = true
     else if (name === 'workflow_call')
@@ -797,6 +829,19 @@ function triggersFrom(value: unknown): WorkflowTriggers {
       triggers.callInputs = dispatchInputsFrom(call.inputs)
       triggers.callOutputs = callOutputsFrom(call.outputs)
       triggers.callSecrets = callSecretsFrom(call.secrets)
+      continue
+    }
+
+    if (name === 'workflow_run') {
+      const body_ = asRecord(body) ?? {}
+
+      triggers.workflowRun = filterFrom(body)
+      /*
+       * `workflows:` is by name rather than by path, because that is what
+       * Actions matches on and what a person writing the second workflow
+       * knows: they have read the first one's `name:`, not its file path.
+       */
+      triggers.workflowRunWorkflows = asStringList(body_.workflows)
       continue
     }
 
@@ -2269,6 +2314,12 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
     || triggers.issues !== null
     || triggers.issueComment !== null
     || triggers.release !== null
+    // And the two that start a run from outside this repository's own history:
+    // a program calling in, and another workflow finishing. Both were added to
+    // the parser and left out of this list, which refused every file whose only
+    // trigger was one of them - the same omission the subject triggers had.
+    || triggers.repositoryDispatch !== null
+    || triggers.workflowRun !== null
     || triggers.schedule.length > 0
     || triggers.dispatch
     || triggers.reusable

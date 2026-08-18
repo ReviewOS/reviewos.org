@@ -790,6 +790,13 @@ route.post('/repos/workflow-runs/cancel-job', 'Actions/Workflow/CancelWorkflowJo
 // `workflow_dispatch`: the trigger with no event behind it. Write access, since
 // starting a run spends the instance's runners.
 route.post('/repos/workflows/dispatch', 'Actions/Workflow/DispatchWorkflowAction').middleware('auth')
+/*
+ * `repository_dispatch`: the trigger for something that happened somewhere
+ * else. The caller chooses a name and a payload and nothing else - the
+ * definition is the registered one on the default branch, which is what makes
+ * this safe to hand to a program with a narrow token.
+ */
+route.post('/repos/dispatches', 'Actions/Workflow/RepositoryDispatchAction').middleware('auth')
 
 /*
  * Turning a workflow off without deleting it.

@@ -5063,6 +5063,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/dispatches
+   */
+  postReposDispatches(input?: { body?: { "owner"?: string; "repo"?: string; "event_type"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/dispatches", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/repos/environments
    */
   postReposEnvironments(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "list" | "create" | "update" | "delete" | "add-reviewer" | "remove-reviewer"; "name"?: string; "wait_minutes"?: number; "branches"?: string; "description"?: string; "reviewer"?: string } }, options?: RequestOptions): Promise<ApiResult<unknown>> {

@@ -172,7 +172,7 @@ written down here so it does not get relitigated:
 
 ### Workflow syntax
 
-- [ ] `on:` triggers: `push`, `pull_request`, `pull_request_target`, `issues`, `issue_comment`,
+- [x] `on:` triggers: `push`, `pull_request`, `pull_request_target`, `issues`, `issue_comment`,
       `release`, `schedule`, `workflow_dispatch`, `workflow_call`, `workflow_run`, `repository_dispatch`,
       with `branches`, `branches-ignore`, `tags`, `paths`, `paths-ignore`, and `types` filters
 
@@ -236,6 +236,31 @@ written down here so it does not get relitigated:
       The subject goes in the run's ref - `refs/heads/main#issues/7/opened` - because the redelivery
       index is on (version, ref, head, event) and every issue event in a repository shares a head
       commit. Without it the second issue would look like the first one redelivered.
+
+      **`repository_dispatch` and `workflow_run` dispatch too**, which completes the list. Both had
+      been stored on every version since the parser learned to read them, and a workflow whose only
+      trigger was one of them looked registered, looked correct, and would never do anything.
+
+      `repository_dispatch` is the trigger for something that happened somewhere else: a deployment
+      pipeline saying it finished, a package index saying a dependency moved.
+      `POST /api/repos/dispatches` takes an `event_type` and a `client_payload` and nothing else -
+      not the ref, not the workflow, not which repository the payload claims to be about - which is
+      what makes it safe to hand to a program with a narrow token. The payload reaches the job as
+      `github.event.client_payload`, capped at 64KB because it is stored on every run it starts. Two
+      calls are two runs: the event type and the clock go in the ref, since the redelivery index is
+      on (version, ref, head, event) and every one of these shares a head commit.
+
+      `workflow_run` is the second half of a pipeline that must not be editable by whoever wrote the
+      first half - a fork's pull request can change the build and cannot change what publishes it.
+      Two deliberate differences from Actions. **`workflows:` is required**: a workflow that started
+      after every other workflow in the repository would start after itself, and the first thing
+      anybody would notice is a loop. And **a `workflow_run` run does not start another one** -
+      Actions bounds the same loop with a depth limit, and there is no honest use for the second hop
+      that `needs:` does not already cover.
+
+      Writing them turned up the same omission the subject triggers had: both were added to the
+      parser and left out of its "does this `on:` name anything I recognise" list, so every file
+      whose only trigger was one of them was refused as naming no event at all.
 
       The rest are recorded as recognised-but-not-dispatched.
 - [x] `jobs:` with `needs:`, `outputs:` (**resolved by the runner and handed to dependent jobs as

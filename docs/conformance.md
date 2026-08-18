@@ -7,7 +7,7 @@ is accepted and does nothing has not been implemented - the fact that it has not
 hidden. So every key here has a status and a sentence, including the ones that are missing and
 the ones that are deliberately different.
 
-35 keys behave as Actions does, 12 differ on purpose, 6 are not implemented yet, and 1 is refused.
+36 keys behave as Actions does, 13 differ on purpose, 4 are not implemented yet, and 1 is refused.
 
 Generated from the conformance table.
 
@@ -25,6 +25,7 @@ These do what Actions does. A workflow using only these keys behaves the same he
 | `on.issues` | on | Starts runs on opened and closed, with `types`. |
 | `on.issue_comment` | on | Starts runs when a comment is created, with `types`. |
 | `on.workflow_call` | on | Declares inputs, outputs and secrets, and makes the workflow callable by another in the same repository. |
+| `on.repository_dispatch` | on | Started by `POST /api/repos/dispatches` with an `event_type` and a `client_payload`, filtered by `types`. Write access, since starting a run spends the instance's runners. |
 | `name` | workflow | Names the workflow everywhere it appears. |
 | `env` | workflow | Inherited by every job and step, with the narrowest level winning. |
 | `defaults.run` | workflow | `shell` and `working-directory` are inherited by steps; nothing declared anywhere leaves the choice to the runner. |
@@ -60,6 +61,7 @@ These work, and deliberately not the way Actions does. Every one is a decision y
 | Key | Where | What this instance does |
 | --- | --- | --- |
 | `on.release` | on | Defaults to `published` only, where Actions defaults to every activity type. A draft release starting a deployment is the surprise nobody wants; naming `types` opts back in. |
+| `on.workflow_run` | on | Starts a run when a named workflow finishes, with `types` and `branches`. Two differences, both deliberate: `workflows:` is required, because a workflow that started after every other one would start after itself; and a `workflow_run` run does not start another - Actions bounds the loop with a depth limit, and there is no honest use for the second hop that `needs:` does not cover. |
 | `reviewos.intermediate` | workflow | The one extension at the top level: `skip` lets a run that has started finish and drops the ones that have not, which is what people usually mean when three commits land in a minute and which neither Actions nor Gitea offers. `cancel` is `concurrency.cancel-in-progress` said in one word, and `run` is the default because it is Actions' behaviour. See [extensions](./extensions.md). |
 | `permissions` | workflow | Mapped onto this instance's token scopes, and the default is read-only rather than depending on an organization setting, so a workflow behaves the same on every instance. `write-all` does not grant administration. |
 | `jobs.<id>.strategy.max-parallel` | job | Honoured at claim time by counting the combinations already running, which is a check rather than a lock: two runners polling in the same instant can both take the last slot. Making it exact would mean a lock held across every claim on the instance. |
@@ -78,8 +80,6 @@ These are read and do nothing yet. A workflow using one is told - on its run, or
 
 | Key | Where | What this instance does |
 | --- | --- | --- |
-| `on.workflow_run` | on | Recognised and recorded; no run is started, and the workflow page says so. |
-| `on.repository_dispatch` | on | Recognised and recorded; there is no endpoint to send one yet. |
 | `run-name` | workflow | Accepted and not yet used; runs are named for their workflow. |
 | `jobs.<id>.container` | job | Parsed and refused at run time: this instance has no container isolation yet, and pretending otherwise would run the steps on the host. If what the image was for is a *toolchain* rather than isolation - `container: node:20` usually is - a pantry dependency file in the repository gets that without an image at all, and the runner puts it on `PATH`. Isolation is a separate machine; see [extensions](./extensions.md). |
 | `jobs.<id>.services` | job | Parsed; no service containers are started, and a job that needs one is told rather than failing on a closed port. |

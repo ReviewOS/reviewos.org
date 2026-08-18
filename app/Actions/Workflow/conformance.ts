@@ -61,8 +61,13 @@ export const CONFORMANCE: ConformanceEntry[] = [
     behaviour: 'Defaults to `published` only, where Actions defaults to every activity type. A draft release starting a deployment is the surprise nobody wants; naming `types` opts back in.',
   },
   { key: 'on.workflow_call', level: 'on', status: 'supported', behaviour: 'Declares inputs, outputs and secrets, and makes the workflow callable by another in the same repository.' },
-  { key: 'on.workflow_run', level: 'on', status: 'unimplemented', behaviour: 'Recognised and recorded; no run is started, and the workflow page says so.' },
-  { key: 'on.repository_dispatch', level: 'on', status: 'unimplemented', behaviour: 'Recognised and recorded; there is no endpoint to send one yet.' },
+  {
+    key: 'on.workflow_run',
+    level: 'on',
+    status: 'differs',
+    behaviour: 'Starts a run when a named workflow finishes, with `types` and `branches`. Two differences, both deliberate: `workflows:` is required, because a workflow that started after every other one would start after itself; and a `workflow_run` run does not start another - Actions bounds the loop with a depth limit, and there is no honest use for the second hop that `needs:` does not cover.',
+  },
+  { key: 'on.repository_dispatch', level: 'on', status: 'supported', behaviour: 'Started by `POST /api/repos/dispatches` with an `event_type` and a `client_payload`, filtered by `types`. Write access, since starting a run spends the instance\'s runners.' },
 
   // ---------------------------------------------------------------- workflow
   { key: 'name', level: 'workflow', status: 'supported', behaviour: 'Names the workflow everywhere it appears.' },

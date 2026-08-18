@@ -13652,6 +13652,33 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/dispatches": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "event_type"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "event_type"?: string; "created"?: Array<number>; "note"?: string } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/environments": {
     get?: never
     put?: never

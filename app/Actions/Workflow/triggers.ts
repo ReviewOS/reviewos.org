@@ -450,3 +450,96 @@ export function subjectStartsRun(
 
   return { run: true, reason: `${event} ${activity}` }
 }
+
+/**
+ * `repository_dispatch`: a run started by a program.
+ *
+ * The filter is the `event_type` the caller sends, matched against `types:`.
+ * A workflow that names none takes every one, which is Actions' rule.
+ */
+export interface RepositoryDispatchVersionTriggers {
+  on_repository_dispatch?: boolean | null
+  repository_dispatch_types?: string | null
+}
+
+export function repositoryDispatchStartsRun(
+  version: RepositoryDispatchVersionTriggers,
+  eventType: string,
+): TriggerDecision {
+  if (!version.on_repository_dispatch)
+    return { run: false, reason: 'the workflow does not trigger on repository_dispatch' }
+
+  const declared = patternsFrom(version.repository_dispatch_types)
+
+  if (declared.length > 0 && !declared.includes(eventType))
+    return { run: false, reason: `\`${eventType}\` is not one of the event types this workflow runs on` }
+
+  return { run: true, reason: `repository_dispatch ${eventType}` }
+}
+
+/**
+ * `workflow_run`: this workflow starts when another one finishes.
+ *
+ * Matched on the triggering workflow's **name**, because that is what Actions
+ * matches and what the person writing the second workflow has read - they know
+ * the first one is called `Build`, not that it lives at
+ * `.github/workflows/build-and-cache.yml`.
+ */
+export interface WorkflowRunVersionTriggers {
+  on_workflow_run?: boolean | null
+  workflow_run_workflows?: string | null
+  workflow_run_types?: string | null
+  workflow_run_branches?: string | null
+}
+
+export interface TriggeringRun {
+  /** The finished run's workflow name. */
+  workflow: string
+  /** `completed` or `requested`. */
+  activity: string
+  /** The finished run's ref, for `branches:`. */
+  ref: string
+}
+
+/** Actions' default when a `workflow_run` names no types. */
+const WORKFLOW_RUN_DEFAULT_TYPES = ['completed']
+
+export function workflowRunStartsRun(
+  version: WorkflowRunVersionTriggers,
+  triggering: TriggeringRun,
+): TriggerDecision {
+  if (!version.on_workflow_run)
+    return { run: false, reason: 'the workflow does not trigger on workflow_run' }
+
+  const named = patternsFrom(version.workflow_run_workflows)
+
+  /*
+   * A `workflow_run` naming no workflows is refused rather than read as "any".
+   *
+   * Actions requires `workflows:`, and the reason is worth keeping: a workflow
+   * that started after *every* other workflow in the repository would start
+   * after itself, and the first thing anybody would notice is a loop.
+   */
+  if (named.length === 0)
+    return { run: false, reason: 'this `workflow_run` names no workflows, so nothing can start it' }
+
+  if (!named.includes(triggering.workflow))
+    return { run: false, reason: `\`${triggering.workflow}\` is not one of the workflows this one waits for` }
+
+  const types = patternsFrom(version.workflow_run_types)
+  const allowed = types.length > 0 ? types : WORKFLOW_RUN_DEFAULT_TYPES
+
+  if (!allowed.includes(triggering.activity))
+    return { run: false, reason: `workflow_run ${triggering.activity} is not one of the activity types this workflow runs on` }
+
+  const branches = patternsFrom(version.workflow_run_branches)
+
+  if (branches.length > 0) {
+    const name = triggering.ref.replace(/^refs\/heads\//, '')
+
+    if (!branches.some(pattern => globMatches(pattern, name)))
+      return { run: false, reason: `the run that finished was on \`${name}\`, which this workflow does not watch` }
+  }
+
+  return { run: true, reason: `workflow_run ${triggering.activity} of ${triggering.workflow}` }
+}

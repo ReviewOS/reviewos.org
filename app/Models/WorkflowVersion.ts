@@ -380,6 +380,68 @@ export default defineModel({
     },
 
     /**
+     * `repository_dispatch`: started by a program rather than by anything that
+     * happened here.
+     *
+     * The trigger a pipeline outside this instance reaches for. Its filter is
+     * the `event_type` the caller sends, and a workflow that names no types
+     * takes every one - which is Actions' rule and the one people expect.
+     */
+    on_repository_dispatch: {
+      order: 49,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    repository_dispatch_types: {
+      order: 50,
+      fillable: true,
+      validation: { rule: schema.string().max(500) },
+      factory: () => null,
+    },
+
+    /**
+     * `workflow_run`: this workflow starts when another one finishes.
+     *
+     * Why it exists rather than being expressed with `needs:`: the second
+     * workflow can be one a fork's pull request may not touch, so a build from
+     * an untrusted run is published by something the fork could not edit.
+     */
+    on_workflow_run: {
+      order: 51,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    /** Which workflows it waits for, by name, one per line. */
+    workflow_run_workflows: {
+      order: 52,
+      fillable: true,
+      validation: { rule: schema.string().max(1000) },
+      factory: () => null,
+    },
+
+    /** `completed` or `requested`, one per line. Empty means `completed`. */
+    workflow_run_types: {
+      order: 53,
+      fillable: true,
+      validation: { rule: schema.string().max(200) },
+      factory: () => null,
+    },
+
+    /** `branches:` on the *triggering* run's ref, one per line. */
+    workflow_run_branches: {
+      order: 54,
+      fillable: true,
+      validation: { rule: schema.string().max(1000) },
+      factory: () => null,
+    },
+
+    /**
      * What a caller may pass this workflow, and what it gets back, as JSON.
      *
      * Only meaningful on a version whose `on:` names `workflow_call`. Stored
