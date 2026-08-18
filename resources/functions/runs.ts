@@ -154,3 +154,14 @@ import { searchLog as searchLogImpl } from '../../app/Actions/Workflow/logSearch
  * matters says `error TS2345`.
  */
 export const searchLog = searchLogImpl
+
+/**
+ * Which pools somebody maintains.
+ *
+ * Here so the token screen can offer the `fleet` scope to the people it means
+ * anything for. A scope on that form that nobody in the room can use is a line
+ * a reader has to decide about every time they issue a token.
+ */
+import { poolsMaintainedBy as poolsMaintainedByImpl } from '../../app/Actions/Runner/fleet'
+
+export const poolsMaintainedBy = poolsMaintainedByImpl

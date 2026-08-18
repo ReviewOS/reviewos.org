@@ -4,9 +4,11 @@ import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { hashToken } from './authenticate'
-import { runnerLifecycle } from './fleet'
+import { poolsMaintainedBy, runnerLifecycle } from './fleet'
 import { auditFrom } from '../Git/audit'
 import { currentActor } from '../Identity/lookup'
+import { fineGrainedToken } from '../Repo/authorize'
+import { tokenAllowsOnInstance } from '../../TokenScopes'
 
 /**
  * The fleet: pools, queues, and which machines serve what.
@@ -118,6 +120,33 @@ export default new Action({
        */
       if (['create-pool', 'add-maintainer', 'remove-maintainer'].includes(operation))
         return response.json({ error: 'No such endpoint' }, 404)
+    }
+
+    /*
+     * What the *credential* is for, after what the person is for.
+     *
+     * Last, and the order is the point: a caller with no standing over this
+     * pool is answered 404 above, before anything here can tell them the
+     * endpoint is real. What is left is somebody who may do this and is holding
+     * a token that was not issued for it - and they get 403 with the scope
+     * named, because hiding it from a reader who can see the fleet page is a
+     * lie they can disprove in one click.
+     *
+     * The gap this closes: a token issued to a deployment script, carrying
+     * `contents` and nothing else, reached every verb here the moment its owner
+     * was an instance administrator. The fleet belongs to no repository, so no
+     * repository scope was ever consulted. `fleet` is implied by nothing, which
+     * is what lets "let this script pause a queue" be said on its own.
+     *
+     * A browser session is unaffected: there is no token to narrow.
+     */
+    const token = await fineGrainedToken(request)
+
+    if (token && token !== 'rejected' && !tokenAllowsOnInstance(token.grants, instanceAbilityFor(operation))) {
+      return response.json({
+        error: 'This token does not carry the fleet permission this needs',
+        reason: `\`${operation}\` needs \`fleet\` at ${INSTANCE_LEVEL_WORDS[instanceAbilityFor(operation)]}. Issue a token with it, or run this from the fleet page.`,
+      }, 403)
     }
 
     if (operation === 'list')
@@ -734,17 +763,6 @@ async function entry(request: any, user: any, detail: Record<string, unknown>): 
   }
 }
 
-/** The pools this person may manage. */
-async function poolsMaintainedBy(userId: number): Promise<number[]> {
-  const rows = await db
-    .selectFrom('runner_pool_maintainers')
-    .select(['runner_pool_id'])
-    .where('user_id', '=', userId)
-    .execute()
-
-  return rows.map(row => Number(row.runner_pool_id))
-}
-
 /**
  * Which pool an operation is about.
  *
@@ -794,3 +812,42 @@ async function poolOf(request: any, operation: string): Promise<number | null> {
   // repository contents.
   return operation === 'list' ? -1 : null
 }
+
+/**
+ * Which fleet power an operation is.
+ *
+ * Three tiers, and the line between them is what somebody gets back if they are
+ * wrong. Reading is the fleet as a dashboard sees it. Operating is the day the
+ * machines misbehave: pausing, draining, taking one out - all of it reversible
+ * by the same person a minute later. Administering is the boundary work -
+ * creating a pool, appointing who maintains it, minting a registration token,
+ * deciding which plugins may run - where being wrong hands somebody else a
+ * power rather than costing an hour of build capacity.
+ *
+ * An unknown operation is administered rather than operated. A verb added below
+ * and forgotten here should fail closed, and this is the one place that choice
+ * can be made once.
+ */
+function instanceAbilityFor(operation: string): 'fleet:view' | 'fleet:operate' | 'fleet:administer' {
+  if (operation === 'list')
+    return 'fleet:view'
+
+  const operating = [
+    'pause-queue',
+    'resume-queue',
+    'create-queue',
+    'assign-repository',
+    'unassign-repository',
+    'create-runner',
+    'stop-runner',
+  ]
+
+  return operating.includes(operation) ? 'fleet:operate' : 'fleet:administer'
+}
+
+/** The level each ability is, in the words the token screen uses. */
+const INSTANCE_LEVEL_WORDS = {
+  'fleet:view': 'read',
+  'fleet:operate': 'write',
+  'fleet:administer': 'admin',
+} as const

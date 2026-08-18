@@ -115,7 +115,7 @@ beforeAll(async () => {
      * deliberately asks for nothing more: a CI integration that may say a
      * commit passed may say which tests did.
      */
-    for (const [scope, level] of [['checks', 'write'], ['contents', 'read']] as Array<[string, string]>)
+    for (const [scope, level] of [['checks', 'write'], ['contents', 'read'], ['actions', 'admin'], ['actions_logs', 'read']] as Array<[string, string]>)
       await db.insertInto('access_token_permissions').values({ access_token_id: Number(tokenRow?.id), scope, level }).execute()
 
     created.token = token.token

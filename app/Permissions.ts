@@ -76,6 +76,32 @@ export const REPOSITORY_ABILITIES = {
    * is exactly backwards - stopping is safe and approving is not.
    */
   'workflow:approve': 'write',
+  /*
+   * Reading runs and reading logs are two abilities, not one.
+   *
+   * A run's shape - which jobs, which states, how long - is what a status
+   * dashboard needs, and it says nothing a reader of the repository could not
+   * infer. A log is the machine's output: it carries file paths, environment,
+   * failed assertions, and every value a step decided to print. Redaction
+   * covers the secrets the instance knows about and cannot cover the ones a
+   * script constructed. So "watch my builds" and "read everything my builds
+   * printed" are separable here, and a token asks for them separately.
+   *
+   * Both are read at the repository level: they are already gated behind seeing
+   * the repository at all, and a private repository's runs are private with it.
+   */
+  'workflow:read': 'read',
+  'workflow:logs': 'read',
+  /*
+   * Turning a workflow off is maintenance, not a write.
+   *
+   * A disabled workflow is a check that stops appearing on pull requests:
+   * nothing fails, nothing is red, and the branch rule waiting on it is the
+   * only thing that notices. That is a way to route around required checks
+   * without touching a protection rule, so it sits with `branch:protect` rather
+   * than with dispatching.
+   */
+  'workflow:manage': 'maintain',
   // Managing the label and milestone *sets* is a heavier power than applying
   // them: deleting a label strips it from every issue that carried it, and
   // deleting a milestone empties it. Applying one stays at triage above.

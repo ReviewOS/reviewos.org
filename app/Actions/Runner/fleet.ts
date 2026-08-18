@@ -164,3 +164,22 @@ export function runnerLifecycle(runner: RunnerObservation, now: Date = new Date(
 
   return runner.holdsJob ? 'running' : 'idle'
 }
+
+/**
+ * The pools this person may manage.
+ *
+ * Here rather than in the endpoint that first needed it: the token screen asks
+ * the same question, to decide whether the `fleet` scope is worth offering to
+ * the reader, and a second copy of this query is a second place for "maintains"
+ * to come to mean something slightly different.
+ */
+export async function poolsMaintainedBy(userId: number): Promise<number[]> {
+  const rows = await db
+    .selectFrom('runner_pool_maintainers')
+    .select(['runner_pool_id'])
+    .where('user_id', '=', userId)
+    .execute()
+
+  return rows.map(row => Number(row.runner_pool_id))
+}
+

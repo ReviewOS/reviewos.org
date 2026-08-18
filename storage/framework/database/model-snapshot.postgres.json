@@ -238,6 +238,9 @@
               "webhooks",
               "administration",
               "checks",
+              "actions",
+              "actions_logs",
+              "fleet",
               "members",
               "organization_administration",
               "billing"
@@ -12558,7 +12561,7 @@
       }
     ]
   },
-  "hash": "0af0279575737c8f326d01efbc9baf97e0cd9a6a4a676be8158ca9f1400f7e8d",
+  "hash": "f0f5e0fc893095643b9a151fc2710db3b096b64f817ab7997995d7014e6588a3",
   "dialect": "postgres",
-  "updatedAt": "2026-08-18T16:53:03.440Z"
+  "updatedAt": "2026-08-18T20:23:33.187Z"
 }

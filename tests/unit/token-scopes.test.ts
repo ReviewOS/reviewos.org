@@ -16,11 +16,13 @@ import {
   normalizeGrants,
   ORGANIZATION_ABILITY_SCOPES,
   ORGANIZATION_SCOPES,
+  INSTANCE_SCOPES,
   REPOSITORY_ABILITY_SCOPES,
   REPOSITORY_SCOPES,
   resolveExpiry,
   tokenAllows,
   tokenAllowsInOrganization,
+  tokenAllowsOnInstance,
   tokenReaches,
   tokenState,
 } from '../../app/TokenScopes'
@@ -57,6 +59,8 @@ describe('the permission surface is complete', () => {
       { scope: 'webhooks' as const, level: 'admin' as const },
       { scope: 'administration' as const, level: 'admin' as const },
       { scope: 'checks' as const, level: 'write' as const },
+      { scope: 'actions' as const, level: 'admin' as const },
+      { scope: 'actions_logs' as const, level: 'read' as const },
     ]
 
     for (const ability of Object.keys(REPOSITORY_ABILITIES) as Array<keyof typeof REPOSITORY_ABILITIES>)
@@ -276,6 +280,78 @@ describe('the vocabulary and the column agree', () => {
     // Both directions. A value in the column and not in the vocabulary is the
     // less dangerous half - it can be stored and never grants anything - but it
     // is still a scope somebody added and then forgot to give meaning to.
-    expect([...declared].sort()).toEqual([...REPOSITORY_SCOPES, ...ORGANIZATION_SCOPES].slice().sort())
+    expect([...declared].sort()).toEqual([...REPOSITORY_SCOPES, ...ORGANIZATION_SCOPES, ...INSTANCE_SCOPES].slice().sort())
+  })
+})
+
+/*
+ * The five pipeline powers phase 15 asks to be separable: reading runs,
+ * reading logs, dispatching, managing workflows, and administering pools.
+ *
+ * Separable means a token can hold any one of them without the others. The way
+ * that quietly stops being true is a shared scope - all five under `checks`
+ * reads as five permissions on the token screen and is one permission in the
+ * check - so every assertion below is a negative: this grant does *not* reach
+ * that ability.
+ */
+describe('the pipeline powers are separable', () => {
+  const grant = (scope: string, level: string) => [{ scope, level }] as Array<{ scope: any, level: any }>
+
+  test('reading runs does not start them', () => {
+    expect(tokenAllows(grant('actions', 'read'), 'workflow:read')).toBe(true)
+    expect(tokenAllows(grant('actions', 'read'), 'workflow:dispatch')).toBe(false)
+    expect(tokenAllows(grant('actions', 'read'), 'workflow:cancel')).toBe(false)
+    expect(tokenAllows(grant('actions', 'read'), 'workflow:approve')).toBe(false)
+  })
+
+  test('starting runs does not turn workflows off', () => {
+    // The one that matters most: disabling a workflow is how a required check
+    // stops appearing on pull requests without a protection rule being touched.
+    expect(tokenAllows(grant('actions', 'write'), 'workflow:dispatch')).toBe(true)
+    expect(tokenAllows(grant('actions', 'write'), 'workflow:manage')).toBe(false)
+    expect(tokenAllows(grant('actions', 'admin'), 'workflow:manage')).toBe(true)
+  })
+
+  test('watching builds does not read what they printed', () => {
+    expect(tokenAllows(grant('actions', 'admin'), 'workflow:logs')).toBe(false)
+    expect(tokenAllows(grant('actions_logs', 'read'), 'workflow:logs')).toBe(true)
+    // And the reverse: a log reader learns nothing about the runs it cannot list.
+    expect(tokenAllows(grant('actions_logs', 'read'), 'workflow:read')).toBe(false)
+  })
+
+  test('a checks reporter cannot drive the control plane', () => {
+    /*
+     * The regression this exists to catch. `checks: write` is what an external
+     * CI is issued so it can post results; when the workflow verbs lived under
+     * that scope, every such integration could also start runs on this
+     * instance's own machines.
+     */
+    expect(tokenAllows(grant('checks', 'write'), 'check:report')).toBe(true)
+    expect(tokenAllows(grant('checks', 'write'), 'workflow:dispatch')).toBe(false)
+    expect(tokenAllows(grant('checks', 'write'), 'workflow:read')).toBe(false)
+  })
+
+  test('reading code is not reading pipelines', () => {
+    // Reading runs used to ride on `repository:read`, so any token that could
+    // clone could also read every run and every log.
+    expect(tokenAllows(grant('contents', 'read'), 'repository:read')).toBe(true)
+    expect(tokenAllows(grant('contents', 'read'), 'workflow:read')).toBe(false)
+    expect(tokenAllows(grant('contents', 'read'), 'workflow:logs')).toBe(false)
+  })
+
+  test('nothing about a repository reaches the fleet', () => {
+    const everythingRepository = [
+      { scope: 'contents' as const, level: 'admin' as const },
+      { scope: 'administration' as const, level: 'admin' as const },
+      { scope: 'actions' as const, level: 'admin' as const },
+    ]
+
+    expect(tokenAllowsOnInstance(everythingRepository, 'fleet:view')).toBe(false)
+    expect(tokenAllowsOnInstance(grant('fleet', 'read'), 'fleet:view')).toBe(true)
+    expect(tokenAllowsOnInstance(grant('fleet', 'read'), 'fleet:operate')).toBe(false)
+    expect(tokenAllowsOnInstance(grant('fleet', 'write'), 'fleet:operate')).toBe(true)
+    // Draining a queue is not appointing who may drain it.
+    expect(tokenAllowsOnInstance(grant('fleet', 'write'), 'fleet:administer')).toBe(false)
+    expect(tokenAllowsOnInstance(grant('fleet', 'admin'), 'fleet:administer')).toBe(true)
   })
 })

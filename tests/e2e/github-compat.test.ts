@@ -100,7 +100,7 @@ beforeAll(async () => {
       expires_at: new Date(Date.now() + 86_400_000).toISOString(),
     }).returning(['id']).executeTakeFirst()
 
-    for (const [scope, level] of [['checks', 'write'], ['issues', 'write'], ['contents', 'read']] as Array<[string, string]>)
+    for (const [scope, level] of [['checks', 'write'], ['issues', 'write'], ['contents', 'read'], ['actions', 'admin'], ['actions_logs', 'read']] as Array<[string, string]>)
       await db.insertInto('access_token_permissions').values({ access_token_id: Number(tokenRow?.id), scope, level }).execute()
 
     created.token = secret.token

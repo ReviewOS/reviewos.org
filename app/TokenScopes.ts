@@ -37,8 +37,44 @@ export const REPOSITORY_SCOPES = [
   // Reporting checks and coverage, separate from permission to push code -
   // the fine-grained rule phase 09 names, honoured from the first reporter.
   'checks',
+  /*
+   * The pipelines surface, and separate from `checks` on purpose.
+   *
+   * `checks` is for a reporter: something outside that publishes a verdict about
+   * a commit. `actions` is for the control plane: reading runs, starting them,
+   * stopping them, and - at `admin` - turning a workflow off. A token issued to
+   * an external CI so it can post results has no business dispatching runs on
+   * the instance's own machines, and until these were one scope it could.
+   */
+  'actions',
+  /*
+   * What the machines printed, which is not the same as what they did.
+   *
+   * A log carries paths, environment, failed assertions and whatever a step
+   * decided to echo; redaction covers the secrets this instance knows and
+   * cannot cover one a script assembled. "Let this bot watch my builds" and
+   * "let this bot read every line my builds produced" are different sentences,
+   * so they are different scopes.
+   */
+  'actions_logs',
 ] as const
 export type RepositoryScope = typeof REPOSITORY_SCOPES[number]
+
+/**
+ * Scopes that are about the instance rather than about one repository.
+ *
+ * The fleet is the case that forced this. Pools, queues, drains and runner
+ * registration belong to nobody's repository - they belong to the machines -
+ * and until now a token belonging to an instance administrator could drive all
+ * of it while carrying only `issues: read`, because the fleet endpoint asked
+ * who the person was and never what the credential was for. A scope that no
+ * repository grant implies is the only way "let this script drain a queue" can
+ * be said without also saying "and read every private repository here".
+ */
+export const INSTANCE_SCOPES = [
+  'fleet',
+] as const
+export type InstanceScope = typeof INSTANCE_SCOPES[number]
 
 export const ORGANIZATION_SCOPES = [
   'members',
@@ -47,7 +83,7 @@ export const ORGANIZATION_SCOPES = [
 ] as const
 export type OrganizationScope = typeof ORGANIZATION_SCOPES[number]
 
-export type TokenScope = RepositoryScope | OrganizationScope
+export type TokenScope = RepositoryScope | OrganizationScope | InstanceScope
 
 export interface TokenRequirement<Scope extends TokenScope> {
   scope: Scope
@@ -66,9 +102,20 @@ export const REPOSITORY_ABILITY_SCOPES = {
   'repository:push': { scope: 'contents', level: 'write' },
   'pull:merge': { scope: 'contents', level: 'write' },
   'check:report': { scope: 'checks', level: 'write' },
-  'workflow:cancel': { scope: 'checks', level: 'write' },
-  'workflow:dispatch': { scope: 'checks', level: 'write' },
-  'workflow:approve': { scope: 'checks', level: 'write' },
+
+  /*
+   * The five separable pipeline powers phase 15 asks for. Reading runs, reading
+   * logs, and dispatching are three of them; managing workflows is the fourth
+   * and sits at `admin` because disabling one is how a required check quietly
+   * stops appearing. Administering pools is the fifth and is not a repository
+   * power at all - it is `INSTANCE_ABILITY_SCOPES` below.
+   */
+  'workflow:read': { scope: 'actions', level: 'read' },
+  'workflow:logs': { scope: 'actions_logs', level: 'read' },
+  'workflow:cancel': { scope: 'actions', level: 'write' },
+  'workflow:dispatch': { scope: 'actions', level: 'write' },
+  'workflow:approve': { scope: 'actions', level: 'write' },
+  'workflow:manage': { scope: 'actions', level: 'admin' },
 
   'issue:open': { scope: 'issues', level: 'write' },
   'issue:comment': { scope: 'issues', level: 'write' },
@@ -116,6 +163,22 @@ export const ORGANIZATION_ABILITY_SCOPES = {
   'billing:manage': { scope: 'billing', level: 'admin' },
 } as const satisfies Record<OrganizationAbility, TokenRequirement<OrganizationScope>>
 
+/**
+ * What each instance-wide ability needs from a token.
+ *
+ * Read is the fleet as a reader sees it: which pools exist, what is idle, what
+ * is draining. Write is the day the machines misbehave - draining a queue,
+ * pausing it, taking a runner out. Admin is the boundary work: creating a pool,
+ * appointing its maintainers, deciding which plugins may run on it.
+ */
+export const INSTANCE_ABILITY_SCOPES = {
+  'fleet:view': { scope: 'fleet', level: 'read' },
+  'fleet:operate': { scope: 'fleet', level: 'write' },
+  'fleet:administer': { scope: 'fleet', level: 'admin' },
+} as const satisfies Record<string, TokenRequirement<InstanceScope>>
+
+export type InstanceAbility = keyof typeof INSTANCE_ABILITY_SCOPES
+
 /** One granted permission, as it is stored: one row, not a bit in a field. */
 export interface TokenGrant {
   scope: TokenScope
@@ -158,6 +221,21 @@ export function levelFor(grants: readonly TokenGrant[], scope: TokenScope): Toke
 /** Whether a token's grants permit a repository ability. */
 export function tokenAllows(grants: readonly TokenGrant[], ability: RepositoryAbility): boolean {
   const required = REPOSITORY_ABILITY_SCOPES[ability]
+
+  return levelSatisfies(levelFor(grants, required.scope), required.level)
+}
+
+/**
+ * Whether a token's grants permit an instance-wide ability.
+ *
+ * Separate from the repository and organization answers because it is not
+ * narrowed by a repository selection: a token scoped to two repositories has no
+ * standing over the fleet at all, and one carrying `fleet` has it over the
+ * whole instance or not at all. The user's own standing is still checked by the
+ * caller - a grant is an upper bound, never a promotion.
+ */
+export function tokenAllowsOnInstance(grants: readonly TokenGrant[], ability: InstanceAbility): boolean {
+  const required = INSTANCE_ABILITY_SCOPES[ability]
 
   return levelSatisfies(levelFor(grants, required.scope), required.level)
 }
@@ -288,7 +366,7 @@ export function resolveExpiry(
 export function normalizeGrants(
   requested: readonly { scope: string, level: string }[],
 ): TokenGrant[] {
-  const known = new Set<string>([...REPOSITORY_SCOPES, ...ORGANIZATION_SCOPES])
+  const known = new Set<string>([...REPOSITORY_SCOPES, ...ORGANIZATION_SCOPES, ...INSTANCE_SCOPES])
   const byScope = new Map<TokenScope, TokenLevel>()
 
   for (const grant of requested) {

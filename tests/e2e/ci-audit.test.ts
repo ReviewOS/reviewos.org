@@ -123,7 +123,8 @@ beforeAll(async () => {
     created.versionId = Number(version?.id)
 
     /*
-     * One token carrying both halves: `checks: write` is what a dispatch takes,
+     * One token carrying both halves: `actions: admin` is what dispatching and
+     * turning a workflow off take between them,
      * `administration: write` is what a variable takes. Two tokens would prove
      * the same thing and would leave the interesting question - whether the row
      * names the credential rather than only the person - answered twice.
@@ -142,7 +143,7 @@ beforeAll(async () => {
     created.tokenId = Number(tokenRow?.id)
     created.token = secret.token
 
-    for (const [scope, level] of [['checks', 'write'], ['administration', 'write'], ['contents', 'read']] as Array<[string, string]>)
+    for (const [scope, level] of [['actions', 'admin'], ['administration', 'write'], ['contents', 'read']] as Array<[string, string]>)
       await db.insertInto('access_token_permissions').values({ access_token_id: created.tokenId, scope, level }).execute()
 
     await route.importRoutes()

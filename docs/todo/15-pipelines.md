@@ -2508,9 +2508,31 @@ every runner is somebody else's machine.
       A contributor who can push here is not asked - a push from them would run without asking - and
       that is the real permission rather than a row in `repo_collaborators`, since the repository's
       owner is not a collaborator of their own repository.
-- [ ] Fine-grained token permissions for reading runs, dispatching runs, managing workflows,
+- [x] Fine-grained token permissions for reading runs, dispatching runs, managing workflows,
       administering pools, and reading logs, each separable, per the [phase 1](./01-foundation.md)
       rule that there is no fallback token type
+
+      Two repository scopes and one instance scope, none of them implied by anything else.
+      `actions` at read reads runs and jobs, at write starts, stops and approves them, and at admin
+      turns a workflow on and off - which sits at admin because a disabled workflow is a required
+      check that quietly stops appearing on pull requests, and that is a way around a protection
+      rule rather than a build. `actions_logs` is read-only and separate on purpose: redaction
+      covers the secrets this instance knows about and cannot cover one a script assembled, so
+      "watch my builds" and "read every line my builds printed" are different sentences.
+
+      `fleet` is instance-wide, because the machines belong to no repository. Before it, a token
+      issued to a deployment script - carrying `contents` and nothing else - could create pools,
+      appoint maintainers and mint registration tokens the moment its owner was an instance
+      administrator: the endpoint asked who was asking and never what they were holding. The scope
+      check runs after the person check, so somebody with no standing over a pool still gets the
+      404 that keeps its existence private, and somebody who may act but whose token was issued for
+      something else gets a 403 naming the scope.
+
+      Three things this moved. Reading runs and logs used to ride on `repository:read`, so every
+      token that could clone could read every run and every log. Dispatching, cancelling and
+      approving used to ride on `checks: write`, so an external CI issued a token to post results
+      could also start runs on this instance's machines. And managing workflows used to be
+      `workflow:dispatch`, so anything that could start a run could disable one.
 - [x] Every state-changing operation is in the audit log from [phase 11](./11-self-hosting-deploy.md),
       attributable to a token as well as a person
 

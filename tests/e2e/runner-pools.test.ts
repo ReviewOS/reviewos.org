@@ -16,6 +16,8 @@ import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
 const created = {
   ownerId: 0,
   adminToken: '',
+  noFleetToken: '',
+  operatorToken: '',
   repositoryId: 0,
   otherRepositoryId: 0,
   handle: '',
@@ -134,16 +136,61 @@ beforeAll(async () => {
     const { generateToken } = await import('../../app/Actions/Tokens/secret')
     const token = generateToken()
 
-    await db.insertInto('access_tokens').values({
+    const adminTokenRow: any = await db.insertInto('access_tokens').values({
       user_id: created.ownerId,
       name: 'fleet test',
       prefix: token.prefix,
       token_hash: token.hash,
       selection: 'all',
       expires_at: new Date(Date.now() + 86_400_000).toISOString(),
-    }).execute()
+    }).returning(['id']).executeTakeFirst()
+
+    /*
+     * `fleet: admin`, because being an instance administrator is no longer
+     * enough on its own. The person check and the credential check are separate
+     * questions - who is asking, and what are they holding - and a token issued
+     * for one script should not reach the machines because its owner happens to
+     * be an administrator.
+     */
+    await db.insertInto('access_token_permissions')
+      .values({ access_token_id: Number(adminTokenRow?.id), scope: 'fleet', level: 'admin' })
+      .execute()
 
     created.adminToken = token.token
+
+    /*
+     * Two narrower credentials for the same administrator, so the scope gate is
+     * tested against somebody whose *person* check always passes. A test that
+     * used a non-administrator would be re-testing the 404 above.
+     */
+    const narrower = async (level: string | null): Promise<string> => {
+      const secret = generateToken()
+      const row: any = await db.insertInto('access_tokens').values({
+        user_id: created.ownerId,
+        name: `fleet test ${level ?? 'none'}`,
+        prefix: secret.prefix,
+        token_hash: secret.hash,
+        selection: 'all',
+        expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+      }).returning(['id']).executeTakeFirst()
+
+      // Something, so the token is not simply empty: this is a credential that
+      // reaches code and is being asked about machines.
+      await db.insertInto('access_token_permissions')
+        .values({ access_token_id: Number(row?.id), scope: 'contents', level: 'admin' })
+        .execute()
+
+      if (level) {
+        await db.insertInto('access_token_permissions')
+          .values({ access_token_id: Number(row?.id), scope: 'fleet', level })
+          .execute()
+      }
+
+      return secret.token
+    }
+
+    created.noFleetToken = await narrower(null)
+    created.operatorToken = await narrower('write')
 
     for (const key of ['name', 'otherRepositoryId'] as const) {
       const repositoryName = unique('repo')
@@ -637,14 +684,21 @@ describe('a pool maintainer', () => {
     const { generateToken } = await import('../../app/Actions/Tokens/secret')
     const token = generateToken()
 
-    await db.insertInto('access_tokens').values({
+    const maintainerToken: any = await db.insertInto('access_tokens').values({
       user_id: Number(person.id),
       name: 'maintainer',
       prefix: token.prefix,
       token_hash: token.hash,
       selection: 'all',
       expires_at: new Date(Date.now() + 86_400_000).toISOString(),
-    }).execute()
+    }).returning(['id']).executeTakeFirst()
+
+    // A maintainer's credential needs the scope too. The role says which pools
+    // they may touch; the scope says whether this particular token is for the
+    // machines at all, and both have to agree.
+    await db.insertInto('access_token_permissions')
+      .values({ access_token_id: Number(maintainerToken?.id), scope: 'fleet', level: 'write' })
+      .execute()
 
     const pool = await fleet({ operation: 'create-pool', name: unique('Owned') })
     const poolId = Number(pool.body.pool.id)
@@ -737,4 +791,63 @@ describe('the runner binary registering itself', () => {
     expect(String(row.tags)).toContain('gpu=a100')
     expect(String(row.labels)).toContain('ubuntu-latest')
   }, 180_000)
+})
+
+/*
+ * What the credential is for, after who is holding it.
+ *
+ * Every token here belongs to the same instance administrator, so the person
+ * check passes every time and the only thing under test is the scope. Before
+ * this gate existed, any token that administrator held - one issued to a
+ * deployment script, carrying `contents` and nothing else - could create pools,
+ * mint registration tokens and drain queues, because the fleet belongs to no
+ * repository and no repository scope was ever consulted.
+ */
+describe('the fleet scope', () => {
+  test('a token without it is refused, however administrative its owner', async () => {
+    if (!available)
+      return
+
+    const { status, body } = await fleet({ operation: 'list' }, created.noFleetToken)
+
+    // 403 rather than 404: this reader may see the fleet, so hiding it would be
+    // a lie they can disprove by opening the page. What is missing is the
+    // permission on this credential, and saying so is how they fix it.
+    expect(status).toBe(403)
+    expect(String(body?.error)).toContain('fleet')
+    expect(String(body?.reason)).toContain('read')
+  })
+
+  test('write drains a queue and does not create a pool', async () => {
+    if (!available)
+      return
+
+    const pool = await fleet({ operation: 'create-pool', name: unique('Scoped '), reason: 'for the scope test' })
+
+    expect(pool.status).toBe(200)
+
+    const poolId = Number(pool.body.pool.id)
+    created.poolIds.push(poolId)
+
+    const queue = await fleet({ operation: 'create-queue', pool: poolId, name: unique('queue-') })
+
+    expect(queue.status).toBe(200)
+
+    const queueId = Number(queue.body.queue.id)
+
+    // The day the machines misbehave: an operator's token pauses the queue.
+    const paused = await fleet({ operation: 'pause-queue', queue: queueId }, created.operatorToken)
+
+    expect(paused.status).toBe(200)
+    expect(String(paused.body?.queue?.state)).toBe('paused')
+
+    // And the boundary work stays out of reach: drawing a new pool, or
+    // appointing who may manage one, is not the same power as draining.
+    const drawing = await fleet({ operation: 'create-pool', name: unique('Refused '), reason: 'should not exist' }, created.operatorToken)
+
+    expect(drawing.status).toBe(403)
+    expect(String(drawing.body?.reason)).toContain('admin')
+
+    await fleet({ operation: 'resume-queue', queue: queueId }, created.operatorToken)
+  })
 })

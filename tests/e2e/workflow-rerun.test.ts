@@ -181,7 +181,7 @@ beforeAll(async () => {
 
     // `checks: write` is what cancelling a run needs, and re-running one asks
     // for the same thing: both spend the fleet's machines on this repository.
-    for (const [scope, level] of [['checks', 'write'], ['contents', 'read']] as Array<[string, string]>)
+    for (const [scope, level] of [['checks', 'write'], ['contents', 'read'], ['actions', 'admin'], ['actions_logs', 'read']] as Array<[string, string]>)
       await db.insertInto('access_token_permissions').values({ access_token_id: Number(tokenRow?.id), scope, level }).execute()
 
     created.token = secret.token

@@ -18,6 +18,7 @@
  */
 import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
 import { scopableRepositories, tokensFor } from '../../functions/repo'
+import { poolsMaintainedBy } from '../../functions/runs'
 import { relativeTime } from '../../functions/browse'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
@@ -56,14 +57,67 @@ if (!viewer)
 // scopes only: an organization scope on a token belonging to a person is a
 // decision that belongs on the organization's own screen, where the reader can
 // see who else it affects.
+//
+// Each scope carries its own levels rather than every scope offering the same
+// two. `administration` has an `admin` above `write` - collaborators, transfer,
+// delete - and until this list said so, those three could not be granted from
+// this page at all: the form offered read and write, the permission check
+// wanted admin, and the token silently could not do what the person picked.
 const scopes = [
-  { key: 'contents', label: 'Code', write: 'Push, and merge pull requests', read: 'Clone and read' },
-  { key: 'issues', label: 'Issues', write: 'Open, comment, label and close', read: 'Read only' },
-  { key: 'pull_requests', label: 'Pull requests', write: 'Open, review, and dismiss reviews', read: 'Read only' },
-  { key: 'checks', label: 'Checks', write: 'Report results and coverage', read: 'Read results' },
-  { key: 'webhooks', label: 'Webhooks', write: 'Add, change and remove', read: 'Read configuration' },
-  { key: 'administration', label: 'Administration', write: 'Settings and branch protection', read: 'Read settings' },
+  { key: 'contents', label: 'Code', levels: [
+    { value: 'read', text: 'Clone and read' },
+    { value: 'write', text: 'Push, and merge pull requests' },
+  ] },
+  { key: 'issues', label: 'Issues', levels: [
+    { value: 'read', text: 'Read only' },
+    { value: 'write', text: 'Open, comment, label and close' },
+  ] },
+  { key: 'pull_requests', label: 'Pull requests', levels: [
+    { value: 'read', text: 'Read only' },
+    { value: 'write', text: 'Open, review, and dismiss reviews' },
+  ] },
+  { key: 'checks', label: 'Checks', levels: [
+    { value: 'read', text: 'Read results' },
+    { value: 'write', text: 'Report results and coverage' },
+  ] },
+  { key: 'actions', label: 'Pipelines', levels: [
+    { value: 'read', text: 'Read runs and jobs' },
+    { value: 'write', text: 'Start, stop and approve runs' },
+    { value: 'admin', text: 'Turn workflows on and off' },
+  ] },
+  { key: 'actions_logs', label: 'Pipeline logs', levels: [
+    { value: 'read', text: 'Read logs and download artifacts' },
+  ] },
+  { key: 'webhooks', label: 'Webhooks', levels: [
+    { value: 'read', text: 'Read configuration' },
+    { value: 'write', text: 'Add, change and remove' },
+  ] },
+  { key: 'administration', label: 'Administration', levels: [
+    { value: 'read', text: 'Read settings' },
+    { value: 'write', text: 'Settings and branch protection' },
+    { value: 'admin', text: 'Collaborators, transfer and delete' },
+  ] },
 ]
+
+/*
+ * The fleet, offered only to the people it means anything for.
+ *
+ * It is the one instance-wide scope on this form, and it is here rather than on
+ * an administrator's screen because the credential it belongs on is a personal
+ * one: the script that drains a queue at four in the morning runs as somebody.
+ * A grant is still only a ceiling - it lets a token reach as far as its holder
+ * already does, and no further - so offering it to somebody with no standing
+ * over the machines would be offering a permission that grants nothing.
+ */
+const maintainsPools = viewer ? (await poolsMaintainedBy(viewer.id).catch(() => [])).length > 0 : false
+
+if (viewer?.is_admin || maintainsPools) {
+  scopes.push({ key: 'fleet', label: 'Runner fleet', levels: [
+    { value: 'read', text: 'Read pools, queues and runners' },
+    { value: 'write', text: 'Pause, drain and take machines out' },
+    { value: 'admin', text: 'Create pools, appoint maintainers, mint registration tokens' },
+  ] })
+}
 </script>
 
 @layout('app')
@@ -131,8 +185,9 @@ const scopes = [
                 <label class="tok-scope-name" for="scope-{{ scope.key }}">{{ scope.label }}</label>
                 <select id="scope-{{ scope.key }}" class="tok-select" name="scope_{{ scope.key }}">
                   <option value="none">No access</option>
-                  <option value="read">Read: {{ scope.read }}</option>
-                  <option value="write">Write: {{ scope.write }}</option>
+                  @foreach (scope.levels as level)
+                    <option value="{{ level.value }}">{{ level.value === 'read' ? 'Read' : level.value === 'write' ? 'Write' : 'Admin' }}: {{ level.text }}</option>
+                  @endforeach
                 </select>
               </div>
             @endforeach
