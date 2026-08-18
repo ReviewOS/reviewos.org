@@ -2040,8 +2040,26 @@ decisions.
       line the tool named, and a finding spanning five lines is placed once rather than five times -
       repeating it would turn one warning into five and give a reviewer counting them a number the
       tool never reported.
-- [ ] Artifacts: uploaded by glob, content-addressed, downloadable individually and as a set,
+- [x] Artifacts: uploaded by glob, content-addressed, downloadable individually and as a set,
       searchable within a run, with retention policy and expiry visible before it happens
+
+      The glob is `reviewos: { artifact-paths: [...] }`, the addressing is the SHA-256 the store
+      names them by, and the expiry is on every listing and on the run screen before the date
+      arrives rather than after.
+
+      **As a set** is `/api/repos/workflow-runs/artifacts/archive`: a tar, uncompressed, written by
+      hand in `Artifact/tar.ts` rather than pulled in - the format is a 512-byte header and padding,
+      where zip needs a compressor and a central directory, and every machine that runs CI has
+      `tar`. Compressing artifacts that are usually compressed already is the wrong trade.
+      Assembled in memory with a ceiling, which is honest about what it is: streaming entry by entry
+      is the change to make when somebody has a gigabyte of output, and refusing with the size beats
+      an instance that falls over.
+
+      **Searchable within a run** is `?q=` on the listing, filtered by name. A matrix of twenty
+      writes twenty artifacts, and finding the one from the combination that failed means reading
+      twenty near-identical names. The total stays the run's rather than the filter's: what a run is
+      holding does not change because somebody typed in a box, and a total that moved with the
+      filter is a number nobody could use for a retention decision.
 - [x] Artifacts are downloadable by later steps in the same run by name, which is the only reason
       most artifacts exist
 

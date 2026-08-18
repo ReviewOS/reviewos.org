@@ -651,3 +651,69 @@ describe('annotations, by context', () => {
     expect(await annotationsOf(Number(added.body.check_run))).toEqual(['first finding', 'second finding'])
   })
 })
+
+describe('the whole set, and finding one in it', () => {
+  test('a run downloads as one archive that tar can read', async () => {
+    if (!available)
+      return
+
+    /*
+     * One download rather than fourteen right-clicks, which is what somebody
+     * collecting evidence from a failed run actually wants.
+     */
+    const job = await claimOne()
+
+    await upload(job.token, 'first.txt', 'the first thing')
+    await upload(job.token, 'second.txt', 'the second thing')
+
+    const answer = await fetch(
+      `http://127.0.0.1:${port}/api/repos/workflow-runs/artifacts/archive`
+      + `?owner=${created.handle}&repo=${created.name}&number=${job.runNumber}`,
+    )
+
+    expect(answer.status).toBe(200)
+    expect(answer.headers.get('content-type')).toBe('application/x-tar')
+
+    const bytes = new Uint8Array(await answer.arrayBuffer())
+    const text = new TextDecoder().decode(bytes)
+
+    // Both files, and the content between the headers.
+    expect(text).toContain('first.txt')
+    expect(text).toContain('the first thing')
+    expect(text).toContain('second.txt')
+
+    // A tar is blocks of 512, and ends with two empty ones - without those,
+    // `tar` warns and a person reads that as a corrupt download.
+    expect(bytes.length % 512).toBe(0)
+    expect([...bytes.slice(-1024)].every(byte => byte === 0)).toBe(true)
+  })
+
+  test('and the listing can be searched by name within the run', async () => {
+    if (!available)
+      return
+
+    /*
+     * A matrix of twenty writes twenty artifacts, and finding the one from the
+     * combination that failed means reading twenty near-identical names.
+     */
+    const job = await claimOne()
+
+    await upload(job.token, 'coverage-ubuntu.lcov', 'a')
+    await upload(job.token, 'coverage-windows.lcov', 'b')
+    await upload(job.token, 'binary.tar', 'c')
+
+    const answer = await fetch(
+      `http://127.0.0.1:${port}/api/repos/workflow-runs/artifacts`
+      + `?owner=${created.handle}&repo=${created.name}&number=${job.runNumber}&q=windows`,
+      { headers: { Accept: 'application/json' } },
+    )
+
+    const body: any = await answer.json()
+
+    expect(body.artifacts.map((one: any) => String(one.name))).toEqual(['coverage-windows.lcov'])
+
+    // The total is the run's, not the filter's: what the run is holding does
+    // not change because somebody typed in a box.
+    expect(Number(body.total_bytes)).toBeGreaterThan(Number(body.artifacts[0].size_bytes))
+  })
+})

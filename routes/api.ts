@@ -953,3 +953,12 @@ route.get('/repos/workflow-runs/log', 'Actions/Workflow/ShowJobLogAction')
 // first is one that eventually is not.
 route.get('/repos/workflow-runs/artifacts', 'Actions/Workflow/ListArtifactsAction')
 route.get('/repos/workflow-runs/artifact', 'Actions/Workflow/DownloadArtifactAction')
+/*
+ * Everything a run produced, as one file.
+ *
+ * A tar, uncompressed: artifacts are usually compressed already, and every
+ * machine that runs CI has `tar`. One download rather than fourteen
+ * right-clicks, which is what somebody collecting evidence from a failed run
+ * actually wants.
+ */
+route.get('/repos/workflow-runs/artifacts/archive', 'Actions/Workflow/DownloadArtifactSetAction')

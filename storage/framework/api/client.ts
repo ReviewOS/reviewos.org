@@ -5583,8 +5583,15 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/workflow-runs/artifacts
    */
-  getReposWorkflowRunsArtifacts(input?: { "owner"?: string; "repo"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<{ "artifacts"?: Array<Record<string, unknown>>; "total_bytes"?: number }>> {
-    return request(config, "GET", "/api/repos/workflow-runs/artifacts", input ?? {}, ["owner", "repo", "number"], false, options)
+  getReposWorkflowRunsArtifacts(input?: { "owner"?: string; "repo"?: string; "number"?: number; "q"?: string }, options?: RequestOptions): Promise<ApiResult<{ "artifacts"?: Array<Record<string, unknown>>; "total_bytes"?: number }>> {
+    return request(config, "GET", "/api/repos/workflow-runs/artifacts", input ?? {}, ["owner", "repo", "number", "q"], false, options)
+  },
+
+  /**
+   * GET /api/repos/workflow-runs/artifacts/archive
+   */
+  getReposWorkflowRunsArtifactsArchive(input?: { "owner"?: string; "repo"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "GET", "/api/repos/workflow-runs/artifacts/archive", input ?? {}, ["owner", "repo", "number"], false, options)
   },
 
   /**

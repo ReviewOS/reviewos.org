@@ -27,6 +27,7 @@ export default new Action({
     owner: { rule: schema.string() },
     repo: { rule: schema.string() },
     number: { rule: schema.number() },
+    q: { rule: schema.string(), required: false },
   },
 
   responses: {
@@ -74,8 +75,19 @@ export default new Action({
       .orderBy('name')
       .execute()
 
+    /*
+     * Searchable within the run, by name.
+     *
+     * A matrix of twenty writes twenty artifacts, and finding the one from the
+     * combination that failed means reading a list of twenty near-identical
+     * names. Filtered here rather than in SQL because the set is one run's
+     * worth - a `LIKE` would be the same answer with a query nobody can read.
+     */
+    const query = String(request.get('q') ?? '').trim().toLowerCase()
+    const matching = query ? rows.filter(row => String(row.name).toLowerCase().includes(query)) : rows
+
     return response.json({
-      artifacts: rows.map(row => ({
+      artifacts: matching.map(row => ({
         id: Number(row.id),
         name: String(row.name),
         digest: String(row.digest),
@@ -89,7 +101,14 @@ export default new Action({
         expires_at: row.expires_at ? String(row.expires_at) : null,
         created_at: row.created_at ? String(row.created_at) : null,
       })),
+      /*
+       * The run's whole size, not the filtered one. A search narrows what is
+       * shown; what the run is holding does not change because somebody typed
+       * in a box, and a total that moved with the filter would be a number
+       * nobody could use for a retention decision.
+       */
       total_bytes: rows.reduce((total, row) => total + (Number(row.size_bytes) || 0), 0),
+      matched: matching.length,
     })
   },
 })

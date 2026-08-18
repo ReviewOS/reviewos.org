@@ -15343,7 +15343,7 @@ export interface paths {
   "/api/repos/workflow-runs/artifacts": {
     get: {
     parameters: {
-      query?: { "owner"?: string; "repo"?: string; "number"?: number }
+      query?: { "owner"?: string; "repo"?: string; "number"?: number; "q"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -15354,6 +15354,34 @@ export interface paths {
       "401": { content: never }
       "403": { content: never }
       "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/workflow-runs/artifacts/archive": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "number"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "410": { content: never }
+      "413": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
