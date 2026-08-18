@@ -60,7 +60,9 @@ export async function aliasTarget(handle: string): Promise<string | null> {
  */
 export function pathUnderOwner(path: string, canonical: string): string {
   const [withoutQuery, query] = String(path ?? '/').split('?')
-  const segments = withoutQuery.split('/').filter(Boolean)
+  // `split` is typed as possibly returning nothing at index 0, which it never
+  // does - but the fallback costs a word and keeps the file type-clean.
+  const segments = String(withoutQuery ?? '').split('/').filter(Boolean)
 
   segments[0] = canonical
 
