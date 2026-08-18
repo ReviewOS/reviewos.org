@@ -260,6 +260,17 @@ export interface WorkflowJob {
    * the runner, which is the only thing that can act on it.
    */
   checkout: Record<string, unknown> | null
+
+  /**
+   * `reviewos.concurrency-group:` - a named limit shared across runs and workflows.
+   *
+   * Distinct from Actions' `concurrency:` on a job, which groups *runs* and
+   * cancels or queues whole ones. This is admission control on the job: at most
+   * N of everything wearing this name may run at a time, across every workflow
+   * in the repository. The deploy lock, and the one staging environment three
+   * pipelines share.
+   */
+  concurrencyLimit: { group: string, limit: number, method: 'ordered' | 'eager' } | null
 }
 
 /**
@@ -299,6 +310,8 @@ interface ExtensionResult {
   cancelOnBuildFailing: boolean
   /** `checkout:` - what the runner should put in the workspace, and how much of it. */
   checkout: Record<string, unknown> | null
+  /** `concurrency-group:` with `concurrency:` - a named limit across runs and workflows. */
+  concurrencyLimit: { group: string, limit: number, method: 'ordered' | 'eager' } | null
 }
 
 export interface WorkflowService {
@@ -524,6 +537,11 @@ const EXTENSION_KEYS = new Set([
   // How the code gets here: depth, submodules, LFS, sparse paths, or nothing
   // at all. The step every job has and nobody writes.
   'checkout',
+  // A named limit shared across runs and workflows - the deploy lock and the
+  // one staging environment three pipelines share.
+  'concurrency',
+  'concurrency-group',
+  'concurrency-method',
   // Buildkite's step attributes, in the three shapes people actually reach for.
   'skip',
   'soft-fail',
@@ -849,14 +867,14 @@ function extensionOf(
   const raw = asRecord(body.reviewos)
 
   if (!raw)
-    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0, artifactPaths: [], secrets: null, cancelOnBuildFailing: false, checkout: null }
+    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0, artifactPaths: [], secrets: null, cancelOnBuildFailing: false, checkout: null, concurrencyLimit: null }
 
   for (const key of Object.keys(raw)) {
     if (!EXTENSION_KEYS.has(key)) {
       errors.push({
         line: lineOf(source, key, jobLine),
         message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
-        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `cancel-on-build-failing`, `checkout`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
+        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `cancel-on-build-failing`, `checkout`, `concurrency`, `concurrency-group`, `concurrency-method`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
       })
     }
   }
@@ -884,6 +902,7 @@ function extensionOf(
   // would cancel a job on the strength of a string.
   const cancelOnBuildFailing = raw['cancel-on-build-failing'] === true
   const checkout = checkoutFrom(raw.checkout, id, jobLine, source, errors)
+  const concurrencyLimit = concurrencyLimitFrom(raw, id, jobLine, source, errors)
 
   const skip = skipFrom(raw.skip)
   const softFail = softFailFrom(raw['soft-fail'])
@@ -899,11 +918,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit }
 
   if (ifChanged.length > 0) {
     /*
@@ -971,6 +990,7 @@ function extensionOf(
       secrets: null,
       cancelOnBuildFailing: false,
       checkout: null,
+      concurrencyLimit: null,
     }
   }
 
@@ -990,6 +1010,7 @@ function extensionOf(
       secrets: null,
       cancelOnBuildFailing: false,
       checkout: null,
+      concurrencyLimit: null,
     }
   }
 
@@ -1008,6 +1029,7 @@ function extensionOf(
     secrets: null,
     cancelOnBuildFailing: false,
     checkout: null,
+    concurrencyLimit: null,
   }
 }
 
@@ -1167,6 +1189,7 @@ function settingsOf(
   secrets: string[] | null = null,
   cancelOnBuildFailing = false,
   checkout: Record<string, unknown> | null = null,
+  concurrencyLimit: { group: string, limit: number, method: string } | null = null,
 ): Record<string, unknown> {
   const settings: Record<string, unknown> = {}
 
@@ -1195,6 +1218,9 @@ function settingsOf(
   // rather than guessing from its contents.
   if (checkout !== null)
     settings.checkout = checkout
+
+  if (concurrencyLimit)
+    settings.concurrency = concurrencyLimit
 
   return settings
 }
@@ -1306,6 +1332,77 @@ function priorityFrom(
   }
 
   return Math.max(-1000, Math.min(1000, priority))
+}
+
+/** The most jobs one named group may run at a time. A limit past this is not a limit. */
+export const MAX_CONCURRENCY = 500
+
+/**
+ * `reviewos.concurrency-group:` - a named limit across runs and workflows.
+ *
+ * The deploy lock, and the one staging environment three pipelines share.
+ * Actions' `concurrency:` groups *runs* and cancels or queues whole ones, which
+ * is a different question: this is "at most N of these may be running at once,
+ * whichever run or workflow they came from".
+ *
+ * **Ordered by default.** A deploy queue that hands out whichever job happens
+ * to be polled first will land an older commit after a newer one, and the state
+ * of production then depends on runner timing. `eager` is there for the case
+ * where the group is a resource limit rather than a sequence - four jobs
+ * sharing one licence server - and nobody cares which goes first.
+ */
+function concurrencyLimitFrom(
+  raw: Record<string, unknown>,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): { group: string, limit: number, method: 'ordered' | 'eager' } | null {
+  const group = typeof raw['concurrency-group'] === 'string' ? raw['concurrency-group'].trim() : ''
+  const stated = raw.concurrency
+
+  if (!group && stated === undefined && raw['concurrency-method'] === undefined)
+    return null
+
+  if (!group) {
+    errors.push({
+      line: lineOf(source, 'concurrency', jobLine),
+      message: `\`concurrency:\` in job \`${id}\` has no \`concurrency-group:\` to limit`,
+      // Named rather than defaulted to the job's own name: a limit whose group
+      // this instance invented is a limit nobody else can join, which is the
+      // opposite of what a shared lock is for.
+      fix: 'Add `concurrency-group: production`. The name is what two workflows share.',
+    })
+
+    return null
+  }
+
+  const limit = stated === undefined ? 1 : Number(stated)
+
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_CONCURRENCY) {
+    errors.push({
+      line: lineOf(source, 'concurrency', jobLine),
+      message: `\`concurrency:\` in job \`${id}\` is not a whole number between 1 and ${MAX_CONCURRENCY}`,
+      fix: 'Write `concurrency: 1` for a lock, or leave it out - one at a time is the default.',
+    })
+
+    return null
+  }
+
+  const asked = raw['concurrency-method']
+  const method = asked === undefined ? 'ordered' : String(asked)
+
+  if (method !== 'ordered' && method !== 'eager') {
+    errors.push({
+      line: lineOf(source, 'concurrency-method', jobLine),
+      message: `\`concurrency-method:\` in job \`${id}\` is neither \`ordered\` nor \`eager\``,
+      fix: '`ordered` is a queue that preserves commit order; `eager` is whoever is ready.',
+    })
+
+    return null
+  }
+
+  return { group, limit, method }
 }
 
 /** The deepest history a workflow may ask to skip fetching. Beyond this, ask for all of it. */
@@ -2189,6 +2286,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       secretNames: extension.secrets,
       cancelOnBuildFailing: extension.cancelOnBuildFailing,
       checkout: extension.checkout,
+      concurrencyLimit: extension.concurrencyLimit,
     })
   }
 

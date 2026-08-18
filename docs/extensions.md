@@ -517,6 +517,62 @@ Anything malformed is refused rather than ignored - a checkout that quietly did
 something other than what the file said is a build against the wrong tree, which
 is the one failure where the logs look fine.
 
+### `concurrency-group` - a lock shared across workflows
+
+```yaml
+  deploy:
+    runs-on: ubuntu-latest
+    reviewos:
+      concurrency-group: production
+    steps: [{ run: ./deploy }]
+
+  soak-test:
+    runs-on: ubuntu-latest
+    reviewos:
+      concurrency-group: staging
+      concurrency: 2                 # two at a time on that environment
+      concurrency-method: eager      # order does not matter here
+    steps: [{ run: ./soak }]
+```
+
+At most N jobs wearing this name run at once, **across every run and every
+workflow in the repository**. The deploy lock, and the one staging environment
+three pipelines share.
+
+This is a different question from Actions' `concurrency:`, which groups whole
+*runs* and cancels or queues them. Both exist here. A deploy that can be started
+by two different workflows cannot be serialised by a run-level group at all,
+because the two runs are not in the same group and never will be - and a limit
+keyed on the job's own name, which is what `strategy.max-parallel` does, cannot
+say that a smoke test and a deploy share one environment.
+
+| Key | Means |
+|---|---|
+| `concurrency-group` | The name. Two workflows sharing it share the limit |
+| `concurrency` | How many at a time. One is the default, and one is a lock |
+| `concurrency-method` | `ordered` (default) or `eager` |
+
+**`ordered` is the default and it is the reason to use this.** It hands out the
+oldest waiting job in the group first, so a deploy queue lands commits in the
+order they were pushed. Whichever-is-ready would make the state of production
+depend on runner timing. `eager` is for the case where the group is a resource
+limit rather than a sequence - four jobs sharing one licence server - and nobody
+cares which goes first.
+
+The group is repository-wide, not instance-wide. A `production` group in one
+repository is not the same lock as `production` in another; making it so would
+mean one team's deploy queue silently holding up another team's.
+
+**Counted, not locked.** Two runners polling in the same instant can both take
+the last slot, the same limitation `strategy.max-parallel` has here. Making it
+exact costs a lock on every claim on the instance; what it leaves is one extra
+job, and the alternative is a queue that serialises on a contended row.
+
+A limit with no group is refused rather than defaulted to the job's own name: a
+lock nobody else can join is the opposite of what this is for.
+
+**Actions has no equivalent.**
+
 ### `group` - a label
 
 ```yaml

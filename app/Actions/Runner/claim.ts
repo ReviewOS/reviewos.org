@@ -198,6 +198,13 @@ export async function claimNextJob(
     if (await overParallelLimit(row))
       continue
 
+    /*
+     * And the named limit this job shares with every other job wearing the same
+     * group, in any run of any workflow here. The deploy lock.
+     */
+    if (await overNamedLimit(row))
+      continue
+
     const expires = leaseUntil(now)
     const token = mintJobToken()
 
@@ -318,6 +325,94 @@ async function overParallelLimit(row: any): Promise<boolean> {
     .execute()
 
   return running.filter(other => Number(other.id) !== Number(row.id)).length >= limit
+}
+
+/**
+ * The named limit a job shares with every other job wearing that name.
+ *
+ * `reviewos: { concurrency-group: production, concurrency: 1 }` - the deploy
+ * lock, and the one staging environment three pipelines share. Actions'
+ * `concurrency:` groups whole *runs*; this limits jobs, across every run and
+ * every workflow in the repository, which is the only shape that serialises a
+ * deploy when two different workflows can deploy.
+ *
+ * **Repository-wide, not instance-wide.** A group called `production` in one
+ * repository is not the same lock as `production` in another, and making it so
+ * would mean one team's deploy queue silently holding up another team's.
+ *
+ * `ordered` is the default and means the *oldest* waiting job in the group goes
+ * next: a deploy queue that hands out whichever job was polled first lands an
+ * older commit after a newer one, and the state of production then depends on
+ * runner timing. `eager` skips that check for the case where the group is a
+ * resource limit rather than a sequence.
+ *
+ * **Counted, not locked**, the same limitation as `max-parallel` above and for
+ * the same reason: two runners polling in the same instant can both take the
+ * last slot. Making it exact costs a lock on every claim on the instance.
+ */
+async function overNamedLimit(row: any): Promise<boolean> {
+  const named = namedLimitOf(row.settings)
+
+  if (!named)
+    return false
+
+  const held: any[] = await db
+    .selectFrom('workflow_jobs')
+    .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+    .select(['workflow_jobs.id as id', 'workflow_jobs.settings as settings'])
+    .where('workflow_runs.repository_id', '=', Number(row.repository_id))
+    .where('workflow_jobs.state', 'in', ['running', 'cancelling'])
+    .execute()
+
+  const running = held.filter(other =>
+    Number(other.id) !== Number(row.id) && namedLimitOf(other.settings)?.group === named.group)
+
+  if (running.length >= named.limit)
+    return true
+
+  if (named.method !== 'ordered')
+    return false
+
+  /*
+   * Ordered: something older in this group is still waiting, so this one is not
+   * next. Id order is dispatch order, which is push order - the property a
+   * deploy queue is bought for.
+   */
+  const waiting: any[] = await db
+    .selectFrom('workflow_jobs')
+    .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+    .select(['workflow_jobs.id as id', 'workflow_jobs.settings as settings'])
+    .where('workflow_runs.repository_id', '=', Number(row.repository_id))
+    .where('workflow_jobs.state', '=', 'queued')
+    .where('workflow_jobs.id', '<', Number(row.id))
+    .execute()
+
+  return waiting.some(other => namedLimitOf(other.settings)?.group === named.group)
+}
+
+/** A job's named limit, out of its settings column. Null when it named none. */
+function namedLimitOf(settings: unknown): { group: string, limit: number, method: string } | null {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+    const named = parsed?.concurrency
+
+    if (!named || typeof named.group !== 'string' || !named.group)
+      return null
+
+    const limit = Number(named.limit)
+
+    return {
+      group: named.group,
+      // A limit this cannot read is one, not unlimited: the safe direction for
+      // a lock is fewer at a time, and a group whose limit decoded to zero
+      // would otherwise let everything through.
+      limit: Number.isInteger(limit) && limit > 0 ? limit : 1,
+      method: named.method === 'eager' ? 'eager' : 'ordered',
+    }
+  }
+  catch {
+    return null
+  }
 }
 
 /**

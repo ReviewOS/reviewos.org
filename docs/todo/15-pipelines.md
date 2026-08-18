@@ -1289,10 +1289,26 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       approvals for one deploy.
 - [ ] `matrix`, expanding across named dimensions, with `adjustments` that add a single combination,
       skip one, or soft-fail one, because the useful matrix is never the full cross product
-- [ ] `concurrency` and `concurrency_group`, a named limit shared across runs and workflows, which is
+- [x] `concurrency` and `concurrency_group`, a named limit shared across runs and workflows, which is
       how a shared staging environment or a deploy lock gets serialized
-- [ ] `concurrency_method`: ordered (a FIFO queue) or eager (whoever is ready). The difference is
+
+      `reviewos: { concurrency-group: production }`, enforced at the claim: at most N jobs wearing
+      that name run at once, across every run and every workflow in the repository. A deploy that
+      two workflows can start cannot be serialised by a run-level group - the two runs are not in
+      the same group and never will be - and `max-parallel` keys on the job's own name, so it cannot
+      say that a smoke test and a deploy share one environment.
+
+      Repository-wide rather than instance-wide: a `production` group in one repository is not the
+      same lock as another team's. Counted rather than locked, the same trade `max-parallel` makes -
+      two runners polling in the same instant can both take the last slot, and making it exact costs
+      a lock on every claim on the instance.
+- [x] `concurrency_method`: ordered (a FIFO queue) or eager (whoever is ready). The difference is
       whether a deploy queue preserves commit order.
+
+      **`ordered` is the default**, because that difference is the reason to reach for the feature:
+      whichever-is-ready makes the state of production depend on runner timing. `eager` is there for
+      a group that is a resource limit rather than a sequence - four jobs sharing one licence
+      server. Ordered goes by job id, which is dispatch order, which is push order.
 - [x] `agents`, a `key=value` tag query selecting which runners may take the job
 
       Shipped with the fleet work: `reviewos: { agents: { gpu: a100 } }`, matched against the tags a
