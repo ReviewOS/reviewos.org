@@ -21,6 +21,7 @@ import { db } from '@stacksjs/database'
 import type { GateDecision } from './environments'
 import { decideGate, environmentRules } from './environments'
 import { createJobsForRun, dispatchWorkflowRun, releaseGroup } from './dispatch'
+import { deliverJobNotify } from './notify'
 import type { JobState } from './states'
 import { cancelOnFailingCasualties, effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
 
@@ -58,7 +59,7 @@ export const CANCEL_ON_FAILING_REASON = 'Stopped because the run had already fai
 async function jobsOfRun(runId: number): Promise<any[]> {
   return db
     .selectFrom('workflow_jobs')
-    .select(['id', 'job_id', 'state', 'needs', 'continue_on_error', 'fail_fast', 'kind', 'settings', 'approved_at', 'started_at'])
+    .select(['id', 'job_id', 'state', 'needs', 'continue_on_error', 'fail_fast', 'kind', 'settings', 'approved_at', 'started_at', 'notified_at'])
     .where('workflow_run_id', '=', runId)
     .execute()
 }
@@ -143,6 +144,23 @@ export async function settleRun(runId: number, now: Date = new Date()): Promise<
 async function settleOnce(runId: number, now: Date): Promise<boolean> {
   let moved = false
   let jobs = await jobsOfRun(runId)
+
+  /*
+   * Anybody a finished job was told to notify.
+   *
+   * Here rather than in the report endpoint because a job reaches a terminal
+   * state by four different routes - a runner reporting, a lease lapsing,
+   * `fail-fast`, a cancellation - and a notification wired to one of them is
+   * one that silently does not happen for the other three. The delivery is
+   * claimed with a guarded write, so running on every pass costs a query rather
+   * than a duplicate.
+   */
+  for (const job of jobs) {
+    const state = String(job.state ?? '')
+
+    if (['succeeded', 'failed', 'cancelled'].includes(state) && !job.notified_at)
+      await deliverJobNotify({ jobId: Number(job.id), state })
+  }
 
   /*
    * `fail-fast` first, because it decides what the rest of the graph is looking

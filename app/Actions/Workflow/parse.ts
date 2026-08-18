@@ -21,6 +21,7 @@
  */
 
 import { isProblem, parsePluginReference, readPluginList } from '../Plugin/reference'
+import { MAX_NOTIFY } from './notify'
 import { differencesIn } from './conformance'
 import type { Combination, MatrixAdjustment, MatrixDefinition } from './matrix'
 import { combinationLabel, expandMatrix } from './matrix'
@@ -603,6 +604,15 @@ export const EXTENSION_KEYS = new Set([
    * artifacts, or on every job in a pool.
    */
   'plugins',
+  /*
+   * Who to tell when *this job* finishes.
+   *
+   * Distinct from workflow-level notification, which is the repository's
+   * webhooks and its watchers' subscriptions: a nightly run with forty green
+   * jobs and one red deploy is a notification nobody reads unless it names the
+   * job.
+   */
+  'notify',
 ])
 
 const STEP_KEYS = new Set([
@@ -959,7 +969,7 @@ function extensionOf(
       errors.push({
         line: lineOf(source, key, jobLine),
         message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
-        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `cancel-on-build-failing`, `checkout`, `adjustments`, `concurrency`, `concurrency-group`, `concurrency-method`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure` and `plugins`.',
+        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `cancel-on-build-failing`, `checkout`, `adjustments`, `concurrency`, `concurrency-group`, `concurrency-method`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`, `plugins` and `notify`.',
       })
     }
   }
@@ -990,6 +1000,7 @@ function extensionOf(
   const concurrencyLimit = concurrencyLimitFrom(raw, id, jobLine, source, errors)
   const adjustments = adjustmentsFrom(raw.adjustments, id, jobLine, source, errors)
   const plugins = pluginsFrom(raw.plugins, id, jobLine, source, errors)
+  const notify = notifyFrom(raw.notify, id, jobLine, source, errors)
 
   const skip = skipFrom(raw.skip)
   const softFail = softFailFrom(raw['soft-fail'])
@@ -1005,11 +1016,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments, plugins), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments, plugins, notify), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments, plugins), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments, plugins, notify), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments }
 
   if (ifChanged.length > 0) {
     /*
@@ -1282,6 +1293,7 @@ function settingsOf(
   concurrencyLimit: { group: string, limit: number, method: string } | null = null,
   adjustments: MatrixAdjustment[] = [],
   plugins: Array<{ reference: string, parameters: Record<string, unknown> }> = [],
+  notify: Array<{ user: string, condition: string }> = [],
 ): Record<string, unknown> {
   const settings: Record<string, unknown> = {}
 
@@ -1313,6 +1325,9 @@ function settingsOf(
 
   if (plugins.length > 0)
     settings.plugins = plugins
+
+  if (notify.length > 0)
+    settings.notify = notify
 
   if (concurrencyLimit)
     settings.concurrency = concurrencyLimit
@@ -1505,6 +1520,92 @@ function pluginsFrom(
   }
 
   return kept
+}
+
+/**
+ * `reviewos.notify:` - who to tell when this job finishes.
+ *
+ * **People on this instance, never an address.** A workflow file is editable by
+ * anybody who can push, and a `notify:` that took an arbitrary email address
+ * would make every repository here a mail relay. Naming a user means their own
+ * preferences decide the channel, which is also the answer to "how do I get a
+ * text message": that is a per-person setting rather than a workflow one.
+ */
+function notifyFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): Array<{ user: string, condition: string }> {
+  if (value === undefined || value === null)
+    return []
+
+  if (!Array.isArray(value)) {
+    errors.push({
+      line: lineOf(source, 'notify', jobLine),
+      message: `\`notify:\` in job \`${id}\` is a list`,
+      fix: 'Write `notify: [{ user: handle }]`, one entry per person.',
+    })
+
+    return []
+  }
+
+  if (value.length > MAX_NOTIFY) {
+    errors.push({
+      line: lineOf(source, 'notify', jobLine),
+      message: `Job \`${id}\` notifies ${value.length} people, and ${MAX_NOTIFY} is the limit`,
+      fix: 'A job that has to tell more than a handful of people wants a subscription rather than a workflow key.',
+    })
+
+    return []
+  }
+
+  const entries: Array<{ user: string, condition: string }> = []
+
+  for (const entry of value) {
+    // `notify: [handle]` as well as `notify: [{ user: handle }]`, because the
+    // short form is what people write first and it means the obvious thing.
+    const record = typeof entry === 'string' ? { user: entry } : asRecord(entry)
+
+    if (!record) {
+      errors.push({
+        line: lineOf(source, 'notify', jobLine),
+        message: `An entry in \`notify:\` in job \`${id}\` is neither a handle nor a mapping`,
+        fix: 'Write `- user: handle`, optionally with `if: failure`.',
+      })
+
+      continue
+    }
+
+    const user = String(record.user ?? '').trim().replace(/^@/, '')
+
+    if (!/^[\w.-]{1,60}$/.test(user)) {
+      errors.push({
+        line: lineOf(source, 'notify', jobLine),
+        message: `\`notify:\` in job \`${id}\` names \`${user || String(record.user ?? '')}\`, which is not a handle on this instance`,
+        fix: 'Notify a person by handle. An email address is deliberately not accepted: their own preferences decide the channel.',
+      })
+
+      continue
+    }
+
+    const condition = String(record.if ?? 'always').trim()
+
+    if (!['success', 'failure', 'always'].includes(condition)) {
+      errors.push({
+        line: lineOf(source, 'notify', jobLine),
+        message: `\`notify.if\` in job \`${id}\` is \`${condition}\``,
+        fix: 'It is `success`, `failure`, or `always`.',
+      })
+
+      continue
+    }
+
+    entries.push({ user, condition })
+  }
+
+  return entries
 }
 
 function adjustmentsFrom(

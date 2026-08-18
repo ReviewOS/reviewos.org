@@ -1449,7 +1449,28 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       A barrier or a gate cannot carry it, and that is refused rather than allowed: a barrier that
       only sometimes exists changes the shape of the graph, and a deployment gate that vanishes
       because no file matched is a gate that approves itself.
-- [ ] `notify`, per step, distinct from workflow-level notification
+- [x] `notify`, per step, distinct from workflow-level notification
+
+      `reviewos: { notify: [{ user: alex, if: failure }] }` on a job. The case watching a repository
+      cannot cover: a nightly run with forty green jobs and one red deploy is a notification nobody
+      reads unless it names the job.
+
+      **People on this instance, never an address.** A workflow file is editable by anybody who can
+      push, so a `notify:` that took an email address would make every repository here a mail relay
+      with a spam problem. Naming a user means their own preferences decide the channel, which is
+      also the answer to "how do I get a text message": that is a per-person setting rather than a
+      workflow one.
+
+      Delivered from the settler rather than from the report endpoint, because a job reaches a
+      terminal state by four routes - a runner reporting, a lease lapsing, `fail-fast`, a
+      cancellation - and a notification wired to one of them silently does not happen for the other
+      three. `notified_at` is claimed with a guarded write, so running on every pass costs a query
+      rather than a duplicate.
+
+      Two refusals hold it: somebody who cannot read the repository is told nothing, and **a fork's
+      run notifies nobody** - a stranger who can open a pull request should not be able to make this
+      instance message a maintainer on demand. A cancelled job counts as a failure, because the
+      deploy did not happen either. `tests/e2e/workflow-notify.test.ts`.
 - [x] Tests: every attribute above round-trips definition to normalized rows to execution, and the
       validator rejects each one's malformed forms with a file location and a fix
 

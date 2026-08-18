@@ -435,6 +435,21 @@ export default defineModel({
      * Rewritten on every re-queue, including a lapsed lease, because the wait
      * that matters is the one this attempt actually sat through.
      */
+    /**
+     * When this job's `notify:` was delivered, or null.
+     *
+     * A column rather than a set in memory, because the settler runs on every
+     * report: a job that notified once per pass would be the feature people
+     * turn off within a day. The write is guarded on it being null, so two
+     * passes racing deliver once.
+     */
+    notified_at: {
+      order: 60,
+      fillable: true,
+      validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
+
     queued_at: {
       order: 10,
       fillable: true,

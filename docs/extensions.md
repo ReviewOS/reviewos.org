@@ -633,6 +633,47 @@ against.
 
 **Actions has no equivalent.**
 
+### `notify` - tell one person about one job
+
+```yaml
+  deploy:
+    runs-on: ubuntu-latest
+    reviewos:
+      notify:
+        - user: alex
+          if: failure
+        - user: sam
+    steps: [{ run: ./deploy }]
+```
+
+`if:` is `failure`, `success`, or `always` (the default). A bare handle is
+accepted too, so `notify: [alex]` means what it looks like.
+
+The case the repository's own notifications cannot cover: a nightly run with
+forty green jobs and one red deploy is a notification nobody reads unless it
+names the job. Watching a repository tells you about runs; this tells one person
+about one job.
+
+**People on this instance, never an address.** A workflow file is editable by
+anybody who can push, so a `notify:` that took an email address would make every
+repository here a mail relay with a spam problem. Naming a user means their own
+notification preferences decide the channel - inbox always, email and push if
+they asked for them - which is also the answer to "how do I get a text message":
+that is a per-person setting rather than a workflow one.
+
+Two more rules, both refusals. Somebody who cannot read the repository is told
+nothing, because a notification is not a way to learn that a private repository
+exists. And **a fork's pull request notifies nobody**: the workflow comes from
+the base branch, but the run is somebody else's code, and a stranger who can
+open a pull request should not be able to make this instance message a
+maintainer on demand.
+
+A cancelled job counts as a failure for `if: failure`, because a deploy that was
+cancelled did not happen either.
+
+**Buildkite has this** (`notify` on a step, with email, Slack and webhooks).
+Actions has notification settings per person and nothing per step.
+
 ## `intermediate` - what to do with runs that have not started
 
 The one extension that goes at the **top level** rather than on a job:

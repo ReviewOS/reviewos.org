@@ -125,6 +125,27 @@ const ATTRIBUTES: Attribute[] = [
     steps: [{ run: make }]`, says: 'comes from this instance' }],
   },
   {
+    keys: ['notify'],
+    job: `  watched:
+    runs-on: ubuntu-latest
+    reviewos:
+      notify:
+        - user: nobody-here
+          if: failure
+    steps: [{ run: make }]`,
+    definition: row => expect(settingsOf(row).notify?.[0]?.user).toBe('nobody-here'),
+    // Carried onto the run, because the settler reads it there when the job
+    // reaches a terminal state - a definition it had to join back to would be a
+    // notification that changes when the file does.
+    run: row => expect(settingsOf(row).notify?.[0]?.condition).toBe('failure'),
+    malformed: [{ job: `  watched:
+    runs-on: ubuntu-latest
+    reviewos:
+      notify:
+        - user: somebody@example.com
+    steps: [{ run: make }]`, says: 'not a handle on this instance' }],
+  },
+  {
     keys: ['retry'],
     job: `  flaky:
     runs-on: ubuntu-latest

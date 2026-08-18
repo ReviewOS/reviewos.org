@@ -9096,6 +9096,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "notified_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
           }
         ],
         "indexes": [
@@ -12516,7 +12525,7 @@
       }
     ]
   },
-  "hash": "f9518c13f1420b042fbc4bfdf9aec4f6fa0ce48582c88ff03377c0528cfd7742",
+  "hash": "7b3a0c6dfdc0615f85325a664d2739f629d43fd5dc043ddcd9fb48d67f479827",
   "dialect": "postgres",
-  "updatedAt": "2026-08-18T16:09:09.632Z"
+  "updatedAt": "2026-08-18T16:33:33.537Z"
 }
