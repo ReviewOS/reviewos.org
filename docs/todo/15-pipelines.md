@@ -1407,8 +1407,23 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       only sometimes exists changes the shape of the graph, and a deployment gate that vanishes
       because no file matched is a gate that approves itself.
 - [ ] `notify`, per step, distinct from workflow-level notification
-- [ ] Tests: every attribute above round-trips definition to normalized rows to execution, and the
+- [x] Tests: every attribute above round-trips definition to normalized rows to execution, and the
       validator rejects each one's malformed forms with a file location and a fix
+
+      `tests/e2e/workflow-attribute-round-trip.test.ts`: one table entry per `reviewos:` key,
+      checking the file -> definition row -> run's job row, and the malformed forms with a line and
+      a fix on each error. The keys a machine acts on are checked at the claim in the suites beside
+      the features themselves.
+
+      **The table is held against the parser's own key list**, so adding a key without saying where
+      it is stored and what reads it breaks this test. That is the failure this phase keeps
+      producing - `fail-fast`, `timeout-minutes` and `permissions:` each shipped parsed and read by
+      nothing - and it was found by accident every time until now.
+
+      It earned its place immediately: an error about a key written inline (`checkout: { clean: true }`)
+      carried line 0, because the line search looks for a key at the start of a line. An editor
+      cannot jump to line 0 and a reader reads it as "somewhere in this file"; it now falls back to
+      the job's own line.
 
 Which of those an Actions author already has a word for, so the engine does not grow a second
 spelling for a thing people can already say:

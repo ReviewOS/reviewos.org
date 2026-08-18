@@ -525,7 +525,15 @@ const JOB_KEYS = new Set([
 /** What a job *is*, which Actions has one of and this engine has five. */
 export type JobKind = 'command' | 'wait' | 'block' | 'trigger'
 
-const EXTENSION_KEYS = new Set([
+/**
+ * Every key that may appear under `reviewos:` on a job.
+ *
+ * Exported so a test can hold the list against what the round-trip actually
+ * carries: a key parsed here and stored nowhere is the recurring failure in
+ * this phase, and the way to catch the next one is for adding a key to break a
+ * test until it is covered.
+ */
+export const EXTENSION_KEYS = new Set([
   'wait',
   'block',
   'trigger',
@@ -625,7 +633,16 @@ export function lineOf(source: string, key: string, from = 0): number {
       return index + 1
   }
 
-  return 0
+  /*
+   * A key written inline - `checkout: { clean: true }` - is on no line of its
+   * own, so the search above finds nothing. Falling back to where the search
+   * started puts the error on the job rather than on line 0, which an editor
+   * cannot jump to and a reader reads as "somewhere in this file".
+   *
+   * `from` is the job's line at every call site here. Zero only when the caller
+   * had nothing better either, and then there is genuinely nothing to point at.
+   */
+  return from > 0 ? from : 0
 }
 
 /** A YAML mapping, or null when the value is anything else. */
