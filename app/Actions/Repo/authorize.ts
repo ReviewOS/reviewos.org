@@ -182,9 +182,13 @@ export async function allocateNumber(repositoryId: number, attempts = 5): Promis
  * which is where it has always been handled, and a request carrying neither
  * gets null and the ordinary session path.
  */
-async function fineGrainedToken(request: any): Promise<AuthenticatedToken | 'rejected' | null> {
+async function fineGrainedToken(request: RequestInstance): Promise<AuthenticatedToken | 'rejected' | null> {
+  /*
+   * `in` rather than a truth check: the middleware writes `null` when there was
+   * no token, and that answer is worth keeping - it means "already looked".
+   */
   if (request && '__fineGrainedToken' in request)
-    return request.__fineGrainedToken
+    return request.__fineGrainedToken ?? null
 
   let resolved: AuthenticatedToken | 'rejected' | null = null
 
