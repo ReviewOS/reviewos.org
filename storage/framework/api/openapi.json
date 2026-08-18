@@ -15587,6 +15587,9 @@
                       "pause-queue",
                       "resume-queue",
                       "require-signatures",
+                      "attach-plugin",
+                      "detach-plugin",
+                      "plugin-policy",
                       "assign-repository",
                       "unassign-repository",
                       "assign-runner",
@@ -15626,6 +15629,18 @@
                     "type": "boolean"
                   },
                   "required": {
+                    "type": "boolean"
+                  },
+                  "plugin": {
+                    "type": "string"
+                  },
+                  "allowlist": {
+                    "type": "string"
+                  },
+                  "capabilities": {
+                    "type": "string"
+                  },
+                  "pinned": {
                     "type": "boolean"
                   },
                   "token": {

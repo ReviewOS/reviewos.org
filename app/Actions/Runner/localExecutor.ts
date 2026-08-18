@@ -33,7 +33,7 @@ import type { ActionDefinition } from './actionFile'
 import { inputEnvironment, missingInputs, parseActionFile } from './actionFile'
 import type { CheckoutOptions } from './checkout'
 import { checkoutPlan } from './checkout'
-import type { FleetStage, HookStage, ResolvedHook } from './hooks'
+import type { FleetStage, HookStage, InstalledPlugin, ResolvedHook } from './hooks'
 import { fleetHook, hooksFor, repositoryHooksAllowed } from './hooks'
 import { CommandReader } from './commands'
 import type { ServiceRequest } from './services'
@@ -210,6 +210,54 @@ export async function verifySignedWork(baseUrl: string, job: any): Promise<{ ok:
   })
 }
 
+/**
+ * Write the plugins a claim carried into the workspace.
+ *
+ * Executable, because a hook that is not executable is not a hook - the
+ * resolver on the other side would skip it silently, and the symptom would be
+ * a plugin that appears to do nothing.
+ */
+export function installPlugins(workspace: string, job: any): InstalledPlugin[] {
+  const plugins = Array.isArray(job?.plugins) ? job.plugins : []
+  const installed: InstalledPlugin[] = []
+
+  for (const plugin of plugins) {
+    const name = String(plugin?.name ?? '').replace(/[^\w.-]+/g, '-')
+    const hooks = plugin?.hooks && typeof plugin.hooks === 'object' ? plugin.hooks : {}
+
+    if (!name || Object.keys(hooks).length === 0)
+      continue
+
+    const directory = join(workspace, '.reviewos-runner', 'plugins', name)
+
+    try {
+      mkdirSync(directory, { recursive: true })
+
+      for (const [stage, script] of Object.entries(hooks as Record<string, string>))
+        writeFileSync(join(directory, stage), String(script), { mode: 0o755 })
+
+      installed.push({
+        name,
+        directory,
+        environment: (plugin?.environment ?? {}) as Record<string, string>,
+      })
+    }
+    catch {
+      /*
+       * A plugin that cannot be written is not silently skipped as a decision -
+       * it is skipped because there is nothing to run, and the job's own
+       * failure will follow from whatever the plugin was there to do. The
+       * alternative, failing the job here, would take a fleet down over a full
+       * disk in a way nobody could read.
+       */
+      continue
+    }
+  }
+
+  return installed
+}
+
+
 export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome | null> {
   const say = options.say ?? (() => {})
   const claim = await post(options.baseUrl, '/api/runner/claim', options.token, {})
@@ -293,6 +341,17 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
   maskDeliveredSecrets(reader, job)
 
+  /*
+   * The job's plugins, written to disk before any hook runs.
+   *
+   * They arrive as scripts rather than as references, so the machine fetches
+   * nothing: what ran is what the instance stored, at the commit it recorded,
+   * and a runner that cannot reach a plugin's repository is not a thing that
+   * can happen. Written under the workspace's own directory so a failed job
+   * leaves them where an operator can read them.
+   */
+  const installed = installPlugins(workspace, job)
+
   const annotations: any[] = []
   const summary: string[] = []
 
@@ -353,6 +412,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       workspace,
       environment: environmentFor(job, workspace),
       runnerDirectory: options.hooksDirectory,
+      plugins: installed,
       say: send,
     })
 
@@ -379,6 +439,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         workspace,
         environment: { ...environmentFor(job, workspace), ...hookEnvironment },
         runnerDirectory: options.hooksDirectory,
+        plugins: installed,
         say: send,
       })
 
@@ -544,6 +605,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         workspace,
         environment: { ...environmentFor(job, workspace), ...hookEnvironment },
         runnerDirectory: options.hooksDirectory,
+        plugins: installed,
         say: send,
       })
 
@@ -835,6 +897,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         workspace,
         environment: { ...environmentFor(job, workspace), ...hookEnvironment },
         runnerDirectory: options.hooksDirectory,
+        plugins: installed,
         say: send,
       })
 
@@ -854,6 +917,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       workspace,
       environment: { ...environmentFor(job, workspace), ...hookEnvironment },
       runnerDirectory: options.hooksDirectory,
+      plugins: installed,
       say: send,
     })
 
@@ -899,6 +963,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         workspace,
         environment: { ...environmentFor(job, workspace), ...hookEnvironment },
         runnerDirectory: options.hooksDirectory,
+        plugins: installed,
         say: send,
       })
 
@@ -921,6 +986,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         workspace,
         environment: { ...environmentFor(job, workspace), ...hookEnvironment },
         runnerDirectory: options.hooksDirectory,
+        plugins: installed,
         say: send,
       })
 
@@ -1658,6 +1724,7 @@ async function runHooks(input: {
   workspace: string
   environment: Record<string, string>
   runnerDirectory?: string | null
+  plugins?: readonly InstalledPlugin[]
   say: (text: string, stream?: 'stdout' | 'stderr') => Promise<void>
 }): Promise<HookOutcome> {
   /*
@@ -1673,12 +1740,13 @@ async function runHooks(input: {
     stage: input.stage,
     runnerDirectory: input.runnerDirectory,
     repositoryDirectory,
+    plugins: input.plugins,
   })
 
   const outcome: HookOutcome = { ok: true, ran: [], reason: '', exported: {} }
 
   for (const hook of hooks) {
-    const envFile = join(input.workspace, '.reviewos-runner', `hook-env-${input.stage}-${hook.scope}`)
+    const envFile = join(input.workspace, '.reviewos-runner', `hook-env-${input.stage}-${hook.scope}${hook.plugin ? `-${hook.plugin}` : ''}`)
 
     /*
      * The directory has to exist before the hook runs, not after.
@@ -1693,7 +1761,7 @@ async function runHooks(input: {
     }
     catch { /* the hook will fail on its own terms, and say so */ }
 
-    await input.say(`::group::Hook ${input.stage} (${hook.scope})\n`)
+    await input.say(`::group::Hook ${input.stage} (${hook.plugin ? `plugin ${hook.plugin}` : hook.scope})\n`)
 
     const result = await runStep({
       command: `${JSON.stringify(hook.path)}`,
@@ -1701,6 +1769,9 @@ async function runHooks(input: {
       environment: {
         ...input.environment,
         ...outcome.exported,
+        // A plugin's own parameters, last, so a plugin reads what it was given
+        // rather than what the job happened to have a variable for.
+        ...(hook.environment ?? {}),
         REVIEWOS_HOOK: input.stage,
         REVIEWOS_HOOK_SCOPE: hook.scope,
         REVIEWOS_ENV: envFile,
@@ -1717,7 +1788,9 @@ async function runHooks(input: {
       outcome.ok = false
       // Named down to the scope, because "a hook failed" sends an operator to
       // read the repository's hooks when the failure was the machine's own.
-      outcome.reason = `The ${hook.scope} \`${input.stage}\` hook failed (exited ${result.exitCode}).`
+      outcome.reason = hook.plugin
+        ? `The \`${hook.plugin}\` plugin's \`${input.stage}\` hook failed (exited ${result.exitCode}).`
+        : `The ${hook.scope} \`${input.stage}\` hook failed (exited ${result.exitCode}).`
 
       return outcome
     }

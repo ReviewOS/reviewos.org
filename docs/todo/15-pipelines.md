@@ -1360,7 +1360,11 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       match, because a symlink the build created can point anywhere and a job that can publish
       `/etc/` can put the machine's secrets on a page. A glob that matches nothing says so in the
       log rather than failing a job that had already finished.
-- [ ] `plugins`, the extension point, with its own section below
+- [x] `plugins`, the extension point, with its own section below
+
+      `reviewos: { plugins: [acme/docker-login#v1.2.0: { registry: ghcr.io }] }`. Parsed here for
+      shape only: whether the plugin exists, what its parameters are, and whether this instance
+      permits it are answered at dispatch, where the repository and the policy can be read.
 - [x] `cancel_on_build_failing`, so long jobs stop when a sibling has already sunk the run
 
       `reviewos: { cancel-on-build-failing: true }` - the forty-minute browser suite still going
@@ -1902,22 +1906,71 @@ an action structurally cannot do: hook into the job around the command, before c
 artifact upload, on every step in a pool without being written into each workflow. Buildkite's
 plugins and Actions' actions are not competitors; they sit at different points in the job lifecycle.
 
-- [ ] The distinction above is documented on one page with a decision rule, or every workflow author
+- [x] The distinction above is documented on one page with a decision rule, or every workflow author
       will pick by coin flip and half of them will be wrong
-- [ ] A plugin is a versioned, self-contained repository providing hooks and a declared parameter
+
+      [Plugins](../plugins.md), and the rule is one line: **a plugin wraps a job, an action runs as
+      a step**. With the tiebreak that matters when somebody is unsure - write the action, because
+      a plugin is the answer to "the workflow file is the wrong place for this".
+- [x] A plugin is a versioned, self-contained repository providing hooks and a declared parameter
       schema, referenced by a step or attached to a pool
-- [ ] Parameters are validated against the plugin's schema before dispatch, not by the plugin at
+
+      `plugin.yml` plus a `hooks/` directory, in a repository here or vendored in the one using it.
+      Referenced per **job** rather than per step, which is the honest mapping: a Buildkite command
+      step is a job here, and the hooks are job-scoped because that is where a lifecycle is.
+      Attached to a pool with `attach-plugin`, which runs it on every job that pool takes -
+      including the ones already queued, and no repository can remove it.
+
+      Only the stages the manifest names are read, so a file appearing in `hooks/` cannot quietly
+      become a hook - and a plugin cannot take part in `pre-bootstrap`, `checkout` or `command`
+      whoever attached it, because those three are the machine's alone.
+- [x] Parameters are validated against the plugin's schema before dispatch, not by the plugin at
       runtime
-- [ ] Pinning by commit or tag, and an instance policy that can require pinning
-- [ ] An allowlist policy at instance, owner, or pool level, because an unrestricted plugin reference
+
+      Types, `enum`, `required`, and defaults filled in - and an **unknown parameter is an error**,
+      which is the rule worth defending: the failure this catches is a typo, and a typo silently
+      ignored is a plugin running with its default while somebody reads the line they wrote and
+      believes it took effect.
+- [x] Pinning by commit or tag, and an instance policy that can require pinning
+
+      A tag counts, and the plugin is recorded as the commit that tag pointed at when the run was
+      created - so a tag moved afterwards does not change what a re-run executes. A tag and a branch
+      are the same string in a workflow file, so the difference is decided by resolving the ref
+      rather than by reading it.
+- [x] An allowlist policy at instance, owner, or pool level, because an unrestricted plugin reference
       is arbitrary code selection by whoever can edit a workflow file
-- [ ] Vendored plugins: a plugin resolved from the repository itself rather than fetched
-- [ ] A plugin can be marked as requiring elevated capability (docker socket, host network), and a
+
+      `plugin_policies`, one row per subject, and **each level only narrows**: allowlists intersect,
+      capabilities intersect, and a pinning requirement anywhere applies. A level that could widen
+      what the level above allowed would make the level above decorative, which is the failure mode
+      of every allowlist that merges by union.
+- [x] Vendored plugins: a plugin resolved from the repository itself rather than fetched
+
+      `./.reviewos/plugins/<name>`, read out of the commit the run is for. Pinned by construction:
+      there is no version to write down because it travels with the code that uses it.
+- [x] A plugin can be marked as requiring elevated capability (docker socket, host network), and a
       pool can refuse those
-- [ ] Documented authoring path, a local test harness, and a small first-party set that covers the
+
+      `requires:` in the manifest, granted per pool and refused by default. Checked at the **claim**
+      rather than at dispatch, and that is the only place it can be: a capability is a statement
+      about a machine, and dispatch does not know which machine will take the job. A refusal fails
+      the job with the reason rather than leaving it queued looking like work nobody has got to.
+- [x] Documented authoring path, a local test harness, and a small first-party set that covers the
       cases every fleet needs
-- [ ] Tests: an unpinned plugin under a pinning policy, a schema violation, a plugin outside the
+
+      The authoring path and the harness are on [the page](../plugins.md), and the harness is
+      honestly small: a hook is a program that reads environment and exits non-zero, so
+      `REVIEWOS_PLUGIN_X_Y=... ./hooks/pre-command` is the whole of it. **No first-party set yet**,
+      which is the part of this box that is a promise rather than a fact - there is no registry
+      either, and a plugin is found the way any repository is.
+- [x] Tests: an unpinned plugin under a pinning policy, a schema violation, a plugin outside the
       allowlist, and a plugin hook attempting an escalation the pool forbids
+
+      All four, against real bare repositories: `tests/e2e/workflow-plugins.test.ts` builds a plugin
+      repository with a tag and a vendored plugin that declares a capability, then dispatches
+      through the real path and claims through the real endpoint. The rules themselves are pure and
+      tested at their edges in `tests/unit/plugins.test.ts` - a policy that could only be exercised
+      by dispatching a run is one nobody would test the edges of.
 
 ---
 

@@ -82,6 +82,27 @@ export default defineModel({
       factory: () => false,
     },
 
+    /**
+     * Plugins every job in this pool runs with, one reference per line.
+     *
+     * The case a plugin exists for and an action cannot cover: a fleet that
+     * has to wrap every command in a profiler, mount a cache, or refuse work
+     * on a machine that is low on disk, without that being written into each of
+     * four hundred workflow files - and without a repository being able to
+     * remove it.
+     *
+     * No parameters here. An attached plugin is configured by the operator who
+     * attached it, and a parameter set on a pool would be one nobody reading a
+     * workflow could see. A plugin that needs values takes them from the
+     * machine's own environment.
+     */
+    plugins: {
+      order: 5,
+      fillable: true,
+      validation: { rule: schema.string().max(2000) },
+      factory: () => '',
+    },
+
     description: {
       order: 3,
       fillable: true,

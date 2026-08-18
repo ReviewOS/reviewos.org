@@ -20,6 +20,7 @@
  * with no suggestion is the same as no error at all.
  */
 
+import { isProblem, parsePluginReference, readPluginList } from '../Plugin/reference'
 import { differencesIn } from './conformance'
 import type { Combination, MatrixAdjustment, MatrixDefinition } from './matrix'
 import { combinationLabel, expandMatrix } from './matrix'
@@ -573,6 +574,13 @@ export const EXTENSION_KEYS = new Set([
   // barrier: the dependencies still have to be finished, and their verdict
   // stops mattering.
   'allow-dependency-failure',
+  /*
+   * The other extension mechanism: code that wraps the job rather than running
+   * as a step. `uses:` is still what an author reaches for; this is for what an
+   * action structurally cannot do - hook in before the checkout, after the
+   * artifacts, or on every job in a pool.
+   */
+  'plugins',
 ])
 
 const STEP_KEYS = new Set([
@@ -906,7 +914,7 @@ function extensionOf(
       errors.push({
         line: lineOf(source, key, jobLine),
         message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
-        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `cancel-on-build-failing`, `checkout`, `adjustments`, `concurrency`, `concurrency-group`, `concurrency-method`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
+        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `cancel-on-build-failing`, `checkout`, `adjustments`, `concurrency`, `concurrency-group`, `concurrency-method`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure` and `plugins`.',
       })
     }
   }
@@ -936,6 +944,7 @@ function extensionOf(
   const checkout = checkoutFrom(raw.checkout, id, jobLine, source, errors)
   const concurrencyLimit = concurrencyLimitFrom(raw, id, jobLine, source, errors)
   const adjustments = adjustmentsFrom(raw.adjustments, id, jobLine, source, errors)
+  const plugins = pluginsFrom(raw.plugins, id, jobLine, source, errors)
 
   const skip = skipFrom(raw.skip)
   const softFail = softFailFrom(raw['soft-fail'])
@@ -951,11 +960,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments, plugins), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments, plugins), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments }
 
   if (ifChanged.length > 0) {
     /*
@@ -1227,6 +1236,7 @@ function settingsOf(
   checkout: Record<string, unknown> | null = null,
   concurrencyLimit: { group: string, limit: number, method: string } | null = null,
   adjustments: MatrixAdjustment[] = [],
+  plugins: Array<{ reference: string, parameters: Record<string, unknown> }> = [],
 ): Record<string, unknown> {
   const settings: Record<string, unknown> = {}
 
@@ -1255,6 +1265,9 @@ function settingsOf(
   // rather than guessing from its contents.
   if (checkout !== null)
     settings.checkout = checkout
+
+  if (plugins.length > 0)
+    settings.plugins = plugins
 
   if (concurrencyLimit)
     settings.concurrency = concurrencyLimit
@@ -1400,6 +1413,55 @@ export const MAX_ADJUSTMENTS = 50
  * combination is a row on the run **with the reason on it**, where an excluded
  * one is a job that never existed and cannot explain itself.
  */
+/**
+ * `reviewos.plugins:` - the references and their parameters, checked for shape.
+ *
+ * Only shape and syntax here. Whether the plugin exists, whether its parameters
+ * are the ones it declares, and whether this instance permits it at all are
+ * answered at dispatch, where the repository and the policy can be read - a
+ * parser that reached for the database would be one no test could run without
+ * one.
+ */
+function pluginsFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): Array<{ reference: string, parameters: Record<string, unknown> }> {
+  const list = readPluginList(value)
+
+  if ('error' in list) {
+    errors.push({
+      line: lineOf(source, 'plugins', jobLine),
+      message: `Job \`${id}\`: ${list.error}`,
+      fix: 'A plugin entry is `owner/name#ref`, or a mapping of that to its parameters.',
+    })
+
+    return []
+  }
+
+  const kept: Array<{ reference: string, parameters: Record<string, unknown> }> = []
+
+  for (const entry of list) {
+    const parsed = parsePluginReference(entry.raw)
+
+    if (isProblem(parsed)) {
+      errors.push({
+        line: lineOf(source, 'plugins', jobLine),
+        message: `Job \`${id}\`: ${parsed.reason}`,
+        fix: 'A plugin lives on this instance: `owner/name#ref`, or `./.reviewos/plugins/<name>` in this repository.',
+      })
+
+      continue
+    }
+
+    kept.push({ reference: parsed.raw, parameters: entry.parameters })
+  }
+
+  return kept
+}
+
 function adjustmentsFrom(
   value: unknown,
   id: string,

@@ -20,6 +20,9 @@
  */
 
 import { db } from '@stacksjs/database'
+import { repositoryPath } from '../Git/storage'
+import { preparePlugins } from '../Plugin/prepare'
+import { policyLevels } from '../Plugin/store'
 import { setting } from '../../Ops/settings'
 import { branchDecision, skipDecision } from './stepAttributes'
 import type { Combination, MatrixAdjustment } from './matrix'
@@ -880,6 +883,15 @@ async function createJobs(
        */
       const copies = settingsOfJob(job.settings).parallelism
 
+      /*
+       * The job's plugins, resolved to commits and checked against the policy.
+       *
+       * A failure here makes the job `failed` from the moment the run exists,
+       * with the reason on the row: a plugin that will never be permitted is
+       * not a job to queue and let a machine discover.
+       */
+      const plugins = await pluginSettings({ runId, settings: job.settings })
+
       for (let copy = 0; copy < copies; copy++) {
         const created: any = await db
           .insertInto('workflow_jobs')
@@ -891,7 +903,7 @@ async function createJobs(
             job_id: prefix ? `${prefix}/${job.job_id}` : job.job_id,
             concurrency_group: group,
             condition: job.condition ?? null,
-            condition_reason: runs ? (job.condition ? decision.reason : null) : why,
+            condition_reason: !plugins.ok ? plugins.reason : runs ? (job.condition ? decision.reason : null) : why,
             // Actions' shape: `test (ubuntu-latest, 20)`. The values without
             // their keys, because that is what fits in a job list and what
             // somebody scanning a failed run already recognises.
@@ -916,9 +928,12 @@ async function createJobs(
              * may take would sit in it forever. The settler moves them out on
              * the same pass that unblocks the rest of the graph.
              */
-            state: !runs
-              ? 'skipped'
-              : (needs.length > 0 || String(job.kind ?? 'command') !== 'command' ? 'blocked' : 'queued'),
+            state: !plugins.ok
+              ? 'failed'
+              : !runs
+                  ? 'skipped'
+                  : (needs.length > 0 || String(job.kind ?? 'command') !== 'command' ? 'blocked' : 'queued'),
+            finished_at: plugins.ok ? null : new Date().toISOString(),
             needs: job.needs,
             runs_on: job.runs_on,
             matrix_values: values ? JSON.stringify(values) : null,
@@ -944,7 +959,7 @@ async function createJobs(
            */
           continue_on_error: job.continue_on_error === true || adjusted?.softFail === true,
             kind: job.kind ?? 'command',
-            settings: job.settings ?? null,
+            settings: plugins.ok ? plugins.settings : (job.settings ?? null),
             group_label: job.group_label ?? null,
             priority: Number(job.priority ?? 0),
           } as any)
@@ -1227,6 +1242,96 @@ function labelFor(values: Record<string, unknown>): string {
  * is skipped when it should have run is a broken commit nobody noticed.
  */
 /** A definition job's stored `reviewos:` attributes, which are JSON in a column. */
+/**
+ * The plugins a job asked for, resolved and checked, before the row exists.
+ *
+ * Returns the settings to store: the same object with `plugins` replaced by
+ * what was resolved, or a reason the job cannot run. Checked here rather than
+ * at the runner because the answer to "you misspelled `registry`" belongs on
+ * the screen where somebody wrote it, and because a plugin the instance does
+ * not permit should never be handed to a machine at all.
+ *
+ * The pool's half of the policy is not asked here: which pool a job runs in is
+ * a fact about the runner that claims it, which does not exist yet.
+ */
+async function pluginSettings(input: {
+  runId: number
+  settings: unknown
+}): Promise<{ ok: true, settings: string | null } | { ok: false, reason: string }> {
+  const raw = String(input.settings ?? '')
+
+  // The common case by a wide margin: no plugins, no repository read, no policy
+  // query. Checked textually so a job without the key costs nothing.
+  if (!raw.includes('"plugins"'))
+    return { ok: true, settings: input.settings === null || input.settings === undefined ? null : raw }
+
+  let parsed: any
+
+  try {
+    parsed = JSON.parse(raw)
+  }
+  catch {
+    return { ok: true, settings: raw }
+  }
+
+  const entries = Array.isArray(parsed?.plugins) ? parsed.plugins : []
+
+  if (entries.length === 0)
+    return { ok: true, settings: raw }
+
+  const run: any = await db
+    .selectFrom('workflow_runs')
+    .innerJoin('repositories', 'repositories.id', '=', 'workflow_runs.repository_id')
+    .select([
+      'workflow_runs.head_sha as head_sha',
+      'repositories.owner_type as owner_type',
+      'repositories.owner_id as owner_id',
+      'repositories.name as name',
+    ])
+    .where('workflow_runs.id', '=', input.runId)
+    .executeTakeFirst()
+
+  if (!run)
+    return { ok: false, reason: 'this run has no repository to resolve plugins against' }
+
+  const handle = await ownerHandle(String(run.owner_type), Number(run.owner_id))
+  const located = handle ? repositoryPath(handle, String(run.name)) : { path: null as string | null }
+
+  if (!located.path)
+    return { ok: false, reason: 'this repository has no directory on this instance' }
+
+  const prepared = await preparePlugins({
+    entries: entries.map((entry: any) => ({
+      reference: String(entry?.reference ?? ''),
+      parameters: (entry?.parameters ?? {}) as Record<string, unknown>,
+    })),
+    gitDir: located.path,
+    sha: String(run.head_sha ?? ''),
+    ownerType: String(run.owner_type),
+    ownerId: Number(run.owner_id),
+    policies: await policyLevels({ ownerType: String(run.owner_type), ownerId: Number(run.owner_id) }),
+  })
+
+  if (!prepared.ok)
+    return { ok: false, reason: prepared.reason }
+
+  return { ok: true, settings: JSON.stringify({ ...parsed, plugins: prepared.plugins }) }
+}
+
+/** A handle for an owner of either kind, which is what a repository path needs. */
+async function ownerHandle(ownerType: string, ownerId: number): Promise<string | null> {
+  const table = ownerType === 'organization' ? 'organizations' : 'users'
+
+  const row: any = await db
+    .selectFrom(table as any)
+    .select(['handle'])
+    .where('id', '=', ownerId)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  return row?.handle ? String(row.handle) : null
+}
+
 function settingsOfJob(settings: unknown): {
   skip: string | null
   branches: string[]

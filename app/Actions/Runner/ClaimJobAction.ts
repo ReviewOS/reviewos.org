@@ -8,6 +8,10 @@ import { authenticateRunner } from './authenticate'
 import { claimNextJob, stopRequestedFor } from './claim'
 import { eventPayload } from '../Workflow/eventPayload'
 import { signWork } from '../Workflow/stepSignature'
+import { environmentFor as pluginEnvironment, hookScriptsFor, poolPlugins, poolVerdict, preparedPluginsOf } from '../Plugin/prepare'
+import { effectivePolicy } from '../Plugin/policy'
+import { policyLevels } from '../Plugin/store'
+import { repositoryPath } from '../Git/storage'
 
 /**
  * What a runner asks for when it has capacity.
@@ -379,6 +383,65 @@ export default new Action({
     }))
 
     /*
+     * The job's plugins: the pool's half of the policy, then the hook scripts.
+     *
+     * Dispatch checked the instance's rules and the owner's; which pool a job
+     * runs in is a fact about the machine that claimed it, so this is the first
+     * moment the last level can be asked. A refusal fails the job with the
+     * reason rather than leaving it queued - a job no machine in this pool may
+     * run is not work waiting for a runner, it is work that will never happen.
+     */
+    const attached = await poolPlugins(claimed.poolId)
+
+    if (!attached.ok) {
+      await db
+        .updateTable('workflow_jobs')
+        .set({ state: 'failed', finished_at: new Date().toISOString(), condition_reason: attached.reason } as any)
+        .where('id', '=', claimed.jobId)
+        .execute()
+
+      return runnerJson({ job: null })
+    }
+
+    // The operator's first, then the workflow's: a fleet-wide profiler wraps
+    // what a repository asked for rather than the other way round.
+    const prepared = [...attached.plugins, ...preparedPluginsOf(jobRow?.settings)]
+    const plugins: any[] = []
+
+    if (prepared.length > 0) {
+      const verdict = poolVerdict({
+        plugins: prepared,
+        policy: effectivePolicy(await policyLevels({ poolId: claimed.poolId ?? undefined })),
+      })
+
+      if (!verdict.ok) {
+        await db
+          .updateTable('workflow_jobs')
+          .set({ state: 'failed', finished_at: new Date().toISOString(), condition_reason: verdict.reason } as any)
+          .where('id', '=', claimed.jobId)
+          .execute()
+
+        return runnerJson({ job: null })
+      }
+
+      const located = context ? repositoryPath(await ownerHandleOf(context), String(context.repository)) : { path: null as string | null }
+
+      for (const plugin of prepared) {
+        plugins.push({
+          name: plugin.name,
+          reference: plugin.reference,
+          sha: plugin.sha,
+          requires: plugin.requires,
+          // The parameters as environment, namespaced by plugin: two plugins
+          // that both take a `registry` are ordinary, and one reading the
+          // other's value is not a bug anybody would find quickly.
+          environment: pluginEnvironment(plugin),
+          hooks: await hookScriptsFor({ plugin, gitDir: located.path ?? '' }),
+        })
+      }
+    }
+
+    /*
      * The signature over the work, which a pool can be set to require.
      *
      * Over the mapped steps rather than over the rows, because the runner can
@@ -608,6 +671,12 @@ export default new Action({
          */
         signature,
         require_signed_steps: claimed.requireSignedSteps,
+        /*
+         * The plugins this job runs with, as scripts rather than references:
+         * the machine is not asked to fetch anything, which keeps "what ran"
+         * a question this instance can answer from the row it stored.
+         */
+        plugins,
       },
     })
   },

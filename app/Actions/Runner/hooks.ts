@@ -23,8 +23,11 @@
  * scope decorative, and the whole point of `pre-bootstrap` is that a repository
  * cannot reach it.
  *
- * Plugin hooks are the third scope in Buildkite. There are no plugins here yet;
- * when there are, they slot in between the two above.
+ * **Plugin hooks are the third scope**, and they slot between the two above:
+ * after the machine's own, before the repository's. A plugin is named by a
+ * workflow file or attached to a pool, so it is trusted more than the steps -
+ * an operator or an author chose it deliberately, at a commit - and less than
+ * the machine, which is why it cannot take part in the deciding stages either.
  */
 
 import { existsSync, statSync } from 'node:fs'
@@ -76,7 +79,18 @@ export const RUNNER_ONLY: readonly HookStage[] = ['pre-bootstrap', 'checkout', '
 export interface ResolvedHook {
   stage: HookStage | FleetStage
   path: string
-  scope: 'runner' | 'repository'
+  scope: 'runner' | 'plugin' | 'repository'
+  /** For a plugin hook, which plugin - it names the group in the log. */
+  plugin?: string
+  /** For a plugin hook, its parameters as environment. */
+  environment?: Record<string, string>
+}
+
+/** A plugin as the runner has it on disk: a directory of hook scripts. */
+export interface InstalledPlugin {
+  name: string
+  directory: string
+  environment: Record<string, string>
 }
 
 /**
@@ -95,6 +109,7 @@ export function hooksFor(input: {
   stage: HookStage
   runnerDirectory?: string | null
   repositoryDirectory?: string | null
+  plugins?: readonly InstalledPlugin[]
 }): ResolvedHook[] {
   const found: ResolvedHook[] = []
   const runner = executableIn(input.runnerDirectory, input.stage)
@@ -102,8 +117,22 @@ export function hooksFor(input: {
   if (runner)
     found.push({ stage: input.stage, path: runner, scope: 'runner' })
 
+  /*
+   * A plugin cannot decide whether this repository's code runs, replace the
+   * checkout, or replace the command, whoever attached it. Those three are the
+   * machine's alone: a plugin that could take them over would make the runner
+   * scope decorative for any fleet that uses plugins at all, which is most of
+   * the fleets that would want either.
+   */
   if (RUNNER_ONLY.includes(input.stage))
     return found
+
+  for (const plugin of input.plugins ?? []) {
+    const path = executableIn(plugin.directory, input.stage)
+
+    if (path)
+      found.push({ stage: input.stage, path, scope: 'plugin', plugin: plugin.name, environment: plugin.environment })
+  }
 
   const repository = executableIn(input.repositoryDirectory, input.stage)
 

@@ -95,6 +95,36 @@ const ATTRIBUTES: Attribute[] = [
     run: row => expect(['queued', 'blocked', 'skipped']).toContain(String(row.state)),
   },
   {
+    keys: ['plugins'],
+    job: `  wrapped:
+    runs-on: ubuntu-latest
+    reviewos:
+      plugins:
+        - nobody/nothing#v1
+    steps: [{ run: make }]`,
+    // The reference as written reaches the definition, unresolved: resolving it
+    // is dispatch's job, and a definition that stored a commit would be one
+    // that could not be re-read when the plugin moved.
+    definition: row => expect(String(settingsOf(row).plugins?.[0]?.reference)).toBe('nobody/nothing#v1'),
+    /*
+     * And on the run it is either resolved to a commit, or the job is red with
+     * the reason. This fixture's repository has no directory on this instance
+     * and no such plugin, so it is the second - which is the behaviour worth
+     * pinning down anyway: a plugin that cannot be resolved fails the job at
+     * dispatch rather than being handed to a machine to discover.
+     */
+    run: (row) => {
+      expect(String(row.state)).toBe('failed')
+      expect(String(row.condition_reason)).toContain('nobody/nothing')
+    },
+    malformed: [{ job: `  wrapped:
+    runs-on: ubuntu-latest
+    reviewos:
+      plugins:
+        - https://example.com/plugin.git
+    steps: [{ run: make }]`, says: 'comes from this instance' }],
+  },
+  {
     keys: ['retry'],
     job: `  flaky:
     runs-on: ubuntu-latest

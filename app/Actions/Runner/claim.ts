@@ -56,6 +56,14 @@ export interface ClaimedJob {
    * the ones whose config file somebody remembered to edit.
    */
   requireSignedSteps: boolean
+  /**
+   * The pool this machine is in, or null for a runner in no queue.
+   *
+   * Carried out of the claim because two rules are the pool's rather than the
+   * job's - which plugins it permits, and what they may need - and both are
+   * asked once the job is in hand.
+   */
+  poolId: number | null
 }
 
 /**
@@ -296,6 +304,7 @@ export async function claimNextJob(
       leaseExpiresAt: expires,
       jobToken: token,
       requireSignedSteps: queue?.requireSignedSteps === true,
+      poolId: queue?.poolId ?? null,
     }
   }
 

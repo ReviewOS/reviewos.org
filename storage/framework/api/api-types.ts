@@ -9854,7 +9854,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "require-signatures" | "assign-repository" | "unassign-repository" | "assign-runner" | "stop-runner" | "create-runner" | "create-token" | "revoke-token" | "add-maintainer" | "remove-maintainer"; "name"?: string; "slug"?: string; "labels"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number; "force"?: boolean; "required"?: boolean; "token"?: number; "expires"?: string; "user"?: number } } }
+    requestBody?: { content: { "application/json": { "operation"?: "list" | "create-pool" | "create-queue" | "pause-queue" | "resume-queue" | "require-signatures" | "attach-plugin" | "detach-plugin" | "plugin-policy" | "assign-repository" | "unassign-repository" | "assign-runner" | "stop-runner" | "create-runner" | "create-token" | "revoke-token" | "add-maintainer" | "remove-maintainer"; "name"?: string; "slug"?: string; "labels"?: string; "reason"?: string; "pool"?: number; "queue"?: number; "runner"?: number; "repository"?: number; "force"?: boolean; "required"?: boolean; "plugin"?: string; "allowlist"?: string; "capabilities"?: string; "pinned"?: boolean; "token"?: number; "expires"?: string; "user"?: number } } }
     responses: {
       "200": { content: never }
       "404": { content: never }

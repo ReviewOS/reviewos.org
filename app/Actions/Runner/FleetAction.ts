@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { isProblem, parsePluginReference } from '../Plugin/reference'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
@@ -37,6 +38,9 @@ export default new Action({
         'pause-queue',
         'resume-queue',
         'require-signatures',
+        'attach-plugin',
+        'detach-plugin',
+        'plugin-policy',
         'assign-repository',
         'unassign-repository',
         'assign-runner',
@@ -58,6 +62,10 @@ export default new Action({
     repository: { rule: schema.number() },
     force: { rule: schema.boolean() },
     required: { rule: schema.boolean() },
+    plugin: { rule: schema.string() },
+    allowlist: { rule: schema.string() },
+    capabilities: { rule: schema.string() },
+    pinned: { rule: schema.boolean() },
     token: { rule: schema.number() },
     expires: { rule: schema.string() },
     user: { rule: schema.number() },
@@ -171,6 +179,93 @@ export default new Action({
         effect: required
           ? 'Runners in this pool refuse any job this instance did not sign. A runner older than this feature ignores the requirement.'
           : 'Runners in this pool run work whether or not it carries a signature.',
+      })
+    }
+
+    if (operation === 'attach-plugin' || operation === 'detach-plugin') {
+      const poolId = Number(request.get('pool'))
+      const reference = String(request.get('plugin') ?? '').trim()
+
+      if (!Number.isInteger(poolId) || poolId <= 0 || !reference)
+        return response.json({ error: 'Which pool, and which plugin?' }, 422)
+
+      const parsed = parsePluginReference(reference)
+
+      if (isProblem(parsed))
+        return response.json({ error: parsed.reason }, 422)
+
+      if (parsed.kind === 'vendored')
+        return response.json({ error: 'A vendored plugin belongs to one repository rather than to a pool' }, 422)
+
+      const pool: any = await db.selectFrom('runner_pools').select(['plugins']).where('id', '=', poolId).executeTakeFirst()
+
+      if (!pool)
+        return response.json({ error: 'No such pool' }, 404)
+
+      const existing = String(pool.plugins ?? '').split('\n').map((one: string) => one.trim()).filter(Boolean)
+      const next = operation === 'attach-plugin'
+        ? [...existing.filter((one: string) => one !== parsed.raw), parsed.raw]
+        : existing.filter((one: string) => one !== parsed.raw)
+
+      await db.updateTable('runner_pools').set({ plugins: next.join('\n') } as any).where('id', '=', poolId).execute()
+
+      // Named at the call site rather than chosen by a ternary: the catalogue
+      // test finds an event by searching for the literal, and an event nothing
+      // appears to emit reads as one the log will never answer for.
+      const audited = await entry(request, user, { pool: poolId, plugin: parsed.raw })
+
+      if (operation === 'attach-plugin')
+        await auditEvent('fleet:plugin-attached', audited).catch(() => null)
+      else
+        await auditEvent('fleet:plugin-detached', audited).catch(() => null)
+
+      return response.json({
+        pool: { id: poolId, plugins: next },
+        /*
+         * Said in words, because the consequence is the part that surprises
+         * people: an attached plugin runs for every job this pool takes,
+         * including the ones already queued, and no repository can remove it.
+         */
+        effect: operation === 'attach-plugin'
+          ? `Every job this pool takes now runs \`${parsed.raw}\`'s hooks, and no repository can remove them.`
+          : `Jobs this pool takes no longer run \`${parsed.raw}\`.`,
+      })
+    }
+
+    if (operation === 'plugin-policy') {
+      const poolId = Number(request.get('pool'))
+      const raw = request.get('pinned')
+
+      if (!Number.isInteger(poolId) || poolId <= 0)
+        return response.json({ error: 'Which pool?' }, 422)
+
+      const values = {
+        allowlist: String(request.get('allowlist') ?? '').trim(),
+        capabilities: String(request.get('capabilities') ?? '').trim(),
+        require_pinned: raw === true || raw === 'true' || raw === 1 || raw === '1',
+      }
+
+      const existing: any = await db
+        .selectFrom('plugin_policies')
+        .select(['id'])
+        .where('scope_type', '=', 'pool')
+        .where('scope_id', '=', poolId)
+        .executeTakeFirst()
+
+      if (existing)
+        await db.updateTable('plugin_policies').set(values as any).where('id', '=', Number(existing.id)).execute()
+      else
+        await db.insertInto('plugin_policies').values({ scope_type: 'pool', scope_id: poolId, ...values } as any).execute()
+
+      await auditEvent('fleet:plugin-policy-set', await entry(request, user, { pool: poolId, ...values })).catch(() => null)
+
+      return response.json({
+        policy: { pool: poolId, ...values },
+        // The two rules people read backwards, stated the way round they work.
+        effect: [
+          values.allowlist ? 'Only the listed plugins may run here.' : 'Any plugin the instance permits may run here.',
+          values.capabilities ? `Plugins may ask for: ${values.capabilities}.` : 'A plugin that requires a capability is refused here.',
+        ].join(' '),
       })
     }
 
