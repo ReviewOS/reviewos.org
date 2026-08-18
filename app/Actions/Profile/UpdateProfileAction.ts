@@ -60,7 +60,7 @@ export default new Action({
         if (!shape.ok)
           return respond(request, { error: shape.message ?? 'That handle cannot be used.' }, 422)
 
-        const taken: any = await db
+        const taken = await db
           .selectFrom('users')
           .select(['id'])
           .where('handle', '=', handle)

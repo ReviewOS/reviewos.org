@@ -185,7 +185,7 @@ export default new Action({
      * removes nothing. This is the one destructive operation here and it takes
      * away a second factor, so the `user_id` on the delete is load-bearing.
      */
-    const removed: any[] = await db
+    const removed = await db
       .deleteFrom('passkeys')
       .where('id', '=', id)
       .where('user_id', '=', user.id)
@@ -355,7 +355,7 @@ async function storeChallenge(userId: number, challenge: Uint8Array | ArrayBuffe
 
 /** Take the challenge back, and spend it whether or not verification succeeds. */
 async function consumeChallenge(userId: number, purpose: string): Promise<Uint8Array | null> {
-  const row: any = await db
+  const row = await db
     .selectFrom('webauthn_challenges')
     .select(['id', 'challenge', 'expires_at'])
     .where('user_id', '=', userId)

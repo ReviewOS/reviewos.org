@@ -54,7 +54,7 @@ export default new Action({
     if (!canInOrganization(role, 'settings:manage'))
       return response.json({ error: 'Forbidden' }, 403)
 
-    const organization: any = await db
+    const organization = await db
       .selectFrom('organizations')
       .select(['id', 'handle'])
       .where('id', '=', organizationId)
@@ -80,7 +80,7 @@ export default new Action({
      */
     const email = `${handle}@${String(organization.handle)}.machine.invalid`
 
-    const created: any = await db
+    const created = await db
       .insertInto('users')
       .values({
         handle,

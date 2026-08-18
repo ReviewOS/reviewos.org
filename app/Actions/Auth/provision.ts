@@ -9,6 +9,7 @@
 import process from 'node:process'
 
 import type { OidcClaims } from './oidc'
+import { db } from '@stacksjs/database'
 
 export interface ProvisionResult {
   userId: number
@@ -41,10 +42,9 @@ export interface ProvisionResult {
  * their own email.
  */
 export async function provisionFromClaims(claims: OidcClaims, issuer: string): Promise<ProvisionResult> {
-  const db = (globalThis as any).db
   const subject = String(claims.sub)
 
-  const existing: any = await db
+  const existing = await db
     .selectFrom('sso_identities')
     .select(['id', 'user_id'])
     .where('issuer', '=', issuer)
@@ -88,11 +88,11 @@ export async function provisionFromClaims(claims: OidcClaims, issuer: string): P
         groups: JSON.stringify(groups),
         last_seen_at: new Date().toISOString(),
       })
-      .where('id', '=', Number(existing.id))
+      .where('id', '=', Number(existing?.id))
       .execute()
   }
 
-  const row: any = await db.selectFrom('users').select(['handle']).where('id', '=', userId).executeTakeFirst()
+  const row = await db.selectFrom('users').select(['handle']).where('id', '=', userId).executeTakeFirst()
   const membership = await syncTeams(userId, groups)
 
   return { userId, handle: String(row?.handle ?? ''), created, ...membership }
@@ -112,7 +112,6 @@ export async function provisionFromClaims(claims: OidcClaims, issuer: string): P
  * it a local password.
  */
 async function createAccount(claims: OidcClaims): Promise<number> {
-  const db = (globalThis as any).db
   const email = String(claims.email ?? '').trim().toLowerCase()
   const suggested = String(claims.preferred_username ?? '').trim() || email.split('@')[0] || `user${Date.now()}`
 
@@ -136,7 +135,7 @@ async function createAccount(claims: OidcClaims): Promise<number> {
     ? await db.selectFrom('users').select(['id']).where('email', '=', email).executeTakeFirst()
     : null
 
-  const created: any = await db
+  const created = await db
     .insertInto('users')
     .values({
       handle: await uniqueHandle(suggested),
@@ -161,7 +160,6 @@ async function shortHash(value: string): Promise<string> {
 
 /** A handle nobody has, from something the provider suggested. */
 async function uniqueHandle(suggested: string): Promise<string> {
-  const db = (globalThis as any).db
   const base = suggested.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 32) || 'user'
 
   for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -209,7 +207,6 @@ async function uniqueHandle(suggested: string): Promise<string> {
  * correspond to a group, which is most of them on a real instance.
  */
 async function syncTeams(userId: number, groups: string[]): Promise<{ teamsJoined: string[], teamsLeft: string[] }> {
-  const db = (globalThis as any).db
   const joined: string[] = []
   const left: string[] = []
 
@@ -219,7 +216,7 @@ async function syncTeams(userId: number, groups: string[]): Promise<{ teamsJoine
     return { teamsJoined: joined, teamsLeft: left }
 
   try {
-    const organization: any = await db
+    const organization = await db
       .selectFrom('organizations')
       .select(['id'])
       .where('handle', '=', organizationHandle)
@@ -238,14 +235,14 @@ async function syncTeams(userId: number, groups: string[]): Promise<{ teamsJoine
 
     // Every team in that one organization, whether or not this person is in it.
     // That set is what "managed by the provider" means here.
-    const managed: any[] = await db
+    const managed = await db
       .selectFrom('teams')
       .select(['id', 'slug'])
       .where('organization_id', '=', Number(organization.id))
       .execute()
     const mapped = managed.filter(team => wanted.has(String(team.slug).toLowerCase()))
 
-    const held: any[] = await db.selectFrom('team_members').select(['id', 'team_id']).where('user_id', '=', userId).execute()
+    const held = await db.selectFrom('team_members').select(['id', 'team_id']).where('user_id', '=', userId).execute()
     const heldIds = new Set(held.map(row => Number(row.team_id)))
 
     for (const team of mapped) {
@@ -314,12 +311,11 @@ function isGroupShaped(slug: string): boolean {
  * same statement as "this work never happened".
  */
 export async function revokeEverything(userId: number): Promise<{ sessions: number, tokens: number }> {
-  const db = (globalThis as any).db
   let sessions = 0
   let tokens = 0
 
   try {
-    const rows: any[] = await db.selectFrom('oauth_access_tokens').select(['id']).where('user_id', '=', userId).execute()
+    const rows = await db.selectFrom('oauth_access_tokens').select(['id']).where('user_id', '=', userId).execute()
     sessions = rows.length
 
     /*
@@ -348,7 +344,7 @@ export async function revokeEverything(userId: number): Promise<{ sessions: numb
   }
 
   try {
-    const rows: any[] = await db.selectFrom('access_tokens').select(['id']).where('user_id', '=', userId).execute()
+    const rows = await db.selectFrom('access_tokens').select(['id']).where('user_id', '=', userId).execute()
     tokens = rows.length
 
     for (const row of rows)

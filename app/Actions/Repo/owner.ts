@@ -1,3 +1,4 @@
+import { db } from '@stacksjs/database'
 /**
  * The handle a repository belongs to.
  *
@@ -16,7 +17,6 @@ export interface OwnedRow {
 
 /** The owner's handle, or null when the row points at an owner that is gone. */
 export async function ownerHandleFor(repository: OwnedRow): Promise<string | null> {
-  const db = (globalThis as any).db
   const id = Number(repository?.owner_id ?? 0)
 
   if (!id)

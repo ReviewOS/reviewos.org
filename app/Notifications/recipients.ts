@@ -85,7 +85,7 @@ export async function recipientsFor(options: {
   // Anybody whose account has gone, or who has muted this repository, is not a
   // recipient. Checked here rather than at delivery, so a muted repository
   // costs nothing per channel rather than once per channel.
-  const live: any[] = await db
+  const live = await db
     .selectFrom('users')
     .select(['id'])
     .where('id', 'in', [...byUser.keys()])

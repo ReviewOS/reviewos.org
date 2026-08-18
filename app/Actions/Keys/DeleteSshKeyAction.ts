@@ -39,7 +39,7 @@ export default new Action({
      * name, and "a key was removed" answers none of the questions somebody
      * asks. Nothing found means nothing was removed, so nothing is recorded.
      */
-    const key: any = await db
+    const key = await db
       .selectFrom('ssh_keys')
       .select(['id', 'title', 'fingerprint'])
       .where('id', '=', id)

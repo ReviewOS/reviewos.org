@@ -43,7 +43,7 @@ export interface UsedAction {
  * holding a copy of every action it ever mentioned.
  */
 export async function usedActions(policy: ActionPolicy): Promise<UsedAction[]> {
-  const steps: any[] = await db
+  const steps = await db
     .selectFrom('workflow_version_steps')
     .innerJoin('workflow_version_jobs', 'workflow_version_jobs.id', '=', 'workflow_version_steps.workflow_version_job_id')
     .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_version_jobs.workflow_version_id')

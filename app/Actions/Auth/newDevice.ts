@@ -33,6 +33,7 @@
  */
 
 import { describeAgent } from './sessions'
+import { db } from '@stacksjs/database'
 
 export interface SignInContext {
   userId: number
@@ -54,11 +55,10 @@ export interface SignInContext {
  * phone.
  */
 export async function isKnownDevice(context: SignInContext): Promise<boolean> {
-  const db = (globalThis as any).db
   const description = describeAgent(context.userAgent)
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('oauth_access_tokens')
       .select(['id', 'user_agent', 'ip_address'])
       .where('user_id', '=', context.userId)
@@ -120,7 +120,6 @@ export async function noticeSignIn(context: SignInContext, now = new Date()): Pr
     if (await isKnownDevice(context))
       return false
 
-    const db = (globalThis as any).db
 
     await db.insertInto('notifications').values({
       user_id: context.userId,

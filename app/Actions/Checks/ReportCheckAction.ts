@@ -147,7 +147,7 @@ async function reportStatus(request: any, about: About, sha: string, creatorId: 
   if (!['pending', 'success', 'failure', 'error'].includes(state))
     return response.json({ error: 'state must be pending, success, failure or error.' }, 422)
 
-  const created: any = await db
+  const created = await db
     .insertInto('commit_statuses')
     .values({
       repository_id: repositoryId,
@@ -230,7 +230,7 @@ async function reportCheckRun(request: any, about: About, sha: string, reporterI
   }
 
   if (!existing) {
-    const created: any = await db
+    const created = await db
       .insertInto('check_runs')
       .values({ ...fields, idempotency_key: idempotencyKey, started_at: new Date().toISOString() } as any)
       .returning(['id'])

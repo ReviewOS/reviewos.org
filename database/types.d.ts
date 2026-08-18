@@ -2836,6 +2836,12 @@ declare module '@stacksjs/database' {
       uuid: string
       created_at: string
       updated_at: string | null
+      email_verified_at: string
+      password_changed_at: string | null
+      two_factor_secret: string | null
+      two_factor_enabled: boolean | null
+      two_factor_last_used_step: number | null
+      stripe_id: string | null
       handle: string
       name: string
       email: string
@@ -2846,14 +2852,18 @@ declare module '@stacksjs/database' {
       website: string
       is_admin: boolean
       machine_for_organization_id: number
-      email_verified_at: string
       github_username: string
       createdAt: string
       updatedAt: string | null
+      emailVerifiedAt: string
+      passwordChangedAt: string | null
+      twoFactorSecret: string | null
+      twoFactorEnabled: boolean | null
+      twoFactorLastUsedStep: number | null
+      stripeId: string | null
       avatarUrl: string
       isAdmin: boolean
       machineForOrganizationId: number
-      emailVerifiedAt: string
       githubUsername: string
     }
     waitlist_products: {

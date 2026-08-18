@@ -166,7 +166,7 @@ export async function dashboardFeed(options: {
    * they deliberately turned down, which is how a feed becomes a page people
    * stop opening.
    */
-  const watched: any[] = await db
+  const watched = await db
     .selectFrom('watches')
     .select(['repository_id'])
     .where('user_id', '=', options.viewerId)
@@ -259,7 +259,7 @@ async function stillReadable(ids: readonly number[], viewerId: number): Promise<
   if (ids.length === 0)
     return []
 
-  const repositories: any[] = await db
+  const repositories = await db
     .selectFrom('repositories')
     .selectAll()
     .where('id', 'in', [...ids])
@@ -323,7 +323,7 @@ export async function withHandles(pageOfRows: FeedPage): Promise<FeedPage> {
   if (ids.length === 0)
     return pageOfRows
 
-  const users: any[] = await db
+  const users = await db
     .selectFrom('users')
     .select(['id', 'handle'])
     .where('id', 'in', ids)

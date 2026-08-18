@@ -45,7 +45,7 @@ export default new Action({
       // the repository, so the property this comment used to describe on its
       // own is intact - what this adds is a row that says which key, since
       // afterwards there is no fingerprint left to name.
-      const key: any = await db
+      const key = await db
         .selectFrom('deploy_keys')
         .select(['id', 'title', 'fingerprint', 'can_write'])
         .where('id', '=', id)

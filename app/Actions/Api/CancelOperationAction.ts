@@ -41,7 +41,7 @@ export default new Action({
     if (!id)
       return apiError('missing_field', 'An operation id is required', { field: 'id' })
 
-    const row: any = await db
+    const row = await db
       .selectFrom('operations')
       .selectAll()
       .where('uuid', '=', id)

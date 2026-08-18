@@ -60,7 +60,7 @@ export default new Job({
     // on a different machine.
     const timedOut = await stopOverrunJobs(now)
 
-    const lapsed: any[] = await db
+    const lapsed = await db
       .selectFrom('workflow_jobs')
       .select(['id', 'workflow_run_id', 'runner_id', 'lease_expires_at', 'attempt'])
       .where('state', '=', 'running')
@@ -93,7 +93,7 @@ export default new Job({
        * than reading as an ordinary one.
        */
       if (attempt >= MAX_LOST_ATTEMPTS) {
-        const ended: any = await db
+        const ended = await db
           .updateTable('workflow_jobs')
           .set({
             state: 'failed',
@@ -114,7 +114,7 @@ export default new Job({
         continue
       }
 
-      const result: any = await db
+      const result = await db
         .updateTable('workflow_jobs')
         // The dead runner's credential goes with its lease. If it comes back
         // it authenticates as nothing, which is the honest answer - the work is
@@ -187,7 +187,7 @@ export const MAX_LOST_ATTEMPTS = 3
  * into `cancelled` when nobody acknowledges.
  */
 async function stopOverrunJobs(now: Date): Promise<number> {
-  const running: any[] = await db
+  const running = await db
     .selectFrom('workflow_jobs')
     .select(['id', 'workflow_run_id', 'started_at', 'timeout_minutes'])
     .where('state', '=', 'running')
@@ -219,7 +219,7 @@ async function stopOverrunJobs(now: Date): Promise<number> {
   let count = 0
 
   for (const job of overrun) {
-    const result: any = await db
+    const result = await db
       .updateTable('workflow_jobs')
       .set({
         state: 'cancelling',
@@ -263,7 +263,7 @@ async function stopOverrunJobs(now: Date): Promise<number> {
  * happen, and overwriting it would be the control plane inventing an outcome.
  */
 async function forceStalledCancellations(now: Date): Promise<number> {
-  const stalled: any[] = await db
+  const stalled = await db
     .selectFrom('workflow_jobs')
     .select(['id', 'workflow_run_id', 'lease_expires_at'])
     .where('state', '=', 'cancelling')
@@ -287,7 +287,7 @@ async function forceStalledCancellations(now: Date): Promise<number> {
   let count = 0
 
   for (const job of due) {
-    const result: any = await db
+    const result = await db
       .updateTable('workflow_jobs')
       .set({ state: 'cancelled', finished_at: now.toISOString(), job_token_hash: null } as any)
       .where('id', '=', Number(job.id))
@@ -331,7 +331,7 @@ function changed(result: any): boolean {
  * `blocked` and the run never finished at all.
  */
 async function settle(runId: number): Promise<void> {
-  const run: any = await db
+  const run = await db
     .selectFrom('workflow_runs')
     .select(['state', 'repository_id'])
     .where('id', '=', runId)

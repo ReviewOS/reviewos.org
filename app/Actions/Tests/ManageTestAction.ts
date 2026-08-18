@@ -130,7 +130,7 @@ export default new Action({
     if (!Number.isInteger(testId) || testId <= 0)
       return response.json({ error: 'Which test?' }, 422)
 
-    const test: any = await db
+    const test = await db
       .selectFrom('managed_tests')
       .innerJoin('test_suites', 'test_suites.id', '=', 'managed_tests.test_suite_id')
       .select(['managed_tests.id as id', 'managed_tests.name as name', 'test_suites.repository_id as repository_id'])
@@ -143,7 +143,7 @@ export default new Action({
       return response.json({ error: 'No such test' }, 404)
 
     if (operation === 'history') {
-      const rows: any[] = await db
+      const rows = await db
         .selectFrom('test_executions')
         .innerJoin('test_runs', 'test_runs.id', '=', 'test_executions.test_run_id')
         .select([

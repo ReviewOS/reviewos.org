@@ -26,6 +26,7 @@
 
 import { Buffer } from 'node:buffer'
 import process from 'node:process'
+import { db } from '@stacksjs/database'
 
 export interface RelyingParty {
   id: string
@@ -63,10 +64,9 @@ export interface StoredPasskey {
 
 /** The passkeys on an account, for the settings page and for a challenge. */
 export async function passkeysFor(userId: number): Promise<StoredPasskey[]> {
-  const db = (globalThis as any).db
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('passkeys')
       .select(['id', 'cred_public_key', 'counter', 'device_type', 'transports', 'last_used_at'])
       .where('user_id', '=', userId)

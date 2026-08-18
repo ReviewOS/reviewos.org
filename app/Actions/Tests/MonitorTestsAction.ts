@@ -61,7 +61,7 @@ export default new Action({
     const repositoryId = Number(auth.context.repository.id)
 
     if (operation === 'list') {
-      const rows: any[] = await db
+      const rows = await db
         .selectFrom('test_monitors')
         .selectAll()
         .where('repository_id', '=', repositoryId)
@@ -97,7 +97,7 @@ export default new Action({
       if (condition === 'fail_rate' && threshold > 100)
         return response.json({ error: 'A failure rate is a percentage', reason: 'between 0 and 100 - `5` is five percent of executions failing' }, 422)
 
-      const created: any = await db
+      const created = await db
         .insertInto('test_monitors')
         .values({
           repository_id: repositoryId,
@@ -111,14 +111,14 @@ export default new Action({
         .returning(['id'])
         .executeTakeFirst()
 
-      const row: any = await db.selectFrom('test_monitors').selectAll().where('id', '=', Number(created?.id)).executeTakeFirst()
+      const row = await db.selectFrom('test_monitors').selectAll().where('id', '=', Number(created?.id)).executeTakeFirst()
 
       return response.json({ monitor: shape(row) })
     }
 
     const id = Number(request.get('monitor'))
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('test_monitors')
       .selectAll()
       .where('id', '=', id)
@@ -151,7 +151,7 @@ export default new Action({
 
     await db.updateTable('test_monitors').set(changes as any).where('id', '=', id).execute()
 
-    const row: any = await db.selectFrom('test_monitors').selectAll().where('id', '=', id).executeTakeFirst()
+    const row = await db.selectFrom('test_monitors').selectAll().where('id', '=', id).executeTakeFirst()
 
     return response.json({ monitor: shape(row) })
   },

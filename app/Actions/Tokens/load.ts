@@ -171,7 +171,7 @@ export async function tokensFor(userId: number, nowMs = Date.now()): Promise<Tok
       reach = 'Every repository this account can reach, including ones it has not been given yet'
     }
     else if (selection === 'organization') {
-      const organization: any = await db
+      const organization = await db
         .selectFrom('organizations')
         .select(['handle'])
         .where('id', '=', Number(row.organization_id ?? 0))

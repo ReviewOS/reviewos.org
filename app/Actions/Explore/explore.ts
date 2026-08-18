@@ -1,3 +1,4 @@
+import { db } from '@stacksjs/database'
 /**
  * The four questions an explore page answers.
  *
@@ -33,7 +34,6 @@ export const EXPLORE_LIMIT = 24
  * one, where a month is the smallest window with anything in it.
  */
 export async function trending(days = 7, limit = EXPLORE_LIMIT): Promise<ExploreRepository[]> {
-  const db = (globalThis as any).db
   const since = new Date(Date.now() - Math.max(1, days) * 86_400_000).toISOString()
 
   try {
@@ -75,7 +75,6 @@ export async function trending(days = 7, limit = EXPLORE_LIMIT): Promise<Explore
  * section.
  */
 export async function recentlyActive(limit = EXPLORE_LIMIT): Promise<ExploreRepository[]> {
-  const db = (globalThis as any).db
 
   try {
     const rows: any[] = await db
@@ -98,7 +97,6 @@ export async function recentlyActive(limit = EXPLORE_LIMIT): Promise<ExploreRepo
 
 /** Public repositories carrying a topic, most starred first. */
 export async function byTopic(topic: string, limit = EXPLORE_LIMIT): Promise<ExploreRepository[]> {
-  const db = (globalThis as any).db
   const wanted = String(topic ?? '').trim().toLowerCase()
 
   if (!wanted)
@@ -133,7 +131,6 @@ export async function byTopic(topic: string, limit = EXPLORE_LIMIT): Promise<Exp
  * it. The breakdown makes that orderable; a single `language` column would not.
  */
 export async function byLanguage(language: string, limit = EXPLORE_LIMIT): Promise<ExploreRepository[]> {
-  const db = (globalThis as any).db
   const wanted = String(language ?? '').trim()
 
   if (!wanted)
@@ -161,7 +158,6 @@ export async function byLanguage(language: string, limit = EXPLORE_LIMIT): Promi
 
 /** Every language present on the instance, most repositories first. */
 export async function languageIndex(limit = 30): Promise<{ language: string, repositories: number }[]> {
-  const db = (globalThis as any).db
 
   try {
     const rows: any[] = await db.unsafe(
@@ -192,7 +188,6 @@ export async function languageIndex(limit = 30): Promise<{ language: string, rep
  * seventy-two queries for a page nobody waits for.
  */
 async function decorate(rows: readonly { id: number, gained?: number }[]): Promise<ExploreRepository[]> {
-  const db = (globalThis as any).db
   const ids = rows.map(row => row.id)
 
   if (ids.length === 0)
@@ -231,7 +226,6 @@ async function decorate(rows: readonly { id: number, gained?: number }[]): Promi
 
 /** The largest language of each repository, for the card. */
 export async function primaryLanguages(ids: readonly number[]): Promise<Map<number, string>> {
-  const db = (globalThis as any).db
   const primary = new Map<number, string>()
 
   try {
@@ -260,7 +254,6 @@ export async function primaryLanguages(ids: readonly number[]): Promise<Map<numb
 
 /** Handles for a page, in two queries rather than one per row. */
 async function ownerHandles(repositories: readonly any[]): Promise<Map<string, string>> {
-  const db = (globalThis as any).db
   const handles = new Map<string, string>()
 
   for (const [type, table] of [['user', 'users'], ['organization', 'organizations']] as const) {

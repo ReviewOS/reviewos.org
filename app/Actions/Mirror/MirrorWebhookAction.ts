@@ -53,7 +53,7 @@ export default new Action({
     // Matching on owner/name rather than the URL: the same repository is
     // reachable as https, ssh, and with or without `.git`, and a mirror
     // configured with one spelling must still match a hook that used another.
-    const candidates: any[] = await db
+    const candidates = await db
       .selectFrom('repository_mirrors')
       .selectAll()
       .where('enabled', '=', true)

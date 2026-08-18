@@ -50,7 +50,7 @@ export interface OrganizationTokenRow {
  * audit log where it belongs.
  */
 export async function tokensReaching(organizationId: number): Promise<OrganizationTokenRow[]> {
-  const repositories: any[] = await db
+  const repositories = await db
     .selectFrom('repositories')
     .select(['id', 'name'])
     .where('owner_type', '=', 'organization')
@@ -63,7 +63,7 @@ export async function tokensReaching(organizationId: number): Promise<Organizati
   // Who could hold an `all` token that reaches here. Accepted members only,
   // through the one function that knows a pending invitation is not a
   // membership.
-  const memberships: any[] = await db
+  const memberships = await db
     .selectFrom('org_members')
     .select(['user_id', 'joined_at'])
     .where('organization_id', '=', organizationId)
@@ -97,7 +97,7 @@ export async function tokensReaching(organizationId: number): Promise<Organizati
   )
 
   if (repositoryIds.length > 0) {
-    const scoped: any[] = await db
+    const scoped = await db
       .selectFrom('access_token_repositories')
       .select(['access_token_id'])
       .where('repository_id', 'in', repositoryIds)
@@ -208,7 +208,7 @@ export async function organizationsReachedBy(tokenId: number, callerId: number):
   if (!tokenId || !callerId)
     return []
 
-  const administered: any[] = await db
+  const administered = await db
     .selectFrom('org_members')
     .select(['organization_id', 'role', 'joined_at'])
     .where('user_id', '=', callerId)
@@ -234,7 +234,7 @@ export async function organizationsReachedBy(tokenId: number, callerId: number):
     if (!tokens.some(token => token.id === Number(tokenId)))
       continue
 
-    const organization: any = await db
+    const organization = await db
       .selectFrom('organizations')
       .select(['handle'])
       .where('id', '=', organizationId)

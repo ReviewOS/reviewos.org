@@ -170,7 +170,7 @@ async function pullRequestFor(repositoryId: number, branch: string): Promise<num
   if (!branch)
     return null
 
-  const pull: any = await db
+  const pull = await db
     .selectFrom('pull_requests')
     .select(['id'])
     .where('repository_id', '=', repositoryId)

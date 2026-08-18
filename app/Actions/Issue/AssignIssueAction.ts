@@ -96,7 +96,7 @@ export default new Action({
 
     // Read before the delete, so the timeline records the difference rather
     // than restating the whole set every time somebody saves.
-    const before: any[] = await db
+    const before = await db
       .selectFrom('issue_assignees')
       .innerJoin('users', 'users.id', '=', 'issue_assignees.user_id')
       .select(['users.handle as handle'])

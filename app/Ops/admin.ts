@@ -1,3 +1,4 @@
+import { db } from '@stacksjs/database'
 /**
  * What an instance administrator needs to see and do.
  *
@@ -28,7 +29,6 @@ export interface InstanceStats {
 
 /** Every number the overview shows, in as few queries as it can manage. */
 export async function instanceStats(): Promise<InstanceStats> {
-  const db = (globalThis as any).db
 
   const count = async (table: string, apply?: (query: any) => any): Promise<number> => {
     try {
@@ -87,10 +87,9 @@ export async function instanceStats(): Promise<InstanceStats> {
  * verdict.
  */
 async function oldestPending(): Promise<number | null> {
-  const db = (globalThis as any).db
 
   try {
-    const row: any = await db
+    const row = await db
       .selectFrom('jobs')
       .select(['created_at'])
       .orderBy('created_at', 'asc')
@@ -110,10 +109,9 @@ async function oldestPending(): Promise<number | null> {
 
 /** What the repositories add up to, from the sizes already recorded per row. */
 async function totalRepositoryBytes(): Promise<number | null> {
-  const db = (globalThis as any).db
 
   try {
-    const rows: any[] = await db.selectFrom('repositories').select(['size_kb']).execute()
+    const rows = await db.selectFrom('repositories').select(['size_kb']).execute()
     const kb = rows.reduce((total, row) => total + (Number(row.size_kb) || 0), 0)
 
     return kb > 0 ? kb * 1024 : null
@@ -142,7 +140,6 @@ export interface AdminUser {
  * remembered from a support message.
  */
 export async function adminUsers(search: string, limit = 50): Promise<AdminUser[]> {
-  const db = (globalThis as any).db
   const term = String(search ?? '').trim().toLowerCase()
 
   try {
@@ -193,10 +190,9 @@ export interface AdminRepository {
  * administration page.
  */
 export async function adminRepositories(limit = 50): Promise<AdminRepository[]> {
-  const db = (globalThis as any).db
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('repositories')
       .select(['id', 'name', 'owner_type', 'owner_id', 'visibility', 'size_kb', 'open_issues_count', 'pushed_at'])
       .orderBy('size_kb', 'desc')
@@ -229,7 +225,6 @@ export async function adminRepositories(limit = 50): Promise<AdminRepository[]> 
  * makes an administration screen the slowest page in a product.
  */
 async function ownerHandles(rows: any[]): Promise<Map<string, string>> {
-  const db = (globalThis as any).db
   const handles = new Map<string, string>()
 
   const ids = (type: string) => [...new Set(rows.filter(row => row.owner_type === type).map(row => Number(row.owner_id)))]
@@ -241,7 +236,7 @@ async function ownerHandles(rows: any[]): Promise<Map<string, string>> {
       continue
 
     try {
-      const found: any[] = await db.selectFrom(table).select(['id', 'handle']).where('id', 'in', wanted).execute()
+      const found = await db.selectFrom(table).select(['id', 'handle']).where('id', 'in', wanted).execute()
 
       for (const row of found)
         handles.set(`${type}:${row.id}`, String(row.handle))
@@ -266,10 +261,9 @@ export interface FailedJobRow {
 
 /** What has failed, newest first. */
 export async function failedJobs(limit = 50): Promise<FailedJobRow[]> {
-  const db = (globalThis as any).db
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('failed_jobs')
       .select(['id', 'queue', 'payload', 'exception', 'failed_at'])
       .orderBy('id', 'desc')
@@ -315,10 +309,9 @@ function jobNameOf(payload: unknown): string {
  * same button looks like.
  */
 export async function retryFailedJob(id: number): Promise<boolean> {
-  const db = (globalThis as any).db
 
   try {
-    const row: any = await db
+    const row = await db
       .selectFrom('failed_jobs')
       .select(['id', 'queue', 'payload'])
       .where('id', '=', id)

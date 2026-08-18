@@ -21,7 +21,7 @@ export default new Job({
   tries: 1,
 
   async handle() {
-    const mirrors: any[] = await db
+    const mirrors = await db
       .selectFrom('repository_mirrors')
       .selectAll()
       .where('enabled', '=', true)

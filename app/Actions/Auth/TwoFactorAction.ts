@@ -38,7 +38,7 @@ export default new Action({
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)
 
-    const row: any = await db
+    const row = await db
       .selectFrom('users')
       .select(['id', 'email', 'handle', 'two_factor_secret', 'two_factor_enabled'])
       .where('id', '=', user.id)

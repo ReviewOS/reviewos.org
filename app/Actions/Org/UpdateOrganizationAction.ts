@@ -36,7 +36,7 @@ export default new Action({
     if (!canInOrganization(role, 'settings:manage'))
       return response.json({ error: 'Forbidden' }, 403)
 
-    const organization: any = await db
+    const organization = await db
       .selectFrom('organizations')
       .select(['id', 'handle'])
       .where('id', '=', organizationId)

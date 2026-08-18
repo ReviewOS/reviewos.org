@@ -31,7 +31,7 @@ export default new Action({
     if (!Number.isInteger(organizationId) || organizationId <= 0)
       return response.json({ error: 'An organization is required' }, 422)
 
-    const invitation: any = await db
+    const invitation = await db
       .selectFrom('org_members')
       .select(['id', 'role', 'joined_at'])
       .where('organization_id', '=', organizationId)

@@ -107,7 +107,7 @@ async function addMirror(options: MirrorOptions): Promise<void> {
 }
 
 async function resolveOwner(handle: string): Promise<{ id: number, handle: string, type: 'organization' | 'user' }> {
-  const org: any = await db
+  const org = await db
     .selectFrom('organizations')
     .select(['id', 'handle'])
     .where('handle', '=', handle)
@@ -116,7 +116,7 @@ async function resolveOwner(handle: string): Promise<{ id: number, handle: strin
   if (org)
     return { id: Number(org.id), handle: String(org.handle), type: 'organization' }
 
-  const user: any = await db
+  const user = await db
     .selectFrom('users')
     .select(['id', 'handle'])
     .where('handle', '=', handle)
@@ -133,7 +133,7 @@ async function upsertRepository(
   name: string,
   diskPath: string,
 ): Promise<number> {
-  const existing: any = await db
+  const existing = await db
     .selectFrom('repositories')
     .select(['id'])
     .where('owner_type', '=', owner.type)
@@ -150,7 +150,7 @@ async function upsertRepository(
     return Number(existing.id)
   }
 
-  const inserted: any = await db
+  const inserted = await db
     .insertInto('repositories')
     .values({
       owner_type: owner.type,
@@ -197,7 +197,7 @@ async function upsertMirror(
     sync_metadata: Boolean(options.metadata),
   }
 
-  const existing: any = await db
+  const existing = await db
     .selectFrom('repository_mirrors')
     .select(['id'])
     .where('repository_id', '=', repositoryId)

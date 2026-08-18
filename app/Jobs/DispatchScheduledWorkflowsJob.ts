@@ -35,7 +35,7 @@ export default {
 const MAX_CATCHUP_MS = 6 * 60 * 60 * 1000
 
 export async function sweepSchedules(now = new Date()): Promise<{ swept: number, created: number }> {
-  const workflows: any[] = await db
+  const workflows = await db
     .selectFrom('workflows')
     .select(['id', 'repository_id', 'name', 'path', 'last_scheduled_at'])
     .where('state', '=', 'active')
@@ -45,7 +45,7 @@ export async function sweepSchedules(now = new Date()): Promise<{ swept: number,
   let created = 0
 
   for (const workflow of workflows) {
-    const version: any = await db
+    const version = await db
       .selectFrom('workflow_versions')
       .select(['id', 'schedules', 'source_sha', 'concurrency_group', 'cancel_in_progress'])
       .where('workflow_id', '=', Number(workflow.id))
@@ -170,7 +170,7 @@ async function stamp(workflowId: number, expected: unknown, now: Date): Promise<
  * watching, started by a definition nobody reviewed.
  */
 async function createScheduledRun(workflow: any, version: any): Promise<boolean> {
-  const repository: any = await db
+  const repository = await db
     .selectFrom('repositories')
     .select(['id', 'default_branch'])
     .where('id', '=', Number(workflow.repository_id))
@@ -193,7 +193,7 @@ async function createScheduledRun(workflow: any, version: any): Promise<boolean>
   })
 
   try {
-    const run: any = await db
+    const run = await db
       .insertInto('workflow_runs')
       .values({
         workflow_version_id: Number(version.id),
@@ -229,7 +229,7 @@ async function createScheduledRun(workflow: any, version: any): Promise<boolean>
 }
 
 async function nextNumber(repositoryId: number): Promise<number> {
-  const row: any = await db
+  const row = await db
     .selectFrom('workflow_runs')
     .select(['number'])
     .where('repository_id', '=', repositoryId)

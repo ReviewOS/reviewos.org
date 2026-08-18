@@ -1,3 +1,4 @@
+import { db } from '@stacksjs/database'
 /**
  * What this instance is doing, as numbers something can scrape.
  *
@@ -176,13 +177,12 @@ const HELP: Record<string, string> = {
  * a write on every push to answer a question asked every fifteen seconds.
  */
 export async function collectFromDatabase(): Promise<void> {
-  const db = (globalThis as any).db
 
   try {
-    const queued: any = await db.selectFrom('jobs').select(db.fn.count('id').as('count')).executeTakeFirst()
+    const queued = await db.selectFrom('jobs').select(db.fn.count('id').as('count')).executeTakeFirst()
     gauge('reviewos_queue_depth', Number(queued?.count ?? 0))
 
-    const oldest: any = await db
+    const oldest = await db
       .selectFrom('jobs')
       .select(['created_at'])
       .orderBy('created_at', 'asc')
@@ -194,13 +194,13 @@ export async function collectFromDatabase(): Promise<void> {
       oldest?.created_at ? Math.max(0, Math.round((Date.now() - Date.parse(String(oldest.created_at))) / 1000)) : 0,
     )
 
-    const repositories: any = await db.selectFrom('repositories').select(db.fn.count('id').as('count')).executeTakeFirst()
+    const repositories = await db.selectFrom('repositories').select(db.fn.count('id').as('count')).executeTakeFirst()
     gauge('reviewos_repositories_total', Number(repositories?.count ?? 0))
 
-    const users: any = await db.selectFrom('users').select(db.fn.count('id').as('count')).executeTakeFirst()
+    const users = await db.selectFrom('users').select(db.fn.count('id').as('count')).executeTakeFirst()
     gauge('reviewos_users_total', Number(users?.count ?? 0))
 
-    await collectFleet(db)
+    await collectFleet()
   }
   catch {
     /*
@@ -285,14 +285,14 @@ function escape(value: string): string {
  * zero is how an autoscaler concludes there is no work when what actually
  * happened is that the series stopped being reported.
  */
-async function collectFleet(db: any): Promise<void> {
-  const queues: any[] = await db.selectFrom('runner_queues').select(['id', 'name']).execute()
-  const runners: any[] = await db
+async function collectFleet(): Promise<void> {
+  const queues = await db.selectFrom('runner_queues').select(['id', 'name']).execute()
+  const runners = await db
     .selectFrom('runners')
     .select(['id', 'state', 'labels', 'runner_queue_id', 'last_seen_at', 'stop_requested'])
     .execute()
 
-  const jobs: any[] = await db
+  const jobs = await db
     .selectFrom('workflow_jobs')
     .select(['id', 'state', 'runs_on', 'runner_id', 'lease_expires_at', 'created_at'])
     .where('state', 'in', ['queued', 'running'])

@@ -29,7 +29,7 @@ export default new Action({
     const { repository } = auth.context
     const tag = String(request.get('tag_name') ?? '').trim()
 
-    const release: any = await db
+    const release = await db
       .selectFrom('releases')
       .select(['id'])
       .where('repository_id', '=', Number(repository.id))

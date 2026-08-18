@@ -49,7 +49,7 @@ export default new Action({
     const challenged = challengedUser(cookieValue(request, CHALLENGE_COOKIE))
 
     if (challenged && (offeredCode || offeredPasskey) && !password) {
-      const waiting: any = await db
+      const waiting = await db
         .selectFrom('users')
         .select(['id', 'two_factor_secret', 'two_factor_enabled'])
         .where('id', '=', challenged)
@@ -87,7 +87,7 @@ export default new Action({
 
     try {
       if (await Auth.attempt({ email, password })) {
-        const user: any = await db
+        const user = await db
           .selectFrom('users')
           .select(['id', 'two_factor_secret', 'two_factor_enabled'])
           .where('email', '=', email)
@@ -404,7 +404,7 @@ async function tokenIdOf(plaintext: string): Promise<number | null> {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plaintext))
     const hashed = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
 
-    const row: any = await db
+    const row = await db
       .selectFrom('oauth_access_tokens')
       .select(['id'])
       .where('token', '=', hashed)

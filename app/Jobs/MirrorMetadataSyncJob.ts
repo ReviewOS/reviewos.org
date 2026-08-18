@@ -42,7 +42,7 @@ export default new Job({
     if (!Number.isFinite(mirrorId))
       return { ok: false, reason: 'no mirror id' }
 
-    const mirror: any = await db
+    const mirror = await db
       .selectFrom('repository_mirrors')
       .selectAll()
       .where('id', '=', mirrorId)
@@ -66,7 +66,7 @@ export default new Job({
 
     // The path on disk, for the one question the API cannot answer: which of
     // the commits it names this repository actually holds.
-    const repositoryRow: any = await db
+    const repositoryRow = await db
       .selectFrom('repositories')
       .select(['disk_path'])
       .where('id', '=', repositoryId)
@@ -172,7 +172,7 @@ export default new Job({
  * can apologise your way out of.
  */
 async function linkedAccounts(): Promise<Map<string, number>> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('users')
     .select(['id', 'github_username'])
     // `whereNotNull` rather than `where(col, 'is not', null)`: the latter binds
@@ -212,7 +212,7 @@ async function resolveToken(credentialRef: string | null | undefined): Promise<s
 async function writeIssues(present: MappedIssue[], repositoryId: number) {
   if (present.length === 0) return { created: 0, updated: 0 }
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('issues')
     .select(['id', 'number'])
     .where('repository_id', '=', repositoryId)
@@ -238,7 +238,7 @@ async function writePulls(
 ) {
   if (present.length === 0) return { created: 0, updated: 0 }
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('pull_requests')
     .select(['id', 'number'])
     .where('repository_id', '=', repositoryId)
@@ -277,7 +277,7 @@ async function writeReviewThreads(
 ) {
   if (rawComments.length === 0) return { created: 0, updated: 0 }
 
-  const pullRows: any[] = await db
+  const pullRows = await db
     .selectFrom('pull_requests')
     .select(['id', 'number'])
     .where('repository_id', '=', repositoryId)
@@ -316,7 +316,7 @@ async function writeReviewThreads(
       const row = threadRow(thread, pullId)
       if (!row) continue
 
-      const existingThread: any = await db
+      const existingThread = await db
         .selectFrom('review_threads')
         .select(['id'])
         .where('external_id', '=', row.external_id as number)
@@ -328,7 +328,7 @@ async function writeReviewThreads(
         await db.updateTable('review_threads').set(row as any).where('id', '=', threadId).execute()
       }
       else {
-        const inserted: any = await db
+        const inserted = await db
           .insertInto('review_threads')
           .values(row as any)
           .returning(['id'])
@@ -338,7 +338,7 @@ async function writeReviewThreads(
 
       if (!Number.isFinite(threadId)) continue
 
-      const commentRows: any[] = await db
+      const commentRows = await db
         .selectFrom('review_comments')
         .select(['id', 'external_id'])
         .where('review_thread_id', '=', threadId)
@@ -394,7 +394,7 @@ async function writeRepositoryMetadata(
   if (!mapped)
     return { updated: [] }
 
-  const current: any = await db
+  const current = await db
     .selectFrom('repositories')
     .select(['id', 'description', 'visibility', 'default_branch', 'is_archived'])
     .where('id', '=', repositoryId)
@@ -451,7 +451,7 @@ async function writeRepositoryMetadata(
  * forever.
  */
 async function writeTopics(topics: string[], repositoryId: number): Promise<void> {
-  const existing: any[] = await db
+  const existing = await db
     .selectFrom('repo_topics')
     .select(['id', 'topic'])
     .where('repository_id', '=', repositoryId)
@@ -504,7 +504,7 @@ async function writeLabels(
   if (incoming.length === 0)
     return { created: 0, updated: 0 }
 
-  const existing: any[] = await db
+  const existing = await db
     .selectFrom('repository_labels')
     .select(['id', 'name', 'color', 'description'])
     .where('repository_id', '=', repositoryId)

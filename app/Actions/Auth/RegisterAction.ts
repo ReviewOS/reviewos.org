@@ -67,7 +67,7 @@ export default new Action({
      * one loses at the insert. A check without the index is a race; an index
      * without the check is a stack trace where a sentence belongs.
      */
-    const clash: any = await db
+    const clash = await db
       .selectFrom('users')
       .select(['id'])
       .where('handle', '=', handle)
@@ -76,7 +76,7 @@ export default new Action({
     if (clash)
       return refuse(request, 'That handle is taken.')
 
-    const existingEmail: any = await db
+    const existingEmail = await db
       .selectFrom('users')
       .select(['id'])
       .where('email', '=', email)
@@ -113,7 +113,7 @@ export default new Action({
       const { makeHash } = await import('@stacksjs/security')
       const { Auth } = await import('@stacksjs/auth')
 
-      const created: any = await db
+      const created = await db
         .insertInto('users')
         .values({
           handle,
@@ -192,7 +192,7 @@ export default new Action({
  */
 async function isFirstAccount(): Promise<boolean> {
   try {
-    const row: any = await db.selectFrom('users').select(['id']).limit(1).executeTakeFirst()
+    const row = await db.selectFrom('users').select(['id']).limit(1).executeTakeFirst()
 
     return !row
   }

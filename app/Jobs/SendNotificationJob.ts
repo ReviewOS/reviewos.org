@@ -55,7 +55,7 @@ export default new Job({
     if (!Number.isFinite(userId) || (channel !== 'email' && channel !== 'push'))
       return { ok: false, reason: 'not a deferrable channel' }
 
-    const user: any = await db
+    const user = await db
       .selectFrom('users')
       .select(['id', 'email', 'handle'])
       .where('id', '=', userId)
@@ -66,7 +66,7 @@ export default new Job({
     if (!user)
       return { ok: false, reason: 'recipient no longer exists' }
 
-    const stored: any[] = await db
+    const stored = await db
       .selectFrom('notification_event_preferences')
       .select(['event', 'channel', 'delivery'])
       .where('user_id', '=', userId)

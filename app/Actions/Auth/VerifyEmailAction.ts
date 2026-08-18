@@ -54,7 +54,7 @@ async function resend(request: any): Promise<Response> {
   if (!user)
     return answer(request, 401, { error: 'Unauthenticated' })
 
-  const row: any = await db
+  const row = await db
     .selectFrom('users')
     .select(['id', 'email', 'name', 'email_verified_at'])
     .where('id', '=', user.id)

@@ -118,7 +118,7 @@ export default new Action({
     if (await slugTaken(organizationId, slug, null))
       return response.json({ error: 'A team with that slug already exists' }, 422)
 
-    const created: any = await db
+    const created = await db
       .insertInto('teams')
       .values({ organization_id: organizationId, name, slug, description, parent_team_id: parentId })
       .returning(['id'])
@@ -177,7 +177,7 @@ async function wouldCycle(teamId: number, parentId: number): Promise<boolean> {
 
     seen.add(current)
 
-    const row: any = await db
+    const row = await db
       .selectFrom('teams')
       .select(['parent_team_id'])
       .where('id', '=', current)

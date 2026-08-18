@@ -15,6 +15,7 @@ import { existsSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { REPOSITORY_ROOT } from '../Actions/Git/storage'
 import { draining } from './shutdown'
+import { db } from '@stacksjs/database'
 
 export type CheckStatus = 'ok' | 'degraded' | 'failed'
 
@@ -134,7 +135,6 @@ async function database(): Promise<Check> {
  */
 async function databaseClock(): Promise<Check> {
   return await timed('database clock', async () => {
-    const db = (globalThis as any).db
 
     /*
      * `CURRENT_TIMESTAMP::timestamp` is exactly what a defaulted column stores:
@@ -142,12 +142,13 @@ async function databaseClock(): Promise<Check> {
      * that against this process's clock measures the bug directly, without
      * writing anything and without depending on how old any row happens to be.
      */
-    const rows: any = await db.raw`SELECT CURRENT_TIMESTAMP::timestamp AS stored`
-    const stored = Array.isArray(rows) ? rows[0]?.stored : rows?.stored
+    const rows = await db.raw`SELECT CURRENT_TIMESTAMP::timestamp AS stored`
+    const row = Array.isArray(rows) ? rows[0] : rows
+    const stored = (row as Record<string, unknown> | undefined)?.stored
     if (!stored)
       return
 
-    const skewMinutes = Math.abs(Date.now() - new Date(stored as any).getTime()) / 60_000
+    const skewMinutes = Math.abs(Date.now() - new Date(String(stored)).getTime()) / 60_000
 
     // Fifteen minutes of slack covers a clock that is merely wrong; every real
     // timezone offset is at least half an hour.
@@ -181,16 +182,15 @@ async function databaseClock(): Promise<Check> {
  */
 async function queue(): Promise<Check> {
   return await timed('queue', async () => {
-    const db = (globalThis as any).db
 
-    const pending: any = await db
+    const pending = await db
       .selectFrom('jobs')
       .select(db.fn.count('id').as('count'))
       .executeTakeFirst()
 
     const depth = Number(pending?.count ?? 0)
 
-    const oldest: any = await db
+    const oldest = await db
       .selectFrom('jobs')
       .select(['created_at'])
       .orderBy('created_at', 'asc')

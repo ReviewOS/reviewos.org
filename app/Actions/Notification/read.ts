@@ -31,7 +31,7 @@ export interface Inbox {
 }
 
 export async function loadInbox(userId: number, filter: InboxFilter = {}): Promise<Inbox> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('notifications')
     .select(['id', 'type', 'data', 'read_at', 'created_at'])
     .where('user_id', '=', userId)
@@ -61,7 +61,7 @@ export async function loadInbox(userId: number, filter: InboxFilter = {}): Promi
  * kind of cost that only becomes visible once the product is worth using.
  */
 export async function unreadFor(userId: number): Promise<number> {
-  const row: any = await db
+  const row = await db
     .selectFrom('notifications')
     .select(db.fn.count('id').as('unread'))
     .where('user_id', '=', userId)

@@ -59,7 +59,7 @@ export async function cancelRequested(operationId: number | null | undefined): P
     return false
 
   try {
-    const row: any = await db
+    const row = await db
       .selectFrom('operations')
       .select(['cancel_requested_at'])
       .where('id', '=', Number(operationId))

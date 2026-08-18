@@ -23,7 +23,7 @@ export async function splitForRepository(input: {
    * takes on its command line. Splitting by individual test would give a
    * better partition and a client nobody can write.
    */
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('test_executions')
     .innerJoin('managed_tests', 'managed_tests.id', '=', 'test_executions.managed_test_id')
     .innerJoin('test_suites', 'test_suites.id', '=', 'managed_tests.test_suite_id')
@@ -73,7 +73,7 @@ export async function splitForRepository(input: {
 
 /** How many runs the history spans, so a sum can become a per-run average. */
 async function runCount(repositoryId: number, suite: string): Promise<number> {
-  const row: any = await db
+  const row = await db
     .selectFrom('test_runs')
     .innerJoin('test_suites', 'test_suites.id', '=', 'test_runs.test_suite_id')
     .select(db.fn.count('test_runs.id').as('runs'))

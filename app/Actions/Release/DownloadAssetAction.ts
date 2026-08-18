@@ -33,9 +33,9 @@ export default new Action({
     if (!tag || !name)
       return response.json({ error: 'Not found' }, 404)
 
-    const release: any = await db
+    const release = await db
       .selectFrom('releases')
-      .select(['id', 'status'])
+      .selectAll()
       .where('repository_id', '=', Number(repository.id))
       .where('tag_name', '=', tag)
       .executeTakeFirst()
@@ -46,7 +46,7 @@ export default new Action({
     if (!release || isDraft(release))
       return response.json({ error: 'Not found' }, 404)
 
-    const asset: any = await db
+    const asset = await db
       .selectFrom('release_assets')
       .select(['id', 'name', 'storage_path', 'size_bytes'])
       .where('release_id', '=', Number(release.id))

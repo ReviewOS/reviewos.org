@@ -85,7 +85,7 @@ export default new Action({
 
       const { foldAttempts, health, parseDelivery } = await import('./deliveries')
 
-      const rows: any[] = await db
+      const rows = await db
         .selectFrom('webhook_deliveries')
         .selectAll()
         .where('webhook_id', '=', id)
@@ -175,7 +175,7 @@ export default new Action({
     // it once, here, and it is the only time it leaves the server in the clear.
     const secret = String(request.get('secret') ?? '') || crypto.randomUUID().replaceAll('-', '')
 
-    const created: any = await db
+    const created = await db
       .insertInto('webhooks')
       .values({
         repository_id: Number(repository.id),

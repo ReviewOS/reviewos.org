@@ -59,7 +59,7 @@ export default new Job({
     if (!Number.isFinite(webhookId))
       return { ok: false, reason: 'no webhook id' }
 
-    const webhook: any = await db
+    const webhook = await db
       .selectFrom('webhooks')
       .select(['id', 'url', 'secret', 'content_type', 'active', 'consecutive_failures', 'last_success_at'])
       .where('id', '=', webhookId)

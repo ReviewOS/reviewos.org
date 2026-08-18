@@ -43,7 +43,7 @@ export async function handleEvent(event: any, eventName = ''): Promise<void> {
     if (!repositoryId || !number)
       return
 
-    const pullRequest: any = await db
+    const pullRequest = await db
       .selectFrom('pull_requests')
       .select(['id', 'number', 'head_sha', 'base_branch', 'head_branch', 'head_repository_id', 'repository_id', 'draft', 'state'])
       .where('repository_id', '=', repositoryId)
@@ -125,7 +125,7 @@ async function changedPathsFor(
   try {
     const { repositoryPath } = await import('../Actions/Git/storage')
 
-    const repository: any = await db
+    const repository = await db
       .selectFrom('repositories')
       .select(['name', 'owner_type', 'owner_id'])
       .where('id', '=', repositoryId)

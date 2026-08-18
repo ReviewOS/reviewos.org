@@ -59,7 +59,7 @@ export default new Action({
     const now = new Date().toISOString()
     const userAgent = String(request.header?.('user-agent') ?? '').slice(0, 500)
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('push_subscriptions')
       .select(['id'])
       .where('endpoint', '=', endpoint)

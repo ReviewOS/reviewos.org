@@ -172,7 +172,7 @@ export async function recordTokenUse(tokenId: number, ip: string | null, nowMs =
      * for a token that has never been used: `last_used_at IS NULL` matches once
      * in a token's life.
      */
-    const first: any = await db
+    const first = await db
       .selectFrom('access_tokens')
       .select(['id', 'user_id', 'prefix', 'last_used_at'])
       .where('id', '=', tokenId)

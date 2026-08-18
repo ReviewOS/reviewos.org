@@ -52,7 +52,7 @@ export async function organizationsFor(userId: number): Promise<OrganizationRow[
   if (!userId)
     return []
 
-  const memberships: any[] = await db
+  const memberships = await db
     .selectFrom('org_members')
     .select(['organization_id', 'role', 'joined_at'])
     .where('user_id', '=', userId)
@@ -63,7 +63,7 @@ export async function organizationsFor(userId: number): Promise<OrganizationRow[
 
   const ids = memberships.map(row => Number(row.organization_id))
 
-  const organizations: any[] = await db
+  const organizations = await db
     .selectFrom('organizations')
     .select(['id', 'handle', 'name', 'description'])
     .where('id', 'in', ids)
@@ -115,7 +115,7 @@ export async function organizationsFor(userId: number): Promise<OrganizationRow[
  * resolve it twice.
  */
 export async function peopleIn(organizationId: number): Promise<PersonRow[]> {
-  const memberships: any[] = await db
+  const memberships = await db
     .selectFrom('org_members')
     .select(['user_id', 'role', 'joined_at'])
     .where('organization_id', '=', organizationId)
@@ -124,7 +124,7 @@ export async function peopleIn(organizationId: number): Promise<PersonRow[]> {
   if (memberships.length === 0)
     return []
 
-  const users: any[] = await db
+  const users = await db
     .selectFrom('users')
     .select(['id', 'handle', 'name', 'avatar_url', 'machine_for_organization_id'])
     .where('id', 'in', memberships.map(row => Number(row.user_id)))
@@ -163,7 +163,7 @@ async function countBy(table: string, column: string, ids: readonly number[]): P
   if (ids.length === 0)
     return counts
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom(table as any)
     .select([column as any])
     .where(column as any, 'in', [...ids])
@@ -183,7 +183,7 @@ async function repositoryCountsFor(ids: readonly number[]): Promise<Map<number, 
   if (ids.length === 0)
     return counts
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('repositories')
     .select(['owner_id'])
     .where('owner_type', '=', 'organization')

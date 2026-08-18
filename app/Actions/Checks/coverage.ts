@@ -71,7 +71,7 @@ export async function loadCoverage(repositoryId: number, commitSha: string): Pro
     return uncoveredByPath
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('coverage_files')
       .select(['path', 'uncovered_lines'])
       .where('repository_id', '=', repositoryId)

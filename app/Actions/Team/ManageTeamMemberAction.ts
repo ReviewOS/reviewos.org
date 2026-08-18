@@ -66,7 +66,7 @@ export default new Action({
     if (role !== 'member' && role !== 'maintainer')
       return response.json({ error: 'A team role is member or maintainer' }, 422)
 
-    const membership: any = await db
+    const membership = await db
       .selectFrom('org_members')
       .select(['id'])
       .where('organization_id', '=', organizationId)
@@ -76,7 +76,7 @@ export default new Action({
     if (!membership)
       return response.json({ error: 'That person is not a member of this organization' }, 422)
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('team_members')
       .select(['id'])
       .where('team_id', '=', teamId)
@@ -101,7 +101,7 @@ export default new Action({
 
 /** Whether somebody runs this team. */
 async function isMaintainerOf(teamId: number, userId: number): Promise<boolean> {
-  const row: any = await db
+  const row = await db
     .selectFrom('team_members')
     .select(['role'])
     .where('team_id', '=', teamId)

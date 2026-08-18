@@ -164,7 +164,7 @@ async function applyLabels(issueId: number, repositoryId: number, requested: unk
   if (names.length === 0)
     return []
 
-  const labels: any[] = await db
+  const labels = await db
     .selectFrom('repository_labels')
     .select(['id', 'name'])
     .where('repository_id', '=', repositoryId)

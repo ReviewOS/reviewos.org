@@ -41,7 +41,7 @@ export default new Action({
     // Resolved to rows first, so an issue number from another repository - or a
     // pull request number, which shares the sequence - cannot be acted on by
     // being named here.
-    const issues: any[] = await db
+    const issues = await db
       .selectFrom('issues')
       .select(['id', 'number', 'state'])
       .where('repository_id', '=', repository.id)
@@ -131,7 +131,7 @@ async function setLabel(ids: number[], requested: unknown, repositoryId: number,
   if (!name)
     return response.json({ error: 'No label was given' }, 422)
 
-  const labels: any[] = await db
+  const labels = await db
     .selectFrom('repository_labels')
     .select(['id', 'name'])
     .where('repository_id', '=', repositoryId)
@@ -152,7 +152,7 @@ async function setLabel(ids: number[], requested: unknown, repositoryId: number,
   // Already-labelled issues are skipped rather than inserted again: the join
   // table has no unique index to lean on, and a duplicate row shows the same
   // label twice on the issue.
-  const existing: any[] = await db
+  const existing = await db
     .selectFrom('issue_labels')
     .select(['issue_id'])
     .where('label_id', '=', labelId)

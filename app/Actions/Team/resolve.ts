@@ -109,7 +109,7 @@ export async function effectiveTeamsFor(userId: number, organizationId: number |
   if (!userId)
     return []
 
-  const memberships: any[] = await db
+  const memberships = await db
     .selectFrom('team_members')
     .select(['team_id'])
     .where('user_id', '=', userId)
@@ -139,7 +139,7 @@ export async function teamPermissionsOn(repositoryId: number, teamIds: readonly 
   if (teamIds.length === 0)
     return []
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('team_repositories')
     .select(['permission'])
     .where('repository_id', '=', repositoryId)

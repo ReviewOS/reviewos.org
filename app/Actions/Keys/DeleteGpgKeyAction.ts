@@ -33,7 +33,7 @@ export default new Action({
     // Read for the record, deleted by the same scoped statement as before. See
     // the note in `DeleteSshKeyAction`: afterwards there is no fingerprint left
     // to name.
-    const key: any = await db
+    const key = await db
       .selectFrom('gpg_keys')
       .select(['id', 'key_id'])
       .where('id', '=', id)

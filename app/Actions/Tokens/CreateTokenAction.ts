@@ -336,7 +336,7 @@ async function machineAccountFor(
   if (!Number.isInteger(machineId) || machineId <= 0)
     return { error: 'A machine account id has to be a number', status: 422 }
 
-  const account: any = await db
+  const account = await db
     .selectFrom('users')
     .select(['id', 'handle', 'machine_for_organization_id'])
     .where('id', '=', machineId)

@@ -86,7 +86,7 @@ export async function testSummaryForPull(input: {
    * finished. Latest *within* a suite because a rerun supersedes the run it
    * repeated.
    */
-  const runs: any[] = await db
+  const runs = await db
     .selectFrom('test_runs')
     .innerJoin('test_suites', 'test_suites.id', '=', 'test_runs.test_suite_id')
     .select([
@@ -145,7 +145,7 @@ export async function testSummaryForPull(input: {
 
   const runIds = [...latest.values()].map(run => Number(run.id))
 
-  const executions: any[] = await db
+  const executions = await db
     .selectFrom('test_executions')
     .innerJoin('managed_tests', 'managed_tests.id', '=', 'test_executions.managed_test_id')
     .innerJoin('test_suites', 'test_suites.id', '=', 'managed_tests.test_suite_id')
@@ -217,7 +217,7 @@ async function unreliableOn(testId: number, branch: string): Promise<boolean> {
   if (!branch)
     return false
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('test_executions')
     .innerJoin('test_runs', 'test_runs.id', '=', 'test_executions.test_run_id')
     .select([

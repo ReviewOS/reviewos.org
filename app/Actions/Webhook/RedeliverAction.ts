@@ -36,7 +36,7 @@ export default new Action({
     if (!Number.isInteger(deliveryId) || deliveryId <= 0)
       return response.json({ error: 'A delivery is required' }, 422)
 
-    const delivery: any = await db
+    const delivery = await db
       .selectFrom('webhook_deliveries')
       .select(['id', 'webhook_id', 'event', 'payload'])
       .where('id', '=', deliveryId)
@@ -48,7 +48,7 @@ export default new Action({
     // The webhook has to belong to this repository. Without this the endpoint
     // would replay any delivery in the database to its own destination for
     // anybody who can administer any repository at all.
-    const webhook: any = await db
+    const webhook = await db
       .selectFrom('webhooks')
       .select(['id', 'active'])
       .where('id', '=', Number(delivery.webhook_id))

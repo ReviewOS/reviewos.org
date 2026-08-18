@@ -120,7 +120,7 @@ async function deprovision(request: any, actor: { id: number }): Promise<Respons
   if (!handle)
     return response.json({ error: 'Which account?' }, 422)
 
-  const target: any = await db
+  const target = await db
     .selectFrom('users')
     .select(['id', 'handle'])
     .where('handle', '=', handle)
@@ -156,7 +156,7 @@ async function changeAdmin(request: any, actor: { id: number }, promote: boolean
   if (!handle)
     return response.json({ error: 'Which account?' }, 422)
 
-  const target: any = await db
+  const target = await db
     .selectFrom('users')
     .select(['id', 'handle', 'is_admin'])
     .where('handle', '=', handle)
@@ -174,7 +174,7 @@ async function changeAdmin(request: any, actor: { id: number }, promote: boolean
    * for the same reason.
    */
   if (!promote) {
-    const others: any[] = await db
+    const others = await db
       .selectFrom('users')
       .select(['id'])
       .where('is_admin', '=', true)

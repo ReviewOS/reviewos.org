@@ -62,7 +62,7 @@ export default new Action({
         // `data` is JSON in a text column, so this filters in the application
         // rather than in SQL. Matching on a substring of the blob would count
         // a repository named in a pull request title as a repository filter.
-        const rows: any[] = await db
+        const rows = await db
           .selectFrom('notifications')
           .select(['id', 'data'])
           .where('user_id', '=', user.id)
@@ -101,7 +101,7 @@ export default new Action({
     // Counted after the fact rather than from the update's row count, which the
     // drivers disagree about. The number the interface shows is the unread
     // count, and that is what is asked for.
-    const remaining: any = await db
+    const remaining = await db
       .selectFrom('notifications')
       .select(db.fn.count('id').as('unread'))
       .where('user_id', '=', user.id)

@@ -40,7 +40,7 @@ export default new Action({
     if (!fields.ok)
       return response.json({ error: fields.error }, 422)
 
-    const existing: any[] = await db
+    const existing = await db
       .selectFrom('repository_labels')
       .select(['id', 'name'])
       .where('repository_id', '=', repository.id)

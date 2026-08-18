@@ -1,3 +1,4 @@
+import { db } from '@stacksjs/database'
 /**
  * Reading the audit log.
  *
@@ -72,7 +73,6 @@ const MAX_LIMIT = 500
  * paging over a table being written to silently skips rows.
  */
 export async function searchAudit(query: AuditQuery): Promise<{ rows: AuditRow[], next: number | null }> {
-  const db = (globalThis as any).db
   const limit = Math.min(Math.max(1, Math.floor(query.limit ?? DEFAULT_LIMIT)), MAX_LIMIT)
 
   let builder = db.selectFrom('audit_events').selectAll()
@@ -178,10 +178,9 @@ export async function mayReadAudit(
   if (scope.kind === 'instance')
     return false
 
-  const db = (globalThis as any).db
 
   try {
-    const membership: any = await db
+    const membership = await db
       .selectFrom('org_members')
       .select(['role'])
       .where('organization_id', '=', scope.organizationId)

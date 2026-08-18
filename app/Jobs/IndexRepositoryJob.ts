@@ -34,7 +34,7 @@ export default new Job({
     const single = Number(payload?.repositoryId ?? 0)
 
     if (Number.isInteger(single) && single > 0) {
-      const row: any = await db
+      const row = await db
         .selectFrom('repositories')
         .select([...REPOSITORY_COLUMNS])
         .where('id', '=', single)
@@ -61,7 +61,7 @@ export default new Job({
     let indexed = 0
 
     for (;;) {
-      const rows: any[] = await db
+      const rows = await db
         .selectFrom('repositories')
         .select([...REPOSITORY_COLUMNS])
         .where('id', '>', after)
@@ -77,7 +77,7 @@ export default new Job({
         await engine.addDocuments(REPOSITORY_INDEX, documents)
 
       indexed += documents.length
-      after = Number(rows[rows.length - 1].id)
+      after = Number(rows[rows.length - 1]?.id ?? after)
     }
 
     return { indexed, removed: 0 }

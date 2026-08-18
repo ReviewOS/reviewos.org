@@ -59,7 +59,7 @@ export default new Job({
  * `count-objects` is cheaper and answers the question this job is asking.
  */
 async function packRepositories(dryRun: boolean): Promise<{ examined: number, packed: number }> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('repositories')
     .select(['id', 'disk_path'])
     .execute()

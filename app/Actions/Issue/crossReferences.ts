@@ -70,7 +70,7 @@ export async function recordCommitReferences(
   const short = sha.slice(0, 7)
 
   try {
-    const targets: any[] = await db
+    const targets = await db
       .selectFrom('issues')
       .select(['id', 'number', 'is_pull_request'])
       .where('repository_id', '=', repositoryId)
@@ -83,7 +83,7 @@ export async function recordCommitReferences(
     // Already recorded, so a retried job does not say it twice. Matched on the
     // sha rather than on the pair, because the same commit reaching the same
     // issue is the only duplicate this can produce.
-    const existing: any[] = await db
+    const existing = await db
       .selectFrom('timeline_entries')
       .select(['subject_id'])
       .where('kind', '=', 'referenced')
@@ -160,7 +160,7 @@ export async function recordCrossReferences(
   try {
     // Only issues and pull requests that exist here. A reference to a number
     // nobody has opened yet is a typo far more often than it is a prediction.
-    const targets: any[] = await db
+    const targets = await db
       .selectFrom('issues')
       .select(['id', 'number', 'is_pull_request'])
       .where('repository_id', '=', source.repositoryId)
@@ -175,7 +175,7 @@ export async function recordCrossReferences(
     // rejects its expression-callback form of `where` - see the note on the
     // pageable sorts in `listing.ts`. Two indexed reads is a fine price for not
     // building the condition out of string fragments.
-    const outgoing: any[] = await db
+    const outgoing = await db
       .selectFrom('timeline_entries')
       .select(['reference_number'])
       .where('kind', '=', 'mentioned')
@@ -183,7 +183,7 @@ export async function recordCrossReferences(
       .where('subject_id', '=', source.subject.id)
       .execute()
 
-    const incoming: any[] = await db
+    const incoming = await db
       .selectFrom('timeline_entries')
       .select(['subject_id'])
       .where('kind', '=', 'referenced')

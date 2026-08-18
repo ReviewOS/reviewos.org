@@ -35,7 +35,7 @@ export default new Action({
 
     const { repository } = auth.context
 
-    const mirror: any = await db
+    const mirror = await db
       .selectFrom('repository_mirrors')
       .select(['id', 'enabled', 'last_synced_at', 'sync_metadata'])
       .where('repository_id', '=', Number(repository.id))

@@ -18,6 +18,7 @@ import { log } from '@stacksjs/logging'
 import { authenticateToken } from '../Actions/Tokens/authenticate'
 import { apiError } from './errors'
 import { check } from './rate-limit'
+import { db } from '@stacksjs/database'
 
 /** The three things a token creates that somebody has to read. */
 export type MeteredAction = 'pull_requests' | 'comments' | 'reviews'
@@ -108,9 +109,8 @@ export async function spend(
     return { verdict: unlimited, limit }
 
   try {
-    const db = (globalThis as any).db
 
-    const row: any = await db
+    const row = await db
       .selectFrom('token_usage_windows')
       .select(['id', 'window_started_at', 'used'])
       .where('access_token_id', '=', tokenId)

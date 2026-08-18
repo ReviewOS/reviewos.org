@@ -161,7 +161,7 @@ async function registerRunner(options: RunnerOptions, output: { print: boolean }
 
   const secret = generateToken()
 
-  const existing: any = await db
+  const existing = await db
     .selectFrom('runners')
     .select(['id'])
     .where('name', '=', name)

@@ -63,7 +63,7 @@ export default new Action({
     if (!scope)
       return response.json({ error: 'That link does not name anything to unsubscribe from' }, 400)
 
-    const user: any = await db
+    const user = await db
       .selectFrom('users')
       .select(['id'])
       .where('email', '=', String(verified.email))
@@ -76,7 +76,7 @@ export default new Action({
     if (!user)
       return respond(request, { unsubscribed: true })
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('notification_subscriptions')
       .select(['id'])
       .where('user_id', '=', Number(user.id))

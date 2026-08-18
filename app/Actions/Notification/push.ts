@@ -64,7 +64,7 @@ export async function pushToUser(userId: number, message: PushMessage): Promise<
   if (!vapid)
     return { sent: 0, pruned: 0, failed: 0, unconfigured: true }
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('push_subscriptions')
     .select(['id', 'endpoint', 'public_key', 'auth_secret'])
     .where('user_id', '=', userId)

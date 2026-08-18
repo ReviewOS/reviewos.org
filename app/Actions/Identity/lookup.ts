@@ -336,7 +336,7 @@ export async function organizationOwnerCount(organizationId: number): Promise<nu
 export async function ownersForCreate(
   user: { id: number, handle: string },
 ): Promise<{ handle: string, kind: 'user' | 'organization' }[]> {
-  const memberships: any[] = await db
+  const memberships = await db
     .selectFrom('org_members')
     .select(['organization_id', 'role', 'joined_at'])
     .where('user_id', '=', user.id)
@@ -358,7 +358,7 @@ export async function ownersForCreate(
   // Scoped to the ids in hand. Reading every organization on the instance to
   // resolve a handful of handles is the query that gets slow first, and it does
   // so on the page somebody opens to create their first repository.
-  const organizations: any[] = await db
+  const organizations = await db
     .selectFrom('organizations')
     .select(['id', 'handle'])
     .where('id', 'in', ids)

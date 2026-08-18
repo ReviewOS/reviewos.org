@@ -49,7 +49,7 @@ export async function startOperation(input: StartInput): Promise<Started> {
   ].join(':')
 
   if (key) {
-    const existing: any = await db
+    const existing = await db
       .selectFrom('operations')
       .selectAll()
       .where('idempotency_scope', '=', scope)
@@ -63,7 +63,7 @@ export async function startOperation(input: StartInput): Promise<Started> {
       return { row: existing, fresh: false }
   }
 
-  const created: any = await db
+  const created = await db
     .insertInto('operations')
     .values({
       kind: input.kind,

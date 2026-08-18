@@ -30,7 +30,7 @@ export default new Job({
     if (!Number.isInteger(repositoryId) || repositoryId <= 0)
       return { languages: 0 }
 
-    const repository: any = await db
+    const repository = await db
       .selectFrom('repositories')
       .select(['name', 'owner_type', 'owner_id', 'default_branch'])
       .where('id', '=', repositoryId)
@@ -93,7 +93,7 @@ export default new Job({
 async function ownerHandle(repository: { owner_type: unknown, owner_id: unknown }): Promise<string> {
   const table = String(repository.owner_type) === 'organization' ? 'organizations' : 'users'
 
-  const row: any = await db
+  const row = await db
     .selectFrom(table)
     .select(['handle'])
     .where('id', '=', Number(repository.owner_id))

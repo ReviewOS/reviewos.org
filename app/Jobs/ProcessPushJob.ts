@@ -245,7 +245,7 @@ async function refreshPullRequests(
        * requests moved and an `UPDATE` reports a count rather than rows. One
        * extra query per pushed branch, on a path that already spawns git.
        */
-      const affected: any[] = await db
+      const affected = await db
         .selectFrom('pull_requests')
         .select(['id', 'number', 'title', 'author_id', 'head_sha'])
         .where('repository_id', '=', repositoryId)
@@ -326,7 +326,7 @@ async function precomputeMergeability(repository: any, owner: string, branches: 
 
   for (const branch of moved) {
     try {
-      const rows: any[] = await db
+      const rows = await db
         .selectFrom('pull_requests')
         .select(['id', 'base_sha', 'head_sha', 'mergeable_state', 'mergeable_base_sha', 'mergeable_head_sha', 'mergeable_conflicts'])
         .where('repository_id', '=', Number(repository.id))
@@ -512,7 +512,7 @@ async function actOnCommitMessages(
  */
 async function closeIssue(repositoryId: number, number: number, sha: string): Promise<boolean> {
   try {
-    const issue: any = await db
+    const issue = await db
       .selectFrom('issues')
       .select(['id', 'state'])
       .where('repository_id', '=', repositoryId)

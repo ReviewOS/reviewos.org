@@ -216,12 +216,12 @@ export async function writeExport(ownerHandle: string, name: string, destination
 
 async function findRepository(ownerHandle: string, name: string): Promise<any | null> {
   for (const [table, type] of [['users', 'user'], ['organizations', 'organization']] as const) {
-    const owner: any = await db.selectFrom(table).select(['id']).where('handle', '=', ownerHandle).executeTakeFirst()
+    const owner = await db.selectFrom(table).select(['id']).where('handle', '=', ownerHandle).executeTakeFirst()
 
     if (!owner)
       continue
 
-    const repository: any = await db
+    const repository = await db
       .selectFrom('repositories')
       .selectAll()
       .where('owner_type', '=', type)
@@ -238,7 +238,7 @@ async function findRepository(ownerHandle: string, name: string): Promise<any | 
 
 /** Every issue, with its comments, keyed by the number people refer to. */
 async function exportIssues(repositoryId: number): Promise<ExportedIssue[]> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('issues')
     .leftJoin('users', 'users.id', '=', 'issues.author_id')
     .select([
@@ -277,7 +277,7 @@ async function exportIssues(repositoryId: number): Promise<ExportedIssue[]> {
 }
 
 async function exportPullRequests(repositoryId: number): Promise<ExportedPullRequest[]> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('pull_requests')
     .leftJoin('users', 'users.id', '=', 'pull_requests.author_id')
     .select([
@@ -327,7 +327,7 @@ async function exportPullRequests(repositoryId: number): Promise<ExportedPullReq
 /** The label names, because a colour is ours and a name is theirs. */
 async function labelsFor(issueId: number): Promise<string[]> {
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('issue_labels')
       .innerJoin('repository_labels', 'repository_labels.id', '=', 'issue_labels.label_id')
       .select(['repository_labels.name as name'])
@@ -343,7 +343,7 @@ async function labelsFor(issueId: number): Promise<string[]> {
 
 async function commentsOn(type: string, id: number): Promise<ExportedComment[]> {
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('issue_comments')
       .leftJoin('users', 'users.id', '=', 'issue_comments.author_id')
       .select([
@@ -377,7 +377,7 @@ async function commentsOn(type: string, id: number): Promise<ExportedComment[]> 
  */
 async function threadsOn(pullRequestId: number): Promise<ExportedThread[]> {
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('review_threads')
       .selectAll()
       .where('pull_request_id', '=', pullRequestId)
@@ -387,7 +387,7 @@ async function threadsOn(pullRequestId: number): Promise<ExportedThread[]> {
     const threads: ExportedThread[] = []
 
     for (const row of rows) {
-      const comments: any[] = await db
+      const comments = await db
         .selectFrom('review_comments')
         .leftJoin('users', 'users.id', '=', 'review_comments.author_id')
         .select([
@@ -404,7 +404,9 @@ async function threadsOn(pullRequestId: number): Promise<ExportedThread[]> {
         path: String(row.path ?? ''),
         line: row.line === null || row.line === undefined ? null : Number(row.line),
         side: String(row.side ?? 'right'),
-        resolved: Boolean(row.resolved_at),
+        // `resolved`, not `resolved_at`: there is no such column, so every
+        // exported thread claimed to be unresolved whatever it was.
+        resolved: Boolean(row.resolved),
         comments: comments.map(comment => ({
           author: authorName(comment),
           body: String(comment.body ?? ''),

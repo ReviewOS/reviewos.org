@@ -76,7 +76,7 @@ async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason
     if (!Number.isFinite(mirrorId))
       return { ok: false, reason: 'no mirror id' }
 
-    const mirror: any = await db
+    const mirror = await db
       .selectFrom('repository_mirrors')
       .selectAll()
       .where('id', '=', mirrorId)
@@ -88,7 +88,7 @@ async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason
     if (!mirror.enabled)
       return { ok: false, reason: 'mirror disabled' }
 
-    const repository: any = await db
+    const repository = await db
       .selectFrom('repositories')
       .selectAll()
       .where('id', '=', Number(mirror.repository_id))

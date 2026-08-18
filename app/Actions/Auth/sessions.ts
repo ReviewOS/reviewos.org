@@ -1,3 +1,4 @@
+import { db } from '@stacksjs/database'
 /**
  * Reading somebody's own sessions.
  *
@@ -33,7 +34,6 @@ export interface SessionRow {
  * and the point of this page is that it can be scanned.
  */
 export async function sessionsFor(userId: number, currentToken: string): Promise<SessionRow[]> {
-  const db = (globalThis as any).db
   const hashed = currentToken ? await hashOf(currentToken) : ''
 
   let rows: any[] = []

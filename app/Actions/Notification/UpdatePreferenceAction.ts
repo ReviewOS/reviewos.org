@@ -46,7 +46,7 @@ export default new Action({
     if (!isDelivery(delivery))
       return response.json({ error: 'A delivery is off, immediate, or digest' }, 422)
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('notification_event_preferences')
       .select(['id'])
       .where('user_id', '=', user.id)

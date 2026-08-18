@@ -40,7 +40,7 @@ export default new Action({
     if (!isAttachmentKey(key))
       return response.json({ error: 'Not found' }, 404)
 
-    const attachment: any = await db
+    const attachment = await db
       .selectFrom('attachments')
       .select(['key', 'repository_id', 'filename', 'content_type', 'byte_size'])
       .where('key', '=', key)
@@ -49,9 +49,11 @@ export default new Action({
     if (!attachment)
       return response.json({ error: 'Not found' }, 404)
 
-    const repository: any = await db
+    const repository = await db
       .selectFrom('repositories')
-      .select(['id', 'visibility', 'owner_type', 'owner_id'])
+      // The whole row: the permission check below is the same function every
+      // page asks, and it reads more than these four.
+      .selectAll()
       .where('id', '=', Number(attachment.repository_id))
       .executeTakeFirst()
 

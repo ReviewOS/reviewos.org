@@ -78,7 +78,7 @@ export default new Action({
     let sha = String(request.get('sha') ?? '').trim()
 
     if (number) {
-      const pull: any = await db
+      const pull = await db
         .selectFrom('pull_requests')
         .select(['head_sha', 'state'])
         .where('repository_id', '=', Number(repository.id))
@@ -94,7 +94,7 @@ export default new Action({
     if (!sha)
       return response.json({ error: 'Name a commit with sha, or a pull request with number.' }, 422)
 
-    const statuses: any[] = await db
+    const statuses = await db
       .selectFrom('commit_statuses')
       .selectAll()
       .where('repository_id', '=', Number(repository.id))
@@ -102,7 +102,7 @@ export default new Action({
       .orderBy('id', 'asc')
       .execute()
 
-    const runs: any[] = await db
+    const runs = await db
       .selectFrom('check_runs')
       .selectAll()
       .where('repository_id', '=', Number(repository.id))
@@ -167,7 +167,7 @@ export default new Action({
  */
 async function annotationsFor(checkRunId: number): Promise<{ total: number, items: unknown[] }> {
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('check_annotations')
       .selectAll()
       .where('check_run_id', '=', checkRunId)

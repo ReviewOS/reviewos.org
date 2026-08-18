@@ -40,7 +40,7 @@ export default new Action({
     if (!canInOrganization(role, 'organization:delete'))
       return response.json({ error: 'Forbidden' }, 403)
 
-    const organization: any = await db
+    const organization = await db
       .selectFrom('organizations')
       .select(['id', 'handle'])
       .where('id', '=', organizationId)
@@ -55,7 +55,7 @@ export default new Action({
     if (confirmation !== handle)
       return response.json({ error: `Type ${handle} to confirm` }, 422)
 
-    const owned: any[] = await db
+    const owned = await db
       .selectFrom('repositories')
       .select(['name'])
       .where('owner_type', '=', 'organization')

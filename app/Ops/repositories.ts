@@ -27,6 +27,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { REPOSITORY_ROOT } from '../Actions/Git/storage'
+import { db } from '@stacksjs/database'
 
 export type ProblemKind = 'missing-directory' | 'unreadable' | 'orphan-directory'
 
@@ -54,10 +55,9 @@ export interface CheckOptions {
 }
 
 export async function checkRepositories(options: CheckOptions = {}): Promise<RepositoryReport> {
-  const db = (globalThis as any).db
   const root = options.root ?? REPOSITORY_ROOT
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('repositories')
     .select(['id', 'name', 'owner_type', 'owner_id', 'disk_path'])
     .execute()

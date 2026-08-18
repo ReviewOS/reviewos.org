@@ -225,7 +225,7 @@ export async function evaluateMonitors(repositoryId?: number, now: Date = new Da
 /** One transition, to programs. Never throws: an alarm is not worth failing a sweep over. */
 async function announce(monitor: MonitorRow, transition: Transition, reading: Measurement): Promise<void> {
   try {
-    const repository: any = await db
+    const repository = await db
       .selectFrom('repositories')
       .select(['name', 'owner_type', 'owner_id'])
       .where('id', '=', monitor.repositoryId)

@@ -25,6 +25,7 @@
  */
 
 import { verifyTwoFactorCode } from '@stacksjs/auth'
+import { db } from '@stacksjs/database'
 
 /**
  * How many codes to issue.
@@ -86,7 +87,6 @@ export function normalizeCode(code: string): string {
  * Returns the plaintext, which is the only time it exists.
  */
 export async function issueRecoveryCodes(userId: number): Promise<string[]> {
-  const db = (globalThis as any).db
   const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () => generateRecoveryCode())
 
   await db.deleteFrom('recovery_codes').where('user_id', '=', userId).execute()
@@ -104,10 +104,9 @@ export async function issueRecoveryCodes(userId: number): Promise<string[]> {
 
 /** How many are left, for the settings page to warn before they run out. */
 export async function remainingRecoveryCodes(userId: number): Promise<number> {
-  const db = (globalThis as any).db
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('recovery_codes')
       .select(['id'])
       .where('user_id', '=', userId)
@@ -135,11 +134,10 @@ export async function remainingRecoveryCodes(userId: number): Promise<number> {
  * failure of this mechanism.
  */
 export async function spendRecoveryCode(userId: number, code: string): Promise<boolean> {
-  const db = (globalThis as any).db
   const hash = await hashRecoveryCode(code)
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .updateTable('recovery_codes')
       .set({ used_at: new Date().toISOString() })
       .where('user_id', '=', userId)

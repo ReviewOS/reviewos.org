@@ -62,7 +62,7 @@ export async function syncFromPush(event: any): Promise<void> {
     if (!moved?.after)
       return
 
-    const repository: any = await db
+    const repository = await db
       .selectFrom('repositories')
       .select(['id', 'name', 'disk_path', 'owner_type', 'owner_id'])
       .where('id', '=', repositoryId)
@@ -127,7 +127,7 @@ export async function syncFromPush(event: any): Promise<void> {
  * one already marked `removed` needs no second write.
  */
 async function retireMissing(repositoryId: number, present: string[]): Promise<void> {
-  const active: any[] = await db
+  const active = await db
     .selectFrom('workflows')
     .select(['id', 'path'])
     .where('repository_id', '=', repositoryId)
@@ -176,7 +176,7 @@ async function resolveGitDir(repository: any, owner: string): Promise<string | n
 async function ownerHandle(repository: any): Promise<string> {
   const table = String(repository.owner_type) === 'organization' ? 'organizations' : 'users'
 
-  const row: any = await db
+  const row = await db
     .selectFrom(table as any)
     .select(['handle'])
     .where('id', '=', Number(repository.owner_id))

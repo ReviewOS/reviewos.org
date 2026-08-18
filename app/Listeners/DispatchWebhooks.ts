@@ -64,7 +64,7 @@ export default {
       if (!event || !repositoryId)
         return
 
-      const hooks: any[] = await db
+      const hooks = await db
         .selectFrom('webhooks')
         .select(['id', 'events'])
         .where('repository_id', '=', repositoryId)

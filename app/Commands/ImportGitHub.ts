@@ -93,7 +93,7 @@ async function start(source: string, options: any): Promise<void> {
   if (existing)
     throw new Error(`${ownerHandle}/${name} already exists here. Delete it first, or import under another name.`)
 
-  const repository: any = await db
+  const repository = await db
     .insertInto('repositories')
     .values({
       owner_type: owner.type,
@@ -115,7 +115,7 @@ async function start(source: string, options: any): Promise<void> {
    * is long, it has a state machine, and somebody needs to watch it from a
    * different process than the one running it.
    */
-  const operation: any = await db
+  const operation = await db
     .insertInto('operations')
     .values({
       kind: 'repository:import',

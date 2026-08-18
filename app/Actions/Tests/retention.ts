@@ -94,7 +94,7 @@ export async function sweepTestExecutions(now: Date = new Date()): Promise<Sweep
    * mistake always goes, and it deletes the history instead of keeping it.
    */
   if (days <= 0) {
-    const held: any = await db.selectFrom('test_executions').select(db.fn.count('id').as('count')).executeTakeFirst().catch(() => null)
+    const held = await db.selectFrom('test_executions').select(db.fn.count('id').as('count')).executeTakeFirst().catch(() => null)
 
     return { ok: true, days: 0, removed: 0, remaining: Number(held?.count ?? 0) }
   }
@@ -109,7 +109,7 @@ export async function sweepTestExecutions(now: Date = new Date()): Promise<Sweep
      * its own worth trusting - it belongs to the run that reported it, and that
      * is the timestamp somebody set out to keep for ninety days.
      */
-    const runs: any[] = await db
+    const runs = await db
       .selectFrom('test_runs')
       .select(['id'])
       .where('created_at', '<', cutoff)
@@ -123,7 +123,7 @@ export async function sweepTestExecutions(now: Date = new Date()): Promise<Sweep
 
     const ids = runs.map(row => Number(row.id))
 
-    const result: any = await db
+    const result = await db
       .deleteFrom('test_executions')
       .where('test_run_id', 'in', ids)
       .executeTakeFirst()
@@ -146,7 +146,7 @@ export async function sweepTestExecutions(now: Date = new Date()): Promise<Sweep
       .catch(() => null)
   }
 
-  const left: any = await db
+  const left = await db
     .selectFrom('test_executions')
     .select(db.fn.count('id').as('count'))
     .executeTakeFirst()

@@ -100,7 +100,7 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
    * and a repeat returns the run that already exists.
    */
   if (input.key) {
-    const existing: any = await db
+    const existing = await db
       .selectFrom('test_runs')
       .select(['id', 'passed', 'failed', 'skipped', 'muted_failures'])
       .where('test_suite_id', '=', suite)
@@ -127,7 +127,7 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
   const counts = { passed: 0, failed: 0, skipped: 0, mutedFailures: 0 }
   let duration = 0
 
-  const run: any = await db
+  const run = await db
     .insertInto('test_runs')
     .values({
       test_suite_id: suite,
@@ -223,7 +223,7 @@ export async function detectFlakes(testIds: readonly number[], announce?: { repo
   const newly: string[] = []
 
   for (const testId of testIds) {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('test_executions')
       .innerJoin('test_runs', 'test_runs.id', '=', 'test_executions.test_run_id')
       .select([
@@ -253,7 +253,7 @@ export async function detectFlakes(testIds: readonly number[], announce?: { repo
     if (!disagreed && !retried)
       continue
 
-    const test: any = await db
+    const test = await db
       .selectFrom('managed_tests')
       .innerJoin('test_suites', 'test_suites.id', '=', 'managed_tests.test_suite_id')
       .select([
@@ -322,7 +322,7 @@ async function suiteFor(repositoryId: number, slug: string): Promise<number> {
   const name = String(slug ?? '').trim() || 'default'
   const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 100) || 'default'
 
-  const existing: any = await db
+  const existing = await db
     .selectFrom('test_suites')
     .select(['id'])
     .where('repository_id', '=', repositoryId)
@@ -332,7 +332,7 @@ async function suiteFor(repositoryId: number, slug: string): Promise<number> {
   if (existing)
     return Number(existing.id)
 
-  const created: any = await db
+  const created = await db
     .insertInto('test_suites')
     .values({ repository_id: repositoryId, name: name.slice(0, 100), slug: key } as any)
     .returning(['id'])
@@ -353,7 +353,7 @@ async function testFor(suiteId: number, scope: string, name: string): Promise<{ 
   const cleanScope = String(scope ?? '').slice(0, 500)
   const cleanName = String(name ?? '').slice(0, 500) || 'a test'
 
-  const existing: any = await db
+  const existing = await db
     .selectFrom('managed_tests')
     .select(['id', 'state'])
     .where('test_suite_id', '=', suiteId)
@@ -364,7 +364,7 @@ async function testFor(suiteId: number, scope: string, name: string): Promise<{ 
   if (existing)
     return { id: Number(existing.id), state: String(existing.state) }
 
-  const created: any = await db
+  const created = await db
     .insertInto('managed_tests')
     .values({ test_suite_id: suiteId, scope: cleanScope, name: cleanName, state: 'enabled' } as any)
     .returning(['id'])
@@ -389,7 +389,7 @@ async function announceFlaky(input: {
   name: string
   reason: string
 }): Promise<void> {
-  const repository: any = await db
+  const repository = await db
     .selectFrom('repositories')
     .select(['name', 'owner_type', 'owner_id'])
     .where('id', '=', input.repositoryId)

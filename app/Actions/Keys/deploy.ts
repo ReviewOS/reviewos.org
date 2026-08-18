@@ -90,7 +90,7 @@ export interface DeployKeyIdentity {
  * refuses a fingerprint either table already holds.
  */
 export async function deployKeyFor(fingerprint: string): Promise<DeployKeyIdentity | null> {
-  const row: any = await db
+  const row = await db
     .selectFrom('deploy_keys')
     .select(['id', 'repository_id', 'can_write'])
     .where('fingerprint', '=', fingerprint)

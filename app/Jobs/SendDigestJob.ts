@@ -39,7 +39,7 @@ export default new Job({
     const windowMs = Math.max(1, Number(payload?.windowMinutes ?? 30)) * 60_000
     const now = Date.now()
 
-    const pending: any[] = await db
+    const pending = await db
       .selectFrom('notification_deliveries')
       .select(['id', 'user_id', 'channel', 'recipient', 'subject', 'body', 'created_at'])
       .where('status', '=', 'pending')
@@ -113,7 +113,7 @@ export default new Job({
       if (rows.length === 0)
         continue
 
-      const address = String(rows[0].recipient ?? '')
+      const address = String(rows[0]?.recipient ?? '')
       if (!address) {
         failed += 1
         continue

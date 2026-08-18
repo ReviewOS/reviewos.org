@@ -101,7 +101,7 @@ async function notifyOfInvitation(input: {
   invitedBy: string
 }): Promise<void> {
   try {
-    const organization: any = await db
+    const organization = await db
       .selectFrom('organizations')
       .select(['handle', 'name'])
       .where('id', '=', input.organizationId)

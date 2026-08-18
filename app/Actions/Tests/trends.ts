@@ -230,7 +230,7 @@ export async function testTrends(input: {
 
 /** Quarantined tests whose review date has passed. */
 async function overdueCount(repositoryId: number): Promise<number> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('managed_tests')
     .innerJoin('test_suites', 'test_suites.id', '=', 'managed_tests.test_suite_id')
     .select(['managed_tests.review_at as review_at'])

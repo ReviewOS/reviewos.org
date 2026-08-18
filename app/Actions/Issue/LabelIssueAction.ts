@@ -76,7 +76,7 @@ export default new Action({
 
     // What was there before, so the timeline can say what actually changed
     // rather than restating the whole set on every save.
-    const before: any[] = await db
+    const before = await db
       .selectFrom('issue_labels')
       .innerJoin('repository_labels', 'repository_labels.id', '=', 'issue_labels.label_id')
       .select(['repository_labels.name as name'])

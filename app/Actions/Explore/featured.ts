@@ -1,3 +1,4 @@
+import { db } from '@stacksjs/database'
 /**
  * The repositories this instance puts its name behind.
  *
@@ -66,7 +67,6 @@ export async function featured(): Promise<FeaturedRepository[]> {
     return []
 
   try {
-    const db = (globalThis as any).db
 
     /*
      * Repositories first, owners second, the same shape `explore.ts` uses.
@@ -80,7 +80,7 @@ export async function featured(): Promise<FeaturedRepository[]> {
     const owners = [...new Set(FEATURED.map(entry => entry.slug.split('/')[0]))]
     const names = [...new Set(FEATURED.map(entry => entry.slug.split('/')[1]))]
 
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('repositories')
       .select(['name', 'description', 'stars_count', 'owner_type', 'owner_id'])
       .where('visibility', '=', 'public')
@@ -140,7 +140,7 @@ async function ownerHandles(db: any, repositories: readonly any[]): Promise<Map<
       continue
 
     try {
-      const rows: any[] = await db.selectFrom(table).select(['id', 'handle']).where('id', 'in', ids).execute()
+      const rows = await db.selectFrom(table).select(['id', 'handle']).where('id', 'in', ids).execute()
 
       for (const row of rows)
         handles.set(`${type}:${row.id}`, String(row.handle))
@@ -168,7 +168,7 @@ async function primaryLanguages(db: any, names: string[]): Promise<Map<string, s
     return found
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('repository_languages')
       .innerJoin('repositories', 'repositories.id', 'repository_languages.repository_id')
       .select(['repositories.name as name', 'repository_languages.language as language', 'repository_languages.bytes as bytes'])

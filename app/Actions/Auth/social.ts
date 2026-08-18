@@ -28,6 +28,7 @@
  */
 
 import { configuredSocialProviders, socialProvider } from '@stacksjs/socials'
+import { db } from '@stacksjs/database'
 
 /** A provider as the sign-in page needs to render it. */
 export interface SocialButton {
@@ -114,13 +115,12 @@ export async function provisionFromSocial(
   provider: string,
   profile: { id: string, nickname: string | null, name: string, email: string | null, emailVerified?: boolean | null, avatar: string | null },
 ): Promise<{ userId: number, created: boolean }> {
-  const db = (globalThis as any).db
   const issuer = `social:${provider}`
   const subject = String(profile.id)
   const now = new Date().toISOString()
   const email = String(profile.email ?? '').trim().toLowerCase()
 
-  const existing: any = await db
+  const existing = await db
     .selectFrom('sso_identities')
     .select(['id', 'user_id'])
     .where('issuer', '=', issuer)
@@ -175,10 +175,9 @@ async function createAccount(
   profile: { nickname: string | null, name: string, avatar: string | null },
   email: string,
 ): Promise<number> {
-  const db = (globalThis as any).db
   const handle = await freeHandle(profile.nickname ?? profile.name ?? 'user')
 
-  const inserted: any = await db
+  const inserted = await db
     .insertInto('users')
     .values({
       handle,
@@ -194,6 +193,9 @@ async function createAccount(
     .returning('id')
     .executeTakeFirst()
 
+  if (!inserted)
+    throw new Error('The account could not be created')
+
   return Number(inserted.id)
 }
 
@@ -205,7 +207,6 @@ async function createAccount(
  * handle is a query per attempt against a table anybody can add rows to.
  */
 async function freeHandle(preferred: string): Promise<string> {
-  const db = (globalThis as any).db
 
   const base = String(preferred)
     .toLowerCase()

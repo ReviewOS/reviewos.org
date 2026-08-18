@@ -91,7 +91,7 @@ export default new Action({
         return response.json({ error: 'Only an administrator can grant admin' }, 403)
     }
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('team_repositories')
       .select(['id'])
       .where('team_id', '=', teamId)

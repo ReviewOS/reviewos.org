@@ -14,6 +14,7 @@ import { buildThreads, mapIssue, mapLabel, mapPull, mapReviewComment, onlyIssues
 import { GitHubClient } from '../Actions/Mirror/github-client'
 import { issueRow, pullNumberOf, pullRow, reviewCommentRow, threadRow } from '../Actions/Mirror/metadata'
 import { recountComments, recountOpenIssues } from '../Actions/Repo/counters'
+import { db } from '@stacksjs/database'
 
 /**
  * Bring a GitHub repository here, with its history and its conversations.
@@ -177,8 +178,7 @@ async function skip(): Promise<void> {}
  * change back to a repository they thought they had left.
  */
 async function importGit(progress: ImportProgress, context: StageContext): Promise<void> {
-  const db = (globalThis as any).db
-  const row: any = await db
+  const row = await db
     .selectFrom('repositories')
     .select(['disk_path', 'name', 'owner_type', 'owner_id'])
     .where('id', '=', context.repositoryId)
@@ -227,7 +227,6 @@ async function importGit(progress: ImportProgress, context: StageContext): Promi
 }
 
 async function importLabels(progress: ImportProgress, context: StageContext): Promise<void> {
-  const db = (globalThis as any).db
   const page = await context.client.labels(context.owner, context.name)
 
   if (!page.ok)
@@ -239,7 +238,7 @@ async function importLabels(progress: ImportProgress, context: StageContext): Pr
     if (!label)
       continue
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('repository_labels')
       .select(['id'])
       .where('repository_id', '=', context.repositoryId)
@@ -277,7 +276,6 @@ async function importLabels(progress: ImportProgress, context: StageContext): Pr
  * itself treats as the milestone's identity in every url it prints.
  */
 async function importMilestones(progress: ImportProgress, context: StageContext): Promise<void> {
-  const db = (globalThis as any).db
   const page = await context.client.milestones(context.owner, context.name)
 
   if (!page.ok)
@@ -297,7 +295,7 @@ async function importMilestones(progress: ImportProgress, context: StageContext)
       state: String((raw as any).state ?? 'open') === 'closed' ? 'closed' : 'open',
     }
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('milestones')
       .select(['id'])
       .where('repository_id', '=', context.repositoryId)
@@ -328,7 +326,6 @@ async function importMilestones(progress: ImportProgress, context: StageContext)
  * limit.
  */
 async function importIssueComments(progress: ImportProgress, context: StageContext): Promise<void> {
-  const db = (globalThis as any).db
   const page = await context.client.issueComments(context.owner, context.name)
 
   if (!page.ok)
@@ -354,7 +351,7 @@ async function importIssueComments(progress: ImportProgress, context: StageConte
      * happens to share a number, which is the shape of mistake nobody reviews
      * for because it looks like ordinary data.
      */
-    const issue: any = await db
+    const issue = await db
       .selectFrom('issues')
       .select(['id'])
       .where('repository_id', '=', context.repositoryId)
@@ -376,7 +373,7 @@ async function importIssueComments(progress: ImportProgress, context: StageConte
       continue
     }
 
-    const seen: any = await db
+    const seen = await db
       .selectFrom('issue_comments')
       .select(['id'])
       .where('external_id', '=', externalId)
@@ -433,7 +430,6 @@ function issueNumberOf(comment: unknown): number {
 }
 
 async function importIssues(progress: ImportProgress, context: StageContext): Promise<void> {
-  const db = (globalThis as any).db
   const page = await context.client.issues(context.owner, context.name)
 
   if (!page.ok)
@@ -464,7 +460,7 @@ async function importIssues(progress: ImportProgress, context: StageContext): Pr
      * issue with the same number - and the number is what every cross reference
      * in the repository's own history depends on.
      */
-    const existing: any = await db
+    const existing = await db
       .selectFrom('issues')
       .select(['id'])
       .where('repository_id', '=', context.repositoryId)
@@ -485,7 +481,6 @@ async function importIssues(progress: ImportProgress, context: StageContext): Pr
 }
 
 async function importPulls(progress: ImportProgress, context: StageContext): Promise<void> {
-  const db = (globalThis as any).db
   const page = await context.client.pulls(context.owner, context.name)
 
   if (!page.ok)
@@ -521,7 +516,7 @@ async function importPulls(progress: ImportProgress, context: StageContext): Pro
       body: rewriteReferences(String(pull.body ?? ''), imported),
     }
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('pull_requests')
       .select(['id'])
       .where('repository_id', '=', context.repositoryId)
@@ -550,7 +545,6 @@ async function importPulls(progress: ImportProgress, context: StageContext): Pro
  * is what makes an imported review still a review.
  */
 async function importReviews(progress: ImportProgress, context: StageContext): Promise<void> {
-  const db = (globalThis as any).db
   const page = FORGES[context.forge].hasRepositoryWideReviewComments
     ? await context.client.reviewComments(context.owner, context.name)
     : await reviewCommentsPerPull(context)
@@ -586,7 +580,7 @@ async function importReviews(progress: ImportProgress, context: StageContext): P
 
   for (const [pullNumber, own] of byPull) {
 
-    const pull: any = await db
+    const pull = await db
       .selectFrom('pull_requests')
       .select(['id'])
       .where('repository_id', '=', context.repositoryId)
@@ -610,7 +604,7 @@ async function importReviews(progress: ImportProgress, context: StageContext): P
 
       const anchor = String((row as any).external_id ?? '')
 
-      const existing: any = await db
+      const existing = await db
         .selectFrom('review_threads')
         .select(['id'])
         .where('pull_request_id', '=', Number(pull.id))
@@ -625,7 +619,7 @@ async function importReviews(progress: ImportProgress, context: StageContext): P
         record(progress, 'review_threads')
 
       for (const comment of thread) {
-        const seen: any = await db
+        const seen = await db
           .selectFrom('review_comments')
           .select(['id'])
           .where('external_id', '=', String(comment.externalId))
@@ -650,10 +644,9 @@ async function importReviews(progress: ImportProgress, context: StageContext): P
  * translation here beats a branch at every use.
  */
 async function reviewCommentsPerPull(context: StageContext): Promise<{ ok: boolean, items: any[], error: string | null }> {
-  const db = (globalThis as any).db
   const items: any[] = []
 
-  const pulls: any[] = await db
+  const pulls = await db
     .selectFrom('pull_requests')
     .select(['number'])
     .where('repository_id', '=', context.repositoryId)
@@ -713,7 +706,6 @@ async function linkMapFor(authors: readonly unknown[], context: StageContext): P
  * of row - there is no import-only path to keep working.
  */
 async function importReleases(progress: ImportProgress, context: StageContext): Promise<void> {
-  const db = (globalThis as any).db
   const page = await context.client.releases(context.owner, context.name)
 
   if (!page.ok)
@@ -756,7 +748,7 @@ async function importReleases(progress: ImportProgress, context: StageContext): 
 
     // Keyed on the tag, which is the release's identity everywhere: in git, in
     // a changelog, and in every url that points at it.
-    const existing: any = await db
+    const existing = await db
       .selectFrom('releases')
       .select(['id'])
       .where('repository_id', '=', context.repositoryId)
@@ -786,14 +778,13 @@ async function importReleases(progress: ImportProgress, context: StageContext): 
  * recorded so an operator can fetch it by hand.
  */
 async function importAsset(progress: ImportProgress, releaseId: number, asset: any, context: StageContext): Promise<void> {
-  const db = (globalThis as any).db
   const name = String(asset?.name ?? '').trim()
   const url = String(asset?.browser_download_url ?? asset?.url ?? '')
 
   if (!name || !url)
     return
 
-  const existing: any = await db
+  const existing = await db
     .selectFrom('release_assets')
     .select(['id'])
     .where('release_id', '=', releaseId)
@@ -845,11 +836,10 @@ async function importAsset(progress: ImportProgress, releaseId: number, asset: a
 
 /** Accounts that linked a GitHub identity themselves, which outranks any guess. */
 async function linkedAccounts(): Promise<Map<string, number>> {
-  const db = (globalThis as any).db
   const map = new Map<string, number>()
 
   try {
-    const rows: any[] = await db.selectFrom('users').select(['id', 'github_username']).whereNotNull('github_username').execute()
+    const rows = await db.selectFrom('users').select(['id', 'github_username']).whereNotNull('github_username').execute()
 
     for (const row of rows) {
       const login = String(row.github_username ?? '').trim().toLowerCase()
@@ -868,10 +858,9 @@ async function linkedAccounts(): Promise<Map<string, number>> {
 
 /** Every local account, for attribution. Small enough to hold, once per stage. */
 async function localAccounts(): Promise<LocalAccount[]> {
-  const db = (globalThis as any).db
 
   try {
-    const rows: any[] = await db.selectFrom('users').select(['id', 'handle', 'email']).execute()
+    const rows = await db.selectFrom('users').select(['id', 'handle', 'email']).execute()
 
     return rows.map(row => ({ id: Number(row.id), handle: String(row.handle), email: row.email ? String(row.email) : null }))
   }
@@ -888,17 +877,16 @@ async function localAccounts(): Promise<LocalAccount[]> {
  * which is worse than an external link that works.
  */
 async function importedRepositories(): Promise<Map<string, string>> {
-  const db = (globalThis as any).db
   const map = new Map<string, string>()
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('repository_mirrors')
       .select(['remote_owner', 'remote_name', 'repository_id'])
       .execute()
 
     for (const row of rows) {
-      const repository: any = await db
+      const repository = await db
         .selectFrom('repositories')
         .select(['name', 'owner_type', 'owner_id'])
         .where('id', '=', Number(row.repository_id))
@@ -922,10 +910,9 @@ async function importedRepositories(): Promise<Map<string, string>> {
 
 /** The handle of whoever owns a repository row, user or organization. */
 async function ownerHandle(repository: { owner_type: unknown, owner_id: unknown }): Promise<string> {
-  const db = (globalThis as any).db
   const table = String(repository.owner_type) === 'organization' ? 'organizations' : 'users'
 
-  const row: any = await db
+  const row = await db
     .selectFrom(table)
     .select(['handle'])
     .where('id', '=', Number(repository.owner_id))
@@ -942,16 +929,15 @@ async function ownerHandle(repository: { owner_type: unknown, owner_id: unknown 
  * in one repository.
  */
 async function advanceCounter(repositoryId: number): Promise<void> {
-  const db = (globalThis as any).db
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('issues')
       .select(['number'])
       .where('repository_id', '=', repositoryId)
       .execute()
 
-    const pulls: any[] = await db
+    const pulls = await db
       .selectFrom('pull_requests')
       .select(['number'])
       .where('repository_id', '=', repositoryId)
@@ -959,7 +945,7 @@ async function advanceCounter(repositoryId: number): Promise<void> {
 
     const highest = [...rows, ...pulls].reduce((top, row) => Math.max(top, Number(row.number) || 0), 0)
 
-    const current: any = await db
+    const current = await db
       .selectFrom('repositories')
       .select(['issue_counter'])
       .where('id', '=', repositoryId)
@@ -985,7 +971,6 @@ async function report(operationId: number, progress: ImportProgress, status = 'r
   if (!operationId)
     return
 
-  const db = (globalThis as any).db
 
   try {
     await db.updateTable('operations').set({

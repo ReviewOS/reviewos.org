@@ -1,3 +1,4 @@
+import { db } from '@stacksjs/database'
 /**
  * Every setting an administrator can change without a deploy.
  *
@@ -355,9 +356,8 @@ export function isSettingKey(key: string): key is SettingKey {
  * setting somebody clicks four times.
  */
 export async function writeSetting(key: SettingKey, value: string, actorId: number | null): Promise<void> {
-  const db = (globalThis as any).db
 
-  const existing: any = await db
+  const existing = await db
     .selectFrom('instance_settings')
     .select(['id'])
     .where('key', '=', key)

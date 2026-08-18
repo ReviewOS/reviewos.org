@@ -275,7 +275,7 @@ export async function checksPanel(input: {
 }): Promise<ChecksPanel> {
   const required = new Set(input.required.map(String))
 
-  const statuses: any[] = await db
+  const statuses = await db
     .selectFrom('commit_statuses')
     .selectAll()
     .where('repository_id', '=', Number(input.repositoryId))
@@ -283,7 +283,7 @@ export async function checksPanel(input: {
     .orderBy('id', 'asc')
     .execute()
 
-  const runs: any[] = await db
+  const runs = await db
     .selectFrom('check_runs')
     .selectAll()
     .where('repository_id', '=', Number(input.repositoryId))
@@ -332,7 +332,7 @@ export async function checksPanel(input: {
     if (seen.has(name))
       continue
 
-    const previous: any = await db
+    const previous = await db
       .selectFrom('check_runs')
       .selectAll()
       .where('repository_id', '=', Number(input.repositoryId))
@@ -372,7 +372,7 @@ async function annotationsFor(runIds: readonly number[]): Promise<Map<number, { 
     return found
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('check_annotations')
       .selectAll()
       .where('check_run_id', 'in', [...runIds])

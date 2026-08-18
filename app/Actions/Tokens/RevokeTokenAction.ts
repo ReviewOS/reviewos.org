@@ -55,7 +55,7 @@ export default new Action({
     if (!Number.isInteger(id) || id <= 0)
       return response.json({ error: 'A token id is required' }, 422)
 
-    const token: any = await db
+    const token = await db
       .selectFrom('access_tokens')
       .select(['id', 'user_id', 'prefix', 'revoked_at'])
       .where('id', '=', id)

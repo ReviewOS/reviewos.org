@@ -44,7 +44,7 @@ export type StoreOutcome =
 
 /** Everything one run already holds, which the per-run ceiling is measured against. */
 export async function runArtifactBytes(runId: number): Promise<number> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('workflow_artifacts')
     .select(['size_bytes'])
     .where('workflow_run_id', '=', runId)
@@ -74,7 +74,7 @@ export async function storeArtifact(input: StoreInput): Promise<StoreOutcome> {
    * already hold means two people have different files with one name and no way
    * to tell.
    */
-  const existing: any = await db
+  const existing = await db
     .selectFrom('workflow_artifacts')
     .select(['id', 'digest', 'size_bytes', 'expires_at'])
     .where('workflow_run_id', '=', input.runId)
@@ -107,7 +107,7 @@ export async function storeArtifact(input: StoreInput): Promise<StoreOutcome> {
 
   const retention = expiresAt({ requestedDays: input.retentionDays ?? null, now: input.now })
 
-  const created: any = await db
+  const created = await db
     .insertInto('workflow_artifacts')
     .values({
       workflow_run_id: input.runId,
@@ -168,7 +168,7 @@ async function writeBlob(digest: string, bytes: Uint8Array): Promise<{ ok: true 
  * reasons an operator cannot see.
  */
 export async function sweepExpiredArtifacts(now: Date = new Date()): Promise<{ removed: number, blobs: number }> {
-  const expired: any[] = await db
+  const expired = await db
     .selectFrom('workflow_artifacts')
     .select(['id', 'digest'])
     .where('expires_at', '<', now.toISOString())
@@ -186,7 +186,7 @@ export async function sweepExpiredArtifacts(now: Date = new Date()): Promise<{ r
     // when the last row that pointed at it does - otherwise expiring one run's
     // copy takes the artifact out from under every other run that produced
     // identical bytes.
-    const remaining: any[] = await db
+    const remaining = await db
       .selectFrom('workflow_artifacts')
       .select(['id'])
       .where('digest', '=', String(row.digest))
