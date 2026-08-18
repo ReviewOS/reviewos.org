@@ -23,11 +23,39 @@ import {
 /** How large a file may be before the browser declines to render it. */
 export const MAX_BLOB_BYTES = 512 * 1024
 
+/**
+ * How much listing output one directory or comparison may produce.
+ *
+ * Two mebibytes of `ls-tree -z --long` is tens of thousands of entries in one
+ * directory, and two mebibytes of `--numstat` is tens of thousands of changed
+ * files - both far past what any page renders, and both cheap for a hostile or
+ * degenerate repository to exceed. The flag matters as much as the budget: a
+ * cut listing that does not say so renders as a directory with files missing,
+ * which reads as data loss.
+ */
+export const LISTING_BYTE_LIMIT = 2 * 1024 * 1024
+
+/**
+ * Cut `-z` output back to its last complete record.
+ *
+ * A byte budget cuts mid-record, and a record cut mid-path is worse than one
+ * dropped: it parses as a valid entry whose filename happens to be clipped,
+ * which no parser can tell from a real file by that name.
+ */
+function completeRecords(result: { stdout: string, truncated?: boolean }): string {
+  if (result.truncated !== true)
+    return result.stdout
+
+  return result.stdout.slice(0, result.stdout.lastIndexOf('\0') + 1)
+}
+
 export interface TreeListing {
   ok: boolean
   entries: TreeEntry[]
   /** Set when the ref or path does not resolve, for the view to show. */
   error: string | null
+  /** True when the listing was cut at the byte budget, for the view to say. */
+  truncated: boolean
 }
 
 /**
@@ -38,16 +66,16 @@ export interface TreeListing {
  */
 export async function listTree(repositoryPath: string, ref: string, path = ''): Promise<TreeListing> {
   if (!isSafeRevision(ref))
-    return { ok: false, entries: [], error: 'Invalid ref' }
+    return { ok: false, entries: [], error: 'Invalid ref', truncated: false }
 
   // `-z` because a filename may contain a newline, `--long` for sizes.
   const target = path ? `${ref}:${path}` : ref
-  const result = await runGit(repositoryPath, ['ls-tree', '-z', '--long', target])
+  const result = await runGit(repositoryPath, ['ls-tree', '-z', '--long', target], { maxBytes: LISTING_BYTE_LIMIT })
 
   if (!result.ok)
-    return { ok: false, entries: [], error: 'No such path at that ref' }
+    return { ok: false, entries: [], error: 'No such path at that ref', truncated: false }
 
-  return { ok: true, entries: parseTreeEntries(result.stdout), error: null }
+  return { ok: true, entries: parseTreeEntries(completeRecords(result)), error: null, truncated: result.truncated === true }
 }
 
 export interface BlobContent {
@@ -260,6 +288,8 @@ export interface Comparison {
   additions: number
   deletions: number
   error: string | null
+  /** True when the file list was cut at the byte budget, for the view to say. */
+  truncated: boolean
 }
 
 /**
@@ -287,6 +317,7 @@ export async function compareRefs(repositoryPath: string, base: string, head: st
     files: [],
     additions: 0,
     deletions: 0,
+    truncated: false,
   }
 
   if (!isSafeRevision(base) || !isSafeRevision(head))
@@ -315,12 +346,12 @@ export async function compareRefs(repositoryPath: string, base: string, head: st
       '--format=%H%x00%s%x00%an%x00%aI%x1e',
       mergeBase ? `${mergeBase}..${head}` : head,
     ]),
-    runGit(repositoryPath, ['diff', '-z', '-M', '--numstat', `${from}..${head}`]),
-    runGit(repositoryPath, ['diff', '-z', '-M', '--name-status', `${from}..${head}`]),
+    runGit(repositoryPath, ['diff', '-z', '-M', '--numstat', `${from}..${head}`], { maxBytes: LISTING_BYTE_LIMIT }),
+    runGit(repositoryPath, ['diff', '-z', '-M', '--name-status', `${from}..${head}`], { maxBytes: LISTING_BYTE_LIMIT }),
   ])
 
   const files = numstat.ok
-    ? mergeChangeStatus(parseNumstat(numstat.stdout), nameStatus.ok ? parseNameStatus(nameStatus.stdout) : [])
+    ? mergeChangeStatus(parseNumstat(completeRecords(numstat)), nameStatus.ok ? parseNameStatus(completeRecords(nameStatus)) : [])
     : []
 
   const { ahead, behind } = counts.ok ? parseAheadBehind(counts.stdout) : { ahead: 0, behind: 0 }
@@ -337,6 +368,7 @@ export async function compareRefs(repositoryPath: string, base: string, head: st
     additions: files.reduce((total, file) => total + file.additions, 0),
     deletions: files.reduce((total, file) => total + file.deletions, 0),
     error: mergeBase ? null : 'These refs share no history',
+    truncated: numstat.truncated === true || nameStatus.truncated === true,
   }
 }
 

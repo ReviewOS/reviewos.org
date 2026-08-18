@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { runGit } from '../Git/git'
 import { browseContext } from './context'
-import { MAX_RESULTS, parseMatches, searchArgs } from './search'
+import { MAX_RESULTS, parseMatches, SEARCH_BYTE_LIMIT, searchArgs } from './search'
 
 /**
  * Search one repository's code at a ref.
@@ -74,7 +74,7 @@ export default new Action({
       context: Number(request.get('context') ?? 0),
     })
 
-    const result = await runGit(diskPath, args, { timeoutMs: 10_000 })
+    const result = await runGit(diskPath, args, { timeoutMs: 10_000, maxBytes: SEARCH_BYTE_LIMIT })
 
     /*
      * Exit code 1 is "no matches", which is an answer rather than a failure.
@@ -113,7 +113,7 @@ export default new Action({
        * `git grep` does not count what it did not print, and a "total" that was
        * really the cap would be a number somebody plans a refactor around.
        */
-      truncated: matches.length >= MAX_RESULTS,
+      truncated: matches.length >= MAX_RESULTS || result.truncated === true,
     })
   },
 })

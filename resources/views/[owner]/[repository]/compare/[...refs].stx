@@ -170,6 +170,12 @@ const title = repoRow && request
         </p>
       @endif
 
+      @if (comparison.truncated)
+        <p class="muted" style="padding: 8px 0;">
+          This comparison changes more files than the page can list. The file list below is incomplete.
+        </p>
+      @endif
+
       @foreach (diffHtml as html)
         {!! html !!}
       @endforeach

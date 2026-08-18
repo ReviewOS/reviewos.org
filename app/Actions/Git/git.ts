@@ -20,6 +20,12 @@ export interface GitResult {
   stdout: string
   stderr: string
   code: number
+  /**
+   * True when `maxBytes` stopped the read short. `ok` is still true: the
+   * caller asked for at most that much and got it, and treating a budget as a
+   * failure would make every bounded caller drop the bytes it budgeted for.
+   */
+  truncated?: boolean
 }
 
 /**
@@ -151,18 +157,36 @@ export function gitEnvironment(extra: Record<string, string> = {}): Record<strin
 }
 
 /**
+ * The most stdout `runGit` will hold, unless a caller budgets tighter.
+ *
+ * Ten mebibytes is far past anything a plumbing command legitimately answers
+ * and far short of what fills a process: before this cap, the only bound was
+ * the timeout, and a *fast* git - `log --patch` on a large repository, say -
+ * fills memory long before a slow one hits thirty seconds.
+ */
+export const RUN_GIT_MAX_BYTES = 10 * 1024 * 1024
+
+/**
  * Run git in a repository and collect its output.
  *
  * For anything whose output can be large (a packfile, an archive) use
  * `spawnGit` instead and stream it: buffering a packfile is how this falls over
  * on a real repository, and it will pass every test written against a small one.
+ *
+ * stdout is bounded by `maxBytes` (default `RUN_GIT_MAX_BYTES`): on breach the
+ * child is SIGKILLed immediately - never read to completion and sliced after -
+ * and the result carries what fit with `truncated: true` and `ok: true`. Both
+ * streams are read as utf8, so a multibyte character spanning a chunk boundary
+ * arrives whole rather than as replacement characters. stderr is always capped
+ * at 64KB, same constant and same rationale as `diffStream.ts`.
  */
 export async function runGit(repositoryPath: string, args: string[], options: {
   input?: string
   timeoutMs?: number
   env?: Record<string, string>
+  maxBytes?: number
 } = {}): Promise<GitResult> {
-  const { input, timeoutMs = 30_000, env = {} } = options
+  const { input, timeoutMs = 30_000, env = {}, maxBytes = RUN_GIT_MAX_BYTES } = options
 
   /*
    * Timed, because git is where this product spends its time and a forge that
@@ -189,6 +213,7 @@ export async function runGit(repositoryPath: string, args: string[], options: {
     }
 
     let stdout = ''
+    let stdoutBytes = 0
     let stderr = ''
     let settled = false
 
@@ -203,8 +228,47 @@ export async function runGit(repositoryPath: string, args: string[], options: {
       }
     }, timeoutMs)
 
-    child.stdout.on('data', chunk => stdout += chunk)
-    child.stderr.on('data', chunk => stderr += chunk)
+    // utf8 on both, so chunks arrive as strings through a StringDecoder and a
+    // multibyte character split across a 64KB read boundary stays one
+    // character. Coercing each Buffer chunk independently - what this did
+    // before - turns that character into replacement characters.
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+
+    child.stdout.on('data', (chunk: string) => {
+      if (settled)
+        return
+
+      const bytes = Buffer.byteLength(chunk, 'utf8')
+
+      if (stdoutBytes + bytes > maxBytes) {
+        // Keep what fits of this chunk, then kill: the point of the budget is
+        // that the allocation never happens, not that it is trimmed later. Cut
+        // at the byte, then drop the replacement character a mid-character cut
+        // leaves, so the kept text ends on a whole character.
+        const budget = Math.max(0, maxBytes - stdoutBytes)
+        stdout += Buffer.from(chunk, 'utf8').subarray(0, budget).toString('utf8').replace(/�+$/, '')
+        settled = true
+        clearTimeout(timer)
+        child.kill('SIGKILL')
+        record()
+        resolvePromise({ ok: true, stdout, stderr, code: -1, truncated: true })
+
+        return
+      }
+
+      stdoutBytes += bytes
+      stdout += chunk
+    })
+
+    child.stderr.on('data', (chunk: string) => {
+      // Bounded unconditionally, same constant as diffStream.ts: a repository
+      // failing on every object would otherwise write its complaint into
+      // memory until the request dies, for a message that only ever shows its
+      // first few hundred bytes.
+      if (stderr.length < 64_000)
+        stderr += chunk
+    })
 
     child.on('error', (error) => {
       if (settled)

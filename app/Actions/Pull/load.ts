@@ -14,6 +14,25 @@
 import { mergeBase, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 
+/**
+ * How much list output the cheap loaders read: the path list and the commit
+ * list. Two mebibytes is tens of thousands of entries, far past what any pull
+ * request page renders, and a budget here keeps a degenerate branch from
+ * buffering without bound. A cut mid-line is dropped rather than returned as
+ * a path or subject that happens to be clipped.
+ */
+const LIST_BYTE_LIMIT = 2 * 1024 * 1024
+
+/** The lines of a possibly-cut listing, with any partial trailing line dropped. */
+function completeLines(result: { stdout: string, truncated?: boolean }): string[] {
+  const lines = result.stdout.split('\n')
+
+  if (result.truncated === true)
+    lines.pop()
+
+  return lines
+}
+
 export interface DiffOptions {
   /** Lines of context either side. Three is what `git diff` uses. */
   context?: number
@@ -98,9 +117,9 @@ export async function changedPathsFor(
   if (!base)
     return []
 
-  const result = await runGit(resolved.path!, ['diff', '--name-only', '--no-color', base, headSha])
+  const result = await runGit(resolved.path!, ['diff', '--name-only', '--no-color', base, headSha], { maxBytes: LIST_BYTE_LIMIT })
 
-  return result.ok ? result.stdout.split('\n').map(line => line.trim()).filter(Boolean) : []
+  return result.ok ? completeLines(result).map(line => line.trim()).filter(Boolean) : []
 }
 
 /**
@@ -156,13 +175,12 @@ export async function commitsOnBranch(
     '--reverse',
     '--format=%H%x1f%s%x1f%an',
     `${base}..${headSha}`,
-  ])
+  ], { maxBytes: LIST_BYTE_LIMIT })
 
   if (!result.ok)
     return []
 
-  return result.stdout
-    .split('\n')
+  return completeLines(result)
     .filter(Boolean)
     .map((line) => {
       const [sha, subject, author] = line.split('\x1f')

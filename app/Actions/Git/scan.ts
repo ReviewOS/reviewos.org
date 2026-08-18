@@ -138,19 +138,21 @@ export async function scanUpdate(
     input = [after, ...(options.excludeRefs ?? []).map(ref => `^${ref}`)].join('\n')
   }
 
+  // The byte limit rides `maxBytes`, so git is killed at the boundary rather
+  // than allowed to print an unbounded patch that gets sliced afterwards -
+  // this runs on the push path, where the whole point is that the allocation
+  // never happens while somebody waits at a prompt.
   const result = await runGit(repositoryPath, args, {
     timeoutMs: 20_000,
     input,
+    maxBytes: SCAN_BYTE_LIMIT,
     env: options.quarantine as Record<string, string> | undefined,
   })
 
   if (!result.ok)
     return { findings: [], truncated: false }
 
-  const truncated = result.stdout.length > SCAN_BYTE_LIMIT
-  const patch = truncated ? result.stdout.slice(0, SCAN_BYTE_LIMIT) : result.stdout
-
-  return { findings: scanDiff(patch, options.extra), truncated }
+  return { findings: scanDiff(result.stdout, options.extra), truncated: result.truncated === true }
 }
 
 /**

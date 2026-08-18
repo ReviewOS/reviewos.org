@@ -54,6 +54,10 @@ export default new Job({
      * The tree of a very large repository is megabytes of text, and this job is
      * allowed to be slow - but not unbounded, because a repository with a
      * million files would hold a worker for as long as git takes to print them.
+     * The 10 MiB `maxBytes` default makes the bound real: past it the listing
+     * is cut and the breakdown is computed over what fit, which for a
+     * percentage breakdown of the first hundred thousand files is the same
+     * answer anybody needed.
      */
     const listed = await runGit(resolved.path!, ['ls-tree', '-r', '--long', ref], { timeoutMs: 120_000 })
 

@@ -55,28 +55,34 @@ Four bugs that read as "it falls over under load" and are actually just wrong.
 and a fast git fills memory long before a slow one hits it. Every unbounded caller is one large
 repository away from taking the process down.
 
-- [ ] Add a `maxBytes` option to `runGit` (default 10 MiB). Track accumulated length, SIGKILL the
+- [x] Add a `maxBytes` option to `runGit` (default 10 MiB). Track accumulated length, SIGKILL the
       child on breach, resolve with `truncated: true` on the result. Early kill, never
-      slice-after-allocation.
-- [ ] Set `utf8` encoding on stdout and stderr in `runGit`. Today each 64KB chunk is coerced to a
+      slice-after-allocation. `ok` stays true on a breach: the caller asked for at most that much
+      and got it, and a budget read as failure would make every bounded caller drop the bytes it
+      budgeted for.
+- [x] Set `utf8` encoding on stdout and stderr in `runGit`. Today each 64KB chunk is coerced to a
       string independently, so a multibyte character spanning a chunk boundary becomes replacement
       characters. `diffStream.ts` is the precedent.
-- [ ] Cap stderr at 64KB unconditionally, same rationale and same constant as `diffStream.ts`.
-- [ ] Secret scanning (`app/Actions/Git/scan.ts`): pass the existing 4 MiB `SCAN_BYTE_LIMIT` as
+- [x] Cap stderr at 64KB unconditionally, same rationale and same constant as `diffStream.ts`.
+- [x] Secret scanning (`app/Actions/Git/scan.ts`): pass the existing 4 MiB `SCAN_BYTE_LIMIT` as
       `maxBytes` instead of buffering the whole `git log --patch` and slicing afterwards. This is
       on the push path, so it is the highest-value single cap.
-- [ ] Code search (`app/Actions/Browse/SearchCodeAction.ts` and `search.ts`): add per-file
+- [x] Code search (`app/Actions/Browse/SearchCodeAction.ts` and `search.ts`): add per-file
       `--max-count` to the grep arguments and a 2 MiB `maxBytes`; today `MAX_RESULTS` trims the
       string after git has printed everything it could in ten seconds.
-- [ ] `MeasureLanguagesJob`: a finite budget on the full `ls-tree -r --long` (the comment already
-      claims the output is bounded; make the claim true).
-- [ ] `app/Actions/Browse/load.ts`: budgets on `listTree` and on the compare path's `--numstat`
+- [x] `MeasureLanguagesJob`: a finite budget on the full `ls-tree -r --long` (the comment already
+      claims the output is bounded; make the claim true - the `runGit` default 10 MiB cap is now
+      real, and the comment says what a cut means for a percentage breakdown).
+- [x] `app/Actions/Browse/load.ts`: budgets on `listTree` and on the compare path's `--numstat`
       and `--name-status` calls, with a `truncated` flag surfaced so views can say a listing was
-      cut rather than silently rendering a partial answer.
-- [ ] `app/Actions/Pull/load.ts`: budgets on `changedPathsFor` and `commitsOnBranch`.
-- [ ] Tests: a fixture blob larger than a small `maxBytes` override resolves promptly with
+      cut rather than silently rendering a partial answer. A cut `-z` record is trimmed to the
+      last complete one, because a clipped filename parses as a real entry by the wrong name.
+- [x] `app/Actions/Pull/load.ts`: budgets on `changedPathsFor` and `commitsOnBranch`, with any
+      partial trailing line dropped rather than returned clipped.
+- [x] Tests: a fixture blob larger than a small `maxBytes` override resolves promptly with
       `truncated: true` and no zombie child; a file of tens of thousands of multibyte characters
-      round-trips through `runGit` with no replacement characters.
+      round-trips through `runGit` with no replacement characters
+      (`tests/unit/run-git-bounded.test.ts`).
 
 ## M2 - The SSR pull request page stops loading whole patches
 

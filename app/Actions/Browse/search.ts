@@ -87,6 +87,16 @@ export const LANGUAGE_EXTENSIONS: Record<string, readonly string[]> = {
 export const MAX_RESULTS = 200
 
 /**
+ * How much grep output is read, at most.
+ *
+ * Two mebibytes is thousands of matches with context - far past what the
+ * response returns - and bounding at the source is the point: before this,
+ * `MAX_RESULTS` trimmed the parsed list after git had printed everything a
+ * pathological pattern could produce in ten seconds.
+ */
+export const SEARCH_BYTE_LIMIT = 2 * 1024 * 1024
+
+/**
  * The arguments for one search.
  *
  * Built here rather than inline so they can be asserted without running git.
@@ -106,6 +116,12 @@ export function searchArgs(request: SearchRequest): string[] {
    * so the results are wrong in a way that looks like the code is not there.
    */
   args.push(request.regex ? '--extended-regexp' : '--fixed-strings')
+
+  // Per file, because that is the unit `--max-count` counts. No single file
+  // can usefully contribute more matches than the whole response returns, and
+  // without it a pattern matching every line of a generated file spends the
+  // entire output budget on one file nobody wanted.
+  args.push(`--max-count=${MAX_RESULTS}`)
 
   if (!request.caseSensitive)
     args.push('--ignore-case')

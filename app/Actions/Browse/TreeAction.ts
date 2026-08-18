@@ -30,6 +30,6 @@ export default new Action({
     if (!listing.ok)
       return response.json({ error: listing.error ?? 'No such path at that ref' }, 404)
 
-    return response.json({ ref, path, entries: listing.entries })
+    return response.json({ ref, path, entries: listing.entries, truncated: listing.truncated })
   },
 })

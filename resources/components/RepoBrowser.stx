@@ -80,7 +80,7 @@ const ref = String(addressed.ref || (repoRow ? (repoRow.default_branch ?? 'HEAD'
 
 // Try the path as a directory. When git says it is not one, it is a file, and
 // that is the ordinary way to tell them apart without a second round trip.
-const listing = repoRow ? await listTree(diskPath, ref, requestedPath) : { ok: false, entries: [], error: null }
+const listing = repoRow ? await listTree(diskPath, ref, requestedPath) : { ok: false, entries: [], error: null, truncated: false }
 const isDirectory = listing.ok
 
 const isFile = Boolean(repoRow && requestedPath && !isDirectory)
@@ -423,6 +423,10 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
         @endif
 
         @if (isDirectory)
+          @if (listing.truncated)
+            <p class="muted" style="margin: 8px 0;">This directory has more entries than the page can list. The listing below is incomplete.</p>
+          @endif
+
           <FileTree :rows="rows" />
 
           @if (readmeHtml)
