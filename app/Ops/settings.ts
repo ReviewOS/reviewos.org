@@ -128,6 +128,29 @@ export const SETTINGS = {
   },
 
   /**
+   * Which repositories a workflow may call with `uses:`.
+   *
+   * `same-owner` is the default and needs no configuration to be safe: an
+   * organization calling its own shared workflow is the case people have, and
+   * a repository under one owner can already be read by anybody who can read
+   * that owner.
+   *
+   * `instance` widens it to every *public* repository here, which is a real
+   * choice an instance for one company might make and a public instance should
+   * not. A private repository belonging to another owner is never callable
+   * either way: its jobs would run against a definition nobody outside can
+   * read, and "I cannot see the file that ran" is a supply-chain problem
+   * rather than a convenience.
+   */
+  workflow_call_scope: {
+    type: 'enum',
+    allowed: ['same-owner', 'instance'] as const,
+    fallback: 'same-owner',
+    describes: 'Which repositories a workflow may call: only the same owner\'s, or any public repository on this instance',
+    enforcedIn: 'app/Actions/Workflow/reusable.ts',
+  },
+
+  /**
    * The name this instance calls itself.
    *
    * Cosmetic, and the one entry here that is. It earns its place because it is

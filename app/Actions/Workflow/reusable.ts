@@ -45,38 +45,112 @@ export interface CallResolution {
 export const MAX_CALL_DEPTH = 4
 
 /**
- * Resolve a `uses:` to a workflow version on this repository.
+ * Which repositories a workflow may call.
  *
- * Local paths only, for now: `./.github/workflows/build.yml`. A cross-repository
- * call needs a policy about which repositories may be called and a way to read
- * a version this instance may not hold, and answering that badly is worse than
- * refusing it clearly - so it is refused with a reason rather than half done.
+ * The question the cross-repository half was waiting on, answered once here so
+ * a cross-repository *trigger* can answer it the same way rather than inventing
+ * a second rule.
+ *
+ * **The same owner, by default.** An organization calling its own shared
+ * workflow is the case people actually have, and it needs no configuration to
+ * be safe: a repository can already be read by anybody who can read the
+ * organization. Calling *any* repository on the instance is a different
+ * proposition - a private repository's workflow is not public because its
+ * jobs would run somewhere else - so it is opt-in per instance.
+ */
+export type CallScope = 'same-owner' | 'instance'
+
+export function callScope(setting: unknown): CallScope {
+  return String(setting ?? '').trim() === 'instance' ? 'instance' : 'same-owner'
+}
+
+/**
+ * Whether the caller may call the target, and why not when it may not.
+ *
+ * Pure, because it is the boundary: being wrong here runs one repository's
+ * pipeline against another repository's code, and the answer has to be
+ * checkable without a database.
+ */
+export function mayCall(input: {
+  caller: { ownerType: string, ownerId: number }
+  target: { ownerType: string, ownerId: number, visibility: string }
+  scope: CallScope
+}): { ok: boolean, reason: string } {
+  const sameOwner = input.caller.ownerType === input.target.ownerType
+    && Number(input.caller.ownerId) === Number(input.target.ownerId)
+
+  if (sameOwner)
+    return { ok: true, reason: '' }
+
+  if (input.scope !== 'instance') {
+    return {
+      ok: false,
+      reason: 'that workflow belongs to another owner, and this instance only calls within an owner. '
+        + 'An administrator can widen it with the `workflow_call_scope` setting.',
+    }
+  }
+
+  /*
+   * Even with the instance-wide scope, a private repository's workflow is not
+   * callable by strangers: its jobs would run against a definition nobody
+   * outside can read, and "I cannot see the file that ran" is the shape of a
+   * supply-chain problem rather than a convenience.
+   */
+  if (String(input.target.visibility) === 'private') {
+    return {
+      ok: false,
+      reason: 'that workflow is in a private repository belonging to another owner, which is never callable.',
+    }
+  }
+
+  return { ok: true, reason: '' }
+}
+
+/**
+ * Resolve a `uses:` to a workflow version.
+ *
+ * `./.github/workflows/build.yml` for a local call, and
+ * `owner/repository/.github/workflows/build.yml@ref` for another repository's -
+ * which needed the policy above before it could be answered at all.
  */
 export async function resolveCall(
   repositoryId: number,
   uses: string,
   suppliedInputs: Record<string, unknown>,
+  options: { scope?: CallScope } = {},
 ): Promise<CallResolution> {
   const reference = String(uses ?? '').trim()
 
   if (!reference)
     return { ok: false, target: null, inputs: {}, error: 'this job has no `uses:`' }
 
-  if (!reference.startsWith('./')) {
+  const remote = reference.startsWith('./') ? null : parseRemoteCall(reference)
+
+  if (!reference.startsWith('./') && !remote) {
     return {
       ok: false,
       target: null,
       inputs: {},
-      error: `\`${reference}\` is a workflow in another repository, which this instance does not call yet`,
+      error: `\`${reference}\` is not a workflow reference: use \`./path\` or \`owner/repository/path@ref\``,
     }
   }
 
-  const path = reference.slice(2).split('@')[0] ?? ''
+  const path = remote ? remote.path : (reference.slice(2).split('@')[0] ?? '')
+  let targetRepositoryId = repositoryId
+
+  if (remote) {
+    const resolved = await resolveRemoteRepository(repositoryId, remote, options.scope ?? 'same-owner')
+
+    if (!resolved.ok)
+      return { ok: false, target: null, inputs: {}, error: resolved.error }
+
+    targetRepositoryId = resolved.repositoryId
+  }
 
   const workflow: any = await db
     .selectFrom('workflows')
     .select(['id', 'path', 'state'])
-    .where('repository_id', '=', repositoryId)
+    .where('repository_id', '=', targetRepositoryId)
     .where('path', '=', path)
     .executeTakeFirst()
 
@@ -124,6 +198,83 @@ export async function resolveCall(
     inputs: checked.values,
     error: null,
   }
+}
+
+/** `owner/repository/.github/workflows/build.yml@ref`, split. */
+export function parseRemoteCall(reference: string): { owner: string, repository: string, path: string, ref: string } | null {
+  const [withoutRef, ref = ''] = String(reference ?? '').split('@')
+  const parts = String(withoutRef).split('/').filter(Boolean)
+
+  // Owner, repository, and at least one path segment. Anything shorter is a
+  // local path somebody forgot to write `./` in front of.
+  if (parts.length < 3)
+    return null
+
+  return {
+    owner: parts[0]!,
+    repository: parts[1]!,
+    path: parts.slice(2).join('/'),
+    ref: ref.trim(),
+  }
+}
+
+/** The called repository, once the policy has allowed it. */
+async function resolveRemoteRepository(
+  callerId: number,
+  remote: { owner: string, repository: string },
+  scope: CallScope,
+): Promise<{ ok: true, repositoryId: number } | { ok: false, error: string }> {
+  const caller: any = await db
+    .selectFrom('repositories')
+    .select(['owner_type', 'owner_id'])
+    .where('id', '=', callerId)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!caller)
+    return { ok: false, error: 'the calling repository is gone' }
+
+  const owner: any = await db
+    .selectFrom('users')
+    .select(['id'])
+    .where('handle', '=', remote.owner)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  const organization: any = owner
+    ? null
+    : await db
+        .selectFrom('organizations')
+        .select(['id'])
+        .where('handle', '=', remote.owner)
+        .executeTakeFirst()
+        .catch(() => null)
+
+  if (!owner && !organization)
+    return { ok: false, error: `there is no owner called \`${remote.owner}\` on this instance` }
+
+  const target: any = await db
+    .selectFrom('repositories')
+    .select(['id', 'owner_type', 'owner_id', 'visibility'])
+    .where('owner_type', '=', owner ? 'user' : 'organization')
+    .where('owner_id', '=', Number(owner?.id ?? organization?.id))
+    .where('name', '=', remote.repository)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!target)
+    return { ok: false, error: `there is no repository called \`${remote.owner}/${remote.repository}\` here` }
+
+  const allowed = mayCall({
+    caller: { ownerType: String(caller.owner_type), ownerId: Number(caller.owner_id) },
+    target: { ownerType: String(target.owner_type), ownerId: Number(target.owner_id), visibility: String(target.visibility) },
+    scope,
+  })
+
+  if (!allowed.ok)
+    return { ok: false, error: allowed.reason }
+
+  return { ok: true, repositoryId: Number(target.id) }
 }
 
 /** The inputs a called workflow declares, or none when it stored nothing readable. */

@@ -526,8 +526,23 @@ written down here so it does not get relitigated:
 
       Scoped secrets are still not built, and the docs say so: there is no secret store at all yet,
       so "a deploy credential released only after approval" is not something to claim.
-- [ ] Reusable workflows via `uses:` at job level, local and cross-repository, with inputs, secrets,
+- [x] Reusable workflows via `uses:` at job level, local and cross-repository, with inputs, secrets,
       and outputs, and the called workflow's jobs shown in the run rather than collapsed to one box.
+
+      **Cross-repository calls work now too**, and what they were waiting on was a policy rather
+      than plumbing: which repositories may be called. Answered once, in `reusable.ts`, so the
+      cross-repository *trigger* can answer it the same way instead of inventing a second rule for
+      one boundary.
+
+      The same owner by default, needing no configuration to be safe - a repository under one owner
+      is already readable by anybody who can read that owner. `workflow_call_scope` widens it to
+      any **public** repository here. Another owner's **private** repository is never callable
+      whatever the setting says: its jobs would run against a definition nobody outside can read,
+      and "I cannot see the file that ran" is a supply-chain problem rather than a convenience.
+
+      The refusal names the setting, because an administrator reading a failed run should learn
+      which knob decides rather than conclude the feature is broken. An unreadable setting stays
+      narrow - a database this cannot read must not widen who may call what.
 
       **Local calls work.** A job that `uses: ./.reviewos/workflows/build.yml` becomes that
       workflow's jobs, copied into the same run and named `build / compile` the way Actions names

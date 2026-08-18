@@ -20,6 +20,7 @@
  */
 
 import { db } from '@stacksjs/database'
+import { setting } from '../../Ops/settings'
 import { branchDecision, skipDecision } from './stepAttributes'
 import type { ConcurrencyContext } from './concurrency'
 import { resolveGroup } from './concurrency'
@@ -27,7 +28,7 @@ import { globMatches } from './triggers'
 import { shouldRun } from './expression'
 import type { SubjectEventName } from './triggers'
 import { subjectStartsRun } from './triggers'
-import { MAX_CALL_DEPTH, resolveCall } from './reusable'
+import { callScope, MAX_CALL_DEPTH, resolveCall } from './reusable'
 import type { PullRequestEvent, PushEvent } from './triggers'
 import { pullRequestStartsRun, pushStartsRun } from './triggers'
 
@@ -810,7 +811,14 @@ async function expandCall(input: {
     return
   }
 
-  const resolved = await resolveCall(repositoryId, String(job.uses), parseWith(job.call_with))
+  /*
+   * The scope an administrator set, read once per call rather than assumed.
+   * Unreadable settings mean the narrow default, which is the safe direction:
+   * a database this cannot read must not widen who may call what.
+   */
+  const scope = callScope(await setting('workflow_call_scope').catch(() => 'same-owner'))
+
+  const resolved = await resolveCall(repositoryId, String(job.uses), parseWith(job.call_with), { scope })
 
   if (!resolved.ok || !resolved.target) {
     await record(resolved.error ?? 'this call could not be resolved')

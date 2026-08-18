@@ -682,3 +682,33 @@ runs:
 A nested `uses:` goes through the same path as any other, so it gets the action
 policy, the cache and the input mapping without a second implementation of any
 of them.
+
+## Calling a workflow in another repository
+
+```yaml
+jobs:
+  build:
+    uses: acme/shared/.github/workflows/build.yml@v2
+    with:
+      target: production
+```
+
+**The same owner, by default.** An organization calling its own shared workflow
+is the case people have, and it is safe with no configuration: a repository
+under one owner can already be read by anybody who can read that owner.
+
+`workflow_call_scope` widens it to any **public** repository on the instance -
+a real choice for a company's instance, and one a public instance should not
+make. A private repository belonging to *another* owner is **never** callable,
+whatever the setting says: its jobs would run against a definition nobody
+outside can read, and "I cannot see the file that ran" is the shape of a
+supply-chain problem rather than a convenience.
+
+The refusal names the setting, so an administrator reading a failed run learns
+which knob decides rather than concluding the feature is broken.
+
+Everything else is the same as a local call: the called workflow must offer
+itself with `on: workflow_call`, its declared inputs are checked rather than
+defaulted, and its jobs appear in the run rather than collapsing into one box.
+Secrets do not travel by being nearby - `secrets: inherit` is recorded and
+resolved after the fork check, and a fork's pull request gets none at all.
