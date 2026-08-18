@@ -3074,16 +3074,51 @@ A migration path is a feature. There are two of them and they are not the same s
 **From GitHub Actions there is no migration**, and that is the point of the compatibility section:
 the workflow files are the workflow files. What is still needed is everything around them.
 
-- [ ] [Phase 8](./08-migration.md)'s importer carries workflow files across untouched, and reports
+- [x] [Phase 8](./08-migration.md)'s importer carries workflow files across untouched, and reports
       which constructs the conformance suite says will not run yet, before the move rather than after
-- [ ] Repository and organization secrets, variables, and environments import as part of the same
+
+      A `ci` stage on the import, after the releases. The files are already here - they came with the
+      clone - so the stage registers them and produces the report, which is the actual deliverable: a
+      file that copied cleanly and does not run is the worst outcome of a migration, because
+      everything looks moved and the first push is green in the file and red in reality.
+- [x] Repository and organization secrets, variables, and environments import as part of the same
       operation, since a workflow without them is green in the file and red in the run
-- [ ] Self-hosted runner labels are preserved, so `runs-on: [self-hosted, gpu]` keeps meaning what it
+
+      Variables come across with their values - they are not credentials, and the endpoint that lists
+      them returns them. Environments come across with their protection, because a deploy gate that
+      silently did not move is a rule somebody believes is on. **Secrets come across as names only,
+      and cannot come across any other way**: no forge hands a secret's value back, ours included, so
+      the import names them and says they have to be set here. "You have eleven secrets to set",
+      written down before the move, is the difference between a planned afternoon and a broken
+      deploy.
+
+      Nothing overwrites what is already here. An import is re-run, and a second pass that replaced a
+      value somebody had corrected would undo the work between the two.
+- [x] Self-hosted runner labels are preserved, so `runs-on: [self-hosted, gpu]` keeps meaning what it
       meant
-- [ ] A per-repository report after import: workflows found, constructs unsupported, actions
+
+      Preserved by not touching the file, and *checked*: the report counts how many active machines
+      on this instance answer to each label a workflow asks for, and names the ones nothing answers
+      to. `runs-on: [self-hosted, gpu]` keeps meaning what it meant only if a machine carries both,
+      and the difference between "queued" and "queued forever" is worth a sentence before the move.
+- [x] A per-repository report after import: workflows found, constructs unsupported, actions
       referenced that the instance cannot resolve, and what to do about each
-- [ ] Tests: import a real repository's workflow directory and assert the run graph matches what
+
+      All four, and the third is the one that surprises people: an unqualified `actions/checkout@v4`
+      resolves to nothing here, because this product refuses to guess github.com. The report says so
+      with the fix beside it rather than leaving it to the first red run.
+- [x] Tests: import a real repository's workflow directory and assert the run graph matches what
       Actions produced for the same commit
+
+      `tests/e2e/import-ci.test.ts`, over the conformance fixtures - the shapes real repositories
+      have rather than files written to pass. It asserts the graph: which workflows a push starts,
+      the matrix expanded into one job per combination, and a tag starting only what filters on tags.
+
+      **It found a real one.** `on: push: tags: ['v*']` ran on every push to every branch, because
+      the rule that tags are opted into had no mirror: a workflow naming tags and not branches was
+      read as naming no branch filter. So a release workflow that publishes on a tag published on
+      each commit to main - the exact failure this section exists to prevent, and one nobody notices
+      until it ships.
 
 **From Buildkite it is a translation**, and it is cheap because their format is public.
 

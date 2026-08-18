@@ -163,6 +163,35 @@ describe('pushStartsRun', () => {
     expect(pushStartsRun(on({ push_tags: 'v*' }), { ref: 'refs/tags/nightly' }).run).toBe(false)
   })
 
+  /*
+   * And the mirror of it, which was missing: a workflow that names tags and not
+   * branches is asking for tags.
+   *
+   * Without this, `on: push: tags: ['v*']` ran on every push to every branch -
+   * so a release workflow that publishes on a tag published on each commit to
+   * main instead. Found by importing a real repository's workflow directory and
+   * asserting the graph a push produces.
+   */
+  test('and a branch push does not run a workflow that only filters tags', () => {
+    const decision = pushStartsRun(on({ push_tags: 'v*' }), { ref: 'refs/heads/main' })
+
+    expect(decision.run).toBe(false)
+    expect(decision.reason).toContain('tags')
+  })
+
+  test('while a workflow naming both still runs on both', () => {
+    const both = on({ push_branches: 'main', push_tags: 'v*' })
+
+    expect(pushStartsRun(both, { ref: 'refs/heads/main' }).run).toBe(true)
+    expect(pushStartsRun(both, { ref: 'refs/tags/v1.0.0' }).run).toBe(true)
+  })
+
+  test('and a plain `on: push` still runs on a branch', () => {
+    // The clause above must not catch the commonest workflow of all, which
+    // names no filter at all.
+    expect(pushStartsRun(on({}), { ref: 'refs/heads/anything' }).run).toBe(true)
+  })
+
   test('honours a path filter against what the push changed', () => {
     const version = on({ push_paths: 'src/**' })
 

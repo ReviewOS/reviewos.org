@@ -155,6 +155,7 @@ async function runStage(progress: ImportProgress, context: StageContext): Promis
     comments: importIssueComments,
     reviews: importReviews,
     releases: importReleases,
+    ci: importCi,
     done: skip,
   }
 
@@ -993,5 +994,109 @@ async function report(operationId: number, progress: ImportProgress, status = 'r
     // Never fails an import. A progress line that could not be written is a
     // worse outcome than a silent import only if it stops the import.
     console.error('[import] could not record progress:', error)
+  }
+}
+
+/**
+ * The CI: the files that came with the clone, and the settings that did not.
+ *
+ * The workflow files are already here - they are in the git history - and that
+ * is exactly why this stage exists. A file that copied cleanly and does not run
+ * is the worst outcome of a migration: everything looks moved, the first push is
+ * green in the file and red in reality, and somebody spends a morning finding
+ * out which of forty keys this instance does not implement.
+ *
+ * So the stage registers the workflows, imports what can be imported - variables
+ * with their values, environments with their protection - and writes a report:
+ * what was found, what will not run, which actions cannot be resolved from
+ * here, which labels no machine answers to, and which secrets somebody has to
+ * set by hand. Secrets cannot come across, from any forge including this one:
+ * the value is write-only by design, so "you have eleven secrets to set" before
+ * the move is the difference between a planned afternoon and a broken deploy.
+ */
+async function importCi(progress: ImportProgress, context: StageContext): Promise<void> {
+  const row = await db
+    .selectFrom('repositories')
+    .select(['disk_path', 'name', 'owner_type', 'owner_id', 'default_branch'])
+    .where('id', '=', context.repositoryId)
+    .executeTakeFirst()
+
+  if (!row)
+    return
+
+  const handle = await ownerHandle(row)
+  const resolved = repositoryPath(handle, String(row.name))
+
+  if (!resolved.ok || !resolved.path)
+    return
+
+  const { discoverWorkflows } = await import('../Actions/Workflow/discover')
+  const { syncWorkflowFile } = await import('../Actions/Workflow/sync')
+  const { reportOnWorkflows, importCiSettings, githubCiReader } = await import('../Actions/Import/ci')
+
+  const branch = String(row.default_branch ?? 'main')
+  const found = await discoverWorkflows(String(resolved.path), branch).catch(() => [])
+
+  for (const file of found) {
+    // One bad file does not stop the others, the same rule the push path
+    // follows: three registered and one reported beats none.
+    await syncWorkflowFile({
+      repositoryId: context.repositoryId,
+      ownerType: String(row.owner_type) === 'organization' ? 'organization' : 'user',
+      ownerId: Number(row.owner_id),
+      path: file.path,
+      source: file.source,
+      sha: branch,
+    }).catch(() => null)
+  }
+
+  record(progress, 'workflows', found.length)
+
+  const report = await reportOnWorkflows({
+    repositoryId: context.repositoryId,
+    files: found.map(file => ({ path: file.path, source: file.source })),
+  })
+
+  for (const line of report.actions_needed)
+    noteProblem(progress, line)
+
+  /*
+   * The settings, and only from GitHub for now: the endpoints are GitHub's
+   * shapes, and inventing a mapping for a forge whose API has not been read is
+   * how an import silently creates the wrong environments.
+   */
+  if (context.forge !== 'github')
+    return
+
+  const token = String(process.env.GITHUB_TOKEN ?? '')
+
+  if (!token) {
+    noteProblem(progress, 'No GITHUB_TOKEN, so variables, environments and the list of secrets to set were not read')
+    return
+  }
+
+  const settings = await importCiSettings({
+    repositoryId: context.repositoryId,
+    reader: githubCiReader({ owner: context.owner, name: context.name, token }),
+  }).catch(() => null)
+
+  if (!settings) {
+    noteProblem(progress, 'The CI settings could not be read from the source')
+    return
+  }
+
+  record(progress, 'variables', settings.variables.length)
+  record(progress, 'environments', settings.environments.length)
+
+  for (const problem of settings.problems)
+    noteProblem(progress, problem)
+
+  if (settings.secrets_to_set.length > 0) {
+    /*
+     * Named rather than counted. "Eleven secrets" sends somebody to look them
+     * up on a forge they may already have left; the list is the thing they can
+     * act on.
+     */
+    noteProblem(progress, `Set these secrets here, they cannot be exported from anywhere: ${settings.secrets_to_set.join(', ')}`)
   }
 }

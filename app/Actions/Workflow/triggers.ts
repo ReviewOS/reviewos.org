@@ -342,6 +342,18 @@ export function pushStartsRun(version: VersionTriggers, event: PushEvent): Trigg
       return { run: false, reason: `tag ${ref.name} does not match this workflow's tag filter` }
   }
   else {
+    /*
+     * And the mirror of the rule above, which was missing.
+     *
+     * A workflow that names tags and not branches is asking for tags. Without
+     * this, `on: push: tags: ['v*']` ran on every push to every branch - so a
+     * repository whose release workflow published on a tag published on each
+     * commit to main instead, which is the failure this file exists to prevent
+     * and the one nobody notices until it ships.
+     */
+    if ((tags.length > 0 || tagsIgnore.length > 0) && branches.length === 0 && branchesIgnore.length === 0)
+      return { run: false, reason: 'the push was a branch, and this workflow filters on tags' }
+
     if (branchesIgnore.length > 0 && refMatches(branchesIgnore, ref.name))
       return { run: false, reason: `branch ${ref.name} is excluded by this workflow's branches-ignore` }
 

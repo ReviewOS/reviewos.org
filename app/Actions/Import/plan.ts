@@ -15,7 +15,7 @@
  * The cursor is an optimisation on top of that, not the correctness argument.
  */
 
-export type ImportStage = 'git' | 'labels' | 'milestones' | 'issues' | 'pulls' | 'comments' | 'reviews' | 'releases' | 'done'
+export type ImportStage = 'git' | 'labels' | 'milestones' | 'issues' | 'pulls' | 'comments' | 'reviews' | 'releases' | 'ci' | 'done'
 
 /**
  * The stages in the order they run, which is the order they depend on.
@@ -25,7 +25,7 @@ export type ImportStage = 'git' | 'labels' | 'milestones' | 'issues' | 'pulls' |
  * under "not imported" and produce a problems list the length of the
  * repository.
  */
-export const IMPORT_STAGES: readonly ImportStage[] = ['git', 'labels', 'milestones', 'issues', 'pulls', 'comments', 'reviews', 'releases', 'done']
+export const IMPORT_STAGES: readonly ImportStage[] = ['git', 'labels', 'milestones', 'issues', 'pulls', 'comments', 'reviews', 'releases', 'ci', 'done']
 
 export interface ImportProgress {
   stage: ImportStage
@@ -75,6 +75,8 @@ const WEIGHTS: Record<ImportStage, number> = {
   comments: 10,
   reviews: 8,
   releases: 4,
+  // Cheap: the files are already on disk, and the settings are three API calls.
+  ci: 2,
   done: 0,
 }
 
@@ -108,6 +110,7 @@ const DESCRIPTIONS: Record<ImportStage, string> = {
   comments: 'Importing the conversations',
   reviews: 'Importing reviews and review threads',
   releases: 'Importing releases',
+  ci: 'Reading the CI: workflows, variables, environments',
   done: 'Finished',
 }
 
@@ -122,7 +125,7 @@ export function describeProgress(progress: ImportProgress): string {
 
 /** What was imported, in the order somebody checks it. */
 export function summarize(progress: ImportProgress): string {
-  const parts = ['issues', 'pull_requests', 'comments', 'reviews', 'review_threads', 'releases', 'assets', 'milestones']
+  const parts = ['issues', 'pull_requests', 'comments', 'reviews', 'review_threads', 'releases', 'assets', 'milestones', 'workflows', 'variables', 'environments']
     .filter(key => (progress.counts[key] ?? 0) > 0)
     .map(key => `${progress.counts[key]} ${key.replace(/_/g, ' ')}`)
 
