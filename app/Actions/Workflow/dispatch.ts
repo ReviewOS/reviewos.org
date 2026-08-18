@@ -37,6 +37,7 @@ import { callScope, MAX_CALL_DEPTH, resolveCall } from './reusable'
 import type { PullRequestEvent, PushEvent } from './triggers'
 import { pullRequestStartsRun, pushStartsRun } from './triggers'
 import { repositoryDispatchStartsRun, workflowRunStartsRun } from './triggers'
+import { forkApprovalFacts, forkApprovalVerdict } from './forkApproval'
 
 export interface DispatchResult {
   /** Runs created by this delivery, not runs that exist. */
@@ -634,6 +635,22 @@ async function createPullRequestRun(
 
   const group = resolveGroup(version.concurrency_group, context)
 
+  /*
+   * Whether a person has to say yes before this runs.
+   *
+   * The fork policy's last clause, enforced here because this is the only
+   * dispatch path that can produce an untrusted run. A held run is `waiting`
+   * rather than `queued`, which is what keeps it away from the claim: a machine
+   * asking for work never sees it, so there is no second place to get this
+   * right.
+   */
+  const trusted = target ? true : !input.event.fromFork
+  const approval = forkApprovalVerdict(await forkApprovalFacts({
+    repositoryId: input.repositoryId,
+    actorId: input.actorId ?? null,
+    trusted,
+  }))
+
   try {
     const run: any = await db
       .insertInto('workflow_runs')
@@ -641,7 +658,9 @@ async function createPullRequestRun(
         workflow_version_id: Number(version.id),
         repository_id: input.repositoryId,
         number: await nextNumber(input.repositoryId),
-        state: 'queued',
+        state: approval.required ? 'waiting' : 'queued',
+        approval_state: approval.required ? 'required' : 'not-required',
+        conclusion_reason: approval.required ? approval.reason : null,
         event: target ? 'pull_request_target' : 'pull_request',
         event_ref: input.ref,
         head_sha: input.headSha,
@@ -666,7 +685,7 @@ async function createPullRequestRun(
          * protects the instance is that secrets are scoped per environment and
          * job rather than handed to a run for existing.
          */
-        trusted: target ? true : !input.event.fromFork,
+        trusted,
         actor_id: input.actorId ?? null,
         concurrency_group: group,
       } as any)
@@ -675,6 +694,23 @@ async function createPullRequestRun(
 
     const runId = Number(run?.id)
     await createJobs(runId, Number(version.id), context)
+
+    /*
+     * A held run's jobs are `blocked` with the reason on them, not `queued`.
+     *
+     * The run being `waiting` is what keeps a machine from taking them, so this
+     * is about the person reading the screen: a list of queued jobs under a run
+     * nothing will claim is somebody investigating their runners for an hour.
+     */
+    if (approval.required) {
+      await db
+        .updateTable('workflow_jobs')
+        .set({ state: 'blocked', condition_reason: approval.reason } as any)
+        .where('workflow_run_id', '=', runId)
+        .where('state', '=', 'queued')
+        .execute()
+    }
+
     await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
     await holdForGroup({
       repositoryId: input.repositoryId,

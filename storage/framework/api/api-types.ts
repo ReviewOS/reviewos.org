@@ -244,7 +244,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "type": string; "description": string; "subject_type"?: string; "subject_id"?: number; "causer"?: string; "properties"?: string; "ip_address"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -267,7 +267,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "type": string; "description": string; "subject_type"?: string; "subject_id"?: number; "causer"?: string; "properties"?: string; "ip_address"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -290,7 +290,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name": string; "category": string; "path"?: string; "value"?: number; "currency": string; "properties"?: string; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -305,7 +305,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "category": string; "path"?: string; "value"?: number; "currency": string; "properties"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -349,7 +349,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "category": string; "path"?: string; "value"?: number; "currency": string; "properties"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -365,7 +365,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "category": string; "path"?: string; "value"?: number; "currency": string; "properties"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -868,7 +868,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "email"?: string; "bio"?: string; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -883,7 +883,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "bio"?: string; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -927,7 +927,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "bio"?: string; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -941,7 +941,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "bio"?: string; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -956,7 +956,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "bio"?: string; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -972,7 +972,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "bio"?: string; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -989,7 +989,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "board_id"?: number; "name"?: string; "position"?: number; "card_limit"?: number; "color"?: string; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1004,7 +1004,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "position"?: number; "card_limit"?: number; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1048,7 +1048,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "position"?: number; "card_limit"?: number; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1062,7 +1062,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "position"?: number; "card_limit"?: number; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1077,7 +1077,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "position"?: number; "card_limit"?: number; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1093,7 +1093,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "position"?: number; "card_limit"?: number; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1110,7 +1110,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1125,7 +1125,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1169,7 +1169,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1183,7 +1183,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1198,7 +1198,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1214,7 +1214,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1231,7 +1231,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "campaign_id": number; "subscriber_id": number; "email_list_id": number; "status": "queued" | "sent" | "failed" | "bounced" | "complained"; "provider_message_id"?: string; "error"?: string; "sent_at"?: unknown; "opened_at"?: unknown; "clicked_at"?: unknown; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1254,7 +1254,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "campaign_id": number; "subscriber_id": number; "email_list_id": number; "status": "queued" | "sent" | "failed" | "bounced" | "complained"; "provider_message_id"?: string; "error"?: string; "sent_at"?: unknown; "opened_at"?: unknown; "clicked_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1277,7 +1277,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1292,7 +1292,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1336,7 +1336,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1350,7 +1350,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1365,7 +1365,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1381,7 +1381,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1398,7 +1398,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "card_id"?: number; "user_id"?: number; "body"?: string; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1413,7 +1413,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "card_id"?: number; "user_id"?: number; "body"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1457,7 +1457,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "card_id"?: number; "user_id"?: number; "body"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1473,7 +1473,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "card_id"?: number; "user_id"?: number; "body"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1493,7 +1493,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "column_id"?: number; "board_id"?: number; "title"?: string; "description"?: string; "position"?: number; "created_by_user_id"?: number; "due_date"?: string; "archived"?: boolean; "board_column_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1508,7 +1508,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "column_id"?: number; "board_id"?: number; "title"?: string; "description"?: string; "position"?: number; "created_by_user_id"?: number; "due_date"?: string; "archived"?: boolean; "board_column_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1552,7 +1552,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "column_id"?: number; "board_id"?: number; "title"?: string; "description"?: string; "position"?: number; "created_by_user_id"?: number; "due_date"?: string; "archived"?: boolean; "board_column_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1566,7 +1566,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "column_id"?: number; "board_id"?: number; "title"?: string; "description"?: string; "position"?: number; "created_by_user_id"?: number; "due_date"?: string; "archived"?: boolean; "board_column_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1581,7 +1581,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "column_id"?: number; "board_id"?: number; "title"?: string; "description"?: string; "position"?: number; "created_by_user_id"?: number; "due_date"?: string; "archived"?: boolean; "board_column_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1597,7 +1597,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "column_id"?: number; "board_id"?: number; "title"?: string; "description"?: string; "position"?: number; "created_by_user_id"?: number; "due_date"?: string; "archived"?: boolean; "board_column_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1637,7 +1637,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "quantity"?: number; "unit_price"?: number; "total_price"?: number; "tax_rate"?: number; "tax_amount"?: number; "discount_percentage"?: number; "discount_amount"?: number; "product_name"?: string; "product_sku"?: string; "product_image"?: string; "notes"?: string; "cart_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1652,7 +1652,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "quantity"?: number; "unit_price"?: number; "total_price"?: number; "tax_rate"?: number; "tax_amount"?: number; "discount_percentage"?: number; "discount_amount"?: number; "product_name"?: string; "product_sku"?: string; "product_image"?: string; "notes"?: string; "cart_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1696,7 +1696,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "quantity"?: number; "unit_price"?: number; "total_price"?: number; "tax_rate"?: number; "tax_amount"?: number; "discount_percentage"?: number; "discount_amount"?: number; "product_name"?: string; "product_sku"?: string; "product_image"?: string; "notes"?: string; "cart_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1710,7 +1710,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "quantity"?: number; "unit_price"?: number; "total_price"?: number; "tax_rate"?: number; "tax_amount"?: number; "discount_percentage"?: number; "discount_amount"?: number; "product_name"?: string; "product_sku"?: string; "product_image"?: string; "notes"?: string; "cart_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1725,7 +1725,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "quantity"?: number; "unit_price"?: number; "total_price"?: number; "tax_rate"?: number; "tax_amount"?: number; "discount_percentage"?: number; "discount_amount"?: number; "product_name"?: string; "product_sku"?: string; "product_image"?: string; "notes"?: string; "cart_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1741,7 +1741,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "quantity"?: number; "unit_price"?: number; "total_price"?: number; "tax_rate"?: number; "tax_amount"?: number; "discount_percentage"?: number; "discount_amount"?: number; "product_name"?: string; "product_sku"?: string; "product_image"?: string; "notes"?: string; "cart_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1804,7 +1804,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "status"?: "active" | "abandoned" | "converted" | "expired"; "total_items"?: number; "subtotal"?: number; "tax_amount"?: number; "discount_amount"?: number; "total"?: number; "expires_at"?: unknown; "currency"?: string; "notes"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1819,7 +1819,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "status"?: "active" | "abandoned" | "converted" | "expired"; "total_items"?: number; "subtotal"?: number; "tax_amount"?: number; "discount_amount"?: number; "total"?: number; "expires_at"?: unknown; "currency"?: string; "notes"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1863,7 +1863,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "status"?: "active" | "abandoned" | "converted" | "expired"; "total_items"?: number; "subtotal"?: number; "tax_amount"?: number; "discount_amount"?: number; "total"?: number; "expires_at"?: unknown; "currency"?: string; "notes"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1877,7 +1877,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "status"?: "active" | "abandoned" | "converted" | "expired"; "total_items"?: number; "subtotal"?: number; "tax_amount"?: number; "discount_amount"?: number; "total"?: number; "expires_at"?: unknown; "currency"?: string; "notes"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1892,7 +1892,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "status"?: "active" | "abandoned" | "converted" | "expired"; "total_items"?: number; "subtotal"?: number; "tax_amount"?: number; "discount_amount"?: number; "total"?: number; "expires_at"?: unknown; "currency"?: string; "notes"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1908,7 +1908,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "status"?: "active" | "abandoned" | "converted" | "expired"; "total_items"?: number; "subtotal"?: number; "tax_amount"?: number; "discount_amount"?: number; "total"?: number; "expires_at"?: unknown; "currency"?: string; "notes"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -1994,7 +1994,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "author_name": string; "author_email": string; "content": string; "body"?: string; "post_title"?: string; "status": "pending" | "approved" | "spam" | "trash"; "ip_address"?: string; "user_agent"?: string; "is_approved"?: number; "post_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -2009,7 +2009,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "author_name": string; "author_email": string; "content": string; "body"?: string; "post_title"?: string; "status": "pending" | "approved" | "spam" | "trash"; "ip_address"?: string; "user_agent"?: string; "is_approved"?: number; "post_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -2053,7 +2053,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "author_name": string; "author_email": string; "content": string; "body"?: string; "post_title"?: string; "status": "pending" | "approved" | "spam" | "trash"; "ip_address"?: string; "user_agent"?: string; "is_approved"?: number; "post_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -2067,7 +2067,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "author_name": string; "author_email": string; "content": string; "body"?: string; "post_title"?: string; "status": "pending" | "approved" | "spam" | "trash"; "ip_address"?: string; "user_agent"?: string; "is_approved"?: number; "post_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -2082,7 +2082,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "author_name": string; "author_email": string; "content": string; "body"?: string; "post_title"?: string; "status": "pending" | "approved" | "spam" | "trash"; "ip_address"?: string; "user_agent"?: string; "is_approved"?: number; "post_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -2098,7 +2098,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "author_name": string; "author_email": string; "content": string; "body"?: string; "post_title"?: string; "status": "pending" | "approved" | "spam" | "trash"; "ip_address"?: string; "user_agent"?: string; "is_approved"?: number; "post_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4317,7 +4317,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "code"?: string; "description"?: string; "status"?: "Active" | "Scheduled" | "Expired"; "is_active"?: boolean; "discount_type"?: "fixed_amount" | "percentage"; "discount_value"?: number; "min_order_amount"?: number; "max_discount_amount"?: number; "free_product_id"?: string; "usage_limit"?: number; "usage_count"?: number; "start_date"?: unknown; "end_date"?: unknown; "product_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4332,7 +4332,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "code"?: string; "description"?: string; "status"?: "Active" | "Scheduled" | "Expired"; "is_active"?: boolean; "discount_type"?: "fixed_amount" | "percentage"; "discount_value"?: number; "min_order_amount"?: number; "max_discount_amount"?: number; "free_product_id"?: string; "usage_limit"?: number; "usage_count"?: number; "start_date"?: unknown; "end_date"?: unknown; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4376,7 +4376,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "code"?: string; "description"?: string; "status"?: "Active" | "Scheduled" | "Expired"; "is_active"?: boolean; "discount_type"?: "fixed_amount" | "percentage"; "discount_value"?: number; "min_order_amount"?: number; "max_discount_amount"?: number; "free_product_id"?: string; "usage_limit"?: number; "usage_count"?: number; "start_date"?: unknown; "end_date"?: unknown; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4390,7 +4390,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "code"?: string; "description"?: string; "status"?: "Active" | "Scheduled" | "Expired"; "is_active"?: boolean; "discount_type"?: "fixed_amount" | "percentage"; "discount_value"?: number; "min_order_amount"?: number; "max_discount_amount"?: number; "free_product_id"?: string; "usage_limit"?: number; "usage_count"?: number; "start_date"?: unknown; "end_date"?: unknown; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4405,7 +4405,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "code"?: string; "description"?: string; "status"?: "Active" | "Scheduled" | "Expired"; "is_active"?: boolean; "discount_type"?: "fixed_amount" | "percentage"; "discount_value"?: number; "min_order_amount"?: number; "max_discount_amount"?: number; "free_product_id"?: string; "usage_limit"?: number; "usage_count"?: number; "start_date"?: unknown; "end_date"?: unknown; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4421,7 +4421,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "code"?: string; "description"?: string; "status"?: "Active" | "Scheduled" | "Expired"; "is_active"?: boolean; "discount_type"?: "fixed_amount" | "percentage"; "discount_value"?: number; "min_order_amount"?: number; "max_discount_amount"?: number; "free_product_id"?: string; "usage_limit"?: number; "usage_count"?: number; "start_date"?: unknown; "end_date"?: unknown; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4438,7 +4438,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "total_spent"?: number; "last_order"?: string; "status"?: "Active" | "Inactive"; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4453,7 +4453,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "total_spent"?: number; "last_order"?: string; "status"?: "Active" | "Inactive"; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4497,7 +4497,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "total_spent"?: number; "last_order"?: string; "status"?: "Active" | "Inactive"; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4511,7 +4511,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "total_spent"?: number; "last_order"?: string; "status"?: "Active" | "Inactive"; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4526,7 +4526,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "total_spent"?: number; "last_order"?: string; "status"?: "Active" | "Inactive"; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -4542,7 +4542,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "total_spent"?: number; "last_order"?: string; "status"?: "Active" | "Inactive"; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -8858,7 +8858,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -8873,7 +8873,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -8917,7 +8917,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -8931,7 +8931,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -8946,7 +8946,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -8962,7 +8962,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -8979,7 +8979,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "commit_hash"?: string; "commit_message"?: string; "branch"?: string; "status"?: string; "environment"?: string; "duration"?: number; "author"?: string; "url"?: string; "error_log"?: string; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9002,7 +9002,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "commit_hash"?: string; "commit_message"?: string; "branch"?: string; "status"?: string; "environment"?: string; "duration"?: number; "author"?: string; "url"?: string; "error_log"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9025,7 +9025,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "description"?: string; "download_limit"?: number; "expiry_days"?: number; "requires_login"?: boolean; "automatic_delivery"?: boolean; "status"?: "active" | "inactive"; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9040,7 +9040,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "download_limit"?: number; "expiry_days"?: number; "requires_login"?: boolean; "automatic_delivery"?: boolean; "status"?: "active" | "inactive"; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9084,7 +9084,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "download_limit"?: number; "expiry_days"?: number; "requires_login"?: boolean; "automatic_delivery"?: boolean; "status"?: "active" | "inactive"; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9098,7 +9098,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "download_limit"?: number; "expiry_days"?: number; "requires_login"?: boolean; "automatic_delivery"?: boolean; "status"?: "active" | "inactive"; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9113,7 +9113,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "download_limit"?: number; "expiry_days"?: number; "requires_login"?: boolean; "automatic_delivery"?: boolean; "status"?: "active" | "inactive"; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9129,7 +9129,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "download_limit"?: number; "expiry_days"?: number; "requires_login"?: boolean; "automatic_delivery"?: boolean; "status"?: "active" | "inactive"; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9169,7 +9169,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9184,7 +9184,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9228,7 +9228,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9242,7 +9242,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9257,7 +9257,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9273,7 +9273,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9290,7 +9290,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "email_list_id": number; "subscriber_id": number; "status": "subscribed" | "unsubscribed" | "pending" | "bounced"; "source"?: string; "subscribed_at"?: unknown; "unsubscribed_at"?: unknown; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9313,7 +9313,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "email_list_id": number; "subscriber_id": number; "status": "subscribed" | "unsubscribed" | "pending" | "bounced"; "source"?: string; "subscribed_at"?: unknown; "unsubscribed_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9336,7 +9336,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name": string; "slug"?: string; "description"?: string; "subscriber_count"?: number; "active_count"?: number; "unsubscribed_count"?: number; "bounced_count"?: number; "status": "active" | "inactive" | "archived"; "is_public"?: number; "double_opt_in"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9351,7 +9351,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "slug"?: string; "description"?: string; "subscriber_count"?: number; "active_count"?: number; "unsubscribed_count"?: number; "bounced_count"?: number; "status": "active" | "inactive" | "archived"; "is_public"?: number; "double_opt_in"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9395,7 +9395,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "slug"?: string; "description"?: string; "subscriber_count"?: number; "active_count"?: number; "unsubscribed_count"?: number; "bounced_count"?: number; "status": "active" | "inactive" | "archived"; "is_public"?: number; "double_opt_in"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9409,7 +9409,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "slug"?: string; "description"?: string; "subscriber_count"?: number; "active_count"?: number; "unsubscribed_count"?: number; "bounced_count"?: number; "status": "active" | "inactive" | "archived"; "is_public"?: number; "double_opt_in"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9424,7 +9424,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "slug"?: string; "description"?: string; "subscriber_count"?: number; "active_count"?: number; "unsubscribed_count"?: number; "bounced_count"?: number; "status": "active" | "inactive" | "archived"; "is_public"?: number; "double_opt_in"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9440,7 +9440,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "slug"?: string; "description"?: string; "subscriber_count"?: number; "active_count"?: number; "unsubscribed_count"?: number; "bounced_count"?: number; "status": "active" | "inactive" | "archived"; "is_public"?: number; "double_opt_in"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9663,7 +9663,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9678,7 +9678,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9722,7 +9722,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9736,7 +9736,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9751,7 +9751,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9767,7 +9767,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9901,7 +9901,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "board_id"?: number; "name"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9916,7 +9916,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9960,7 +9960,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9974,7 +9974,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -9989,7 +9989,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10005,7 +10005,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10022,7 +10022,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "key"?: string; "template"?: "Standard License" | "Premium License" | "Enterprise License"; "expiry_date"?: unknown; "status"?: "active" | "inactive" | "unassigned"; "customer_id"?: number; "product_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10037,7 +10037,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "key"?: string; "template"?: "Standard License" | "Premium License" | "Enterprise License"; "expiry_date"?: unknown; "status"?: "active" | "inactive" | "unassigned"; "customer_id"?: number; "product_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10081,7 +10081,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "key"?: string; "template"?: "Standard License" | "Premium License" | "Enterprise License"; "expiry_date"?: unknown; "status"?: "active" | "inactive" | "unassigned"; "customer_id"?: number; "product_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10095,7 +10095,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "key"?: string; "template"?: "Standard License" | "Premium License" | "Enterprise License"; "expiry_date"?: unknown; "status"?: "active" | "inactive" | "unassigned"; "customer_id"?: number; "product_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10110,7 +10110,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "key"?: string; "template"?: "Standard License" | "Premium License" | "Enterprise License"; "expiry_date"?: unknown; "status"?: "active" | "inactive" | "unassigned"; "customer_id"?: number; "product_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10126,7 +10126,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "key"?: string; "template"?: "Standard License" | "Premium License" | "Enterprise License"; "expiry_date"?: unknown; "status"?: "active" | "inactive" | "unassigned"; "customer_id"?: number; "product_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10143,7 +10143,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10158,7 +10158,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10202,7 +10202,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10216,7 +10216,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10231,7 +10231,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10247,7 +10247,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10264,7 +10264,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "description"?: string; "points_required"?: number; "reward_type"?: string; "discount_percentage"?: number; "free_product_id"?: string; "is_active"?: boolean; "expiry_days"?: number; "image_url"?: string; "product_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10279,7 +10279,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "points_required"?: number; "reward_type"?: string; "discount_percentage"?: number; "free_product_id"?: string; "is_active"?: boolean; "expiry_days"?: number; "image_url"?: string; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10323,7 +10323,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "points_required"?: number; "reward_type"?: string; "discount_percentage"?: number; "free_product_id"?: string; "is_active"?: boolean; "expiry_days"?: number; "image_url"?: string; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10337,7 +10337,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "points_required"?: number; "reward_type"?: string; "discount_percentage"?: number; "free_product_id"?: string; "is_active"?: boolean; "expiry_days"?: number; "image_url"?: string; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10352,7 +10352,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "points_required"?: number; "reward_type"?: string; "discount_percentage"?: number; "free_product_id"?: string; "is_active"?: boolean; "expiry_days"?: number; "image_url"?: string; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10368,7 +10368,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "points_required"?: number; "reward_type"?: string; "discount_percentage"?: number; "free_product_id"?: string; "is_active"?: boolean; "expiry_days"?: number; "image_url"?: string; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10385,7 +10385,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "mailbox": string; "account_name": string; "signature"?: string; "display_density": "comfortable" | "default" | "compact"; "theme": "light" | "dark" | "system"; "language": "en" | "fr" | "de" | "es" | "ja"; "default_reply_behavior": "reply" | "replyAll"; "send_and_archive": boolean; "auto_advance": "newer" | "older" | "back"; "desktop_notifications": boolean; "notification_sound": "default" | "subtle" | "none"; "notification_preview": boolean; "filters": string; "blocked_senders": string; "labels": string; "load_remote_images": boolean; "show_external_content": boolean; "vacation_enabled": boolean; "vacation_start_date"?: string; "vacation_end_date"?: string; "vacation_subject"?: string; "vacation_message"?: string; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10400,7 +10400,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "mailbox": string; "account_name": string; "signature"?: string; "display_density": "comfortable" | "default" | "compact"; "theme": "light" | "dark" | "system"; "language": "en" | "fr" | "de" | "es" | "ja"; "default_reply_behavior": "reply" | "replyAll"; "send_and_archive": boolean; "auto_advance": "newer" | "older" | "back"; "desktop_notifications": boolean; "notification_sound": "default" | "subtle" | "none"; "notification_preview": boolean; "filters": string; "blocked_senders": string; "labels": string; "load_remote_images": boolean; "show_external_content": boolean; "vacation_enabled": boolean; "vacation_start_date"?: string; "vacation_end_date"?: string; "vacation_subject"?: string; "vacation_message"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10444,7 +10444,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "mailbox": string; "account_name": string; "signature"?: string; "display_density": "comfortable" | "default" | "compact"; "theme": "light" | "dark" | "system"; "language": "en" | "fr" | "de" | "es" | "ja"; "default_reply_behavior": "reply" | "replyAll"; "send_and_archive": boolean; "auto_advance": "newer" | "older" | "back"; "desktop_notifications": boolean; "notification_sound": "default" | "subtle" | "none"; "notification_preview": boolean; "filters": string; "blocked_senders": string; "labels": string; "load_remote_images": boolean; "show_external_content": boolean; "vacation_enabled": boolean; "vacation_start_date"?: string; "vacation_end_date"?: string; "vacation_subject"?: string; "vacation_message"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10458,7 +10458,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "mailbox": string; "account_name": string; "signature"?: string; "display_density": "comfortable" | "default" | "compact"; "theme": "light" | "dark" | "system"; "language": "en" | "fr" | "de" | "es" | "ja"; "default_reply_behavior": "reply" | "replyAll"; "send_and_archive": boolean; "auto_advance": "newer" | "older" | "back"; "desktop_notifications": boolean; "notification_sound": "default" | "subtle" | "none"; "notification_preview": boolean; "filters": string; "blocked_senders": string; "labels": string; "load_remote_images": boolean; "show_external_content": boolean; "vacation_enabled": boolean; "vacation_start_date"?: string; "vacation_end_date"?: string; "vacation_subject"?: string; "vacation_message"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10473,7 +10473,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "mailbox": string; "account_name": string; "signature"?: string; "display_density": "comfortable" | "default" | "compact"; "theme": "light" | "dark" | "system"; "language": "en" | "fr" | "de" | "es" | "ja"; "default_reply_behavior": "reply" | "replyAll"; "send_and_archive": boolean; "auto_advance": "newer" | "older" | "back"; "desktop_notifications": boolean; "notification_sound": "default" | "subtle" | "none"; "notification_preview": boolean; "filters": string; "blocked_senders": string; "labels": string; "load_remote_images": boolean; "show_external_content": boolean; "vacation_enabled": boolean; "vacation_start_date"?: string; "vacation_end_date"?: string; "vacation_subject"?: string; "vacation_message"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10489,7 +10489,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "mailbox": string; "account_name": string; "signature"?: string; "display_density": "comfortable" | "default" | "compact"; "theme": "light" | "dark" | "system"; "language": "en" | "fr" | "de" | "es" | "ja"; "default_reply_behavior": "reply" | "replyAll"; "send_and_archive": boolean; "auto_advance": "newer" | "older" | "back"; "desktop_notifications": boolean; "notification_sound": "default" | "subtle" | "none"; "notification_preview": boolean; "filters": string; "blocked_senders": string; "labels": string; "load_remote_images": boolean; "show_external_content": boolean; "vacation_enabled": boolean; "vacation_start_date"?: string; "vacation_end_date"?: string; "vacation_subject"?: string; "vacation_message"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10864,7 +10864,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "channel": "email" | "sms" | "chat" | "database" | "push" | "broadcast"; "recipient": string; "subject"?: string; "body": string; "status": "pending" | "sent" | "delivered" | "failed" | "skipped"; "error"?: string; "metadata"?: string; "sent_at"?: unknown; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10910,7 +10910,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "channel": "email" | "sms" | "chat" | "database" | "push" | "broadcast"; "recipient": string; "subject"?: string; "body": string; "status": "pending" | "sent" | "delivered" | "failed" | "skipped"; "error"?: string; "metadata"?: string; "sent_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10926,7 +10926,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "channel": "email" | "sms" | "chat" | "database" | "push" | "broadcast"; "recipient": string; "subject"?: string; "body": string; "status": "pending" | "sent" | "delivered" | "failed" | "skipped"; "error"?: string; "metadata"?: string; "sent_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10946,7 +10946,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -10961,7 +10961,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11097,7 +11097,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11111,7 +11111,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11126,7 +11126,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11142,7 +11142,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11228,7 +11228,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11243,7 +11243,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11287,7 +11287,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11301,7 +11301,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11316,7 +11316,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11332,7 +11332,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11654,7 +11654,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11669,7 +11669,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11713,7 +11713,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11727,7 +11727,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11742,7 +11742,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11758,7 +11758,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11775,7 +11775,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11790,7 +11790,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11834,7 +11834,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11848,7 +11848,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11863,7 +11863,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11879,7 +11879,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11896,7 +11896,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11911,7 +11911,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11955,7 +11955,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11969,7 +11969,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -11984,7 +11984,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12000,7 +12000,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12017,7 +12017,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "mac_address"?: string; "location"?: string; "terminal"?: string; "status"?: "online" | "offline" | "warning"; "last_ping"?: unknown; "print_count"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12032,7 +12032,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "mac_address"?: string; "location"?: string; "terminal"?: string; "status"?: "online" | "offline" | "warning"; "last_ping"?: unknown; "print_count"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12076,7 +12076,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "mac_address"?: string; "location"?: string; "terminal"?: string; "status"?: "online" | "offline" | "warning"; "last_ping"?: unknown; "print_count"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12090,7 +12090,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "mac_address"?: string; "location"?: string; "terminal"?: string; "status"?: "online" | "offline" | "warning"; "last_ping"?: unknown; "print_count"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12105,7 +12105,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "mac_address"?: string; "location"?: string; "terminal"?: string; "status"?: "online" | "offline" | "warning"; "last_ping"?: unknown; "print_count"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12121,7 +12121,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "mac_address"?: string; "location"?: string; "terminal"?: string; "status"?: "online" | "offline" | "warning"; "last_ping"?: unknown; "print_count"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12138,7 +12138,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "printer"?: string; "document"?: string; "timestamp"?: unknown; "status"?: "success" | "failed" | "warning"; "size"?: number; "pages"?: number; "duration"?: number; "metadata"?: string; "print_device_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12153,7 +12153,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "printer"?: string; "document"?: string; "timestamp"?: unknown; "status"?: "success" | "failed" | "warning"; "size"?: number; "pages"?: number; "duration"?: number; "metadata"?: string; "print_device_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12197,7 +12197,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "printer"?: string; "document"?: string; "timestamp"?: unknown; "status"?: "success" | "failed" | "warning"; "size"?: number; "pages"?: number; "duration"?: number; "metadata"?: string; "print_device_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12211,7 +12211,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "printer"?: string; "document"?: string; "timestamp"?: unknown; "status"?: "success" | "failed" | "warning"; "size"?: number; "pages"?: number; "duration"?: number; "metadata"?: string; "print_device_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12226,7 +12226,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "printer"?: string; "document"?: string; "timestamp"?: unknown; "status"?: "success" | "failed" | "warning"; "size"?: number; "pages"?: number; "duration"?: number; "metadata"?: string; "print_device_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12242,7 +12242,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "printer"?: string; "document"?: string; "timestamp"?: unknown; "status"?: "success" | "failed" | "warning"; "size"?: number; "pages"?: number; "duration"?: number; "metadata"?: string; "print_device_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12259,7 +12259,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "description"?: string; "slug"?: string; "image_url"?: string; "is_active"?: boolean; "parent_category_id"?: string; "display_order"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12274,7 +12274,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "slug"?: string; "image_url"?: string; "is_active"?: boolean; "parent_category_id"?: string; "display_order"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12318,7 +12318,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "slug"?: string; "image_url"?: string; "is_active"?: boolean; "parent_category_id"?: string; "display_order"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12332,7 +12332,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "slug"?: string; "image_url"?: string; "is_active"?: boolean; "parent_category_id"?: string; "display_order"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12347,7 +12347,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "slug"?: string; "image_url"?: string; "is_active"?: boolean; "parent_category_id"?: string; "display_order"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12363,7 +12363,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "slug"?: string; "image_url"?: string; "is_active"?: boolean; "parent_category_id"?: string; "display_order"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12380,7 +12380,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "manufacturer"?: string; "description"?: string; "country"?: string; "featured"?: boolean; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12395,7 +12395,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "manufacturer"?: string; "description"?: string; "country"?: string; "featured"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12439,7 +12439,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "manufacturer"?: string; "description"?: string; "country"?: string; "featured"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12453,7 +12453,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "manufacturer"?: string; "description"?: string; "country"?: string; "featured"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12468,7 +12468,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "manufacturer"?: string; "description"?: string; "country"?: string; "featured"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12484,7 +12484,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "manufacturer"?: string; "description"?: string; "country"?: string; "featured"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12501,7 +12501,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "rating"?: number; "title"?: string; "content"?: string; "is_verified_purchase"?: boolean; "is_approved"?: boolean; "is_featured"?: boolean; "helpful_votes"?: number; "unhelpful_votes"?: number; "purchase_date"?: string; "images"?: string; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12516,7 +12516,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "rating"?: number; "title"?: string; "content"?: string; "is_verified_purchase"?: boolean; "is_approved"?: boolean; "is_featured"?: boolean; "helpful_votes"?: number; "unhelpful_votes"?: number; "purchase_date"?: string; "images"?: string; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12560,7 +12560,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "rating"?: number; "title"?: string; "content"?: string; "is_verified_purchase"?: boolean; "is_approved"?: boolean; "is_featured"?: boolean; "helpful_votes"?: number; "unhelpful_votes"?: number; "purchase_date"?: string; "images"?: string; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12574,7 +12574,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "rating"?: number; "title"?: string; "content"?: string; "is_verified_purchase"?: boolean; "is_approved"?: boolean; "is_featured"?: boolean; "helpful_votes"?: number; "unhelpful_votes"?: number; "purchase_date"?: string; "images"?: string; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12589,7 +12589,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "rating"?: number; "title"?: string; "content"?: string; "is_verified_purchase"?: boolean; "is_approved"?: boolean; "is_featured"?: boolean; "helpful_votes"?: number; "unhelpful_votes"?: number; "purchase_date"?: string; "images"?: string; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12605,7 +12605,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "rating"?: number; "title"?: string; "content"?: string; "is_verified_purchase"?: boolean; "is_approved"?: boolean; "is_featured"?: boolean; "helpful_votes"?: number; "unhelpful_votes"?: number; "purchase_date"?: string; "images"?: string; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12622,7 +12622,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "abbreviation"?: string; "type"?: string; "description"?: string; "is_default"?: boolean; "product_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12637,7 +12637,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "abbreviation"?: string; "type"?: string; "description"?: string; "is_default"?: boolean; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12681,7 +12681,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "abbreviation"?: string; "type"?: string; "description"?: string; "is_default"?: boolean; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12695,7 +12695,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "abbreviation"?: string; "type"?: string; "description"?: string; "is_default"?: boolean; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12710,7 +12710,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "abbreviation"?: string; "type"?: string; "description"?: string; "is_default"?: boolean; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12726,7 +12726,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "abbreviation"?: string; "type"?: string; "description"?: string; "is_default"?: boolean; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12743,7 +12743,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12758,7 +12758,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12802,7 +12802,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12816,7 +12816,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12831,7 +12831,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12847,7 +12847,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12864,7 +12864,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "description"?: string; "price"?: number; "image_url"?: string; "is_available"?: boolean; "inventory_count"?: number; "preparation_time"?: number; "allergens"?: string; "nutritional_info"?: string; "category_id"?: number; "manufacturer_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12879,7 +12879,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "price"?: number; "image_url"?: string; "is_available"?: boolean; "inventory_count"?: number; "preparation_time"?: number; "allergens"?: string; "nutritional_info"?: string; "category_id"?: number; "manufacturer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12923,7 +12923,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "price"?: number; "image_url"?: string; "is_available"?: boolean; "inventory_count"?: number; "preparation_time"?: number; "allergens"?: string; "nutritional_info"?: string; "category_id"?: number; "manufacturer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12937,7 +12937,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "price"?: number; "image_url"?: string; "is_available"?: boolean; "inventory_count"?: number; "preparation_time"?: number; "allergens"?: string; "nutritional_info"?: string; "category_id"?: number; "manufacturer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12952,7 +12952,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "price"?: number; "image_url"?: string; "is_available"?: boolean; "inventory_count"?: number; "preparation_time"?: number; "allergens"?: string; "nutritional_info"?: string; "category_id"?: number; "manufacturer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -12968,7 +12968,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "price"?: number; "image_url"?: string; "is_available"?: boolean; "inventory_count"?: number; "preparation_time"?: number; "allergens"?: string; "nutritional_info"?: string; "category_id"?: number; "manufacturer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -13169,7 +13169,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "query": string; "normalized_query"?: string; "duration"?: number; "connection"?: string; "status"?: "completed" | "failed" | "slow"; "error"?: string; "executed_at": string; "model"?: string; "method"?: string; "line"?: number; "memory_usage"?: number; "rows_affected"?: number; "transaction_id"?: string; "tags"?: string; "affected_tables"?: string; "indexes_used"?: string; "missing_indexes"?: string; "explain_plan"?: string; "optimization_suggestions"?: string; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -13192,7 +13192,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "query": string; "normalized_query"?: string; "duration"?: number; "connection"?: string; "status"?: "completed" | "failed" | "slow"; "error"?: string; "executed_at": string; "model"?: string; "method"?: string; "line"?: number; "memory_usage"?: number; "rows_affected"?: number; "transaction_id"?: string; "tags"?: string; "affected_tables"?: string; "indexes_used"?: string; "missing_indexes"?: string; "explain_plan"?: string; "optimization_suggestions"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -13215,7 +13215,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -13238,7 +13238,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -15410,6 +15410,34 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/workflow-runs/approve-fork": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "decision"?: string } } }
+    responses: {
+      "200": { content: { "application/json": { "run"?: { "number"?: number; "state"?: string; "approval_state"?: string; "trusted"?: boolean }; "note"?: string } } }
+      "303": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "409": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/workflow-runs/artifact": {
     get: {
     parameters: {
@@ -15718,7 +15746,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "method"?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; "path"?: string; "status_code"?: number; "duration_ms"?: number; "ip_address"?: string; "memory_usage"?: number; "user_agent"?: string; "error_message"?: string; "created_at"?: string; "updated_at"?: string; "deleted_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -15733,7 +15761,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "method"?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; "path"?: string; "status_code"?: number; "duration_ms"?: number; "ip_address"?: string; "memory_usage"?: number; "user_agent"?: string; "error_message"?: string; "created_at"?: string; "updated_at"?: string; "deleted_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -15777,7 +15805,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "method"?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; "path"?: string; "status_code"?: number; "duration_ms"?: number; "ip_address"?: string; "memory_usage"?: number; "user_agent"?: string; "error_message"?: string; "created_at"?: string; "updated_at"?: string; "deleted_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -15791,7 +15819,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "method"?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; "path"?: string; "status_code"?: number; "duration_ms"?: number; "ip_address"?: string; "memory_usage"?: number; "user_agent"?: string; "error_message"?: string; "created_at"?: string; "updated_at"?: string; "deleted_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -15806,7 +15834,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "method"?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; "path"?: string; "status_code"?: number; "duration_ms"?: number; "ip_address"?: string; "memory_usage"?: number; "user_agent"?: string; "error_message"?: string; "created_at"?: string; "updated_at"?: string; "deleted_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -15822,7 +15850,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "method"?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; "path"?: string; "status_code"?: number; "duration_ms"?: number; "ip_address"?: string; "memory_usage"?: number; "user_agent"?: string; "error_message"?: string; "created_at"?: string; "updated_at"?: string; "deleted_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16303,7 +16331,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "description"?: string; "base_rate"?: number; "free_shipping"?: number; "status"?: "active" | "inactive" | "draft"; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16318,7 +16346,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "base_rate"?: number; "free_shipping"?: number; "status"?: "active" | "inactive" | "draft"; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16362,7 +16390,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "base_rate"?: number; "free_shipping"?: number; "status"?: "active" | "inactive" | "draft"; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16376,7 +16404,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "base_rate"?: number; "free_shipping"?: number; "status"?: "active" | "inactive" | "draft"; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16391,7 +16419,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "base_rate"?: number; "free_shipping"?: number; "status"?: "active" | "inactive" | "draft"; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16407,7 +16435,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "description"?: string; "base_rate"?: number; "free_shipping"?: number; "status"?: "active" | "inactive" | "draft"; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16424,7 +16452,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "weight_from"?: unknown; "weight_to"?: unknown; "rate"?: number; "shipping_method_id"?: number; "shipping_zone_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16439,7 +16467,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "weight_from"?: unknown; "weight_to"?: unknown; "rate"?: number; "shipping_method_id"?: number; "shipping_zone_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16483,7 +16511,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "weight_from"?: unknown; "weight_to"?: unknown; "rate"?: number; "shipping_method_id"?: number; "shipping_zone_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16497,7 +16525,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "weight_from"?: unknown; "weight_to"?: unknown; "rate"?: number; "shipping_method_id"?: number; "shipping_zone_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16512,7 +16540,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "weight_from"?: unknown; "weight_to"?: unknown; "rate"?: number; "shipping_method_id"?: number; "shipping_zone_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16528,7 +16556,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "weight_from"?: unknown; "weight_to"?: unknown; "rate"?: number; "shipping_method_id"?: number; "shipping_zone_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16545,7 +16573,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "countries"?: string; "regions"?: string; "postal_codes"?: string; "status"?: "active" | "inactive" | "draft"; "shipping_method_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16560,7 +16588,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "countries"?: string; "regions"?: string; "postal_codes"?: string; "status"?: "active" | "inactive" | "draft"; "shipping_method_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16604,7 +16632,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "countries"?: string; "regions"?: string; "postal_codes"?: string; "status"?: "active" | "inactive" | "draft"; "shipping_method_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16618,7 +16646,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "countries"?: string; "regions"?: string; "postal_codes"?: string; "status"?: "active" | "inactive" | "draft"; "shipping_method_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16633,7 +16661,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "countries"?: string; "regions"?: string; "postal_codes"?: string; "status"?: "active" | "inactive" | "draft"; "shipping_method_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16649,7 +16677,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "countries"?: string; "regions"?: string; "postal_codes"?: string; "status"?: "active" | "inactive" | "draft"; "shipping_method_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16666,7 +16694,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "content": string; "platform": "twitter" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube"; "status": "draft" | "scheduled" | "published" | "failed"; "scheduled_at"?: unknown; "published_at"?: unknown; "likes"?: number; "shares"?: number; "comments"?: number; "reach"?: number; "image_url"?: string; "external_id"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16681,7 +16709,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "content": string; "platform": "twitter" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube"; "status": "draft" | "scheduled" | "published" | "failed"; "scheduled_at"?: unknown; "published_at"?: unknown; "likes"?: number; "shares"?: number; "comments"?: number; "reach"?: number; "image_url"?: string; "external_id"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16725,7 +16753,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "content": string; "platform": "twitter" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube"; "status": "draft" | "scheduled" | "published" | "failed"; "scheduled_at"?: unknown; "published_at"?: unknown; "likes"?: number; "shares"?: number; "comments"?: number; "reach"?: number; "image_url"?: string; "external_id"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16739,7 +16767,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "content": string; "platform": "twitter" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube"; "status": "draft" | "scheduled" | "published" | "failed"; "scheduled_at"?: unknown; "published_at"?: unknown; "likes"?: number; "shares"?: number; "comments"?: number; "reach"?: number; "image_url"?: string; "external_id"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16754,7 +16782,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "content": string; "platform": "twitter" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube"; "status": "draft" | "scheduled" | "published" | "failed"; "scheduled_at"?: unknown; "published_at"?: unknown; "likes"?: number; "shares"?: number; "comments"?: number; "reach"?: number; "image_url"?: string; "external_id"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16770,7 +16798,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "content": string; "platform": "twitter" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube"; "status": "draft" | "scheduled" | "published" | "failed"; "scheduled_at"?: unknown; "published_at"?: unknown; "likes"?: number; "shares"?: number; "comments"?: number; "reach"?: number; "image_url"?: string; "external_id"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16787,7 +16815,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "email": string; "source"?: string; "subscriber_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16810,7 +16838,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "email": string; "source"?: string; "subscriber_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16833,7 +16861,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "email": string; "status": "subscribed" | "unsubscribed" | "pending" | "bounced"; "source"?: string; "unsubscribed_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16848,7 +16876,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "email": string; "status": "subscribed" | "unsubscribed" | "pending" | "bounced"; "source"?: string; "unsubscribed_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16892,7 +16920,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "email": string; "status": "subscribed" | "unsubscribed" | "pending" | "bounced"; "source"?: string; "unsubscribed_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16906,7 +16934,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "email": string; "status": "subscribed" | "unsubscribed" | "pending" | "bounced"; "source"?: string; "unsubscribed_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16921,7 +16949,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "email": string; "status": "subscribed" | "unsubscribed" | "pending" | "bounced"; "source"?: string; "unsubscribed_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16937,7 +16965,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "email": string; "status": "subscribed" | "unsubscribed" | "pending" | "bounced"; "source"?: string; "unsubscribed_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16954,7 +16982,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name": string; "slug": string; "description"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -16969,7 +16997,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "slug": string; "description"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17013,7 +17041,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "slug": string; "description"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17027,7 +17055,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "slug": string; "description"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17042,7 +17070,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "slug": string; "description"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17058,7 +17086,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name": string; "slug": string; "description"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17075,7 +17103,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17090,7 +17118,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17134,7 +17162,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17148,7 +17176,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17163,7 +17191,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17179,7 +17207,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17196,7 +17224,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "amount"?: number; "status"?: string; "payment_method"?: string; "transaction_reference"?: string; "loyalty_points_earned"?: number; "loyalty_points_redeemed"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17211,7 +17239,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "amount"?: number; "status"?: string; "payment_method"?: string; "transaction_reference"?: string; "loyalty_points_earned"?: number; "loyalty_points_redeemed"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17255,7 +17283,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "amount"?: number; "status"?: string; "payment_method"?: string; "transaction_reference"?: string; "loyalty_points_earned"?: number; "loyalty_points_redeemed"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17269,7 +17297,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "amount"?: number; "status"?: string; "payment_method"?: string; "transaction_reference"?: string; "loyalty_points_earned"?: number; "loyalty_points_redeemed"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17284,7 +17312,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "amount"?: number; "status"?: string; "payment_method"?: string; "transaction_reference"?: string; "loyalty_points_earned"?: number; "loyalty_points_redeemed"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17300,7 +17328,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "amount"?: number; "status"?: string; "payment_method"?: string; "transaction_reference"?: string; "loyalty_points_earned"?: number; "loyalty_points_redeemed"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17818,7 +17846,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "quantity"?: number; "notification_preference"?: "sms" | "email" | "both"; "source"?: string; "notes"?: string; "status"?: "waiting" | "purchased" | "notified" | "cancelled"; "notified_at"?: unknown; "purchased_at"?: unknown; "cancelled_at"?: unknown; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17833,7 +17861,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "quantity"?: number; "notification_preference"?: "sms" | "email" | "both"; "source"?: string; "notes"?: string; "status"?: "waiting" | "purchased" | "notified" | "cancelled"; "notified_at"?: unknown; "purchased_at"?: unknown; "cancelled_at"?: unknown; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17877,7 +17905,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "quantity"?: number; "notification_preference"?: "sms" | "email" | "both"; "source"?: string; "notes"?: string; "status"?: "waiting" | "purchased" | "notified" | "cancelled"; "notified_at"?: unknown; "purchased_at"?: unknown; "cancelled_at"?: unknown; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17891,7 +17919,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "quantity"?: number; "notification_preference"?: "sms" | "email" | "both"; "source"?: string; "notes"?: string; "status"?: "waiting" | "purchased" | "notified" | "cancelled"; "notified_at"?: unknown; "purchased_at"?: unknown; "cancelled_at"?: unknown; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17906,7 +17934,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "quantity"?: number; "notification_preference"?: "sms" | "email" | "both"; "source"?: string; "notes"?: string; "status"?: "waiting" | "purchased" | "notified" | "cancelled"; "notified_at"?: unknown; "purchased_at"?: unknown; "cancelled_at"?: unknown; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17922,7 +17950,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "quantity"?: number; "notification_preference"?: "sms" | "email" | "both"; "source"?: string; "notes"?: string; "status"?: "waiting" | "purchased" | "notified" | "cancelled"; "notified_at"?: unknown; "purchased_at"?: unknown; "cancelled_at"?: unknown; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17939,7 +17967,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "party_size"?: number; "check_in_time"?: unknown; "table_preference"?: "indoor" | "bar" | "booth" | "no_preference"; "status"?: "waiting" | "seated" | "cancelled" | "no_show"; "quoted_wait_time"?: number; "actual_wait_time"?: number; "queue_position"?: number; "seated_at"?: unknown; "no_show_at"?: unknown; "cancelled_at"?: unknown; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17954,7 +17982,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "party_size"?: number; "check_in_time"?: unknown; "table_preference"?: "indoor" | "bar" | "booth" | "no_preference"; "status"?: "waiting" | "seated" | "cancelled" | "no_show"; "quoted_wait_time"?: number; "actual_wait_time"?: number; "queue_position"?: number; "seated_at"?: unknown; "no_show_at"?: unknown; "cancelled_at"?: unknown; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -17998,7 +18026,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "party_size"?: number; "check_in_time"?: unknown; "table_preference"?: "indoor" | "bar" | "booth" | "no_preference"; "status"?: "waiting" | "seated" | "cancelled" | "no_show"; "quoted_wait_time"?: number; "actual_wait_time"?: number; "queue_position"?: number; "seated_at"?: unknown; "no_show_at"?: unknown; "cancelled_at"?: unknown; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -18012,7 +18040,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "party_size"?: number; "check_in_time"?: unknown; "table_preference"?: "indoor" | "bar" | "booth" | "no_preference"; "status"?: "waiting" | "seated" | "cancelled" | "no_show"; "quoted_wait_time"?: number; "actual_wait_time"?: number; "queue_position"?: number; "seated_at"?: unknown; "no_show_at"?: unknown; "cancelled_at"?: unknown; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -18027,7 +18055,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "party_size"?: number; "check_in_time"?: unknown; "table_preference"?: "indoor" | "bar" | "booth" | "no_preference"; "status"?: "waiting" | "seated" | "cancelled" | "no_show"; "quoted_wait_time"?: number; "actual_wait_time"?: number; "queue_position"?: number; "seated_at"?: unknown; "no_show_at"?: unknown; "cancelled_at"?: unknown; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -18043,7 +18071,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "party_size"?: number; "check_in_time"?: unknown; "table_preference"?: "indoor" | "bar" | "booth" | "no_preference"; "status"?: "waiting" | "seated" | "cancelled" | "no_show"; "quoted_wait_time"?: number; "actual_wait_time"?: number; "queue_position"?: number; "seated_at"?: unknown; "no_show_at"?: unknown; "cancelled_at"?: unknown; "customer_id"?: number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -18060,7 +18088,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": Array<{ "id": number; "type": "disconnection" | "error" | "success"; "socket": string; "details": string; "time": number; "created_at"?: string; "updated_at"?: string }> } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -18075,7 +18103,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "201": { content: { "application/json": { "data": { "id": number; "type": "disconnection" | "error" | "success"; "socket": string; "details": string; "time": number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -18096,7 +18124,7 @@ export interface paths {
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "data": { "id": number; "type": "disconnection" | "error" | "success"; "socket": string; "details": string; "time": number; "created_at"?: string; "updated_at"?: string } } } }
       "422": { content: never }
       "500": { content: never }
     }
@@ -21921,6 +21949,60 @@ export interface paths {
 
 export interface components {
   schemas: {
-
+    "Activity": { "id": number; "uuid": string; "type": string; "description": string; "subject_type"?: string; "subject_id"?: number; "causer"?: string; "properties"?: string; "ip_address"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "AnalyticsEvent": { "id": number; "uuid": string; "name": string; "category": string; "path"?: string; "value"?: number; "currency": string; "properties"?: string; "created_at"?: string; "updated_at"?: string }
+    "Author": { "id": number; "uuid": string; "name"?: string; "email"?: string; "bio"?: string; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Board": { "id": number; "uuid": string; "name"?: string; "description"?: string; "icon"?: string; "color"?: string; "position"?: number; "archived"?: boolean; "created_at"?: string; "updated_at"?: string }
+    "BoardColumn": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "position"?: number; "card_limit"?: number; "color"?: string; "created_at"?: string; "updated_at"?: string }
+    "Campaign": { "id": number; "uuid": string; "name": string; "description"?: string; "type": "email" | "sms" | "push" | "social" | "multi-channel"; "status": "draft" | "scheduled" | "sending" | "sent" | "paused" | "cancelled" | "failed" | "active" | "completed" | "archived"; "subject"?: string; "template"?: string; "text"?: string; "from_name"?: string; "from_address"?: string; "email_list_id"?: number; "scheduled_at"?: unknown; "sent_at"?: unknown; "audience_size"?: number; "sent_count"?: number; "open_rate"?: number; "click_rate"?: number; "conversion_rate"?: number; "budget"?: number; "spent"?: number; "currency": string; "start_date"?: unknown; "end_date"?: unknown; "created_at"?: string; "updated_at"?: string }
+    "CampaignSend": { "id": number; "uuid": string; "campaign_id": number; "subscriber_id": number; "email_list_id": number; "status": "queued" | "sent" | "failed" | "bounced" | "complained"; "provider_message_id"?: string; "error"?: string; "sent_at"?: unknown; "opened_at"?: unknown; "clicked_at"?: unknown; "created_at"?: string; "updated_at"?: string }
+    "Card": { "id": number; "uuid": string; "column_id"?: number; "board_id"?: number; "title"?: string; "description"?: string; "position"?: number; "created_by_user_id"?: number; "due_date"?: string; "archived"?: boolean; "board_column_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "CardComment": { "id": number; "uuid": string; "card_id"?: number; "user_id"?: number; "body"?: string; "created_at"?: string; "updated_at"?: string }
+    "Cart": { "id": number; "uuid": string; "status"?: "active" | "abandoned" | "converted" | "expired"; "total_items"?: number; "subtotal"?: number; "tax_amount"?: number; "discount_amount"?: number; "total"?: number; "expires_at"?: unknown; "currency"?: string; "notes"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "CartItem": { "id": number; "uuid": string; "quantity"?: number; "unit_price"?: number; "total_price"?: number; "tax_rate"?: number; "tax_amount"?: number; "discount_percentage"?: number; "discount_amount"?: number; "product_name"?: string; "product_sku"?: string; "product_image"?: string; "notes"?: string; "cart_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Category": { "id": number; "uuid": string; "name"?: string; "description"?: string; "slug"?: string; "image_url"?: string; "is_active"?: boolean; "parent_category_id"?: string; "display_order"?: number; "created_at"?: string; "updated_at"?: string }
+    "Comment": { "id": number; "uuid": string; "author_name": string; "author_email": string; "content": string; "body"?: string; "post_title"?: string; "status": "pending" | "approved" | "spam" | "trash"; "ip_address"?: string; "user_agent"?: string; "is_approved"?: number; "post_id"?: number; "user_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Coupon": { "id": number; "uuid": string; "code"?: string; "description"?: string; "status"?: "Active" | "Scheduled" | "Expired"; "is_active"?: boolean; "discount_type"?: "fixed_amount" | "percentage"; "discount_value"?: number; "min_order_amount"?: number; "max_discount_amount"?: number; "free_product_id"?: string; "usage_limit"?: number; "usage_count"?: number; "start_date"?: unknown; "end_date"?: unknown; "product_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Customer": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "total_spent"?: number; "last_order"?: string; "status"?: "Active" | "Inactive"; "avatar"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "DeliveryRoute": { "id": number; "uuid": string; "driver"?: string; "vehicle"?: string; "stops"?: number; "delivery_time"?: number; "total_distance"?: number; "last_active"?: unknown; "driver_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Deployment": { "id": number; "uuid": string; "commit_hash"?: string; "commit_message"?: string; "branch"?: string; "status"?: string; "environment"?: string; "duration"?: number; "author"?: string; "url"?: string; "error_log"?: string; "created_at"?: string; "updated_at"?: string }
+    "DigitalDelivery": { "id": number; "uuid": string; "name"?: string; "description"?: string; "download_limit"?: number; "expiry_days"?: number; "requires_login"?: boolean; "automatic_delivery"?: boolean; "status"?: "active" | "inactive"; "created_at"?: string; "updated_at"?: string }
+    "Driver": { "id": number; "uuid": string; "name"?: string; "phone"?: string; "vehicle_number"?: string; "license"?: string; "status"?: "active" | "on_delivery" | "on_break"; "user_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "EmailList": { "id": number; "uuid": string; "name": string; "slug"?: string; "description"?: string; "subscriber_count"?: number; "active_count"?: number; "unsubscribed_count"?: number; "bounced_count"?: number; "status": "active" | "inactive" | "archived"; "is_public"?: number; "double_opt_in"?: number; "created_at"?: string; "updated_at"?: string }
+    "EmailListSubscriber": { "id": number; "uuid": string; "email_list_id": number; "subscriber_id": number; "status": "subscribed" | "unsubscribed" | "pending" | "bounced"; "source"?: string; "subscribed_at"?: unknown; "unsubscribed_at"?: unknown; "created_at"?: string; "updated_at"?: string }
+    "GiftCard": { "id": number; "uuid": string; "code"?: string; "initial_balance"?: number; "current_balance"?: number; "currency"?: string; "status"?: string; "purchaser_id"?: string; "recipient_email"?: string; "recipient_name"?: string; "personal_message"?: string; "is_digital"?: boolean; "is_reloadable"?: boolean; "is_active"?: boolean; "expiry_date"?: unknown; "last_used_date"?: unknown; "template_id"?: string; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Label": { "id": number; "uuid": string; "board_id"?: number; "name"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string }
+    "LicenseKey": { "id": number; "uuid": string; "key"?: string; "template"?: "Standard License" | "Premium License" | "Enterprise License"; "expiry_date"?: unknown; "status"?: "active" | "inactive" | "unassigned"; "customer_id"?: number; "product_id"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "LoyaltyPoint": { "id": number; "uuid": string; "wallet_id"?: string; "points"?: number; "source"?: string; "source_reference_id"?: string; "description"?: string; "expiry_date"?: unknown; "is_used"?: boolean; "created_at"?: string; "updated_at"?: string }
+    "LoyaltyReward": { "id": number; "uuid": string; "name"?: string; "description"?: string; "points_required"?: number; "reward_type"?: string; "discount_percentage"?: number; "free_product_id"?: string; "is_active"?: boolean; "expiry_days"?: number; "image_url"?: string; "product_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "MailPreference": { "id": number; "mailbox": string; "account_name": string; "signature"?: string; "display_density": "comfortable" | "default" | "compact"; "theme": "light" | "dark" | "system"; "language": "en" | "fr" | "de" | "es" | "ja"; "default_reply_behavior": "reply" | "replyAll"; "send_and_archive": boolean; "auto_advance": "newer" | "older" | "back"; "desktop_notifications": boolean; "notification_sound": "default" | "subtle" | "none"; "notification_preview": boolean; "filters": string; "blocked_senders": string; "labels": string; "load_remote_images": boolean; "show_external_content": boolean; "vacation_enabled": boolean; "vacation_start_date"?: string; "vacation_end_date"?: string; "vacation_subject"?: string; "vacation_message"?: string; "created_at"?: string; "updated_at"?: string }
+    "Manufacturer": { "id": number; "uuid": string; "manufacturer"?: string; "description"?: string; "country"?: string; "featured"?: boolean; "created_at"?: string; "updated_at"?: string }
+    "Notification": { "id": number; "uuid": string; "type": string; "data": string; "read_at"?: unknown; "created_at"?: string; "updated_at"?: string }
+    "NotificationDelivery": { "id": number; "channel": "email" | "sms" | "chat" | "database" | "push" | "broadcast"; "recipient": string; "subject"?: string; "body": string; "status": "pending" | "sent" | "delivered" | "failed" | "skipped"; "error"?: string; "metadata"?: string; "sent_at"?: unknown; "created_at"?: string; "updated_at"?: string }
+    "Order": { "id": number; "uuid": string; "status"?: string; "total_amount"?: number; "currency"?: string; "tax_amount"?: number; "discount_amount"?: number; "delivery_fee"?: number; "tip_amount"?: number; "order_type"?: string; "delivery_address"?: string; "special_instructions"?: string; "estimated_delivery_time"?: string; "applied_coupon_id"?: string; "customer_id"?: number; "coupon_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Page": { "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Payment": { "id": number; "uuid": string; "amount"?: number; "method"?: "cash" | "creditCard" | "debitCard" | "paypal" | "applePay" | "googlePay" | "bankTransfer" | "giftCard"; "status"?: "pending" | "processing" | "completed" | "failed" | "refunded" | "partiallyRefunded" | "succeeded"; "currency"?: string; "reference_number"?: string; "card_last_four"?: string; "card_brand"?: string; "billing_email"?: string; "transaction_id"?: string; "payment_provider"?: string; "refund_amount"?: number; "notes"?: string; "order_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Post": { "id": number; "uuid": string; "title": string; "poster"?: string; "content": string; "excerpt"?: string; "views"?: number; "published_at"?: unknown; "status": "published" | "draft" | "archived"; "is_featured"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "PrintDevice": { "id": number; "uuid": string; "name"?: string; "mac_address"?: string; "location"?: string; "terminal"?: string; "status"?: "online" | "offline" | "warning"; "last_ping"?: unknown; "print_count"?: number; "created_at"?: string; "updated_at"?: string }
+    "Product": { "id": number; "uuid": string; "name"?: string; "description"?: string; "price"?: number; "image_url"?: string; "is_available"?: boolean; "inventory_count"?: number; "preparation_time"?: number; "allergens"?: string; "nutritional_info"?: string; "category_id"?: number; "manufacturer_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "ProductUnit": { "id": number; "uuid": string; "name"?: string; "abbreviation"?: string; "type"?: string; "description"?: string; "is_default"?: boolean; "product_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "ProductVariant": { "id": number; "uuid": string; "variant"?: string; "type"?: string; "description"?: string; "options"?: string; "status"?: "active" | "inactive" | "draft"; "product_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "QueryLog": { "id": number; "query": string; "normalized_query"?: string; "duration"?: number; "connection"?: string; "status"?: "completed" | "failed" | "slow"; "error"?: string; "executed_at": string; "model"?: string; "method"?: string; "line"?: number; "memory_usage"?: number; "rows_affected"?: number; "transaction_id"?: string; "tags"?: string; "affected_tables"?: string; "indexes_used"?: string; "missing_indexes"?: string; "explain_plan"?: string; "optimization_suggestions"?: string; "created_at"?: string; "updated_at"?: string }
+    "Receipt": { "id": number; "uuid": string; "printer"?: string; "document"?: string; "timestamp"?: unknown; "status"?: "success" | "failed" | "warning"; "size"?: number; "pages"?: number; "duration"?: number; "metadata"?: string; "print_device_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Release": { "id": number; "uuid": string; "version"?: string; "type"?: string; "status"?: string; "notes"?: string; "downloads"?: number; "author"?: string; "repository_id"?: number; "user_id"?: number; "tag_name"?: string; "target_sha"?: string; "name"?: string; "is_prerelease"?: boolean; "published_at"?: string; "created_at"?: string; "updated_at"?: string }
+    "Request": { "id": number; "method"?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD"; "path"?: string; "status_code"?: number; "duration_ms"?: number; "ip_address"?: string; "memory_usage"?: number; "user_agent"?: string; "error_message"?: string; "created_at"?: string; "updated_at"?: string; "deleted_at"?: string }
+    "Review": { "id": number; "uuid": string; "rating"?: number; "title"?: string; "content"?: string; "is_verified_purchase"?: boolean; "is_approved"?: boolean; "is_featured"?: boolean; "helpful_votes"?: number; "unhelpful_votes"?: number; "purchase_date"?: string; "images"?: string; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "ShippingMethod": { "id": number; "uuid": string; "name"?: string; "description"?: string; "base_rate"?: number; "free_shipping"?: number; "status"?: "active" | "inactive" | "draft"; "created_at"?: string; "updated_at"?: string }
+    "ShippingRate": { "id": number; "uuid": string; "weight_from"?: unknown; "weight_to"?: unknown; "rate"?: number; "shipping_method_id"?: number; "shipping_zone_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "ShippingZone": { "id": number; "uuid": string; "name"?: string; "countries"?: string; "regions"?: string; "postal_codes"?: string; "status"?: "active" | "inactive" | "draft"; "shipping_method_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "SocialPost": { "id": number; "uuid": string; "content": string; "platform": "twitter" | "facebook" | "instagram" | "linkedin" | "tiktok" | "youtube"; "status": "draft" | "scheduled" | "published" | "failed"; "scheduled_at"?: unknown; "published_at"?: unknown; "likes"?: number; "shares"?: number; "comments"?: number; "reach"?: number; "image_url"?: string; "external_id"?: string; "user_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Subscriber": { "id": number; "uuid": string; "email": string; "status": "subscribed" | "unsubscribed" | "pending" | "bounced"; "source"?: string; "unsubscribed_at"?: unknown; "user_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "SubscriberEmail": { "id": number; "uuid": string; "email": string; "source"?: string; "subscriber_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Tag": { "id": number; "uuid": string; "name": string; "slug": string; "description"?: string; "color"?: string; "created_at"?: string; "updated_at"?: string }
+    "TaxRate": { "id": number; "uuid": string; "name"?: string; "rate"?: number; "type"?: string; "country"?: string; "region"?: "North America" | "South America" | "Europe" | "Asia" | "Africa" | "Oceania" | "Antarctica"; "status"?: "active" | "inactive"; "is_default"?: boolean; "created_at"?: string; "updated_at"?: string }
+    "Transaction": { "id": number; "uuid": string; "amount"?: number; "status"?: string; "payment_method"?: string; "transaction_reference"?: string; "loyalty_points_earned"?: number; "loyalty_points_redeemed"?: number; "order_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "WaitlistProduct": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "quantity"?: number; "notification_preference"?: "sms" | "email" | "both"; "source"?: string; "notes"?: string; "status"?: "waiting" | "purchased" | "notified" | "cancelled"; "notified_at"?: unknown; "purchased_at"?: unknown; "cancelled_at"?: unknown; "product_id"?: number; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "WaitlistRestaurant": { "id": number; "uuid": string; "name"?: string; "email"?: string; "phone"?: string; "party_size"?: number; "check_in_time"?: unknown; "table_preference"?: "indoor" | "bar" | "booth" | "no_preference"; "status"?: "waiting" | "seated" | "cancelled" | "no_show"; "quoted_wait_time"?: number; "actual_wait_time"?: number; "queue_position"?: number; "seated_at"?: unknown; "no_show_at"?: unknown; "cancelled_at"?: unknown; "customer_id"?: number; "created_at"?: string; "updated_at"?: string }
+    "Websocket": { "id": number; "type": "disconnection" | "error" | "success"; "socket": string; "details": string; "time": number; "created_at"?: string; "updated_at"?: string }
   }
 }

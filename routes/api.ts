@@ -829,6 +829,13 @@ route.post('/gh/repos/{owner}/{repo}/{resource}', 'Api/GitHubCompatAction').skip
  * safe and approving a release is not.
  */
 route.post('/repos/workflow-runs/approve', 'Actions/Workflow/ApproveWorkflowJobAction').middleware('auth')
+/*
+ * And the other approval: letting a fork's pull request run at all.
+ *
+ * A different question from opening a deployment gate, and the same ability -
+ * stopping a run is safe, starting a stranger's code is not.
+ */
+route.post('/repos/workflow-runs/approve-fork', 'Actions/Workflow/ApproveForkRunAction').middleware('auth')
 
 /*
  * Deployment environments and their rules.

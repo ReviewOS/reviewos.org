@@ -112,6 +112,12 @@ Each is a constraint on the boxes in phase 9, written so it can be checked rathe
 
 ### Fork policy - the one that gets forges breached
 
+0. **A fork's pull request needs a person before it runs at all**, unless the instance says
+   otherwise. `fork_run_approval` is `first-time` by default: a contributor whose work has never
+   landed here is held, and once it has they are not asked again. Somebody who can push here is not
+   asked either, since a push from them would run without asking. The run is `waiting`, which is what
+   keeps it away from the claim, and **approving it does not make it trusted** - it runs, and it still
+   gets no secrets and no identity token.
 1. **The workflow definition comes from the trusted ref, never from the fork.** A pull request from
    a fork runs the workflow as it exists on the base branch. If it ran the fork's version, attacker 2
    writes their own workflow and the rest of this document is decoration.

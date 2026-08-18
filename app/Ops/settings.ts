@@ -151,6 +151,29 @@ export const SETTINGS = {
   },
 
   /**
+   * Whether a fork's pull request runs without somebody saying so.
+   *
+   * The fork policy's last clause, and the one every forge has been breached
+   * over. A pull request from a fork runs somebody else's code on machines an
+   * operator provided, and while it gets no secrets and no identity token, it
+   * still spends the fleet and still reaches whatever the network reaches.
+   *
+   * `first-time` is the default and matches what GitHub learned the hard way:
+   * ask about a contributor whose work has never landed here, and stop asking
+   * once it has. `always` is the setting for an instance whose runners sit
+   * somewhere expensive; `never` restores the behaviour of an instance that has
+   * not thought about it, which is a choice an operator should have to make
+   * rather than inherit.
+   */
+  fork_run_approval: {
+    type: 'enum',
+    allowed: ['first-time', 'always', 'never'] as const,
+    fallback: 'first-time',
+    describes: 'Whether a fork\'s pull request needs approval before it runs: for a first-time contributor, always, or never',
+    enforcedIn: 'app/Actions/Workflow/forkApproval.ts',
+  },
+
+  /**
    * The name this instance calls itself.
    *
    * Cosmetic, and the one entry here that is. It earns its place because it is

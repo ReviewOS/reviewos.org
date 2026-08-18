@@ -2476,9 +2476,38 @@ every runner is somebody else's machine.
       steps that name them, never listed in plaintext after creation
 - [ ] The recommended path stays an external secret store, with first-party support for fetching from
       one, because the best secret is one we never held
-- [ ] Fork policy: a run triggered from a fork gets no secrets and no OIDC by default, cannot supply
+- [x] Fork policy: a run triggered from a fork gets no secrets and no OIDC by default, cannot supply
       the workflow definition it runs under, and requires approval to run at all. Phase 9 states this
       rule; this is where it is enforced in the dispatch path.
+
+      Three of the four clauses were already enforced and tested: secrets are chosen at the claim
+      where the trust flag is, `POST /api/runner/oidc` refuses an untrusted run outright, and
+      `dispatchPullRequest` reads *registered versions* so a head branch's own files are never parsed
+      into a definition.
+
+      The fourth was missing. A fork's pull request ran the moment it was opened, on machines an
+      operator provided - and while it got nothing, running at all spends the fleet and reaches
+      whatever those machines reach. `fork_run_approval` decides: `first-time` by default, matching
+      what GitHub learned the hard way (ask about a contributor whose work has never landed here,
+      stop asking once it has), with `always` for an instance whose runners sit somewhere expensive
+      and `never` for the behaviour of an instance that has not thought about it.
+
+      **A held run is `waiting`, not `queued`**, which is what keeps it away from the claim - there is
+      no second place to get the hold right - and its jobs read as blocked with the reason, because a
+      list of queued jobs under a run nothing will claim is somebody investigating their runners for
+      an hour. `POST /api/repos/workflow-runs/approve-fork` takes `approve` or `refuse` under
+      `workflow:approve`, the same ability a deployment gate needs: stopping a run is safe and
+      starting a stranger's code is not.
+
+      **Approving does not make the run trusted.** It runs; it still gets nothing. Conflating "you
+      may run" with "you are ours" is the mistake behind the published secret-theft write-ups, and
+      the answer says so in words as well as leaving the flag alone. A refusal cancels the run and
+      keeps it, with who decided: the next person to look at the pull request needs to see that a
+      decision was made rather than that nothing ever ran.
+
+      A contributor who can push here is not asked - a push from them would run without asking - and
+      that is the real permission rather than a row in `repo_collaborators`, since the repository's
+      owner is not a collaborator of their own repository.
 - [ ] Fine-grained token permissions for reading runs, dispatching runs, managing workflows,
       administering pools, and reading logs, each separable, per the [phase 1](./01-foundation.md)
       rule that there is no fallback token type

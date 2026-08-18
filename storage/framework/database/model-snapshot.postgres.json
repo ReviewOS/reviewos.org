@@ -9361,6 +9361,39 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": 1
+          },
+          {
+            "name": "approval_state",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "not-required",
+            "enumValues": [
+              "not-required",
+              "required",
+              "approved",
+              "rejected"
+            ],
+            "enumTypeName": "workflow_runs_approval_state_type"
+          },
+          {
+            "name": "approved_by",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "approved_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
           }
         ],
         "indexes": [
@@ -12525,7 +12558,7 @@
       }
     ]
   },
-  "hash": "7b3a0c6dfdc0615f85325a664d2739f629d43fd5dc043ddcd9fb48d67f479827",
+  "hash": "0af0279575737c8f326d01efbc9baf97e0cd9a6a4a676be8158ca9f1400f7e8d",
   "dialect": "postgres",
-  "updatedAt": "2026-08-18T16:33:33.537Z"
+  "updatedAt": "2026-08-18T16:53:03.440Z"
 }

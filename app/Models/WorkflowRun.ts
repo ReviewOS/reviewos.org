@@ -214,6 +214,42 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * Whether a person has to say yes before this run starts.
+     *
+     * The fork policy's last clause. A pull request from a fork is somebody
+     * else's code on machines an operator provided: it gets no secrets and no
+     * identity token and cannot supply its own workflow, and it still spends the
+     * fleet and still reaches whatever those machines reach.
+     *
+     * `not-required` for every run that is the repository's own, which is nearly
+     * all of them. `required` holds the run in `waiting` until somebody with
+     * `workflow:approve` opens it; `rejected` is a run somebody decided should
+     * not have run, kept rather than deleted so the decision is on the record.
+     */
+    approval_state: {
+      order: 70,
+      fillable: true,
+      default: 'not-required',
+      validation: { rule: schema.enum(['not-required', 'required', 'approved', 'rejected']) },
+      factory: () => 'not-required',
+    },
+
+    /** Who opened it, for a run that needed opening. */
+    approved_by: {
+      order: 71,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    approved_at: {
+      order: 72,
+      fillable: true,
+      validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
+
     trusted: {
       order: 9,
       fillable: true,

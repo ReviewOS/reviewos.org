@@ -142,7 +142,36 @@ export async function settleRun(runId: number, now: Date = new Date()): Promise<
  *
  * Split out from `settleRun` so the loop above has something to ask.
  */
+/**
+ * Whether this run is holding for somebody to approve it.
+ *
+ * Read rather than passed in, because every caller of the settler would
+ * otherwise have to know about the fork policy - and the one that forgot would
+ * be the one that released a stranger's code.
+ */
+async function awaitingApproval(runId: number): Promise<boolean> {
+  const run: any = await db
+    .selectFrom('workflow_runs')
+    .select(['approval_state'])
+    .where('id', '=', runId)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  return String(run?.approval_state ?? 'not-required') === 'required'
+}
+
 async function settleOnce(runId: number, now: Date): Promise<boolean> {
+  /*
+   * A run waiting for a person to approve it moves for nobody.
+   *
+   * The fork policy's hold. Without this the settler would release the graph
+   * the moment the run was created - the jobs have no unmet `needs:`, which is
+   * exactly why they are eligible - and the hold would be a state on a row that
+   * nothing enforced.
+   */
+  if (await awaitingApproval(runId))
+    return false
+
   let moved = false
   let jobs = await jobsOfRun(runId)
 
@@ -429,6 +458,15 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
 
   const run: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
   const from = String(run?.state ?? 'queued')
+
+  /*
+   * And a held run stays `waiting`, whatever its rows say.
+   *
+   * Its jobs are blocked, so the computed state would be `queued` - which reads
+   * as "a runner will get to this" and is the opposite of what is true.
+   */
+  if (await awaitingApproval(runId))
+    return from
 
   // A finished run must never move again, whatever the rows now say. A late
   // report or a sweep reopening a conclusion is the one outcome a branch

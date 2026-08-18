@@ -88,6 +88,8 @@ export type AuditEventName =
    */
   | 'fleet:pool-created'
   | 'fleet:queue-created'
+  | 'workflow:fork-run-approved'
+  | 'workflow:fork-run-refused'
   | 'fleet:signatures-required'
   | 'fleet:plugin-attached'
   | 'fleet:plugin-detached'
@@ -148,6 +150,8 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'admin:revoked',
   'admin:job-retried',
   'fleet:pool-created',
+  'workflow:fork-run-approved',
+  'workflow:fork-run-refused',
   'fleet:signatures-required',
   'fleet:plugin-attached',
   'fleet:plugin-detached',
