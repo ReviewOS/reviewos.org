@@ -61,46 +61,13 @@ export function shellQuote(value: string): string {
   return `'${String(value ?? '').replace(/'/g, `'\\''`)}'`
 }
 
-export interface CheckoutRequest {
-  source: string
-  sha: string
-  /** True when `source` is a path on this machine rather than a URL. */
-  onHost: boolean
-  options?: CheckoutOptions
-}
-
-export interface CheckoutPlan {
-  /** Shell commands, in order. Empty when the workflow asked for no checkout. */
-  commands: string[]
-  /** What the log says this checkout is, in a phrase. */
-  summary: string
-}
-
-const SINGLE_QUOTE = '\''
-/** How a shell writes a literal quote inside a single-quoted string. */
-const QUOTED_SINGLE_QUOTE = `'\\''`
-
 /**
- * A value safe to put inside single quotes in a shell command.
+ * The commands that put `sha` in the workspace.
  *
- * Single quotes and nothing else: inside them a shell interprets nothing but
- * the closing quote, so the only thing to handle is a quote in the value, and
- * `'\''` is the standard way to write one. Every path and ref below goes
- * through here - a repository called `foo'; rm -rf /` is a repository somebody
- * is allowed to create.
+ * Two sources, and which one is used is a fact about *where the runner is*
+ * rather than a setting: the instance's own machine has the bare repository on
+ * disk, and any other machine clones over the ordinary git endpoint.
  */
-export function shellQuote(value: string): string {
-  /*
-   * Written with named constants rather than the shorter
-   * `` `'${value.replace(/'/g, `'\\''`)}'` ``, which is one template literal
-   * nested inside another's `${}`. That form desynced pickier's comment masker
-   * and made it report the *next* function's parameter as unused. Fixed in
-   * pickier 0.1.57; this can go back to the one-liner once that version is
-   * installed here.
-   */
-  return `'${String(value ?? '').split(SINGLE_QUOTE).join(QUOTED_SINGLE_QUOTE)}'`
-}
-
 export function checkoutPlan(input: CheckoutRequest): CheckoutPlan {
   const options = input.options ?? {}
 
