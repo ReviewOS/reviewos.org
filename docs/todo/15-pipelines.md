@@ -2104,7 +2104,22 @@ decisions.
       A run that has not finished is refused: two attempts of one job in flight is exactly what the
       lease exists to prevent. And `GITHUB_RUN_ATTEMPT` is a real number now - it was a literal 1
       carried all the way to the runner and computed by nothing.
-- [ ] Cancel a run and cancel a job, cooperative first and forced after a deadline (phase 9)
+- [x] Cancel a run and cancel a job, cooperative first and forced after a deadline (phase 9)
+
+      The run has been cancellable since phase 9. `POST /api/repos/workflow-runs/cancel-job` is the
+      other half, and the case the first cannot serve: one job stuck on a machine that has gone
+      quiet, and nine others that are work nobody wants to throw away.
+
+      Every row under the name goes, because a matrix is several rows under one - a button that
+      stopped a quarter of what it says would be worse than none. Cooperative in the same shape as
+      the run: a running job goes to `cancelling` with its lease revoked in the same write, and its
+      dependants stay blocked until the machine acknowledges, because until then the job might yet
+      report a success and skipping them first would be the control plane deciding an outcome it
+      cannot see. A job that never started is cancelled outright and its dependants skipped in the
+      same pass - there is nobody to wait for.
+
+      Forcing after a deadline is the sweep from phase 9, which already reclaims a lease nobody has
+      answered for.
 - [ ] Unblock a block step from the interface, the API, and the CLI, recording who did it, and
       collecting input fields where declared
 - [ ] A run's provenance is always visible: which workflow version, which commit, which trigger,

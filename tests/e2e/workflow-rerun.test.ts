@@ -349,3 +349,105 @@ describe('what a re-run refuses', () => {
     expect(body.workflow_run.attempt).toBe(3)
   }, 120_000)
 })
+
+describe('stopping one job', () => {
+  async function cancelJob(job: string): Promise<{ status: number, body: any }> {
+    const answer = await fetch(`http://127.0.0.1:${port}/api/repos/workflow-runs/cancel-job`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${created.token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ owner: created.handle, repo: created.name, number: 1, job }),
+    })
+
+    return { status: answer.status, body: await answer.json().catch(() => null) }
+  }
+
+  test('leaves the rest of the run alone, and settles what depended on it', async () => {
+    if (!available)
+      return
+
+    /*
+     * The case cancelling a whole run cannot serve: one job stuck on a machine
+     * that has gone quiet, and the others are work nobody wants to throw away.
+     */
+    await db
+      .updateTable('workflow_runs')
+      .set({ state: 'running', finished_at: null } as any)
+      .where('id', '=', created.runId)
+      .execute()
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'running', started_at: new Date().toISOString(), finished_at: null } as any)
+      .where('workflow_run_id', '=', created.runId)
+      .where('job_id', '=', 'test')
+      .execute()
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'blocked', finished_at: null } as any)
+      .where('workflow_run_id', '=', created.runId)
+      .where('job_id', '=', 'deploy')
+      .execute()
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'running', finished_at: null } as any)
+      .where('workflow_run_id', '=', created.runId)
+      .where('job_id', '=', 'build')
+      .execute()
+
+    const { status, body } = await cancelJob('test')
+
+    expect(status).toBe(200)
+    expect(body.cancelled).toBe(true)
+
+    const after = await jobs()
+
+    /*
+     * Asked to stop rather than declared stopped, with the lease revoked in the
+     * same write - so whatever holds it can no longer report a result over a
+     * decision that has been made.
+     */
+    expect(String(after.test.state)).toBe('cancelling')
+
+    /*
+     * And `deploy` is *still blocked*, which is right rather than a gap: the
+     * cancellation is cooperative, so until the machine acknowledges it the
+     * job might yet report a success, and skipping its dependants first would
+     * be the control plane deciding an outcome it cannot see. A job that had
+     * never started would be `cancelled` outright and its dependants skipped
+     * in the same pass, because there is nobody to wait for.
+     */
+    expect(String(after.deploy.state)).toBe('blocked')
+
+    // The sibling nobody asked about is untouched.
+    expect(String(after.build.state)).toBe('running')
+
+    // Once the runner acknowledges, the graph resolves: nothing that needed
+    // this job can run now, and a run left holding those blocked is a pull
+    // request whose checks stay pending on work that ended.
+    const { settleRun } = await import('../../app/Actions/Workflow/settle')
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelled', finished_at: new Date().toISOString() } as any)
+      .where('workflow_run_id', '=', created.runId)
+      .where('job_id', '=', 'test')
+      .execute()
+
+    await settleRun(created.runId)
+
+    expect(String((await jobs()).deploy.state)).toBe('skipped')
+  }, 120_000)
+
+  test('a name nobody has is a 404 rather than a silent success', async () => {
+    if (!available)
+      return
+
+    expect((await cancelJob('ghost')).status).toBe(404)
+  }, 120_000)
+})

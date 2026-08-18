@@ -779,6 +779,14 @@ route.post('/repos/workflow-runs/cancel', 'Actions/Workflow/CancelWorkflowRunAct
  * its pipeline never having run.
  */
 route.post('/repos/workflow-runs/rerun', 'Actions/Workflow/RerunWorkflowRunAction')
+/*
+ * Stop one job, leaving the rest of the run alone.
+ *
+ * The case cancelling a whole run cannot serve: one job stuck on a quiet
+ * machine, and nine others nobody wants to throw away. Every row under the name
+ * goes, because a matrix is several rows under one.
+ */
+route.post('/repos/workflow-runs/cancel-job', 'Actions/Workflow/CancelWorkflowJobAction')
 // `workflow_dispatch`: the trigger with no event behind it. Write access, since
 // starting a run spends the instance's runners.
 route.post('/repos/workflows/dispatch', 'Actions/Workflow/DispatchWorkflowAction').middleware('auth')

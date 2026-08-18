@@ -447,6 +447,14 @@ const jobs = jobRows.map((job) => {
     gateFields: String(job.kind ?? '') === 'block' ? gateOf(job.settings).fields : [],
     /** Only a gate that is actually waiting, and only for somebody who may open it. */
     openable: String(job.state) === 'paused' && canApprove,
+    /*
+     * Whether this one job can be stopped on its own.
+     *
+     * The case cancelling the whole run cannot serve: one job stuck on a
+     * machine that has gone quiet, and nine others nobody wants to throw away.
+     */
+    stoppable: ['queued', 'blocked', 'running'].includes(String(job.state))
+      && Boolean(repoAccess?.can?.('workflow:cancel')),
     approvedBy: approvers.get(Number(job.approved_by_id ?? 0)) ?? '',
     triggeredRun: job.triggered_run_id ? Number(job.triggered_run_id) : 0,
     triggeredRunNumber: triggeredNumbers.get(Number(job.triggered_run_id ?? 0)) ?? 0,
@@ -872,6 +880,23 @@ const base = `/${ownerHandle}/${repositoryName}`
               </p>
             @endif
 
+            {{--
+              Stopping this job alone, posted to the same public action the API
+              calls. A matrix is several rows under one name, and the action
+              stops all of them - a button that did a quarter of what it says
+              would be worse than none.
+            --}}
+            @if (job.stoppable)
+              <form method="post" action="/api/repos/workflow-runs/cancel-job" class="job-stop">
+                <CsrfField />
+                <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                <input type="hidden" name="repo" value="{{ repositoryName }}">
+                <input type="hidden" name="number" value="{{ runNumber }}">
+                <input type="hidden" name="job" value="{{ job.jobId }}">
+                <button class="button job-stop-button" type="submit">Stop this job</button>
+              </form>
+            @endif
+
             @if (job.log || job.live)
               <details class="log"@if (job.live) open @endif>
                 <summary>Output</summary>
@@ -1058,6 +1083,17 @@ const base = `/${ownerHandle}/${repositoryName}`
 
   .run-note { font-size: 12.5px; margin: 0; }
   .run-cancel { margin: 0; }
+
+  .job-stop {
+    margin: 0 0 10px;
+  }
+
+  /* Secondary to the run's own controls: stopping one job is a smaller act
+    than stopping the run, and the sizes should say so. */
+  .job-stop-button {
+    font-size: 12px;
+    padding: 4px 10px;
+  }
 
   .run-graph {
     padding: 15px 17px;

@@ -5595,6 +5595,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/workflow-runs/cancel-job
+   */
+  postReposWorkflowRunsCancelJob(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "job"?: string; "reason"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "job"?: { "job_id"?: string; "state"?: string }; "run_state"?: string; "cancelled"?: boolean }>> {
+    return request(config, "POST", "/api/repos/workflow-runs/cancel-job", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/repos/workflow-runs/log
    */
   getReposWorkflowRunsLog(input: { "owner"?: string; "repo"?: string; "job": number; "after"?: number }, options?: RequestOptions): Promise<ApiResult<{ "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string }>> {
