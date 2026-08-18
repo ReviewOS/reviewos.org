@@ -22,7 +22,7 @@ import type { GateDecision } from './environments'
 import { decideGate, environmentRules } from './environments'
 import { createJobsForRun, releaseGroup } from './dispatch'
 import type { JobState } from './states'
-import { effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
+import { cancelOnFailingCasualties, effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
 
 /**
  * What a job cancelled by a sibling is told, on its own row.
@@ -45,6 +45,15 @@ import { effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unr
 export const MAX_TRIGGER_DEPTH = 5
 
 export const FAIL_FAST_REASON = 'Stopped because another combination of this matrix failed and fail-fast is on.'
+
+/**
+ * What a job stopped by a sunk run is told, on its own row.
+ *
+ * The same rule as the fail-fast reason above: a cancelled job with no
+ * explanation is the worst row on a run page, and the obvious guess - that
+ * somebody pressed cancel - is wrong.
+ */
+export const CANCEL_ON_FAILING_REASON = 'Stopped because the run had already failed and this job asked not to keep going.'
 
 async function jobsOfRun(runId: number): Promise<any[]> {
   return db
@@ -82,6 +91,7 @@ function graphRows(jobs: readonly any[]): Array<{
   continue_on_error: boolean
   fail_fast: boolean
   allow_failure: boolean
+  cancel_on_build_failing: boolean
   kind: string
 }> {
   return jobs.map(job => ({
@@ -94,6 +104,9 @@ function graphRows(jobs: readonly any[]): Array<{
     // A barrier that was told to let the run past a failure. The graph reads
     // this; nothing else needs to know it came from `wait:`.
     allow_failure: settingsOf(job).continueOnFailure === true,
+    // And whether this job asked to be stopped once the run is going to fail,
+    // out of the same blob rather than a second read.
+    cancel_on_build_failing: settingsOf(job).cancelOnBuildFailing === true,
     kind: String(job.kind ?? 'command'),
   }))
 }
@@ -165,6 +178,41 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
   }
 
   if (casualties.cancel.length > 0 || casualties.stop.length > 0) {
+    moved = true
+    jobs = await jobsOfRun(runId)
+  }
+
+  /*
+   * And the jobs that asked to be stopped once the run is going to fail.
+   *
+   * After `fail-fast` rather than folded into it, because they answer different
+   * questions: `fail-fast` is about one matrix's siblings and is on by default,
+   * this is run-wide and opt-in. Running them in one pass would mean one rule
+   * with two defaults, which is the shape nobody can read off a run page.
+   */
+  const sunk = cancelOnFailingCasualties(graphRows(jobs))
+
+  for (const job of sunk.cancel) {
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelled', finished_at: now.toISOString(), condition_reason: CANCEL_ON_FAILING_REASON } as any)
+      .where('id', '=', job.id)
+      .where('state', 'in', ['blocked', 'queued'])
+      .execute()
+  }
+
+  for (const job of sunk.stop) {
+    // Asked, not declared - and the lease goes with the ask, so whatever holds
+    // it can no longer report a result over a decision already made.
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'cancelling', lease_expires_at: now.toISOString(), condition_reason: CANCEL_ON_FAILING_REASON } as any)
+      .where('id', '=', job.id)
+      .where('state', '=', 'running')
+      .execute()
+  }
+
+  if (sunk.cancel.length > 0 || sunk.stop.length > 0) {
     moved = true
     jobs = await jobsOfRun(runId)
   }

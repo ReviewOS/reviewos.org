@@ -429,6 +429,40 @@ stored, and what it may do is decided by `permissions:`.
 `uses:` job, which passes values down rather than narrowing what this job holds.
 Both keys exist here and they are different questions.
 
+### `cancel-on-build-failing` - stop once the run is lost
+
+```yaml
+  browser-tests:
+    runs-on: ubuntu-latest
+    reviewos:
+      cancel-on-build-failing: true
+    steps: [{ run: ./e2e }]
+```
+
+The forty-minute browser suite that is still going when the unit tests have
+already gone red. Nobody is going to read its result - the run is failed
+whatever it says - and the machine it is holding is one nothing else can use.
+
+**Off unless a job asks**, and that direction is the whole design. A job that
+publishes the results, tears down a preview environment, or posts the failure to
+a channel is written to run *because* something failed, and a run-wide default
+would stop exactly the jobs people lean on hardest on the day a build breaks.
+
+Different from `strategy.fail-fast`, which is scoped to one matrix and on by
+default: that one stops the *siblings of the combination that broke*, this one
+stops a named job when *anything* has sunk the run.
+
+A failure the workflow tolerates does not count. `continue-on-error: true` means
+this failing is fine, and a job that tolerates its own failure has not sunk
+anything.
+
+A running job is asked to stop rather than declared stopped - it is on somebody
+else's machine, which has to be told and has to acknowledge - and the reason is
+written on the row, because a cancelled job with no explanation is the worst row
+on a run page.
+
+**Actions has no equivalent** beyond `fail-fast` inside a matrix.
+
 ### `group` - a label
 
 ```yaml

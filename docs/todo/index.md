@@ -29,7 +29,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Complete (30/30) |
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | In progress (43/45) |
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (141/171) |
-| [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | Started (113/189) |
+| [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | Started (114/189) |
 
 Phase 14 was written after reading Pierre's [DiffsHub](https://diffshub.com) and the Apache 2.0
 packages behind it. It carries the diff engine work that phase 4 refers to but does not describe,

@@ -172,6 +172,17 @@ export interface GraphJob {
    * verdict stops mattering.
    */
   allow_failure?: boolean | null
+
+  /**
+   * `cancel-on-build-failing:` - stop this job once the run is going to fail.
+   *
+   * Off unless the job asks. The default has to be off: a job that publishes
+   * the results, tears down a preview environment or posts the failure to a
+   * channel is written to run *because* something failed, and stopping those
+   * automatically would break the pipelines people rely on most when a build
+   * breaks.
+   */
+  cancel_on_build_failing?: boolean | null
 }
 
 /**
@@ -296,6 +307,53 @@ export function unreachableJobs<T extends GraphJob>(jobs: readonly T[]): T[] {
 
     return needsOf(job).some(need => failed(need))
   })
+}
+
+/**
+ * The jobs that asked to be stopped once the run is going to fail.
+ *
+ * Buildkite's `cancel_on_build_failing`, and the case it is for is the
+ * forty-minute browser suite that is still going when the unit tests have
+ * already gone red. Nobody is going to read its result: the run is failed
+ * whatever it says, and the machine it is holding is one nothing else can use.
+ *
+ * **The run being *already* failed is the trigger, not this job failing.** That
+ * makes it different from `fail-fast`, which is scoped to one matrix and stops
+ * siblings of the combination that broke. This is run-wide and opt-in per job,
+ * which is the right way round: run-wide by default would stop the cleanup jobs
+ * written precisely for a failure.
+ *
+ * A failure the workflow said to allow does not count, the same rule
+ * `fail-fast` follows - `continue-on-error: true` means "this failing is fine",
+ * and a job that tolerates its own failure has not sunk anything.
+ */
+export function cancelOnFailingCasualties<T extends GraphJob>(jobs: readonly T[]): { cancel: T[], stop: T[] } {
+  const cancel: T[] = []
+  const stop: T[] = []
+
+  const sunk = jobs.some(job => job.state === 'failed' && job.continue_on_error !== true)
+
+  if (!sunk)
+    return { cancel, stop }
+
+  for (const job of jobs) {
+    if (job.cancel_on_build_failing !== true)
+      continue
+
+    if (job.state === 'blocked' || job.state === 'queued')
+      cancel.push(job)
+
+    /*
+     * Asked to stop rather than declared stopped, the same shape as every other
+     * cancellation here: the machine holding it has to be told and has to
+     * acknowledge, and a control plane that writes `cancelled` for work it
+     * cannot observe is one that reports outcomes that did not happen.
+     */
+    if (job.state === 'running')
+      stop.push(job)
+  }
+
+  return { cancel, stop }
 }
 
 /**

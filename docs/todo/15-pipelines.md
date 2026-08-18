@@ -1331,7 +1331,17 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       `/etc/` can put the machine's secrets on a page. A glob that matches nothing says so in the
       log rather than failing a job that had already finished.
 - [ ] `plugins`, the extension point, with its own section below
-- [ ] `cancel_on_build_failing`, so long jobs stop when a sibling has already sunk the run
+- [x] `cancel_on_build_failing`, so long jobs stop when a sibling has already sunk the run
+
+      `reviewos: { cancel-on-build-failing: true }` - the forty-minute browser suite still going
+      when the unit tests have gone red. Nobody will read its result and the machine it holds is one
+      nothing else can use.
+
+      **Off unless the job asks**, which is the opposite of `fail-fast` and deliberately so: a job
+      that publishes results, tears down a preview or reports the failure exists *because*
+      something failed, and a run-wide default would stop exactly the jobs people lean on hardest
+      on the day a build breaks. A failure the workflow tolerates does not count, and a running job
+      is asked to stop rather than declared stopped.
 - [ ] `checkout` options: submodules, clone depth, LFS, sparse paths, clean behavior, and skipping
       checkout entirely
 - [x] `if_changed`, path-glob gating evaluated against the run's diff. The monorepository primitive,

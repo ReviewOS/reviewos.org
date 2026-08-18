@@ -272,7 +272,7 @@ describe('the rules that keep the kinds apart', () => {
 
     expect(message).toContain('`pause` is not a `reviewos:` key')
 
-    for (const key of ['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents', 'parallelism', 'artifact-paths', 'secrets', 'skip', 'soft-fail', 'branches'])
+    for (const key of ['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents', 'parallelism', 'artifact-paths', 'secrets', 'cancel-on-build-failing', 'skip', 'soft-fail', 'branches'])
       expect(message).toContain(`\`${key}\``)
   })
 })
@@ -656,6 +656,49 @@ describe('naming secrets on a job', () => {
     steps:
       - run: ./ship
 `).join(' ')).toContain('neither a name nor a list of names')
+  })
+})
+
+describe('cancel-on-build-failing', () => {
+  test('is a flag on the job, carried in the settings the settler reads', () => {
+    const [browser] = jobs(`jobs:
+  browser:
+    runs-on: ubuntu-latest
+    reviewos:
+      cancel-on-build-failing: true
+    steps:
+      - run: ./e2e
+`)
+
+    expect(browser!.cancelOnBuildFailing).toBe(true)
+    expect((browser!.settings as any).cancelOnBuildFailing).toBe(true)
+  })
+
+  test('is off unless the job says so, and only literal true turns it on', () => {
+    /*
+     * Off by default because the jobs written for a failure - publish the
+     * results, tear down the preview, tell the channel - are the ones people
+     * lean on hardest on the day a build breaks.
+     *
+     * And literal `true` only, like `continue-on-error`: an expression here is
+     * read by nothing yet, and treating `${{ inputs.x }}` as truthy text would
+     * cancel a job on the strength of a string.
+     */
+    const [quiet, stringy] = jobs(`jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./publish
+  odd:
+    runs-on: ubuntu-latest
+    reviewos:
+      cancel-on-build-failing: 'yes'
+    steps:
+      - run: ./thing
+`)
+
+    expect(quiet!.cancelOnBuildFailing).toBe(false)
+    expect(stringy!.cancelOnBuildFailing).toBe(false)
   })
 })
 

@@ -853,6 +853,174 @@ jobs:
   })
 })
 
+describe('cancel-on-build-failing', () => {
+  /**
+   * The run this workflow produced, found by the file it came from.
+   *
+   * Not by scanning for a job name: this repository accumulates workflows
+   * across the tests in this file, so every dispatch creates several runs and a
+   * job name is not a discriminator - a lesson learned by breaking a test three
+   * describes down that was using one.
+   */
+  async function runOfWorkflow(path: string): Promise<number> {
+    const row: any = await db
+      .selectFrom('workflow_runs')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_runs.id as id'])
+      .where('workflows.path', '=', path)
+      .orderBy('workflow_runs.id', 'desc')
+      .executeTakeFirst()
+
+    return Number(row?.id ?? 0)
+  }
+
+  /** And it goes away again, so later dispatches see the repository as it was. */
+  async function forget(path: string): Promise<void> {
+    await db.deleteFrom('workflows').where('path', '=', path).execute()
+  }
+
+  test('a failed job stops the long sibling that asked, and leaves the others', async () => {
+    if (!available)
+      return
+
+    const path = '.github/workflows/sunk.yml'
+
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path,
+      source: `name: Sunk
+on: push
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./unit
+  browser:
+    runs-on: ubuntu-latest
+    reviewos:
+      cancel-on-build-failing: true
+    steps:
+      - run: ./browser
+  tell-the-channel:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./tell
+`,
+      sha: '9'.repeat(40),
+    })
+
+    await dispatchPush({
+      repositoryId: created.repositoryId,
+      event: { ref: 'refs/heads/main' },
+      headSha: unique('k').padEnd(40, '0').slice(0, 40),
+    })
+
+    const runId = await runOfWorkflow(path)
+
+    expect(runId).toBeGreaterThan(0)
+
+    // The browser suite is on a machine; the unit tests have just gone red.
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'running', started_at: new Date().toISOString() } as any)
+      .where('workflow_run_id', '=', runId)
+      .where('job_id', 'in', ['browser', 'tell-the-channel'])
+      .execute()
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'failed', finished_at: new Date().toISOString() } as any)
+      .where('workflow_run_id', '=', runId)
+      .where('job_id', '=', 'unit')
+      .execute()
+
+    await settleRun(runId)
+
+    const rows = await jobsOf(runId)
+
+    /*
+     * Asked to stop, not declared stopped: the machine holding it has to be
+     * told and has to acknowledge. Nobody was going to read that suite's result
+     * anyway - the run is failed whatever it says - and the machine it holds is
+     * one nothing else can use.
+     */
+    expect(jobNamed(rows, 'browser').state).toBe('cancelling')
+    expect(String(jobNamed(rows, 'browser').condition_reason)).toContain('had already failed')
+
+    // And the job that did not ask keeps going. This is the whole reason the
+    // attribute is opt-in: a job that reports the failure exists *because*
+    // something failed.
+    expect(jobNamed(rows, 'tell-the-channel').state).toBe('running')
+
+    await forget(path)
+  }, 120_000)
+
+  test('a failure the workflow tolerates does not stop anybody', async () => {
+    if (!available)
+      return
+
+    const path = '.github/workflows/tolerated.yml'
+
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path,
+      source: `name: Tolerated
+on: push
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - run: ./lint
+  browser:
+    runs-on: ubuntu-latest
+    reviewos:
+      cancel-on-build-failing: true
+    steps:
+      - run: ./browser
+`,
+      sha: '8'.repeat(40),
+    })
+
+    await dispatchPush({
+      repositoryId: created.repositoryId,
+      event: { ref: 'refs/heads/main' },
+      headSha: unique('t').padEnd(40, '0').slice(0, 40),
+    })
+
+    const runId = await runOfWorkflow(path)
+
+    expect(runId).toBeGreaterThan(0)
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'running', started_at: new Date().toISOString() } as any)
+      .where('workflow_run_id', '=', runId)
+      .where('job_id', '=', 'browser')
+      .execute()
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'failed', finished_at: new Date().toISOString() } as any)
+      .where('workflow_run_id', '=', runId)
+      .where('job_id', '=', 'lint')
+      .execute()
+
+    await settleRun(runId)
+
+    // `continue-on-error: true` means this failing is fine, so the run is not
+    // sunk and there is nothing to stop anybody for.
+    expect(jobNamed(await jobsOf(runId), 'browser').state).toBe('running')
+
+    await forget(path)
+  }, 120_000)
+})
+
 describe('a job that runs after a failure on purpose', () => {
   test('is queued while its ordinary sibling is skipped', async () => {
     if (!available)

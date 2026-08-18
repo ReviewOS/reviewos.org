@@ -242,6 +242,15 @@ export interface WorkflowJob {
    * name for both is how they end up implemented as one thing.
    */
   secretNames: string[] | null
+
+  /**
+   * `reviewos.cancel-on-build-failing:` - stop this job once the run is sunk.
+   *
+   * Rides in the settings blob, beside the barrier's `continueOnFailure`: the
+   * settler already parses that blob on every pass to build the graph, so this
+   * costs no extra read and no column.
+   */
+  cancelOnBuildFailing: boolean
 }
 
 /**
@@ -277,6 +286,8 @@ interface ExtensionResult {
   artifactPaths: string[]
   /** `secrets:` - the names this job wants, or null when it named none. */
   secrets: string[] | null
+  /** `cancel-on-build-failing:` - stop this job once the run is going to fail. */
+  cancelOnBuildFailing: boolean
 }
 
 export interface WorkflowService {
@@ -496,6 +507,9 @@ const EXTENSION_KEYS = new Set([
   // Which secrets this job needs, so a compromised dependency in a test job
   // cannot read the deploy key that job never asked for.
   'secrets',
+  // Stop this job when the run is already going to fail, for the long suite
+  // nobody is going to read the result of.
+  'cancel-on-build-failing',
   // Buildkite's step attributes, in the three shapes people actually reach for.
   'skip',
   'soft-fail',
@@ -821,14 +835,14 @@ function extensionOf(
   const raw = asRecord(body.reviewos)
 
   if (!raw)
-    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0, artifactPaths: [], secrets: null }
+    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0, artifactPaths: [], secrets: null, cancelOnBuildFailing: false }
 
   for (const key of Object.keys(raw)) {
     if (!EXTENSION_KEYS.has(key)) {
       errors.push({
         line: lineOf(source, key, jobLine),
         message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
-        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
+        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `cancel-on-build-failing`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
       })
     }
   }
@@ -851,6 +865,10 @@ function extensionOf(
   const parallelism = parallelismFrom(raw.parallelism, id, jobLine, source, errors)
   const artifactPaths = artifactPathsFrom(raw['artifact-paths'], id, jobLine, source, errors)
   const secrets = secretNamesFrom(raw.secrets, id, jobLine, source, errors)
+  // Literal `true` only, like `continue-on-error` at step level: an expression
+  // here is read by nothing yet, and treating `${{ inputs.x }}` as truthy text
+  // would cancel a job on the strength of a string.
+  const cancelOnBuildFailing = raw['cancel-on-build-failing'] === true
 
   const skip = skipFrom(raw.skip)
   const softFail = softFailFrom(raw['soft-fail'])
@@ -866,11 +884,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing }
 
   if (ifChanged.length > 0) {
     /*
@@ -936,6 +954,7 @@ function extensionOf(
       parallelism: 0,
       artifactPaths: [],
       secrets: null,
+      cancelOnBuildFailing: false,
     }
   }
 
@@ -953,6 +972,7 @@ function extensionOf(
       parallelism: 0,
       artifactPaths: [],
       secrets: null,
+      cancelOnBuildFailing: false,
     }
   }
 
@@ -969,6 +989,7 @@ function extensionOf(
     parallelism: 0,
     artifactPaths: [],
     secrets: null,
+    cancelOnBuildFailing: false,
   }
 }
 
@@ -1126,6 +1147,7 @@ function settingsOf(
   parallelism = 0,
   artifactPaths: string[] = [],
   secrets: string[] | null = null,
+  cancelOnBuildFailing = false,
 ): Record<string, unknown> {
   const settings: Record<string, unknown> = {}
 
@@ -1145,6 +1167,9 @@ function settingsOf(
   // be able to tell "wants none" from "did not say".
   if (secrets !== null)
     settings.secrets = secrets
+
+  if (cancelOnBuildFailing)
+    settings.cancelOnBuildFailing = true
 
   return settings
 }
@@ -2008,6 +2033,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       parallelism: extension.parallelism,
       artifactPaths: extension.artifactPaths,
       secretNames: extension.secrets,
+      cancelOnBuildFailing: extension.cancelOnBuildFailing,
     })
   }
 
