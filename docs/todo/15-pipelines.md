@@ -1287,8 +1287,22 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       suite quietly running twenty of the two hundred shards it asked for reports a tenth of itself
       as green. A barrier, a gate or a trigger cannot have copies - five copies of a gate is five
       approvals for one deploy.
-- [ ] `matrix`, expanding across named dimensions, with `adjustments` that add a single combination,
+- [x] `matrix`, expanding across named dimensions, with `adjustments` that add a single combination,
       skip one, or soft-fail one, because the useful matrix is never the full cross product
+
+      The matrix itself is Actions' `strategy.matrix`, `include` and `exclude` included, with the
+      expansion order that decides how a run reads. `reviewos: { adjustments: [...] }` is the
+      additive half.
+
+      **Soft-failing one combination is the part Actions cannot express**: `continue-on-error` is
+      per job, so tolerating the nightly Node version means tolerating every version, and a matrix
+      that tolerates everything cannot fail a build. `skip` is not a duplicate of `exclude` either -
+      an excluded combination never existed and cannot explain itself, where a skipped one is a row
+      carrying its reason.
+
+      Last match wins, so a broad adjustment followed by a narrow one reads the way it looks. An
+      entry with no `with:` is ignored rather than applied to every combination, which is the
+      failure that would quietly tolerate a whole matrix.
 - [x] `concurrency` and `concurrency_group`, a named limit shared across runs and workflows, which is
       how a shared staging environment or a deploy lock gets serialized
 

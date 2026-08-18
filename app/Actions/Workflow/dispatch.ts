@@ -22,6 +22,8 @@
 import { db } from '@stacksjs/database'
 import { setting } from '../../Ops/settings'
 import { branchDecision, skipDecision } from './stepAttributes'
+import type { Combination, MatrixAdjustment } from './matrix'
+import { adjustmentFor } from './matrix'
 import type { ConcurrencyContext } from './concurrency'
 import { resolveGroup } from './concurrency'
 import { globMatches } from './triggers'
@@ -845,12 +847,24 @@ async function createJobs(
       const skipped = skipDecision(attributes.skip)
       const branch = branchDecision(attributes.branches, String(context?.ref ?? ''))
 
-      const runs = decision.run && paths.run && skipped.run && branch.run
+      /*
+       * And the adjustment for *this* combination, if the job singled one out.
+       *
+       * Decided here rather than at claim time for the same reason `skip:` is:
+       * a combination that is not going to run should read as skipped from the
+       * moment the run exists, with the reason on the row.
+       */
+      const adjusted = values ? adjustmentFor(values as Combination, attributes.adjustments) : null
+      const adjustedSkip = skipDecision(adjusted?.skip ?? null)
+
+      const runs = decision.run && paths.run && skipped.run && branch.run && adjustedSkip.run
       const why = !decision.run
         ? decision.reason
         : !paths.run
             ? paths.reason
-            : !skipped.run ? skipped.reason : branch.reason
+            : !skipped.run
+                ? skipped.reason
+                : !branch.run ? branch.reason : adjustedSkip.reason
 
       /*
        * And one row per parallel copy of each of those.
@@ -920,7 +934,15 @@ async function createJobs(
             fail_fast: job.fail_fast !== false,
             max_parallel: job.max_parallel ?? null,
             timeout_minutes: job.timeout_minutes ?? null,
-            continue_on_error: job.continue_on_error === true,
+            /*
+           * `soft-fail:` on an adjustment lands here, on this row only.
+           *
+           * Which is the whole point: `continue-on-error` is per job, so
+           * tolerating the nightly Node version without it means tolerating
+           * every version - and a matrix that tolerates everything is a matrix
+           * that cannot fail a build.
+           */
+          continue_on_error: job.continue_on_error === true || adjusted?.softFail === true,
             kind: job.kind ?? 'command',
             settings: job.settings ?? null,
             group_label: job.group_label ?? null,
@@ -1205,7 +1227,12 @@ function labelFor(values: Record<string, unknown>): string {
  * is skipped when it should have run is a broken commit nobody noticed.
  */
 /** A definition job's stored `reviewos:` attributes, which are JSON in a column. */
-function settingsOfJob(settings: unknown): { skip: string | null, branches: string[], parallelism: number } {
+function settingsOfJob(settings: unknown): {
+  skip: string | null
+  branches: string[]
+  parallelism: number
+  adjustments: MatrixAdjustment[]
+} {
   try {
     const parsed = JSON.parse(String(settings ?? '{}'))
     const parallelism = Number(parsed?.parallelism)
@@ -1216,10 +1243,11 @@ function settingsOfJob(settings: unknown): { skip: string | null, branches: stri
       // One copy when the definition said nothing, which keeps the loop below
       // the same shape with and without the attribute.
       parallelism: Number.isInteger(parallelism) && parallelism > 0 ? parallelism : 1,
+      adjustments: Array.isArray(parsed?.adjustments) ? parsed.adjustments : [],
     }
   }
   catch {
-    return { skip: null, branches: [], parallelism: 1 }
+    return { skip: null, branches: [], parallelism: 1, adjustments: [] }
   }
 }
 

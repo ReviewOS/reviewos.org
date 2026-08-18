@@ -188,3 +188,49 @@ export function combinationLabel(combination: Combination): string {
 
   return parts.join(', ')
 }
+
+/**
+ * One combination singled out by name.
+ *
+ * Buildkite's `adjustments`, and the reason it exists: the useful matrix is
+ * never the full cross product. One combination is known-broken and should not
+ * run; another is expected to fail and should not fail the run. Actions can say
+ * the first with `exclude` and cannot say the second at all - `continue-on-error`
+ * is per *job*, so tolerating one combination means tolerating all of them.
+ */
+export interface MatrixAdjustment {
+  /** The values that identify the combination. A partial match is a match. */
+  with: Combination
+  /** Why it is skipped, when it is. */
+  skip?: string | null
+  /** Whether this combination's failure is tolerated. */
+  softFail?: boolean
+}
+
+/**
+ * The adjustment that applies to a combination, or null.
+ *
+ * **The last match wins**, which is the rule people expect from a list of
+ * overrides and the one that makes a broad adjustment followed by a narrow one
+ * mean what it reads as: `{ os: windows } soft-fail` then
+ * `{ os: windows, node: 22 } skip` skips exactly that one and tolerates the
+ * rest.
+ */
+export function adjustmentFor(
+  combination: Combination,
+  adjustments: readonly MatrixAdjustment[],
+): MatrixAdjustment | null {
+  let found: MatrixAdjustment | null = null
+
+  for (const adjustment of adjustments) {
+    // An adjustment with no `with:` matches everything, which is somebody
+    // writing a job-level setting in the wrong place rather than an intent.
+    if (Object.keys(adjustment.with ?? {}).length === 0)
+      continue
+
+    if (matches(combination, adjustment.with))
+      found = adjustment
+  }
+
+  return found
+}

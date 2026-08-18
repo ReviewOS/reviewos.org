@@ -573,6 +573,49 @@ lock nobody else can join is the opposite of what this is for.
 
 **Actions has no equivalent.**
 
+### `adjustments` - one combination of a matrix, singled out
+
+```yaml
+  suite:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22, 24]
+    reviewos:
+      adjustments:
+        - with: { node: 24 }
+          soft-fail: true                     # nightly: report it, do not fail on it
+        - with: { node: 22 }
+          skip: Waiting on the upstream fix.  # and this one does not run
+    steps: [{ run: bun test }]
+```
+
+The useful matrix is never the full cross product. One combination is
+known-broken and should not run; another is expected to fail and should not fail
+the run.
+
+**Actions cannot say the second at all.** `continue-on-error` is per job, so
+tolerating the nightly Node version means tolerating every version - and a
+matrix that tolerates everything cannot fail a build. `soft-fail` on an
+adjustment lands on that row alone.
+
+`skip` is not a duplicate of `exclude:` either. An excluded combination is a job
+that never existed and cannot explain itself; a skipped one is a row on the run
+**with the reason on it**, which is what somebody scanning the screen three
+weeks later needs. `skip: true` works and gets a reason written for it, but a
+sentence is better.
+
+`with:` names the combination, and a partial match is a match:
+`with: { os: windows }` is every Windows combination. **The last matching entry
+wins**, so a broad adjustment followed by a narrow one reads the way it looks -
+tolerate Windows, except this one combination which does not run at all. An
+entry with no `with:` is ignored rather than applied to everything: that is
+somebody writing a job-level setting in the wrong place, and reading it as "all
+combinations" would tolerate failures across a whole matrix.
+
+Decided when the run is created, like `skip:` and `if-changed:`, so a
+combination that will not run reads as skipped from the first second.
+
 ### `group` - a label
 
 ```yaml

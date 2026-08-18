@@ -21,7 +21,7 @@
  */
 
 import { differencesIn } from './conformance'
-import type { Combination, MatrixDefinition } from './matrix'
+import type { Combination, MatrixAdjustment, MatrixDefinition } from './matrix'
 import { combinationLabel, expandMatrix } from './matrix'
 
 export interface WorkflowError {
@@ -271,6 +271,17 @@ export interface WorkflowJob {
    * pipelines share.
    */
   concurrencyLimit: { group: string, limit: number, method: 'ordered' | 'eager' } | null
+
+  /**
+   * `reviewos.adjustments:` - one combination of the matrix, singled out.
+   *
+   * The useful matrix is never the full cross product: one combination is
+   * known-broken and should not run, another is expected to fail and should not
+   * fail the run. Actions can say the first with `exclude` and cannot say the
+   * second at all, because `continue-on-error` is per job - tolerating one
+   * combination means tolerating every one of them.
+   */
+  adjustments: MatrixAdjustment[]
 }
 
 /**
@@ -312,6 +323,8 @@ interface ExtensionResult {
   checkout: Record<string, unknown> | null
   /** `concurrency-group:` with `concurrency:` - a named limit across runs and workflows. */
   concurrencyLimit: { group: string, limit: number, method: 'ordered' | 'eager' } | null
+  /** `adjustments:` - one matrix combination skipped, or allowed to fail. */
+  adjustments: MatrixAdjustment[]
 }
 
 export interface WorkflowService {
@@ -537,6 +550,8 @@ const EXTENSION_KEYS = new Set([
   // How the code gets here: depth, submodules, LFS, sparse paths, or nothing
   // at all. The step every job has and nobody writes.
   'checkout',
+  // One combination of a matrix singled out: skipped, or allowed to fail.
+  'adjustments',
   // A named limit shared across runs and workflows - the deploy lock and the
   // one staging environment three pipelines share.
   'concurrency',
@@ -867,14 +882,14 @@ function extensionOf(
   const raw = asRecord(body.reviewos)
 
   if (!raw)
-    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0, artifactPaths: [], secrets: null, cancelOnBuildFailing: false, checkout: null, concurrencyLimit: null }
+    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0, artifactPaths: [], secrets: null, cancelOnBuildFailing: false, checkout: null, concurrencyLimit: null, adjustments: [] }
 
   for (const key of Object.keys(raw)) {
     if (!EXTENSION_KEYS.has(key)) {
       errors.push({
         line: lineOf(source, key, jobLine),
         message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
-        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `cancel-on-build-failing`, `checkout`, `concurrency`, `concurrency-group`, `concurrency-method`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
+        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `secrets`, `cancel-on-build-failing`, `checkout`, `adjustments`, `concurrency`, `concurrency-group`, `concurrency-method`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
       })
     }
   }
@@ -903,6 +918,7 @@ function extensionOf(
   const cancelOnBuildFailing = raw['cancel-on-build-failing'] === true
   const checkout = checkoutFrom(raw.checkout, id, jobLine, source, errors)
   const concurrencyLimit = concurrencyLimitFrom(raw, id, jobLine, source, errors)
+  const adjustments = adjustmentsFrom(raw.adjustments, id, jobLine, source, errors)
 
   const skip = skipFrom(raw.skip)
   const softFail = softFailFrom(raw['soft-fail'])
@@ -918,11 +934,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths, secrets, cancelOnBuildFailing, checkout, concurrencyLimit, adjustments }
 
   if (ifChanged.length > 0) {
     /*
@@ -991,6 +1007,7 @@ function extensionOf(
       cancelOnBuildFailing: false,
       checkout: null,
       concurrencyLimit: null,
+      adjustments: [],
     }
   }
 
@@ -1011,6 +1028,7 @@ function extensionOf(
       cancelOnBuildFailing: false,
       checkout: null,
       concurrencyLimit: null,
+      adjustments: [],
     }
   }
 
@@ -1030,6 +1048,7 @@ function extensionOf(
     cancelOnBuildFailing: false,
     checkout: null,
     concurrencyLimit: null,
+    adjustments: [],
   }
 }
 
@@ -1190,6 +1209,7 @@ function settingsOf(
   cancelOnBuildFailing = false,
   checkout: Record<string, unknown> | null = null,
   concurrencyLimit: { group: string, limit: number, method: string } | null = null,
+  adjustments: MatrixAdjustment[] = [],
 ): Record<string, unknown> {
   const settings: Record<string, unknown> = {}
 
@@ -1221,6 +1241,9 @@ function settingsOf(
 
   if (concurrencyLimit)
     settings.concurrency = concurrencyLimit
+
+  if (adjustments.length > 0)
+    settings.adjustments = adjustments
 
   return settings
 }
@@ -1332,6 +1355,93 @@ function priorityFrom(
   }
 
   return Math.max(-1000, Math.min(1000, priority))
+}
+
+/** The most combinations a job may single out. A longer list is a second matrix. */
+export const MAX_ADJUSTMENTS = 50
+
+/**
+ * `reviewos.adjustments:` - one combination of the matrix, singled out.
+ *
+ * ```yaml
+ * strategy:
+ *   matrix:
+ *     node: [20, 22, 24]
+ * reviewos:
+ *   adjustments:
+ *     - with: { node: 24 }
+ *       soft-fail: true
+ * ```
+ *
+ * Buildkite's key, and the gap it fills: `exclude` can drop a combination, and
+ * nothing in Actions can *tolerate* one, because `continue-on-error` is per job.
+ * A matrix with a nightly Node in it either fails the run on the version nobody
+ * has shipped yet, or tolerates failures on every version - and the second is
+ * how a broken build gets merged.
+ *
+ * `skip:` is here too, and it is not a duplicate of `exclude:`: a skipped
+ * combination is a row on the run **with the reason on it**, where an excluded
+ * one is a job that never existed and cannot explain itself.
+ */
+function adjustmentsFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): MatrixAdjustment[] {
+  if (value === undefined || value === null)
+    return []
+
+  if (!Array.isArray(value)) {
+    errors.push({
+      line: lineOf(source, 'adjustments', jobLine),
+      message: `\`adjustments:\` in job \`${id}\` is not a list`,
+      fix: 'Write `adjustments: [{ with: { node: 24 }, soft-fail: true }]`.',
+    })
+
+    return []
+  }
+
+  const adjustments: MatrixAdjustment[] = []
+
+  for (const entry of value.slice(0, MAX_ADJUSTMENTS)) {
+    const row = asRecord(entry)
+    const values = row ? asRecord(row.with) : null
+
+    if (!row || !values || Object.keys(values).length === 0) {
+      errors.push({
+        line: lineOf(source, 'adjustments', jobLine),
+        message: `An \`adjustments:\` entry in job \`${id}\` does not say which combination it is for`,
+        // Refused rather than read as "all of them": an adjustment that
+        // silently applied to every combination would tolerate failures across
+        // a whole matrix, which is the thing this key exists to avoid.
+        fix: 'Give each entry a `with:` naming the values, like `with: { node: 24 }`.',
+      })
+
+      continue
+    }
+
+    const skip = row.skip === true
+      ? 'This combination is turned off by an adjustment.'
+      : typeof row.skip === 'string' && row.skip.trim() ? row.skip.trim() : null
+
+    adjustments.push({
+      with: values as Combination,
+      skip,
+      softFail: row['soft-fail'] === true,
+    })
+  }
+
+  if (value.length > MAX_ADJUSTMENTS) {
+    errors.push({
+      line: lineOf(source, 'adjustments', jobLine),
+      message: `\`adjustments:\` in job \`${id}\` has ${value.length} entries, and this instance reads the first ${MAX_ADJUSTMENTS}`,
+      fix: 'A list this long is a second matrix. Split the job.',
+    })
+  }
+
+  return adjustments
 }
 
 /** The most jobs one named group may run at a time. A limit past this is not a limit. */
@@ -2287,6 +2397,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       cancelOnBuildFailing: extension.cancelOnBuildFailing,
       checkout: extension.checkout,
       concurrencyLimit: extension.concurrencyLimit,
+      adjustments: extension.adjustments,
     })
   }
 

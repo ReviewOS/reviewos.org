@@ -1021,6 +1021,87 @@ jobs:
   }, 120_000)
 })
 
+describe('matrix adjustments', () => {
+  test('one combination is skipped with its reason, and one is allowed to fail', async () => {
+    if (!available)
+      return
+
+    const path = '.github/workflows/adjusted.yml'
+
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path,
+      source: `name: Adjusted
+on: push
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22, 24]
+    reviewos:
+      adjustments:
+        - with: { node: 24 }
+          soft-fail: true
+        - with: { node: 22 }
+          skip: Waiting on the upstream fix.
+    steps:
+      - run: bun test
+`,
+      sha: '7'.repeat(40),
+    })
+
+    await dispatchPush({
+      repositoryId: created.repositoryId,
+      event: { ref: 'refs/heads/main' },
+      headSha: unique('a').padEnd(40, '0').slice(0, 40),
+    })
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_runs.id as id'])
+      .where('workflows.path', '=', path)
+      .orderBy('workflow_runs.id', 'desc')
+      .executeTakeFirst()
+
+    const rows: any[] = await db
+      .selectFrom('workflow_jobs')
+      .select(['name', 'state', 'condition_reason', 'continue_on_error', 'matrix_values'])
+      .where('workflow_run_id', '=', Number(run.id))
+      .orderBy('position')
+      .execute()
+
+    const byNode = new Map(rows.map((row: any) => [String(JSON.parse(String(row.matrix_values)).node), row]))
+
+    // The ordinary one: runs, and its failure would fail the run.
+    expect(String(byNode.get('20').state)).toBe('queued')
+    expect(byNode.get('20').continue_on_error).toBe(false)
+
+    /*
+     * Skipped, with the reason on the row - which is what an adjustment buys
+     * over `exclude:`, where the combination simply never exists and cannot
+     * explain itself.
+     */
+    expect(String(byNode.get('22').state)).toBe('skipped')
+    expect(String(byNode.get('22').condition_reason)).toContain('upstream fix')
+
+    /*
+     * And the nightly one runs but is tolerated - on this row only. Actions
+     * cannot say that: `continue-on-error` is per job, so tolerating Node 24
+     * there means tolerating 20 and 22 as well, and a matrix that tolerates
+     * everything cannot fail a build.
+     */
+    expect(String(byNode.get('24').state)).toBe('queued')
+    expect(byNode.get('24').continue_on_error).toBe(true)
+
+    await db.deleteFrom('workflows').where('path', '=', path).execute()
+  }, 120_000)
+})
+
 describe('a job that runs after a failure on purpose', () => {
   test('is queued while its ordinary sibling is skipped', async () => {
     if (!available)
