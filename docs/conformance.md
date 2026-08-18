@@ -42,7 +42,7 @@ These do what Actions does. A workflow using only these keys behaves the same he
 | `jobs.<id>.continue-on-error` | job | The job still shows as failed and the run is not failed by it, and the jobs that `needs:` it are told `success` - which is Actions' rule and the only shape that keeps a flaky suite visible instead of deleted. |
 | `jobs.<id>.outputs` | job | Resolved by the runner once the steps they read have run, stored on the run's job, and handed to the jobs that `needs:` it as `needs.<job>.outputs.<name>` alongside `needs.<job>.result`. |
 | `steps[*].run` | step | Executed by the runner, in the workspace, with the job's environment and with its `${{ }}` expressions filled in first - which is what makes `echo "${{ steps.build.outputs.name }}"` work. |
-| `steps[*].uses` | step | Local, composite and JavaScript actions run; remote ones are fetched and cached, under a policy that allows no host by default. |
+| `steps[*].uses` | step | Local, composite and JavaScript actions run; remote ones are fetched and cached, under a policy that allows no host by default. `docker://image` runs where the machine has docker or podman and the operator set `REVIEWOS_ALLOW_CONTAINERS`: the workspace mounts at `/github/workspace`, `args` and `entrypoint` are the container's, and every other `with:` key arrives as `INPUT_*`. An action whose `image:` is a `Dockerfile` is refused by name - building one would make the runner a build host for images from the repository whose workflow it is running. |
 | `steps[*].with` | step | Passed to an action as `INPUT_*`, with the action's declared defaults filled in. |
 | `steps[*].env` | step | The narrowest environment level, applied over the job's and the workflow's. |
 | `steps[*].working-directory` | step | Resolved against the workspace. |
@@ -81,7 +81,7 @@ These are read and do nothing yet. A workflow using one is told - on its run, or
 | Key | Where | What this instance does |
 | --- | --- | --- |
 | `run-name` | workflow | Accepted and not yet used; runs are named for their workflow. |
-| `jobs.<id>.container` | job | Parsed and refused at run time: this instance has no container isolation yet, and pretending otherwise would run the steps on the host. If what the image was for is a *toolchain* rather than isolation - `container: node:20` usually is - a pantry dependency file in the repository gets that without an image at all, and the runner puts it on `PATH`. Isolation is a separate machine; see [extensions](./extensions.md). |
+| `jobs.<id>.container` | job | Parsed and refused at run time: a job-level container means every step runs inside it, which is isolation rather than one step calling an image, and pretending otherwise would run the steps on the host. A *step* that names an image (`uses: docker://...`) does run; see `steps[*].uses`. If what the image was for is a *toolchain* rather than isolation - `container: node:20` usually is - a pantry dependency file in the repository gets that without an image at all, and the runner puts it on `PATH`. Isolation is a separate machine; see [extensions](./extensions.md). |
 | `jobs.<id>.services` | job | Parsed; no service containers are started, and a job that needs one is told rather than failing on a closed port. |
 | `jobs.<id>.environment` | job | Parsed; deployment environments and their protection rules are phase 9 work. |
 

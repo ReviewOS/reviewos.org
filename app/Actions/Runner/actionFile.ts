@@ -47,6 +47,16 @@ export interface ActionDefinition {
   runtime: string | null
   /** For a Docker action, the image as written. */
   image: string | null
+  /**
+   * A Docker action's `runs.entrypoint`, when it replaces the image's own.
+   *
+   * Kept as written, including any `${{ }}` in it: substitution happens where
+   * the inputs are known, and doing it here would be a second expression
+   * evaluator with a different idea of what is in scope.
+   */
+  entrypoint: string | null
+  /** A Docker action's `runs.args`, joined the way a command line reads. */
+  args: string | null
   /** For a composite action, the steps to run in order. */
   steps: ActionStep[]
   /** Why this action cannot be read, when it cannot. */
@@ -72,6 +82,8 @@ export function parseActionFile(source: string): ActionDefinition {
     post: null,
     runtime: null,
     image: null,
+    entrypoint: null,
+    args: null,
     steps: [],
     error: null,
   }
@@ -141,6 +153,17 @@ export function parseActionFile(source: string): ActionDefinition {
       ...definition,
       kind: 'docker',
       image: typeof runs.image === 'string' ? runs.image : null,
+      entrypoint: typeof runs.entrypoint === 'string' ? runs.entrypoint : null,
+      /*
+       * `args:` is a list in an action file and a command line to the container.
+       * Joined with spaces here and split again by the runner, which sounds
+       * circular and is not: the runner also has to accept `with.args` from a
+       * `docker://` step, which is written as one string, and one path through
+       * the splitter means one set of quoting rules rather than two.
+       */
+      args: Array.isArray(runs.args)
+        ? runs.args.map((one: unknown) => (typeof one === 'string' ? quoteIfNeeded(one) : String(one ?? ''))).join(' ')
+        : (typeof runs.args === 'string' ? runs.args : null),
     }
   }
 
@@ -255,4 +278,15 @@ export function missingInputs(definition: ActionDefinition, supplied: Record<str
     .filter(input => input.required && input.default === null)
     .filter(input => !(input.name in (supplied ?? {})))
     .map(input => input.name)
+}
+
+/**
+ * One argument, quoted only when it would otherwise split.
+ *
+ * An action file's `args:` is already a list, so the words in it are decided:
+ * joining them and splitting again would break an argument containing a space
+ * unless the join says where the boundaries were.
+ */
+function quoteIfNeeded(value: string): string {
+  return /[\s"']/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value
 }

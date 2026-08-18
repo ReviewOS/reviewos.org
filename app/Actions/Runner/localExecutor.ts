@@ -29,6 +29,7 @@ import process from 'node:process'
 import { fetchAction } from './actionCache'
 import { verifyWork } from '../Workflow/stepSignature'
 import { checkPolicy, defaultPolicy, parseActionRef } from './actionRef'
+import { containerCommand, containerRuntime } from './container'
 import type { ActionDefinition } from './actionFile'
 import { inputEnvironment, missingInputs, parseActionFile } from './actionFile'
 import type { CheckoutOptions } from './checkout'
@@ -726,19 +727,60 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       if (step.uses) {
         await send(`::group::${name}\n`)
 
+        /*
+         * An action gets the same files a `run:` step gets, and until now it
+         * did not - which meant `GITHUB_OUTPUT` was absent from every action's
+         * environment and no action could set an output at all. Nothing failed:
+         * the action wrote to a path that was not there or to nothing, and the
+         * step after it read an empty value, which is the shape of bug that
+         * reads as "that action is broken on this forge".
+         */
+        const actionFiles = stepFiles(workspace, index)
+
         const result = await runAction({
           uses: String(step.uses),
-          with: step.with ?? {},
+          with: interpolateValues(step.with ?? {}, context),
           workspace,
           job,
           policy: options.policy ?? defaultPolicy(),
           cacheRoot: options.actionCacheRoot ?? 'storage/framework/runtime/actions',
           origins: options.actionOrigins,
-          environment: { ...environmentFor(job, workspace), ...serviceEnv, ...carried },
+          environment: {
+            ...environmentFor(job, workspace),
+            ...serviceEnv,
+            ...carried,
+            ...actionFiles.environment,
+            ...interpolateValues(step.env ?? {}, context),
+          },
           onOutput: (text, stream) => send(text, stream),
         })
 
         await flush()
+
+        // Whatever it wrote through those files, applied the same way a
+        // `run:` step's writes are: outputs to the steps after it, environment
+        // and path carried, masks added to the reader, summary kept.
+        const wrote = readStepFiles(actionFiles)
+
+        Object.assign(carried, wrote.environment)
+
+        if (step.id) {
+          stepContext[String(step.id)] = {
+            outputs: wrote.outputs,
+            outcome: result.ok ? 'success' : 'failure',
+            conclusion: result.ok || step.continue_on_error ? 'success' : 'failure',
+          }
+        }
+
+        if (wrote.path)
+          extraPath = extraPath ? `${wrote.path}:${extraPath}` : wrote.path
+
+        if (wrote.summary)
+          summary.push(wrote.summary)
+
+        for (const value of wrote.masks)
+          reader.addMask(value)
+
         await send('::endgroup::\n')
 
         if (!result.ok) {
@@ -2192,11 +2234,30 @@ async function runAction(input: {
   }
 
   if (reference.kind === 'container') {
-    const reason = `\`${input.uses}\` is a container action, which needs a container this runner does not have`
+    /*
+     * `uses: docker://image` has no `action.yml` to read: the image *is* the
+     * action. So the inputs go in as `INPUT_*` the same way, and `args` and
+     * `entrypoint` mean what they mean to a container rather than being inputs
+     * of anything - which is what Actions does with them too.
+     */
+    const supplied: Record<string, string> = {}
 
-    await input.onOutput(`${reason}\n`, 'stderr')
+    for (const [name, value] of Object.entries(input.with ?? {})) {
+      if (name === 'args' || name === 'entrypoint')
+        continue
 
-    return { ok: false, reason }
+      supplied[`INPUT_${name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`] = value === null || value === undefined ? '' : String(value)
+    }
+
+    return runContainer({
+      image: String(reference.image ?? ''),
+      uses: input.uses,
+      workspace: input.workspace,
+      environment: { ...input.environment, ...supplied },
+      entrypoint: input.with?.entrypoint === undefined ? null : String(input.with.entrypoint),
+      args: input.with?.args === undefined ? null : String(input.with.args),
+      onOutput: input.onOutput,
+    })
   }
 
   /*
@@ -2281,11 +2342,107 @@ async function runAction(input: {
   if (definition.kind === 'javascript')
     return runJavaScript(definition, directory, input.workspace, environment, input.onOutput)
 
+  if (definition.kind === 'docker') {
+    const image = String(definition.image ?? '')
+
+    /*
+     * A pre-built image runs; a `Dockerfile` does not.
+     *
+     * Building one would mean this runner is a build host for arbitrary images
+     * from a repository it is running the workflow of - a bigger decision than
+     * "may containers run here", with its own cache, its own disk budget and
+     * its own supply chain. Refused by name so the workflow author knows to
+     * publish the image rather than wondering why nothing happened.
+     */
+    if (!image || !image.startsWith('docker://')) {
+      const reason = `this action builds its image from \`${image || 'a Dockerfile'}\`, and this runner runs published images only. Publish it and reference it as \`docker://\`.`
+
+      await input.onOutput(`${reason}\n`, 'stderr')
+
+      return { ok: false, reason }
+    }
+
+    return runContainer({
+      image: image.slice('docker://'.length),
+      uses: input.uses,
+      workspace: input.workspace,
+      environment,
+      entrypoint: definition.entrypoint ?? null,
+      // The action's own `args:`, with the caller's inputs already substituted
+      // into the environment above - an action.yml's args reference them as
+      // `${{ inputs.x }}`, which the definition resolved.
+      args: definition.args ?? null,
+      onOutput: input.onOutput,
+    })
+  }
+
   const reason = `\`${input.uses}\` is a ${definition.kind} action, which needs a container this runner does not have`
 
   await input.onOutput(`${reason}\n`, 'stderr')
 
   return { ok: false, reason }
+}
+
+/**
+ * One container run: find a runtime, build the argv, stream what it printed.
+ *
+ * The refusal when there is no runtime is not a fallback - there is nothing to
+ * fall back to. Running an image's entry point on the host would be the exact
+ * opposite of what the image was for, and quietly skipping the step would make
+ * a job pass without doing the thing it exists to do.
+ */
+async function runContainer(input: {
+  image: string
+  uses: string
+  workspace: string
+  environment: Record<string, string>
+  entrypoint: string | null
+  args: string | null
+  onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
+}): Promise<{ ok: boolean, reason: string }> {
+  if (!input.image) {
+    const reason = `\`${input.uses}\` names no image`
+
+    await input.onOutput(`${reason}\n`, 'stderr')
+
+    return { ok: false, reason }
+  }
+
+  const runtime = await containerRuntime()
+
+  if (!runtime) {
+    const reason = `\`${input.uses}\` is a container action, and this runner has no container runtime: install docker or podman, or set REVIEWOS_CONTAINER_RUNTIME to the one it should use`
+
+    await input.onOutput(`${reason}\n`, 'stderr')
+
+    return { ok: false, reason }
+  }
+
+  const argv = containerCommand(runtime, {
+    image: input.image,
+    workspace: input.workspace,
+    environment: input.environment,
+    entrypoint: input.entrypoint,
+    args: input.args,
+  })
+
+  // Said before it runs, because pulling an image somebody has not cached is
+  // minutes of a log saying nothing, and "which image is this" is the first
+  // question about a container step that behaves oddly.
+  await input.onOutput(`Running ${input.image} with ${runtime}.\n`, 'stdout')
+
+  const result = await runStep({
+    argv,
+    cwd: input.workspace,
+    // The container's environment is passed with `--env`, so the runtime itself
+    // needs only enough to find its own socket and configuration.
+    environment: process.env as Record<string, string>,
+    onOutput: input.onOutput,
+  })
+
+  return result.ok
+    ? { ok: true, reason: 'the container exited zero' }
+    : { ok: false, reason: `the container exited ${result.exitCode}` }
 }
 
 /** How deep one action may reach through others. Actions' own limit. */
@@ -2567,14 +2724,24 @@ function interpolateValues(values: Record<string, unknown>, context: Record<stri
 
 /** Run one command, streaming its output as it arrives. */
 async function runStep(input: {
-  command: string
+  /** A shell command, for a `run:` step. */
+  command?: string
+  /**
+   * An argv, executed directly.
+   *
+   * For a container run, where the values - an image, an argument, an
+   * environment value - come off a workflow file anybody who can push may edit.
+   * There is no shell in the middle, so there is nothing to quote for and
+   * nothing to get wrong when a commit message contains a semicolon.
+   */
+  argv?: readonly string[]
   cwd: string
   environment: Record<string, string>
   /** The step's own `timeout-minutes`, in milliseconds. The ceiling otherwise. */
   timeoutMs?: number
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
 }): Promise<StepResult> {
-  const child = Bun.spawn(['/bin/sh', '-c', input.command], {
+  const child = Bun.spawn(input.argv ? [...input.argv] : ['/bin/sh', '-c', String(input.command ?? '')], {
     cwd: input.cwd,
     env: input.environment,
     stdout: 'pipe',

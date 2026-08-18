@@ -23,6 +23,8 @@
 
 import process from 'node:process'
 import { runLoop, runOnce } from './localExecutor'
+import { defaultPolicy } from './actionRef'
+import { containerRuntime } from './container'
 
 interface Options {
   url: string
@@ -103,10 +105,34 @@ const USAGE = `reviewos-runner - run a ReviewOS instance's jobs on this machine
             is empty costs nothing between builds, and it knows whether it is
             mid-job where a scaler outside it has to guess.
 
+Where actions may come from is set here, in the environment, and the default is
+closed - local actions and nothing else:
+
+  REVIEWOS_ACTION_HOSTS         Hosts whose actions may run, comma separated.
+                                \`*\` allows any, which is what github.com's own
+                                runners do and is a decision rather than a
+                                default.
+  REVIEWOS_ACTION_DEFAULT_HOST  Where an unqualified \`actions/checkout@v4\`
+                                comes from. Unset, such a reference is refused
+                                rather than guessed at github.com.
+  REVIEWOS_ACTION_PINNED        Set to require a full commit sha, so a tag
+                                cannot be repointed after a review read it.
+  REVIEWOS_ALLOW_CONTAINERS     Set to run \`uses: docker://image\` steps.
+  REVIEWOS_CONTAINER_RUNTIME    Which runtime to use. Otherwise docker, then
+                                podman, whichever is on PATH.
+
 This is not a security boundary. A step runs as the user who started this, on
-this machine, with this user's files and network. A fork's pull request is
-refused outright.
+this machine, with this user's files and network. A container step is isolated
+by the runtime and nothing more: it mounts the workspace and can reach the
+network. A fork's pull request is refused outright.
 `
+
+/** An environment flag: set to anything but `0`, `false` or empty. */
+function truthy(value: string | undefined): boolean {
+  const text = String(value ?? '').trim().toLowerCase()
+
+  return text !== '' && text !== '0' && text !== 'false' && text !== 'no'
+}
 
 /*
  * Nothing below runs unless this file *is* the program.
@@ -180,11 +206,33 @@ if (import.meta.main) {
    */
   const workspaceRoot = process.env.REVIEWOS_WORKSPACE ?? undefined
 
+  /*
+   * Where actions may come from, decided by the operator of *this machine*.
+   *
+   * The default is closed - local actions and nothing else - and stays that
+   * way: an action is code from somewhere else that a repository's workflow
+   * runs here, and turning that on is a decision somebody should have to make
+   * rather than one a default makes for them. Read from the environment
+   * because a runner in an autoscaling group is configured by userdata, and a
+   * flag nobody can set from there is a flag that gets worked around.
+   */
+  const policy = {
+    ...defaultPolicy(),
+    allowedHosts: String(process.env.REVIEWOS_ACTION_HOSTS ?? '').split(',').map(one => one.trim()).filter(Boolean),
+    defaultHost: String(process.env.REVIEWOS_ACTION_DEFAULT_HOST ?? '').trim() || null,
+    requirePinnedSha: truthy(process.env.REVIEWOS_ACTION_PINNED),
+    allowContainers: truthy(process.env.REVIEWOS_ALLOW_CONTAINERS),
+  }
+
+  if (policy.allowContainers)
+    console.log(`  containers: ${(await containerRuntime()) ?? 'enabled, but no docker or podman on PATH'}`)
+
   if (options.once) {
     const outcome = await runOnce({
       baseUrl: url,
       token,
       workspaceRoot,
+      policy,
       say: line => console.log(line),
     })
 
@@ -197,6 +245,7 @@ if (import.meta.main) {
   const outcomes = await runLoop({
     baseUrl: url,
     token,
+    policy,
     maxJobs: options.jobs,
     idleTimeoutMs: options.idleTimeout * 1000,
     workspaceRoot,

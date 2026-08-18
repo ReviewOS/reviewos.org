@@ -904,7 +904,36 @@ cannot talk back to the runner is a workflow that fails on its second line.
       Nesting - a composite step that itself `uses:` something - is refused with a message rather
       than followed, because doing it without the depth limit and cycle check the
       reusable-workflow path already has is the version that recurses forever.
-- [ ] Container actions: `uses: docker://registry/image:tag`
+- [x] Container actions: `uses: docker://registry/image:tag`
+
+      The argv is built by a pure function and the execution is three lines, which is the right way
+      round: a container run is a long command line where every mistake is silent. A missing `--rm`
+      leaks containers until a build machine has no disk; a mount at the wrong path makes an action
+      see an empty workspace and do nothing; an environment variable still carrying a host path
+      sends a tool at a directory that does not exist inside, so the action writes its outputs to
+      nowhere and the job goes green with empty results. All of those are testable without a
+      runtime, and the test asserts the command line rather than the outcome.
+
+      The workspace mounts at `/github/workspace`, every path under it is rewritten to what the
+      container will see, and every variable is passed as `--env KEY=value` rather than `--env KEY` -
+      the second form reads the value out of the *runner's* environment, which would be a way for a
+      workflow to ask for a variable this process holds and the job was never given. `args` is split
+      the way a shell would split it and passed as an argv, so a quote in a workflow file is not a
+      place to inject a command. `--security-opt no-new-privileges`, always.
+
+      Off by default, twice: the instance's action policy has to allow containers, and the machine
+      has to have docker or podman. A runner with neither says so by name rather than failing on a
+      command not found, because a machine without a container runtime is an ordinary machine.
+
+      **An action whose `image:` is a `Dockerfile` is refused**, by name. Building it would make the
+      runner a build host for arbitrary images from the repository whose workflow it is running - a
+      bigger decision than "may containers run here", with its own cache, its own disk budget and
+      its own supply chain.
+
+      Found on the way, and fixed here: a `uses:` step was never given the files a `run:` step gets,
+      so `GITHUB_OUTPUT` was absent from every action's environment and **no action could set an
+      output at all**. Nothing failed - the action wrote to a path that was not there, and the step
+      after it read an empty value, which reads as "that action is broken on this forge".
 - [x] Remote actions by owner and name with a configurable default host, plus fully qualified URLs.
 
       An origins map decides where a host's repositories actually live, so `actions.example` can

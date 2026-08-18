@@ -936,6 +936,11 @@ has a command-line flag too, and the flag wins.
 - `GITHUB_RUN_ATTEMPT`, read by `app/Commands/ReportTests.ts`
 - `GITHUB_RUN_ID`, read by `app/Commands/ReportTests.ts`
 - `GITHUB_SHA`, read by `app/Commands/ReportTests.ts`
+- `REVIEWOS_ACTION_DEFAULT_HOST`, read by `app/Actions/Runner/standalone.ts`
+- `REVIEWOS_ACTION_HOSTS`, read by `app/Actions/Runner/standalone.ts`
+- `REVIEWOS_ACTION_PINNED`, read by `app/Actions/Runner/standalone.ts`
+- `REVIEWOS_ALLOW_CONTAINERS`, read by `app/Actions/Runner/standalone.ts`
+- `REVIEWOS_CONTAINER_RUNTIME`, read by `app/Actions/Runner/container.ts`
 - `REVIEWOS_REF_NAME`, read by `app/Commands/ReportTests.ts`
 - `REVIEWOS_REGISTRATION_TOKEN`, read by `app/Actions/Runner/standalone.ts`
 - `REVIEWOS_REPOSITORY`, read by `app/Commands/Ci.ts`, `app/Commands/ReportTests.ts`
