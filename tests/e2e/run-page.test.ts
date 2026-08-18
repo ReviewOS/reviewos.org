@@ -656,6 +656,38 @@ describe('where a run came from', () => {
   })
 })
 
+describe('searching a run\'s output', () => {
+  test('reports the matching lines and links to each one', async () => {
+    if (!available)
+      return
+
+    /*
+     * The value is landing on the line rather than on the job that contains
+     * it - landing on the job is what a reader could already do by scrolling.
+     * A GET parameter, so the result is a URL somebody can paste into a
+     * conversation.
+     */
+    const html = await page(`/${created.handle}/${created.name}/run/${created.running}?q=compiling`)
+
+    expect(html).toContain('matching')
+
+    // A link to a line id, and the id itself on the line the log rendered.
+    const link = html.match(/href="#(log-\d+-\d+)"/)
+
+    expect(link).toBeTruthy()
+    expect(html).toContain(`id="${link![1]}"`)
+  })
+
+  test('and says so plainly when nothing matches', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.running}?q=zzzznothing`)
+
+    expect(html).toContain('Nothing in this run')
+  })
+})
+
 describe('a repository with no workflows', () => {
   test('is offered starters that are real Actions workflows', async () => {
     if (!available)

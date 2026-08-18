@@ -18,6 +18,7 @@ import { artifactSize, runDuration, runIsFinished, runLabel, runTone } from '../
 import { eventsFromText, renderLog } from '../../../../functions/runs'
 import { explainWaiting } from '../../../../functions/runs'
 import { criticalPath, layersOf } from '../../../../functions/runs'
+import { searchLog } from '../../../../functions/runs'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
 // `resources/components/RepoBrowser.stx`.
@@ -556,7 +557,7 @@ const jobs = jobRows.map((job) => {
     logHtml: renderLog(
       eventsByJob.get(Number(job.id))
       ?? eventsFromText((logByJob.get(Number(job.id)) ?? '').replace(/\s+$/, '')),
-      { failed: String(job.state) === 'failed' },
+      { failed: String(job.state) === 'failed', jobId: Number(job.id) },
     ),
     // The row id the log endpoint is keyed on, and where this page's copy of
     // the output ends.
@@ -637,6 +638,34 @@ function milliseconds(value: number): string {
 
   return minutes < 60 ? `${minutes}m ${seconds % 60}s` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`
 }
+
+/*
+ * Searching this run's output.
+ *
+ * A failed job prints ten thousand lines and the one that matters says
+ * `error TS2345`. What people do instead of searching is scroll, and the reason
+ * is that the box does not exist.
+ *
+ * A GET parameter and a server-rendered list, so it works with no script and a
+ * result is a URL somebody can paste into a conversation - which is most of the
+ * value: "it is failing" and a link to the line are different messages.
+ */
+/*
+ * Through `useRoute()` rather than the `search` binding, which is declared on
+ * some request paths and not others - and an undeclared identifier takes every
+ * variable in this script with it, rendering the not-found branch as though the
+ * run were gone.
+ */
+const query = String((useRoute().query ?? {}).q ?? '').trim().slice(0, 200)
+
+const matches = query
+  ? jobs.flatMap((job: any) => searchLog({
+      jobId: Number(job.id),
+      jobName: String(job.name),
+      text: String(job.log ?? ''),
+      query,
+    }))
+  : []
 
 /*
  * The heading each group prints once.
@@ -784,6 +813,49 @@ const base = `/${ownerHandle}/${repositoryName}`
       {{-- Reports, never rewrites: see the note in the component. --}}
       @if (!runIsFinished(String(run.state)))
         <RunLive owner="{{ ownerHandle }}" repository="{{ repositoryName }}" number="{{ runNumber }}" />
+      @endif
+
+      {{--
+        Searching this run's output.
+        
+        A GET form and a server-rendered list: it works with no script, and a
+        result is a URL somebody can paste into a conversation - which is most
+        of the value, because "it is failing" and a link to the line are
+        different messages.
+      --}}
+      <form class="log-search" method="get" action="{{ base }}/run/{{ runNumber }}">
+        <input
+          class="log-search-input"
+          type="search"
+          name="q"
+          value="{{ query }}"
+          placeholder="Search this run's output"
+          aria-label="Search this run's output"
+        >
+        <button class="button log-search-button" type="submit">Search</button>
+      </form>
+
+      @if (query)
+        <section class="panel log-matches">
+          <h2 class="side-heading">{{ matches.length }} {{ matches.length === 1 ? 'line' : 'lines' }} matching “{{ query }}”</h2>
+
+          @if (matches.length === 0)
+            <p class="muted side-empty">Nothing in this run's output contains that.</p>
+          @else
+            @foreach (matches as match)
+              {{--
+                A link to the line, not to the job that contains it. Landing on
+                the job is what a reader could already do by scrolling.
+              --}}
+              <p class="log-match">
+                <a href="#log-{{ match.jobId }}-{{ match.line }}">
+                  <span class="muted">{{ match.jobName }}:{{ match.line }}</span>
+                </a>
+                <code class="log-match-text">{{ match.text }}</code>
+              </p>
+            @endforeach
+          @endif
+        </section>
       @endif
 
       {{--
@@ -1193,6 +1265,50 @@ const base = `/${ownerHandle}/${repositoryName}`
   .run-provenance {
     margin-top: 10px;
     font-size: 12px;
+  }
+
+  .log-search {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .log-search-input {
+    flex: 1;
+    padding: 7px 11px;
+    font-size: 13px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .log-search-button { font-size: 13px; }
+
+  .log-matches {
+    padding: 15px 17px;
+    margin-top: 12px;
+  }
+
+  .log-match {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    margin: 6px 0 0;
+    font-size: 12px;
+  }
+
+  /* One line each: a match that wraps to four lines turns fifty results into a
+    page nobody scans. */
+  .log-match-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The line a link landed on, so a reader can see where they arrived. */
+  .log-line:target {
+    background: var(--surface-strong, rgba(127, 127, 127, 0.16));
   }
 
   /* Secondary to the run's own controls: stopping one job is a smaller act

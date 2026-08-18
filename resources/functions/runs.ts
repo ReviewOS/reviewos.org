@@ -145,3 +145,12 @@ import { criticalPath as criticalPathImpl, layersOf as layersOfImpl, waitingOn a
 export const layersOf = layersOfImpl
 export const criticalPath = criticalPathImpl
 export const waitingOn = waitingOnImpl
+
+import { searchLog as searchLogImpl } from '../../app/Actions/Workflow/logSearch'
+
+/**
+ * The lines of a job's output that contain a query, with the line numbers a
+ * link can point at. A failed job prints ten thousand lines and the one that
+ * matters says `error TS2345`.
+ */
+export const searchLog = searchLogImpl

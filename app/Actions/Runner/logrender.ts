@@ -26,6 +26,14 @@ export interface RenderOptions {
    * rather than a storage one.
    */
   timestamps?: boolean
+
+  /**
+   * The job this log belongs to, which turns every line into a link target.
+   *
+   * Absent means no ids, which is right for anything rendering a log outside a
+   * run page: an id is a global name, and two logs on one page would collide.
+   */
+  jobId?: number
 }
 
 /** `14:32:07`, in the reader's terms rather than the runner's timezone. */
@@ -39,15 +47,27 @@ function clockOf(at: string): string {
 }
 
 /** One line: its time, its stream, and its text with colour and links. */
-function renderLine(event: LogEvent, options: RenderOptions): string {
+function renderLine(event: LogEvent, options: RenderOptions, line?: number): string {
   const time = options.timestamps && event.at
     ? `<span class="log-time">${escapeHtml(clockOf(event.at))}</span>`
+    : ''
+
+  /*
+   * An id per line, so a link can point at one.
+   *
+   * The whole value of searching a log is landing on the line rather than on
+   * the job that contains it, and a fragment is the only way to do that without
+   * script. Prefixed with the job, because a run has several logs and an id is
+   * a global name on the page.
+   */
+  const anchor = options.jobId && line
+    ? ` id="log-${options.jobId}-${line}"`
     : ''
 
   // The stream is a class rather than a prefix, so a reader can dim stdout or
   // colour stderr without the text itself carrying a marker somebody's build
   // could have printed.
-  return `<div class="log-line log-${event.stream === 'stderr' ? 'stderr' : 'stdout'}">${time}<span class="log-text">${renderAnsi(event.text)}</span></div>`
+  return `<div${anchor} class="log-line log-${event.stream === 'stderr' ? 'stderr' : 'stdout'}">${time}<span class="log-text">${renderAnsi(event.text)}</span></div>`
 }
 
 /**
@@ -70,8 +90,15 @@ export function renderLog(events: readonly LogEvent[], options: RenderOptions & 
 
   const groups = groupEvents(events)
 
+  /*
+   * Line numbers run across the whole log rather than per group, because that
+   * is the number a search reports and a reader counts: a fold is a way of
+   * showing output, not a second numbering of it.
+   */
+  let number = 0
+
   return groups.map((group) => {
-    const body = group.lines.map(line => renderLine(line, options)).join('')
+    const body = group.lines.map(line => renderLine(line, options, ++number)).join('')
 
     if (!group.grouped)
       return body

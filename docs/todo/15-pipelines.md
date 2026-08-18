@@ -1963,7 +1963,20 @@ decisions.
 
       Groups, timestamps, ANSI and links wait on structured log events - the plain-text half is what
       exists, and a group marker parsed out of plain text is a guess about somebody's build output.
-- [ ] Log search that works during streaming and on a finished run, with deep links to a line
+- [x] Log search that works during streaming and on a finished run, with deep links to a line
+
+      A GET form on the run page and a server-rendered list of matches, each linking to the line
+      itself - `#log-{job}-{line}`, with the id on the line the renderer emitted. Landing on the job
+      is what a reader could already do by scrolling; landing on the line is the feature.
+
+      No script, so it works on a finished run and while one is still streaming, and a result is a
+      URL somebody can paste into a conversation - which is most of the value, because "it is
+      failing" and a link to the line are different messages.
+
+      Plain text rather than a pattern: a regular expression box on a log search is a way to hang
+      the server on something somebody pasted, and what people type is a symbol name or an error
+      code. Fifty matches at most, and a long line is clipped *around* the match - clipping at the
+      end usually cuts off the part somebody searched for.
 - [x] Log redaction applied before persistence, driven by the secrets the job was given, with a
       visible marker where something was removed rather than a silent gap
 
