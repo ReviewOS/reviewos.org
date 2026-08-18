@@ -9,6 +9,7 @@ import {
   headerSafeName,
 } from './download'
 import { runGit, spawnGitLimited } from './git'
+import { stdoutStream } from './stream'
 
 /**
  * A repository at a ref, as a zip or a tar.gz.
@@ -61,19 +62,11 @@ export default new Action({
       })
     }
 
-    const stream = new ReadableStream({
-      start(controller) {
-        child.stdout.on('data', chunk => controller.enqueue(new Uint8Array(chunk)))
-        child.stdout.on('end', () => controller.close())
-        child.on('error', () => controller.close())
-      },
-      cancel() {
-        // Somebody closing the tab must not leave git packing a repository.
-        child.kill('SIGKILL')
-      },
-    })
-
-    return new Response(stream, {
+    // Pull-based (`stdoutStream`): a rate-limited download of a large archive
+    // holds process memory flat, because git only produces what the client
+    // has taken. Cancel kills the child - somebody closing the tab must not
+    // leave git packing a repository.
+    return new Response(stdoutStream(child), {
       headers: {
         'Content-Type': archiveContentType(format),
         'Content-Disposition': `attachment; filename="${headerSafeName(archiveFilename(name, ref, format))}"`,

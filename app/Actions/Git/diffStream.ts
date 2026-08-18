@@ -207,8 +207,15 @@ async function streamDiffArgs(
       async* [Symbol.asyncIterator]() {
         let drained = false
         try {
-          // Node readables are async iterable and apply backpressure through
-          // it, so a slow consumer slows git rather than filling memory.
+          /*
+           * Node readables are async iterable and apply backpressure through
+           * it - on Node. On Bun, measured at 1.3.14, the runtime drains a
+           * child's stdout into process memory eagerly no matter how slowly
+           * this iterator is consumed, so the pacing here bounds parsing and
+           * rendering but not the buffer under it. The shape is right and
+           * becomes fully true when Bun honors pipe backpressure; phase 16 M4
+           * in the roadmap carries the details and the upstream dependency.
+           */
           for await (const chunk of child.stdout)
             yield chunk as string
           drained = true

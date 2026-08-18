@@ -366,7 +366,27 @@ async function runGitCommand(command: Command, report: (error: unknown) => void)
     }),
   })
 
-  command.onData(data => child.stdin.write(data))
+  /*
+   * The push direction, bounded. `ts-ssh` pushes channel data through a
+   * callback and exposes no way to pause the channel, so when git indexes
+   * slower than the network delivers, `write()` buffers - and the only
+   * honest options are a bound or an OOM kill with everyone else's requests
+   * attached. 32 MiB is far past any burst a healthy transfer produces;
+   * a session that reaches it is terminated with a message, exactly what
+   * the HTTP path's `drain` await achieves by politer means. If ts-ssh
+   * grows channel flow control, this becomes a pause instead.
+   */
+  const STDIN_WATERMARK = 32 * 1024 * 1024
+
+  command.onData((data) => {
+    child.stdin.write(data)
+
+    if (child.stdin.writableLength > STDIN_WATERMARK) {
+      command.writeStderr('The push arrived faster than the server could take it. Try again.\n')
+      child.kill('SIGKILL')
+      command.exit(1)
+    }
+  })
   command.onEnd(() => child.stdin.end())
 
   child.stdout.on('data', chunk => command.write(new Uint8Array(chunk)))

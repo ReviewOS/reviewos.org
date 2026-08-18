@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { browseContext, browsePath } from '../Browse/context'
 import { rawHeaders } from './download'
 import { spawnGit, spawnGitLimited } from './git'
+import { stdoutStream } from './stream'
 
 /**
  * A file's bytes, exactly as they are stored.
@@ -57,18 +58,9 @@ export default new Action({
     const inline = String(request.get('inline') ?? '') === '1'
     const headers = rawHeaders(path, !inline)
 
-    const stream = new ReadableStream({
-      start(controller) {
-        child.stdout.on('data', chunk => controller.enqueue(new Uint8Array(chunk)))
-        child.stdout.on('end', () => controller.close())
-        child.on('error', () => controller.close())
-      },
-      cancel() {
-        child.kill('SIGKILL')
-      },
-    })
-
-    return new Response(stream, {
+    // Pull-based (`stdoutStream`), so a slow reader of a large blob slows git
+    // rather than buffering the file in this process.
+    return new Response(stdoutStream(child), {
       headers: {
         'Content-Type': headers.contentType,
         'Content-Disposition': headers.disposition,

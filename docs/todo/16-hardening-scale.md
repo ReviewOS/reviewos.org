@@ -133,15 +133,30 @@ a multi-gigabyte archive buffers the whole difference in process memory. The std
 mirror image: `child.stdin.write()` return values are ignored, so a push arriving faster than git
 indexes it buffers unboundedly.
 
-- [ ] A shared pull-based `stdoutStream(child)` helper - one chunk per `pull()`, kill on
+- [x] A shared pull-based `stdoutStream(child)` helper - one chunk per `pull()`, kill on
       `cancel()` - replacing the `start()` plus `on('data')` bodies in the wire-protocol
       `streamService` (`routes/git.ts`), `ArchiveAction`, and `RawFileAction`.
-- [ ] The receive-pack pump awaits `drain` when `write()` returns false.
-- [ ] The SSH path (`app/Actions/Git/ssh.ts`) does the same, pausing the channel if the library
-      exposes it, else buffering under a hard watermark and terminating on breach.
-- [ ] Tests: a fake child proves one-chunk-per-pull and kill-on-cancel; existing smart HTTP and
-      download suites confirm normal transfers unchanged. Manual check: a rate-limited archive
-      download of a large repository holds process memory flat.
+- [x] The receive-pack pump awaits `drain` when `write()` returns false. Verified real on this
+      runtime: a 100MB write against a child that sleeps three seconds before reading was held to
+      the child's pace, `write()` answering false throughout, RSS flat.
+- [x] The SSH path (`app/Actions/Git/ssh.ts`) does the same, pausing the channel if the library
+      exposes it, else buffering under a hard watermark and terminating on breach. ts-ssh exposes
+      no pause, so it is the watermark: 32 MiB on `stdin.writableLength`, terminate with a message.
+- [x] Tests: a fake child proves one-chunk-per-pull and kill-on-cancel
+      (`tests/unit/git-stream.test.ts`); existing smart HTTP and download suites confirm normal
+      transfers unchanged. The manual memory check is the next box's story.
+- [ ] **The download direction needs a Bun fix, and until it lands the memory-flat guarantee is
+      structural rather than actual.** Measured on Bun 1.3.14 while closing the boxes above: the
+      runtime drains a spawned child's stdout into process memory eagerly no matter how slowly the
+      consumer reads - a 50MB writer finished in one second against a paused reader, the buffered
+      bytes invisible to `readableLength`, and the same through `pause()`, the async iterator, and
+      `Bun.spawn`'s native stream. On Node the same code blocks the child at the pipe. The write
+      direction is honest (that is why the two boxes above could tick). So every pull-based stream
+      here bounds parsing and delivery but not the runtime's own buffer, and `diffStream.ts` has
+      carried the same latent gap since it was written. Adjacent, not identical, upstream reports:
+      oven-sh/bun#18239 (stdin buffered whole), #14693, #5319. The fix is a Bun issue plus a
+      regression test here when it lands; a FIFO-per-request detour was considered and rejected as
+      exactly the workaround-that-hides-the-bug this codebase refuses.
 
 ## M5 - More than one process on one host
 

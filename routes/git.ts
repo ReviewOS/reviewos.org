@@ -2,6 +2,7 @@ import { route } from '@stacksjs/router'
 import { diskPathFor, findRepositoryByPath, mayUseService, tokenFromBasicAuth } from '../app/Actions/Git/access'
 import { recordTokenUse } from '../app/Actions/Tokens/authenticate'
 import { serviceArgs, spawnGitLimited } from '../app/Actions/Git/git'
+import { stdoutStream } from '../app/Actions/Git/stream'
 import { GATE_ENDPOINT, HOOK_ENDPOINT, hookSecret, repositoryByGitDir, repositoryPaths } from '../app/Actions/Git/hooks'
 import { refsToExclude, reportLines, safeQuarantine, scanUpdate } from '../app/Actions/Git/scan'
 import { instancePatterns, pushProtectionSettings } from '../app/Actions/Git/patterns'
@@ -134,16 +135,26 @@ route.get('/{owner}/{repository}/info/refs', async (request: any) => {
   if (!child)
     return saturated()
 
+  // The advertisement preamble, then git's own output pulled one chunk at a
+  // time (`stdoutStream`): a slow client slows git rather than filling this
+  // process with the difference.
+  const preamble = new TextEncoder().encode(`${packetLine(`# service=git-${service}\n`)}0000`)
+  const advertisement = stdoutStream(child).getReader()
+
   const stream = new ReadableStream({
     start(controller) {
-      controller.enqueue(new TextEncoder().encode(packetLine(`# service=git-${service}\n`)))
-      controller.enqueue(new TextEncoder().encode('0000'))
-      child.stdout.on('data', chunk => controller.enqueue(new Uint8Array(chunk)))
-      child.stdout.on('end', () => controller.close())
-      child.on('error', () => controller.close())
+      controller.enqueue(preamble)
     },
-    cancel() {
-      child.kill('SIGKILL')
+    async pull(controller) {
+      const { done, value } = await advertisement.read()
+
+      if (done)
+        controller.close()
+      else
+        controller.enqueue(value)
+    },
+    cancel(reason) {
+      void advertisement.cancel(reason)
     },
   })
 
@@ -515,7 +526,13 @@ async function streamService(request: any, path: string, service: 'upload-pack' 
         const { done, value } = await reader.read()
         if (done)
           break
-        child.stdin.write(value)
+
+        // `write()` answering false means git is indexing slower than the
+        // push is arriving. Await `drain` rather than writing on: without
+        // this, a fast push of a large packfile buffers unboundedly in this
+        // process while git catches up.
+        if (!child.stdin.write(value))
+          await new Promise<void>(resolveDrain => child.stdin.once('drain', resolveDrain))
       }
       child.stdin.end()
     }
@@ -525,18 +542,9 @@ async function streamService(request: any, path: string, service: 'upload-pack' 
     child.stdin.end()
   }
 
-  const stream = new ReadableStream({
-    start(controller) {
-      child.stdout.on('data', chunk => controller.enqueue(new Uint8Array(chunk)))
-      child.stdout.on('end', () => controller.close())
-      child.on('error', () => controller.close())
-    },
-    cancel() {
-      child.kill('SIGKILL')
-    },
-  })
-
-  return new Response(stream, {
+  // Pull-based (`stdoutStream`), so a slow client slows git rather than
+  // filling this process with a packfile the network has not taken yet.
+  return new Response(stdoutStream(child), {
     headers: {
       'Content-Type': `application/x-git-${service}-result`,
       'Cache-Control': 'no-cache, max-age=0, must-revalidate',
