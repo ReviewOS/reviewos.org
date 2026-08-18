@@ -644,6 +644,21 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     const state = failed ? 'failed' : 'succeeded'
 
     /*
+     * What the job asked to have kept, collected on the way out.
+     *
+     * Before the conclusion for the same reason the annotations are: reporting
+     * the conclusion is what makes a run terminal, and an artifact that lands
+     * after its run finished is one somebody has already given up looking for.
+     * Pass or fail - the failing run is the one with the screenshot in it.
+     */
+    await publishArtifacts({ job, workspace, baseUrl: options.baseUrl, jobToken, say: send })
+
+    // Flushed again, because what the collection said about itself - a glob
+    // that matched nothing, an upload that was refused - is written through the
+    // same buffer as the job's own output.
+    await flush()
+
+    /*
      * Annotations and the summary go before the conclusion, on purpose.
      *
      * Reporting the conclusion is what makes a run terminal, and a check that
@@ -1028,6 +1043,114 @@ exec curl -sS -X POST ${JSON.stringify(`${baseUrl.replace(/\/$/, '')}/api/runner
      * because a nicety was unavailable.
      */
     return ''
+  }
+}
+
+/** The most files one job publishes automatically. Past this, say so and stop. */
+export const MAX_COLLECTED_FILES = 200
+
+/**
+ * What matched the job's `artifact-paths:`, relative to the workspace.
+ *
+ * Sorted, so two runs of the same job upload the same files in the same order
+ * and a person comparing two runs is comparing lists rather than orderings.
+ * Directories are skipped: an artifact is a file, and a glob like `coverage/**`
+ * matches the directory as well as what is in it.
+ *
+ * Exported for the tests, because the interesting behaviour here - a glob that
+ * matches nothing, a list past the ceiling, a path that resolves outside the
+ * workspace after globbing - is all in the matching rather than in the upload.
+ */
+export async function collectArtifacts(workspace: string, globs: readonly string[]): Promise<string[]> {
+  const found = new Set<string>()
+
+  for (const glob of globs) {
+    try {
+      for await (const match of new Bun.Glob(glob).scan({ cwd: workspace, onlyFiles: true, dot: false })) {
+        /*
+         * Checked again after globbing, not only at parse time. A symlink
+         * inside the checkout can point anywhere, and `coverage/**` matching a
+         * link to `/etc/shadow` would publish it to a repository page.
+         */
+        const full = resolve(workspace, match)
+
+        if (full.startsWith(resolve(workspace) + '/'))
+          found.add(match)
+      }
+    }
+    catch {
+      // A malformed glob collects nothing rather than failing the job. The
+      // build already happened; refusing to report it over a pattern would
+      // throw away the result somebody was waiting for.
+      continue
+    }
+  }
+
+  return [...found].sort().slice(0, MAX_COLLECTED_FILES)
+}
+
+/**
+ * Upload what the job left behind, whether it passed or failed.
+ *
+ * **Failure is the case this exists for.** A step that uploads its own output
+ * has to be written `if: always()`, and the run where somebody forgot is always
+ * the run with the screenshot in it. So this happens after the steps, before
+ * the conclusion, on both paths.
+ *
+ * Nothing here can fail the job. The work is done and reported either way; an
+ * upload that 413s or a disk that vanished is worth a line in the log, not a
+ * red build for a build that was green.
+ */
+async function publishArtifacts(input: {
+  job: any
+  workspace: string
+  baseUrl: string
+  jobToken: string
+  say: (line: string) => Promise<void>
+}): Promise<void> {
+  const globs = Array.isArray(input.job?.artifact_paths) ? input.job.artifact_paths.map(String) : []
+
+  if (globs.length === 0)
+    return
+
+  const files = await collectArtifacts(input.workspace, globs)
+
+  if (files.length === 0) {
+    // Said out loud. A glob that matches nothing is usually a typo or a build
+    // that wrote somewhere else, and silence makes it look like the feature is
+    // not wired up.
+    await input.say(`no files matched artifact-paths: ${globs.join(', ')}\n`)
+    return
+  }
+
+  for (const file of files) {
+    try {
+      const bytes = readFileSync(join(input.workspace, file))
+
+      const answer = await fetch(`${input.baseUrl.replace(/\/$/, '')}/api/runner/artifacts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${input.jobToken}`,
+          'Content-Type': 'application/octet-stream',
+          'X-Runner-Protocol': '1',
+          /*
+           * The path inside the workspace, not the basename. The store flattens
+           * a name's separators, so `out/report.txt` is stored as
+           * `out-report.txt` - which keeps two files called `report.xml` in two
+           * directories apart, where sending the basename would make the second
+           * one a name collision the endpoint refuses.
+           */
+          'X-Artifact-Name': file,
+        },
+        body: bytes,
+      })
+
+      if (!answer.ok)
+        await input.say(`could not publish ${file}: ${answer.status}\n`)
+    }
+    catch (error) {
+      await input.say(`could not publish ${file}: ${error instanceof Error ? error.message : String(error)}\n`)
+    }
   }
 }
 

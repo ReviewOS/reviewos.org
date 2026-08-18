@@ -1132,3 +1132,96 @@ describe('a job that uploads steps', () => {
     expect(second?.state).toBe('succeeded')
   }, 180_000)
 })
+
+describe('artifact-paths', () => {
+  test('a failing job still publishes what it produced', async () => {
+    if (!available)
+      return
+
+    /*
+     * The whole reason the attribute exists. Uploading from a step means
+     * writing `if: always()` on it and remembering to, and the run where
+     * somebody forgot is always the run with the screenshot in it.
+     */
+    const { runOnce } = await import('../../app/Actions/Runner/localExecutor')
+
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_versions.id', 'desc')
+      .executeTakeFirst()
+
+    const job: any = await db.insertInto('workflow_version_jobs').values({
+      workflow_version_id: Number(version.id),
+      job_id: 'collects',
+      name: 'Collects',
+      position: 30,
+      runs_on: 'ubuntu-latest',
+    }).returning(['id']).executeTakeFirst()
+
+    // Writes its evidence, then fails - the ordinary shape of a browser test.
+    for (const step of [
+      { position: 0, name: 'Produce', command: 'mkdir -p out && echo "the evidence" > out/report.txt && echo "junk" > out/ignored.log' },
+      { position: 1, name: 'Fail', command: 'exit 1' },
+    ]) {
+      await db.insertInto('workflow_version_steps').values({
+        workflow_version_job_id: Number(job.id),
+        ...step,
+      } as any).execute()
+    }
+
+    const run: any = await db.insertInto('workflow_runs').values({
+      workflow_version_id: Number(version.id),
+      repository_id: created.repositoryId,
+      number: 700,
+      state: 'queued',
+      event: 'push',
+      event_ref: 'refs/heads/collects',
+      head_sha: created.headSha,
+      definition_sha: created.headSha,
+      trusted: true,
+    }).returning(['id']).executeTakeFirst()
+
+    const runJob: any = await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: 'collects',
+      name: 'Collects',
+      position: 0,
+      state: 'queued',
+      runs_on: 'ubuntu-latest',
+      settings: JSON.stringify({ artifactPaths: ['out/*.txt'] }),
+    }).returning(['id']).executeTakeFirst()
+
+    const outcome = await runOnce({ baseUrl, token: created.token, reposRoot: 'storage/repos' })
+
+    expect(outcome?.state).toBe('failed')
+
+    const artifacts: any[] = await db
+      .selectFrom('workflow_artifacts')
+      .select(['name', 'size_bytes'])
+      .where('workflow_run_id', '=', Number(run.id))
+      .execute()
+
+    /*
+     * The glob decided what travelled: the report, not the log beside it. The
+     * name keeps the directory - flattened by the store, which is where a
+     * separator becomes a dash - so two `report.txt` files in two directories
+     * do not collide.
+     */
+    expect(artifacts.map(row => String(row.name))).toEqual(['out-report.txt'])
+    expect(Number(artifacts[0]?.size_bytes)).toBeGreaterThan(0)
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .select(['content'])
+      .where('workflow_job_id', '=', Number(runJob.id))
+      .orderBy('sequence')
+      .execute()
+
+    // And nothing about the collection failed the job, which had already
+    // failed on its own terms.
+    expect(logs.map(row => String(row.content ?? '')).join('')).not.toContain('could not publish')
+  }, 180_000)
+})

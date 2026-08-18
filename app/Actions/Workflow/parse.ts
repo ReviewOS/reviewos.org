@@ -220,6 +220,14 @@ export interface WorkflowJob {
    * that gets silently dropped by the next thing that rebuilds the object.
    */
   parallelism: number
+
+  /**
+   * `reviewos.artifact-paths:` - what to collect when the job ends.
+   *
+   * Globs, relative to the workspace, uploaded by the runner whether the job
+   * passed or failed. Surfaced here for the same reason as `parallelism`.
+   */
+  artifactPaths: string[]
 }
 
 /**
@@ -251,6 +259,8 @@ interface ExtensionResult {
   allowDependencyFailure: boolean
   /** `parallelism:` - how many identical copies of this job to run. 0 for none. */
   parallelism: number
+  /** `artifact-paths:` - globs the runner uploads when the job ends, either way. */
+  artifactPaths: string[]
 }
 
 export interface WorkflowService {
@@ -463,6 +473,10 @@ const EXTENSION_KEYS = new Set([
   // One step, N identical jobs. The other half of the split endpoint: a suite
   // sharded across five machines needs five jobs that know which one they are.
   'parallelism',
+  // What the job leaves behind, collected whether it passed or failed - which
+  // is the case that matters, because the failing run is the one with the
+  // screenshot in it.
+  'artifact-paths',
   // Buildkite's step attributes, in the three shapes people actually reach for.
   'skip',
   'soft-fail',
@@ -788,14 +802,14 @@ function extensionOf(
   const raw = asRecord(body.reviewos)
 
   if (!raw)
-    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0 }
+    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0, artifactPaths: [] }
 
   for (const key of Object.keys(raw)) {
     if (!EXTENSION_KEYS.has(key)) {
       errors.push({
         line: lineOf(source, key, jobLine),
         message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
-        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
+        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `artifact-paths`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
       })
     }
   }
@@ -816,6 +830,7 @@ function extensionOf(
   const priority = priorityFrom(raw.priority, id, jobLine, source, errors)
   const agents = agentsFrom(raw.agents, id, jobLine, source, errors)
   const parallelism = parallelismFrom(raw.parallelism, id, jobLine, source, errors)
+  const artifactPaths = artifactPathsFrom(raw['artifact-paths'], id, jobLine, source, errors)
 
   const skip = skipFrom(raw.skip)
   const softFail = softFailFrom(raw['soft-fail'])
@@ -831,11 +846,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism, artifactPaths), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism, artifactPaths }
 
   if (ifChanged.length > 0) {
     /*
@@ -899,6 +914,7 @@ function extensionOf(
       group,
       allowDependencyFailure,
       parallelism: 0,
+      artifactPaths: [],
     }
   }
 
@@ -914,6 +930,7 @@ function extensionOf(
       branches,
       allowDependencyFailure,
       parallelism: 0,
+      artifactPaths: [],
     }
   }
 
@@ -928,6 +945,7 @@ function extensionOf(
     branches,
     allowDependencyFailure,
     parallelism: 0,
+    artifactPaths: [],
   }
 }
 
@@ -1079,7 +1097,7 @@ function blockFrom(
 }
 
 /** The extension settings a command job carries, omitting what it did not say. */
-function settingsOf(retry: Record<string, unknown> | null, agents: string[], parallelism = 0): Record<string, unknown> {
+function settingsOf(retry: Record<string, unknown> | null, agents: string[], parallelism = 0, artifactPaths: string[] = []): Record<string, unknown> {
   const settings: Record<string, unknown> = {}
 
   if (retry)
@@ -1090,6 +1108,9 @@ function settingsOf(retry: Record<string, unknown> | null, agents: string[], par
 
   if (parallelism > 0)
     settings.parallelism = parallelism
+
+  if (artifactPaths.length > 0)
+    settings.artifactPaths = artifactPaths
 
   return settings
 }
@@ -1201,6 +1222,80 @@ function priorityFrom(
   }
 
   return Math.max(-1000, Math.min(1000, priority))
+}
+
+/** The most globs one job may name. A list past this is a job uploading a tree. */
+export const MAX_ARTIFACT_PATHS = 20
+
+/**
+ * `reviewos.artifact-paths:` - what the job leaves behind.
+ *
+ * Globs relative to the workspace, collected by the runner **whether the job
+ * passed or failed**, which is the whole reason the attribute exists. Uploading
+ * from a step means writing `if: always()` on it and remembering to, and the
+ * run where somebody forgot is always the run with the screenshot in it.
+ *
+ * An absolute path or one climbing out of the workspace is refused: the runner
+ * would happily read it, and a job that can name `/etc/` is a job that can
+ * publish the machine's secrets to a repository page.
+ */
+function artifactPathsFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): string[] {
+  if (value === undefined || value === null)
+    return []
+
+  const raw = typeof value === 'string' ? [value] : value
+
+  if (!Array.isArray(raw)) {
+    errors.push({
+      line: lineOf(source, 'artifact-paths', jobLine),
+      message: `\`artifact-paths:\` in job \`${id}\` is neither a path nor a list of paths`,
+      fix: 'Write `artifact-paths: coverage/**`, or a list of globs.',
+    })
+
+    return []
+  }
+
+  const paths: string[] = []
+
+  for (const one of raw) {
+    const glob = String(one ?? '').trim()
+
+    if (!glob)
+      continue
+
+    if (glob.startsWith('/') || glob.split('/').includes('..')) {
+      errors.push({
+        line: lineOf(source, 'artifact-paths', jobLine),
+        message: `\`artifact-paths:\` in job \`${id}\` names \`${glob}\`, which is outside the workspace`,
+        // Said plainly, because the reason is not obvious from the message: a
+        // glob that escapes the checkout publishes the *machine* rather than
+        // the build, and the runner is single-tenant.
+        fix: 'Name paths inside the checkout. A job may only publish what it produced.',
+      })
+
+      continue
+    }
+
+    paths.push(glob)
+  }
+
+  if (paths.length > MAX_ARTIFACT_PATHS) {
+    errors.push({
+      line: lineOf(source, 'artifact-paths', jobLine),
+      message: `\`artifact-paths:\` in job \`${id}\` names ${paths.length} globs, and this instance stops at ${MAX_ARTIFACT_PATHS}`,
+      fix: 'Collect what somebody will actually download. An artifact nobody opens is storage the instance pays for.',
+    })
+
+    return paths.slice(0, MAX_ARTIFACT_PATHS)
+  }
+
+  return paths
 }
 
 /** The most copies of one job this instance will make. */
@@ -1834,6 +1929,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       ifChanged: extension.ifChanged,
       priority: extension.priority,
       parallelism: extension.parallelism,
+      artifactPaths: extension.artifactPaths,
     })
   }
 

@@ -272,7 +272,7 @@ describe('the rules that keep the kinds apart', () => {
 
     expect(message).toContain('`pause` is not a `reviewos:` key')
 
-    for (const key of ['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents', 'parallelism', 'skip', 'soft-fail', 'branches'])
+    for (const key of ['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents', 'parallelism', 'artifact-paths', 'skip', 'soft-fail', 'branches'])
       expect(message).toContain(`\`${key}\``)
   })
 })
@@ -545,6 +545,63 @@ describe('parallelism', () => {
       parallelism: 3
 `).join(' ')).toContain('cannot be run in parallel copies')
     }
+  })
+})
+
+describe('artifact-paths', () => {
+  test('is a glob or a list of them, kept in the settings a run copies forward', () => {
+    const [one, many] = jobs(`jobs:
+  single:
+    runs-on: ubuntu-latest
+    reviewos:
+      artifact-paths: coverage/lcov.info
+    steps:
+      - run: ./test
+  several:
+    runs-on: ubuntu-latest
+    reviewos:
+      artifact-paths:
+        - coverage/**
+        - screenshots/*.png
+    steps:
+      - run: ./test
+`)
+
+    expect(one!.artifactPaths).toEqual(['coverage/lcov.info'])
+    expect(many!.artifactPaths).toEqual(['coverage/**', 'screenshots/*.png'])
+    expect((many!.settings as any).artifactPaths).toEqual(['coverage/**', 'screenshots/*.png'])
+  })
+
+  test('a path outside the workspace is refused', () => {
+    /*
+     * The runner would happily read it. A job that can name `/etc/` is a job
+     * that can publish the machine's secrets to a repository page, and the
+     * local runner shares a host with the control plane.
+     */
+    for (const glob of ['/etc/passwd', '../../.ssh/id_rsa']) {
+      expect(errorsIn(`jobs:
+  leak:
+    runs-on: ubuntu-latest
+    reviewos:
+      artifact-paths: ${glob}
+    steps:
+      - run: ./test
+`).join(' ')).toContain('outside the workspace')
+    }
+  })
+
+  test('and a job naming too many globs is told the ceiling', () => {
+    const many = Array.from({ length: 25 }, (_, index) => `        - out/${index}/**`).join('\n')
+
+    expect(errorsIn(`jobs:
+  greedy:
+    runs-on: ubuntu-latest
+    reviewos:
+      artifact-paths:
+${many}
+    steps:
+      - run: ./build
+`).join(' ')).toContain('stops at 20')
   })
 })
 

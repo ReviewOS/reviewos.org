@@ -349,6 +349,45 @@ itself as green.
 A barrier, a gate or a trigger cannot have copies. Five copies of a gate is five
 approvals for one deploy.
 
+### `artifact-paths` - what to keep when the job ends
+
+```yaml
+  browser-tests:
+    runs-on: ubuntu-latest
+    reviewos:
+      artifact-paths:
+        - screenshots/**
+        - playwright-report/**
+    steps: [{ run: ./e2e }]
+```
+
+Globs, relative to the workspace, uploaded by the runner when the job finishes -
+**whether it passed or failed**. That is the whole reason the attribute exists.
+The alternative is a step that uploads its own output, which has to be written
+`if: always()`, and the run where somebody forgot is always the run with the
+screenshot in it.
+
+The files land as ordinary artifacts on the run, downloadable from the run page
+and from `/api/repos/workflow-runs/artifacts`. The path is kept in the name -
+`screenshots/failure.png` is stored as `screenshots-failure.png` - so two
+`report.xml` files in two directories are two artifacts rather than a collision.
+
+A glob that matches nothing says so in the log rather than failing the job:
+usually it is a typo or a build that wrote somewhere else, and the job has
+already run either way. Nothing about the collection can fail a job that passed.
+
+Paths must stay inside the checkout. An absolute path, or one climbing out with
+`..`, is refused when the file is parsed, and each match is checked again when
+it is collected: a symlink the build itself created can point anywhere, and a
+job that can publish `/etc/` is a job that can put the machine's secrets on a
+page anybody who can read the repository can open.
+
+Twenty globs and two hundred files per job. An artifact nobody opens is storage
+the instance pays for.
+
+**Actions has an equivalent** in `actions/upload-artifact`, as a step - which
+means `if: always()` and remembering it.
+
 ### `group` - a label
 
 ```yaml

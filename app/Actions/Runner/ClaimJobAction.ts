@@ -430,6 +430,14 @@ export default new Action({
           ? { index: Number(jobRow.parallel_index ?? 0), total: Number(jobRow.parallel_total) }
           : null,
         /*
+         * What to collect when this job ends, whether it passed or failed.
+         *
+         * Sent as the globs the file wrote rather than as a resolved list: the
+         * files do not exist yet, and only the machine that ran the job can say
+         * what matched.
+         */
+        artifact_paths: artifactPathsOfJob(jobRow?.settings),
+        /*
          * `vars`, resolved across the four levels at claim time.
          *
          * Resolved here rather than sent as four sets for the runner to merge:
@@ -549,6 +557,24 @@ export default new Action({
     })
   },
 })
+
+/**
+ * The globs a job asked to have collected, out of its settings column.
+ *
+ * An empty list when the settings cannot be read, which is the safe direction:
+ * a job that uploads nothing is a job somebody notices, and one that uploads
+ * whatever a corrupt blob happened to decode to is not.
+ */
+function artifactPathsOfJob(settings: unknown): string[] {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+
+    return Array.isArray(parsed?.artifactPaths) ? parsed.artifactPaths.map(String) : []
+  }
+  catch {
+    return []
+  }
+}
 
 /** The environment a job named, out of its settings column. */
 function environmentOfJob(settings: unknown): string | null {

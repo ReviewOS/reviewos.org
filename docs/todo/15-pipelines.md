@@ -1290,7 +1290,17 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       thinking.
 - [ ] `env`, per step, over a workflow-level `env`, over runner environment
 - [ ] `secrets`, naming secrets to inject rather than embedding them, resolved at dispatch
-- [ ] `artifact_paths`, globs uploaded automatically when the step ends, pass or fail
+- [x] `artifact_paths`, globs uploaded automatically when the step ends, pass or fail
+
+      `reviewos: { artifact-paths: [screenshots/**] }`, collected by the runner after the steps and
+      before the conclusion. **Pass or fail is the feature**: the step-based alternative has to be
+      written `if: always()`, and the run where somebody forgot is always the run with the
+      screenshot in it.
+
+      Paths stay inside the checkout, checked twice - when the file is parsed, and again on each
+      match, because a symlink the build created can point anywhere and a job that can publish
+      `/etc/` can put the machine's secrets on a page. A glob that matches nothing says so in the
+      log rather than failing a job that had already finished.
 - [ ] `plugins`, the extension point, with its own section below
 - [ ] `cancel_on_build_failing`, so long jobs stop when a sibling has already sunk the run
 - [ ] `checkout` options: submodules, clone depth, LFS, sparse paths, clean behavior, and skipping
