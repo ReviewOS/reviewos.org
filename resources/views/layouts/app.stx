@@ -186,12 +186,17 @@
         z-index: 20;
         display: flex;
         align-items: center;
-        gap: 20px;
         height: 56px;
         border-bottom: 1px solid var(--line);
         background: color-mix(in srgb, var(--bg) 92%, transparent);
         backdrop-filter: blur(8px);
       }
+
+      /* The bar is one flex row: brand, destinations, then who you are at the
+        far end. The gap after the brand is larger than the gap between the
+        links, so the wordmark reads as a mark rather than as the first item of
+        the menu. */
+      .topbar-inner { display: flex; align-items: center; gap: 22px; }
 
       .brand {
         display: inline-flex;
@@ -817,34 +822,248 @@
         .mirror-sync { width: 100%; }
       }
 
-      /* A profile, and the feed on it. */
-      .profile { display: grid; grid-template-columns: 260px 1fr; gap: 32px; align-items: start; }
-      @media (max-width: 800px) { .profile { grid-template-columns: 1fr; gap: 20px; } }
-      .profile-name { margin: 0; font-size: 20px; }
-      .profile-handle { margin: 2px 0 10px; font-size: 13px; }
-      .profile-bio { margin: 0 0 12px; font-size: 14px; }
-      .profile-facts { margin: 0 0 14px; padding: 0; list-style: none; font-size: 13px; }
-      .profile-facts li { margin-bottom: 3px; }
-      .profile-counts { margin: 0 0 14px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); list-style: none; font-size: 13px; }
+      /* A profile, and the feed on it. Two columns: who this is, and what they
+        have. The identity column is the one that stays put, so the page reads
+        the same on somebody with two repositories and somebody with two
+        hundred. */
+      .profile { display: grid; grid-template-columns: 272px 1fr; gap: 40px; align-items: start; }
+      @media (max-width: 900px) { .profile { grid-template-columns: 1fr; gap: 24px; } }
+
+      .profile-identity { display: flex; align-items: center; gap: 14px; }
+
+      /* Round for a person, rounded-square for an organization, which is the
+        distinction every forge reader already reads without being told. */
+      .profile-avatar {
+        width: 64px;
+        height: 64px;
+        flex: none;
+        border-radius: 50%;
+        object-fit: cover;
+        background: var(--surface-tint);
+        border: 1px solid var(--line);
+      }
+
+      .profile-avatar.is-organization { border-radius: 14px; }
+
+      /* No avatar, so the initial - in the neutral palette rather than a
+        coloured identicon. The accent is reserved for one thing per screen and
+        a tinted tile would take it for decoration. */
+      .profile-avatar-letter {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: var(--muted);
+        user-select: none;
+      }
+
+      .profile-name { margin: 0; font-size: 21px; }
+      .profile-handle { margin: 1px 0 0; font-size: 13px; }
+      .profile-bio { margin: 14px 0 0; font-size: 14px; }
+      .profile-action { margin-top: 16px; width: 100%; justify-content: center; }
+
+      .profile-facts {
+        margin: 18px 0 0;
+        padding: 16px 0 0;
+        border-top: 1px solid var(--line);
+        list-style: none;
+        font-size: 13px;
+      }
+
+      .profile-facts li { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; overflow-wrap: anywhere; }
+      .profile-facts li:last-child { margin-bottom: 0; }
+      .profile-facts [class^='i-'] { flex: none; color: var(--muted); font-size: 15px; }
+
+      .profile-counts {
+        margin: 16px 0 0;
+        padding: 16px 0 0;
+        border-top: 1px solid var(--line);
+        list-style: none;
+        font-size: 13px;
+      }
+
       .profile-counts li { margin-bottom: 4px; }
       .profile-counts strong { font-variant-numeric: tabular-nums; }
-      .profile-edit { margin: 0; font-size: 13px; }
-      .profile-section { margin-bottom: 32px; }
-      .profile-repos { margin: 0; padding: 0; list-style: none; }
+
+      .profile-people { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+
+      .profile-side-heading {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin: 0 0 10px;
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+
+      .profile-side-heading a { text-decoration: none; }
+      .profile-side-heading a:hover { color: var(--accent-text); }
+
+      .profile-side-count {
+        padding: 0 7px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-size: 11.5px;
+        font-weight: 500;
+        line-height: 17px;
+        color: var(--pill-text, var(--muted));
+        font-variant-numeric: tabular-nums;
+      }
+
+      .profile-faces { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+      .profile-faces img, .profile-face-letter {
+        display: block;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: var(--surface-tint);
+        border: 1px solid var(--line);
+      }
+
+      .profile-face-letter {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+
+      /* The tabs, for an organization: the only owner with somewhere else to
+        go. A bar with one tab on it is a claim that there is a second page. */
+      .profile-tabs { display: flex; gap: 2px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+
+      .profile-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 13px;
+        font-size: 13.5px;
+        color: var(--muted);
+        text-decoration: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+
+      .profile-tab:hover { color: var(--text); }
+      .profile-tab.is-current { color: var(--text); font-weight: 500; border-bottom-color: var(--accent); }
+
+      .profile-tab-count {
+        padding: 0 6px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-size: 11px;
+        line-height: 16px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .profile-hint { margin: 0 0 24px; font-size: 13.5px; }
+      .profile-hint code { font-family: var(--mono); font-size: 12.5px; }
+
+      .profile-section { margin-bottom: 34px; }
+      .profile-section:last-child { margin-bottom: 0; }
+
+      .profile-section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+
+      .profile-heading { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 15px; }
+      .profile-section-head .profile-heading { margin: 0; }
+
+      .profile-search { display: flex; align-items: center; gap: 8px; }
+
+      .profile-search-input {
+        height: 30px;
+        width: 220px;
+        max-width: 46vw;
+        padding: 0 10px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--r-control);
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+        font-size: 13.5px;
+      }
+
+      .profile-search-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+      /* Cards rather than rows. A repository is a name, a sentence and two
+        numbers, and in one column per line that sentence had nowhere to go. */
+      .profile-repos {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      @media (max-width: 700px) { .profile-repos { grid-template-columns: 1fr; } }
 
       .profile-repo {
         display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        gap: 6px 10px;
-        padding: 10px 0;
-        border-bottom: 1px solid var(--line);
+        flex-direction: column;
+        gap: 6px;
+        padding: 14px 16px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel);
       }
 
-      .profile-repo:last-child { border-bottom: 0; }
-      .profile-repo-name { font-weight: 500; font-size: 14px; }
-      .profile-repo-about { flex: 1 1 100%; font-size: 13px; }
-      .profile-repo-meta { font-size: 12px; }
+      .profile-repo:hover { border-color: var(--line-strong); }
+      .profile-repo-head { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+      .profile-repo-name { font-weight: 600; font-size: 14.5px; text-decoration: none; overflow-wrap: anywhere; }
+      .profile-repo-name:hover { color: var(--accent-text); }
+
+      .profile-pill {
+        padding: 0 7px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-size: 11px;
+        line-height: 17px;
+        color: var(--pill-text, var(--muted));
+      }
+
+      /* Two lines and then an ellipsis: a card grid whose rows are different
+        heights reads as a broken layout rather than as a long description. */
+      .profile-repo-about {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+
+      .profile-repo-meta { display: flex; flex-wrap: wrap; gap: 14px; margin: auto 0 0; padding-top: 4px; font-size: 12px; }
+      .profile-repo-stat { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+
+      /* The same dot the explore cards carry, from the same reading of
+        `repository_languages`, so one repository cannot be called TypeScript on
+        one page and nothing on the other. */
+      .profile-repo-language { display: inline-flex; align-items: center; }
+
+      .profile-repo-language::before {
+        content: '';
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        margin-right: 5px;
+        border-radius: 50%;
+        background: currentColor;
+        opacity: 0.55;
+      }
+
+      .profile-pager { display: flex; align-items: center; gap: 12px; margin-top: 18px; font-size: 13px; }
 
       /* The feed. One sentence per row, with the link on the target rather
         than the whole row: a row-wide link makes the actor unclickable, and
@@ -1783,36 +2002,16 @@
 
   <body>
     <header class="topbar">
-      <div class="shell" style="display: flex; align-items: center; gap: 20px;">
+      <div class="shell topbar-inner">
         <a class="brand" href="/">
           <span class="brand-mark" aria-hidden="true"></span>
           ReviewOS
         </a>
-        <nav style="display: flex; gap: 14px; font-size: 14px;" aria-label="Main">
-          {{-- First, because it is the question somebody opens a forge to
-              answer. Explore is for finding somebody else's work; this is for
-              finding your own. The count is a component rather than this
-              layout's first server script, and the why is written in it. --}}
-          <a class="muted" style="text-decoration: none;" href="/reviews">Reviews<ReviewQueueBadge /></a>
-          {{-- Second, and deliberately not first. Reviews is what needs the
-              reader; the inbox is what happened to them, and a product that
-              leads with the inbox teaches people to work from notifications
-              rather than from their queue. --}}
-          <a class="muted" style="text-decoration: none;" href="/notifications">Inbox<InboxBadge /></a>
-          <a class="muted" style="text-decoration: none;" href="/explore">Explore</a>
-          <a class="muted" style="text-decoration: none;" href="/discover">Discover</a>
-          <a class="muted" style="text-decoration: none;" href="/docs">Docs</a>
-          {{-- Creating a repository is the first thing anybody does on a
-              forge, and `/new` was reachable only by typing the URL. Same
-              failure as the settings pages below, one screen earlier. --}}
-          <NewRepositoryLink />
-          {{-- Last: who you are, or how to become somebody. Both halves
-              matter. Six settings pages existed and nothing in the chrome
-              pointed at any of them, and then `/login` and `/register`
-              existed and nothing pointed at those either - the same failure,
-              one step further out. See `AccountNav.stx`. --}}
-          <AccountNav />
-        </nav>
+        {{-- Every link in the bar, and which one you are standing on, in one
+            component. The layout deliberately has no server script of its
+            own: the first one added here is one mistake away from blanking
+            every page in the product. See `TopNav.stx`. --}}
+        <TopNav />
       </div>
     </header>
 

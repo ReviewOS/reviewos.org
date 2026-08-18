@@ -1,0 +1,116 @@
+<script server>
+/**
+ * The product's navigation bar: where you can go, and where you are.
+ *
+ * This lived in the layout as a row of `<a class="muted">` with inline styles
+ * and no state, so five destinations sat at the same weight as each other, the
+ * account pair was jammed against Docs with nothing separating them, and the
+ * bar never said which page you were on. The landing page's nav had all three
+ * of those and this one did not, which is the wrong way round: the marketing
+ * bar is read once and this one is read all day.
+ *
+ * A component rather than a script in the layout, for the reason written at
+ * length in `ReviewQueueBadge.stx`: an stx server script that throws renders
+ * its page with every variable undefined and says nothing, so the first script
+ * added to the shared layout is one mistake away from blanking the product.
+ * Everything here sits inside a guard that cannot throw, and the failure mode
+ * is a bar with nothing marked - the links still work.
+ *
+ * The counts and the account end stay in their own components. They each run a
+ * query, and one of them failing should cost its own badge rather than the
+ * navigation.
+ */
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+
+let here = '/'
+try {
+  here = String(serveContext?.path ?? '/')
+}
+catch {
+  here = '/'
+}
+
+/*
+ * On this section, not on this exact URL. `/notifications/settings` is still
+ * the inbox, and a marker that disappears one click into a section is worse
+ * than no marker: it reads as having left the place you are standing in.
+ */
+const onReviews = here === '/reviews' || here.startsWith('/reviews/')
+const onInbox = here === '/notifications' || here.startsWith('/notifications/')
+const onExplore = here === '/explore' || here.startsWith('/explore/')
+const onDiscover = here === '/discover' || here.startsWith('/discover/')
+const onDocs = here === '/docs' || here.startsWith('/docs/')
+</script>
+
+<nav class="topbar-nav" aria-label="Main">
+  {{-- First, because it is the question somebody opens a forge to answer.
+      Explore is for finding somebody else's work; this is for finding your
+      own. The count is a component rather than this layout's first server
+      script, and the why is written in it. --}}
+  <a class="topbar-link {{ onReviews ? 'is-current' : '' }}" aria-current="{{ onReviews ? 'page' : 'false' }}" href="/reviews">Reviews<ReviewQueueBadge /></a>
+  {{-- Second, and deliberately not first. Reviews is what needs the reader;
+      the inbox is what happened to them, and a product that leads with the
+      inbox teaches people to work from notifications rather than from their
+      queue. --}}
+  <a class="topbar-link {{ onInbox ? 'is-current' : '' }}" aria-current="{{ onInbox ? 'page' : 'false' }}" href="/notifications">Inbox<InboxBadge /></a>
+  <a class="topbar-link {{ onExplore ? 'is-current' : '' }}" aria-current="{{ onExplore ? 'page' : 'false' }}" href="/explore">Explore</a>
+  <a class="topbar-link {{ onDiscover ? 'is-current' : '' }}" aria-current="{{ onDiscover ? 'page' : 'false' }}" href="/discover">Discover</a>
+  <a class="topbar-link {{ onDocs ? 'is-current' : '' }}" aria-current="{{ onDocs ? 'page' : 'false' }}" href="/docs">Docs</a>
+</nav>
+
+<div class="topbar-right">
+  {{-- Creating a repository is the first thing anybody does on a forge, and
+      `/new` was reachable only by typing the URL. --}}
+  <NewRepositoryLink />
+  {{-- Last: who you are, or how to become somebody. Both halves matter. Six
+      settings pages existed and nothing in the chrome pointed at any of them,
+      and then `/login` and `/register` existed and nothing pointed at those
+      either - the same failure, one step further out. See `AccountNav.stx`. --}}
+  <AccountNav />
+</div>
+
+<style>
+  .topbar-nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
+
+  /* Padded rather than bare, which is the whole difference between a row of
+    links and a navigation bar: the hover target is the item, not the six
+    characters of its name. */
+  .topbar-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: var(--r-control);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .topbar-link:hover { color: var(--text); background: var(--surface-tint); }
+
+  /* Where you are. A dot rather than an underline: the bar is 56px tall and an
+    underline in it sits too far from the text to belong to it. */
+  .topbar-link.is-current { color: var(--text); }
+
+  .topbar-link.is-current::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* Pushed to the far end, so the two halves of the bar are what you can do
+    here and who you are - rather than seven links in one undifferentiated
+    run. */
+  .topbar-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+  /* Below the point where the bar stops fitting, the destinations that survive
+    are the two nothing else in the product replaces. Explore and Discover are
+    both reachable from the pages that remain. */
+  @media (max-width: 860px) {
+    .topbar-link[href='/explore'], .topbar-link[href='/discover'], .topbar-link[href='/docs'] { display: none; }
+  }
+</style>

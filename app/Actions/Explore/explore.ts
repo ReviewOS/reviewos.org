@@ -230,7 +230,7 @@ async function decorate(rows: readonly { id: number, gained?: number }[]): Promi
 }
 
 /** The largest language of each repository, for the card. */
-async function primaryLanguages(ids: readonly number[]): Promise<Map<number, string>> {
+export async function primaryLanguages(ids: readonly number[]): Promise<Map<number, string>> {
   const db = (globalThis as any).db
   const primary = new Map<number, string>()
 

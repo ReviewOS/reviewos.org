@@ -136,6 +136,69 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   Private repositories and private activity show only to the owner. There is deliberately no middle
   case where a collaborator sees a colleague's private activity: a profile whose contents depend on
   a permission graph has a disclosure for its first bug.
+- [x] The profile reads like a profile: an identity column, a page the owner wrote, repository cards
+
+  The page existed and looked like a query result. An organization with 114 repositories got a flat
+  list of 30 names, no way to look one up, and nothing saying the other 84 were there.
+
+  **The order was the tell.** It sorted on `updated_at`, which is null on every repository that has
+  been pushed to but never edited through the product - so the whole page was ordered by nothing.
+  `app/Actions/Profile/read.ts` orders on what a repository last *did*: `pushed_at`, then
+  `updated_at`, then `created_at`, with never-pushed repositories sinking rather than floating. That
+  is the one raw fragment in the file, because the three columns do not share a type and `NULLS
+  LAST` is not portable.
+
+  The rest is the shape every forge reader already knows: avatar, name, handle, the facts as a list;
+  repositories as cards with their language, pills and counts, twenty-four to a page, with a search
+  box and a pager that keeps what was typed. The language comes from the same `primaryLanguages`
+  read the explore cards use, so one repository cannot be called TypeScript on one page and nothing
+  on the other. Both are plain GET parameters, so any list somebody is looking at
+  is a URL they can send. Reading the query string is `query`, the context binding - **not**
+  `__stxServeContext.query`, which does not exist and silently answers every search with the
+  unfiltered first page.
+
+  An organization also gets its people: faces and a count in the sidebar, and an Overview / People
+  tab bar. Members only, exactly as `/{handle}/people` is - a stranger sees no count and no faces
+  rather than a locked door, because "you cannot see this" has already confirmed the interesting
+  half. A user profile gets no tab bar, because a bar with one tab on it claims there is a second
+  page.
+- [x] A profile page written in a repository, the way GitHub's `.github/profile/README.md` is
+
+  `stacksjs/.github` cannot exist here and should not: repository names are a path segment on disk,
+  and `app/Actions/Git/storage.ts` rejects a leading dot precisely so a name cannot hide a directory
+  or climb out of the repository root. So one rule covers both kinds of owner, which is the same
+  choice the profile route makes: **the repository named after the handle**, and inside it
+  `profile/README.md`.
+
+  An organization gets that file and only that file. `stacks/stacks` is the framework and its README
+  is the framework's - on the organization page it would be a project's install instructions under a
+  heading that says who these people are. A person may use `README.md` too, because their namesake
+  repository *is* their profile and that is what GitHub taught them.
+
+  Read through `repositoryForView`, so a private namesake repository is not a way to publish a page
+  to people who may not see it, and rendered through the one markdown pipeline, so the sanitising
+  cannot exist in two places. Somebody who could write the file and has not gets one line telling
+  them where it goes; a reader who could not does not need to know it is missing.
+- [x] The product's navigation bar says where you are
+
+  Five destinations at the same weight as each other, the account pair jammed against Docs with
+  nothing between them, and no marker for the current page. The landing page's nav had padded items,
+  hover states and a separated call to action; this one - the bar people read all day - had none of
+  them.
+
+  `resources/components/TopNav.stx` is that bar, and it is a component rather than a script in the
+  layout for the reason the badges already are: an stx server script that throws renders its page
+  with every variable undefined and says nothing, so the first script added to the shared layout is
+  one mistake away from blanking the product. Everything it does sits inside a guard that cannot
+  throw, and the failure mode is a bar with nothing marked, whose links still work.
+
+  It marks the *section*, not the exact URL. A marker that disappears one click into `/notifications`
+  reads as having left the place you are standing in.
+
+  Two fixes came with it. The sign-up button asked for `--accent-on`, which is not a token in this
+  palette - so the fallback ran and the label was white on light teal for every reader in dark mode;
+  it is `--on-accent`. And New is an outlined control rather than a second filled button, because two
+  filled buttons in a 56px bar are two things claiming to be the point.
 - [x] `resources/views/settings/profile.stx`, and `login.stx` and `register.stx`
 
   Six pages linked to `/login` and there was no page there - the review queue, the inbox, three

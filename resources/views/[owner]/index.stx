@@ -12,10 +12,17 @@
  * the same shape whoever owns it, and a product where you have to know which
  * before you can link to somebody is one where people link to nothing.
  *
+ * The shape is the one every forge reader already knows: an identity column on
+ * the left, the page the owner wrote about themselves at the top of the right,
+ * then their repositories as cards. What it is *not* is a flat list of thirty
+ * names in no order, which is what this was - see `app/Actions/Profile/read.ts`
+ * for why the order was nothing at all.
+ *
  * Rendered entirely on the server. A profile is a list of links.
  */
 import { profileFeed, withHandles } from '../../../app/Actions/Feed/read'
-import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
+import { ownerRepositories, profileReadme } from '../../../app/Actions/Profile/read'
+import { cookieJarFromHeader, organizationRoleOf, peopleIn, viewerFromCookies } from '../../functions/identity'
 import { relativeTime } from '../../functions/browse'
 import { aliasTarget, pathUnderOwner } from '../../functions/aliases'
 // Asked for here rather than through a helper: `setResponseStatus` is a
@@ -26,6 +33,20 @@ const setHeader = typeof setResponseHeader === 'function' ? setResponseHeader : 
 
 const serveContext = __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+/*
+ * The query string, read the way this serve actually supplies it.
+ *
+ * `query` is a *context binding* - the parsed parameters, put in this script's
+ * scope by name - while `__stxServeContext` carries the raw `search` and no
+ * `query` at all. Reading `serveContext.query` therefore returns undefined and
+ * every parameter on the page is silently empty, which for a search box means
+ * it answers every submission with the unfiltered first page.
+ *
+ * `params` is already taken here: it is the route's own bag, and `params.owner`
+ * is the handle - so this is read under its own name rather than shadowing it.
+ */
+const queryBag: any = (typeof query === 'undefined' ? undefined : query) ?? {}
 
 const viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
 const handle = String(params.owner ?? '').toLowerCase()
@@ -46,7 +67,7 @@ const organization: any = account
         // `handle` is the URL segment; `name` is the display name and is
         // nullable. Looking one up by `name` finds nothing for every
         // organization that never set one.
-        .select(['id', 'handle', 'name', 'description', 'website', 'created_at'])
+        .select(['id', 'handle', 'name', 'description', 'avatar_url', 'website', 'created_at'])
         .where('handle', '=', handle)
         .executeTakeFirst()
     : null
@@ -98,34 +119,60 @@ const isSelf = Boolean(viewer && account && Number(viewer.id) === Number(account
  * profile: a profile whose contents depend on a permission graph is one whose
  * first bug is a disclosure, and the repository is reachable from its own URL
  * anyway.
+ *
+ * The search box and the pager narrow it. Both are plain query parameters on a
+ * GET form, so the page they produce is a link somebody can send.
  */
 const ownerId = Number(account?.id ?? organization?.id ?? 0)
 const ownerType = account ? 'user' : 'organization'
+const search = String(queryBag.q ?? '').slice(0, 100)
 
-let repositories: any[] = []
-if (ownerId) {
-  let query = db
-    .selectFrom('repositories')
-    .select(['name', 'description', 'visibility', 'stars_count', 'updated_at'])
-    .where('owner_type', '=', ownerType)
-    .where('owner_id', '=', ownerId)
-
-  if (!isSelf)
-    query = query.where('visibility', '=', 'public')
-
-  repositories = await query.orderBy('updated_at', 'desc').limit(30).execute()
-}
+const repositories = ownerId
+  ? await ownerRepositories({ ownerId, ownerType, includePrivate: isSelf, query: search, page: queryBag.page })
+  : { rows: [], total: 0, matched: 0, page: 1, pages: 1, perPage: 24, query: '' }
 
 const now = new Date()
 
-const repoRows = repositories.map(row => ({
-  name: String(row.name),
+const repoRows = repositories.rows.map(row => ({
+  ...row,
   href: `/${handle}/${row.name}`,
-  description: String(row.description ?? ''),
-  isPrivate: String(row.visibility) !== 'public',
-  stars: Number(row.stars_count ?? 0) || 0,
-  updated: row.updated_at ? relativeTime(new Date(String(row.updated_at)).toISOString(), now) : '',
+  updated: row.activeAt ? relativeTime(row.activeAt, now) : '',
 }))
+
+// A pager that keeps whatever was typed in the search box, because a page 2
+// that silently drops the filter is a page 2 of something else.
+const pageHref = (page: number) => `/${handle}?${search ? `q=${encodeURIComponent(search)}&` : ''}page=${page}`
+const previousHref = repositories.page > 1 ? pageHref(repositories.page - 1) : ''
+const nextHref = repositories.page < repositories.pages ? pageHref(repositories.page + 1) : ''
+
+/*
+ * The page the owner wrote about themselves, from the repository named after
+ * the handle. `app/Actions/Profile/read.ts` has the convention and why it is
+ * not GitHub's `.github` repository - a name that starts with a dot cannot be a
+ * directory here, on purpose.
+ */
+const isOrganization = Boolean(organization)
+const readme = ownerId ? await profileReadme(handle, isOrganization, serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie)) : null
+
+// One interpolation per attribute. A component prop written as
+// `title="{{ a }}/{{ b }}"` is not evaluated at all - the literal braces
+// render - so the string is built here and passed whole.
+const readmeTitle = readme ? `${readme.repository}/${readme.path}` : ''
+
+/*
+ * Who is in the organization.
+ *
+ * Members only, exactly as `/{handle}/people` is: `members:view` is a member's
+ * right, and the membership list of a private company is a target list. A
+ * stranger sees no count and no faces rather than a locked door, because "you
+ * cannot see this" has already confirmed the interesting half.
+ */
+const role = organization && viewer ? await organizationRoleOf(Number(organization.id), viewer.id) : null
+const maySeePeople = Boolean(organization && role)
+const everybody = maySeePeople ? await peopleIn(Number(organization.id)) : []
+const people = everybody.filter(person => !person.machine)
+const shownPeople = people.slice(0, 12)
+const mayManage = role === 'owner' || role === 'admin'
 
 /*
  * What they have done.
@@ -178,8 +225,18 @@ const joined = (account?.created_at ?? organization?.created_at)
   : ''
 const website = String(account?.website ?? organization?.website ?? '')
 const location = String(account?.location ?? '')
-const isOrganization = Boolean(organization)
 const found = Boolean(account || organization)
+
+// The avatar, or the letter that stands in for one. Neutral rather than a
+// coloured identicon: the accent is reserved for one thing per screen, and a
+// wall of tinted squares would take it for decoration.
+const avatarUrl = String(account?.avatar_url ?? organization?.avatar_url ?? '')
+const initial = (displayName.trim() || handle).charAt(0).toUpperCase()
+
+// Somebody who could write the profile page and has not. Shown to them only:
+// a reader who cannot edit it does not need to know the file is missing.
+const mayWriteProfile = isSelf || mayManage
+const readmePath = `/${handle}/${handle}`
 </script>
 
 @layout('app')
@@ -187,7 +244,7 @@ const found = Boolean(account || organization)
 @section('title', found ? `${displayName} (${handle})` : 'Not found')
 
 @section('content')
-  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+  <div class="shell" style="padding-top: 26px; padding-bottom: 64px;">
     @if (movedTo)
       <div class="panel" style="padding: 32px; text-align: center;">
         <h1 style="font-size: 20px;">Moved</h1>
@@ -203,25 +260,55 @@ const found = Boolean(account || organization)
     @else
       <div class="profile">
         <aside class="profile-side">
-          <h1 class="profile-name">{{ displayName }}</h1>
-          <p class="mono muted profile-handle">{{ handle }}</p>
+          <div class="profile-identity">
+            @if (avatarUrl)
+              <img class="profile-avatar {{ isOrganization ? 'is-organization' : '' }}" src="{{ avatarUrl }}" alt="" width="96" height="96">
+            @else
+              <span class="profile-avatar profile-avatar-letter {{ isOrganization ? 'is-organization' : '' }}" aria-hidden="true">{{ initial }}</span>
+            @endif
+
+            <div>
+              <h1 class="profile-name">{{ displayName }}</h1>
+              <p class="mono muted profile-handle">{{ handle }}</p>
+            </div>
+          </div>
 
           @if (bio)
             <p class="profile-bio">{{ bio }}</p>
           @endif
 
+          @if (isSelf)
+            <a class="btn profile-action" href="/settings/profile">Edit your profile</a>
+          @elseif (mayManage)
+            <a class="btn profile-action" href="/{{ handle }}/people">Manage people</a>
+          @endif
+
           <ul class="profile-facts">
-            @if (isOrganization)
-              <li class="muted">An organization</li>
-            @endif
+            <li>
+              <span class="{{ isOrganization ? 'i-hugeicons-building-03' : 'i-hugeicons-user' }}" aria-hidden="true"></span>
+              <span class="muted">{{ isOrganization ? 'An organization' : 'A person' }}</span>
+            </li>
             @if (location)
-              <li class="muted">{{ location }}</li>
+              <li>
+                <span class="i-hugeicons-location-01" aria-hidden="true"></span>
+                <span class="muted">{{ location }}</span>
+              </li>
             @endif
             @if (website)
-              <li><a href="{{ website }}" rel="nofollow noopener">{{ website }}</a></li>
+              <li>
+                <span class="i-hugeicons-link-02" aria-hidden="true"></span>
+                <a href="{{ website }}" rel="nofollow noopener">{{ website }}</a>
+              </li>
             @endif
+            <li>
+              <span class="i-hugeicons-book-02" aria-hidden="true"></span>
+              <span class="muted">{{ repositories.total }} {{ repositories.total === 1 ? 'repository' : 'repositories' }}</span>
+            </li>
             @if (joined)
-              <li class="muted">Here since {{ joined }}</li>
+              <li>
+                <span class="i-hugeicons-calendar-03" aria-hidden="true"></span>
+                <span class="muted">Here since {{ joined }}</span>
+              </li>
             @endif
           </ul>
 
@@ -238,43 +325,147 @@ const found = Boolean(account || organization)
             </ul>
           @endif
 
-          @if (isSelf)
-            <p class="profile-edit"><a href="/settings/profile">Edit your profile</a></p>
+          @if (maySeePeople && people.length > 0)
+            {{-- Faces rather than a number, and only for somebody who is
+                already inside: the list is a member's right, not a public
+                fact. --}}
+            <section class="profile-people">
+              <h2 class="profile-side-heading">
+                <a href="/{{ handle }}/people">People</a>
+                <span class="profile-side-count">{{ people.length }}</span>
+              </h2>
+              <ul class="profile-faces">
+                @foreach (shownPeople as person)
+                  <li>
+                    <a href="/{{ person.handle }}" title="{{ person.name }}">
+                      @if (person.avatarUrl)
+                        <img src="{{ person.avatarUrl }}" alt="{{ person.handle }}" width="32" height="32">
+                      @else
+                        <span class="profile-face-letter" aria-hidden="true">{{ person.handle.charAt(0).toUpperCase() }}</span>
+                      @endif
+                    </a>
+                  </li>
+                @endforeach
+              </ul>
+            </section>
           @endif
         </aside>
 
         <main class="profile-main">
+          @if (isOrganization && maySeePeople)
+            {{-- Two destinations, so a bar that names them. A user profile has
+                one page and gets no tabs: a tab bar with a single tab is a
+                claim that there is somewhere else to go. --}}
+            <nav class="profile-tabs" aria-label="Profile">
+              <a class="profile-tab is-current" href="/{{ handle }}">Overview</a>
+              <a class="profile-tab" href="/{{ handle }}/people">People <span class="profile-tab-count">{{ people.length }}</span></a>
+            </nav>
+          @endif
+
+          @if (readme)
+            <MarkdownContent title="{{ readmeTitle }}" :html="readme.html" />
+          @elseif (mayWriteProfile)
+            {{-- How the convention is learned. Only for somebody who could act
+                on it - a reader who cannot write the file does not need to know
+                it is missing. --}}
+            <p class="profile-hint muted">
+              Write this page: put a <code>profile/README.md</code> in
+              <a href="{{ readmePath }}">{{ handle }}/{{ handle }}</a> and it renders here.
+            </p>
+          @endif
+
           <section class="profile-section">
-            <h2 class="keys-heading">Repositories</h2>
+            <header class="profile-section-head">
+              {{-- The count is what is being listed, not what exists: with a
+                  search in the box, a `114` over eleven cards reads as a page
+                  that failed to render the rest. --}}
+              <h2 class="profile-heading">
+                Repositories
+                @if (repositories.total > 0)
+                  <span class="profile-side-count">{{ repositories.matched }}</span>
+                @endif
+              </h2>
+
+              @if (repositories.total > repositories.perPage || repositories.query)
+                {{-- A GET form, so what it finds is a URL somebody can send.
+                    `page` is deliberately not carried: a new search starts on
+                    its own first page. --}}
+                <form class="profile-search" method="get" action="/{{ handle }}">
+                  <input type="search" name="q" value="{{ repositories.query }}" placeholder="Find a repository" aria-label="Find a repository" class="profile-search-input">
+                  <button class="btn btn-small" type="submit">Find</button>
+                </form>
+              @endif
+            </header>
 
             @if (repoRows.length === 0)
-              <p class="feed-empty muted">Nothing here yet.</p>
+              <p class="feed-empty muted">
+                @if (repositories.query)
+                  Nothing here matches {{ repositories.query }}.
+                @elseif (isSelf)
+                  Nothing here yet. <a href="/new">Create your first repository</a>.
+                @else
+                  Nothing here yet.
+                @endif
+              </p>
             @else
               <ul class="profile-repos">
                 @foreach (repoRows as repo)
                   <li class="profile-repo">
-                    <a class="profile-repo-name" href="{{ repo.href }}">{{ repo.name }}</a>
-                    @if (repo.isPrivate)
-                      <span class="hook-state is-off">Private</span>
-                    @endif
-                    @if (repo.description)
-                      <span class="muted profile-repo-about">{{ repo.description }}</span>
-                    @endif
-                    <span class="muted profile-repo-meta">
-                      @if (repo.stars)
-                        {{ repo.stars }} stars &middot;
+                    <div class="profile-repo-head">
+                      <a class="profile-repo-name" href="{{ repo.href }}">{{ repo.name }}</a>
+                      @if (repo.isPrivate)
+                        <span class="profile-pill">Private</span>
                       @endif
-                      updated {{ repo.updated }}
-                    </span>
+                      @if (repo.isFork)
+                        <span class="profile-pill">Fork</span>
+                      @endif
+                      @if (repo.isTemplate)
+                        <span class="profile-pill">Template</span>
+                      @endif
+                      @if (repo.isArchived)
+                        <span class="profile-pill">Archived</span>
+                      @endif
+                    </div>
+
+                    @if (repo.description)
+                      <p class="muted profile-repo-about">{{ repo.description }}</p>
+                    @endif
+
+                    <p class="muted profile-repo-meta">
+                      @if (repo.language)
+                        <span class="profile-repo-language">{{ repo.language }}</span>
+                      @endif
+                      @if (repo.stars)
+                        <span class="profile-repo-stat"><span class="i-hugeicons-star" aria-hidden="true"></span>{{ repo.stars }}</span>
+                      @endif
+                      @if (repo.forks)
+                        <span class="profile-repo-stat"><span class="i-hugeicons-git-fork" aria-hidden="true"></span>{{ repo.forks }}</span>
+                      @endif
+                      @if (repo.updated)
+                        <span class="profile-repo-stat">Updated {{ repo.updated }}</span>
+                      @endif
+                    </p>
                   </li>
                 @endforeach
               </ul>
+
+              @if (repositories.pages > 1)
+                <nav class="profile-pager" aria-label="Repositories">
+                  @if (previousHref)
+                    <a class="btn btn-small" href="{{ previousHref }}">Previous</a>
+                  @endif
+                  <span class="muted">Page {{ repositories.page }} of {{ repositories.pages }}</span>
+                  @if (nextHref)
+                    <a class="btn btn-small" href="{{ nextHref }}">Next</a>
+                  @endif
+                </nav>
+              @endif
             @endif
           </section>
 
           @if (!isOrganization)
             <section class="profile-section">
-              <h2 class="keys-heading">Activity</h2>
+              <h2 class="profile-heading">Activity</h2>
               {{--
                 `:rows`, not `rows="{{ }}"`. The interpolation form is string
                 interpolation into an attribute, so an array arrives

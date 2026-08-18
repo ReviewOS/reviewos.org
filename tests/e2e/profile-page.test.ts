@@ -346,3 +346,68 @@ describe('a handle nobody has', () => {
     expect(status).toBe(404)
   })
 })
+
+describe('finding one repository among many', () => {
+  /*
+   * The repository cards, by name, rather than "does this string appear".
+   *
+   * A profile carries the searched-for text in three other places - the search
+   * box echoes it back, the activity feed names repositories in its sentences,
+   * and the sidebar counts them - so a `toContain` over the whole document
+   * passes whatever the list does. Every assertion here is about what the list
+   * actually holds.
+   */
+  const listed = (html: string, handle: string): string[] => {
+    const names: string[] = []
+    const pattern = new RegExp(`class="profile-repo-name" href="/${handle}/([^"]+)"`, 'g')
+
+    for (const match of html.matchAll(pattern))
+      names.push(match[1])
+
+    return names
+  }
+
+  test('the search box narrows the list to what was asked for', async () => {
+    if (!available)
+      return
+
+    // A GET form, so the result is a URL somebody can send. The owner here has
+    // two repositories and the search has to leave exactly one of them.
+    const { html } = await fetchPage(`/${created.handle}?q=${created.publicName}`, created.ownToken)
+
+    expect(listed(html, created.handle)).toEqual([created.publicName])
+  })
+
+  test('and a search that matches nothing says so, rather than rendering an empty page', async () => {
+    if (!available)
+      return
+
+    const { html } = await fetchPage(`/${created.handle}?q=nothing-called-this-anywhere`)
+
+    expect(html).toContain('Nothing here matches')
+    expect(listed(html, created.handle)).toEqual([])
+  })
+
+  test('a stranger cannot search a private repository into view', async () => {
+    if (!available)
+      return
+
+    // The visibility rule is applied before the search rather than after it. A
+    // filter that runs over rows the reader may not see is a disclosure with a
+    // text box in front of it - type the name, learn whether it exists.
+    const { html } = await fetchPage(`/${created.handle}?q=${created.privateName}`, created.strangerToken)
+
+    expect(listed(html, created.handle)).toEqual([])
+    expect(html).toContain('Nothing here matches')
+  })
+
+  test('a page number past the end lands on the last page rather than on nothing', async () => {
+    if (!available)
+      return
+
+    const { status, html } = await fetchPage(`/${created.handle}?page=900`)
+
+    expect(status).toBe(200)
+    expect(listed(html, created.handle)).toContain(created.publicName)
+  })
+})

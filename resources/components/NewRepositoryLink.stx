@@ -30,5 +30,38 @@ catch {
 </script>
 
 @if (signedIn)
-  <a class="muted" style="text-decoration: none;" href="/new">New</a>
+  <a class="new-repository" href="/new">
+    <span aria-hidden="true">+</span>
+    <span class="new-repository-word">New</span>
+  </a>
 @endif
+
+<style>
+  /* An outlined control rather than a link, because it is the one item in the
+    bar that makes something rather than going somewhere. The solid button is
+    spoken for: it is how a signed-out reader registers, and two filled buttons
+    in a 56px bar is two things claiming to be the point. */
+  .new-repository {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-control, 8px);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .new-repository:hover { background: var(--surface-tint); }
+
+  /* On a narrow bar the plus carries it alone, which is the one place in this
+    product where an icon without its word is unambiguous. */
+  @media (max-width: 720px) {
+    .new-repository { padding: 0 10px; }
+    .new-repository-word { display: none; }
+  }
+</style>
