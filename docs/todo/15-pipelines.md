@@ -2874,7 +2874,29 @@ already commits us to the principle. These are the pipeline-specific pieces.
       All four ride phase 5's delivery, so redelivery, signing and the delivery log come for free.
 - [ ] Notifications on run outcome, per workflow and per step, to the channels phase 5 already
       delivers, with a rule set rather than an on/off switch
-- [ ] A status badge endpoint, cached, for a workflow on a branch
+- [x] A status badge endpoint, cached, for a workflow on a branch
+
+      `GET /api/repos/badge?owner=&repo=&workflow=&branch=`, drawn rather than fetched: no external
+      font, no external anything, since a badge is served into somebody else's page. The label and
+      the message are each sized against a per-character width table, because `passing` and
+      `illiiil` are the same length and not the same width, and a badge sized by character count
+      clips one and pads the other.
+
+      It never fails and it never discloses. A repository that does not exist, one the reader may
+      not see, and one that has never run this workflow all get the same grey `unknown` pill with a
+      200 - byte for byte, which the test asserts, because a difference in width or colour is a
+      difference somebody can measure and measuring it is how a private repository gets confirmed.
+      A 404 would be the same disclosure through a broken image.
+
+      Cached against the run rather than the clock: the `ETag` is the workflow, the run and its
+      state, so a repeat ask costs a query and no rendering, and a build finishing invalidates it
+      at once rather than a minute later. The badge reports the newest *finished* run, so it does
+      not flicker between `running` and the answer while a build is going - the question it answers
+      is whether the branch is good.
+
+      The workflows page carries the line to paste, with the picture it produces beside it. The
+      path is relative: this instance is not `reviewos.org`, and a snippet carrying somebody else's
+      hostname is the one bug a badge can have that nobody notices until the README is public.
 
 ---
 

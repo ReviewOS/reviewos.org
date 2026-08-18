@@ -35852,6 +35852,68 @@
         }
       }
     },
+    "/api/repos/badge": {
+      "get": {
+        "summary": "/api/repos/badge",
+        "operationId": "get__api_repos_badge",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workflow",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The badge, as SVG. Grey `unknown` when there is nothing to report, whatever the reason."
+          },
+          "304": {
+            "description": "Nothing has changed since the `ETag` the caller sent."
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/api/repos/blame": {
       "get": {
         "summary": "/api/repos/blame",

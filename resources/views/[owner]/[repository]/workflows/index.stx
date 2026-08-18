@@ -35,6 +35,10 @@ if (!repoRow)
 
 const base = `/${ownerHandle}/${repositoryName}`
 
+// Said in the badge note, because "&branch=" only matters for a branch that is
+// not this one and a reader has to know which that is.
+const defaultBranch = String(repoRow?.default_branch ?? 'main')
+
 const workflows = repoRow
   ? await db
       .selectFrom('workflows')
@@ -174,6 +178,13 @@ const rows = workflows.map((workflow) => {
     inputs,
     updated: workflow.updated_at ? relativeTime(String(workflow.updated_at)) : '',
     concurrency: String(version?.concurrency_group ?? ''),
+    /*
+     * The badge for this workflow's default branch. Named by path rather than
+     * by name: two workflows may share a name, and the path is the thing that
+     * is unique - a badge pointing at the wrong one of a pair is wrong in the
+     * way nobody checks.
+     */
+    badgePath: `/api/repos/badge?owner=${encodeURIComponent(ownerHandle)}&repo=${encodeURIComponent(repositoryName)}&workflow=${encodeURIComponent(String(workflow.path ?? ''))}`,
   }
 })
 
@@ -319,6 +330,33 @@ const environments = repoRow
                 <p class="workflow-problem">{{ problem }}</p>
               @endforeach
 
+              {{--
+                The badge, shown rather than described. A snippet somebody has
+                to assemble from a reference page is one they assemble wrongly
+                once and then never again, so the line to paste is here with the
+                picture it produces beside it.
+
+                The path is relative on purpose: this instance is not
+                reviewos.org, and a snippet carrying somebody else's hostname is
+                the one bug a badge can have that nobody notices until the
+                README is public.
+              --}}
+              <details class="workflow-badge">
+                <summary class="muted">Badge</summary>
+
+                <p class="workflow-badge-preview">
+                  <img src="{{ workflow.badgePath }}" alt="{{ workflow.name }} status" width="112" height="20">
+                </p>
+
+                <pre class="workflow-badge-snippet"><code>![{{ workflow.name }}]({{ workflow.badgePath }})</code></pre>
+
+                <p class="muted workflow-badge-note">
+                  Relative, so it works in this repository's README. Reading it anywhere else needs
+                  this instance's address in front of it, and <code>&amp;branch=</code> for a branch
+                  other than <code>{{ defaultBranch }}</code>.
+                </p>
+              </details>
+
               @if (workflow.differences.length > 0)
                 <details class="workflow-differences">
                   <summary class="muted">
@@ -444,6 +482,20 @@ const environments = repoRow
   .workflow-differences summary { cursor: pointer; }
   .workflow-difference { margin: 8px 0 0; padding-left: 12px; border-left: 2px solid var(--line); }
   .workflow-difference-note { margin: 8px 0 0; padding-left: 12px; }
+
+  .workflow-badge { margin-top: 10px; font-size: 12.5px; }
+  .workflow-badge summary { cursor: pointer; }
+  .workflow-badge-preview { margin: 10px 0 0; }
+  .workflow-badge-snippet {
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    overflow-x: auto;
+    font-size: 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel-2, transparent);
+  }
+  .workflow-badge-note { margin: 8px 0 0; font-size: 12px; }
 
   .workflow-run { display: grid; gap: 10px; margin-top: 14px; max-width: 420px; }
   .workflow-input { display: grid; gap: 4px; font-size: 12.5px; }

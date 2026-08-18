@@ -4979,6 +4979,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/badge
+   */
+  getReposBadge(input?: { "owner"?: string; "repo"?: string; "workflow"?: string; "branch"?: string; "label"?: string }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "GET", "/api/repos/badge", input ?? {}, ["owner", "repo", "workflow", "branch", "label"], false, options)
+  },
+
+  /**
    * GET /api/repos/blame
    */
   getReposBlame(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

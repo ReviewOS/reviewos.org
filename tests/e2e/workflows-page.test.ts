@@ -190,6 +190,21 @@ describe('the workflows page', () => {
     expect(html).toContain('Runs on push, manual')
   })
 
+  test('offers the badge as a line to paste, pointing at this instance', async () => {
+    if (!available)
+      return
+
+    const html = await page()
+
+    // The snippet and the picture it produces, both relative: a badge carrying
+    // somebody else's hostname is the one bug here nobody notices until the
+    // README is public.
+    expect(html).toContain('/api/repos/badge?owner=')
+    expect(html).toContain('workflow=.github%2Fworkflows%2Frelease.yml')
+    expect(html).toContain('![Release](')
+    expect(html).not.toContain('https://reviewos.org/api/repos/badge')
+  })
+
   test('says why a workflow will never run, in words', async () => {
     if (!available)
       return

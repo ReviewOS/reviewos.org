@@ -781,6 +781,14 @@ route.post('/mirrors/sync', 'Actions/Mirror/SyncNowAction').middleware('auth')
  * are the names the interface, the CLI and the API all use.
  */
 route.get('/repos/workflow-runs', 'Actions/Workflow/ListWorkflowRunsAction')
+
+/*
+ * The badge a README carries. Anonymous by design - it is fetched by whoever is
+ * reading somebody else's page - and it answers `unknown` rather than 404 for
+ * everything it cannot show, so a private repository is not confirmed by a
+ * broken image.
+ */
+route.get('/repos/badge', 'Actions/Workflow/BadgeAction')
 route.get('/repos/workflow-runs/show', 'Actions/Workflow/ShowWorkflowRunAction')
 
 // Write access, checked in the action: anybody who can see a run is not

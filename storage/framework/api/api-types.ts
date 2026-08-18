@@ -13372,6 +13372,30 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/badge": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "workflow"?: string; "branch"?: string; "label"?: string }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: never }
+      "304": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/blame": {
     get: {
     parameters: {
