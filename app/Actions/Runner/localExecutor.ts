@@ -22,7 +22,7 @@
  * be exercised most, not bypassed.
  */
 
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
@@ -32,6 +32,8 @@ import type { ActionDefinition } from './actionFile'
 import { inputEnvironment, missingInputs, parseActionFile } from './actionFile'
 import type { CheckoutOptions } from './checkout'
 import { checkoutPlan } from './checkout'
+import type { FleetStage, HookStage, ResolvedHook } from './hooks'
+import { fleetHook, hooksFor, repositoryHooksAllowed } from './hooks'
 import { CommandReader } from './commands'
 import type { ServiceRequest } from './services'
 import { resolveServices, serviceEnvironment, waitForPort } from './services'
@@ -58,6 +60,14 @@ export interface LocalRunnerOptions {
   idleTimeoutMs?: number
   /** Where to check code out. A temporary directory per job by default. */
   workspaceRoot?: string
+  /**
+   * Where this machine's own hooks live, outside repository control.
+   *
+   * An operator put them there, which is what makes `pre-bootstrap` a refusal a
+   * repository cannot reach and `command` a wrapper it cannot remove. Absent
+   * means a fleet with no hooks, which is every fleet until somebody needs one.
+   */
+  hooksDirectory?: string
   /**
    * Where this instance keeps its bare repositories.
    *
@@ -260,6 +270,65 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     await send(`::group::Workspace\n${workspace}\n::endgroup::\n`)
 
     /*
+     * `pre-bootstrap`, before anything of the repository's is on disk.
+     *
+     * The only moment a machine can decide whether to run this repository's
+     * code without having already fetched it - which is why it is runner-scoped
+     * only, and why a refusal here is a refusal rather than a failed step.
+     */
+    const bootstrap = await runHooks({
+      stage: 'pre-bootstrap',
+      job,
+      workspace,
+      environment: environmentFor(job, workspace),
+      runnerDirectory: options.hooksDirectory,
+      say: send,
+    })
+
+    if (!bootstrap.ok) {
+      await flush()
+      await report(options.baseUrl, jobToken, 'failed', bootstrap.reason)
+      say(`job ${job.id} refused: ${bootstrap.reason}`)
+
+      return { jobId: Number(job.id), state: 'failed', reason: bootstrap.reason }
+    }
+
+    /*
+     * Hook-exported environment, carried from here to the steps.
+     *
+     * `environment` runs before the checkout on purpose: a fleet that has to
+     * set a proxy or a mirror needs it set *before* git runs, not after.
+     */
+    const hookEnvironment: Record<string, string> = {}
+
+    for (const stage of ['environment', 'pre-checkout'] as const) {
+      const outcome = await runHooks({
+        stage,
+        job,
+        workspace,
+        environment: { ...environmentFor(job, workspace), ...hookEnvironment },
+        runnerDirectory: options.hooksDirectory,
+        say: send,
+      })
+
+      Object.assign(hookEnvironment, outcome.exported)
+
+      if (!outcome.ok) {
+        await flush()
+        await report(options.baseUrl, jobToken, 'failed', outcome.reason)
+
+        return { jobId: Number(job.id), state: 'failed', reason: outcome.reason }
+      }
+    }
+
+    /*
+     * A `checkout` hook replaces the built-in clone entirely - a fleet with a
+     * local mirror, a cache server or a filesystem snapshot has its own way of
+     * putting the code there, and the built-in one would only get in the way.
+     */
+    const ownCheckout = hooksFor({ stage: 'checkout', runnerDirectory: options.hooksDirectory })
+
+    /*
      * The checkout, done by the runner rather than by a step.
      *
      * Actions leaves this to `actions/checkout`, and this runner does not
@@ -268,22 +337,43 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * product. Checking out first is the difference between "your workflow
      * ran" and "your workflow ran in an empty room".
      */
-    const checkout = await checkoutCode({
-      reposRoot: options.reposRoot ?? 'storage/repos',
-      fullName: String(job.repository_full_name ?? ''),
-      sha: String(job.run?.head_sha ?? ''),
-      workspace,
-      /*
-       * Where to clone from when the bare repository is not on this machine,
-       * which is every runner that is not the instance's own host.
-       */
-      baseUrl: options.baseUrl,
-      cloneToken: options.cloneToken,
-      // What the job asked for: a depth, sparse paths, submodules, LFS, or no
-      // checkout at all.
-      options: (job.checkout ?? undefined) as CheckoutOptions | undefined,
-      onOutput: (text, stream) => send(text, stream),
-    })
+    const checkout = ownCheckout.length > 0
+      ? await (async () => {
+          const outcome = await runHooks({
+            stage: 'checkout',
+            job,
+            workspace,
+            environment: { ...environmentFor(job, workspace), ...hookEnvironment },
+            runnerDirectory: options.hooksDirectory,
+            say: send,
+          })
+
+          Object.assign(hookEnvironment, outcome.exported)
+
+          return { ok: outcome.ok, reason: outcome.ok ? 'checked out by a runner hook' : outcome.reason }
+        })()
+      : await checkoutCode({
+          reposRoot: options.reposRoot ?? 'storage/repos',
+          fullName: String(job.repository_full_name ?? ''),
+          sha: String(job.run?.head_sha ?? ''),
+          workspace,
+          /*
+           * Where to clone from when the bare repository is not on this
+           * machine, which is every runner that is not the instance's own host.
+           */
+          baseUrl: options.baseUrl,
+          cloneToken: options.cloneToken,
+          // What the job asked for: a depth, sparse paths, submodules, LFS, or
+          // no checkout at all.
+          options: (job.checkout ?? undefined) as CheckoutOptions | undefined,
+          /*
+           * A hook may have written here already - the `environment` stage runs
+           * before the checkout precisely so a fleet can set things up - and
+           * `git clone` refuses a directory with anything in it.
+           */
+          empty: isEmptyDirectory(workspace),
+          onOutput: (text, stream) => send(text, stream),
+        })
 
     if (!checkout.ok) {
       await report(options.baseUrl, jobToken, 'failed', checkout.reason)
@@ -368,7 +458,42 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     if (uploadPath)
       writeSplitCommand(uploadPath, options.baseUrl, jobToken)
 
-    const steps: any[] = Array.isArray(job.steps) ? job.steps : []
+    /*
+     * `post-checkout` and `pre-command`, now that the code is on disk and the
+     * repository's own hooks exist to be found.
+     */
+    for (const stage of ['post-checkout', 'pre-command'] as const) {
+      const outcome = await runHooks({
+        stage,
+        job,
+        workspace,
+        environment: { ...environmentFor(job, workspace), ...hookEnvironment },
+        runnerDirectory: options.hooksDirectory,
+        say: send,
+      })
+
+      Object.assign(hookEnvironment, outcome.exported)
+
+      if (!outcome.ok) {
+        await flush()
+        await report(options.baseUrl, jobToken, 'failed', outcome.reason)
+
+        return { jobId: Number(job.id), state: 'failed', reason: outcome.reason }
+      }
+    }
+
+    /*
+     * A `command` hook replaces the steps entirely.
+     *
+     * The wrapper case: a fleet that runs every command inside a profiler, a
+     * sandbox or a container does it here rather than by editing every
+     * workflow in every repository. Runner-scoped only, for the obvious reason
+     * - a repository that could replace the command would not be running its
+     * own steps any more.
+     */
+    const ownCommand = hooksFor({ stage: 'command', runnerDirectory: options.hooksDirectory })
+
+    const steps: any[] = ownCommand.length > 0 ? [] : (Array.isArray(job.steps) ? job.steps : [])
     let failed: string | null = null
     /*
      * What the failing step exited with, carried to the report so
@@ -397,7 +522,13 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * its own shell cannot affect the next one - each is its own process - and
      * this file is the whole reason Actions can pretend otherwise.
      */
-    const carried: Record<string, string> = {}
+    /*
+     * Seeded with what the hooks exported, so a fleet's `environment` hook
+     * reaches the steps the same way one step reaches the next. It is the
+     * bottom of the stack: a step that sets the same name wins, because the
+     * repository's own file is more specific than the machine's default.
+     */
+    const carried: Record<string, string> = { ...hookEnvironment }
     let extraPath = ''
 
     /*
@@ -622,6 +753,38 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       }
     }
 
+    if (ownCommand.length > 0) {
+      const outcome = await runHooks({
+        stage: 'command',
+        job,
+        workspace,
+        environment: { ...environmentFor(job, workspace), ...hookEnvironment },
+        runnerDirectory: options.hooksDirectory,
+        say: send,
+      })
+
+      Object.assign(hookEnvironment, outcome.exported)
+
+      if (!outcome.ok) {
+        failed = outcome.reason
+        jobFailed = true
+      }
+    }
+
+    // `post-command` runs whether the steps passed or failed: it is where a
+    // fleet collects a profile or tears down what `pre-command` set up.
+    const afterCommand = await runHooks({
+      stage: 'post-command',
+      job,
+      workspace,
+      environment: { ...environmentFor(job, workspace), ...hookEnvironment },
+      runnerDirectory: options.hooksDirectory,
+      say: send,
+    })
+
+    if (!afterCommand.ok && !failed)
+      failed = afterCommand.reason
+
     await flush()
 
     /*
@@ -646,8 +809,6 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       )
     }
 
-    const state = failed ? 'failed' : 'succeeded'
-
     /*
      * What the job asked to have kept, collected on the way out.
      *
@@ -656,7 +817,41 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * after its run finished is one somebody has already given up looking for.
      * Pass or fail - the failing run is the one with the screenshot in it.
      */
+    for (const stage of ['pre-artifact'] as const) {
+      const outcome = await runHooks({
+        stage,
+        job,
+        workspace,
+        environment: { ...environmentFor(job, workspace), ...hookEnvironment },
+        runnerDirectory: options.hooksDirectory,
+        say: send,
+      })
+
+      if (!outcome.ok && !failed)
+        failed = outcome.reason
+    }
+
     await publishArtifacts({ job, workspace, baseUrl: options.baseUrl, jobToken, say: send })
+
+    /*
+     * `post-artifact`, then `pre-exit` - which runs whatever happened, and is
+     * therefore where a machine unmounts a cache or stops a container it
+     * started. A failure in either is recorded but does not overwrite a real
+     * failure the job already had.
+     */
+    for (const stage of ['post-artifact', 'pre-exit'] as const) {
+      const outcome = await runHooks({
+        stage,
+        job,
+        workspace,
+        environment: { ...environmentFor(job, workspace), ...hookEnvironment },
+        runnerDirectory: options.hooksDirectory,
+        say: send,
+      })
+
+      if (!outcome.ok && !failed)
+        failed = outcome.reason
+    }
 
     // Flushed again, because what the collection said about itself - a glob
     // that matched nothing, an upload that was refused - is written through the
@@ -683,6 +878,15 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         summary: summary.join('\n').slice(0, 60_000),
       })
     }
+
+    /*
+     * Read after the artifact and exit hooks, not before them.
+     *
+     * A `pre-exit` hook that fails has failed the job, and computing the
+     * conclusion earlier would report success for a machine that could not tear
+     * down what it set up - which is the one thing that hook exists for.
+     */
+    const state = failed ? 'failed' : 'succeeded'
 
     await report(options.baseUrl, jobToken, state, failed ?? '', resolvedOutputs, failedStatus)
     say(`job ${job.id} ${state}`)
@@ -723,6 +927,26 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
   const limit = options.maxJobs ?? 0
   const idleTimeout = options.idleTimeoutMs ?? 0
 
+  /*
+   * The machine's own lifecycle, either side of the loop.
+   *
+   * `runner-startup` is where a fleet warms a cache, mounts a volume or
+   * registers itself with something; `runner-shutdown` is where it puts all of
+   * that back. Neither can fail a job, because neither belongs to one - a
+   * failing startup hook is said out loud and the machine still takes work,
+   * which is the honest behaviour for a hook whose author is the operator
+   * watching the log.
+   */
+  await runFleetHook('runner-startup', options)
+
+  try {
+    return await pollForJobs()
+  }
+  finally {
+    await runFleetHook('runner-shutdown', options)
+  }
+
+  async function pollForJobs(): Promise<JobOutcome[]> {
   let idleSince = Date.now()
 
   for (;;) {
@@ -764,6 +988,41 @@ export async function runLoop(options: LocalRunnerOptions): Promise<JobOutcome[]
 
     await new Promise(resolve => setTimeout(resolve, idle))
   }
+  }
+}
+
+/**
+ * One of the machine's own lifecycle hooks.
+ *
+ * It gets no job and no workspace, because there is neither: it runs in the
+ * runner's own working directory, before any work has been claimed or after all
+ * of it is done. A failure is reported to the operator's log and changes
+ * nothing else - there is no job to fail.
+ */
+async function runFleetHook(stage: FleetStage, options: LocalRunnerOptions): Promise<void> {
+  const hook = fleetHook(options.hooksDirectory, stage)
+
+  if (!hook)
+    return
+
+  const result = await runStep({
+    command: JSON.stringify(hook.path),
+    cwd: options.workspaceRoot ?? process.cwd(),
+    environment: {
+      PATH: process.env.PATH ?? '/usr/bin:/bin',
+      HOME: process.env.HOME ?? '',
+      REVIEWOS: 'true',
+      REVIEWOS_HOOK: stage,
+      REVIEWOS_HOOK_SCOPE: 'runner',
+      REVIEWOS_SERVER_URL: options.baseUrl,
+    },
+    onOutput: async (text) => {
+      options.say?.(text.replace(/\n$/, ''))
+    },
+  })
+
+  if (!result.ok)
+    options.say?.(`the ${stage} hook failed (exited ${result.exitCode})`)
 }
 
 /**
@@ -1159,6 +1418,136 @@ async function publishArtifacts(input: {
   }
 }
 
+/** Whether nothing has been written into the workspace yet. */
+function isEmptyDirectory(path: string): boolean {
+  try {
+    return readdirSync(path).length === 0
+  }
+  catch {
+    // Unreadable means treat it as occupied: the fetch shape works either way,
+    // and the clone shape does not.
+    return false
+  }
+}
+
+/** Where a repository keeps its own hooks, inside the checkout. */
+export const REPOSITORY_HOOKS = '.reviewos/hooks'
+
+export interface HookOutcome {
+  /** Whether every hook that ran succeeded. */
+  ok: boolean
+  /** Which hooks ran, for the log and for the tests. */
+  ran: ResolvedHook[]
+  /** The first failure, in the words the job's log gets. */
+  reason: string
+  /** Environment variables the hooks exported, for the steps that follow. */
+  exported: Record<string, string>
+}
+
+/**
+ * Run one stage's hooks, in scope order.
+ *
+ * **A hook failing fails the job.** That is the whole reason to have them: a
+ * fleet that must inject a proxy or refuse untrusted work is a fleet where the
+ * hook not working means the job must not run either. Continuing past a failed
+ * hook would make the guarantee "usually".
+ *
+ * Anything a hook writes to `$REVIEWOS_ENV` is read back and carried into the
+ * steps, the same channel `GITHUB_ENV` gives a step. It is how `environment`
+ * earns its name: a hook that exports a proxy setting for the job has nowhere
+ * else to put it.
+ */
+async function runHooks(input: {
+  stage: HookStage
+  job: any
+  workspace: string
+  environment: Record<string, string>
+  runnerDirectory?: string | null
+  say: (text: string, stream?: 'stdout' | 'stderr') => Promise<void>
+}): Promise<HookOutcome> {
+  /*
+   * A fork's hooks are not run at all. This runner refuses untrusted runs
+   * outright, so this is a second line - and it is here so that the day the
+   * first is relaxed for a sandboxed runner, this is not relaxed with it.
+   */
+  const repositoryDirectory = repositoryHooksAllowed(input.job)
+    ? join(input.workspace, REPOSITORY_HOOKS)
+    : null
+
+  const hooks = hooksFor({
+    stage: input.stage,
+    runnerDirectory: input.runnerDirectory,
+    repositoryDirectory,
+  })
+
+  const outcome: HookOutcome = { ok: true, ran: [], reason: '', exported: {} }
+
+  for (const hook of hooks) {
+    const envFile = join(input.workspace, '.reviewos-runner', `hook-env-${input.stage}-${hook.scope}`)
+
+    /*
+     * The directory has to exist before the hook runs, not after.
+     *
+     * `environment` is the first stage and it runs before the checkout, which
+     * is what creates the rest of the workspace - so a hook appending to
+     * `$REVIEWOS_ENV` was failing on a directory that did not exist yet, and
+     * reporting it as the hook's own failure.
+     */
+    try {
+      mkdirSync(join(input.workspace, '.reviewos-runner'), { recursive: true })
+    }
+    catch { /* the hook will fail on its own terms, and say so */ }
+
+    await input.say(`::group::Hook ${input.stage} (${hook.scope})\n`)
+
+    const result = await runStep({
+      command: `${JSON.stringify(hook.path)}`,
+      cwd: input.workspace,
+      environment: {
+        ...input.environment,
+        ...outcome.exported,
+        REVIEWOS_HOOK: input.stage,
+        REVIEWOS_HOOK_SCOPE: hook.scope,
+        REVIEWOS_ENV: envFile,
+      },
+      onOutput: (text, stream) => input.say(text, stream),
+    })
+
+    await input.say('::endgroup::\n')
+
+    Object.assign(outcome.exported, readEnvFile(envFile))
+    outcome.ran.push(hook)
+
+    if (!result.ok) {
+      outcome.ok = false
+      // Named down to the scope, because "a hook failed" sends an operator to
+      // read the repository's hooks when the failure was the machine's own.
+      outcome.reason = `The ${hook.scope} \`${input.stage}\` hook failed (exited ${result.exitCode}).`
+
+      return outcome
+    }
+  }
+
+  return outcome
+}
+
+/** What a hook exported, out of the file it was given. */
+function readEnvFile(path: string): Record<string, string> {
+  try {
+    if (!existsSync(path))
+      return {}
+
+    const values = parseEnvFile(readFileSync(path, 'utf8'))
+
+    rmSync(path, { force: true })
+
+    return values
+  }
+  catch {
+    return {}
+  }
+}
+
 /**
  * Install and locate what the checked-out repository says it needs.
  *
@@ -1369,6 +1758,8 @@ async function checkoutCode(input: {
   cloneToken?: string
   /** What the workflow asked for, when it asked. */
   options?: CheckoutOptions
+  /** False when a hook has already written into the workspace. */
+  empty?: boolean
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
 }): Promise<{ ok: boolean, reason: string }> {
   if (!input.fullName || !input.sha)
@@ -1398,7 +1789,7 @@ async function checkoutCode(input: {
   if (!onHost && !input.baseUrl)
     return { ok: false, reason: `no repository on this host at ${bare}, and nowhere to clone it from` }
 
-  const plan = checkoutPlan({ source, sha: input.sha, onHost, options: input.options })
+  const plan = checkoutPlan({ source, sha: input.sha, onHost, empty: input.empty, options: input.options })
 
   if (plan.commands.length === 0) {
     // A job that asked for no code at all - one that calls an API, or unblocks

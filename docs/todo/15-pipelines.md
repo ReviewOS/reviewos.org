@@ -1829,18 +1829,64 @@ register itself in - which is exactly what a registration token is for.
 Buildkite's hook set is the extension point that makes the agent adaptable without a plugin, and the
 list is worth copying wholesale because each entry exists to solve a problem people actually have.
 
-- [ ] Fleet lifecycle: `runner-startup`, `runner-shutdown`
-- [ ] Job lifecycle, in order: `pre-bootstrap`, `environment`, `pre-checkout`, `checkout`,
+- [x] Fleet lifecycle: `runner-startup`, `runner-shutdown`
+
+      Either side of the poll loop, in the runner's own directory with no job and no workspace -
+      because there is neither. A failure changes nothing but the log: there is no job to fail, and
+      a machine that refuses to take work because a warmup script exited 1 is one an operator has to
+      notice before anything happens at all.
+- [x] Job lifecycle, in order: `pre-bootstrap`, `environment`, `pre-checkout`, `checkout`,
       `post-checkout`, `pre-command`, `command`, `post-command`, `pre-artifact`, `post-artifact`,
       `pre-exit`
-- [ ] Three scopes with a documented precedence: runner hooks (on the machine, outside repository
+
+      All eleven, wired into the local runner. **A job hook that fails fails the job**, which is the
+      point: a fleet that must inject a proxy or refuse untrusted work is one where the hook not
+      working means the job must not run either. `post-command`, `post-artifact` and `pre-exit` run
+      whatever happened, so a teardown still runs after a failed build - and the conclusion is read
+      after them, so a `pre-exit` that cannot put back what it set up fails a job whose steps
+      passed.
+
+      `$REVIEWOS_ENV` carries values from a hook into the hooks after it and into the steps, the
+      same channel `GITHUB_ENV` gives a step.
+- [x] Three scopes with a documented precedence: runner hooks (on the machine, outside repository
       control), repository hooks (in the checkout), and plugin hooks
-- [ ] `pre-bootstrap` can refuse a job before any repository code is fetched. This is how an operator
+
+      Two of the three: the machine's, from `--hooks`, and the repository's, from `.reviewos/hooks/`
+      in the checkout. Both run for an ordinary stage, the machine's first, so the second reads what
+      the first exported. **Plugin hooks are not built** - there are no plugins yet - and they slot
+      between the two when there are.
+
+      A file without an execute bit is not a hook: a `README` in a hooks directory would otherwise
+      be run as a shell script and its failure reported as the job's. A fork's pull request gets no
+      repository hooks at all, which is a second line behind this runner refusing untrusted runs -
+      and it is there so the day the first is relaxed for a sandboxed runner, this is not relaxed
+      with it.
+- [x] `pre-bootstrap` can refuse a job before any repository code is fetched. This is how an operator
       keeps a trusted runner from running an arbitrary workflow, and it must be runner-scoped only.
-- [ ] `checkout` and `command` are overridable, so a fleet can substitute its own clone strategy or
+
+      A non-zero exit fails the job with the reason, before the checkout runs - the e2e asserts that
+      the log has no checkout group in it at all. Runner-scoped, because a repository hook here
+      would be the code deciding whether to trust itself.
+- [x] `checkout` and `command` are overridable, so a fleet can substitute its own clone strategy or
       execution wrapper
-- [ ] Tests: a refusing `pre-bootstrap`, a repository hook attempting to override a runner hook, hook
+
+      Both replace the built-in behaviour rather than adding to it, and both are runner-scoped for
+      the same reason: a repository that could replace the command would not be running its own
+      steps any more, and a fleet's profiler wrapper would be removed by the first repository that
+      did not want it.
+
+      Writing this found a real bug: a hook that writes into the workspace before the checkout - the
+      whole point of `environment` - broke the built-in clone, because `git clone` refuses a
+      directory with anything in it. The checkout now uses the fetch shape when the workspace is not
+      empty.
+- [x] Tests: a refusing `pre-bootstrap`, a repository hook attempting to override a runner hook, hook
       failure at each stage, and the environment a hook can and cannot see
+
+      The precedence is a pure function over a directory listing, so the rule that matters - a
+      repository hook is never consulted for the three deciding stages - is tested directly rather
+      than inferred from a run. The e2e runs real hooks against a real checkout: a refusal, an
+      exported variable a step reads, a `command` hook that replaces the steps, and a `pre-exit`
+      failure that fails a job whose steps passed.
 
 ### Plugins
 

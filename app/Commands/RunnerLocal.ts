@@ -47,6 +47,8 @@ interface RunnerOptions {
   once?: boolean
   jobs?: string
   register?: boolean
+  /** Where this machine's own hooks live. See `docs/runner-hooks.md`. */
+  hooks?: string
 }
 
 export default function (cli: CLI) {
@@ -60,6 +62,7 @@ export default function (cli: CLI) {
     .option('--once', 'Claim and run at most one job, then stop', { default: false })
     .option('--jobs <count>', 'Stop after this many jobs', { default: '0' })
     .option('--idle-timeout <seconds>', 'Stop after this long with nothing to do', { default: '0' })
+    .option('--hooks <directory>', 'Where this machine\'s hooks live, outside repository control')
     .action(async (options: RunnerOptions) => {
       if (options.register) {
         await registerRunner(options, { print: true })
@@ -114,7 +117,12 @@ export default function (cli: CLI) {
       const maxJobs = options.once ? 1 : Number(options.jobs ?? 0) || 0
 
       if (options.once) {
-        const outcome = await runOnce({ baseUrl: url, token, say: line => console.log(line) })
+        const outcome = await runOnce({
+          baseUrl: url,
+          token,
+          hooksDirectory: options.hooks,
+          say: line => console.log(line),
+        })
 
         console.log(outcome ? `${outcome.state}: ${outcome.reason}` : 'nothing to run')
         return
@@ -129,6 +137,9 @@ export default function (cli: CLI) {
         // An ephemeral runner: stops itself when the queue has been empty for
         // a while, which is what makes an autoscaling group safe to write.
         idleTimeoutMs: (Number(options.idleTimeout ?? 0) || 0) * 1000,
+        // The machine's own scripts, which a repository cannot reach. See
+        // `docs/runner-hooks.md`.
+        hooksDirectory: options.hooks,
         say: line => console.log(line),
       })
 

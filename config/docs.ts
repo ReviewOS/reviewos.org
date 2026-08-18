@@ -86,6 +86,7 @@ const config: BunPressOptions = {
             { text: 'Secrets', link: '/secrets' },
             { text: 'The merge queue', link: '/merge-queue' },
             { text: 'Insight', link: '/insight' },
+            { text: 'Runner hooks', link: '/runner-hooks' },
           ],
         },
         {

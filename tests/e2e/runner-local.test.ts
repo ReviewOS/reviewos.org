@@ -10,7 +10,7 @@
 // the protocol and a runner that skips them is not the runner anybody else has.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
@@ -1335,5 +1335,184 @@ describe('checkout options', () => {
     // Said out loud, because an empty workspace with no explanation is the
     // first thing somebody blames when a step cannot find a file.
     expect(text).toContain('asked for no checkout')
+  }, 180_000)
+})
+
+describe('runner hooks', () => {
+  /**
+   * A job run with a hooks directory on the machine.
+   *
+   * The hooks are written per test, so each one says exactly what it is about
+   * rather than sharing a fixture nobody can read the intent out of.
+   */
+  async function runWithHooks(name: string, hooks: Record<string, string>, steps: string[] = ['echo "the step ran"']): Promise<{
+    outcome: any
+    log: string
+  }> {
+    const { runOnce } = await import('../../app/Actions/Runner/localExecutor')
+
+    const hooksDirectory = join(created.temp, `hooks-${name}`)
+
+    mkdirSync(hooksDirectory, { recursive: true })
+
+    for (const [stage, body] of Object.entries(hooks)) {
+      const path = join(hooksDirectory, stage)
+
+      writeFileSync(path, `#!/bin/sh\n${body}\n`)
+      chmodSync(path, 0o755)
+    }
+
+    const version: any = await db
+      .selectFrom('workflow_versions')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select(['workflow_versions.id as id'])
+      .where('workflows.repository_id', '=', created.repositoryId)
+      .orderBy('workflow_versions.id', 'desc')
+      .executeTakeFirst()
+
+    const definition: any = await db.insertInto('workflow_version_jobs').values({
+      workflow_version_id: Number(version.id),
+      job_id: name,
+      name,
+      position: 60,
+      runs_on: 'ubuntu-latest',
+    }).returning(['id']).executeTakeFirst()
+
+    for (const [position, command] of steps.entries()) {
+      await db.insertInto('workflow_version_steps').values({
+        workflow_version_job_id: Number(definition.id),
+        position,
+        name: `Step ${position}`,
+        command,
+      } as any).execute()
+    }
+
+    const run: any = await db.insertInto('workflow_runs').values({
+      workflow_version_id: Number(version.id),
+      repository_id: created.repositoryId,
+      number: 900 + Math.floor(Math.random() * 90),
+      state: 'queued',
+      event: 'push',
+      event_ref: `refs/heads/${name}`,
+      head_sha: created.headSha,
+      definition_sha: created.headSha,
+      trusted: true,
+    }).returning(['id']).executeTakeFirst()
+
+    const job: any = await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: name,
+      name,
+      position: 0,
+      state: 'queued',
+      runs_on: 'ubuntu-latest',
+    }).returning(['id']).executeTakeFirst()
+
+    const outcome = await runOnce({
+      baseUrl,
+      token: created.token,
+      reposRoot: 'storage/repos',
+      hooksDirectory,
+    })
+
+    const logs: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .select(['content'])
+      .where('workflow_job_id', '=', Number(job.id))
+      .orderBy('sequence')
+      .execute()
+
+    return { outcome, log: logs.map(row => String(row.content ?? '')).join('') }
+  }
+
+  test('a pre-bootstrap hook can refuse the job before any code is fetched', async () => {
+    if (!available)
+      return
+
+    /*
+     * The reason the runner scope exists. An operator keeping a trusted machine
+     * from running an arbitrary workflow has to be able to say no *before* the
+     * repository's code is on disk - after that, deciding whether to trust it
+     * means having already fetched it.
+     */
+    const { outcome, log } = await runWithHooks('refused', {
+      'pre-bootstrap': 'echo "this machine does not run that"; exit 1',
+    })
+
+    expect(outcome?.state).toBe('failed')
+    expect(String(outcome?.reason)).toContain('pre-bootstrap')
+    expect(log).toContain('this machine does not run that')
+
+    // And nothing was checked out: the refusal came first.
+    expect(log).not.toContain('::group::Checkout')
+  }, 180_000)
+
+  test('an environment hook exports values the steps can read', async () => {
+    if (!available)
+      return
+
+    // The channel that makes `environment` worth having: a fleet that must set
+    // a proxy or a mirror has nowhere else to put it.
+    const { outcome, log } = await runWithHooks(
+      'exports',
+      { environment: 'echo "FLEET_PROXY=http://cache.internal" >> "$REVIEWOS_ENV"' },
+      ['echo "proxy is $FLEET_PROXY"'],
+    )
+
+    expect(outcome?.state).toBe('succeeded')
+    expect(log).toContain('proxy is http://cache.internal')
+  }, 180_000)
+
+  test('a command hook replaces the steps entirely', async () => {
+    if (!available)
+      return
+
+    /*
+     * The wrapper case: a fleet that runs everything inside a profiler or a
+     * sandbox does it here rather than by editing every workflow in every
+     * repository.
+     */
+    const { outcome, log } = await runWithHooks(
+      'wrapped',
+      { command: 'echo "the wrapper ran instead"' },
+      ['echo "the step must not run"'],
+    )
+
+    expect(outcome?.state).toBe('succeeded')
+    expect(log).toContain('the wrapper ran instead')
+    expect(log).not.toContain('the step must not run')
+  }, 180_000)
+
+  test('a pre-exit hook that fails fails the job, after the steps have run', async () => {
+    if (!available)
+      return
+
+    // Which is the point of a teardown hook: a machine that could not put back
+    // what it set up has not finished the job successfully, whatever the steps
+    // said.
+    const { outcome, log } = await runWithHooks(
+      'teardown',
+      { 'pre-exit': 'echo "could not unmount the cache"; exit 2' },
+      ['echo "the step ran fine"'],
+    )
+
+    expect(log).toContain('the step ran fine')
+    expect(outcome?.state).toBe('failed')
+    expect(String(outcome?.reason)).toContain('pre-exit')
+  }, 180_000)
+
+  test('a repository hook cannot provide a command, and the runner\'s steps still run', async () => {
+    if (!available)
+      return
+
+    /*
+     * The precedence rule, against a real checkout. The repository's hooks are
+     * in the tree; `command` is runner-scoped, so this one is not consulted and
+     * the job runs its own steps.
+     */
+    const { outcome, log } = await runWithHooks('unwrapped', {}, ['echo "the real step ran"'])
+
+    expect(outcome?.state).toBe('succeeded')
+    expect(log).toContain('the real step ran')
   }, 180_000)
 })

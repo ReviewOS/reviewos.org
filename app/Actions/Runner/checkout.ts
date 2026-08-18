@@ -38,6 +38,15 @@ export interface CheckoutRequest {
   sha: string
   /** True when `source` is a path on this machine rather than a URL. */
   onHost: boolean
+  /**
+   * Whether the workspace is empty.
+   *
+   * `git clone` refuses a directory with anything in it, and a hook that ran
+   * before the checkout may legitimately have put something there - a warmed
+   * cache, a mounted volume, the runner's own bookkeeping. False switches to
+   * the fetch shape, which does not care.
+   */
+  empty?: boolean
   options?: CheckoutOptions
 }
 
@@ -90,7 +99,7 @@ export function checkoutPlan(input: CheckoutRequest): CheckoutPlan {
    */
   const source = input.onHost && depth > 0 ? `file://${input.source}` : input.source
 
-  if (input.onHost && depth === 0) {
+  if (input.onHost && depth === 0 && input.empty !== false) {
     // `--no-hardlinks` so a step running `git gc` cannot write into the object
     // store everybody pushes to.
     commands.push(`git clone --no-hardlinks --quiet ${shellQuote(source)} .`)
@@ -101,6 +110,11 @@ export function checkoutPlan(input: CheckoutRequest): CheckoutPlan {
     commands.push(`git checkout --quiet ${shellQuote(input.sha)}`)
   }
   else {
+    /*
+     * `init` and `fetch` rather than `clone`, which covers three cases at once:
+     * a runner that is not this instance's host, a shallow clone (git ignores
+     * `--depth` on a local path), and a workspace something already wrote to.
+     */
     commands.push('git init --quiet .')
     commands.push(`git remote add origin ${shellQuote(source)}`)
 
