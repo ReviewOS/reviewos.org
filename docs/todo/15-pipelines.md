@@ -1964,8 +1964,23 @@ decisions.
       Groups, timestamps, ANSI and links wait on structured log events - the plain-text half is what
       exists, and a group marker parsed out of plain text is a guess about somebody's build output.
 - [ ] Log search that works during streaming and on a finished run, with deep links to a line
-- [ ] Log redaction applied before persistence, driven by the secrets the job was given, with a
+- [x] Log redaction applied before persistence, driven by the secrets the job was given, with a
       visible marker where something was removed rather than a silent gap
+
+      The second line behind the runner's own masking, and it exists because the first is somebody
+      else's program: a runner that is old, patched or hostile is still one this instance accepts
+      logs from, and "we asked it to mask" is not a property of the stored log. The value, its
+      base64 form and its percent-encoded form are each replaced with `[redacted]`.
+
+      The job's secrets are memoized per job rather than decrypted per chunk - a job's secrets do
+      not change while it runs, and putting the instance's key work on the hot path of a streaming
+      log would be a cost paid on every line.
+
+      **A value split across two writes survives this pass**, and that is stated in the docs rather
+      than hidden: it sees one chunk at a time, and holding the tail of every chunk to check the
+      join would mean buffering a log meant to be streamed. The runner's masking covers it, because
+      the runner sees the stream. A value shorter than five characters is also left alone - a secret
+      of `dev` would blank a word everywhere it appears.
 - [ ] Log size ceiling with a documented truncation behavior, and backpressure that slows a runner
       rather than dropping the middle of the log
 - [ ] Annotations: markdown, with a level (success, info, warning, error), a context key so a rerun

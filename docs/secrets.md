@@ -65,6 +65,21 @@ organization has.
   prints one. The way a credential reaches a log is never `echo $TOKEN` - it is
   a curl that fails and prints the request it tried. Masking happens on the
   runner, because masking after the value has crossed the wire is not masking.
+- **And redacted again on the way into the database**, which is the second line.
+  The first is somebody else's program: a runner that is old, patched or hostile
+  is still one this instance accepts logs from, and "we asked it to mask" is not
+  a property of the stored log. The value, its base64 form and its
+  percent-encoded form are each replaced with a visible `[redacted]` - a silent
+  gap reads as a bug in the log and sends somebody looking for it.
+
+  Two limits, both deliberate. A value shorter than five characters is left
+  alone: a secret of `dev` would blank a word everywhere it appears and turn
+  every log on the instance into a puzzle. And **a value split across two writes
+  survives this pass** - it sees one chunk at a time, and holding the tail of
+  every chunk to check the join would mean buffering a log that is meant to be
+  streamed. The runner's own masking covers that case, because it sees the
+  stream. A redaction feature people believe is total is worse than one whose
+  edge they know.
 - **A value this instance can no longer decrypt is skipped**, not delivered
   empty. A job handed an empty credential authenticates as nobody and fails
   somewhere far from the cause; a missing one fails at the line that uses it.

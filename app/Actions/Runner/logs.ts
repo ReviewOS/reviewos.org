@@ -15,6 +15,7 @@
  */
 
 import { db } from '@stacksjs/database'
+import { redactSecrets } from './redact'
 import type { LogEvent } from './logevents'
 import { eventsAsText } from './logevents'
 
@@ -92,7 +93,17 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
   // Events, when there are any, decide the text: a runner that sends structure
   // should not also have to send the flattened form and keep the two in step.
   const events = input.events && input.events.length > 0 ? input.events : null
-  const text = events ? eventsAsText(events) : input.content
+
+  /*
+   * Redacted here, before anything is written down.
+   *
+   * The runner masks what it was given, and that is the first line - the only
+   * place a value can be removed before it crosses the wire. This is the
+   * second, and it exists because the first is somebody else's program: a
+   * runner that is old, patched or hostile is still one this instance accepts
+   * logs from, and "we asked it to mask" is not a property of the stored log.
+   */
+  const text = redactSecrets(events ? eventsAsText(events) : input.content, await secretsOfJob(input.jobId))
 
   // Trimmed rather than refused: a runner that sends a large chunk has already
   // produced the output, and refusing it loses more than clipping it does.
@@ -167,6 +178,88 @@ export interface LogPage {
   chunks: Array<{ sequence: number, stream: string, content: string, events?: LogEvent[] }>
   /** Where to ask from next. Unchanged when there was nothing new. */
   cursor: number
+}
+
+/**
+ * The secret values this job was given, for redaction.
+ *
+ * Memoized per job, because a job's secrets do not change while it runs and
+ * decrypting them on every chunk would put the instance's key work on the hot
+ * path of a streaming log. The entry goes when the job's log stops arriving;
+ * the cache is bounded so a busy instance cannot grow one entry per job it has
+ * ever run.
+ */
+const secretMemo = new Map<number, { values: string[], at: number }>()
+
+/** How long a memoized set is trusted. A job that outlives it simply re-reads. */
+const MEMO_MS = 5 * 60_000
+
+/** The most jobs to remember at once. Past this, the oldest entry goes. */
+const MEMO_LIMIT = 200
+
+async function secretsOfJob(jobId: number): Promise<string[]> {
+  const held = secretMemo.get(jobId)
+
+  if (held && Date.now() - held.at < MEMO_MS)
+    return held.values
+
+  try {
+    const row: any = await db
+      .selectFrom('workflow_jobs')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select([
+        'workflow_runs.repository_id as repository_id',
+        'workflow_runs.trusted as trusted',
+        'workflow_jobs.settings as settings',
+        'workflow_jobs.approved_at as approved_at',
+      ])
+      .where('workflow_jobs.id', '=', jobId)
+      .executeTakeFirst()
+
+    if (!row)
+      return []
+
+    const { secretsForJob } = await import('../Workflow/secrets')
+    const settings = readSettings(row.settings)
+
+    const delivered = await secretsForJob({
+      repositoryId: Number(row.repository_id),
+      trusted: row.trusted !== false,
+      environment: typeof settings.environment === 'string' ? settings.environment : null,
+      approved: Boolean(row.approved_at),
+      only: Array.isArray(settings.secrets) ? settings.secrets.map(String) : null,
+    })
+
+    const values = Object.values(delivered).map(String).filter(Boolean)
+
+    if (secretMemo.size >= MEMO_LIMIT)
+      secretMemo.delete([...secretMemo.keys()][0]!)
+
+    secretMemo.set(jobId, { values, at: Date.now() })
+
+    return values
+  }
+  catch {
+    /*
+     * Nothing redacted rather than nothing stored. A log this cannot check is
+     * still the record of what a job did, and losing it would be a bigger hole
+     * than the one this closes - the runner has already masked what it was
+     * given.
+     */
+    return []
+  }
+}
+
+/** A job's settings blob, or an empty one. */
+function readSettings(settings: unknown): Record<string, any> {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  }
+  catch {
+    return {}
+  }
 }
 
 /** Which attempt the job is on, for attributing a chunk to it. */

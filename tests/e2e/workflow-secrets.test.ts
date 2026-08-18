@@ -303,6 +303,87 @@ describe('delivery to a job', () => {
  * repository attached would reach everything, which is the failure this whole
  * design is built to avoid.
  */
+describe('a secret that reaches the log anyway', () => {
+  test('is redacted before it is written down, not after', async () => {
+    if (!available)
+      return
+
+    /*
+     * The runner masks what it was given, and that is the first line. This is
+     * the second, and it exists because the first is somebody else's program: a
+     * runner that is old, patched or hostile is still one this instance accepts
+     * logs from, and "we asked it to mask" is not a property of the stored log.
+     *
+     * The way a credential reaches a log is never `echo $TOKEN` - it is a curl
+     * that failed and printed the request it tried, which is what this sends.
+     */
+    // A workflow and a version of its own, since this fixture has neither: a
+    // run row needs one, and borrowing another test's would tie the two
+    // together for no reason.
+    const workflow: any = await db.insertInto('workflows').values({
+      owner_type: 'user',
+      owner_id: created.ownerId,
+      repository_id: created.repositoryId,
+      path: '.github/workflows/leaky.yml',
+      name: 'Leaky',
+      state: 'active',
+    }).returning(['id']).executeTakeFirst()
+
+    const version: any = await db.insertInto('workflow_versions').values({
+      workflow_id: Number(workflow.id),
+      source_sha: 'd'.repeat(40),
+      source_path: '.github/workflows/leaky.yml',
+      content_digest: unique('digest').padEnd(64, '0').slice(0, 64),
+      on_push: true,
+    }).returning(['id']).executeTakeFirst()
+
+    const run: any = await db.insertInto('workflow_runs').values({
+      workflow_version_id: Number(version.id),
+      repository_id: created.repositoryId,
+      number: 4242,
+      state: 'running',
+      event: 'push',
+      event_ref: 'refs/heads/main',
+      head_sha: 'd'.repeat(40),
+      definition_sha: 'd'.repeat(40),
+      trusted: true,
+    }).returning(['id']).executeTakeFirst()
+
+    const job: any = await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: 'leaky',
+      name: 'Leaky',
+      position: 0,
+      state: 'running',
+      runs_on: 'ubuntu-latest',
+    }).returning(['id']).executeTakeFirst()
+
+    const { appendLog } = await import('../../app/Actions/Runner/logs')
+
+    await appendLog({
+      jobId: Number(job.id),
+      sequence: 1,
+      content: `curl -H "authorization: Bearer ${VALUE}" https://api.example.com\n`,
+      stream: 'stderr',
+    })
+
+    const stored: any[] = await db
+      .selectFrom('workflow_job_logs')
+      .select(['content'])
+      .where('workflow_job_id', '=', Number(job.id))
+      .execute()
+
+    const text = stored.map(row => String(row.content ?? '')).join('')
+
+    expect(text).not.toContain(VALUE)
+    // A visible marker rather than a silent gap: a line that lost characters
+    // with no sign reads as a bug in the log, and somebody goes looking for it.
+    expect(text).toContain('[redacted]')
+
+    await db.deleteFrom('workflows').where('id', '=', Number(workflow.id)).execute()
+  }, 120_000)
+})
+
 describe('the automatic job token', () => {
   test('is scoped to one repository, carries the resolved permissions, and expires', async () => {
     if (!available)
