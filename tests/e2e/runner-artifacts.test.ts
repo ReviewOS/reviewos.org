@@ -448,3 +448,105 @@ describe('expiry', () => {
     expect(survivor).toBeTruthy()
   })
 })
+
+describe('fetching one back inside the run', () => {
+  /** What a later job in the same run does: ask by name, with its own token. */
+  async function fetchByName(token: string, name: string) {
+    const answer = await fetch(`http://127.0.0.1:${port}/api/runner/artifacts/fetch`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'X-Runner-Protocol': '1',
+      },
+      body: JSON.stringify({ name }),
+    })
+
+    return {
+      status: answer.status,
+      digest: answer.headers.get('x-artifact-digest'),
+      text: await answer.text(),
+    }
+  }
+
+  test('a later job gets what an earlier one produced, by name', async () => {
+    if (!available)
+      return
+
+    /*
+     * The reason most artifacts exist. A build produces a binary and a deploy
+     * needs it; uploading with nothing able to fetch it back inside the run is
+     * half a feature - the half that looks finished on a screen.
+     */
+    const builder = await claimOne()
+
+    await upload(builder.token, 'built.tar', 'the compiled thing')
+
+    // The build's own token first - a job may read what its run produced,
+    // including its own output.
+    const mine = await fetchByName(builder.token, 'built.tar')
+
+    expect(mine.status).toBe(200)
+    expect(mine.text).toBe('the compiled thing')
+    expect(mine.digest).toBeTruthy()
+
+    /*
+     * And a job of a *different* run cannot see it. On a fork's pull request
+     * that output belongs to somebody else's commit, which is why the run comes
+     * from the token rather than from the request.
+     *
+     * The second run's job is given a credential directly rather than claimed:
+     * a claim hands out whatever is queued, which on a busy fixture is as
+     * likely to be another job of the *same* run - and an assertion that passes
+     * because the two happened to differ is one that proves nothing.
+     */
+    const stranger = await claimOne()
+
+    const strangerRun: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['workflow_run_id'])
+      .where('id', '=', stranger.id)
+      .executeTakeFirst()
+
+    const builderRun: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['workflow_run_id'])
+      .where('id', '=', builder.id)
+      .executeTakeFirst()
+
+    expect(Number(strangerRun.workflow_run_id)).not.toBe(Number(builderRun.workflow_run_id))
+    expect((await fetchByName(stranger.token, 'built.tar')).status).toBe(404)
+  })
+
+  test('a name nobody uploaded is a 404 that says so', async () => {
+    if (!available)
+      return
+
+    const job = await claimOne()
+    const missing = await fetchByName(job.token, 'never-uploaded.txt')
+
+    expect(missing.status).toBe(404)
+    expect(missing.text).toContain('no artifact called')
+  })
+
+  test('and an expired artifact is not handed over, sweep or no sweep', async () => {
+    if (!available)
+      return
+
+    /*
+     * Checked here as well as by the sweep: the promise a retention date makes
+     * is about availability, and honouring it only when a background job
+     * happens to have run is not a promise.
+     */
+    const job = await claimOne()
+    const uploaded = await upload(job.token, 'stale.txt', 'old bytes')
+
+    await db
+      .updateTable('workflow_artifacts')
+      .set({ expires_at: new Date(Date.now() - 60_000).toISOString() })
+      .where('id', '=', Number(uploaded.body.id))
+      .execute()
+
+    expect((await fetchByName(job.token, 'stale.txt')).status).toBe(404)
+  })
+})

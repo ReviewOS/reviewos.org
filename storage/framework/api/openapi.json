@@ -28480,6 +28480,107 @@
         }
       }
     },
+    "/api/runner/artifacts/fetch": {
+      "post": {
+        "summary": "/api/runner/artifacts/fetch",
+        "operationId": "post__api_runner_artifacts_fetch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The bytes, with X-Artifact-Digest so the job can check them.",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a job can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No job credential, or one this instance does not recognise.",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a job can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "This run has no artifact by that name - or it expired, which is the same answer to a job that needed it.",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a job can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The row is here but the bytes are gone, which is a disk that lost them rather than a name that was wrong.",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a job can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a job can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "This runner speaks a protocol version the server does not.",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a job can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-Artifact-Digest": {
+                "description": "SHA-256 of the bytes, so a job can verify what it received.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/runner/claim": {
       "post": {
         "summary": "/api/runner/claim",

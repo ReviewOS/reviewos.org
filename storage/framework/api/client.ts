@@ -5714,6 +5714,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/runner/artifacts/fetch
+   */
+  postRunnerArtifactsFetch(input?: { body?: { "name"?: string } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/runner/artifacts/fetch", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/runner/claim
    */
   postRunnerClaim(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

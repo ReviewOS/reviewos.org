@@ -15778,6 +15778,33 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/runner/artifacts/fetch": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "name"?: string } } }
+    responses: {
+      "200": { content: never }
+      "401": { content: never }
+      "404": { content: never }
+      "410": { content: never }
+      "422": { content: never }
+      "426": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/runner/claim": {
     get?: never
     put?: never

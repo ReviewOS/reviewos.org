@@ -1995,8 +1995,20 @@ decisions.
       tool never reported.
 - [ ] Artifacts: uploaded by glob, content-addressed, downloadable individually and as a set,
       searchable within a run, with retention policy and expiry visible before it happens
-- [ ] Artifacts are downloadable by later steps in the same run by name, which is the only reason
+- [x] Artifacts are downloadable by later steps in the same run by name, which is the only reason
       most artifacts exist
+
+      `reviewos-download built.tar` in a later job, over `POST /api/runner/artifacts/fetch`. By name
+      rather than by id, because a later job knows what the earlier one called its output and does
+      not know a database id - through the same name cleaning the upload applied, so a job asking
+      for what it uploaded finds it.
+
+      The run comes from the **job token**, never from the request: a runner that could name the run
+      could read another run's build output, and on a fork's pull request that output belongs to
+      somebody else's commit. Expiry is checked here as well as by the sweep, because the promise a
+      retention date makes is about availability and honouring it only when a background job
+      happened to have run is not a promise. A row whose bytes are missing answers 410 rather than
+      404, so an operator does not go looking for a typo.
 - [x] Run metadata: string key/value pairs any job in a run can read or write, with
       compare-and-set so two parallel jobs cannot lose a write
 

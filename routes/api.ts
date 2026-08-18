@@ -908,6 +908,14 @@ route.post('/runner/annotations', 'Actions/Runner/AnnotateAction').skipCsrf()
  */
 route.post('/runner/metadata', 'Actions/Runner/MetadataAction')
 /*
+ * An artifact from earlier in the same run, by name.
+ *
+ * The reason most artifacts exist: a build produces a binary and a deploy needs
+ * it. The run comes from the job token, so a runner cannot fetch another run's
+ * output - which on a fork's pull request belongs to somebody else's commit.
+ */
+route.post('/runner/artifacts/fetch', 'Actions/Runner/FetchArtifactAction')
+/*
  * Steps a job generated, added to its own run.
  *
  * The job token names the job, so an uploaded document never gets to say which

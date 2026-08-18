@@ -458,6 +458,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     if (uploadPath) {
       writeSplitCommand(uploadPath, options.baseUrl, jobToken)
       writeMetaCommand(uploadPath, options.baseUrl, jobToken)
+      writeDownloadCommand(uploadPath, options.baseUrl, jobToken)
     }
 
     /*
@@ -1309,6 +1310,43 @@ exec curl -sS -X POST ${JSON.stringify(`${baseUrl.replace(/\/$/, '')}/api/runner
      * because a nicety was unavailable.
      */
     return ''
+  }
+}
+
+/**
+ * `reviewos-download`, for an artifact an earlier job in this run produced.
+ *
+ * The other half of `reviewos-upload`, and the reason most artifacts exist: a
+ * build produces a binary and a deploy needs it. Writes the file to the name it
+ * was stored under, or to a path the step names.
+ *
+ *     reviewos-download out-report.txt
+ *     reviewos-download out-report.txt ./report.txt
+ */
+export function writeDownloadCommand(directory: string, baseUrl: string, jobToken: string): void {
+  try {
+    const path = join(directory, 'reviewos-download')
+
+    writeFileSync(path, `#!/bin/sh
+# An artifact from earlier in this run. Usage: reviewos-download NAME [path]
+set -e
+name="\${1:?a name is required}"
+out="\${2:-$name}"
+body=$(${JSON.stringify(process.execPath)} -e 'process.stdout.write(JSON.stringify({ name: process.argv[1] }))' "$name")
+# Fails on an error status rather than writing the JSON error into the file a
+# step is about to read as a binary.
+curl -sS --fail-with-body -X POST ${JSON.stringify(`${baseUrl.replace(/\/$/, '')}/api/runner/artifacts/fetch`)} \
+  -H "Authorization: Bearer ${jobToken}" \
+  -H 'Content-Type: application/json' \
+  -H 'X-Runner-Protocol: 1' \
+  --data-binary "$body" \
+  -o "$out"
+`)
+
+    chmodSync(path, 0o700)
+  }
+  catch {
+    // A workspace this cannot write to is one where the job still runs.
   }
 }
 
