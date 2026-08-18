@@ -83,7 +83,7 @@
     "buddy-bot": "^0.9.27",
     "bun-query-builder": "^0.2.30",
     "mermaid": "^11.16.1",
-    "pickier": "^0.1.56",
+    "pickier": "^0.1.57",
     "stacks": "^0.70.376",
     "ts-git-lfs": "^0.1.2",
     "ts-pantry": "^0.11.26",
