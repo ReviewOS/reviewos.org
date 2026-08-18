@@ -88,7 +88,7 @@ export async function repositoryDocuments(input: readonly any[]): Promise<Reposi
   // an instance keeps its columns on `_attributes` rather than on itself - so
   // reading `row.name` off one yields undefined and indexes a corpus of
   // "undefined", which is exactly what the first run of this produced.
-  const rows = input.map((row: any) =>
+  const rows = input.map((row) =>
     (row?._attributes ?? (typeof row?.toJSON === 'function' ? row.toJSON() : row)) as RepositoryRow,
   )
 
@@ -117,8 +117,8 @@ export async function repositoryDocuments(input: readonly any[]): Promise<Reposi
    * field, which is a string, is then unassignable. The map is what the
    * annotation says it is; the inference just cannot see it.
    */
-  const userHandles = new Map<number, string>(users.map((row: any) => [Number(row.id), String(row.handle)]))
-  const orgHandles = new Map<number, string>(organizations.map((row: any) => [Number(row.id), String(row.handle)]))
+  const userHandles = new Map<number, string>(users.map((row) => [Number(row.id), String(row.handle)]))
+  const orgHandles = new Map<number, string>(organizations.map((row) => [Number(row.id), String(row.handle)]))
 
   const topicRows = await db
     .selectFrom('repo_topics')
@@ -220,7 +220,7 @@ export async function issueDocuments(input: readonly any[]): Promise<IssueDocume
   if (input.length === 0)
     return []
 
-  const rows = input.map((row: any) =>
+  const rows = input.map((row) =>
     (row?._attributes ?? (typeof row?.toJSON === 'function' ? row.toJSON() : row)) as any,
   )
 
@@ -363,7 +363,7 @@ export async function pullDocuments(input: readonly any[]): Promise<PullDocument
   if (input.length === 0)
     return []
 
-  const rows = input.map((row: any) =>
+  const rows = input.map((row) =>
     (row?._attributes ?? (typeof row?.toJSON === 'function' ? row.toJSON() : row)) as any,
   )
 
@@ -460,7 +460,7 @@ export async function userDocuments(input: readonly any[]): Promise<UserDocument
   if (input.length === 0)
     return []
 
-  const rows = input.map((row: any) =>
+  const rows = input.map((row) =>
     (row?._attributes ?? (typeof row?.toJSON === 'function' ? row.toJSON() : row)) as any,
   )
 

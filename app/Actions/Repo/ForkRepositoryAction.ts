@@ -101,7 +101,7 @@ export default new Action({
       .where('owner_id', '=', target.id)
       .execute()
 
-    const name = forkName(source.name, existing.map((row: any) => String(row.name)))
+    const name = forkName(source.name, existing.map((row) => String(row.name)))
     if (!name)
       return response.json({ error: `${target.handle} already has too many repositories called ${source.name}` }, 409)
 

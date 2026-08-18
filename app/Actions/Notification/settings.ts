@@ -92,7 +92,7 @@ export async function isMuted(
     .execute()
 
   for (const subject of subjects) {
-    const match = rows.find((row: any) =>
+    const match = rows.find((row) =>
       String(row.subject_type) === subject.type && Number(row.subject_id) === subject.id)
 
     if (!match)

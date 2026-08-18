@@ -315,7 +315,7 @@ async function numberForBranch(
   if (!listed.ok)
     return null
 
-  const found = (listed.data?.pull_requests ?? []).find((row: any) => String(row.head_branch) === here.branch)
+  const found = (listed.data?.pull_requests ?? []).find((row: { head_branch?: unknown, number?: unknown }) => String(row.head_branch) === here.branch)
 
   return found ? String(found.number) : null
 }

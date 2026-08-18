@@ -47,7 +47,7 @@ export default new Action({
       .where('repository_id', '=', repository.id)
       .execute()
 
-    const collides = (row: any) => String(row.title).toLowerCase() === fields.value.title.toLowerCase()
+    const collides = (row: { title: unknown }) => String(row.title).toLowerCase() === fields.value.title.toLowerCase()
 
     if (operation === 'update') {
       const id = Number(request.get('id'))

@@ -74,7 +74,7 @@ export default new Action({
       ? []
       : await db.selectFrom('users').select(['id', 'handle']).where('handle', 'in', handles).execute()
 
-    const unknown = handles.filter(handle => !users.some((row: any) => String(row.handle).toLowerCase() === handle))
+    const unknown = handles.filter(handle => !users.some((row) => String(row.handle).toLowerCase() === handle))
     if (unknown.length > 0)
       return response.json({ error: `No such user: ${unknown.join(', ')}` }, 422)
 
@@ -108,12 +108,12 @@ export default new Action({
     if (users.length > 0) {
       await db
         .insertInto('issue_assignees')
-        .values(users.map((row: any) => ({ issue_id: Number(issue.id), user_id: Number(row.id) })))
+        .values(users.map((row) => ({ issue_id: Number(issue.id), user_id: Number(row.id) })))
         .execute()
     }
 
     const had = new Set<string>(before.map(row => String(row.handle)))
-    const now = new Set<string>(users.map((row: any) => String(row.handle)))
+    const now = new Set<string>(users.map((row) => String(row.handle)))
     const subject = { type: 'issue' as const, id: Number(issue.id) }
     const actorId = user ? Number(user.id) : null
 
@@ -122,6 +122,6 @@ export default new Action({
       ...[...had].filter(handle => !now.has(handle)).map(handle => ({ subject, kind: 'unassigned' as const, actorId, detail: { text: handle } })),
     ])
 
-    return response.json({ number, assignees: users.map((row: any) => row.handle) })
+    return response.json({ number, assignees: users.map((row) => row.handle) })
   },
 })

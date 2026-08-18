@@ -47,7 +47,7 @@ export default new Action({
       .where('repository_id', '=', repository.id)
       .execute()
 
-    const members = rows.map((row: any) => ({
+    const members = rows.map((row) => ({
       id: Number(row.id),
       number: Number(row.number),
       title: String(row.title),
@@ -58,7 +58,7 @@ export default new Action({
       draft: Boolean(row.draft),
     }))
 
-    const target = members.find((member: any) => member.number === number)
+    const target = members.find((member) => member.number === number)
     if (!target)
       return response.json({ error: 'No such pull request' }, 404)
 
@@ -223,14 +223,14 @@ async function blockersFor(repository: any, row: any): Promise<string[]> {
     .execute()
 
   const machineAccounts = await machineAccountsAmong([
-    ...reviews.map((review: any) => Number(review.reviewer_id)),
+    ...reviews.map((review) => Number(review.reviewer_id)),
     Number(row.author_id),
   ])
 
   const machineReviewers = machineAccounts
 
   const approval = approvalsSatisfied({
-    reviews: reviews.map((review: any) => ({
+    reviews: reviews.map((review) => ({
       reviewerId: Number(review.reviewer_id),
       state: String(review.state),
       commitSha: review.commit_sha as string | null,
@@ -274,8 +274,8 @@ async function blockersFor(repository: any, row: any): Promise<string[]> {
 
   const checks = requirementsSatisfied(
     [
-      ...statusRows.map((entry: any) => statusAsRun(entry)),
-      ...checkRows.map((entry: any) => ({
+      ...statusRows.map((entry) => statusAsRun(entry)),
+      ...checkRows.map((entry) => ({
         name: String(entry.name),
         status: entry.status,
         conclusion: entry.conclusion,

@@ -193,7 +193,7 @@ export async function tokensFor(userId: number, nowMs = Date.now()): Promise<Tok
         .where('access_token_repositories.access_token_id', '=', id)
         .execute()
 
-      repositories = scoped.map((entry: any) => String(entry.name))
+      repositories = scoped.map((entry) => String(entry.name))
 
       reach = repositories.length === 0
         ? 'Nothing. Every repository it was scoped to has been deleted'

@@ -491,7 +491,7 @@ export default new Action({
       runId: claimed.runId,
       jobId: claimed.jobId,
       matrix: readJson(jobRow?.matrix_values) as Record<string, unknown> | null,
-      steps: runnerSteps.map((step: any) => ({
+      steps: runnerSteps.map((step) => ({
         run: step.run,
         uses: step.uses,
         env: step.env as Record<string, string> | null,

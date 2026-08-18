@@ -127,13 +127,13 @@ export default new Action({
      * id that is already on the row in hand.
      */
     const machineAccounts = await machineAccountsAmong([
-      ...reviews.map((review: any) => Number(review.reviewer_id)),
+      ...reviews.map((review) => Number(review.reviewer_id)),
       Number(pullRequest.author_id),
     ])
 
     const machineReviewers = machineAccounts
 
-    const readinessReviews = reviews.map((review: any) => ({
+    const readinessReviews = reviews.map((review) => ({
       reviewerId: Number(review.reviewer_id),
       state: String(review.state),
       commitSha: review.commit_sha as string | null,
@@ -190,8 +190,8 @@ export default new Action({
 
     const checkResult = requirementsSatisfied(
       [
-        ...checkStatuses.map((entry: any) => statusAsRun(entry)),
-        ...checkRuns.map((entry: any) => ({
+        ...checkStatuses.map((entry) => statusAsRun(entry)),
+        ...checkRuns.map((entry) => ({
           name: String(entry.name),
           status: entry.status,
           conclusion: entry.conclusion,

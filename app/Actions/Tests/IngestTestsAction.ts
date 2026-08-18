@@ -115,8 +115,8 @@ export default new Action({
         return response.json({ error: 'This report could not be read', reason: 'a JSON report is `{ "tests": [ ... ] }`' }, 422)
 
       executions = body.tests
-        .filter((one: any) => one && typeof one === 'object' && one.name)
-        .map((one: any) => ({
+        .filter((one: Record<string, unknown>) => one && typeof one === 'object' && one.name)
+        .map((one: Record<string, unknown>) => ({
           scope: String(one.scope ?? one.file ?? ''),
           name: String(one.name),
           result: ['passed', 'failed', 'skipped'].includes(String(one.result)) ? String(one.result) : 'passed',

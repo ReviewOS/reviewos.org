@@ -61,7 +61,7 @@ export async function viewedFiles(pullRequestId: number, reviewerId: number): Pr
     .where('reviewer_id', '=', reviewerId)
     .execute()
 
-  return (rows ?? []).map((row: any) => ({
+  return (rows ?? []).map((row) => ({
     path: String(row.path),
     head_sha: row.head_sha == null ? null : String(row.head_sha),
   }))

@@ -70,7 +70,7 @@ export default new Action({
           .where('name', 'in', names)
           .execute()
 
-    const unknown = names.filter(name => !labels.some((label: any) => label.name === name))
+    const unknown = names.filter(name => !labels.some((label) => label.name === name))
     if (unknown.length > 0)
       return response.json({ error: `No such label: ${unknown.join(', ')}` }, 422)
 
@@ -88,12 +88,12 @@ export default new Action({
     if (labels.length > 0) {
       await db
         .insertInto('issue_labels')
-        .values(labels.map((label: any) => ({ issue_id: Number(issue.id), label_id: Number(label.id) })))
+        .values(labels.map((label) => ({ issue_id: Number(issue.id), label_id: Number(label.id) })))
         .execute()
     }
 
     const had = new Set<string>(before.map(row => String(row.name)))
-    const now = new Set<string>(labels.map((label: any) => String(label.name)))
+    const now = new Set<string>(labels.map((label) => String(label.name)))
     const subject = { type: 'issue' as const, id: Number(issue.id) }
     const actorId = user ? Number(user.id) : null
 
@@ -102,6 +102,6 @@ export default new Action({
       ...[...had].filter(name => !now.has(name)).map(name => ({ subject, kind: 'unlabeled' as const, actorId, detail: { text: String(name) } })),
     ])
 
-    return response.json({ number, labels: labels.map((label: any) => label.name) })
+    return response.json({ number, labels: labels.map((label) => label.name) })
   },
 })

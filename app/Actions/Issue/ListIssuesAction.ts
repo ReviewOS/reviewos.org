@@ -126,7 +126,7 @@ export default new Action({
         .where('issues.repository_id', '=', repository.id)
         .execute()
 
-      const ids = [...new Set(assigned.map((row: any) => Number(row.issue_id)))]
+      const ids = [...new Set(assigned.map((row) => Number(row.issue_id)))]
       if (ids.length > 0)
         filters.push(builder => builder.whereNotIn('issues.id', ids))
     }
@@ -146,7 +146,7 @@ export default new Action({
         .where('user_id', '=', Number(assignee.id))
         .execute()
 
-      const ids = [...new Set(assigned.map((row: any) => Number(row.issue_id)))]
+      const ids = [...new Set(assigned.map((row) => Number(row.issue_id)))]
       if (ids.length === 0)
         return empty()
 
@@ -182,7 +182,7 @@ export default new Action({
         .where('repository_labels.name', '=', label)
         .execute()
 
-      const ids = [...new Set(tagged.map((row: any) => Number(row.issue_id)))]
+      const ids = [...new Set(tagged.map((row) => Number(row.issue_id)))]
       if (ids.length === 0)
         return empty()
 
@@ -212,7 +212,7 @@ export default new Action({
         scoped('body').execute(),
       ])
 
-      const ids = [...new Set([...byTitle, ...byBody].map((row: any) => Number(row.id)))]
+      const ids = [...new Set([...byTitle, ...byBody].map((row) => Number(row.id)))]
       if (ids.length === 0)
         return empty()
 
@@ -312,7 +312,7 @@ export default new Action({
     const cursor = nextCursor(found, query)
 
     return response.json({
-      issues: found.map((row: any) => ({
+      issues: found.map((row) => ({
         number: Number(row.number),
         title: String(row.title),
         state: String(row.state),

@@ -219,11 +219,11 @@ export default function (cli: CLI) {
         path: `/api/repos/workflow-runs/show?owner=${where.owner}&repo=${where.repo}&number=${Number(number)}`,
       })
 
-      const found = (run.workflow_run?.jobs ?? []).find((one: any) =>
+      const found = (run.workflow_run?.jobs ?? []).find((one: { job_id?: unknown, name?: unknown }) =>
         String(one.job_id) === job || String(one.name ?? '') === job)
 
       if (!found) {
-        const names = (run.workflow_run?.jobs ?? []).map((one: any) => String(one.job_id)).join(', ')
+        const names = (run.workflow_run?.jobs ?? []).map((one: { job_id?: unknown }) => String(one.job_id)).join(', ')
 
         // Naming what is there, because the usual cause is a job id that reads
         // differently from the name on the screen.

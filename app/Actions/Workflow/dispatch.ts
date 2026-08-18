@@ -1670,7 +1670,7 @@ async function pluginSettings(input: {
     return { ok: false, reason: 'this repository has no directory on this instance' }
 
   const prepared = await preparePlugins({
-    entries: entries.map((entry: any) => ({
+    entries: entries.map((entry: { reference?: unknown, parameters?: unknown }) => ({
       reference: String(entry?.reference ?? ''),
       parameters: (entry?.parameters ?? {}) as Record<string, unknown>,
     })),

@@ -322,7 +322,7 @@ export async function organizationOwnerCount(organizationId: number): Promise<nu
     .where('role', '=', 'owner')
     .execute()
 
-  return rows.filter((row: any) => Boolean(row.joined_at)).length
+  return rows.filter((row) => Boolean(row.joined_at)).length
 }
 
 /**

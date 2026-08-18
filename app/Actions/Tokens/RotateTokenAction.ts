@@ -180,7 +180,7 @@ export default new Action({
       prefix: issued.prefix,
       selection: String(existing.selection ?? 'selected'),
       organization_id: existing.organization_id === null ? null : Number(existing.organization_id),
-      repository_ids: repositories.map((entry: any) => Number(entry.repository_id)),
+      repository_ids: repositories.map((entry) => Number(entry.repository_id)),
       permissions: grants.map((grant: any) => ({ scope: String(grant.scope), level: String(grant.level) })),
       expires_at: new Date(expiry.expiresAtMs).toISOString(),
       // What the caller actually needs to know: how long the thing they are

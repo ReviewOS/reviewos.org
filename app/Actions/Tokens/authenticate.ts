@@ -114,7 +114,7 @@ export async function authenticateToken(
         .selectFrom('access_token_repositories')
         .select(['repository_id'])
         .where('access_token_id', '=', tokenId)
-        .execute()).map((entry: any) => Number(entry.repository_id))
+        .execute()).map((entry) => Number(entry.repository_id))
     : []
 
   return {

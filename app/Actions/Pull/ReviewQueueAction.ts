@@ -42,7 +42,7 @@ export default new Action({
     const now = Date.now()
     const { waitingOnYou, waitingOnOthers } = await reviewQueue(user.id, now)
 
-    const describe = (entry: any) => ({
+    const describe = (entry: Awaited<ReturnType<typeof reviewQueue>>['waitingOnYou'][number]) => ({
       ...entry,
       // The sentence the page shows, computed here rather than left to the
       // caller: a client deriving its own would drift from the order it was

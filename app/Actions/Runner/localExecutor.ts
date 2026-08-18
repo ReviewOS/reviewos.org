@@ -200,7 +200,7 @@ export async function verifySignedWork(baseUrl: string, job: any): Promise<{ ok:
       runId: Number(job.run?.id ?? 0),
       jobId: Number(job.id ?? 0),
       matrix: (job.matrix_values ?? null) as Record<string, unknown> | null,
-      steps: (Array.isArray(job.steps) ? job.steps : []).map((step: any) => ({
+      steps: (Array.isArray(job.steps) ? job.steps : []).map((step: Record<string, unknown>) => ({
         run: step.run ?? null,
         uses: step.uses ?? null,
         env: (step.env ?? null) as Record<string, string> | null,
@@ -1337,8 +1337,8 @@ function servicesOf(job: any): ServiceRequest[] {
     const services = Array.isArray(settings?.services) ? settings.services : []
 
     return services
-      .filter((one: any) => one && typeof one === 'object' && one.image)
-      .map((one: any) => ({
+      .filter((one: Record<string, unknown>) => one && typeof one === 'object' && one.image)
+      .map((one: Record<string, unknown>) => ({
         name: String(one.name ?? ''),
         image: String(one.image),
         env: (one.env && typeof one.env === 'object' ? one.env : {}) as Record<string, string>,

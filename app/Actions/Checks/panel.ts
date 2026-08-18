@@ -301,7 +301,7 @@ export async function checksPanel(input: {
   const verdict = requirementsSatisfied(
     [
       ...statuses.map(row => statusAsRun(row)),
-      ...runs.map((row: any) => ({
+      ...runs.map((row) => ({
         name: String(row.name ?? ''),
         status: row.status,
         conclusion: row.conclusion,

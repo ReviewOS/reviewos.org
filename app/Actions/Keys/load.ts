@@ -54,7 +54,7 @@ export async function keysFor(userId: number): Promise<RegisteredKeys> {
   ])
 
   return {
-    ssh: ssh.map((row: any) => ({
+    ssh: ssh.map((row) => ({
       id: Number(row.id),
       title: String(row.title ?? 'SSH key'),
       type: String(row.key_type ?? ''),
@@ -62,7 +62,7 @@ export async function keysFor(userId: number): Promise<RegisteredKeys> {
       lastUsedAt: iso(row.last_used_at),
       addedAt: iso(row.created_at),
     })),
-    gpg: gpg.map((row: any) => ({
+    gpg: gpg.map((row) => ({
       id: Number(row.id),
       // Shown as the last sixteen: the column holds the full fingerprint,
       // because `sameKey` matches by suffix and the longer form is the one that
@@ -128,7 +128,7 @@ export async function deployKeysFor(repositoryId: number): Promise<RegisteredDep
     .orderBy('id', 'desc')
     .execute()
 
-  return rows.map((row: any) => ({
+  return rows.map((row) => ({
     id: Number(row.id),
     title: String(row.title ?? 'Deploy key'),
     type: String(row.key_type ?? ''),

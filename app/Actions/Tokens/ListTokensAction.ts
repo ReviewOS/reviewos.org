@@ -40,7 +40,7 @@ export default new Action({
 
     const nowMs = Date.now()
 
-    const tokens = await Promise.all(rows.map(async (row: any) => {
+    const tokens = await Promise.all(rows.map(async (row) => {
       const id = Number(row.id)
 
       const permissions = await db
@@ -54,7 +54,7 @@ export default new Action({
             .selectFrom('access_token_repositories')
             .select(['repository_id'])
             .where('access_token_id', '=', id)
-            .execute()).map((entry: any) => Number(entry.repository_id))
+            .execute()).map((entry) => Number(entry.repository_id))
         : []
 
       const state = tokenState({
