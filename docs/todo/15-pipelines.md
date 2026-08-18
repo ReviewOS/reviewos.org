@@ -479,7 +479,7 @@ written down here so it does not get relitigated:
       read before the fork check has happened, and by [the threat
       model](../ci-threat-model.md) that decision belongs at injection - a fork's pull request gets
       no secrets whatever any `secrets:` line says.
-- [ ] `workflow_dispatch` inputs of every type Actions supports (string, boolean, choice, environment)
+- [x] `workflow_dispatch` inputs of every type Actions supports (string, boolean, choice, environment)
       and the interface form generated from them.
 
       **The trigger works, the inputs are checked, and the form is generated.** A repository's
@@ -508,6 +508,20 @@ written down here so it does not get relitigated:
       One thing this turned up: the run dedupe index refused a second manual dispatch, having read it
       as a redelivered event. It is partial now (`WHERE event <> 'workflow_dispatch'`) - a manual run
       is not a delivery, and pressing the button twice means two runs.
+
+      **The page had never been asked what it renders**, which for stx is the gap that matters: a
+      server script that throws renders every variable undefined, so a broken query produces a page
+      listing no workflows and reads as a repository with none.
+      `tests/e2e/workflows-page.test.ts` asks the rendered HTML instead - the four reasons a
+      workflow will not run, a control per input type, no form at all for a reader who may not spend
+      the instance's runners, and no em dash anywhere in the body.
+
+      Two things it turned up. An `environment` input rendered as a free text field, when the whole
+      reason Actions has that type is that typing the name of a protected environment wrong is a
+      deploy that silently goes somewhere else; it is a select over the repository's environments
+      now, and a plain field with a line saying why when there are none. And the behavioural
+      differences line joined a key to its message with an em dash, which is a house rule this
+      repository breaks about once a phase - so the test checks for it.
 - [x] `environment:` on a job, wired to deployment environments and their protection rules,
       including required reviewers and wait timers
 

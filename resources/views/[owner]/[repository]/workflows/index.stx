@@ -209,6 +209,27 @@ const languages = repoRow
   : []
 
 const starters = rows.length === 0 ? startersFor(languages) : []
+
+/*
+ * The environments this repository has, for an `environment:` input.
+ *
+ * Actions' fourth input type is a choice over the repository's environments
+ * rather than a free string, and it exists because typing the name of a
+ * protected environment wrong is a deploy that silently goes somewhere else.
+ * A repository with none gets a text field and a line saying why, rather than
+ * an empty select nobody can submit.
+ */
+const environments = repoRow
+  ? (await db
+      .selectFrom('environments')
+      .select(['name'])
+      .where('repository_id', '=', Number(repoRow.id))
+      .orderBy('name')
+      .execute()
+      .catch(() => []))
+      .map(row => String(row.name ?? ''))
+      .filter(name => name.length > 0)
+  : []
 </script>
 
 @layout('app')
@@ -304,7 +325,7 @@ const starters = rows.length === 0 ? startersFor(languages) : []
                   </summary>
                   @foreach (workflow.differences as difference)
                     <p class="workflow-difference">
-                      <code>{{ difference.key }}</code> — {{ difference.message }}
+                      <code>{{ difference.key }}</code>: {{ difference.message }}
                     </p>
                   @endforeach
                   <p class="muted workflow-difference-note">
@@ -344,6 +365,16 @@ const starters = rows.length === 0 ? startersFor(languages) : []
                             <option value="{{ option }}" {{ option === input.default ? 'selected' : '' }}>{{ option }}</option>
                           @endforeach
                         </select>
+                      @elseif (input.type === 'environment' && environments.length > 0)
+                        <select name="inputs[{{ input.name }}]">
+                          @foreach (environments as environment)
+                            <option value="{{ environment }}" {{ environment === input.default ? 'selected' : '' }}>{{ environment }}</option>
+                          @endforeach
+                        </select>
+                      @elseif (input.type === 'environment')
+                        {{-- No environments configured, so a select would be one nobody can submit. --}}
+                        <input type="text" name="inputs[{{ input.name }}]" value="{{ input.default ?? '' }}">
+                        <span class="workflow-input-help muted">This repository has no environments yet, so this is a plain name.</span>
                       @elseif (input.type === 'boolean')
                         <select name="inputs[{{ input.name }}]">
                           <option value="false" {{ input.default === 'true' ? '' : 'selected' }}>false</option>
