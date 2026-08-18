@@ -347,6 +347,48 @@ anything asynchronous: no mirror syncs, no webhooks, no notification email. The
 health endpoint reports it - a job that has been waiting more than five minutes
 is `degraded` with "is a worker running?" - which is the fastest way to notice.
 
+## Running more than one process
+
+One app process and one worker is the default shape and needs nothing below.
+The moment you run a *second* app process - for CPU, for zero-downtime
+restarts, for a second box - three things that were quietly in-process have to
+move out of the process, and all three are env switches rather than code:
+
+| What | Setting | Why it breaks with two processes |
+|---|---|---|
+| Queue | `QUEUE_DRIVER=database` | Already the deployment default. `sync` runs jobs inline; `memory` is per-process. |
+| Cache | `CACHE_DRIVER=redis` | Pull request presence rides the cache. In memory, each process has its own idea of who is looking at what, and readers flicker in and out depending on which process answered. |
+| Broadcast | `BROADCAST_REDIS_ENABLED=true` | The websocket server is per-process. Without a shared bus, a comment posted through one process never reaches a reader connected to the other. |
+
+The store behind the second and third is valkey - protocol-compatible with
+Redis, BSD-licensed, and declared in `config/deps.ts` so pantry installs it
+with everything else. Start it and point the connection at it:
+
+```sh
+pantry start valkey
+```
+
+```sh
+# .env
+CACHE_DRIVER=redis
+BROADCAST_REDIS_ENABLED=true
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+```
+
+The `REDIS_*` variables configure the cache, the broadcast bus, and (if you
+switch the queue to redis) the queue, so the connection is written once.
+Everything degrades rather than breaks if valkey is down - presence goes
+quiet, live updates wait for a reload - which also means a misconfigured
+store *looks* like a working instance with those two features missing. The
+health endpoint is the fastest way to tell the difference.
+
+The repositories on disk are the one thing this section cannot move: every
+app process and every worker needs the same `storage/repos` filesystem.
+Processes on one host share it by being on one host; a second box means NFS
+or the phase 18 storage work, and NFS for git is a decision to make
+deliberately, not a default to drift into.
+
 ## Running CI
 
 Nothing executes a workflow until you say where. That is a deliberate default

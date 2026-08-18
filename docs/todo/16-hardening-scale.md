@@ -165,15 +165,18 @@ memory, so pull request presence dies with the process; the websocket broadcast 
 queue is fine (database driver) once M0 makes it the default. The framework already carries Redis
 support in all three configs, unused.
 
-- [ ] Declare `redis.io` or `valkey.io` in `config/deps.ts` as an optional pantry-managed service
+- [x] Declare `redis.io` or `valkey.io` in `config/deps.ts` as an optional pantry-managed service
       (both are in pantry's package set; record the pick and why). Memory stays the zero-dependency
-      default.
-- [ ] Env-switchable `CACHE_DRIVER` with the Redis connection settings plumbed through
+      default. The pick is valkey: Redis 7.4 moved to RSALv2/SSPL, neither OSI-approved, and the
+      BSD-3 fork is protocol-identical - the reasoning is on the declaration.
+- [x] Env-switchable `CACHE_DRIVER` with the Redis connection settings plumbed through
       `config/cache.ts`. Presence in `LiveStateAction` already rides the cache facade and already
-      degrades when the cache is gone, so it becomes cross-process with no code change.
-- [ ] Document `BROADCAST_REDIS_ENABLED` as the requirement for running more than one app process,
+      degrades when the cache is gone, so it becomes cross-process with no code change. The
+      connection reads the same `REDIS_*` variables the queue does, so it is configured once.
+- [x] Document `BROADCAST_REDIS_ENABLED` as the requirement for running more than one app process,
       and a "running more than one process" section in `docs/self-hosting.md`: queue on database,
-      cache on redis, broadcast on redis, all env-switched.
+      cache on redis, broadcast on redis, all env-switched - plus the one thing that cannot move
+      by env switch, the shared repository filesystem.
 
 ## M6 - Pantry everywhere
 

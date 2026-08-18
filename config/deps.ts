@@ -73,10 +73,30 @@ export const config: PantryConfig = {
     // The database engine is swapped for the one DB_CONNECTION names when
     // `buddy setup` regenerates deps.yaml, so only one ever gets installed.
     sqlite: '^3.47.2',
+    /*
+     * The cross-process store, for instances running more than one process.
+     *
+     * Optional in use, declared always: the binary is cheap, and finding it
+     * missing at the moment an operator scales to a second process is finding
+     * it missing during a growth spurt. Nothing starts it - memory stays the
+     * zero-dependency default for cache and broadcast - until the operator
+     * opts in with `CACHE_DRIVER=redis` / `BROADCAST_REDIS_ENABLED=true`
+     * and `pantry start valkey` (see "Running more than one process" in
+     * docs/self-hosting.md).
+     *
+     * Valkey rather than Redis, recorded because the two are drop-in
+     * interchangeable and somebody will reasonably ask: Redis moved to
+     * RSALv2/SSPL licensing in 7.4, neither OSI-approved, and an open source
+     * forge should not make a source-available store part of its recommended
+     * deployment when the BSD-3 fork is protocol-identical, actively
+     * maintained under the Linux Foundation, and in pantry's package set.
+     * Every driver, env variable and client speaks the same protocol, so the
+     * config still says `redis` where the framework does.
+     */
+    'valkey.io': '^8.1.8',
     // craft is not declared here: it ships inside @stacksjs/stx (its `./craft`
     // export), so pantry installing it again is a second copy nothing uses.
     // Uncomment as needed:
-    // 'redis.io': '^7.4.1',
     // 'mailpit.axllent.org': '^1.21.8',
     // 'openjdk.org': '^21.0.3.6',
     // 'rust-lang.org': '^1.74.1',
