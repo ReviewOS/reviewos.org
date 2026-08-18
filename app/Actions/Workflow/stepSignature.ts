@@ -74,9 +74,15 @@ function encode(bytes: ArrayBuffer): string {
   return Buffer.from(bytes).toString('base64')
 }
 
-/** The key that signs dispatched work, made on first use. */
-async function stepKey(): Promise<{ kid: string, privateJwk: any, publicJwk: any }> {
-  const existing: any = await db
+/**
+ * The key that signs dispatched work, made on first use.
+ *
+ * The JWKs are `JsonWebKey`, the type WebCrypto itself takes: a key read back
+ * from the database is a value this instance wrote, and it is handed straight
+ * to `importKey`, which is where a wrong shape is caught.
+ */
+async function stepKey(): Promise<{ kid: string, privateJwk: JsonWebKey, publicJwk: JsonWebKey }> {
+  const existing = await db
     .selectFrom('instance_keys')
     .select(['kid', 'public_jwk', 'sealed_private'])
     .where('purpose', '=', 'steps')
@@ -87,8 +93,8 @@ async function stepKey(): Promise<{ kid: string, privateJwk: any, publicJwk: any
   if (existing) {
     return {
       kid: String(existing.kid),
-      publicJwk: JSON.parse(String(existing.public_jwk ?? '{}')),
-      privateJwk: JSON.parse(String(await decrypt(String(existing.sealed_private)))),
+      publicJwk: JSON.parse(String(existing.public_jwk ?? '{}')) as JsonWebKey,
+      privateJwk: JSON.parse(String(await decrypt(String(existing.sealed_private)))) as JsonWebKey,
     }
   }
 
@@ -148,12 +154,13 @@ export async function signWork(work: SignedWork): Promise<StepSignature | null> 
 export async function verifyWork(input: {
   work: SignedWork
   signature: StepSignature | null | undefined
-  keys: readonly any[]
+  /** The published key set, as `/.well-known/reviewos-step-keys.json` answers it. */
+  keys: readonly JsonWebKey[]
 }): Promise<{ ok: boolean, reason: string }> {
   if (!input.signature?.value)
     return { ok: false, reason: 'this job arrived without a signature' }
 
-  const jwk = input.keys.find(one => String(one?.kid) === String(input.signature?.kid))
+  const jwk = input.keys.find(one => String((one as { kid?: unknown }).kid) === String(input.signature?.kid))
 
   if (!jwk)
     return { ok: false, reason: `no published key with id ${input.signature.kid}` }

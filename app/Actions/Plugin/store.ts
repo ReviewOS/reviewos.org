@@ -10,8 +10,17 @@
 import type { PluginPolicy } from './policy'
 import { db } from '@stacksjs/database'
 
+/** One `plugin_policies` row, as this file reads it. */
+interface PolicyRow {
+  scope_type?: unknown
+  scope_id?: unknown
+  allowlist?: unknown
+  require_pinned?: unknown
+  capabilities?: unknown
+}
+
 /** One row, in the shape the pure policy functions take. */
-function toPolicy(row: any): PluginPolicy {
+function toPolicy(row: PolicyRow): PluginPolicy {
   return {
     allowlist: lines(row?.allowlist),
     requirePinned: row?.require_pinned === true || row?.require_pinned === 1,
@@ -29,7 +38,7 @@ function lines(value: unknown): string[] {
 
 /** The instance's policy, and the owner's, in the order they narrow. */
 export async function policyLevels(input: { ownerType?: string, ownerId?: number, poolId?: number }): Promise<PluginPolicy[]> {
-  const rows: any[] = await db
+  const rows: PolicyRow[] = await db
     .selectFrom('plugin_policies')
     .select(['scope_type', 'scope_id', 'allowlist', 'require_pinned', 'capabilities'])
     .execute()

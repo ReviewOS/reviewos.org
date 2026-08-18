@@ -141,7 +141,7 @@ async function pluginRepository(
   const ownerType = resolvedOwner.kind
   const ownerId = resolvedOwner.id
 
-  const repository: any = await db
+  const repository = await db
     .selectFrom('repositories')
     .select(['id', 'visibility'])
     .where('owner_type', '=', ownerType)

@@ -136,7 +136,7 @@ export async function preparePlugins(input: {
 export function preparedPluginsOf(settings: unknown): PreparedPlugin[] {
   try {
     const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings
-    const plugins = (parsed as any)?.plugins
+    const plugins = (parsed as { plugins?: unknown } | null)?.plugins
 
     if (!Array.isArray(plugins))
       return []
@@ -144,7 +144,8 @@ export function preparedPluginsOf(settings: unknown): PreparedPlugin[] {
     // A job dispatched before this shipped carries the unresolved shape, which
     // has no `sha`. Ignoring it is right: there is nothing to run, and guessing
     // a commit for it would be running code nobody pinned.
-    return plugins.filter((one: any) => one && typeof one === 'object' && typeof one.sha === 'string')
+    return plugins.filter((one): one is PreparedPlugin =>
+      Boolean(one) && typeof one === 'object' && typeof (one as { sha?: unknown }).sha === 'string')
   }
   catch {
     return []
@@ -255,7 +256,7 @@ export async function poolPlugins(poolId: number | null | undefined): Promise<Pr
 
   const { db } = await import('@stacksjs/database')
 
-  const pool: any = await db
+  const pool = await db
     .selectFrom('runner_pools')
     .select(['plugins'])
     .where('id', '=', Number(poolId))

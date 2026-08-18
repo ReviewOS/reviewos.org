@@ -45,6 +45,17 @@ export type Capability = typeof CAPABILITIES[number]
 export const MAX_MANIFEST_BYTES = 64 * 1024
 
 /**
+ * A declared `default`, when it is a value a column can hold.
+ *
+ * Anything else - a mapping, a list - is `null` rather than carried: the
+ * default is handed to a hook as an environment variable, and there is no
+ * spelling of an object that a shell would read back.
+ */
+function literalDefault(value: unknown): string | number | boolean | null {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? value : null
+}
+
+/**
  * Parse a manifest.
  *
  * Every failure is a sentence about the plugin rather than about YAML, because
@@ -55,7 +66,7 @@ export function parseManifest(source: string, fallbackName = ''): { manifest: Pl
   if (source.length > MAX_MANIFEST_BYTES)
     return { error: `plugin.yml is larger than ${MAX_MANIFEST_BYTES} bytes` }
 
-  let document: any
+  let document: unknown
 
   try {
     document = Bun.YAML.parse(source)
@@ -67,32 +78,39 @@ export function parseManifest(source: string, fallbackName = ''): { manifest: Pl
   if (!document || typeof document !== 'object' || Array.isArray(document))
     return { error: 'plugin.yml is a mapping' }
 
-  const hooks = Array.isArray(document.hooks) ? document.hooks.map((one: unknown) => String(one)) : []
+  /*
+   * Read as a record of unknowns from here on. Every field below is checked
+   * before it is used, which is the whole job of this function: `plugin.yml` is
+   * a file somebody else wrote.
+   */
+  const declaredDocument = document as Record<string, unknown>
+
+  const hooks = Array.isArray(declaredDocument.hooks) ? declaredDocument.hooks.map((one: unknown) => String(one)) : []
   const unknown = hooks.filter((stage: string) => !(HOOK_STAGES as readonly string[]).includes(stage))
 
   if (unknown.length > 0)
     return { error: `plugin.yml names a hook this runner has no stage for: ${unknown.join(', ')}` }
 
-  const requires = Array.isArray(document.requires) ? document.requires.map((one: unknown) => String(one)) : []
+  const requires = Array.isArray(declaredDocument.requires) ? declaredDocument.requires.map((one: unknown) => String(one)) : []
   const unknownCapability = requires.filter((one: string) => !(CAPABILITIES as readonly string[]).includes(one))
 
   if (unknownCapability.length > 0)
     return { error: `plugin.yml requires a capability this instance does not define: ${unknownCapability.join(', ')}` }
 
   const parameters: Record<string, ParameterDeclaration> = {}
-  const declared = document.parameters
+  const declared = declaredDocument.parameters
 
   if (declared !== null && declared !== undefined) {
     if (typeof declared !== 'object' || Array.isArray(declared))
       return { error: 'plugin.yml `parameters:` is a mapping of name to declaration' }
 
-    for (const [name, raw] of Object.entries(declared as Record<string, any>)) {
+    for (const [name, raw] of Object.entries(declared as Record<string, unknown>)) {
       if (!/^[A-Z_a-z]\w*$/.test(name))
         return { error: `plugin.yml declares a parameter named \`${name}\`, which cannot become an environment variable` }
 
       // A bare `type` string is the common case, and writing `registry: string`
       // rather than `registry: { type: string }` is what people try first.
-      const declaration = typeof raw === 'string' ? { type: raw } : raw
+      const declaration = (typeof raw === 'string' ? { type: raw } : raw) as Record<string, unknown> | null
 
       if (!declaration || typeof declaration !== 'object' || Array.isArray(declaration))
         return { error: `plugin.yml parameter \`${name}\` is a type or a declaration` }
@@ -105,14 +123,16 @@ export function parseManifest(source: string, fallbackName = ''): { manifest: Pl
       parameters[name] = {
         type: type as ParameterType,
         required: declaration.required === true,
-        default: declaration.default === undefined ? null : declaration.default,
-        enum: Array.isArray(declaration.enum) ? declaration.enum : null,
+        default: literalDefault(declaration.default),
+        enum: Array.isArray(declaration.enum)
+          ? declaration.enum.filter((one): one is string | number => typeof one === 'string' || typeof one === 'number')
+          : null,
         description: declaration.description ? String(declaration.description) : null,
       }
     }
   }
 
-  const name = String(document.name ?? fallbackName ?? '').trim()
+  const name = String(declaredDocument.name ?? fallbackName ?? '').trim()
 
   if (!name)
     return { error: 'plugin.yml has no `name`' }
@@ -120,7 +140,7 @@ export function parseManifest(source: string, fallbackName = ''): { manifest: Pl
   return {
     manifest: {
       name,
-      description: document.description ? String(document.description) : null,
+      description: declaredDocument.description ? String(declaredDocument.description) : null,
       hooks,
       requires,
       parameters,

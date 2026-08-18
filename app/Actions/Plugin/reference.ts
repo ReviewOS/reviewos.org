@@ -140,7 +140,7 @@ export function readPluginList(value: unknown): Array<{ raw: string, parameters:
     if (keys.length !== 1)
       return { error: 'a plugin entry names exactly one plugin' }
 
-    const parameters = (entry as any)[keys[0]!]
+    const parameters = (entry as Record<string, unknown>)[keys[0]!]
 
     if (parameters !== null && parameters !== undefined && (typeof parameters !== 'object' || Array.isArray(parameters)))
       return { error: `parameters for \`${keys[0]}\` are a mapping` }

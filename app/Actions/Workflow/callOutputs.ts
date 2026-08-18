@@ -92,8 +92,9 @@ function declaredOutputs(stored: unknown): DeclaredOutput[] {
       return []
 
     return parsed
-      .filter((one: any) => one && typeof one.name === 'string')
-      .map((one: any) => ({ name: String(one.name), value: String(one.value ?? '') }))
+      .filter((one): one is { name: string, value?: unknown } =>
+        Boolean(one) && typeof (one as { name?: unknown }).name === 'string')
+      .map(one => ({ name: String(one.name), value: String(one.value ?? '') }))
   }
   catch {
     return []
@@ -114,7 +115,7 @@ export async function resolveCallOutputs(input: {
   /** The called workflow's version, which declared the outputs. */
   versionId: number
 }): Promise<Record<string, string>> {
-  const version: any = await db
+  const version = await db
     .selectFrom('workflow_versions')
     .select(['call_outputs'])
     .where('id', '=', input.versionId)
@@ -126,7 +127,7 @@ export async function resolveCallOutputs(input: {
   if (declared.length === 0)
     return {}
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('workflow_jobs')
     .select(['job_id', 'state', 'outputs'])
     .where('workflow_run_id', '=', input.runId)
@@ -143,7 +144,7 @@ export async function resolveCallOutputs(input: {
      * empty string. A caller that reads `${{ ... }}` back knows the value did
      * not arrive; one that reads nothing cannot tell that from an empty answer.
      */
-    resolved[output.name] = interpolate(output.value, { jobs } as any)
+    resolved[output.name] = interpolate(output.value, { jobs })
   }
 
   return resolved
@@ -153,7 +154,7 @@ export async function resolveCallOutputs(input: {
 export function callMarkerOf(settings: unknown): { versionId: number, prefix: string } | null {
   try {
     const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings
-    const call = (parsed as any)?.call
+    const call = (parsed as { call?: { versionId?: unknown, prefix?: unknown } } | null)?.call
 
     if (!call || !Number(call.versionId) || typeof call.prefix !== 'string')
       return null

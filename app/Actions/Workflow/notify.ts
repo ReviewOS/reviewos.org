@@ -50,15 +50,16 @@ export function notifyFor(entries: readonly NotifyEntry[], state: string): Notif
 export function notifyEntriesOf(settings: unknown): NotifyEntry[] {
   try {
     const parsed = typeof settings === 'string' ? JSON.parse(settings) : settings
-    const entries = (parsed as any)?.notify
+    const entries = (parsed as { notify?: unknown } | null)?.notify
 
     if (!Array.isArray(entries))
       return []
 
     return entries
-      .filter((one: any) => one && typeof one.user === 'string' && one.user.length > 0)
+      .filter((one): one is { user: string, condition?: unknown } =>
+        Boolean(one) && typeof (one as { user?: unknown }).user === 'string' && String((one as { user: string }).user).length > 0)
       .slice(0, MAX_NOTIFY)
-      .map((one: any) => ({
+      .map(one => ({
         user: String(one.user),
         condition: ['success', 'failure', 'always'].includes(String(one.condition)) ? String(one.condition) as NotifyCondition : 'always',
       }))
@@ -80,7 +81,7 @@ export async function deliverJobNotify(input: { jobId: number, state: string }):
   try {
     const { db } = await import('@stacksjs/database')
 
-    const job: any = await db
+    const job = await db
       .selectFrom('workflow_jobs')
       .select(['id', 'job_id', 'name', 'settings', 'notified_at', 'workflow_run_id'])
       .where('id', '=', input.jobId)
@@ -94,7 +95,7 @@ export async function deliverJobNotify(input: { jobId: number, state: string }):
     if (wanted.length === 0)
       return 0
 
-    const run: any = await db
+    const run = await db
       .selectFrom('workflow_runs')
       .select(['id', 'number', 'trusted', 'repository_id'])
       .where('id', '=', Number(job.workflow_run_id))
@@ -113,7 +114,7 @@ export async function deliverJobNotify(input: { jobId: number, state: string }):
     if (run.trusted === false || run.trusted === 0)
       return 0
 
-    const repository: any = await db
+    const repository = await db
       .selectFrom('repositories')
       .select(['id', 'name', 'visibility', 'owner_type', 'owner_id'])
       .where('id', '=', Number(run.repository_id))
@@ -127,9 +128,9 @@ export async function deliverJobNotify(input: { jobId: number, state: string }):
      * runs on every report, and a job that notified once per pass would be the
      * feature people turn off within a day.
      */
-    const claimed: any = await db
+    const claimed = await db
       .updateTable('workflow_jobs')
-      .set({ notified_at: new Date().toISOString() } as any)
+      .set({ notified_at: new Date().toISOString() })
       .where('id', '=', Number(job.id))
       .whereNull('notified_at')
       .execute()
@@ -158,7 +159,7 @@ export async function deliverJobNotify(input: { jobId: number, state: string }):
     let delivered = 0
 
     for (const entry of wanted) {
-      const user: any = await db
+      const user = await db
         .selectFrom('users')
         .select(['id'])
         .where('handle', '=', entry.user)
