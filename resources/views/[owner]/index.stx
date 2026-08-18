@@ -64,19 +64,23 @@ const movedPath = movedTo ? pathUnderOwner(String(serveContext?.path ?? `/${hand
 
 
 /*
- * A redirect page rather than a 301, and not by choice.
+ * A real redirect: 301, with somewhere to go.
  *
- * `setResponseStatus` reaches the response and `setResponseHeader` does not:
- * the binding writes into the router's header bag and something downstream
- * discards it, so a 301 set from a view arrives with no `Location` at all -
- * which is a broken response, worse than the 404 it replaced. Verified by
- * setting a probe header and watching it never appear.
+ * This rendered a page with `rel=canonical` on it for a while, because
+ * `setResponseHeader` was declared by stx and never assigned to the context by
+ * its serve - so calling it threw a ReferenceError, took the rest of this
+ * script down with it, and the page rendered its not-found branch for a handle
+ * it had just resolved. Fixed in stx 0.2.190 (`fix(serve): put
+ * setResponseHeader in scope`), which is what this depends on.
  *
- * So the status stays 200 and the page does the work: `rel=canonical` is what
- * a crawler reads, the refresh is what a browser follows, and the link is what
- * somebody with neither can click. When the framework's header binding is
- * fixed this becomes four lines and a real 301.
+ * 301 rather than 302: the canonical handle is the answer, and every cache and
+ * crawler should learn it once.
  */
+if (movedTo) {
+  setStatus(301)
+  setHeader('Location', movedPath)
+  setHeader('Cache-Control', 'public, max-age=3600')
+}
 
 // A page that renders "no such account" under a 200 tells a crawler, a cache
 // and an uptime check that the page is fine. Only the render knows. An aliased

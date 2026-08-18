@@ -254,17 +254,38 @@ const fileState = !read || ('error' in read && read.error) || ('ok' in read && !
  */
 const movedTo = notFound ? await aliasTarget(owner) : null
 
-const movedPath = movedTo ? pathUnderOwner(String(serveContext?.path ?? `/${owner}/${repository}`), movedTo) : ''
+/*
+ * The repository under the canonical owner, not the exact deep path.
+ *
+ * A component cannot see the request path on this host. `__stxServeContext` is
+ * defaulted to undefined for a component, `useRoute().path` reads that same
+ * context so it is empty too, and bun-router's `url` binding does not reach a
+ * component's scope either - all three were tried. So a link to a file at a
+ * path redirects to the repository rather than to the file.
+ *
+ * That is a real loss and it is bounded: the reader lands on the right
+ * repository under the right owner, one click from where they were going,
+ * rather than on a 404. Closing it properly means the host handing a component
+ * the request path, which is a framework change rather than something to fake
+ * from here - guessing the path from props would be right for `tree` and wrong
+ * for `commit`, `compare` and `blob`, and wrong silently.
+ */
+const movedPath = movedTo ? pathUnderOwner(`/${owner}/${repository}`, movedTo) : ''
 
 /*
- * A 200 and a link, not a 301, and not by choice: `setResponseStatus` reaches
- * the response from a view and `setResponseHeader` does not, so a 301 set here
- * would arrive with no `Location` - a broken response, worse than the 404 it
- * replaced. The same note is on the profile page. When the framework's header
- * binding is fixed both become a real redirect.
+ * A real redirect, and it matters more here than on the profile page: the
+ * links people actually keep are deep ones - an issue, a pull request, a file
+ * at a path - and `pathUnderOwner` carries all of that across. See the note on
+ * the profile page for why this could not be a 301 until stx 0.2.190.
  */
-if (notFound && !movedTo)
+if (movedTo) {
+  setStatus(301)
+  setHeader('Location', movedPath)
+  setHeader('Cache-Control', 'public, max-age=3600')
+}
+else if (notFound) {
   setStatus(404)
+}
 const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedPath
 </script>
 
