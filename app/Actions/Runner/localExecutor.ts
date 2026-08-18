@@ -459,6 +459,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       writeSplitCommand(uploadPath, options.baseUrl, jobToken)
       writeMetaCommand(uploadPath, options.baseUrl, jobToken)
       writeDownloadCommand(uploadPath, options.baseUrl, jobToken)
+      writeOidcCommand(uploadPath, options.baseUrl, jobToken)
     }
 
     /*
@@ -1310,6 +1311,42 @@ exec curl -sS -X POST ${JSON.stringify(`${baseUrl.replace(/\/$/, '')}/api/runner
      * because a nicety was unavailable.
      */
     return ''
+  }
+}
+
+/**
+ * `reviewos-oidc`, for a short-lived identity token.
+ *
+ *     aws sts assume-role-with-web-identity \
+ *       --web-identity-token "$(reviewos-oidc sts.amazonaws.com)" ...
+ *
+ * The whole point is that nothing long-lived is stored anywhere: the token is
+ * minted when the step asks, lasts fifteen minutes, and names the repository
+ * and ref that asked for it.
+ */
+export function writeOidcCommand(directory: string, baseUrl: string, jobToken: string): void {
+  try {
+    const path = join(directory, 'reviewos-oidc')
+
+    writeFileSync(path, `#!/bin/sh
+# A short-lived identity token. Usage: reviewos-oidc [audience]
+set -e
+audience="\${1:-}"
+body=$(${JSON.stringify(process.execPath)} -e 'process.stdout.write(JSON.stringify({ audience: process.argv[1] || undefined }))' "$audience")
+answer=$(curl -sS --fail-with-body -X POST ${JSON.stringify(`${baseUrl.replace(/\/$/, '')}/api/runner/oidc`)} \
+  -H "Authorization: Bearer ${jobToken}" \
+  -H 'Content-Type: application/json' \
+  -H 'X-Runner-Protocol: 1' \
+  --data-binary "$body")
+# The token alone, so it can be substituted straight into a command. Anything
+# else here would end up in somebody's shell history around a credential.
+printf '%s' "$answer" | ${JSON.stringify(process.execPath)} -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{process.stdout.write(JSON.parse(d)?.value ?? "")}catch{process.stdout.write("")}})'
+`)
+
+    chmodSync(path, 0o700)
+  }
+  catch {
+    // A workspace this cannot write to is one where the job still runs.
   }
 }
 

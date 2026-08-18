@@ -924,6 +924,14 @@ route.post('/runner/metadata', 'Actions/Runner/MetadataAction')
  */
 route.post('/runner/artifacts/fetch', 'Actions/Runner/FetchArtifactAction')
 /*
+ * A short-lived identity token for the job this runner holds.
+ *
+ * How a deploy stops needing a long-lived cloud key. Every claim comes from the
+ * run rather than the request - the only thing a caller chooses is the audience
+ * - and an untrusted run gets nothing at all.
+ */
+route.post('/runner/oidc', 'Actions/Runner/OidcTokenAction')
+/*
  * Steps a job generated, added to its own run.
  *
  * The job token names the job, so an uploaded document never gets to say which

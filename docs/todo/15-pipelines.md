@@ -2235,12 +2235,48 @@ every runner is somebody else's machine.
       anyone who can write to the control plane's database can execute arbitrary code on every runner
       in the fleet.
 - [ ] Verification is enforceable per pool, and a pool can be set to refuse any unsigned step
-- [ ] Key management: generation, rotation, and multiple active verification keys during a rotation
-- [ ] **OIDC.** A job can request a short-lived token, scoped to the run, repository, workflow, and
+- [x] Key management: generation, rotation, and multiple active verification keys during a rotation
+
+      `instance_keys`, generated on first use rather than configured - a key an operator has to
+      create is a feature that stays off, and there is nothing to decide since RS256 is what every
+      verifier reads.
+
+      Rotation is both halves: a new key signs from that moment, and **the old one keeps
+      verifying**. Without the second a rotation is an outage, because every token signed a minute
+      ago becomes unverifiable - and a rotation that takes an outage with it is one nobody performs.
+      Every token carries the `kid` of the key that signed it. The private halves are encrypted with
+      `APP_KEY`: a backup that leaks one is somebody able to mint a token for any repository here.
+
+      This covers the OIDC keys. Signing dispatched *steps*, the box above, will use the same table
+      with a different `purpose`.
+- [x] **OIDC.** A job can request a short-lived token, scoped to the run, repository, workflow, and
       branch, to authenticate to an external service without a stored credential. This is how a
       deploy stops needing a long-lived cloud key.
-- [ ] OIDC claims are documented and stable, so a cloud trust policy written against them keeps
+
+      `reviewos-oidc [audience]` in a step, `POST /api/runner/oidc` underneath, and the two
+      documents a cloud reads at the root: `/.well-known/openid-configuration` and
+      `/.well-known/jwks.json`. Not under `/api`, because the path is fixed by the specification and
+      a document AWS will never ask for is a document that does not exist.
+
+      **Every claim comes from the run, not the request.** The only thing a caller chooses is the
+      audience. A token whose `repository` came from the body would be one any job could mint for
+      any repository, which is precisely the thing this replaces.
+
+      Fifteen minutes, and the e2e verifies a real token the way the other side would: fetch the
+      discovery document, take the JWKS, check the signature with WebCrypto. A token only this
+      codebase can check is not worth minting. See [identity tokens](./oidc.md).
+- [x] OIDC claims are documented and stable, so a cloud trust policy written against them keeps
       working
+
+      **The names are GitHub's**, deliberately: a trust policy is a document somebody writes once
+      and forgets, and the ones people already have are written against `repository`,
+      `repository_owner`, `ref`, `workflow` and a `sub` of `repo:owner/name:ref:refs/heads/main`.
+      Inventing better names would mean every user rewriting a policy to gain nothing.
+
+      An environment makes the subject more specific - `repo:acme/api:environment:production` -
+      which is what somebody means by "only the production deploy may assume this role". The full
+      table is in [identity tokens](./oidc.md), and the discovery document lists them too, because
+      "documented" that lives only in prose is documentation a machine cannot check.
 - [ ] Secrets stored encrypted, scoped to a pool, repository, or environment, injected only into the
       steps that name them, never listed in plaintext after creation
 - [ ] The recommended path stays an external secret store, with first-party support for fetching from

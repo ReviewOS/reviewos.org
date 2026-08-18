@@ -4,6 +4,52 @@
  */
 
 export interface paths {
+  "/.well-known/jwks.json": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "keys"?: Array<Record<string, unknown>> } } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/.well-known/openid-configuration": {
+    get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/_stacks/mail/preview": {
     get: {
     parameters: {
@@ -15975,6 +16021,32 @@ export interface paths {
       "401": { content: never }
       "409": { content: never }
       "413": { content: never }
+      "422": { content: never }
+      "426": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/runner/oidc": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "audience"?: string } } }
+    responses: {
+      "200": { content: { "application/json": { "value"?: string; "expires_in"?: number; "claims"?: Record<string, unknown> } } }
+      "401": { content: never }
+      "403": { content: never }
       "422": { content: never }
       "426": { content: never }
       "500": { content: never }

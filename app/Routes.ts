@@ -47,6 +47,12 @@ export default {
    * git's `{owner}/{repository}` patterns, which would read `actions` as an
    * owner and answer 404 for a repository nobody has.
    */
+  /*
+   * The identity documents, at the root because the path is fixed: a cloud
+   * provider fetches `/.well-known/openid-configuration` and nothing else, so
+   * a copy under `/api` is a document nobody will ever ask for.
+   */
+  wellknown: { path: 'wellknown', prefix: '' },
   actions: { path: 'actions', prefix: '' },
   git: { path: 'git', prefix: '' },
 } satisfies RouteRegistry

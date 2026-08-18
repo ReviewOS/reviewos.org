@@ -93,6 +93,20 @@ export function createClient(config: ClientConfig) {
     config,
 
   /**
+   * GET /.well-known/jwks.json
+   */
+  getWellKnownJwksJson(options?: RequestOptions): Promise<ApiResult<{ "keys"?: Array<Record<string, unknown>> }>> {
+    return request(config, "GET", "/.well-known/jwks.json", {}, [], false, options)
+  },
+
+  /**
+   * GET /.well-known/openid-configuration
+   */
+  getWellKnownOpenidConfiguration(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/.well-known/openid-configuration", {}, [], false, options)
+  },
+
+  /**
    * GET /_stacks/mail/preview
    */
   getStacksMailPreview(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -5767,6 +5781,13 @@ export function createClient(config: ClientConfig) {
    */
   postRunnerMetadata(input?: { body?: { "action"?: string; "key"?: string; "value"?: string; "if_version"?: number } }, options?: RequestOptions): Promise<ApiResult<{ "entry"?: { "key"?: string; "value"?: string; "version"?: number }; "entries"?: Array<Record<string, unknown>> }>> {
     return request(config, "POST", "/api/runner/metadata", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/runner/oidc
+   */
+  postRunnerOidc(input?: { body?: { "audience"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "value"?: string; "expires_in"?: number; "claims"?: Record<string, unknown> }>> {
+    return request(config, "POST", "/api/runner/oidc", input ?? {}, [], true, options)
   },
 
   /**
