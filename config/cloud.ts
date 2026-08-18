@@ -837,6 +837,22 @@ export const tsCloud: TsCloudConfig = {
         // Referenced, never inlined: the value lives in the gitignored .env
         // and is read at deploy time.
         APP_KEY: env.APP_KEY || '',
+        /*
+         * The credential the mirrors read from GitHub with.
+         *
+         * Both workflows already export `GITHUB_TOKEN` into the deploy step,
+         * and it stopped there: the release env never carried it, so
+         * `mirrorToken()` fell through to null on the box and every metadata
+         * sync ran unauthenticated. Unauthenticated GitHub is sixty requests
+         * an hour, which does not import one repository's issues, let alone a
+         * dozen - so the mirrors fetched code perfectly and imported no issues
+         * at all, with nothing saying why.
+         *
+         * Referenced, never inlined, exactly like the two above. Good enough
+         * for public repositories, which is all of these; a private mirror
+         * needs a PAT in `MIRROR_TOKEN_<ref>` rather than this.
+         */
+        GITHUB_TOKEN: env.GITHUB_TOKEN || '',
       },
     },
   },
