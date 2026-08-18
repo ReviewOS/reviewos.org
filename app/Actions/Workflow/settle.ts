@@ -20,7 +20,7 @@
 import { db } from '@stacksjs/database'
 import type { GateDecision } from './environments'
 import { decideGate, environmentRules } from './environments'
-import { createJobsForRun } from './dispatch'
+import { createJobsForRun, releaseGroup } from './dispatch'
 import type { JobState } from './states'
 import { effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
 
@@ -367,6 +367,34 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
     // And whoever was waiting on this run from another one. Nothing else would
     // ever look at that job again: it is in a different run entirely.
     await settleAwaitingTriggers(runId, state, now)
+
+    /*
+     * And the next run in this one's concurrency group, if this one has
+     * finished holding it up.
+     *
+     * The release half of `cancel-in-progress: false`. It has to happen here
+     * rather than at dispatch, because "the run ahead has finished" is a fact
+     * only the settler ever learns - and a queue nothing releases is a deploy
+     * that never happens rather than a deploy that waits.
+     */
+    if (['succeeded', 'failed', 'cancelled'].includes(state)) {
+      const finished: any = await db
+        .selectFrom('workflow_runs')
+        .select(['repository_id', 'concurrency_group'])
+        .where('id', '=', runId)
+        .executeTakeFirst()
+        .catch(() => null)
+
+      if (finished?.concurrency_group) {
+        const released = await releaseGroup(Number(finished.repository_id), String(finished.concurrency_group))
+
+        // Settled immediately, because a released run may have work the control
+        // plane does its own: a barrier at the top of its graph, or a gate that
+        // has been waiting for a person since before it was held.
+        if (released)
+          await settleRun(released, now)
+      }
+    }
   }
 
   return state

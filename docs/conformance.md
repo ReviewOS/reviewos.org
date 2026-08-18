@@ -28,7 +28,7 @@ These do what Actions does. A workflow using only these keys behaves the same he
 | `name` | workflow | Names the workflow everywhere it appears. |
 | `env` | workflow | Inherited by every job and step, with the narrowest level winning. |
 | `defaults.run` | workflow | `shell` and `working-directory` are inherited by steps; nothing declared anywhere leaves the choice to the runner. |
-| `concurrency` | workflow | Groups runs and cancels superseded ones with `cancel-in-progress`. A group whose expression cannot be resolved is no group at all. |
+| `concurrency` | workflow | Groups runs, cancels superseded ones with `cancel-in-progress`, and without it holds the second run in `waiting` until the first finishes - the half of the key most implementations skip, which turns "one deploy at a time" into a label. Released one run at a time, in push order. A group whose expression cannot be resolved is no group at all. |
 | `jobs.<id>.runs-on` | job | Matched against a runner's labels, as a string, a list, or a `group`/`labels` mapping. |
 | `jobs.<id>.needs` | job | Orders the graph, refuses a cycle by name, and skips a job whose dependency did not succeed rather than leaving it blocked forever. A matrix is every combination of it: `needs: build` waits for all of them and is held back by any one that failed. |
 | `jobs.<id>.if` | job | Evaluated when the run is created; a job whose condition is false is `skipped` with the reason recorded. |

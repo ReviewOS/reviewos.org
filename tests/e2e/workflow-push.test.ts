@@ -701,6 +701,81 @@ jobs:
     expect(jobs.every(job => String(job.state) === 'cancelled')).toBe(true)
   }, 30_000)
 
+  /*
+   * The other half of `concurrency:`, and the half every forge that ships the
+   * key seems to skip: without `cancel-in-progress`, the second run *waits* for
+   * the first rather than running beside it. A workflow that says
+   * `group: production` and nothing else is asking for one deploy at a time,
+   * and running both anyway is the failure the key was written to prevent.
+   */
+  test('a second run in a group that does not cancel waits for the first', async () => {
+    if (!available)
+      return
+
+    await push('.reviewos/workflows/serial.yml', `name: Serial
+on:
+  push:
+    paths:
+      - 'serial/**'
+concurrency:
+  group: production
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./ship
+`)
+
+    const runsFor = async (): Promise<any[]> => db
+      .selectFrom('workflow_runs')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      .select([
+        'workflow_runs.id as id',
+        'workflow_runs.state as state',
+        'workflow_runs.conclusion_reason as conclusion_reason',
+      ])
+      .where('workflows.path', '=', '.reviewos/workflows/serial.yml')
+      .orderBy('workflow_runs.id')
+      .execute()
+
+    await push('serial/one.txt', 'one\n')
+    await waitFor(runsFor, (rows: any[]) => rows.length >= 1)
+
+    await push('serial/two.txt', 'two\n')
+    const both = await waitFor(runsFor, (rows: any[]) => rows.length >= 2)
+
+    expect(both[0].state).toBe('queued')
+    // Held, and saying why: "queued" with nothing happening is the most
+    // expensive screen in a forge, and a reader should learn this is the
+    // concurrency key working rather than a runner that is missing.
+    expect(both[1].state).toBe('waiting')
+    expect(String(both[1].conclusion_reason)).toContain('concurrency group')
+
+    // Finish the run ahead, and the settler lets the next one go.
+    const { settleRun } = await import('../../app/Actions/Workflow/settle')
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'succeeded', finished_at: new Date().toISOString() } as any)
+      .where('workflow_run_id', '=', Number(both[0].id))
+      .execute()
+
+    await settleRun(Number(both[0].id))
+
+    const after = await waitFor(runsFor, (rows: any[]) => String(rows[1]?.state) !== 'waiting')
+
+    expect(after[0].state).toBe('succeeded')
+    expect(after[1].state).toBe('queued')
+    // The reason goes with the hold. A finished run explaining why it once
+    // waited is a run page arguing with itself.
+    expect(after[1].conclusion_reason).toBeNull()
+
+    // Whether a held run's jobs are actually withheld from a runner is the
+    // other half of this, and it needs a repository with nothing else queued in
+    // it: see `workflow-concurrency-queue`.
+  }, 60_000)
+
   test('a workflow without concurrency keeps both runs', async () => {
     if (!available)
       return

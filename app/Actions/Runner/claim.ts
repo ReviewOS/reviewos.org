@@ -92,6 +92,17 @@ async function candidates(runner: RunnerFacts, limit = 50): Promise<any[]> {
      * approval.
      */
     .where('workflow_jobs.kind', '=', 'command')
+    /*
+     * And only from a run that is actually meant to be going.
+     *
+     * A run held behind another in its concurrency group is `waiting`, and its
+     * jobs are queued rows that nothing should take - holding the run rather
+     * than every job is what keeps that one state change instead of a rule
+     * spread across the graph. A `cancelling` run's jobs are on their way out
+     * for the same reason: handing one to a machine now means a result arriving
+     * for a run somebody already stopped.
+     */
+    .where('workflow_runs.state', 'in', ['queued', 'running'])
 
   // Narrowed in SQL where it is cheap and safe to do so. The authoritative
   // check is still `runnerReaches`, so a mistake here costs a wasted row rather

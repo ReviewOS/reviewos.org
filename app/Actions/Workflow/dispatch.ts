@@ -257,6 +257,13 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
       const runId = Number(run?.id)
       await createJobs(runId, Number(version.id), context)
       await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
+      await holdForGroup({
+        repositoryId: input.repositoryId,
+        runId,
+        group,
+        cancelInProgress: version.cancel_in_progress === true,
+        intermediate: String(version.intermediate ?? 'run'),
+      })
 
       result.created.push(runId)
     }
@@ -397,6 +404,13 @@ async function createPullRequestRun(
     const runId = Number(run?.id)
     await createJobs(runId, Number(version.id), context)
     await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
+    await holdForGroup({
+      repositoryId: input.repositoryId,
+      runId,
+      group,
+      cancelInProgress: version.cancel_in_progress === true,
+      intermediate: String(version.intermediate ?? 'run'),
+    })
 
     return runId
   }
@@ -456,6 +470,13 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
     const runId = Number(run?.id)
     await createJobs(runId, Number(version.id), context)
     await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
+    await holdForGroup({
+      repositoryId: input.repositoryId,
+      runId,
+      group,
+      cancelInProgress: version.cancel_in_progress === true,
+      intermediate: String(version.intermediate ?? 'run'),
+    })
 
     return runId
   }
@@ -483,10 +504,9 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
  * sweep; writing `cancelled` here would mean the control plane claiming an
  * outcome it cannot yet observe.
  *
- * Queueing the newer run behind the older one - the `cancel-in-progress: false`
- * half - is deliberately not done here. It is not a state a run can enter on
- * its own: something has to release the group when the first finishes, and that
- * something is the execution plane.
+ * The other half - queueing the newer run *behind* the older one when
+ * `cancel-in-progress` is false - is `holdForGroup` below, released by the
+ * settler when the run ahead finishes.
  */
 async function supersede(
   repositoryId: number,
@@ -557,6 +577,124 @@ async function supersede(
     // being cancelled does not need telling twice.
     .where('state', 'in', ['queued', 'running', 'waiting', 'paused'])
     .execute()
+}
+
+/**
+ * Hold this run behind the one already in its group.
+ *
+ * The `cancel-in-progress: false` half of `concurrency:`, and the half every
+ * forge that ships the key seems to skip. Actions documents it - a second run
+ * waits for the first - and a workflow that says `group: production` without
+ * `cancel-in-progress` is a workflow asking for exactly one deploy at a time.
+ * Running both anyway is not a smaller version of the feature; it is the
+ * failure the key was written to prevent.
+ *
+ * `waiting` rather than `queued`, which is a state the run model already has
+ * and nothing was using: the claim will not hand out the jobs of a run in it,
+ * so the hold is one state change rather than a rule spread across every job.
+ *
+ * **Ordered by run id, not by which one asks first.** Two pushes a second apart
+ * must land in the order they were pushed, and id order is push order; a queue
+ * that released whichever run happened to be polled first would deploy the
+ * older commit last.
+ */
+async function holdForGroup(input: {
+  repositoryId: number
+  runId: number
+  group: string | null
+  cancelInProgress: boolean
+  intermediate: string
+}): Promise<boolean> {
+  // Only the plain case. `cancel` and `skip` have already decided what happens
+  // to the runs around this one, and holding on top of either would be two
+  // policies fighting over the same group.
+  if (!input.group || input.cancelInProgress || input.intermediate !== 'run')
+    return false
+
+  const ahead: any = await db
+    .selectFrom('workflow_runs')
+    .select(['id'])
+    .where('repository_id', '=', input.repositoryId)
+    .where('concurrency_group', '=', input.group)
+    .where('id', '<', input.runId)
+    // Live: something that will still produce a result. A finished run holds
+    // nothing back, and a cancelling one is on its way out.
+    .where('state', 'in', ['queued', 'running', 'waiting', 'paused'])
+    .orderBy('id')
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!ahead)
+    return false
+
+  await db
+    .updateTable('workflow_runs')
+    .set({
+      state: 'waiting',
+      // Said on the run, because "queued" with nothing happening for twenty
+      // minutes is the most expensive screen in a forge. A reader should learn
+      // that this is the concurrency key working, not a runner that is missing.
+      conclusion_reason: `Waiting for run #${Number(ahead.id)} in concurrency group \`${input.group}\`.`,
+    } as any)
+    .where('id', '=', input.runId)
+    .where('state', '=', 'queued')
+    .execute()
+
+  return true
+}
+
+/**
+ * Let the next run in a group go, now that this one has finished.
+ *
+ * The release side of `holdForGroup`. Exported because the settler calls it,
+ * and it lives here beside the hold: two halves of one rule in two files is how
+ * one of them gets changed alone.
+ *
+ * One run per finish, the lowest id first. Releasing the whole group at once
+ * would turn a serialized deploy queue into a stampede the first time two runs
+ * piled up behind a slow one.
+ */
+export async function releaseGroup(repositoryId: number, group: string | null): Promise<number | null> {
+  if (!group)
+    return null
+
+  const busy: any = await db
+    .selectFrom('workflow_runs')
+    .select(['id'])
+    .where('repository_id', '=', repositoryId)
+    .where('concurrency_group', '=', group)
+    .where('state', 'in', ['queued', 'running', 'paused'])
+    .executeTakeFirst()
+    .catch(() => null)
+
+  // Something in this group is still going. The release happens when *that*
+  // one finishes, which is the guarantee the key is bought for.
+  if (busy)
+    return null
+
+  const next: any = await db
+    .selectFrom('workflow_runs')
+    .select(['id'])
+    .where('repository_id', '=', repositoryId)
+    .where('concurrency_group', '=', group)
+    .where('state', '=', 'waiting')
+    .orderBy('id')
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!next)
+    return null
+
+  await db
+    .updateTable('workflow_runs')
+    .set({ state: 'queued', conclusion_reason: null } as any)
+    .where('id', '=', Number(next.id))
+    // Guarded on the state it was read at: two runs finishing at once must not
+    // both release the same waiting run and hand its jobs out twice.
+    .where('state', '=', 'waiting')
+    .execute()
+
+  return Number(next.id)
 }
 
 /** Postgres says 23505 for a unique violation; drivers wrap it differently. */

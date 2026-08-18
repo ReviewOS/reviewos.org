@@ -69,7 +69,7 @@ export const CONFORMANCE: ConformanceEntry[] = [
   { key: 'env', level: 'workflow', status: 'supported', behaviour: 'Inherited by every job and step, with the narrowest level winning.' },
   { key: 'defaults.run', level: 'workflow', status: 'supported', behaviour: '`shell` and `working-directory` are inherited by steps; nothing declared anywhere leaves the choice to the runner.' },
   { key: 'reviewos.intermediate', level: 'workflow', status: 'differs', behaviour: 'The one extension at the top level: `skip` lets a run that has started finish and drops the ones that have not, which is what people usually mean when three commits land in a minute and which neither Actions nor Gitea offers. `cancel` is `concurrency.cancel-in-progress` said in one word, and `run` is the default because it is Actions\' behaviour. See [extensions](./extensions.md).' },
-  { key: 'concurrency', level: 'workflow', status: 'supported', behaviour: 'Groups runs and cancels superseded ones with `cancel-in-progress`. A group whose expression cannot be resolved is no group at all.' },
+  { key: 'concurrency', level: 'workflow', status: 'supported', behaviour: 'Groups runs, cancels superseded ones with `cancel-in-progress`, and without it holds the second run in `waiting` until the first finishes - the half of the key most implementations skip, which turns "one deploy at a time" into a label. Released one run at a time, in push order. A group whose expression cannot be resolved is no group at all.' },
   {
     key: 'permissions',
     level: 'workflow',

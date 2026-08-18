@@ -364,7 +364,7 @@ written down here so it does not get relitigated:
       is a separate machine, which an autoscaled fleet already gives you one of per job; and the
       common case behind `container: node:20` is a toolchain, which a pantry dependency file
       already answers with no image and no registry.
-- [ ] `concurrency:` with `group` and `cancel-in-progress`, at workflow and job level. Actions has
+- [x] `concurrency:` with `group` and `cancel-in-progress`, at workflow and job level. Actions has
       this and Gitea ignores it; the Buildkite concurrency engine in this file implements it properly
       rather than partially.
 
@@ -399,10 +399,22 @@ written down here so it does not get relitigated:
 
       A superseded job moves to `cancelling`, and a sibling job that asked for no group is untouched.
 
-      What is left is the other half: `cancel-in-progress: false` should *queue* the second run
-      behind the first, and that is not a state a run can enter on its own - something has to
-      release the group when the first finishes, which is the execution plane. The box stays open
-      for that.
+      **And the other half now works too**: without `cancel-in-progress`, the second run *waits* for
+      the first. A workflow that says `group: production` and nothing else is asking for one deploy
+      at a time, and running both anyway is the failure the key was written to prevent.
+
+      The held run sits in `waiting` - a state the model already had and nothing was using - with
+      the reason on the row, because "queued" with nothing happening for twenty minutes is the most
+      expensive screen in a forge and a reader should learn this is the key working rather than a
+      runner that is missing. **Holding the run rather than every job** keeps it one state change,
+      which means the claim is where it has to be respected: a held run's jobs are ordinary `queued`
+      rows, and the claim reads the run's state. There is a test that asks a runner for work and
+      watches it decline.
+
+      Released by the settler when the run ahead reaches a terminal state, one run at a time and by
+      id - push order, not poll order, or a deploy queue would land the older commit last. Releasing
+      the whole group at once would turn a serialized queue into a stampede the first time two runs
+      piled up behind a slow one.
 - [x] `permissions:` on the workflow and per job, mapped onto the fine-grained token permissions from
       [phase 1](./01-foundation.md#access-tokens), defaulting to read-only.
 
