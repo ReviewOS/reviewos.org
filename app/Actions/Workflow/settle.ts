@@ -21,6 +21,7 @@ import { db } from '@stacksjs/database'
 import type { GateDecision } from './environments'
 import { decideGate, environmentRules } from './environments'
 import { createJobsForRun, dispatchWorkflowRun, releaseGroup } from './dispatch'
+import { callMarkerOf, resolveCallOutputs } from './callOutputs'
 import { deliverJobNotify } from './notify'
 import type { JobState } from './states'
 import { cancelOnFailingCasualties, effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
@@ -268,9 +269,29 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
      * not a scheduling mistake, it is the gate not existing.
      */
     if (job.kind === 'wait') {
+      /*
+       * A barrier that represents a workflow call hands back what the called
+       * workflow declared.
+       *
+       * This is the only place the `jobs` context exists: `value: ${{
+       * jobs.build.outputs.version }}` is the called workflow's own view of
+       * itself, and its jobs have only just finished. Stored on the barrier's
+       * row, so the caller reads them the way it reads any other job's -
+       * `needs.<call>.outputs.<name>`.
+       */
+      const marker = callMarkerOf(jobs.find(one => Number(one.id) === Number(job.id))?.settings)
+      const outputs = marker
+        ? await resolveCallOutputs({ runId, prefix: marker.prefix, versionId: marker.versionId })
+        : null
+
       await db
         .updateTable('workflow_jobs')
-        .set({ state: 'succeeded', started_at: now.toISOString(), finished_at: now.toISOString() } as any)
+        .set({
+          state: 'succeeded',
+          started_at: now.toISOString(),
+          finished_at: now.toISOString(),
+          ...(outputs && Object.keys(outputs).length > 0 ? { outputs: JSON.stringify(outputs) } : {}),
+        } as any)
         .where('id', '=', job.id)
         .where('state', '=', 'blocked')
         .execute()

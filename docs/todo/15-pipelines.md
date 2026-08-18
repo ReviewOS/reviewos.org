@@ -673,7 +673,7 @@ written down here so it does not get relitigated:
 
       They read the job's status rather than computing anything, which is why `success()` with
       nothing yet reported is true: it is the default behaviour written out.
-- [ ] Contexts: `github`, `env`, `vars`, `job`, `jobs`, `steps`, `runner`, `secrets`, `strategy`,
+- [x] Contexts: `github`, `env`, `vars`, `job`, `jobs`, `steps`, `runner`, `secrets`, `strategy`,
       `matrix`, `needs`, `inputs`. A `reviewos` context is the canonical name and `github` is an
       alias, which is the approach Forgejo took and it works.
 
@@ -684,10 +684,34 @@ written down here so it does not get relitigated:
       the workflow file at claim time, so the runner merges nothing. `reviewos` is the same object
       under this forge's own name.
 
-      `secrets` is populated now too, which makes it ten of twelve: encrypted at rest, chosen per
-      job at the claim, withheld from a fork entirely and from a deploy job until its environment's
-      gate has opened. `strategy` and `jobs` are not, and an expression reading one is left as
-      written rather than quietly becoming an empty string.
+      `secrets` is populated now too: encrypted at rest, chosen per job at the claim, withheld from a
+      fork entirely and from a deploy job until its environment's gate has opened.
+
+      **`strategy` and `jobs` complete the twelve.** `strategy` carries `fail-fast`, `max-parallel`,
+      and which of a matrix's jobs this one is: `job-index` is counted over the run's rows in
+      position order rather than stored, because a matrix of four is four rows under one `job_id` and
+      that order *is* the expansion order. `fail-fast` and `max-parallel` had been copied onto every
+      run, read by the graph, and readable by nothing a workflow could see - the recurring shape of
+      this phase.
+
+      `jobs` is the called workflow's own view of itself, and it exists in exactly one place:
+      `on.workflow_call.outputs.<name>.value`. The prefix is stripped, because a called workflow
+      cannot know it was called `deploy / build` and an expression written against `jobs.build` has
+      to keep working when it is; a workflow that workflow called in turn belongs to *its* context
+      rather than this one's.
+
+      Making `jobs` real found a defect underneath it, and a bad one. **A call job had no row**, so
+      `needs: [call]` in the caller named a job that was not in the run: the graph read it as
+      missing, the settler swept the dependent as unreachable, and the run went **green having
+      skipped the job after the call**. A deploy behind a called build is exactly that shape, and
+      nothing about the run said so. A call is a `wait` barrier now - finished when its jobs are,
+      never handed to a machine - which is also where the called workflow's declared outputs live, so
+      the caller reads them as `needs.<call>.outputs.<name>`. And the call's own `needs:` is grafted
+      onto the called workflow's root jobs, because a called workflow was starting immediately
+      however much the caller said it should wait.
+
+      `tests/e2e/workflow-call-graph.test.ts`. One assertion in `workflow-push.test.ts` had codified
+      the defect - "the calling job itself is not a row" - and now says why it is one.
 
       They are built in one function rather than assembled per call site, because a `run:` and a job
       output that interpolate the same expression have to see the same value. Half of `github` was

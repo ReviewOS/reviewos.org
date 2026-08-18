@@ -1225,6 +1225,15 @@ function expressionContext(
     steps: state.steps,
     needs: job?.needs ?? {},
     matrix: job?.matrix_values ?? {},
+    /*
+     * `strategy`, as the control plane resolved it: `fail-fast`,
+     * `max-parallel`, and which of a matrix's jobs this is.
+     *
+     * Sent rather than worked out here, because a runner holds one job and
+     * `job-index` is a fact about the run - a machine counting its own
+     * combination would be guessing at what the other machines got.
+     */
+    strategy: (job?.strategy as any) ?? {},
     // `inputs` is what a `workflow_dispatch` or a called workflow reads, and it
     // travels in the event payload because that is where the run recorded it.
     inputs: (job?.event && typeof job.event === 'object' ? (job.event as any).inputs : null) ?? {},

@@ -1072,3 +1072,55 @@ itself with `on: workflow_call`, its declared inputs are checked rather than
 defaulted, and its jobs appear in the run rather than collapsing into one box.
 Secrets do not travel by being nearby - `secrets: inherit` is recorded and
 resolved after the fork check, and a fork's pull request gets none at all.
+
+### What a call looks like in the graph
+
+The call is a **barrier**, not a box: `call / build` and `call / package` are
+rows of the run, and `call` is a row of its own that runs nothing and finishes
+when they do. Two consequences worth knowing:
+
+- **`needs: [call]` works, and waits for the whole called workflow** - not for
+  its last job, which is not the same thing when a called workflow does two
+  independent things.
+- **The call's own `needs:` holds the called workflow back.** `needs: [build]`
+  on a call means the workflow it calls waits for `build`, which is what the
+  file plainly says and what a reader assumes.
+
+### Reading what a called workflow produced
+
+```yaml
+# the called workflow
+on:
+  workflow_call:
+    outputs:
+      version:
+        value: ${{ jobs.compute.outputs.version }}
+```
+
+```yaml
+# the caller
+  call:
+    uses: ./.github/workflows/build.yml
+  ship:
+    needs: [call]
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./ship ${{ needs.call.outputs.version }}
+```
+
+`jobs` is the one context that exists only here, and it is the called workflow's
+own view of itself: the prefix is stripped, so an expression written against
+`jobs.compute` keeps working when the caller names the call `deploy`. The values
+are resolved when the barrier is released, because that is the moment its jobs
+have finished, and stored on the call's row - so the caller reads them the way it
+reads any other job's outputs.
+
+An expression that cannot be resolved is left **as written** rather than becoming
+an empty string, which is the rule everywhere here: a caller that reads
+`${{ ... }}` back knows the value did not arrive, and one that reads nothing
+cannot tell that from an empty answer.
+
+A matrix job in a called workflow is several rows under one name, and their
+outputs merge with the last row winning per key. That is Actions' behaviour and a
+limitation rather than a design: two combinations that set the same output to
+different values leave one answer and no record of the other.

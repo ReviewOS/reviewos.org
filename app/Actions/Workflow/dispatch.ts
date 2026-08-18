@@ -1008,7 +1008,7 @@ async function createJobs(
   runId: number,
   versionId: number,
   context?: ConcurrencyContext,
-  call: { prefix?: string, depth?: number, trail?: number[] } = {},
+  call: { prefix?: string, depth?: number, trail?: number[], rootNeeds?: string[] } = {},
 ): Promise<void> {
   const definition: any[] = await db
     .selectFrom('workflow_version_jobs')
@@ -1029,10 +1029,23 @@ async function createJobs(
   const trail = call.trail ?? [versionId]
   const prefix = call.prefix ?? ''
 
+  /*
+   * What the *whole called workflow* waits for.
+   *
+   * A call job's `needs:` belongs to the caller's graph, and the jobs it
+   * expands into are in the same run - so without grafting it onto the called
+   * workflow's root jobs, a called workflow starts immediately however much the
+   * caller said it should wait. Grafted onto roots only: a called job that
+   * already needs something inside its own workflow is already downstream of
+   * them.
+   */
+  const rootNeeds = call.rootNeeds ?? []
+
   let position = 0
 
   for (const job of definition) {
-    const needs = String(job.needs ?? '').trim()
+    const own = String(job.needs ?? '').trim()
+    const needs = own || rootNeeds.join('\n')
 
     /*
      * A job that `uses:` another workflow has no steps of its own: what runs is
@@ -1049,6 +1062,11 @@ async function createJobs(
         depth,
         trail,
         prefix,
+        // What the call itself waits for, which the called workflow's root jobs
+        // inherit - and which the call's own row waits for when the call cannot
+        // be resolved.
+        ownNeeds: needs.split('\n').map(one => one.trim()).filter(Boolean),
+        position: position++,
       })
 
       continue
@@ -1201,7 +1219,7 @@ async function createJobs(
                   ? 'skipped'
                   : (needs.length > 0 || String(job.kind ?? 'command') !== 'command' ? 'blocked' : 'queued'),
             finished_at: plugins.ok ? null : new Date().toISOString(),
-            needs: job.needs,
+            needs,
             runs_on: job.runs_on,
             matrix_values: values ? JSON.stringify(values) : null,
             /*
@@ -1260,9 +1278,12 @@ async function expandCall(input: {
   depth: number
   trail: number[]
   prefix: string
+  ownNeeds?: string[]
+  position?: number
 }): Promise<void> {
   const { runId, repositoryId, job, context, depth, trail, prefix } = input
   const name = prefix ? `${prefix}/${job.job_id}` : String(job.job_id)
+  const ownNeeds = input.ownNeeds ?? []
 
   const record = async (reason: string): Promise<void> => {
     await db
@@ -1314,7 +1335,52 @@ async function expandCall(input: {
     prefix: name,
     depth: depth + 1,
     trail: [...trail, resolved.target.versionId],
+    rootNeeds: ownNeeds,
   })
+
+  /*
+   * And a row for the call itself.
+   *
+   * Without one, `needs: [call]` in the caller named a job that was not in the
+   * run: the graph read it as missing, the settler swept the dependent as
+   * unreachable, and the run went **green having skipped the job after the
+   * call**. A deploy behind a called build is exactly that shape, and nothing
+   * about the run said so.
+   *
+   * A `wait` barrier, because that is what a call is once its jobs are in the
+   * same run: it is finished when they are, it never reaches a machine, and its
+   * outputs are the called workflow's declared outputs - resolved by the settler
+   * when the barrier is released.
+   */
+  const called: any[] = await db
+    .selectFrom('workflow_version_jobs')
+    .select(['job_id', 'needs'])
+    .where('workflow_version_id', '=', resolved.target.versionId)
+    .execute()
+
+  await db
+    .insertInto('workflow_jobs')
+    .values({
+      workflow_run_id: runId,
+      job_id: name,
+      name: callName(prefix, String(job.name ?? job.job_id)),
+      position: input.position ?? 8000,
+      state: 'blocked',
+      kind: 'wait',
+      /*
+       * Every job of the called workflow, not only its leaves.
+       *
+       * A leaf-only barrier would be released while a job the leaves did not
+       * depend on was still running - which is ordinary in a called workflow
+       * that does two independent things.
+       */
+      needs: called.map(row => `${name}/${row.job_id}`).join('\n'),
+      runs_on: job.runs_on,
+      // Where the outputs come from when this barrier is released.
+      settings: JSON.stringify({ call: { versionId: resolved.target.versionId, prefix: name } }),
+    } as any)
+    .execute()
+    .catch(() => null)
 }
 
 /** `deploy / build`, the way Actions names a called workflow's job. */

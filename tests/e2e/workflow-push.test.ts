@@ -1021,8 +1021,17 @@ jobs:
      */
     expect(jobs.find((job: any) => job.job_id === 'build/compile').name).toBe('build / compile')
 
-    // And the calling job itself is not a row: it has nothing to run.
-    expect(ids).not.toContain('build')
+    /*
+     * And the calling job **is** a row, as a barrier.
+     *
+     * This assertion used to say the opposite, which codified a defect: with no
+     * row for the call, `needs: [build]` in the caller named a job that was not
+     * in the run, the graph read it as missing, and the settler swept the
+     * dependent as unreachable - so the run went green having skipped whatever
+     * came after the call. It runs nothing; it is finished when its jobs are.
+     */
+    expect(ids).toContain('build')
+    expect(jobs.find((job: any) => job.job_id === 'build').state).not.toBe('queued')
   }, 30_000)
 
   /*

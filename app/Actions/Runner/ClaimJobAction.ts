@@ -288,7 +288,12 @@ export default new Action({
      */
     const jobRow: any = await db
       .selectFrom('workflow_jobs')
-      .select(['matrix_values', 'timeout_minutes', 'settings', 'approved_at', 'parallel_index', 'parallel_total', 'uploaded_by_job_id'])
+      .select([
+        'matrix_values', 'timeout_minutes', 'settings', 'approved_at', 'parallel_index', 'parallel_total', 'uploaded_by_job_id',
+        // `strategy.fail-fast` and `strategy.max-parallel`, which were copied
+        // onto the run and read by the graph and by nothing a workflow could see.
+        'fail_fast', 'max_parallel',
+      ])
       .where('id', '=', claimed.jobId)
       .executeTakeFirst()
 
@@ -409,6 +414,21 @@ export default new Action({
      * reason rather than leaving it queued - a job no machine in this pool may
      * run is not work waiting for a runner, it is work that will never happen.
      */
+    /*
+     * The rows this job shares its name with, in expansion order.
+     *
+     * A matrix of four is four rows under one `job_id`, and `strategy.job-index`
+     * is which of them this is - so the answer is a position among siblings
+     * rather than anything on the row itself.
+     */
+    const siblings: any[] = await db
+      .selectFrom('workflow_jobs')
+      .select(['id'])
+      .where('workflow_run_id', '=', claimed.runId)
+      .where('job_id', '=', claimed.jobKey)
+      .orderBy('position')
+      .execute()
+
     const attached = await poolPlugins(claimed.poolId)
 
     if (!attached.ok) {
@@ -563,6 +583,24 @@ export default new Action({
          * a shard" should get an answer, and `0 of 1` is indistinguishable from
          * the first shard of a job somebody reduced to one copy.
          */
+        /*
+         * `strategy`, the eleventh context: `fail-fast`, `max-parallel`, and
+         * which of a matrix's jobs this one is.
+         *
+         * The two indexes are counted over the run rather than stored, because
+         * a matrix of four is four rows under one `job_id` and their position
+         * order *is* the expansion order. Actions numbers them from zero, and a
+         * workflow that shards by `strategy.job-index` breaks quietly if this
+         * counts differently.
+         */
+        strategy: {
+          fail_fast: jobRow?.fail_fast !== false,
+          max_parallel: jobRow?.max_parallel === null || jobRow?.max_parallel === undefined
+            ? null
+            : Number(jobRow.max_parallel),
+          job_index: Math.max(0, siblings.findIndex(row => Number(row.id) === Number(claimed.jobId))),
+          job_total: siblings.length,
+        },
         parallel: jobRow?.parallel_total
           ? { index: Number(jobRow.parallel_index ?? 0), total: Number(jobRow.parallel_total) }
           : null,
