@@ -1324,7 +1324,38 @@ async function runAction(input: {
   origins?: Record<string, string>
   environment: Record<string, string>
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
+  /** How many actions deep this is. The caller's step is zero. */
+  depth?: number
+  /** The chain that got here, so an action that uses itself is caught. */
+  seen?: readonly string[]
 }): Promise<{ ok: boolean, reason: string }> {
+  const depth = Number(input.depth ?? 0)
+  const seen = input.seen ?? []
+
+  /*
+   * A ceiling on nesting, and a cycle check, because both failures look
+   * identical from outside - a job that never finishes - and neither is
+   * something a workflow author can debug from a log that stops.
+   *
+   * Five is Actions' own limit. An action chain deeper than that is a design
+   * nobody meant to write, and the refusal names the chain so it can be seen.
+   */
+  if (depth > MAX_ACTION_DEPTH) {
+    const reason = `\`${input.uses}\` is ${depth} actions deep, and ${MAX_ACTION_DEPTH} is the limit: ${[...seen, input.uses].join(' → ')}`
+
+    await input.onOutput(`${reason}\n`, 'stderr')
+
+    return { ok: false, reason }
+  }
+
+  if (seen.includes(input.uses)) {
+    const reason = `\`${input.uses}\` uses itself: ${[...seen, input.uses].join(' → ')}`
+
+    await input.onOutput(`${reason}\n`, 'stderr')
+
+    return { ok: false, reason }
+  }
+
   const reference = parseActionRef(input.uses)
   const decision = checkPolicy(reference, input.policy)
 
@@ -1409,8 +1440,17 @@ async function runAction(input: {
     GITHUB_ACTION_PATH: directory,
   }
 
-  if (definition.kind === 'composite')
-    return runComposite(definition, input.workspace, environment, input.onOutput)
+  if (definition.kind === 'composite') {
+    return runComposite(definition, input.workspace, environment, input.onOutput, {
+      // What a nested `uses:` needs to resolve the way this one did.
+      job: input.job,
+      policy: input.policy,
+      cacheRoot: input.cacheRoot,
+      origins: input.origins,
+      depth: depth + 1,
+      seen: [...seen, input.uses],
+    })
+  }
 
   if (definition.kind === 'javascript')
     return runJavaScript(definition, directory, input.workspace, environment, input.onOutput)
@@ -1422,28 +1462,82 @@ async function runAction(input: {
   return { ok: false, reason }
 }
 
+/** How deep one action may reach through others. Actions' own limit. */
+export const MAX_ACTION_DEPTH = 5
+
 /** A composite action: its steps, in order, in the caller's workspace. */
 async function runComposite(
   definition: ActionDefinition,
   workspace: string,
   environment: Record<string, string>,
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>,
+  nesting: {
+    job: any
+    policy: ReturnType<typeof defaultPolicy>
+    cacheRoot: string
+    origins?: Record<string, string>
+    depth: number
+    seen: readonly string[]
+  },
 ): Promise<{ ok: boolean, reason: string }> {
+  /*
+   * What an expression inside this action may read.
+   *
+   * `inputs` is the action's own, which is the whole reason a composite action
+   * has expressions at all: `${{ inputs.who }}` in a step is how an input
+   * reaches the thing the action wraps. Without evaluating them the value
+   * arrives as the literal text `${{ inputs.who }}`, which is what happened -
+   * the nested action greeted somebody called `${{ inputs.who }}`.
+   */
+  const context = {
+    inputs: Object.fromEntries(
+      Object.entries(environment)
+        .filter(([key]) => key.startsWith('INPUT_'))
+        .map(([key, value]) => [key.slice('INPUT_'.length).toLowerCase().replace(/_/g, '-'), value]),
+    ),
+    env: environment,
+    github: { action_path: environment.GITHUB_ACTION_PATH ?? '' },
+  }
+
   for (const [index, step] of definition.steps.entries()) {
     const name = step.name ?? step.run ?? step.uses ?? `step ${index + 1}`
 
     /*
-     * A composite step that itself `uses:` something is refused rather than
-     * followed. Nesting is real and worth supporting, and doing it without the
-     * depth limit and cycle check the reusable-workflow path already has would
-     * be the version that recurses forever.
+     * A composite step that uses another action, which is how the ecosystem's
+     * actions are actually written - `actions/setup-node` inside somebody's
+     * `setup` action, and so on.
+     *
+     * Nested through the same path as any other `uses:`, which is what gets it
+     * the policy check, the cache, the input mapping and the refusals for
+     * free. The depth limit and cycle check live there, once.
      */
     if (step.uses) {
-      const reason = `\`${name}\` uses another action, which this runner does not nest yet`
+      await onOutput(`::group::${name}\n`, 'stdout')
 
-      await onOutput(`${reason}\n`, 'stderr')
+      const nested = await runAction({
+        uses: interpolate(step.uses, context),
+        // Evaluated against this action's inputs, so a wrapper can pass its
+        // own input down - which is most of what a wrapper is for.
+        with: interpolateValues(step.with ?? {}, context),
+        workspace,
+        job: nesting.job,
+        policy: nesting.policy,
+        cacheRoot: nesting.cacheRoot,
+        origins: nesting.origins,
+        // The action's own inputs are in scope for what it calls, which is
+        // what makes a wrapper action able to pass its input through.
+        environment: { ...environment, ...step.env },
+        onOutput,
+        depth: nesting.depth,
+        seen: nesting.seen,
+      })
 
-      return { ok: false, reason }
+      await onOutput('::endgroup::\n', 'stdout')
+
+      if (!nested.ok)
+        return { ok: false, reason: `${name}: ${nested.reason}` }
+
+      continue
     }
 
     if (!step.run)
@@ -1452,7 +1546,7 @@ async function runComposite(
     await onOutput(`::group::${name}\n`, 'stdout')
 
     const result = await runStep({
-      command: step.run,
+      command: interpolate(step.run, context),
       /*
        * A composite step's working directory defaults to the *workspace*, not
        * to the action's own directory. Actions is explicit about this and it
@@ -1460,8 +1554,8 @@ async function runComposite(
        * repository that called them, and `GITHUB_ACTION_PATH` is how it reaches
        * its own files.
        */
-      cwd: step.workingDirectory ? join(workspace, step.workingDirectory) : workspace,
-      environment: { ...environment, ...step.env },
+      cwd: step.workingDirectory ? join(workspace, interpolate(step.workingDirectory, context)) : workspace,
+      environment: { ...environment, ...interpolateValues(step.env ?? {}, context) },
       onOutput,
     })
 

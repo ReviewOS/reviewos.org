@@ -643,3 +643,42 @@ would be right most of the time, which is the worst kind of wrong.
 `reviewos.changed` sits under this instance's own name rather than inside
 `github` because a workflow that reads it would not run on GitHub. A reader
 deserves to see that in the expression rather than discover it on migration.
+
+## Actions, and how far they nest
+
+Three kinds, and this runner is honest about which it has:
+
+| Kind | Here |
+|---|---|
+| composite | runs, including when its steps use other actions |
+| JavaScript | runs, with the runtime this host has (Bun rather than node - the log says so) |
+| Docker | **refused**, with the reason: it needs a container engine this runner does not have |
+
+A composite action's steps run in the **caller's** workspace rather than the
+action's own directory. That reads as wrong until you write one: an action's
+steps operate on the repository that called them, and `GITHUB_ACTION_PATH` is
+how it reaches its own files.
+
+**Nesting is five deep, and a cycle is refused with the chain.** Both failures
+look identical from outside - a job that never finishes - and neither is
+debuggable from a log that stops:
+
+```
+`./.reviewos/actions/loop` uses itself: ./.reviewos/actions/loop → ./.reviewos/actions/loop
+```
+
+Expressions inside a composite action are evaluated against **its own inputs**,
+which is what makes a wrapper a wrapper:
+
+```yaml
+runs:
+  using: composite
+  steps:
+    - uses: ./.reviewos/actions/greet
+      with:
+        who: ${{ inputs.who }}
+```
+
+A nested `uses:` goes through the same path as any other, so it gets the action
+policy, the cache and the input mapping without a second implementation of any
+of them.

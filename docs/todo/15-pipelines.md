@@ -557,8 +557,28 @@ written down here so it does not get relitigated:
       Found while writing the test for this: **the parser refused every reusable-workflow caller**,
       because a calling job has no `runs-on` and the validator required one. Its jobs run on
       whatever the called workflow says, which is the point of calling it.
-- [ ] Composite actions, JavaScript actions, and Docker actions, all three, because a repository's
-      dependency tree contains all three whether or not its own workflows do
+- [x] Composite and JavaScript actions, including composite actions that use other actions.
+      **Docker actions are refused**, with the reason, because they need a container engine this
+      runner does not have.
+
+      Composite and JavaScript already ran; what was refused was *nesting* - and the code said why:
+      the depth limit and cycle check were not written, so following a nested `uses:` would have
+      been the version that recurses forever. Both exist now, five deep like Actions, with a cycle
+      refused **naming the chain** - a cycle and a runaway depth look identical from outside, a job
+      that never finishes, and neither is debuggable from a log that stops.
+
+      A nested `uses:` goes through the same path as any other, so the action policy, the cache and
+      the input mapping are not implemented twice.
+
+      Found by the test: expressions inside a composite action were never evaluated, so
+      `with: { who: ${{ inputs.who }} }` reached the nested action as that literal text - it
+      greeted somebody called `${{ inputs.who }}`. They are evaluated against the action's own
+      inputs now, which is what makes a wrapper able to pass its input down, and is most of what a
+      wrapper is for.
+
+      Docker stays refused rather than half-built. A container action needs an engine; the common
+      case behind reaching for one - "give me node 20" - is answered by a pantry dependency file,
+      which is written up in [extensions](../extensions.md).
 
 ### Expressions and contexts
 

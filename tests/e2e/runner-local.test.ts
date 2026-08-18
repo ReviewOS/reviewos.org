@@ -88,6 +88,13 @@ jobs:
         uses: ./.reviewos/actions/greet
         with:
           who: reviewer
+      - name: Use an action that uses an action
+        uses: ./.reviewos/actions/wrapper
+        with:
+          who: nested
+      - name: An action that uses itself is refused rather than hanging
+        uses: ./.reviewos/actions/loop
+        continue-on-error: true
       - name: Refuse an action from the internet
         uses: actions/checkout@v4
         continue-on-error: true
@@ -136,6 +143,38 @@ runs:
     - name: Prove the workspace is the caller's
       shell: bash
       run: cat marker.txt
+`
+
+/**
+ * An action that uses another action, which is how the ecosystem's are written:
+ * somebody's `setup` action calls `actions/setup-node` and adds two lines.
+ */
+const WRAPPER = `name: Greet twice
+description: Wraps the greeting
+inputs:
+  who:
+    description: Who to greet
+    default: world
+runs:
+  using: composite
+  steps:
+    - name: Say it is about to nest
+      shell: bash
+      run: echo "wrapping the greeting"
+    - name: The nested action
+      uses: ./.reviewos/actions/greet
+      with:
+        who: \${{ inputs.who }}
+`
+
+/** And one that uses itself, which is the failure that looks like a hang. */
+const LOOP = `name: Loop
+description: Uses itself
+runs:
+  using: composite
+  steps:
+    - name: Again
+      uses: ./.reviewos/actions/loop
 `
 
 beforeAll(async () => {
@@ -196,6 +235,12 @@ beforeAll(async () => {
 
     mkdirSync(join(work, '.reviewos', 'actions', 'greet'), { recursive: true })
     writeFileSync(join(work, '.reviewos', 'actions', 'greet', 'action.yml'), ACTION)
+
+    mkdirSync(join(work, '.reviewos', 'actions', 'wrapper'), { recursive: true })
+    writeFileSync(join(work, '.reviewos', 'actions', 'wrapper', 'action.yml'), WRAPPER)
+
+    mkdirSync(join(work, '.reviewos', 'actions', 'loop'), { recursive: true })
+    writeFileSync(join(work, '.reviewos', 'actions', 'loop', 'action.yml'), LOOP)
 
     await git(work, 'add', '-A')
     await git(work, 'commit', '-m', 'a workflow and a marker')
@@ -293,6 +338,20 @@ async function waitFor<T>(read: () => Promise<T>, until: (value: T) => boolean, 
   }
 
   return value
+}
+
+/** Every line this repository's runs have printed, in order. */
+async function logText(): Promise<string> {
+  const logs: any[] = await db
+    .selectFrom('workflow_job_logs')
+    .innerJoin('workflow_jobs', 'workflow_jobs.id', '=', 'workflow_job_logs.workflow_job_id')
+    .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+    .select(['workflow_job_logs.content as content'])
+    .where('workflow_runs.repository_id', '=', created.repositoryId)
+    .orderBy('workflow_job_logs.sequence')
+    .execute()
+
+  return logs.map(row => String(row.content ?? '')).join('')
 }
 
 describe('the local runner', () => {
@@ -495,6 +554,39 @@ describe('the local runner', () => {
      * operate on the repository that called them.
      */
     expect(text.split('greetings, reviewer')[1]).toContain('this came from the repository')
+  }, 60_000)
+
+  /*
+   * An action that uses another action, which is how the ecosystem's are
+   * actually written: somebody's `setup` action calls `actions/setup-node` and
+   * adds two lines. Refusing to nest meant refusing most real actions.
+   */
+  test('an action can use another action, with its input passed through', async () => {
+    if (!available)
+      return
+
+    const text = await logText()
+
+    expect(text).toContain('wrapping the greeting')
+
+    // The wrapper's own `who` reached the action it wrapped, which is the
+    // whole point of a wrapper.
+    expect(text).toContain('greetings, nested')
+  }, 60_000)
+
+  test('and an action that uses itself is refused with the chain, rather than hanging', async () => {
+    if (!available)
+      return
+
+    /*
+     * A cycle and a runaway depth look identical from outside - a job that
+     * never finishes - and neither is debuggable from a log that stops. The
+     * refusal names the chain so it can be seen.
+     */
+    const text = await logText()
+
+    expect(text).toContain('uses itself')
+    expect(text).toContain('.reviewos/actions/loop')
   }, 60_000)
 
   /*
