@@ -92,14 +92,17 @@ the entire patch as one string, then parses all of it, then runs cross-file move
 result. This is the main way a large diff kills the box, and the bounded infrastructure it should
 use already exists.
 
-- [ ] Rebuild `pullRequestDiff` and `commitDiff` (`app/Actions/Pull/load.ts`) on
+- [x] Rebuild `pullRequestDiff` and `commitDiff` (`app/Actions/Pull/load.ts`) on
       `streamMergeBaseDiff` / `streamCommitDiff`, consuming the iterable under a byte budget
       matching the streamed path's 8 MiB, cancelling on breach, returning
-      `{ text, truncated }`.
-- [ ] When truncated, the pull request page renders a banner naming the size and linking the
-      reader to the virtualized diff view, which handles arbitrary sizes by design.
-- [ ] Tests: a diff larger than a small test budget returns truncated and well-formed partial
-      text; a normal diff is byte-identical to the old output.
+      `{ text, truncated }`. `diffStream.ts` learned `ignoreWhitespace` so the whitespace
+      preference survives the move rather than being dropped as a casualty of it.
+- [x] When truncated, the pull request page renders a banner naming the size and linking the
+      reader to the virtualized diff view, which handles arbitrary sizes by design. Both the
+      whole-diff and commit-by-commit modes have one.
+- [x] Tests: a diff larger than a small test budget returns truncated and well-formed partial
+      text; a normal diff is byte-identical to the old output
+      (`tests/unit/pull-diff-bounded.test.ts`, asserting against the old argv run buffered).
 
 ## M3 - A ceiling on concurrent git processes
 

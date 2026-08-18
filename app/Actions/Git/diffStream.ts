@@ -31,6 +31,11 @@ export interface DiffStreamOptions {
    * some work on very large changes, which is the only reason it is optional.
    */
   detectRenames?: boolean
+  /**
+   * Skip whitespace-only changes at the git level, which is cheaper than
+   * hiding them after they have been produced, parsed, and rendered.
+   */
+  ignoreWhitespace?: boolean
 }
 
 export interface DiffStreamResult {
@@ -130,6 +135,7 @@ function streamDiffArgs(
     '--src-prefix=a/',
     '--dst-prefix=b/',
     ...(detectRenames ? ['--find-renames', '--find-copies'] : ['--no-renames']),
+    ...(options.ignoreWhitespace ? ['--ignore-all-space'] : []),
     ...revisionArgs,
     // Everything after this is a path, so a branch called `--output` is a
     // branch name.

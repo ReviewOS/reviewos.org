@@ -135,7 +135,7 @@ export function lineTokensFor(
  */
 import { diffTotals as diffTotalsImpl, isGenerated as isGeneratedImpl, isWhitespaceOnly as isWhitespaceOnlyImpl, parseDiff as parseDiffImpl } from '../../app/Actions/Pull/diff'
 import { approvalsSatisfied as approvalsSatisfiedImpl, machineAccountsAmong as machineAccountsAmongImpl, mapLine as mapLineImpl, reanchor as reanchorImpl, reviewIsStale as reviewIsStaleImpl } from '../../app/Actions/Pull/anchoring'
-import { changedPathsFor as changedPathsForImpl, commitDiff as commitDiffImpl, commitsOnBranch as commitsOnBranchImpl, pullRequestDiff as pullRequestDiffImpl } from '../../app/Actions/Pull/load'
+import { changedPathsFor as changedPathsForImpl, commitDiff as commitDiffImpl, commitsOnBranch as commitsOnBranchImpl, pullRequestDiff as pullRequestDiffImpl, SSR_DIFF_BYTE_LIMIT as SSR_DIFF_BYTE_LIMIT_IMPL } from '../../app/Actions/Pull/load'
 import { isMergeStrategy as isMergeStrategyImpl, mergeBlockers as mergeBlockersImpl } from '../../app/Actions/Pull/merge'
 import { combinedState as combinedStateImpl, requirementSummary as requirementSummaryImpl, requirementsSatisfied as requirementsSatisfiedImpl } from '../../app/Actions/Checks/status'
 import { highlightDiffFile as highlightDiffFileImpl, renderDiffFile as renderDiffFileImpl } from '../../app/Actions/Pull/rows'
@@ -159,6 +159,9 @@ export const approvalsSatisfied = approvalsSatisfiedImpl
 export const machineAccountsAmong = machineAccountsAmongImpl
 export const pullRequestDiff = pullRequestDiffImpl
 export const commitsOnBranch = commitsOnBranchImpl
+
+/** The whole-page diff budget, for the banner that names it. */
+export const SSR_DIFF_BYTE_LIMIT = SSR_DIFF_BYTE_LIMIT_IMPL
 
 /** The changed paths, cheaply, for single-file navigation. */
 export const changedPathsFor = changedPathsForImpl
@@ -208,3 +211,14 @@ export const moveNotes = moveNotesImpl
 
 /** Uncovered lines per path, for marking changed lines no test executes. */
 export const loadCoverage = loadCoverageImpl
+
+/**
+ * The preview environments a pull request has, for the link on its page.
+ *
+ * Re-exported one name at a time rather than with `export … from`, which the
+ * stx composable loader cannot parse - it fails by leaving every binding
+ * undefined rather than by saying so.
+ */
+import { previewsFor as previewsForImpl } from '../../app/Actions/Deploy/previews'
+
+export const previewsFor = previewsForImpl

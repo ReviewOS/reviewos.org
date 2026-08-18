@@ -11,8 +11,63 @@
  * separately in `diff.ts`.
  */
 
+import type { DiffStreamResult } from '../Git/diffStream'
+import { streamCommitDiff, streamMergeBaseDiff } from '../Git/diffStream'
 import { mergeBase, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
+
+/**
+ * How much patch text the server-rendered pull request page will hold.
+ *
+ * The same eight mebibytes as the streamed path's rendered-rows budget, and
+ * for the same reason: past it, a diff is not something a whole-page render
+ * serves anybody with, and the virtualized review screen - built for
+ * arbitrary sizes - is where the reader belongs. The page says so in a banner
+ * rather than silently rendering part of a change as though it were all of it.
+ */
+export const SSR_DIFF_BYTE_LIMIT = 8 * 1024 * 1024
+
+export interface BoundedDiff {
+  /** The patch text, whole when `truncated` is false, cut at the budget otherwise. */
+  text: string
+  truncated: boolean
+}
+
+/**
+ * Collect a diff stream under a byte budget, cancelling git at the breach.
+ *
+ * The bounded infrastructure the API path already rides (`diffStream.ts`
+ * applies backpressure and kills git when the reader walks away); this is the
+ * whole-page consumer of it. Cancelling mid-stream marks `done.ok` false, so
+ * the text gathered before the breach is kept and reported truncated rather
+ * than discarded.
+ */
+async function collectBounded(stream: DiffStreamResult | null, maxBytes: number): Promise<BoundedDiff> {
+  if (!stream)
+    return { text: '', truncated: false }
+
+  let text = ''
+  let bytes = 0
+  let truncated = false
+
+  for await (const chunk of stream.chunks) {
+    bytes += Buffer.byteLength(chunk, 'utf8')
+    text += chunk
+
+    if (bytes > maxBytes) {
+      truncated = true
+      // Breaking out of the for-await kills the child; see diffStream.ts.
+      break
+    }
+  }
+
+  const done = await stream.done
+
+  if (truncated)
+    return { text, truncated: true }
+
+  return done.ok ? { text, truncated: false } : { text: '', truncated: false }
+}
 
 /**
  * How much list output the cheap loaders read: the path list and the commit
@@ -44,13 +99,21 @@ export interface DiffOptions {
    * the other hundred.
    */
   paths?: string[]
+  /** Override the page byte budget. Exists for tests; pages take the default. */
+  maxBytes?: number
 }
 
 /**
- * The unified diff for a pull request, as text.
+ * The unified diff for a pull request, as text, under the page budget.
  *
- * Returns an empty string when the repository or either commit is missing,
- * which the caller renders as "no changes" rather than an error page: a pull
+ * Built on `streamMergeBaseDiff` rather than `runGit`: this used to hold the
+ * entire patch as one string with no bound, which was the main way a large
+ * diff killed the box - and the bounded streaming path already existed for
+ * the API. The three-dot range hands the merge-base question to git, which is
+ * the same answer `mergeBase` computed here by hand.
+ *
+ * Returns empty text when the repository or either commit is missing, which
+ * the caller renders as "no changes" rather than an error page: a pull
  * request whose branch was deleted should still show its conversation.
  */
 export async function pullRequestDiff(
@@ -59,41 +122,18 @@ export async function pullRequestDiff(
   baseSha: string,
   headSha: string,
   options: DiffOptions = {},
-): Promise<string> {
+): Promise<BoundedDiff> {
   const resolved = repositoryPath(owner, repositoryName)
   if (!resolved.ok)
-    return ''
+    return { text: '', truncated: false }
 
-  const base = await mergeBase(resolved.path!, baseSha, headSha)
-  if (!base)
-    return ''
+  const stream = streamMergeBaseDiff(resolved.path!, baseSha, headSha, {
+    context: options.context,
+    paths: options.paths,
+    ignoreWhitespace: options.ignoreWhitespace,
+  })
 
-  const args = [
-    'diff',
-    `--unified=${options.context ?? 3}`,
-    // Renames and copies are detected here rather than inferred later: git has
-    // the blob hashes and we do not.
-    '--find-renames',
-    '--find-copies',
-    '--no-color',
-    // A repository's own config must not change how a diff is read; a
-    // `diff.external` in a pushed config would otherwise run somebody's binary.
-    '--no-ext-diff',
-  ]
-
-  if (options.ignoreWhitespace)
-    args.push('--ignore-all-space')
-
-  args.push(base, headSha)
-
-  // Everything after `--` is a path, never a revision - which is also what
-  // keeps a file named like a branch from being read as one.
-  if (options.paths && options.paths.length > 0)
-    args.push('--', ...options.paths)
-
-  const result = await runGit(resolved.path!, args, { timeoutMs: 60_000 })
-
-  return result.ok ? result.stdout : ''
+  return await collectBounded(stream, options.maxBytes ?? SSR_DIFF_BYTE_LIMIT)
 }
 
 /**
@@ -125,7 +165,8 @@ export async function changedPathsFor(
 /**
  * One commit's own diff, against its first parent.
  *
- * Commit-by-commit review's loader. `--first-parent` so a merge commit shows
+ * Commit-by-commit review's loader, on the same bounded stream as the whole
+ * diff. `--first-parent` (inside `streamCommitDiff`) so a merge commit shows
  * what the merge introduced rather than replaying one side; the caller is
  * responsible for only asking about commits that are on the branch, because
  * this function will answer for any commit the repository holds.
@@ -135,22 +176,17 @@ export async function commitDiff(
   repositoryName: string,
   sha: string,
   options: DiffOptions = {},
-): Promise<string> {
+): Promise<BoundedDiff> {
   const resolved = repositoryPath(owner, repositoryName)
   if (!resolved.ok || !/^[0-9a-f]{40}$/.test(sha))
-    return ''
+    return { text: '', truncated: false }
 
-  const result = await runGit(resolved.path!, [
-    'diff',
-    `--unified=${options.context ?? 3}`,
-    '--find-renames',
-    '--find-copies',
-    '--no-color',
-    '--no-ext-diff',
-    `${sha}^!`,
-  ], { timeoutMs: 60_000 })
+  const stream = streamCommitDiff(resolved.path!, sha, {
+    context: options.context,
+    ignoreWhitespace: options.ignoreWhitespace,
+  })
 
-  return result.ok ? result.stdout : ''
+  return await collectBounded(stream, options.maxBytes ?? SSR_DIFF_BYTE_LIMIT)
 }
 
 /** Commit subjects on the branch, oldest first. */

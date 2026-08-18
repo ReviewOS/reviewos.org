@@ -13,7 +13,7 @@
 import { repositoryForView, repositoryPath } from '../../../../functions/repo'
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { startsCollapsed } from '../../../../../app/Actions/Pull/manifest'
-import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, pullRequestDiff, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists, checksPanel, annotationsByLine, annotationsForLine, renderAnnotations } from '../../../../functions/review'
+import { approvalsSatisfied, machineAccountsAmong, commitDiff, commitsOnBranch, crossFileMoves, diffTotals, loadCoverage, moveNotes, isGenerated, mergeBlockers, parseDiff, previewsFor, pullRequestDiff, refreshMergeability, renderDiffFile, highlightDiffFile, loadReviewThreads, anchorThreads, threadSlotFor, branchExists, checksPanel, annotationsByLine, annotationsForLine, renderAnnotations, SSR_DIFF_BYTE_LIMIT } from '../../../../functions/review'
 import { testSummaryForPull } from '../../../../functions/tests'
 // The stack helpers from the module that owns them. They used to be
 // re-exported by `review.ts` so this line could be one import; two modules
@@ -160,11 +160,19 @@ const storedThreads = pullRequest
  * Against the tip, a reviewer is shown every change somebody else landed on the
  * base while this branch was open, and asked to approve them too.
  */
-const raw = pullRequest
+const boundedDiff = pullRequest
   ? await pullRequestDiff(owner, repositoryName, String(pullRequest.base_sha), String(pullRequest.head_sha))
-  : ''
+  : { text: '', truncated: false }
+const raw = boundedDiff.text
 const files = parseDiff(raw)
 const totals = diffTotals(files)
+
+// Where the reader belongs when the whole-page render cannot hold the change:
+// the streamed review screen renders arbitrary sizes by design. The label is
+// built here because arithmetic in an interpolation that throws swallows its
+// whole block into an HTML comment.
+const reviewScreenUrl = `/${owner}/${repositoryName}/pull/${number}/files`
+const diffBudgetLabel = `${Math.round(SSR_DIFF_BYTE_LIMIT / (1024 * 1024))} MB`
 
 /*
  * Blocks that moved between files, found over the whole diff - which this
@@ -233,6 +241,25 @@ try {
 }
 catch {
   checks = null
+}
+
+/*
+ * Where this change can be looked at, when something deployed it.
+ *
+ * The whole value of a preview is a link a reviewer clicks, and the newest live
+ * one per environment is the only honest answer: a branch pushed to five times
+ * has five recorded, four pointing at URLs that no longer answer.
+ *
+ * Guarded like the reads around it: a throw in this script renders the entire
+ * review screen with every binding undefined.
+ */
+let previews: any[] = []
+try {
+  if (pullRequest)
+    previews = await previewsFor(Number(pullRequest.id))
+}
+catch {
+  previews = []
 }
 
 /*
@@ -439,9 +466,10 @@ const currentCommit = commitIndex >= 0 ? modeCommits[commitIndex] : null
 const previousCommit = commitIndex > 0 ? modeCommits[commitIndex - 1] : null
 const nextCommit = commitIndex >= 0 && commitIndex < modeCommits.length - 1 ? modeCommits[commitIndex + 1] : null
 
-const commitFiles = currentCommit
-  ? parseDiff(await commitDiff(owner, repositoryName, currentCommit.sha))
-  : []
+const boundedCommitDiff = currentCommit
+  ? await commitDiff(owner, repositoryName, currentCommit.sha)
+  : { text: '', truncated: false }
+const commitFiles = currentCommit ? parseDiff(boundedCommitDiff.text) : []
 
 const commitHtml: string[] = []
 for (const file of commitFiles) {
@@ -770,6 +798,30 @@ const statePill = pullRequest
             @endif
           @endif
 
+          {{--
+            Where this change can be looked at.
+
+            On every tab rather than on one, because it is the thing a reviewer
+            wants before they read a line of the diff - and a link that only
+            appears on the checks tab is a link most people never find.
+          --}}
+          @if (previews.length > 0)
+            <section class="panel pr-previews">
+              <h2 class="side-heading">Preview</h2>
+
+              @foreach (previews as preview)
+                <p class="pr-preview">
+                  <a href="{{ preview.url }}" rel="noreferrer nofollow noopener">{{ preview.url }}</a>
+                  <span class="muted">{{ preview.environment }}</span>
+                  @if (preview.state === 'in_progress')
+                    <span class="muted">still deploying</span>
+                  @endif
+                  <span class="muted mono">{{ preview.sha.slice(0, 10) }}</span>
+                </p>
+              @endforeach
+            </section>
+          @endif
+
           @if (tab === 'checks')
             <section class="panel" style="padding: 15px 17px;">
               <h2 class="side-heading">Checks</h2>
@@ -936,6 +988,15 @@ const statePill = pullRequest
               step would put it on code it is not about.
             </p>
 
+            @if (boundedCommitDiff.truncated)
+              <p class="panel" style="padding: 12px 15px; margin-bottom: 12px;">
+                This commit is larger than the {{ diffBudgetLabel }} this page renders, so the
+                diff below stops partway.
+                <a href="{{ reviewScreenUrl }}">Open the review screen</a>, which handles
+                any size.
+              </p>
+            @endif
+
             @foreach (commitHtml as html)
               {!! html !!}
             @endforeach
@@ -966,6 +1027,15 @@ const statePill = pullRequest
           @endif
 
           @if (showWholeFiles)
+            @if (boundedDiff.truncated)
+              <p class="panel" style="padding: 12px 15px; margin-bottom: 12px;">
+                This change is larger than the {{ diffBudgetLabel }} this page renders, so the
+                diff below stops partway.
+                <a href="{{ reviewScreenUrl }}">Open it in the review screen</a>, which handles
+                any size.
+              </p>
+            @endif
+
             @if (files.length === 0)
               <p class="muted" style="padding: 24px 0;">
                 This branch has no changes against
@@ -1252,6 +1322,10 @@ const statePill = pullRequest
   .pr-commits { display: flex; flex-direction: column; gap: 8px; }
   .pr-commit { display: flex; gap: 10px; align-items: baseline; font-size: 13.5px; }
   .pr-commit-subject { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .pr-previews { padding: 13px 17px; margin-bottom: 14px; }
+  .pr-preview { margin: 6px 0 0; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 13px; }
+  .pr-preview a { word-break: break-all; }
 
   .visually-hidden {
     position: absolute;
