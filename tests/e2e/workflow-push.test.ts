@@ -310,20 +310,34 @@ describe('pushing a workflow file', () => {
 
     await push('.reviewos/workflows/ci.yml', CI.replace('name: CI', 'name: CI here'))
 
+    /*
+     * Waits for the whole switch, not just for the new row to appear.
+     *
+     * Registering the `.reviewos` workflow and retiring the `.github` one are
+     * two writes from one push, and waiting only for the first raced the
+     * second: the assertion below reads `state` immediately after, so on a
+     * loaded machine it saw the old workflow still active and reported two
+     * where it wanted one. Green in isolation, red in the full suite, which is
+     * the shape that wastes the most time - the failure names the assertion
+     * rather than the wait that was too short.
+     *
+     * The predicate is now the same question the assertion asks, so the wait
+     * cannot succeed on a state the assertion would reject.
+     */
+    const activePaths = (rows: any[]) => rows
+      .filter(row => String(row.state) === 'active')
+      .map(row => String(row.path))
+
     const registered = await waitFor(
       workflowsHere,
-      (rows: any[]) => rows.some(row => String(row.path).startsWith('.reviewos/')),
+      (rows: any[]) => activePaths(rows).join() === '.reviewos/workflows/ci.yml',
     )
 
-    const paths = registered.map((workflow: any) => workflow.path)
+    expect(registered.map((workflow: any) => workflow.path)).toContain('.reviewos/workflows/ci.yml')
 
-    expect(paths).toContain('.reviewos/workflows/ci.yml')
-
-    // The GitHub one is still in the tree and is no longer read: its workflow
-    // row stays as it was, and nothing new arrives from it.
-    const active = registered.filter((workflow: any) => String(workflow.state) === 'active')
-
-    expect(active.map((workflow: any) => workflow.path)).toEqual(['.reviewos/workflows/ci.yml'])
+    // The GitHub one is still in the tree and is no longer read: nothing new
+    // arrives from it and its row is no longer active.
+    expect(activePaths(registered)).toEqual(['.reviewos/workflows/ci.yml'])
   })
 
   /*
