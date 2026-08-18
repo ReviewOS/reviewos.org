@@ -9019,6 +9019,15 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": 0
+          },
+          {
+            "name": "queued_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
           }
         ],
         "indexes": [
@@ -10599,6 +10608,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "flaky_since",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
           }
         ],
         "indexes": [
@@ -12017,7 +12035,7 @@
       }
     ]
   },
-  "hash": "f731a65387f0d92451046c922b78f46ef43bea6b6f51ce842c37e728f57ee88e",
+  "hash": "dc4a1770e22e59094726fa6b8b47d483aa943b76a0da29091644ee615d55c36c",
   "dialect": "postgres",
-  "updatedAt": "2026-08-18T00:32:04.583Z"
+  "updatedAt": "2026-08-18T01:00:58.853Z"
 }

@@ -9728,6 +9728,30 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/insight": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "days"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "window"?: { "days"?: number; "from"?: string; "to"?: string }; "overall"?: { "workflow"?: string; "path"?: string; "runs"?: number; "success_rate"?: number; "p50_ms"?: number; "p95_ms"?: number; "retry_rate"?: number; "samples"?: number }; "workflows"?: Array<{ "workflow"?: string; "path"?: string; "runs"?: number; "success_rate"?: number; "p50_ms"?: number; "p95_ms"?: number; "retry_rate"?: number; "samples"?: number }>; "failures_by_job"?: Array<{ "name"?: string; "failures"?: number; "runs"?: number }>; "wait"?: Array<{ "queue"?: string; "pool"?: string; "samples"?: number; "p50_ms"?: number; "p95_ms"?: number }>; "runners"?: Array<{ "runner"?: string; "busy_ms"?: number; "utilization"?: number; "idle_ms"?: number }>; "cost"?: { "repositories"?: Array<Record<string, unknown>>; "owners"?: Array<Record<string, unknown>>; "queues"?: Array<Record<string, unknown>> }; "flaky"?: { "runs_failed_by_known_flaky"?: number; "failed_runs"?: number; "share"?: number } } } }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/instance/admin": {
     get?: never
     put?: never

@@ -10,7 +10,7 @@
  */
 const ownerHandle = String(owner)
 const repositoryName = String(repository)
-// 'code', 'pulls', 'issues', 'runs' or 'tests'.
+// 'code', 'pulls', 'issues', 'runs', 'tests' or 'insight'.
 const current = String(active ?? 'code')
 const base = `/${ownerHandle}/${repositoryName}`
 </script>
@@ -21,6 +21,7 @@ const base = `/${ownerHandle}/${repositoryName}`
     <a class="repo-tab {{ current === 'issues' ? 'is-current' : '' }}" href="{{ base }}/issues">Issues</a>
     <a class="repo-tab {{ current === 'runs' ? 'is-current' : '' }}" href="{{ base }}/runs">Runs</a>
     <a class="repo-tab {{ current === 'tests' ? 'is-current' : '' }}" href="{{ base }}/tests">Tests</a>
+    <a class="repo-tab {{ current === 'insight' ? 'is-current' : '' }}" href="{{ base }}/insight">Insight</a>
   </nav>
 
 <style>

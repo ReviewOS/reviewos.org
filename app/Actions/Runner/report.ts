@@ -167,6 +167,9 @@ export async function reportJob(
           // report over the one that replaced it.
           job_token_hash: null,
           started_at: null,
+          // A retry waits for a machine again, so its wait starts again. The
+          // alternative reports the first attempt's wait twice.
+          queued_at: new Date().toISOString(),
           condition_reason: retry.reason,
         } as any)
         .where('id', '=', facts.id)

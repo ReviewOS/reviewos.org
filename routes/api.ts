@@ -81,6 +81,16 @@ route.post('/instance/admin', 'Actions/Ops/AdminAction')
  */
 route.post('/instance/fleet', 'Actions/Runner/FleetAction')
 /*
+ * The pipeline numbers: runs, queue waits, fleet utilization, minutes, flakes.
+ *
+ * One route for both scopes rather than two, because the two answers are the
+ * same shape and a repository-scoped copy is a second place the window, the
+ * percentile, and the sample floor would have to agree. `owner` and `repo`
+ * narrow it to one repository, which anybody who can read that repository may
+ * ask for; without them it is instance-wide and administrative.
+ */
+route.get('/insight', 'Actions/Ops/InsightAction')
+/*
  * The runner binary, so an autoscaler's cloud-init has a URL.
  *
  * Public and uncredentialed on purpose: the file contains no secret and does

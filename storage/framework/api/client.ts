@@ -3628,6 +3628,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/insight
+   */
+  getInsight(input?: { "owner"?: string; "repo"?: string; "days"?: number }, options?: RequestOptions): Promise<ApiResult<{ "window"?: { "days"?: number; "from"?: string; "to"?: string }; "overall"?: { "workflow"?: string; "path"?: string; "runs"?: number; "success_rate"?: number; "p50_ms"?: number; "p95_ms"?: number; "retry_rate"?: number; "samples"?: number }; "workflows"?: Array<{ "workflow"?: string; "path"?: string; "runs"?: number; "success_rate"?: number; "p50_ms"?: number; "p95_ms"?: number; "retry_rate"?: number; "samples"?: number }>; "failures_by_job"?: Array<{ "name"?: string; "failures"?: number; "runs"?: number }>; "wait"?: Array<{ "queue"?: string; "pool"?: string; "samples"?: number; "p50_ms"?: number; "p95_ms"?: number }>; "runners"?: Array<{ "runner"?: string; "busy_ms"?: number; "utilization"?: number; "idle_ms"?: number }>; "cost"?: { "repositories"?: Array<Record<string, unknown>>; "owners"?: Array<Record<string, unknown>>; "queues"?: Array<Record<string, unknown>> }; "flaky"?: { "runs_failed_by_known_flaky"?: number; "failed_runs"?: number; "share"?: number } }>> {
+    return request(config, "GET", "/api/insight", input ?? {}, ["owner", "repo", "days"], false, options)
+  },
+
+  /**
    * POST /api/instance/admin
    */
   postInstanceAdmin(input?: { body?: { "operation"?: "stats" | "users" | "repositories" | "queue" | "promote" | "demote" | "retry-job" | "deprovision"; "handle"?: string; "search"?: string; "id"?: number; "limit"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

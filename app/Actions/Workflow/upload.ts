@@ -187,6 +187,9 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
         name: one.name ?? one.id,
         position: position++,
         state: one.needs.length > 0 || one.kind !== 'command' ? 'blocked' : 'queued',
+        // Only the ones that go straight into the queue are stamped; the
+        // settler stamps the rest when it releases them.
+        queued_at: one.needs.length > 0 || one.kind !== 'command' ? null : new Date().toISOString(),
         needs: one.needs.join('\n'),
         runs_on: one.runsOn.join('\n'),
         kind: one.kind,

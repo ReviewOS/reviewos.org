@@ -396,6 +396,25 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * When this job became available to a runner.
+     *
+     * Not `created_at`, and the difference is the whole reason the column
+     * exists: a job waiting on `needs:` is created with the run and becomes
+     * queued minutes later, so measuring the wait from creation reports the
+     * *dependency* as queue time. An operator reading that adds runners to a
+     * fleet that was never short of them.
+     *
+     * Rewritten on every re-queue, including a lapsed lease, because the wait
+     * that matters is the one this attempt actually sat through.
+     */
+    queued_at: {
+      order: 10,
+      fillable: true,
+      validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
+
     started_at: {
       order: 10,
       fillable: true,

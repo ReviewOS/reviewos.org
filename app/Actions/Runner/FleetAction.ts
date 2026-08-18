@@ -428,6 +428,9 @@ export default new Action({
               lease_expires_at: null,
               job_token_hash: null,
               attempt: Number(job.attempt ?? 1) + 1,
+              // Back in the queue means back to waiting, and the wait this job
+              // is about to do is the one an operator needs measured.
+              queued_at: new Date().toISOString(),
               condition_reason: 'The machine running this was stopped, so the job went back to the queue.',
             } as any)
             .where('id', '=', Number(job.id))

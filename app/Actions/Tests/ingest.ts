@@ -271,7 +271,17 @@ export async function detectFlakes(testIds: readonly number[], announce?: { repo
 
     await db
       .updateTable('managed_tests')
-      .set({ flaky: true, flaky_reason: reason } as any)
+      .set({
+        flaky: true,
+        flaky_reason: reason,
+        /*
+         * Stamped only on the crossing. A test that has been flaky for three
+         * weeks and flakes again is not newly flaky, and refreshing the date
+         * would make every run in the window look like the first one to hit it
+         * - which is exactly the question the impact number asks.
+         */
+        ...(test && test.flaky !== true ? { flaky_since: new Date().toISOString() } : {}),
+      } as any)
       .where('id', '=', testId)
       .execute()
 

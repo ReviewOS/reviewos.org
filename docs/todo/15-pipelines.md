@@ -2105,15 +2105,15 @@ Phase 9 owns deployments. Two Buildkite capabilities sit next to them and belong
 
 Buildkite sells reporting on the fleet, and it is the thing an operator opens on a Monday.
 
-- [ ] Per workflow and per repository: run count, success rate, duration percentiles including p95,
+- [x] Per workflow and per repository: run count, success rate, duration percentiles including p95,
       failure by step, and retry rate, over a selectable window
-- [ ] Queue wait time by queue and by pool, which is the number that tells an operator to add runners
-- [ ] Runner utilization and idle time, which is the number that tells them to remove some
-- [ ] Cost proxies: total run minutes by repository, owner, and queue. We do not bill, but somebody
+- [x] Queue wait time by queue and by pool, which is the number that tells an operator to add runners
+- [x] Runner utilization and idle time, which is the number that tells them to remove some
+- [x] Cost proxies: total run minutes by repository, owner, and queue. We do not bill, but somebody
       self-hosting this pays for the machines and should be able to see where they went.
-- [ ] Flaky test impact: runs failed by a test that was already known flaky, which is the argument
+- [x] Flaky test impact: runs failed by a test that was already known flaky, which is the argument
       for fixing it
-- [ ] The whole surface is available through the API in the same shape as the screens
+- [x] The whole surface is available through the API in the same shape as the screens
 
 ---
 

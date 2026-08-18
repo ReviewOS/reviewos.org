@@ -269,7 +269,13 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
 
     await db
       .updateTable('workflow_jobs')
-      .set({ state: 'queued' } as any)
+      /*
+       * Stamped here, not at creation. This is the moment a runner may take
+       * the job, and it is what the queue-wait number measures from - a job
+       * that waited eight minutes on `needs:` and one second on the fleet must
+       * not read as a nine-minute wait for a machine.
+       */
+      .set({ state: 'queued', queued_at: now.toISOString() } as any)
       .where('id', '=', job.id)
       .where('state', '=', 'blocked')
       .execute()

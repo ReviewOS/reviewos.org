@@ -136,5 +136,21 @@ export default defineModel({
       validation: { rule: schema.string().max(500) },
       factory: () => null,
     },
+
+    /**
+     * When it first started being called flaky, and not rewritten after.
+     *
+     * The boolean says what is true now; this says since when, which is the
+     * only way to ask whether a failure was caused by a test we *already* knew
+     * about. Without it, every improvement to flake detection retroactively
+     * blames past runs on tests nobody could have fixed yet, and the cost of
+     * flakiness appears to rise every time we get better at spotting it.
+     */
+    flaky_since: {
+      order: 12,
+      fillable: true,
+      validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
   },
 } as const)

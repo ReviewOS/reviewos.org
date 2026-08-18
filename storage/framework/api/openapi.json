@@ -15081,6 +15081,324 @@
         }
       }
     },
+    "/api/insight": {
+      "get": {
+        "summary": "/api/insight",
+        "operationId": "get__api_insight",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The window, and every figure the operator screens show.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "window": {
+                      "type": "object",
+                      "properties": {
+                        "days": {
+                          "type": "integer"
+                        },
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "overall": {
+                      "type": "object",
+                      "properties": {
+                        "workflow": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "runs": {
+                          "type": "integer"
+                        },
+                        "success_rate": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "p50_ms": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "p95_ms": {
+                          "type": "integer",
+                          "nullable": true
+                        },
+                        "retry_rate": {
+                          "type": "number",
+                          "nullable": true
+                        },
+                        "samples": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "workflows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "workflow": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "runs": {
+                            "type": "integer"
+                          },
+                          "success_rate": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "p50_ms": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "p95_ms": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "retry_rate": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "samples": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "failures_by_job": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "failures": {
+                            "type": "integer"
+                          },
+                          "runs": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "wait": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "queue": {
+                            "type": "string"
+                          },
+                          "pool": {
+                            "type": "string"
+                          },
+                          "samples": {
+                            "type": "integer"
+                          },
+                          "p50_ms": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "p95_ms": {
+                            "type": "integer",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    },
+                    "runners": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "runner": {
+                            "type": "string"
+                          },
+                          "busy_ms": {
+                            "type": "integer"
+                          },
+                          "utilization": {
+                            "type": "number"
+                          },
+                          "idle_ms": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "cost": {
+                      "type": "object",
+                      "properties": {
+                        "repositories": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "owners": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "queues": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "flaky": {
+                      "type": "object",
+                      "properties": {
+                        "runs_failed_by_known_flaky": {
+                          "type": "integer"
+                        },
+                        "failed_runs": {
+                          "type": "integer"
+                        },
+                        "share": {
+                          "type": "number",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such repository, or the caller may not read the instance-wide numbers.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "How many requests this credential may make in the current window.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "How many are left. Zero means the next request is refused with 429.",
+                "schema": {
+                  "type": "integer"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the window resets, as seconds since the epoch.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/instance/admin": {
       "post": {
         "summary": "/api/instance/admin",

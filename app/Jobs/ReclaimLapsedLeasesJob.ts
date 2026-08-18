@@ -119,7 +119,16 @@ export default new Job({
         // The dead runner's credential goes with its lease. If it comes back
         // it authenticates as nothing, which is the honest answer - the work is
         // somebody else's now.
-        .set({ state: 'queued', runner_id: null, lease_expires_at: null, job_token_hash: null, attempt: attempt + 1 } as any)
+        .set({
+          state: 'queued',
+          runner_id: null,
+          lease_expires_at: null,
+          job_token_hash: null,
+          attempt: attempt + 1,
+          // Reclaimed work waits for a machine from now, not from whenever the
+          // lost runner first took it.
+          queued_at: new Date().toISOString(),
+        } as any)
         .where('id', '=', Number(job.id))
         // Guarded on the state and the holder it was read at, so a runner that
         // heartbeated between the read and the write keeps its job. The sweep
