@@ -1663,8 +1663,20 @@ output, which covers the common case and nothing else.
       has. And they are **variables, not secrets**: readable by anybody who can read the
       repository, in the logs, handed to a fork's job. There is no secret store yet and the docs
       say so rather than approximating one with a `secret: true` column on a plain-text table.
-- [ ] Tests: schedule fires once per window, intermediate cancellation leaves exactly one run, a
+- [x] Tests: schedule fires once per window, intermediate cancellation leaves exactly one run, a
       template change does not retroactively alter a finished run
+
+      The first two were already covered - `tests/e2e/workflow-schedule.test.ts` races two sweeps
+      and gets one run, and holds the window open at both ends; `tests/e2e/workflow-push.test.ts`
+      lands two commits under `intermediate: skip` and finds one cancelled outright with the reason
+      and one queued.
+
+      The third is `tests/e2e/workflow-run-immutability.test.ts`, and it is the property the whole
+      copy-on-dispatch design exists for: a run keeps the jobs, the commands and the limits the file
+      had when it started, a **new** push runs the rewritten file - immutability that never updates
+      is a cache nobody invalidates - and a re-run re-runs what ran rather than what the file says
+      now. Reading the newest version is always the shorter query, which is why this needs a test
+      rather than a convention.
 
 ---
 
