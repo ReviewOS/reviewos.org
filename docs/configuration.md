@@ -480,7 +480,9 @@ Queue Metrics (optional)
 
 Default: unset.
 
-Redis Configuration (required when `QUEUE_DRIVER`=redis)
+Redis Configuration (required when `QUEUE_DRIVER`=redis, `CACHE_DRIVER`=redis,
+or `BROADCAST_REDIS_ENABLED`=true). One connection, read by all three. The
+server pantry installs and manages is valkey, which speaks the same protocol.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
@@ -505,6 +507,30 @@ Default: unset.
 ### `REDIS_DB`
 
 Default: `0`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+## Cache
+
+### `CACHE_DRIVER`
+
+Default: `memory`, and the line is commented out.
+
+Cache. `memory` is correct for one process and only one process: presence on
+pull requests rides the cache, so a second app process needs `redis` here.
+See "Running more than one process" in docs/self-hosting.md.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+## Realtime
+
+### `BROADCAST_REDIS_ENABLED`
+
+Default: `false`, and the line is commented out.
+
+Broadcast. The websocket server is per-process; a second app process needs
+the shared bus or live updates only reach readers on the process that
+happened to serve them.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 

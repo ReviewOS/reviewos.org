@@ -56,6 +56,7 @@ export default {
   'export:repository': 'ExportRepository',
   'import:git': 'ImportGit',
   'import:github': 'ImportGitHub',
+  'import:buildkite': 'ImportBuildkite',
   'mirror:add': 'MirrorAdd',
   'git:hooks': 'GitHooks',
   'git:scan': 'GitScan',

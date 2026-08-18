@@ -3122,16 +3122,51 @@ the workflow files are the workflow files. What is still needed is everything ar
 
 **From Buildkite it is a translation**, and it is cheap because their format is public.
 
-- [ ] An importer that reads a `pipeline.yml` and emits workflow YAML, reporting per step and per
+- [x] An importer that reads a `pipeline.yml` and emits workflow YAML, reporting per step and per
       attribute what translated, what translated with a change in meaning, and what has no
       equivalent. The report is the deliverable; a silent partial translation is worse than a refusal.
-- [ ] A documented mapping table from their vocabulary to ours, which is the table at the top of this
+
+      `buddy import:buildkite .buildkite/pipeline.yml --out .reviewos/workflows/ci.yml`. The workflow
+      goes to the file and the report to the terminal, on purpose: caveats written into the file as
+      comments are caveats nobody reads twice. Every attribute lands in one of three buckets, and an
+      attribute this instance has never heard of is named rather than dropped.
+
+      Two things the translation gets right that a naive one would not. **Steps between barriers stay
+      parallel** - chaining each to the one before would serialise a pipeline that was not, which is
+      a translation slower than the original and reads as this product being slow. And a `wait` is a
+      job here rather than a separator, so the graph is said in `needs:` without changing shape.
+
+      The output is checked by parsing it: the test asserts this instance would register the file it
+      produced, because an importer that emits something almost valid has moved the problem rather
+      than solved it.
+- [x] A documented mapping table from their vocabulary to ours, which is the table at the top of this
       file plus the attribute list
-- [ ] A stated position on plugin compatibility: their plugin interface is hook scripts plus a
+
+      [`docs/from-buildkite.md`](../from-buildkite.md), and the importer reads the same table it
+      documents - a mapping that is true in the documentation and different in the code is exactly
+      the failure this arrangement prevents.
+- [x] A stated position on plugin compatibility: their plugin interface is hook scripts plus a
       parameter schema, which is close enough that compatibility is a decision rather than a
       rewrite. Decide, write it down, and do not leave it implied.
-- [ ] Test result import so history survives the move, since the flaky verdict is the part that took
+
+      **The decision is no**, and the reason is one sentence: `BUILDKITE_PLUGIN_*` and their agent's
+      lifecycle are an interface, and implementing half of it produces plugins that mostly work. A
+      plugin that mostly works is worse than one that does not - it fails on the day its author used
+      the half nobody implemented, in somebody else's build, with no error naming the cause.
+
+      What to do instead is a three-line list: a plugin that runs a command is a step, a plugin that
+      wraps the whole job is a runner hook, and a plugin your organisation wrote is a plugin here.
+      The importer names every plugin it finds, so that list is a list of decisions somebody makes
+      with the pipeline in front of them.
+- [x] Test result import so history survives the move, since the flaky verdict is the part that took
       months to accumulate
+
+      Their export is one JSON object per execution, which is close enough to ours to be a rename and
+      a unit conversion - and the conversion is the part that would be silently wrong. Duration is
+      seconds there and milliseconds here, so a suite of four-second tests imported as
+      four-millisecond ones looks like a suite that got faster. An execution whose result is
+      `unknown` is dropped rather than counted as a pass: importing it as one is how a green history
+      gets invented.
 
 ---
 
