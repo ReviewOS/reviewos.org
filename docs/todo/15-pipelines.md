@@ -2187,8 +2187,21 @@ decisions.
       Writing this cost a lesson: both new blocks read values declared further down the script, and
       stx renders a page with every binding undefined rather than reporting the error - so the run
       page went blank and the failure surfaced as thirteen unrelated assertions.
-- [ ] Keyboard navigation through jobs and log sections, and a run page that is readable with no
+- [x] Keyboard navigation through jobs and log sections, and a run page that is readable with no
       JavaScript for the finished case, in line with the phase 14 rule
+
+      **Links rather than key bindings**, because a binding needs script and the rule is that a
+      finished run reads without any. The run's graph is the navigation: tab through the jobs in
+      dependency order, press enter, land on one - each job is an anchor, and the log's folds are
+      `<details>`, which the keyboard already operates. A focus ring appears for a keyboard and not
+      for a mouse.
+
+      The log search's results are the same idea one level down: a link per matching line, landing
+      on the line rather than on the job.
+
+      A finished run carries no script at all - the live region is the one the page has, and a run
+      that has ended does not get it, because a page polling forever for a run that finished costs
+      the instance a request a second for nothing.
 - [x] Tests: a run page rendered server-side for a finished run, redaction of a secret that appears
       in a log line split across two writes, an annotation replaced by context key, metadata written
       by two parallel jobs, and artifact download authorization from a different repository

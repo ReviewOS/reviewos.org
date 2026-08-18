@@ -605,6 +605,7 @@ const graphLayers = graphNodes.length > 0
   ? layersOf(graphNodes).map((layer: any) => ({
       depth: Number(layer.depth),
       nodes: layer.nodes.map((one: any) => ({
+        id: Number(one.id),
         name: String(one.name),
         state: String(one.state),
         tone: runTone(String(one.state)),
@@ -875,11 +876,18 @@ const base = `/${ownerHandle}/${repositoryName}`
               <div class="graph-layer">
                 <span class="graph-depth muted">{{ layer.depth === 0 ? 'first' : `then` }}</span>
                 <div class="graph-nodes">
+                  {{--
+                    Links rather than labels, which is the whole of the keyboard
+                    navigation: tab through the run's jobs in dependency order
+                    and press enter to land on one. A key binding would need
+                    script, and the phase 14 rule is that a finished run reads
+                    without any.
+                  --}}
                   @foreach (layer.nodes as one)
-                    <span class="graph-node" title="{{ one.label }}">
+                    <a class="graph-node" href="#job-{{ one.id }}" title="{{ one.label }}">
                       <span class="run-dot run-{{ one.tone }}" aria-hidden="true"></span>
                       {{ one.name }}
-                    </span>
+                    </a>
                   @endforeach
                 </div>
               </div>
@@ -914,7 +922,7 @@ const base = `/${ownerHandle}/${repositoryName}`
             <h3 class="job-group">{{ job.groupHeading }}</h3>
           @endif
 
-          <article class="panel job">
+          <article class="panel job" id="job-{{ job.id }}">
             <header class="job-head">
               <span class="run-dot run-{{ job.tone }}" aria-hidden="true"></span>
               <h3 class="job-name">{{ job.name }}</h3>
@@ -1311,6 +1319,16 @@ const base = `/${ownerHandle}/${repositoryName}`
     background: var(--surface-strong, rgba(127, 127, 127, 0.16));
   }
 
+  /* Where the keyboard is. A focus ring that only appears for a keyboard is the
+    one accessibility affordance a mouse user never has to see. */
+  .graph-node:focus-visible,
+  .job:target {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .graph-node:hover { border-color: var(--muted); }
+
   /* Secondary to the run's own controls: stopping one job is a smaller act
     than stopping the run, and the sizes should say so. */
   .job-stop-button {
@@ -1349,6 +1367,8 @@ const base = `/${ownerHandle}/${repositoryName}`
   }
 
   .graph-node {
+    color: inherit;
+    text-decoration: none;
     display: inline-flex;
     align-items: center;
     gap: 5px;

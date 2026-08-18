@@ -688,6 +688,54 @@ describe('searching a run\'s output', () => {
   })
 })
 
+describe('reading a run without a mouse or a script', () => {
+  test('every job is a landing place, and the graph is the way to reach it', async () => {
+    if (!available)
+      return
+
+    /*
+     * The keyboard navigation is links rather than key bindings, because the
+     * phase 14 rule is that a finished run reads with no JavaScript - and a
+     * binding needs script. Tab through the jobs in dependency order, press
+     * enter, land on one.
+     */
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', created.finished)
+      .executeTakeFirst()
+
+    const rows: any[] = await db
+      .selectFrom('workflow_jobs')
+      .select(['id'])
+      .where('workflow_run_id', '=', Number(run.id))
+      .execute()
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
+
+    for (const row of rows) {
+      expect(html).toContain(`id="job-${Number(row.id)}"`)
+      expect(html).toContain(`href="#job-${Number(row.id)}"`)
+    }
+  })
+
+  test('and the page carries no script of its own for a finished run', async () => {
+    if (!available)
+      return
+
+    /*
+     * The live region is the one script the run page has, and a finished run
+     * does not get it: there is nothing more to say, and a page that polls
+     * forever for a run that ended is a page that costs the instance a request
+     * a second for nothing.
+     */
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
+
+    expect(html).not.toContain('run-live')
+  })
+})
+
 describe('a repository with no workflows', () => {
   test('is offered starters that are real Actions workflows', async () => {
     if (!available)
