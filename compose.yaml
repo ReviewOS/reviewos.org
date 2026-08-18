@@ -1,5 +1,12 @@
 # A whole ReviewOS instance, on one host.
 #
+# **The canonical deployment is pantry, not this file.** `./buddy setup` with
+# pantry installs every system dependency and runs every service directly on
+# the box, which is how docs/self-hosting.md tells you to deploy. This compose
+# file is the convenience path for people who already run everything in
+# containers - kept at parity with the real configuration, but demoted: when
+# the two disagree, pantry is right and this file has a bug.
+#
 # One host is what most instances will be, and this is the shape of it: the
 # application, a queue worker, Postgres, and a search engine. Four containers,
 # two volumes, and nothing that needs a cluster.
@@ -21,9 +28,14 @@ services:
     environment:
       # Overrides for the container's view of the world. The service names are
       # the hostnames inside the compose network, and a `.env` written for a
-      # local run will say `127.0.0.1` for both.
+      # local run will say `127.0.0.1` for both. These are the variables
+      # `config/search-engine.ts` actually reads - this file shipped a
+      # `SEARCH_HOST` nothing read, and a Meilisearch nothing spoke to, for
+      # months.
       DB_HOST: postgres
-      SEARCH_HOST: http://search:7700
+      TYPESENSE_HOST: search
+      TYPESENSE_PORT: 8108
+      TYPESENSE_PROTOCOL: http
     ports:
       - '3000:3000'
     volumes:
@@ -57,7 +69,9 @@ services:
     env_file: .env
     environment:
       DB_HOST: postgres
-      SEARCH_HOST: http://search:7700
+      TYPESENSE_HOST: search
+      TYPESENSE_PORT: 8108
+      TYPESENSE_PROTOCOL: http
     command: ['bun', 'run', '--bun', './buddy', 'queue:work', '--concurrency', '4']
     volumes:
       # The same repositories. A worker that fetches a mirror or computes a
@@ -68,6 +82,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  # Search. Typesense, because that is what `config/search-engine.ts` declares
+  # and what the indexing trait speaks - this service was Meilisearch until
+  # 2026-08, so a compose deployment had a search container the application
+  # never talked to and an empty search page.
+  #
+  # Optional in the sense that the rest of the instance works without it - a
+  # repository you cannot search is still a repository you can clone - but the
+  # search page is empty until this is up and indexed.
+  search:
+    image: typesense/typesense:27.1
+    restart: unless-stopped
+    command: ['--data-dir', '/data', '--api-key', '${TYPESENSE_API_KEY:-please-change-me}']
+    volumes:
+      - search:/data
 
   postgres:
     image: postgres:17-alpine
@@ -84,18 +113,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-
-  # Search. Optional in the sense that the rest of the instance works without
-  # it - a repository you cannot search is still a repository you can clone -
-  # but the search page is empty until this is up and indexed.
-  search:
-    image: getmeili/meilisearch:v1.11
-    restart: unless-stopped
-    environment:
-      MEILI_MASTER_KEY: ${SEARCH_KEY:-please-change-me}
-      MEILI_ENV: production
-    volumes:
-      - search:/meili_data
 
 volumes:
   # Named, not bind mounts, so a `docker compose down` does not take them with

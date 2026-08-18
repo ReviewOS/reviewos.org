@@ -21,30 +21,33 @@ its own.
 
 Four bugs that read as "it falls over under load" and are actually just wrong.
 
-- [ ] Fix the mirror import clone. `app/Jobs/ImportRepositoryJob.ts` routes `git clone --mirror`
+- [x] Fix the mirror import clone. `app/Jobs/ImportRepositoryJob.ts` routes `git clone --mirror`
       through `runGit`, which prepends `--git-dir <parent>` - exactly what the doc comment on
       `cloneBare` (`app/Actions/Git/git.ts`) says must never be done for a clone - and it inherits
       the default 30 second timeout, so any non-trivial import is SIGKILLed and the half-written
       directory removed. Add a `mirrorClone(from, to)` helper next to `cloneBare` with its own
       spawn shape, a long timeout (the mirror fetch path already uses 15 minutes), and stderr
-      capped at 64KB. Keep the remove-on-failure cleanup.
-- [ ] Test the clone fix: mirror-clone a local fixture repository, assert refs and tags arrive,
-      assert a failed clone leaves no directory, and assert the argv never contains `--git-dir`.
-- [ ] Drop `--prune=now` from repository maintenance. `RepositoryMaintenanceJob` runs
+      capped at 64KB. Keep the remove-on-failure cleanup. `app/Commands/ImportGit.ts` had the
+      same bug and now uses the same helper.
+- [x] Test the clone fix: mirror-clone a local fixture repository, assert refs and tags arrive,
+      assert a failed clone leaves no directory, and assert the argv never contains `--git-dir`
+      (`tests/unit/mirror-clone.test.ts`).
+- [x] Drop `--prune=now` from repository maintenance. `RepositoryMaintenanceJob` runs
       `git gc --prune=now` with no coordination against in-flight pushes, and its comment claiming
       nothing can hold a reference to an unreachable object is wrong for a push sitting between
       quarantine merge and ref update. Plain `git gc` keeps the two-week mtime grace period, which
       is the coordination mechanism. Rewrite the comment to say so, and extract the argument list
-      into a pure function so a test can assert it without spawning git.
-- [ ] Stop running the push pipeline inline. `QUEUE_DRIVER` defaults to `sync`, so
+      into a pure function so a test can assert it without spawning git (`packArguments` in
+      `app/Actions/Repo/retention.ts`).
+- [x] Stop running the push pipeline inline. `QUEUE_DRIVER` defaults to `sync`, so
       `ProcessPushJob` runs inside the post-receive request unless someone sets it. Document
       `QUEUE_DRIVER=database` in `.env.example` and `docs/self-hosting.md` as the deployment
       default.
-- [ ] Reconcile the stale compose file with reality. `compose.yaml` ships Meilisearch and sets a
+- [x] Reconcile the stale compose file with reality. `compose.yaml` ships Meilisearch and sets a
       `SEARCH_HOST` variable nothing reads, while `config/search-engine.ts` is deliberately
-      Typesense - so a compose deployment has no working search at all. Bring it to parity or
-      retire it; either way the canonical path is pantry (see M6), and the file should say which
-      one it is.
+      Typesense - so a compose deployment has no working search at all. Brought to parity:
+      Typesense with the `TYPESENSE_*` variables the config reads, and a header saying the
+      canonical path is pantry (see M6) with this file as the kept-at-parity convenience.
 
 ## M1 - Bounded runGit
 

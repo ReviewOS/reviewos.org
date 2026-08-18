@@ -6,7 +6,7 @@ import process from 'node:process'
 // Imported rather than relied on as a global: `db` is a server auto-import, and
 // a buddy command does not run through the preloader that injects those.
 import { db } from '@stacksjs/database'
-import { runGit } from '../Actions/Git/git'
+import { mirrorClone, runGit } from '../Actions/Git/git'
 import { repositoryPath } from '../Actions/Git/storage'
 
 /**
@@ -77,7 +77,10 @@ async function importGit(url: string, options: any): Promise<void> {
 
   console.log(`Cloning ${url}`)
 
-  const clone = await runGit(dirname(resolved.path!), ['clone', '--mirror', url, resolved.path!])
+  // `mirrorClone`, never `runGit`: `runGit` prepends `--git-dir`, which a clone
+  // reads as its destination, and its 30 second timeout would kill any real
+  // repository mid-transfer.
+  const clone = await mirrorClone(url, resolved.path!)
 
   if (!clone.ok) {
     // Removed before the failure is reported, so a retry is not blocked by a

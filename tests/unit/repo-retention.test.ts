@@ -11,6 +11,7 @@ import {
   LOOSE_OBJECT_THRESHOLD,
   needsPacking,
   PACK_THRESHOLD,
+  packArguments,
   readRetired,
   RETENTION_DAYS,
 } from '../../app/Actions/Repo/retention'
@@ -127,5 +128,20 @@ describe('needsPacking', () => {
 
   test('leaves a freshly packed repository alone', () => {
     expect(needsPacking({ looseObjects: 0, packs: 1 })).toBe(false)
+  })
+})
+
+describe('packArguments', () => {
+  /**
+   * Plain `gc`, and specifically never `--prune=now`. The default two-week
+   * grace period is the only coordination between maintenance and a push
+   * sitting between quarantine merge and ref update; pruning "now" deletes
+   * that push's objects out from under it.
+   */
+  test('keeps the prune grace period', () => {
+    const args = packArguments()
+
+    expect(args).toEqual(['gc'])
+    expect(args.join(' ')).not.toContain('--prune')
   })
 })

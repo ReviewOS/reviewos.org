@@ -318,6 +318,14 @@ than a surprise.
 
 ## The queue
 
+**Set `QUEUE_DRIVER=database`.** It is the deployment default and `.env.example`
+ships it, but the framework's own fallback is `sync`, which runs every job
+inline in the request that dispatched it. Under `sync` the push pipeline -
+closing `fixes #12` issues, webhooks, notifications - runs inside the
+post-receive request, so a slow webhook receiver holds somebody's `git push`
+open. An instance that lost the variable loses nothing visibly; it just gets
+slower and more fragile in exactly the places that are hard to attribute.
+
 Jobs run in their own process. `compose.yaml` runs one:
 
 ```sh

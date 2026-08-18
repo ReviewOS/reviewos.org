@@ -98,3 +98,20 @@ export const PACK_THRESHOLD = 20
 export function needsPacking(counts: { looseObjects: number, packs: number }): boolean {
   return counts.looseObjects >= LOOSE_OBJECT_THRESHOLD || counts.packs >= PACK_THRESHOLD
 }
+
+/**
+ * What packing actually runs, extracted so a test can assert it without
+ * spawning git.
+ *
+ * Plain `git gc`, with the default two-week mtime grace period, and **never**
+ * `--prune=now`. The grace period is the only coordination between maintenance
+ * and an in-flight push: a push sitting between quarantine merge and ref
+ * update holds objects that nothing references yet, and pruning "now" deletes
+ * them out from under it - the push then lands refs that point at objects the
+ * repository no longer has. Two weeks of grace makes that window impossible to
+ * hit; the unreachable objects it keeps around are reclaimed on a later visit
+ * once they are genuinely old.
+ */
+export function packArguments(): string[] {
+  return ['gc']
+}

@@ -281,6 +281,81 @@ export async function cloneBare(from: string, to: string): Promise<GitResult> {
 }
 
 /**
+ * How long a mirror clone may run before it is killed.
+ *
+ * The mirror *fetch* path already allows fifteen minutes (`fetch.ts`), and a
+ * first clone moves strictly more data than any fetch after it, so it gets the
+ * same budget. The 30 second `runGit` default is tuned for plumbing commands
+ * and would kill any non-trivial import mid-transfer.
+ */
+export const MIRROR_CLONE_TIMEOUT_MS = 15 * 60_000
+
+/**
+ * The argument list for a mirror clone, extracted so a test can assert what is
+ * actually handed to git. The property under test is a negative one - no
+ * `--git-dir` anywhere - and that is invisible from outside the spawn.
+ */
+export function mirrorCloneArgs(from: string, to: string): string[] {
+  return ['clone', '--mirror', from, to]
+}
+
+/**
+ * Clone a remote repository as a mirror, for imports.
+ *
+ * Not through `runGit`, for the same reason as `cloneBare` above: `runGit`
+ * prepends `--git-dir`, which `clone` reads as the repository it is cloning
+ * *into*, so a clone routed through it writes over whichever repository was
+ * named. `--mirror` rather than `--bare` because an import wants every ref -
+ * tags, and the remote's own branches - not a snapshot of the default branch.
+ *
+ * stderr is capped at 64KB (`diffStream.ts` sets the precedent): a remote that
+ * prints progress for a million objects would otherwise buffer all of it for
+ * an error message that only ever shows its first few hundred bytes.
+ */
+export async function mirrorClone(from: string, to: string, options: {
+  timeoutMs?: number
+} = {}): Promise<GitResult> {
+  const { timeoutMs = MIRROR_CLONE_TIMEOUT_MS } = options
+
+  return await new Promise<GitResult>((resolvePromise) => {
+    const child = spawn('git', mirrorCloneArgs(from, to), { env: gitEnvironment() })
+
+    let stderr = ''
+    let settled = false
+
+    const timer = setTimeout(() => {
+      if (settled)
+        return
+      settled = true
+      child.kill('SIGKILL')
+      resolvePromise({ ok: false, stdout: '', stderr: `${stderr}\ngit clone timed out after ${timeoutMs}ms`, code: -1 })
+    }, timeoutMs)
+
+    child.stderr.setEncoding('utf8')
+    child.stderr.on('data', (chunk: string) => {
+      if (stderr.length < 64_000)
+        stderr += chunk
+    })
+
+    child.on('error', (error) => {
+      if (settled)
+        return
+      settled = true
+      clearTimeout(timer)
+      resolvePromise({ ok: false, stdout: '', stderr: String(error), code: -1 })
+    })
+
+    child.on('close', (code) => {
+      if (settled)
+        return
+      settled = true
+      clearTimeout(timer)
+      resolvePromise({ ok: code === 0, stdout: '', stderr, code: code ?? -1 })
+    })
+  })
+}
+
+/**
  * Replay a range of commits onto a branch, and report where they landed.
  *
  * `git replay` is the only way to rebase in a bare repository: it works

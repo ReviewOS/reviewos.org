@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { runGit } from '../Actions/Git/git'
 import { REPOSITORY_ROOT } from '../Actions/Git/storage'
 import { DELETED_DIRECTORY } from '../Actions/Repo/settings'
-import { expiredRetirements, needsPacking, RETENTION_DAYS } from '../Actions/Repo/retention'
+import { expiredRetirements, needsPacking, packArguments, RETENTION_DAYS } from '../Actions/Repo/retention'
 import { measure, recordSize } from '../Actions/Repo/size'
 
 /**
@@ -86,11 +86,11 @@ async function packRepositories(dryRun: boolean): Promise<{ examined: number, pa
         continue
       }
 
-      // `--prune=now` rather than the default two-week grace. Nothing here
-      // holds a reference to an unreachable object: a push either landed and is
-      // referenced, or was refused and its objects were never merged out of the
-      // quarantine directory in the first place.
-      const result = await runGit(path, ['gc', '--prune=now'], { timeoutMs: 15 * 60_000 })
+      // Plain `gc`, keeping the default two-week prune grace. The grace period
+      // is the coordination with in-flight pushes: a push between quarantine
+      // merge and ref update holds objects nothing references yet, and pruning
+      // "now" would delete them under it. See `packArguments` in retention.ts.
+      const result = await runGit(path, packArguments(), { timeoutMs: 15 * 60_000 })
 
       if (!result.ok) {
         log.warn(`[maintenance] could not pack ${row.disk_path}: ${result.stderr}`)

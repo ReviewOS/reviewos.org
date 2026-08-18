@@ -8,7 +8,7 @@ import type { ForgeKind, ImportSource } from '../Actions/Import/forges'
 import { FORGES, pullNumber } from '../Actions/Import/forges'
 import type { ImportProgress, ImportStage } from '../Actions/Import/plan'
 import { describeProgress, emptyProgress, isFinished, nextStage, noteProblem, record, summarize } from '../Actions/Import/plan'
-import { runGit } from '../Actions/Git/git'
+import { mirrorClone, runGit } from '../Actions/Git/git'
 import { repositoryPath } from '../Actions/Git/storage'
 import { buildThreads, mapIssue, mapLabel, mapPull, mapReviewComment, onlyIssues } from '../Actions/Mirror/github'
 import { GitHubClient } from '../Actions/Mirror/github-client'
@@ -209,7 +209,11 @@ async function importGit(progress: ImportProgress, context: StageContext): Promi
   await mkdir(dirname(path), { recursive: true })
 
   const remote = String(process.env.GITHUB_CLONE_BASE ?? 'https://github.com').replace(/\/$/, '')
-  const clone = await runGit(dirname(path), ['clone', '--mirror', `${remote}/${context.owner}/${context.name}.git`, path])
+
+  // `mirrorClone`, never `runGit`: `runGit` prepends `--git-dir`, which a clone
+  // reads as its destination, and its 30 second timeout would SIGKILL any
+  // non-trivial import mid-transfer.
+  const clone = await mirrorClone(`${remote}/${context.owner}/${context.name}.git`, path)
 
   if (!clone.ok) {
     // A half-written directory would make the re-entrancy check above think the
