@@ -647,6 +647,13 @@ export default new Action({
         secrets: await secretsForJob({
           repositoryId: claimed.repositoryId,
           trusted: Boolean(context?.trusted),
+          /*
+           * The pool that took this job, so a secret set on those machines
+           * reaches it. Known only here: which pool a job lands on is decided
+           * by whichever runner claims it, which is why a pool secret cannot
+           * appear in a repository's own listing.
+           */
+          poolId: claimed.poolId ?? null,
           environment: environmentOfJob(jobRow?.settings),
           approved: Boolean(jobRow?.approved_at),
           /*

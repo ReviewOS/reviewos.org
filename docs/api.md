@@ -345,6 +345,8 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `token` | body | optional | number |
 | `expires` | body | optional | string |
 | `user` | body | optional | number |
+| `key` | body | optional | string |
+| `value` | body | optional | string |
 
 | Status | Means |
 |---|---|

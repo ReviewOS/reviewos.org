@@ -2472,8 +2472,29 @@ every runner is somebody else's machine.
       which is what somebody means by "only the production deploy may assume this role". The full
       table is in [identity tokens](./oidc.md), and the discovery document lists them too, because
       "documented" that lives only in prose is documentation a machine cannot check.
-- [ ] Secrets stored encrypted, scoped to a pool, repository, or environment, injected only into the
+- [x] Secrets stored encrypted, scoped to a pool, repository, or environment, injected only into the
       steps that name them, never listed in plaintext after creation
+
+      Five scopes now, narrowest wins: environment, repository, owner, pool, instance. The pool
+      scope is the one this box was missing, and it is the credential that belongs to the machines
+      rather than to the code - a registry token that exists because *these* runners are allowed to
+      publish is not a fact about any repository, and writing it into each repository that needs it
+      is how one credential ends up in twenty places and is rotated in three.
+
+      Set through the fleet endpoint, so it takes `fleet` at admin on the token and instance
+      administration or maintaining that pool on the person: this is drawing the pool's boundary,
+      not administering a repository. A job receives it because a machine in that pool took it, so a
+      run on anybody else's machines never sees it however the workflow asks - and neither does a
+      runner in no pool, which is what every installation had before pools existed. A repository's
+      own secret beats a pool's: the pool says where work runs, the repository says what is running,
+      and the second is the more specific statement.
+
+      **Named at the job rather than at the step**, and the wording above overstates what a claim
+      can do. A step is not a boundary the control plane can enforce anything at - the whole job's
+      environment is handed to one machine at one claim - so `secrets:` on a job is where "only what
+      names them" is real, and pretending otherwise would be a permission that exists only in the
+      documentation. A job that names what it needs is a job whose compromised dependency cannot
+      read the deploy key it never asked for, which is the property this clause is for.
 - [ ] The recommended path stays an external secret store, with first-party support for fetching from
       one, because the best secret is one we never held
 - [x] Fork policy: a run triggered from a fork gets no secrets and no OIDC by default, cannot supply

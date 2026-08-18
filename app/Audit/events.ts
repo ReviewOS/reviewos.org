@@ -86,6 +86,8 @@ export type AuditEventName =
    * it stops serving every repository, removing the last one is the moment it
    * starts again, and a paused queue is why nothing has built since lunch.
    */
+  | 'fleet:secret-written'
+  | 'fleet:secret-removed'
   | 'fleet:pool-created'
   | 'fleet:queue-created'
   | 'workflow:fork-run-approved'
@@ -170,6 +172,8 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'admin:granted',
   'admin:revoked',
   'admin:job-retried',
+  'fleet:secret-written',
+  'fleet:secret-removed',
   'fleet:pool-created',
   'workflow:fork-run-approved',
   'workflow:fork-run-refused',

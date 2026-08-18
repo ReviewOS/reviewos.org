@@ -5,6 +5,7 @@ import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { hashToken } from './authenticate'
 import { poolsMaintainedBy, runnerLifecycle } from './fleet'
+import { putSecret } from '../Workflow/secrets'
 import { auditFrom } from '../Git/audit'
 import { currentActor } from '../Identity/lookup'
 import { fineGrainedToken } from '../Repo/authorize'
@@ -52,6 +53,9 @@ export default new Action({
         'revoke-token',
         'add-maintainer',
         'remove-maintainer',
+        'set-secret',
+        'unset-secret',
+        'list-secrets',
       ]),
     },
     name: { rule: schema.string() },
@@ -71,6 +75,8 @@ export default new Action({
     token: { rule: schema.number() },
     expires: { rule: schema.string() },
     user: { rule: schema.number() },
+    key: { rule: schema.string() },
+    value: { rule: schema.string() },
   },
 
   responses: {
@@ -173,6 +179,86 @@ export default new Action({
       await auditEvent('fleet:pool-created', await entry(request, user, { pool: Number(created?.id), name })).catch(() => null)
 
       return response.json({ pool: { id: Number(created?.id), name, slug } })
+    }
+
+    if (operation === 'set-secret' || operation === 'unset-secret' || operation === 'list-secrets') {
+      const poolId = Number(request.get('pool'))
+
+      if (!Number.isInteger(poolId) || poolId <= 0)
+        return response.json({ error: 'Which pool?' }, 422)
+
+      /*
+       * A pool's secrets belong to the machines rather than to any repository.
+       *
+       * The case is a registry credential that exists because *these* runners
+       * are allowed to publish: writing it into every repository that needs it
+       * is how one credential ends up in twenty places and is rotated in three.
+       * A job gets it because it is running on this pool's hardware, so a run
+       * on anybody else's machines never sees it however the workflow asks.
+       *
+       * Never listed with values, like every other secret here. The listing is
+       * names, scopes and when each was last written, which is what an operator
+       * needs to know whether the thing they are about to rotate exists.
+       */
+      const names = async () => {
+        const rows = await db
+          .selectFrom('workflow_secrets')
+          .select(['key', 'updated_at'])
+          .where('scope_type', '=', 'pool')
+          .where('scope_id', '=', poolId)
+          .execute()
+          .catch(() => [])
+
+        return rows
+          .map(row => ({ key: String(row.key), updated_at: row.updated_at ? String(row.updated_at) : null }))
+          .sort((left, right) => (left.key < right.key ? -1 : left.key > right.key ? 1 : 0))
+      }
+
+      if (operation === 'list-secrets')
+        return response.json({ pool: poolId, secrets: await names() })
+
+      const key = String(request.get('key') ?? '').trim()
+
+      if (!key)
+        return response.json({ error: 'Which secret?' }, 422)
+
+      if (!/^[A-Z_][A-Z0-9_]*$/i.test(key)) {
+        return response.json({
+          error: 'That is not a usable secret name',
+          reason: 'Letters, digits and underscores, not starting with a digit - the shape a shell can export.',
+        }, 422)
+      }
+
+      if (operation === 'unset-secret') {
+        await db
+          .deleteFrom('workflow_secrets')
+          .where('scope_type', '=', 'pool')
+          .where('scope_id', '=', poolId)
+          .where('key', '=', key)
+          .execute()
+
+        await auditEvent('fleet:secret-removed', await entry(request, user, { pool: poolId, key })).catch(() => null)
+
+        return response.json({ pool: poolId, secrets: await names() })
+      }
+
+      const value = String(request.get('value') ?? '')
+
+      if (!value)
+        return response.json({ error: 'A secret needs a value', reason: 'To remove one, use `operation: "unset-secret"`.' }, 422)
+
+      await putSecret({ scope: 'pool', scopeId: poolId, key, value, userId: user?.id ?? null })
+
+      // The name and the pool, never the value: an audit row carrying it would
+      // be a second place the secret lives, with weaker protection than the
+      // first.
+      await auditEvent('fleet:secret-written', await entry(request, user, { pool: poolId, key })).catch(() => null)
+
+      return response.json({
+        pool: poolId,
+        secrets: await names(),
+        note: `\`${key}\` reaches any job a machine in this pool takes, and no job anywhere else. Its value cannot be read back.`,
+      })
     }
 
     if (operation === 'require-signatures') {

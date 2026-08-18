@@ -22891,7 +22891,10 @@
                       "create-token",
                       "revoke-token",
                       "add-maintainer",
-                      "remove-maintainer"
+                      "remove-maintainer",
+                      "set-secret",
+                      "unset-secret",
+                      "list-secrets"
                     ]
                   },
                   "name": {
@@ -22944,6 +22947,12 @@
                   },
                   "user": {
                     "type": "number"
+                  },
+                  "key": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
                   }
                 }
               }

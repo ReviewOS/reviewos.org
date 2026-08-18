@@ -184,3 +184,73 @@ describe('a job that names what it needs', () => {
     }).map(one => one.key)).toEqual(['PROD_KEY'])
   })
 })
+
+/*
+ * A pool's secrets: the ones that belong to the machines rather than to the
+ * code. A registry credential exists because *these* runners are allowed to
+ * publish, and the job that gets it is the one running on them.
+ */
+describe('a pool secret', () => {
+  const poolRow = (over: Record<string, unknown> = {}) => row({ key: 'REGISTRY_TOKEN', scope: 'pool', scopeId: 7, sealed: 'pool', ...over })
+
+  test('reaches a job on that pool and no other', () => {
+    const here = selectSecrets({ rows: [poolRow()], ...TRUSTED, poolId: 7 })
+    const elsewhere = selectSecrets({ rows: [poolRow()], ...TRUSTED, poolId: 8 })
+
+    expect(here).toHaveLength(1)
+    // Another pool's machines are not these machines, so the credential they
+    // hold is not one this job may read.
+    expect(elsewhere).toEqual([])
+  })
+
+  test('and never reaches a runner that belongs to no pool', () => {
+    // The safe direction: a pool's credential exists because those machines are
+    // trusted with it, and a machine outside the pool is not.
+    expect(selectSecrets({ rows: [poolRow()], ...TRUSTED, poolId: null })).toEqual([])
+    expect(selectSecrets({ rows: [poolRow()], ...TRUSTED })).toEqual([])
+  })
+
+  test('sits under the repository, because the repository is the more specific statement', () => {
+    /*
+     * A pool secret says where work runs; a repository secret says what is
+     * running. The second is the more specific of the two, so a repository that
+     * sets the same key gets its own value - and an operator who needs one that
+     * cannot be overridden sets it and says so, rather than relying on an
+     * ordering nobody can see.
+     */
+    expect(SECRET_PRECEDENCE.repository).toBeGreaterThan(SECRET_PRECEDENCE.pool)
+    expect(SECRET_PRECEDENCE.pool).toBeGreaterThan(SECRET_PRECEDENCE.instance)
+
+    const chosen = selectSecrets({
+      rows: [
+        poolRow({ key: 'NPM_TOKEN' }),
+        row({ key: 'NPM_TOKEN', scope: 'repository', scopeId: 1, sealed: 'repository' }),
+      ],
+      ...TRUSTED,
+      poolId: 7,
+    })
+
+    expect(chosen).toHaveLength(1)
+    expect(chosen[0]!.sealed).toBe('repository')
+  })
+
+  test('is withheld from a fork like every other secret', () => {
+    // The machines are exactly what a fork's run must not reach through, so
+    // this is the case the pool scope would be most dangerous to get wrong.
+    const chosen = selectSecrets({
+      rows: [poolRow()],
+      trusted: false,
+      environment: null,
+      environmentId: null,
+      approved: false,
+      poolId: 7,
+    })
+
+    expect(chosen).toEqual([])
+  })
+
+  test('and a job that names what it needs does not get it unasked', () => {
+    expect(selectSecrets({ rows: [poolRow()], ...TRUSTED, poolId: 7, only: [] })).toEqual([])
+    expect(selectSecrets({ rows: [poolRow()], ...TRUSTED, poolId: 7, only: ['REGISTRY_TOKEN'] })).toHaveLength(1)
+  })
+})

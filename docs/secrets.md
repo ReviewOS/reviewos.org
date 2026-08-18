@@ -32,13 +32,14 @@ credential an organization has. Not having it costs somebody a trip to their
 password manager on the day they need the value back; that is the trade, and it
 is made on purpose.
 
-## Four scopes, narrowest wins
+## Five scopes, narrowest wins
 
 | Scope | Reaches |
 |---|---|
 | `environment` | only a job deploying there, only after its gate opened |
 | `repository` | every job in this repository |
 | `owner` | every repository that owner has |
+| `pool` | any job a machine in that pool takes, whatever repository it is for |
 | `instance` | every repository on the server |
 
 **The environment scope is the one that earns the feature.** A deploy credential
@@ -51,6 +52,44 @@ while it waits for a reviewer, which is the window somebody would use.
 Setting an instance or owner secret takes more than repository administration:
 administering *one* repository is not permission over every repository an
 organization has.
+
+## A pool's secrets belong to the machines
+
+A registry credential often exists because *these* runners are allowed to
+publish, and that is not a fact about any repository. Writing it into every
+repository that needs it is how one credential ends up in twenty places and is
+rotated in three.
+
+```bash
+curl -X POST "$SERVER/api/instance/fleet" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"operation":"set-secret","pool":3,"key":"REGISTRY_TOKEN","value":"..."}'
+```
+
+It is set on the fleet rather than on a repository, so it takes `fleet` at
+`admin` on the token and instance administration or maintaining that pool on the
+person - the same permission as drawing the pool's boundary, because this is
+drawing it. `list-secrets` gives names and when each was last written;
+`unset-secret` removes one.
+
+A job receives it because a machine in that pool took the job. A run on anybody
+else's machines never sees it however its workflow asks, and neither does a
+runner that belongs to no pool - which is what every installation had before
+pools existed, and the safe direction: the credential exists because those
+machines are trusted with it.
+
+It does not appear in a repository's own listing, and cannot: which pool a job
+will land on is not known until a machine claims it, so a repository page that
+listed pool secrets would be listing credentials that may never arrive.
+
+**A repository's own secret wins over a pool's.** A pool secret says where work
+runs; a repository secret says what is running, and the second is the more
+specific statement. An operator who needs a value nothing can override sets it
+and says so, rather than relying on an ordering nobody can see.
+
+A fork's run gets none of this either. The machines are exactly what an
+untrusted run must not reach through, so the trust check happens before any
+scope is considered.
 
 ## What a job gets
 

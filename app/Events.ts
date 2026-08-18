@@ -175,6 +175,8 @@ export default {
   'admin:revoked': ['RecordAudit'],
   'admin:job-retried': ['RecordAudit'],
   // The fleet: boundary changes that are invisible after the fact.
+  'fleet:secret-written': ['RecordAudit'],
+  'fleet:secret-removed': ['RecordAudit'],
   'fleet:pool-created': ['RecordAudit'],
   'workflow:fork-run-approved': ['RecordAudit'],
   'workflow:fork-run-refused': ['RecordAudit'],

@@ -26,14 +26,25 @@ import { decrypt, encrypt } from '@stacksjs/security'
  * not be reachable from a step somebody added to the test job.
  */
 
-export type SecretScope = 'instance' | 'owner' | 'repository' | 'environment'
+export type SecretScope = 'instance' | 'pool' | 'owner' | 'repository' | 'environment'
 
-/** Narrowest wins, and an environment beats everything - it is the most specific ask. */
+/**
+ * Narrowest wins, and an environment beats everything - it is the most specific ask.
+ *
+ * A pool sits just above the instance and below the owner, and that placement is
+ * a decision rather than an ordering accident. A pool secret is a statement
+ * about *where* work runs - these machines hold the registry credential - and a
+ * repository's own secret is a statement about *what* is running. The second is
+ * the more specific of the two, so a repository that sets the same key gets its
+ * own value, and an operator who needs a value nothing can override sets it and
+ * says so rather than relying on precedence to enforce it.
+ */
 export const SECRET_PRECEDENCE: Record<SecretScope, number> = {
   instance: 0,
-  owner: 1,
-  repository: 2,
-  environment: 3,
+  pool: 1,
+  owner: 2,
+  repository: 3,
+  environment: 4,
 }
 
 export interface SecretRow {
@@ -70,6 +81,14 @@ export function selectSecrets(input: {
   /** Whether the environment's gate has been opened for this job. */
   approved: boolean
   /**
+   * The pool whose machine took this job, when a pool took it.
+   *
+   * Null for a runner that belongs to no pool, and then no pool secret applies
+   * - which is the safe direction: a pool's credentials exist because those
+   * machines are trusted with them, and a machine outside the pool is not.
+   */
+  poolId?: number | null
+  /**
    * The names this job asked for, when it asked.
    *
    * `null` means it named none, and then it gets what it would have got before
@@ -101,6 +120,16 @@ export function selectSecrets(input: {
     // below and it holds whatever they say.
     if (wanted && !wanted.has(row.key))
       continue
+
+    if (row.scope === 'pool') {
+      /*
+       * The machine decides this one, not the workflow. A pool secret reaches a
+       * job because the job is running on that pool's hardware, so a run on
+       * anybody else's machines never sees it however the workflow asks.
+       */
+      if (!input.poolId || Number(row.scopeId) !== Number(input.poolId))
+        continue
+    }
 
     if (row.scope === 'environment') {
       /*
@@ -187,6 +216,8 @@ export async function secretsForJob(input: {
   trusted: boolean
   environment: string | null
   approved: boolean
+  /** The pool whose machine took this job, when a pool took it. */
+  poolId?: number | null
   /** The names the job asked for, or null when it named none. */
   only?: readonly string[] | null
   /**
@@ -203,11 +234,12 @@ export async function secretsForJob(input: {
   const environmentId = input.environment ? await environmentIdOf(input.repositoryId, input.environment) : null
 
   const chosen = selectSecrets({
-    rows: await rowsFor(input.repositoryId),
+    rows: await rowsFor(input.repositoryId, input.poolId ?? null),
     trusted: input.trusted,
     environment: input.environment,
     environmentId,
     approved: input.approved,
+    poolId: input.poolId ?? null,
     only: input.only ?? null,
   })
 
@@ -232,8 +264,15 @@ export async function secretsForJob(input: {
   return values
 }
 
-/** Every row that could apply to this repository, with its scope resolved. */
-async function rowsFor(repositoryId: number): Promise<Array<SecretRow & { updatedAt: string | null }>> {
+/**
+ * Every row that could apply to this repository, with its scope resolved.
+ *
+ * `poolId` is null everywhere except the claim, and that is why the names
+ * listing on the settings screen shows no pool secrets: which pool a job will
+ * land on is not known until a machine takes it, so a repository page that
+ * listed them would be listing credentials that may never arrive.
+ */
+async function rowsFor(repositoryId: number, poolId: number | null = null): Promise<Array<SecretRow & { updatedAt: string | null }>> {
   const repository = await db
     .selectFrom('repositories')
     .select(['id', 'owner_id'])
@@ -266,6 +305,7 @@ async function rowsFor(repositoryId: number): Promise<Array<SecretRow & { update
     const scopeId = Number(row.scope_id ?? 0)
 
     const applies = scope === 'instance'
+      || (scope === 'pool' && poolId !== null && scopeId === Number(poolId))
       || (scope === 'owner' && scopeId === Number(repository.owner_id))
       || (scope === 'repository' && scopeId === repositoryId)
       || (scope === 'environment' && environmentIds.has(scopeId))

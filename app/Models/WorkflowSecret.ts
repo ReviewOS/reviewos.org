@@ -29,22 +29,28 @@ export default defineModel({
 
   attributes: {
     /**
-     * `instance`, `owner`, `repository`, or `environment`.
+     * `instance`, `pool`, `owner`, `repository`, or `environment`.
      *
-     * The fourth is the one that earns the feature: a deploy credential
+     * `environment` is the one that earns the feature: a deploy credential
      * attached to `production` is not reachable from the test job in the same
      * run, which is exactly the separation a repository-wide secret cannot
      * express.
+     *
+     * `pool` is the one that belongs to the machines rather than to the code. A
+     * registry credential that exists because *these* runners are allowed to
+     * publish is not a fact about any repository, and writing it into each
+     * repository that needs it is how a credential ends up in twenty places and
+     * is rotated in three.
      */
     scope_type: {
       order: 1,
       fillable: true,
       default: 'repository',
-      validation: { rule: schema.enum(['instance', 'owner', 'repository', 'environment']) },
+      validation: { rule: schema.enum(['instance', 'pool', 'owner', 'repository', 'environment']) },
       factory: () => 'repository',
     },
 
-    /** The owner, repository, or environment. Zero for the instance. */
+    /** The pool, owner, repository, or environment. Zero for the instance. */
     scope_id: {
       order: 2,
       fillable: true,

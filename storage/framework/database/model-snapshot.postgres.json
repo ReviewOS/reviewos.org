@@ -11825,6 +11825,7 @@
             "defaultValue": "repository",
             "enumValues": [
               "instance",
+              "pool",
               "owner",
               "repository",
               "environment"
@@ -12561,7 +12562,7 @@
       }
     ]
   },
-  "hash": "f0f5e0fc893095643b9a151fc2710db3b096b64f817ab7997995d7014e6588a3",
+  "hash": "1b20b20c5d9278491b9b23307d39c01389feacac849bfd6c4a11f88c8212dd99",
   "dialect": "postgres",
-  "updatedAt": "2026-08-18T20:23:33.187Z"
+  "updatedAt": "2026-08-18T20:43:11.184Z"
 }
