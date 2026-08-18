@@ -405,6 +405,22 @@ describe('a job producing faster than the instance wants to store', () => {
     try {
       const chunk = 'x'.repeat(1500)
 
+      /*
+       * Start from a window this test owns.
+       *
+       * The budget is instance-wide by design - it is a disk-write ceiling,
+       * not a per-job one - so the counter behind it is module state that
+       * every earlier test in this file has already written to. Appending
+       * straight after setting the budget therefore measured whatever the
+       * previous test happened to leave in the current second, and the *first*
+       * chunk got refused, which is the one thing this test needs to succeed.
+       *
+       * The window resets after a second of quiet, so waiting one out makes
+       * the first chunk the start of the window rather than the end of
+       * somebody else's.
+       */
+      await Bun.sleep(1100)
+
       const first = await appendLog({ jobId: job, sequence: 1, content: chunk, stream: 'stdout' })
       const second = await appendLog({ jobId: job, sequence: 2, content: chunk, stream: 'stdout' })
 
