@@ -475,3 +475,93 @@ describe('the automatic job token', () => {
     await db.deleteFrom('access_tokens').where('id', '=', Number(minted!.id)).execute()
   }, 120_000)
 })
+
+/*
+ * A secret this instance never held.
+ *
+ * The row holds a path into the store an organisation already runs, and the
+ * value is read at the moment a job is handed out. What matters end to end is
+ * the pair: the stored bytes are not the credential, and a reference that
+ * cannot be read fails by name instead of arriving empty.
+ */
+describe('a secret stored as a reference', () => {
+  test('keeps the value out of this instance, and hands it over at the claim', async () => {
+    if (!available)
+      return
+
+    const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const process = (await import('node:process')).default
+
+    const root = mkdtempSync(join(tmpdir(), 'reviewos-store-'))
+
+    try {
+      mkdirSync(join(root, 'mounted'), { recursive: true })
+      writeFileSync(join(root, 'mounted', 'publish-token'), 'the-value-from-the-platform\n')
+      writeFileSync(join(root, 'stores.json'), JSON.stringify({ mounted: { kind: 'file', address: join(root, 'mounted') } }))
+
+      process.env.REVIEWOS_SECRET_STORES = join(root, 'stores.json')
+
+      const { putSecret, secretsForJobDetailed } = await import('../../app/Actions/Workflow/secrets')
+
+      await putSecret({
+        scope: 'repository',
+        scopeId: created.repositoryId,
+        key: 'PUBLISH_TOKEN',
+        value: 'store://mounted/publish-token',
+        reference: true,
+      })
+
+      const row: any = await db
+        .selectFrom('workflow_secrets')
+        .select(['sealed'])
+        .where('scope_type', '=', 'repository')
+        .where('scope_id', '=', created.repositoryId)
+        .where('key', '=', 'PUBLISH_TOKEN')
+        .executeTakeFirst()
+
+      // What is stored is a path, and encrypted at that: a copy of this
+      // database is a list of names and locations rather than of credentials.
+      expect(String(row.sealed)).not.toContain('the-value-from-the-platform')
+
+      const delivered = await secretsForJobDetailed({
+        repositoryId: created.repositoryId,
+        trusted: true,
+        environment: null,
+        approved: false,
+        only: ['PUBLISH_TOKEN'],
+      })
+
+      expect(delivered.problems).toEqual([])
+      expect(delivered.values.PUBLISH_TOKEN).toBe('the-value-from-the-platform')
+
+      // And when the store cannot answer, the job is told which secret and
+      // why - rather than being handed an empty credential that fails forty
+      // minutes later against somebody else's API.
+      rmSync(join(root, 'mounted', 'publish-token'))
+
+      const broken = await secretsForJobDetailed({
+        repositoryId: created.repositoryId,
+        trusted: true,
+        environment: null,
+        approved: false,
+        only: ['PUBLISH_TOKEN'],
+      })
+
+      expect(broken.values.PUBLISH_TOKEN).toBeUndefined()
+      expect(broken.problems.map(one => one.key)).toEqual(['PUBLISH_TOKEN'])
+      expect(broken.problems[0]!.reason).toContain('publish-token')
+
+      await db.deleteFrom('workflow_secrets')
+        .where('scope_type', '=', 'repository')
+        .where('scope_id', '=', created.repositoryId)
+        .where('key', '=', 'PUBLISH_TOKEN')
+        .execute()
+    }
+    finally {
+      delete process.env.REVIEWOS_SECRET_STORES
+      rmSync(root, { recursive: true, force: true })
+    }
+  }, 120_000)
+})

@@ -7,6 +7,7 @@ import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { environmentIdOf, putSecret, secretNames } from './secrets'
+import { parseReference } from './secretStore'
 
 /**
  * Setting and removing secrets. There is deliberately no way to read one.
@@ -35,6 +36,7 @@ export default new Action({
     repo: { rule: schema.string() },
     operation: { rule: schema.enum(['list', 'set', 'unset']) },
     scope: { rule: schema.enum(['instance', 'owner', 'repository', 'environment']) },
+    reference: { rule: schema.string(), required: false },
     environment: { rule: schema.string() },
     key: { rule: schema.string() },
     value: { rule: schema.string() },
@@ -191,15 +193,33 @@ export default new Action({
     }
 
     const value = String(request.get('value') ?? '')
+    /*
+     * A pointer into a store this instance never reads until a job needs it.
+     *
+     * The recommended path, and the reason it is a separate field rather than a
+     * value that happens to start with `store://`: a credential that literally
+     * begins with those characters would otherwise become a reference by
+     * accident, and the failure would be a job reading a path instead of a
+     * token.
+     */
+    const reference = String(request.get('reference') ?? '').trim()
 
-    if (!value)
-      return response.json({ error: 'A secret needs a value', reason: 'To remove one, use `operation: "unset"`.' }, 422)
+    if (!value && !reference)
+      return response.json({ error: 'A secret needs a value or a reference', reason: 'To remove one, use `operation: "unset"`.' }, 422)
+
+    if (reference && !parseReference(reference)) {
+      return response.json({
+        error: 'That is not a reference this instance can read',
+        reason: 'A reference is `store://<store>/<path>#<field>`, naming a store the operator configured. A URL is not accepted: what this instance may reach is not a repository\'s decision.',
+      }, 422)
+    }
 
     await putSecret({
       scope,
       scopeId,
       key,
-      value,
+      value: reference || value,
+      reference: Boolean(reference),
       userId: auth.context.user?.id ?? null,
     })
 
@@ -208,7 +228,7 @@ export default new Action({
       actorId: auth.context.user?.id ?? null,
       ...await auditFrom(request),
       repositoryId,
-      detail: { key, scope, scope_id: scopeId },
+      detail: { key, scope, scope_id: scopeId, reference: reference || null },
     }).catch(() => null)
 
     return response.json({
@@ -217,7 +237,9 @@ export default new Action({
        * The one sentence worth saying back. Somebody who sets a secret and
        * then cannot find it in the answer will otherwise set it again.
        */
-      note: `\`${key}\` is set. Its value cannot be read back - a job receives it at a claim.`,
+      note: reference
+        ? `\`${key}\` points at \`${reference}\`. This instance stores the reference and reads the value from the store when a job claims it.`
+        : `\`${key}\` is set. Its value cannot be read back - a job receives it at a claim.`,
     })
   },
 })

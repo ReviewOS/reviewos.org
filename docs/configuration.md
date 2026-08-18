@@ -904,6 +904,28 @@ policy allows a host, which it does not by default.
 
 Read by `app/Actions/Actions/store.ts`.
 
+### `REVIEWOS_SECRET_STORES`
+
+Default: `/etc/reviewos/secret-stores.json`, and the line is commented out.
+
+Where the external secret stores are described.
+
+A JSON file naming the stores a secret may reference - a directory your
+platform mounted, or a Vault address and the file its token is in:
+
+  { "mounted": { "kind": "file", "address": "/run/secrets" },
+    "prod": { "kind": "vault", "address": "https://vault.internal",
+              "tokenFile": "/run/secrets/vault-token" } }
+
+A secret set with a `reference` rather than a `value` is read from one of
+these when a job claims work, so this instance holds a path rather than a
+credential. Unset means no stores, and a reference to one fails the job that
+needed it by name. The stores are named here, by whoever runs the instance,
+because a reference a repository could point at any URL would be a request
+this server makes from inside your network on somebody else's say-so.
+
+Read by `app/Actions/Workflow/secretStore.ts`.
+
 ## Set by git, not by you
 
 Git hands these to a hook on every push, per repository. A value for one of them in `.env`

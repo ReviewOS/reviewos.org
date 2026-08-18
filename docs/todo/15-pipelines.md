@@ -2538,8 +2538,28 @@ every runner is somebody else's machine.
       names them" is real, and pretending otherwise would be a permission that exists only in the
       documentation. A job that names what it needs is a job whose compromised dependency cannot
       read the deploy key it never asked for, which is the property this clause is for.
-- [ ] The recommended path stays an external secret store, with first-party support for fetching from
+- [x] The recommended path stays an external secret store, with first-party support for fetching from
       one, because the best secret is one we never held
+
+      A secret's stored value may be a reference - `store://prod/secret/data/publish#TOKEN` - and
+      then this instance holds a path rather than a credential: a copy of its database is a list of
+      names and locations. Two drivers, both first-party because most instances already have one of
+      them: a directory the platform mounted (Docker secrets, a Kubernetes volume) and HashiCorp
+      Vault KV v2, whose token is read from a file per request so a rotated one is picked up without
+      a restart and never appears in `ps`.
+
+      **A reference names a store the operator configured, never a URL.** That is the whole
+      boundary: "read this from the store you set up" is a different sentence from "fetch this from
+      an address a repository administrator typed", and the second is a request this server makes
+      from inside the network on somebody else's say-so. A path that climbs out of a file store is
+      refused before and after normalising it.
+
+      **A reference that cannot be read fails the job by name**, at the claim, before the first
+      step. A store that is down or a path that moved otherwise becomes an empty credential and a
+      failure forty minutes later against somebody else's API, with an error that says nothing about
+      this instance. The same reporting caught an older silence: a value this instance could no
+      longer decrypt - a rotated `APP_KEY` - used to be skipped, which looked exactly like a secret
+      nobody had set.
 - [x] Fork policy: a run triggered from a fork gets no secrets and no OIDC by default, cannot supply
       the workflow definition it runs under, and requires approval to run at all. Phase 9 states this
       rule; this is where it is enforced in the dispatch path.

@@ -1652,6 +1652,7 @@ _Inputs are not declared on `Actions/Release/UploadAssetAction`, so they are not
 | `repo` | body | optional | string |
 | `operation` | body | optional | string |
 | `scope` | body | optional | string |
+| `reference` | body | optional | string |
 | `environment` | body | optional | string |
 | `key` | body | optional | string |
 | `value` | body | optional | string |

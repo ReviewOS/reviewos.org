@@ -1,4 +1,6 @@
+import type { SecretStore } from './secretStore'
 import { db } from '@stacksjs/database'
+import { configuredStores, parseReference, REFERENCE_PREFIX, resolveReference } from './secretStore'
 import { decrypt, encrypt } from '@stacksjs/security'
 
 /**
@@ -154,15 +156,25 @@ export function selectSecrets(input: {
   return [...byKey.values()].sort((left, right) => (left.key < right.key ? -1 : left.key > right.key ? 1 : 0))
 }
 
-/** Store one. The value is encrypted here and never written anywhere in the clear. */
+/**
+ * Store one. The value is encrypted here and never written anywhere in the clear.
+ *
+ * `reference: true` stores a pointer into an external store instead of a value -
+ * `store://prod/secret/data/deploy#KEY` - which is the recommended path: this
+ * instance then holds a path rather than a credential, and a copy of its
+ * database is a list of names rather than a list of secrets. The reference is
+ * still encrypted, because "which store and which path" is worth as little to
+ * an attacker as it is worth to leak.
+ */
 export async function putSecret(input: {
   scope: SecretScope
   scopeId: number
   key: string
   value: string
+  reference?: boolean
   userId?: number | null
 }): Promise<void> {
-  const sealed = await encrypt(input.value)
+  const sealed = await encrypt(input.reference ? `${REFERENCE_PREFIX}${input.value}` : input.value)
 
   const existing = await db
     .selectFrom('workflow_secrets')
@@ -243,25 +255,97 @@ export async function secretsForJob(input: {
     only: input.only ?? null,
   })
 
-  const values: Record<string, string> = { ...(input.extra ?? {}) }
+  const detailed = await deliverSecrets(chosen, input.extra ?? {})
+
+  return detailed.values
+}
+
+/**
+ * The same delivery, with what could not be delivered.
+ *
+ * Two answers rather than one because the failures matter as much as the
+ * values: a secret that resolves to nothing is a job that authenticates as
+ * nobody and fails somewhere far from the cause, and the claim uses this list
+ * to refuse the job by name instead.
+ */
+export async function secretsForJobDetailed(input: {
+  repositoryId: number
+  trusted: boolean
+  environment: string | null
+  approved: boolean
+  poolId?: number | null
+  only?: readonly string[] | null
+  extra?: Record<string, string>
+}): Promise<{ values: Record<string, string>, problems: Array<{ key: string, reason: string }> }> {
+  const environmentId = input.environment ? await environmentIdOf(input.repositoryId, input.environment) : null
+
+  const chosen = selectSecrets({
+    rows: await rowsFor(input.repositoryId, input.poolId ?? null),
+    trusted: input.trusted,
+    environment: input.environment,
+    environmentId,
+    approved: input.approved,
+    poolId: input.poolId ?? null,
+    only: input.only ?? null,
+  })
+
+  return deliverSecrets(chosen, input.extra ?? {})
+}
+
+/** Decrypt what is stored, and resolve whatever of it is a reference. */
+async function deliverSecrets(
+  chosen: readonly SecretRow[],
+  extra: Record<string, string>,
+): Promise<{ values: Record<string, string>, problems: Array<{ key: string, reason: string }> }> {
+  const values: Record<string, string> = { ...extra }
+  const problems: Array<{ key: string, reason: string }> = []
+
+  // Read once for the whole job rather than per secret: a job with six
+  // references should not read the configuration six times.
+  let stores: Record<string, SecretStore> | null = null
 
   for (const row of chosen) {
+    let stored: string
+
     try {
-      values[row.key] = String(await decrypt(row.sealed))
+      stored = String(await decrypt(row.sealed))
     }
     catch {
       /*
        * A value this instance cannot decrypt is one whose APP_KEY changed.
        *
-       * Skipped rather than sent as an empty string: a job that receives an
-       * empty credential authenticates as nobody and fails somewhere far from
-       * the cause, while a missing one fails at the line that uses it.
+       * Reported rather than skipped silently: it used to be skipped, which
+       * meant a rotated key looked exactly like a secret nobody had set.
        */
+      problems.push({ key: row.key, reason: 'this instance cannot decrypt it, which usually means APP_KEY changed since it was written' })
       continue
     }
+
+    if (!stored.startsWith(REFERENCE_PREFIX)) {
+      values[row.key] = stored
+      continue
+    }
+
+    const reference = parseReference(stored.slice(REFERENCE_PREFIX.length))
+
+    if (!reference) {
+      problems.push({ key: row.key, reason: 'it is stored as a reference this instance cannot read' })
+      continue
+    }
+
+    stores = stores ?? await configuredStores()
+
+    const resolved = await resolveReference(reference, stores)
+
+    if (!resolved.ok) {
+      problems.push({ key: row.key, reason: resolved.reason })
+      continue
+    }
+
+    values[row.key] = resolved.value
   }
 
-  return values
+  return { values, problems }
 }
 
 /**

@@ -15027,7 +15027,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: "list" | "set" | "unset"; "scope"?: "instance" | "owner" | "repository" | "environment"; "environment"?: string; "key"?: string; "value"?: string } } }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: "list" | "set" | "unset"; "scope"?: "instance" | "owner" | "repository" | "environment"; "reference"?: string; "environment"?: string; "key"?: string; "value"?: string } } }
     responses: {
       "200": { content: { "application/json": { "secrets"?: Array<{ "key"?: string; "scope"?: string; "updated_at"?: string }> } } }
       "401": { content: never }

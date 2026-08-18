@@ -39577,6 +39577,9 @@
                       "environment"
                     ]
                   },
+                  "reference": {
+                    "type": "string"
+                  },
                   "environment": {
                     "type": "string"
                   },

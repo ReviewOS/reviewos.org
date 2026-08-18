@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { mintJobToken } from '../Workflow/jobToken'
-import { secretsForJob } from '../Workflow/secrets'
+import { secretsForJobDetailed } from '../Workflow/secrets'
 import { variablesFor } from '../Workflow/variables'
 import { db } from '@stacksjs/database'
 import { authenticateRunner } from './authenticate'
@@ -499,6 +499,46 @@ export default new Action({
       })),
     })
 
+    /*
+     * The secrets, and whatever could not be delivered.
+     *
+     * The second list is the whole point of resolving external references here
+     * rather than on the machine: a reference that cannot be read is a
+     * credential the job will not have, and handing the job an empty string
+     * instead means it authenticates as nobody and fails somewhere far from the
+     * cause. The runner refuses the job by name.
+     */
+    const delivered = await secretsForJobDetailed({
+      repositoryId: claimed.repositoryId,
+      trusted: Boolean(context?.trusted),
+      /*
+       * The pool that took this job, so a secret set on those machines reaches
+       * it. Known only here: which pool a job lands on is decided by whichever
+       * runner claims it, which is why a pool secret cannot appear in a
+       * repository's own listing.
+       */
+      poolId: claimed.poolId ?? null,
+      environment: environmentOfJob(jobRow?.settings),
+      approved: Boolean(jobRow?.approved_at),
+      /*
+       * What this job asked for, when it asked.
+       *
+       * Null - the job said nothing - keeps the old behaviour of every secret
+       * in scope, which is what Actions does and what every existing workflow
+       * expects. A job that names them gets those and no others, so a
+       * compromised dependency in a test job cannot read the deploy key that
+       * job never needed.
+       */
+      only: secretNamesOfJob(jobRow?.settings),
+      /*
+       * The automatic token joins the secrets rather than sitting beside them,
+       * which buys two things for free: `${{ secrets.GITHUB_TOKEN }}` works the
+       * way every workflow already expects, and the value is masked in the log
+       * by the same pass that masks every other secret.
+       */
+      extra: minted ? { GITHUB_TOKEN: minted.token, REVIEWOS_JOB_TOKEN: minted.token } : {},
+    })
+
     return runnerJson({
       job: {
         id: claimed.jobId,
@@ -644,36 +684,20 @@ export default new Action({
          * and not the environment's, which is the whole reason environment
          * secrets exist.
          */
-        secrets: await secretsForJob({
-          repositoryId: claimed.repositoryId,
-          trusted: Boolean(context?.trusted),
-          /*
-           * The pool that took this job, so a secret set on those machines
-           * reaches it. Known only here: which pool a job lands on is decided
-           * by whichever runner claims it, which is why a pool secret cannot
-           * appear in a repository's own listing.
-           */
-          poolId: claimed.poolId ?? null,
-          environment: environmentOfJob(jobRow?.settings),
-          approved: Boolean(jobRow?.approved_at),
-          /*
-           * What this job asked for, when it asked.
-           *
-           * Null - the job said nothing - keeps the old behaviour of every
-           * secret in scope, which is what Actions does and what every existing
-           * workflow expects. A job that names them gets those and no others,
-           * so a compromised dependency in a test job cannot read the deploy
-           * key that job never needed.
-           */
-          only: secretNamesOfJob(jobRow?.settings),
-          /*
-           * The automatic token joins the secrets rather than sitting beside
-           * them, which buys two things for free: `${{ secrets.GITHUB_TOKEN }}`
-           * works the way every workflow already expects, and the value is
-           * masked in the log by the same pass that masks every other secret.
-           */
-          extra: minted ? { GITHUB_TOKEN: minted.token, REVIEWOS_JOB_TOKEN: minted.token } : {},
-        }),
+        /*
+         * `secrets`, decided above and nowhere else: this is the last point at
+         * which both facts are known - whether the run is trusted, and whether
+         * this job's environment gate has opened.
+         */
+        secrets: delivered.values,
+        /*
+         * The ones that could not be delivered, by name and reason, never with
+         * a value. A runner that receives any of these refuses the job rather
+         * than starting it with a credential missing: a build that fails at the
+         * push step forty minutes in, because a token was empty, is the failure
+         * this list exists to turn into a sentence.
+         */
+        secrets_unavailable: delivered.problems,
         /*
          * The event, in the shape a webhook receiver would have got.
          *

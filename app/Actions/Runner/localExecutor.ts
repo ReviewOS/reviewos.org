@@ -295,6 +295,32 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
   }
 
   /*
+   * A credential the instance could not deliver stops the job here.
+   *
+   * The claim resolves external secret references - a value this instance never
+   * held, read from the store an organisation already runs - and a reference
+   * that could not be read means the job would start without the credential it
+   * asked for. Starting anyway is the expensive failure: forty minutes of build
+   * and a push step that authenticates as nobody, with an error from somebody
+   * else's API rather than from here.
+   */
+  const unavailable = Array.isArray(job.secrets_unavailable) ? job.secrets_unavailable : []
+
+  if (unavailable.length > 0) {
+    const named = unavailable
+      .map((one: any) => `\`${String(one?.key ?? 'a secret')}\`: ${String(one?.reason ?? 'could not be read')}`)
+      .join('; ')
+
+    const reason = `This job asked for a credential this instance could not deliver - ${named}`
+
+    say(`refusing job ${job.id}: ${reason}`)
+    await append(options.baseUrl, jobToken, 1, `${reason}\n`, 'stderr')
+    await report(options.baseUrl, jobToken, 'failed', reason)
+
+    return { jobId: Number(job.id), state: 'failed', reason }
+  }
+
+  /*
    * Whether this instance signed the work, checked before anything of it runs.
    *
    * Only when the pool asks for it. A fleet that started refusing every job the

@@ -53,6 +53,50 @@ Setting an instance or owner secret takes more than repository administration:
 administering *one* repository is not permission over every repository an
 organization has.
 
+## The recommended path: a secret this instance never held
+
+An encrypted column answers "where do we keep it" and nothing at all about what
+happens when the database is copied. So a secret may be a **reference** into the
+store your platform already runs, read at the moment a job claims work and
+forgotten afterwards:
+
+```bash
+curl -sX POST "$SERVER/api/repos/secrets" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"owner":"acme","repo":"widgets","operation":"set","key":"PUBLISH_TOKEN",
+       "reference":"store://prod/secret/data/publish#TOKEN"}'
+```
+
+The stores are configured by whoever runs the instance, in a JSON file named by
+`REVIEWOS_SECRET_STORES`:
+
+```json
+{
+  "mounted": { "kind": "file", "address": "/run/secrets" },
+  "prod": { "kind": "vault", "address": "https://vault.internal", "tokenFile": "/run/secrets/vault-token" }
+}
+```
+
+`file` is a directory your platform mounted - Docker secrets, a Kubernetes
+volume - which most instances already have. `vault` is HashiCorp Vault KV
+version 2, with the token read from a file per request so a rotated one is
+picked up without a restart, and never from an environment variable that shows
+up in `ps` and in crash reports.
+
+**A reference names a store, never a URL.** `store://<store>/<path>#<field>` and
+nothing else: the difference between "read this from the store you set up" and
+"fetch this from an address a repository administrator typed" is that the second
+is a request this server makes from inside your network on somebody else's
+say-so. A path that climbs out of a file store is refused, before and after
+normalising it.
+
+**A reference that cannot be read fails the job by name.** The claim resolves
+references, so a store that is down, a token that expired or a path that moved
+stops the job before its first step with a sentence saying which secret and why.
+The alternative is a job that starts with an empty credential and fails forty
+minutes later against somebody else's API, with an error that says nothing about
+this instance.
+
 ## A pool's secrets belong to the machines
 
 A registry credential often exists because *these* runners are allowed to
