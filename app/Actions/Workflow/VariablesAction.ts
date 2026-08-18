@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
@@ -135,7 +137,7 @@ export default new Action({
     const scopeId = scope === 'instance'
       ? 0
       : scope === 'owner'
-        ? Number((await db.selectFrom('repositories').select(['owner_id']).where('id', '=', repositoryId).executeTakeFirst() as any)?.owner_id ?? 0)
+        ? Number((await db.selectFrom('repositories').select(['owner_id']).where('id', '=', repositoryId).executeTakeFirst())?.owner_id ?? 0)
         : repositoryId
 
     if (operation === 'unset') {
@@ -145,6 +147,14 @@ export default new Action({
         .where('scope_id', '=', scopeId)
         .where('key', '=', key)
         .execute()
+
+      await auditEvent('workflow:variable-removed', {
+        subject: { type: 'repository', id: repositoryId },
+        actorId: auth.context.user?.id ?? null,
+        ...await auditFrom(request),
+        repositoryId,
+        detail: { key, scope, scope_id: scopeId },
+      }).catch(() => null)
 
       return response.json({ variables: resolveVariables(await settingsFor(repositoryId)) })
     }
@@ -163,6 +173,19 @@ export default new Action({
       await db.updateTable('workflow_variables').set({ value }).where('id', '=', Number(existing.id)).execute()
     else
       await db.insertInto('workflow_variables').values({ scope_type: scope, scope_id: scopeId, key, value }).execute()
+
+    /*
+     * The value is recorded here, unlike a secret's: a variable is not a
+     * credential, and "who changed the deploy target" is the question this
+     * exists to answer.
+     */
+    await auditEvent('workflow:variable-written', {
+      subject: { type: 'repository', id: repositoryId },
+      actorId: auth.context.user?.id ?? null,
+      ...await auditFrom(request),
+      repositoryId,
+      detail: { key, scope, scope_id: scopeId, value },
+    }).catch(() => null)
 
     const resolved = resolveVariables(await settingsFor(repositoryId))
     const effective = resolved.find(one => one.key === key)

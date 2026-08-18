@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
@@ -135,6 +137,20 @@ export default new Action({
      * is a pull request whose checks stay pending on work that has ended.
      */
     const runState = await settleRun(Number(run.id))
+
+    /*
+     * Recorded when something actually stopped. A cancel that hit nothing is a
+     * button pressed twice, and a log full of those is one nobody reads.
+     */
+    if (cancelled > 0) {
+      await auditEvent('workflow:job-cancelled', {
+        subject: { type: 'workflow_run', id: Number(run.id) },
+        actorId: auth.context.user?.id ?? null,
+        ...await auditFrom(request),
+        repositoryId: Number(repository.id),
+        detail: { number, job: key, cancelled, reason, run_state: runState },
+      }).catch(() => null)
+    }
 
     if (String(request?.headers?.get?.('accept') ?? '').includes('text/html')) {
       const owner = String(request.get('owner') ?? '')

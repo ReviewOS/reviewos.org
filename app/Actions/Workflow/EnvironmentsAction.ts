@@ -1,4 +1,7 @@
+import type { RowOf } from '@stacksjs/database'
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
@@ -96,6 +99,14 @@ export default new Action({
         .returning(['id'])
         .executeTakeFirst()
 
+      await auditEvent('workflow:environment-configured', {
+        subject: { type: 'repository', id: repositoryId },
+        actorId: auth.context.user?.id ?? null,
+        ...await auditFrom(request),
+        repositoryId,
+        detail: { environment: name, created: true },
+      }).catch(() => null)
+
       return response.json({ environment: await shape(await row(Number(created?.id))) })
     }
 
@@ -117,6 +128,19 @@ export default new Action({
        * production" is one somebody should see in the answer.
        */
       await db.deleteFrom('environments').where('id', '=', Number(found.id)).execute()
+
+      /*
+       * Recorded, because this is the change with no visible trace afterwards:
+       * the row is gone, the workflow file still says `environment: production`,
+       * and every deploy from here runs unguarded.
+       */
+      await auditEvent('workflow:environment-removed', {
+        subject: { type: 'repository', id: repositoryId },
+        actorId: auth.context.user?.id ?? null,
+        ...await auditFrom(request),
+        repositoryId,
+        detail: { environment: name, wait_minutes: Number(found.wait_minutes ?? 0), branches: String(found.branches ?? '') },
+      }).catch(() => null)
 
       return response.json({
         deleted: name,
@@ -159,10 +183,18 @@ export default new Action({
         }
       }
 
+      await auditEvent('workflow:environment-configured', {
+        subject: { type: 'repository', id: repositoryId },
+        actorId: auth.context.user?.id ?? null,
+        ...await auditFrom(request),
+        repositoryId,
+        detail: { environment: name, reviewer: handle, operation },
+      }).catch(() => null)
+
       return response.json({ environment: await shape(await row(Number(found.id))) })
     }
 
-    const changes: Record<string, unknown> = {}
+    const changes: Partial<EnvironmentRow> = {}
 
     if (request.get('wait_minutes') !== undefined && Number.isFinite(Number(request.get('wait_minutes'))))
       changes.wait_minutes = Math.max(0, Math.min(43_200, Number(request.get('wait_minutes'))))
@@ -176,15 +208,26 @@ export default new Action({
     if (!Object.keys(changes).length)
       return response.json({ error: 'Nothing to change' }, 422)
 
-    await db.updateTable('environments').set(changes as any).where('id', '=', Number(found.id)).execute()
+    await db.updateTable('environments').set(changes).where('id', '=', Number(found.id)).execute()
+
+    await auditEvent('workflow:environment-configured', {
+      subject: { type: 'repository', id: repositoryId },
+      actorId: auth.context.user?.id ?? null,
+      ...await auditFrom(request),
+      repositoryId,
+      detail: { environment: name, changes },
+    }).catch(() => null)
 
     return response.json({ environment: await shape(await row(Number(found.id))) })
   },
 })
 
-async function row(id: number): Promise<any> {
+/** One environment, or nothing if it has just been deleted underneath us. */
+async function row(id: number): Promise<EnvironmentRow | undefined> {
   return db.selectFrom('environments').selectAll().where('id', '=', id).executeTakeFirst()
 }
+
+type EnvironmentRow = RowOf<'environments'>
 
 /** `main, release/*` from whatever shape the caller sent. */
 function cleanBranches(value: unknown): string {
@@ -193,7 +236,7 @@ function cleanBranches(value: unknown): string {
   return parts.map(one => String(one ?? '').trim()).filter(Boolean).slice(0, 50).join(',')
 }
 
-async function shape(environment: any): Promise<Record<string, unknown>> {
+async function shape(environment: EnvironmentRow | undefined): Promise<Record<string, unknown>> {
   const reviewers = await db
     .selectFrom('environment_reviewers')
     .innerJoin('users', 'users.id', '=', 'environment_reviewers.user_id')

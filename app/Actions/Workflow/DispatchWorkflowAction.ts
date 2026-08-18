@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
@@ -176,6 +178,20 @@ export default new Action({
       .executeTakeFirst()
 
     await createJobsFor(Number(run?.id), Number(version.id))
+
+    /*
+     * Recorded, because starting a run spends the instance's machines and can
+     * reach whatever they reach. `auditFrom` carries the token as well as the
+     * person: a run started by a program is the case where "who did this" has
+     * no other answer.
+     */
+    await auditEvent('workflow:run-dispatched', {
+      subject: { type: 'workflow_run', id: Number(run?.id ?? 0) },
+      actorId: auth.context.user?.id ?? null,
+      ...await auditFrom(request),
+      repositoryId: Number(repository.id),
+      detail: { workflow: String(workflow.path), number, ref, inputs: checked.values },
+    }).catch(() => null)
 
     /*
      * A browser gets the run list back; a program gets the row.

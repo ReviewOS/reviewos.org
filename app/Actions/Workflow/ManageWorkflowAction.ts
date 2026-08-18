@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
@@ -93,13 +95,27 @@ export default new Action({
       }, 409)
     }
 
-    const state = operation === 'enable' ? 'active' : 'disabled'
+    const enabling = operation === 'enable'
+    const state = enabling ? 'active' : 'disabled'
 
     await db
       .updateTable('workflows')
       .set({ state })
       .where('id', '=', Number(workflow.id))
       .execute()
+
+    /*
+     * Recorded, because a disabled workflow is a check that silently stops
+     * appearing on pull requests. Nothing is red, nothing is failing, and the
+     * branch rule waiting on it is the only thing that notices.
+     */
+    await auditEvent(enabling ? 'workflow:enabled' : 'workflow:disabled', {
+      subject: { type: 'repository', id: Number(auth.context.repository.id) },
+      actorId: auth.context.user?.id ?? null,
+      ...await auditFrom(request),
+      repositoryId: Number(auth.context.repository.id),
+      detail: { workflow: String(workflow.path), name: String(workflow.name), from: String(workflow.state) },
+    }).catch(() => null)
 
     return response.json({
       workflow: { name: String(workflow.name), path: String(workflow.path), state },

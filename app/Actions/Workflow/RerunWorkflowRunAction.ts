@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
@@ -103,6 +105,18 @@ export default new Action({
 
     if (!outcome.ok)
       return response.json({ error: outcome.error }, outcome.status ?? 422)
+
+    /*
+     * Recorded: a re-run spends the machines again, and on a protected branch
+     * it is how a red check becomes green without the code changing.
+     */
+    await auditEvent('workflow:run-rerun', {
+      subject: { type: 'workflow_run', id: Number(run.id) },
+      actorId: auth.context.user?.id ?? null,
+      ...await auditFrom(request),
+      repositoryId: Number(repository.id),
+      detail: { number, scope, attempt: outcome.attempt, jobs: outcome.jobs },
+    }).catch(() => null)
 
     /*
      * A browser gets its page back; a program gets the row. The interface posts

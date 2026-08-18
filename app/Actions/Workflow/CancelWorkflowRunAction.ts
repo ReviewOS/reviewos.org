@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import type { RunState } from './states'
@@ -139,6 +141,19 @@ export default new Action({
     // Programs first: something waiting on this run should hear that it was
     // stopped before the person who stopped it has finished reading the page.
     await announceRunIfMoved(Number(repository.id), Number(run.id), state, 'cancelling')
+
+    /*
+     * Recorded with who asked. A cancelled run is a check a branch rule was
+     * waiting on that will now never go green, and "who stopped it" is the
+     * question the next person asks.
+     */
+    await auditEvent('workflow:run-cancelled', {
+      subject: { type: 'workflow_run', id: Number(run.id) },
+      actorId: auth.context.user?.id ?? null,
+      ...await auditFrom(request),
+      repositoryId: Number(repository.id),
+      detail: { number, from: state, reason },
+    }).catch(() => null)
 
     /*
      * A browser gets its page back; a program gets the row.

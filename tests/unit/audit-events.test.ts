@@ -31,7 +31,16 @@ function addNames(into: Set<string>, match: RegExpMatchArray): void {
       into.add(name)
 }
 
-/** Every string literal in the `AuditEventName` union, read from the file. */
+/**
+ * Every string literal in the `AuditEventName` union, read from the file.
+ *
+ * Comments are stripped before the literals are read, and that is not
+ * housekeeping: the union is documented in prose between its arms, prose
+ * contains apostrophes, and an odd number of them makes the next quote pair
+ * with a comment rather than with a name. The failure that causes is a list
+ * that silently loses half its entries - and the test then reports the
+ * catalogue as wrong when the catalogue is fine.
+ */
 async function namesInType(): Promise<string[]> {
   const source = await Bun.file(new URL('../../app/Audit/events.ts', import.meta.url)).text()
   const start = source.indexOf('export type AuditEventName')
@@ -39,7 +48,9 @@ async function namesInType(): Promise<string[]> {
 
   expect(start).toBeGreaterThan(-1)
 
-  return [...source.slice(start, end).matchAll(/'([^']+)'/g)].map(match => match[1]!)
+  const union = source.slice(start, end).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+
+  return [...union.matchAll(/'([^']+)'/g)].map(match => match[1]!)
 }
 
 describe('the audit catalogue', () => {

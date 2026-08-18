@@ -2511,8 +2511,22 @@ every runner is somebody else's machine.
 - [ ] Fine-grained token permissions for reading runs, dispatching runs, managing workflows,
       administering pools, and reading logs, each separable, per the [phase 1](./01-foundation.md)
       rule that there is no fallback token type
-- [ ] Every state-changing operation is in the audit log from [phase 11](./11-self-hosting-deploy.md),
+- [x] Every state-changing operation is in the audit log from [phase 11](./11-self-hosting-deploy.md),
       attributable to a token as well as a person
+
+      Thirteen verbs: dispatching a run (by hand and by `repository_dispatch`), cancelling a run or
+      one job of it, re-running, opening a gate, enabling and disabling a workflow, writing and
+      removing a secret, a variable, and an environment. Every one of them spends the instance's
+      machines, changes what a branch rule sees, or hands a job a credential, and until now none of
+      them was in the log at all - "who turned that workflow off" had no answer, and "who started
+      this deploy" had only the run's `actor_id`, which a token cannot be traced through.
+
+      A secret's row carries its name and its scope and never its value: an audit log that recorded
+      the value would be a second place the secret lives, with weaker protection than the first. A
+      variable's row does carry the value, because a variable is not a credential and "who pointed
+      the deploy at production" is the question the log is for. The end-to-end test asserts both,
+      through a real boot with a bearer token rather than by calling the actions - `actor_id` is
+      filled either way, and `access_token_id` is only filled when the request carried one.
 - [ ] Tests: a forged step signature, a rotated key mid-run, an OIDC token used against another
       repository's trust policy, a fork run attempting secret access, and a token with dispatch but
       not admin attempting each admin route

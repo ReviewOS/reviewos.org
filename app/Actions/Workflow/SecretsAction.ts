@@ -1,4 +1,7 @@
+import type { SecretScope } from './secrets'
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
@@ -101,7 +104,17 @@ export default new Action({
       }, 422)
     }
 
-    const scope = String(request.get('scope') ?? 'repository').trim()
+    const asked = String(request.get('scope') ?? 'repository').trim()
+
+    /*
+     * Narrowed here rather than cast at the call. The schema declares the four,
+     * but `request.get` answers a string, and a cast would let a fifth spelling
+     * through to be stored against a scope nothing ever reads back.
+     */
+    if (!isSecretScope(asked))
+      return response.json({ error: 'A secret is scoped to the instance, an owner, a repository or an environment', scope: asked }, 422)
+
+    const scope: SecretScope = asked
 
     /*
      * An instance secret reaches every repository on the server and an owner
@@ -162,6 +175,18 @@ export default new Action({
         .where('key', '=', key)
         .execute()
 
+      /*
+       * The name, the scope, and who - never the value. An audit log that
+       * records what a secret was is a second place the secret lives.
+       */
+      await auditEvent('workflow:secret-removed', {
+        subject: { type: 'repository', id: repositoryId },
+        actorId: auth.context.user?.id ?? null,
+        ...await auditFrom(request),
+        repositoryId,
+        detail: { key, scope, scope_id: scopeId },
+      }).catch(() => null)
+
       return response.json({ secrets: (await secretNames(repositoryId)).map(one => ({ key: one.key, scope: one.scope, updated_at: one.updatedAt })) })
     }
 
@@ -171,12 +196,20 @@ export default new Action({
       return response.json({ error: 'A secret needs a value', reason: 'To remove one, use `operation: "unset"`.' }, 422)
 
     await putSecret({
-      scope: scope as any,
+      scope,
       scopeId,
       key,
       value,
       userId: auth.context.user?.id ?? null,
     })
+
+    await auditEvent('workflow:secret-written', {
+      subject: { type: 'repository', id: repositoryId },
+      actorId: auth.context.user?.id ?? null,
+      ...await auditFrom(request),
+      repositoryId,
+      detail: { key, scope, scope_id: scopeId },
+    }).catch(() => null)
 
     return response.json({
       secrets: (await secretNames(repositoryId)).map(one => ({ key: one.key, scope: one.scope, updated_at: one.updatedAt })),
@@ -188,3 +221,8 @@ export default new Action({
     })
   },
 })
+
+/** One of the four, checked rather than asserted. */
+function isSecretScope(value: string): value is SecretScope {
+  return value === 'instance' || value === 'owner' || value === 'repository' || value === 'environment'
+}

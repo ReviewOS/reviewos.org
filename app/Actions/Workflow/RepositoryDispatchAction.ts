@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
@@ -92,6 +94,19 @@ export default new Action({
       clientPayload: payload,
       actorId: user?.id ? Number(user.id) : null,
     })
+
+    /*
+     * Recorded even when nothing started. A dispatch that matched no workflow
+     * is the shape of somebody probing for one, and the empty case is the one
+     * an audit reader most wants to see.
+     */
+    await auditEvent('workflow:run-dispatched', {
+      subject: { type: 'repository', id: Number(repository.id) },
+      actorId: user?.id ? Number(user.id) : null,
+      ...await auditFrom(request),
+      repositoryId: Number(repository.id),
+      detail: { event_type: eventType, via: 'repository_dispatch', runs: outcome.created },
+    }).catch(() => null)
 
     return response.json({
       event_type: eventType,

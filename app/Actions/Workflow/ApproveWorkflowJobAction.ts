@@ -1,4 +1,6 @@
 import { Action } from '@stacksjs/actions'
+import { auditEvent } from '../../Audit/events'
+import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
@@ -207,6 +209,19 @@ export default new Action({
         reason: 'Somebody opened this gate a moment before you did.',
       }, 409)
     }
+
+    /*
+     * Recorded with the values, because a gate is the point where a person
+     * takes responsibility for what happens next - a deployment, a release -
+     * and the inputs they typed are part of what they authorised.
+     */
+    await auditEvent('workflow:gate-approved', {
+      subject: { type: 'workflow_run', id: Number(run.id) },
+      actorId: auth.context.user?.id ?? null,
+      ...await auditFrom(request),
+      repositoryId: Number(repository.id),
+      detail: { number, job: String(job.job_id), inputs: values },
+    }).catch(() => null)
 
     const state = await settleRun(Number(run.id))
 

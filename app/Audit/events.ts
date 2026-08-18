@@ -90,6 +90,27 @@ export type AuditEventName =
   | 'fleet:queue-created'
   | 'workflow:fork-run-approved'
   | 'workflow:fork-run-refused'
+  /*
+   * The CI surface's state-changing verbs.
+   *
+   * Every one of these spends the instance's machines, changes what a branch
+   * rule sees, or hands a job a credential - and until now none of them was in
+   * the log. "Who started this deploy" and "who turned that workflow off" had
+   * no answer beyond a run's `actor_id`, which a token cannot be traced through.
+   */
+  | 'workflow:run-dispatched'
+  | 'workflow:run-cancelled'
+  | 'workflow:job-cancelled'
+  | 'workflow:run-rerun'
+  | 'workflow:gate-approved'
+  | 'workflow:enabled'
+  | 'workflow:disabled'
+  | 'workflow:secret-written'
+  | 'workflow:secret-removed'
+  | 'workflow:variable-written'
+  | 'workflow:variable-removed'
+  | 'workflow:environment-configured'
+  | 'workflow:environment-removed'
   | 'fleet:signatures-required'
   | 'fleet:plugin-attached'
   | 'fleet:plugin-detached'
@@ -152,6 +173,19 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'fleet:pool-created',
   'workflow:fork-run-approved',
   'workflow:fork-run-refused',
+  'workflow:run-dispatched',
+  'workflow:run-cancelled',
+  'workflow:job-cancelled',
+  'workflow:run-rerun',
+  'workflow:gate-approved',
+  'workflow:enabled',
+  'workflow:disabled',
+  'workflow:secret-written',
+  'workflow:secret-removed',
+  'workflow:variable-written',
+  'workflow:variable-removed',
+  'workflow:environment-configured',
+  'workflow:environment-removed',
   'fleet:signatures-required',
   'fleet:plugin-attached',
   'fleet:plugin-detached',

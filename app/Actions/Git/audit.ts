@@ -72,6 +72,26 @@ export async function recordAudit(entry: AuditEntry): Promise<boolean> {
 }
 
 /**
+ * What these two functions need from a request, and nothing else.
+ *
+ * Written structurally rather than as the framework's `RequestInstance`,
+ * because an audit helper is called from the middleware, from actions, and from
+ * the git hooks - three places whose idea of a request is not the same object.
+ * Naming only `headers`, `header` and the stashed token keeps all three
+ * callable without the `any` that used to stand in for them, and an audit
+ * helper is the last place where a wrong shape should fail quietly.
+ */
+export interface AuditableRequest {
+  headers?: { get?: HeaderReader | undefined } | null
+  header?: HeaderReader | undefined
+  /** The resolved fine-grained token, stashed by whichever gate checked it. */
+  __fineGrainedToken?: unknown
+}
+
+/** Either way a request offers to read a header: `headers.get` or `header()`. */
+type HeaderReader = (name: string) => string | null | undefined
+
+/**
  * The id of the access token this request authenticated with, or null.
  *
  * A single place to ask, because the answer lives in a router internal
@@ -83,7 +103,7 @@ export async function recordAudit(entry: AuditEntry): Promise<boolean> {
  * Never throws. An audit row with the actor and no token is worth writing; one
  * that failed to be written because the lookup threw is not.
  */
-export async function tokenIdFor(request: any): Promise<number | null> {
+export async function tokenIdFor(request: AuditableRequest): Promise<number | null> {
   try {
     /*
      * This project's own token, and only that.
@@ -100,8 +120,9 @@ export async function tokenIdFor(request: any): Promise<number | null> {
      * request that reached neither.
      */
     const stashed = request?.__fineGrainedToken
+
     if (stashed && typeof stashed === 'object') {
-      const id = Number((stashed as any).tokenId)
+      const id = Number((stashed as { tokenId?: unknown }).tokenId)
 
       return Number.isInteger(id) && id > 0 ? id : null
     }
@@ -136,7 +157,7 @@ export async function tokenIdFor(request: any): Promise<number | null> {
  * four, and so a new field added here reaches every call site at once instead
  * of reaching the ones somebody remembered.
  */
-export async function auditFrom(request: any): Promise<{ tokenId: number | null, ip: string | null, userAgent: string | null }> {
+export async function auditFrom(request: AuditableRequest): Promise<{ tokenId: number | null, ip: string | null, userAgent: string | null }> {
   return {
     tokenId: await tokenIdFor(request),
     // The first entry of `x-forwarded-for`: the client as the nearest trusted
