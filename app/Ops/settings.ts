@@ -165,6 +165,31 @@ export const SETTINGS = {
     describes: 'The name shown in the interface and in email this instance sends',
     enforcedIn: 'app/Jobs/SendNotificationJob.ts, app/Jobs/SendDigestJob.ts',
   },
+
+  /**
+   * How many bytes of job output this instance will store per second, in total.
+   *
+   * Backpressure rather than loss. Past this, a chunk is refused with a wait
+   * and the runner sends the same one again - which slows the job and keeps its
+   * log whole. Dropping the middle instead would be worse than the per-job
+   * ceiling's truncation at the end, because a reader cannot tell it happened.
+   *
+   * Instance-wide rather than per job, because that is where the problem is:
+   * one job is bounded by the per-job ceiling anyway, and what makes every
+   * other write on the box slow is forty jobs flooding at once.
+   *
+   * A setting rather than a constant because the right number is a property of
+   * the disk underneath, which the person running this knows and this code
+   * cannot.
+   */
+  log_bytes_per_second: {
+    type: 'number',
+    min: 0,
+    max: 1024 * 1024 * 1024,
+    fallback: String(8 * 1024 * 1024),
+    describes: 'Bytes of job output stored per second across the instance before runners are asked to slow down. 0 means no limit.',
+    enforcedIn: 'app/Actions/Runner/logs.ts',
+  },
 } as const satisfies Record<string, SettingDefinition>
 
 export type SettingKey = keyof typeof SETTINGS

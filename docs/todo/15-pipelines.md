@@ -1994,8 +1994,26 @@ decisions.
       join would mean buffering a log meant to be streamed. The runner's masking covers it, because
       the runner sees the stream. A value shorter than five characters is also left alone - a secret
       of `dev` would blank a word everywhere it appears.
-- [ ] Log size ceiling with a documented truncation behavior, and backpressure that slows a runner
+- [x] Log size ceiling with a documented truncation behavior, and backpressure that slows a runner
       rather than dropping the middle of the log
+
+      The ceiling is two megabytes a job, truncating at the *end* with a line saying so - a visible
+      loss a reader can act on.
+
+      The backpressure is `log_bytes_per_second`, an instance setting: past it a chunk is refused
+      with a wait, and the runner sends the same one again. The chunk is idempotent on its sequence,
+      so the retry costs nothing and the log stays whole and in order. **Dropping the middle would
+      be worse than truncating the end**, because a reader cannot tell it happened.
+
+      Instance-wide rather than per job, because that is where the problem is: one job is bounded by
+      its own ceiling anyway, and what makes every other write on the box slow is forty jobs
+      flooding at once. A setting rather than a constant because the right number is a property of
+      the disk underneath, which the operator knows and this code cannot. Zero is off, and a
+      settings table this cannot read is treated as off - refusing every chunk because a lookup
+      failed would lose the output of every job on the instance.
+
+      The runner's retry is bounded: after a few refusals it lets the chunk go and carries on.
+      Losing a line is bad; a machine stalled on a server that keeps saying no is worse.
 - [x] Annotations: markdown, with a level (success, info, warning, error), a context key so a rerun
       replaces rather than appends, and append semantics when asked for
 

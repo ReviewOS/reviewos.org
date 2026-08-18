@@ -57,6 +57,8 @@ export interface AppendOutcome {
   /** True once the job has said all it is going to be allowed to say. */
   truncated: boolean
   reason: string
+  /** How long to wait before sending this chunk again, when it was refused. */
+  retryAfterMs?: number
 }
 
 /** Bytes rather than characters: the ceiling is about disk, not about reading. */
@@ -110,6 +112,22 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
   const content = byteLength(text) > MAX_CHUNK_BYTES
     ? `${text.slice(0, MAX_CHUNK_BYTES)}\n[chunk truncated]\n`
     : text
+
+  /*
+   * Backpressure, before anything is written.
+   *
+   * The ceiling below truncates at the *end*, which is a documented and
+   * survivable loss. Dropping the middle is not: a log missing the part where
+   * something went wrong is worse than a log that stops, because a reader
+   * cannot tell it happened. So a job producing faster than this instance wants
+   * to store is asked to wait and send the same chunk again, which slows the
+   * job and keeps its output whole - the chunk is idempotent on
+   * `(job, attempt, sequence)`, so a retry costs nothing.
+   */
+  const wait = await throttleFor(byteLength(text))
+
+  if (wait > 0)
+    return { ok: false, duplicate: false, truncated: false, reason: 'too fast', retryAfterMs: wait }
 
   const already = await storedBytes(input.jobId)
 
@@ -260,6 +278,71 @@ function readSettings(settings: unknown): Record<string, any> {
   catch {
     return {}
   }
+}
+
+/**
+ * What this instance has written recently, for the rate check.
+ *
+ * A sliding second, in memory, across every job. Deliberately not a row: a
+ * counter written on every chunk would put a write on the hot path of every
+ * line, which is the thing this exists to protect. An instance that restarts
+ * forgets, and the worst that costs is one second of unthrottled writing.
+ *
+ * **Instance-wide rather than per job**, because that is where the problem is.
+ * One job is bounded by the per-job ceiling anyway; what makes every other
+ * write on the box slow is forty jobs flooding at once.
+ */
+const window = { bytes: 0, since: 0 }
+
+/**
+ * The budget, from the instance's settings.
+ *
+ * Read on every chunk rather than cached here: `allSettings` already holds a
+ * short cache that a write invalidates, and a second cache on top of it means a
+ * change an operator makes does not take effect until two timers agree - which
+ * is the sort of behaviour that gets diagnosed as "the setting does nothing".
+ */
+async function bytesPerSecond(): Promise<number> {
+  try {
+    const { numberSetting } = await import('../../Ops/settings')
+
+    return Math.max(0, await numberSetting('log_bytes_per_second'))
+  }
+  catch {
+    // A settings table this cannot read means no throttle rather than no logs:
+    // refusing every chunk because a lookup failed would lose the output of
+    // every job on the instance.
+    return 0
+  }
+}
+
+/** How long a runner should wait before sending this chunk again, or zero. */
+async function throttleFor(bytes: number): Promise<number> {
+  const limit = await bytesPerSecond()
+
+  // Zero is off, which is what a single-team instance with a fast disk wants
+  // and what this behaves as when the setting cannot be read.
+  if (limit <= 0)
+    return 0
+
+  const now = Date.now()
+
+  if (now - window.since >= 1000) {
+    window.since = now
+    window.bytes = bytes
+
+    return 0
+  }
+
+  if (window.bytes + bytes <= limit) {
+    window.bytes += bytes
+
+    return 0
+  }
+
+  // Wait out the rest of this second and no longer: a runner that sleeps a
+  // second per chunk turns backpressure into a stall.
+  return Math.max(50, 1000 - (now - window.since))
 }
 
 /** Which attempt the job is on, for attributing a chunk to it. */

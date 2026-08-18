@@ -376,3 +376,59 @@ describe('output sent as events', () => {
     expect(page.chunks[0]?.events).toBeUndefined()
   })
 })
+
+describe('a job producing faster than the instance wants to store', () => {
+  test('is asked to slow down rather than having the middle of its log dropped', async () => {
+    if (!available)
+      return
+
+    /*
+     * The per-job ceiling truncates at the *end*, visibly, and that is
+     * survivable. Dropping the middle is not: a log missing the part where
+     * something went wrong is worse than one that stops, because a reader
+     * cannot tell it happened.
+     *
+     * So a chunk over the instance's budget is refused with a wait and sent
+     * again. It is idempotent on its sequence, so the retry costs nothing and
+     * the log stays whole and in order.
+     */
+    const { appendLog } = await import('../../app/Actions/Runner/logs')
+    const { writeSetting } = await import('../../app/Ops/settings')
+
+    const job = (await claimOne()).id
+
+    // A budget small enough to cross in two chunks. The default is eight
+    // megabytes a second, which is a property of the disk rather than of this
+    // test.
+    await writeSetting('log_bytes_per_second', '2048', null)
+
+    try {
+      const chunk = 'x'.repeat(1500)
+
+      const first = await appendLog({ jobId: job, sequence: 1, content: chunk, stream: 'stdout' })
+      const second = await appendLog({ jobId: job, sequence: 2, content: chunk, stream: 'stdout' })
+
+      expect(first.ok).toBe(true)
+
+      expect(second.ok).toBe(false)
+      expect(Number(second.retryAfterMs)).toBeGreaterThan(0)
+      expect(Number(second.retryAfterMs)).toBeLessThanOrEqual(1000)
+
+      // Nothing was lost: the refused chunk was never stored, so the runner
+      // sending it again lands it in order rather than after a hole.
+      const stored: any[] = await db
+        .selectFrom('workflow_job_logs')
+        .select(['sequence'])
+        .where('workflow_job_id', '=', job)
+        .orderBy('sequence')
+        .execute()
+
+      expect(stored.map(row => Number(row.sequence))).toEqual([1])
+    }
+    finally {
+      // Off again, so the rest of this suite is not throttled by a setting this
+      // test left behind.
+      await writeSetting('log_bytes_per_second', '0', null)
+    }
+  })
+})

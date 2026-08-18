@@ -2461,7 +2461,26 @@ async function post(baseUrl: string, path: string, token: string, body: unknown)
 }
 
 async function append(baseUrl: string, jobToken: string, sequence: number, content: string, stream: 'stdout' | 'stderr'): Promise<void> {
-  await post(baseUrl, '/api/runner/logs', jobToken, { sequence, content, stream })
+  /*
+   * Retried when the instance asks this runner to slow down.
+   *
+   * The chunk is idempotent on its sequence, so sending it again costs nothing
+   * and the log stays whole - which is the point: the ceiling truncates at the
+   * end, visibly, and dropping the middle instead would be a log missing the
+   * part where something went wrong with nothing to say it happened.
+   *
+   * Bounded, because a runner that waits forever on a server that keeps saying
+   * no is a job nobody can cancel. After a few tries the chunk is let go and
+   * the job carries on: losing a line is bad, and stalling a machine is worse.
+   */
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const answer = await post(baseUrl, '/api/runner/logs', jobToken, { sequence, content, stream })
+
+    if (answer.ok || !answer.body?.retry_after_ms)
+      return
+
+    await new Promise(resolve => setTimeout(resolve, Math.min(2000, Number(answer.body.retry_after_ms) || 200)))
+  }
 }
 
 async function report(

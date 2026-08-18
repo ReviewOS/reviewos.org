@@ -81,6 +81,24 @@ export default new Action({
       events,
     })
 
+    /*
+     * Backpressure rather than loss.
+     *
+     * A job producing faster than this instance wants to store is asked to wait
+     * and send the same chunk again - which slows the job and keeps its output
+     * whole. Dropping the middle of a log instead would be worse than the
+     * ceiling's truncation at the end, because a reader cannot tell it
+     * happened. The chunk is idempotent on its sequence, so a retry costs
+     * nothing.
+     */
+    if (!outcome.ok && outcome.retryAfterMs) {
+      return runnerJson(
+        { error: 'slow down', retry_after_ms: outcome.retryAfterMs },
+        429,
+        { 'Retry-After': String(Math.ceil(outcome.retryAfterMs / 1000)) },
+      )
+    }
+
     if (!outcome.ok)
       return runnerJson({ error: outcome.reason }, 422)
 
