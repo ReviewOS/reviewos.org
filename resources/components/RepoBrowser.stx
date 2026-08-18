@@ -276,7 +276,22 @@ const movedTo = notFound ? await aliasTarget(owner) : null
  * context into a component, this line starts preserving the whole path with no
  * change needed.
  */
-const requestPath = String(serveContext?.path ?? '')
+/*
+ * The request, read from the global the host publishes for exactly this.
+ *
+ * `__stxServeContext` is bound as an identifier for a page and not for a
+ * component, so the local `serveContext` above is undefined here. The serve
+ * sets `globalThis.__stxServeContext` alongside it on every render - that line
+ * exists so code outside the render context can still reach the request - and
+ * that is what this reads. Same object, same request, just the accessor that
+ * is actually in scope.
+ *
+ * Preferred in order: the local binding if a host ever provides it, then the
+ * global, then the repository root for a render with no request behind it at
+ * all, such as a static build.
+ */
+const ambient = (globalThis as any).__stxServeContext
+const requestPath = String(serveContext?.path ?? ambient?.path ?? '')
 const movedPath = movedTo ? pathUnderOwner(requestPath || `/${owner}/${repository}`, movedTo) : ''
 
 /*
