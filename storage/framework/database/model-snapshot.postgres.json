@@ -12559,10 +12559,154 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "workflow_notification_rules",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id"
+            }
+          },
+          {
+            "name": "user_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "users",
+              "column": "id"
+            }
+          },
+          {
+            "name": "workflow",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "*",
+            "maxLength": 200
+          },
+          {
+            "name": "branch",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "*",
+            "maxLength": 200
+          },
+          {
+            "name": "job_key",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "",
+            "maxLength": 200
+          },
+          {
+            "name": "condition",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "failure",
+            "enumValues": [
+              "failure",
+              "success",
+              "recovery",
+              "always"
+            ],
+            "enumTypeName": "workflow_notification_rules_condition_type"
+          },
+          {
+            "name": "created_by_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "workflow_notification_rules_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_notification_rules_unique",
+            "columns": [
+              "repository_id",
+              "user_id",
+              "workflow",
+              "branch",
+              "job_key",
+              "condition"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "workflow_notification_rules_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "1b20b20c5d9278491b9b23307d39c01389feacac849bfd6c4a11f88c8212dd99",
+  "hash": "036f7139e516af77132d70972ef28878a3efc460770ec24f7731038111600b78",
   "dialect": "postgres",
-  "updatedAt": "2026-08-18T20:43:11.184Z"
+  "updatedAt": "2026-08-18T21:53:24.166Z"
 }

@@ -5609,6 +5609,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/workflow-notifications
+   */
+  postReposWorkflowNotifications(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "list" | "add" | "remove"; "user"?: string; "workflow"?: string; "branch"?: string; "job"?: string; "condition"?: "failure" | "success" | "recovery" | "always"; "id"?: number } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/workflow-notifications", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/repos/workflow-runs
    */
   getReposWorkflowRuns(input?: { "owner"?: string; "repo"?: string; "state"?: string; "branch"?: string; "sha"?: string; "workflow"?: number; "per_page"?: number; "cursor"?: string }, options?: RequestOptions): Promise<ApiResult<{ "workflow_runs"?: Array<Record<string, unknown>>; "next"?: string }>> {

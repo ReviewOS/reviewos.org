@@ -2956,8 +2956,34 @@ already commits us to the principle. These are the pipeline-specific pieces.
       consequence of the result being recorded, not a condition of it.
 
       All four ride phase 5's delivery, so redelivery, signing and the delivery log come for free.
-- [ ] Notifications on run outcome, per workflow and per step, to the channels phase 5 already
+- [x] Notifications on run outcome, per workflow and per step, to the channels phase 5 already
       delivers, with a rule set rather than an on/off switch
+
+      A rule is a sentence: *this workflow, this branch, this job, this outcome, this person*.
+      Globs for the workflow and the branch, so `release/*` is one rule rather than one per release
+      branch, and a workflow can be named by path, by file name or by its own name - all three are
+      what somebody has to hand. The switch this replaces is the reason CI notifications get muted:
+      a repository running twelve workflows on every push produces twelve messages about things that
+      were always going to pass.
+
+      **`recovery` is the condition that earns the feature**, and the one every implementation gets
+      wrong: the first success *after* something that was not one. Not "not failed" - a first run
+      going green is not a recovery, nothing was broken, and treating it as one is how a new
+      workflow's first success wakes somebody up.
+
+      **One person hears once about one run**, however many of their rules matched, and the narrowest
+      match decides what it says: a rule naming a job beats one naming the run, because whoever wrote
+      the narrower rule said what they cared about. Four messages about one push is how somebody ends
+      up muting the repository.
+
+      A rule names somebody on this instance and never an address - the channel is the recipient's
+      own setting, which phase 5 already holds. Subscribing yourself needs read access; subscribing
+      somebody else needs `repository:settings`, because signing a colleague up for an alert is not a
+      thing a passer-by may do. Access is checked again at delivery, since a rule outlives the access
+      that justified it, and a fork's run notifies nobody: the workflow is the base branch's, the run
+      is a stranger's code, and a pull request must not be a way to make this instance message a
+      maintainer on demand. A rule naming a workflow that does not exist is refused when it is
+      written rather than silently never matching.
 - [x] A status badge endpoint, cached, for a workflow on a branch
 
       `GET /api/repos/badge?owner=&repo=&workflow=&branch=`, drawn rather than fetched: no external

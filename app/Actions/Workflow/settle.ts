@@ -23,6 +23,7 @@ import { decideGate, environmentRules } from './environments'
 import { createJobsForRun, dispatchWorkflowRun, releaseGroup } from './dispatch'
 import { callMarkerOf, resolveCallOutputs } from './callOutputs'
 import { deliverJobNotify } from './notify'
+import { deliverRunNotifications } from './notifyDelivery'
 import type { JobState } from './states'
 import { cancelOnFailingCasualties, effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
 
@@ -516,6 +517,16 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
        * rule waiting on this one is not the thing to hold up.
        */
       await dispatchWorkflowRun({ runId, activity: 'completed' }).catch(() => null)
+
+      /*
+       * And whoever asked to hear about this workflow on this branch.
+       *
+       * Here rather than in a listener, because the rules need the run's
+       * conclusion *and* the one before it, and this is the moment both are
+       * true. Errors are swallowed inside: a run must record its conclusion
+       * whatever the inbox does.
+       */
+      await deliverRunNotifications(runId)
 
       const finished = await db
         .selectFrom('workflow_runs')

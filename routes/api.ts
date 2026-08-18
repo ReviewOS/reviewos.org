@@ -893,6 +893,12 @@ route.post('/repos/environments', 'Actions/Workflow/EnvironmentsAction').middlew
 route.post('/repos/variables', 'Actions/Workflow/VariablesAction').middleware('auth')
 
 /*
+ * Who hears about a run, and when. A rule set rather than a switch: a
+ * repository-wide "notify me" is an inbox nobody reads by the second week.
+ */
+route.post('/repos/workflow-notifications', 'Actions/Workflow/NotificationRulesAction').middleware('auth')
+
+/*
  * Secrets: set, removed, and listed by name.
  *
  * There is deliberately no endpoint that returns a value. A reveal button is
