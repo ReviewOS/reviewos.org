@@ -2153,9 +2153,19 @@ decisions.
       page went blank and the failure surfaced as thirteen unrelated assertions.
 - [ ] Keyboard navigation through jobs and log sections, and a run page that is readable with no
       JavaScript for the finished case, in line with the phase 14 rule
-- [ ] Tests: a run page rendered server-side for a finished run, redaction of a secret that appears
+- [x] Tests: a run page rendered server-side for a finished run, redaction of a secret that appears
       in a log line split across two writes, an annotation replaced by context key, metadata written
       by two parallel jobs, and artifact download authorization from a different repository
+
+      All five. The split-across-two-writes case is two tests rather than one, because the answer
+      has two halves and either alone reads as a hole: **the runner catches it**, since a process
+      writes bytes and the runner buffers to a newline before masking the joined line, and **the
+      server does not**, because it sees one stored chunk at a time and holding the tail of each to
+      check the join would mean buffering a log meant to be streamed.
+
+      That is the documented limitation, and it has a test asserting the gap rather than a paragraph
+      claiming there is none - a redaction feature people believe is total is worse than one whose
+      edge they know.
 
 ---
 
