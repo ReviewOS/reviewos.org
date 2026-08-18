@@ -210,6 +210,16 @@ export interface WorkflowJob {
    * that often does not belong inside a JSON blob.
    */
   priority: number
+
+  /**
+   * `reviewos.parallelism:` - how many identical copies of this job to run.
+   *
+   * 0 when the job did not ask. Surfaced here as well as in `settings` because
+   * the validator, the conformance page and the tests all read the parsed job
+   * rather than its blob, and a number only a JSON string knows about is one
+   * that gets silently dropped by the next thing that rebuilds the object.
+   */
+  parallelism: number
 }
 
 /**
@@ -239,6 +249,8 @@ interface ExtensionResult {
   branches: string[]
   /** `allow-dependency-failure:` - run after a failed dependency, on purpose. */
   allowDependencyFailure: boolean
+  /** `parallelism:` - how many identical copies of this job to run. 0 for none. */
+  parallelism: number
 }
 
 export interface WorkflowService {
@@ -448,6 +460,9 @@ const EXTENSION_KEYS = new Set([
   'retry',
   'priority',
   'agents',
+  // One step, N identical jobs. The other half of the split endpoint: a suite
+  // sharded across five machines needs five jobs that know which one they are.
+  'parallelism',
   // Buildkite's step attributes, in the three shapes people actually reach for.
   'skip',
   'soft-fail',
@@ -773,14 +788,14 @@ function extensionOf(
   const raw = asRecord(body.reviewos)
 
   if (!raw)
-    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false }
+    return { kind: 'command', settings: {}, group: null, ifChanged: [], priority: 0, skip: null, softFail: null, branches: [], allowDependencyFailure: false, parallelism: 0 }
 
   for (const key of Object.keys(raw)) {
     if (!EXTENSION_KEYS.has(key)) {
       errors.push({
         line: lineOf(source, key, jobLine),
         message: `\`${key}\` is not a \`reviewos:\` key, in job \`${id}\``,
-        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
+        fix: 'The keys are `wait`, `block`, `trigger`, `group`, `if-changed`, `retry`, `priority`, `agents`, `parallelism`, `skip`, `soft-fail`, `branches` and `allow-dependency-failure`.',
       })
     }
   }
@@ -800,6 +815,7 @@ function extensionOf(
   const retry = retryFrom(raw.retry, id, jobLine, source, errors)
   const priority = priorityFrom(raw.priority, id, jobLine, source, errors)
   const agents = agentsFrom(raw.agents, id, jobLine, source, errors)
+  const parallelism = parallelismFrom(raw.parallelism, id, jobLine, source, errors)
 
   const skip = skipFrom(raw.skip)
   const softFail = softFailFrom(raw['soft-fail'])
@@ -815,11 +831,11 @@ function extensionOf(
       fix: 'A job is one kind. Split it into two jobs, and have the second `needs:` the first.',
     })
 
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism }
   }
 
   if (kinds.length === 0)
-    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure }
+    return { kind: 'command', settings: settingsWithAllowance(settingsOf(retry, agents, parallelism), allowDependencyFailure), group, ifChanged, priority, skip, softFail, branches, allowDependencyFailure, parallelism }
 
   if (ifChanged.length > 0) {
     /*
@@ -832,6 +848,20 @@ function extensionOf(
       line: lineOf(source, 'if-changed', jobLine),
       message: `Job \`${id}\` is a \`${kinds[0]}\` job, which cannot be skipped by \`if-changed\``,
       fix: 'Put `if-changed:` on the jobs that do the work, not on the barrier or gate between them.',
+    })
+  }
+
+  if (parallelism > 0) {
+    /*
+     * Five copies of a barrier is five barriers, and five copies of a gate is
+     * five approvals for one deploy. Both change the shape of the graph into
+     * something the author plainly did not mean, so this is a refusal rather
+     * than a value quietly ignored.
+     */
+    errors.push({
+      line: lineOf(source, 'parallelism', jobLine),
+      message: `Job \`${id}\` is a \`${kinds[0]}\` job, which cannot be run in parallel copies`,
+      fix: 'Put `parallelism:` on the job that does the work, not on the barrier or gate around it.',
     })
   }
 
@@ -868,6 +898,7 @@ function extensionOf(
       },
       group,
       allowDependencyFailure,
+      parallelism: 0,
     }
   }
 
@@ -882,6 +913,7 @@ function extensionOf(
       softFail,
       branches,
       allowDependencyFailure,
+      parallelism: 0,
     }
   }
 
@@ -895,6 +927,7 @@ function extensionOf(
     softFail,
     branches,
     allowDependencyFailure,
+    parallelism: 0,
   }
 }
 
@@ -1046,7 +1079,7 @@ function blockFrom(
 }
 
 /** The extension settings a command job carries, omitting what it did not say. */
-function settingsOf(retry: Record<string, unknown> | null, agents: string[]): Record<string, unknown> {
+function settingsOf(retry: Record<string, unknown> | null, agents: string[], parallelism = 0): Record<string, unknown> {
   const settings: Record<string, unknown> = {}
 
   if (retry)
@@ -1054,6 +1087,9 @@ function settingsOf(retry: Record<string, unknown> | null, agents: string[]): Re
 
   if (agents.length > 0)
     settings.agents = agents
+
+  if (parallelism > 0)
+    settings.parallelism = parallelism
 
   return settings
 }
@@ -1165,6 +1201,67 @@ function priorityFrom(
   }
 
   return Math.max(-1000, Math.min(1000, priority))
+}
+
+/** The most copies of one job this instance will make. */
+export const MAX_PARALLELISM = 100
+
+/**
+ * `reviewos.parallelism:` - one job written once, run N times.
+ *
+ * A test suite that takes forty minutes on one machine takes eight on five, and
+ * the only thing standing between an author and that is having to write the
+ * same job five times with a different index in each. Buildkite has this and it
+ * is the attribute people name first when they say Actions is missing
+ * something: `strategy.matrix` can fake it with a list of integers, which works
+ * and reads as though the numbers meant something.
+ *
+ * The copies differ by one thing - which one they are - handed to the job as
+ * `REVIEWOS_PARALLEL_JOB` and `REVIEWOS_PARALLEL_JOB_COUNT`. That is exactly
+ * the pair `/api/repos/tests/split` takes, so a sharded suite is a `parallelism`
+ * and a `curl`, with no arithmetic in the workflow.
+ *
+ * **`1` is not an error, and it is not nothing either.** It is one copy, which
+ * is what an author gets when the number comes from a variable that happened to
+ * resolve to one - and refusing it would break a workflow that is behaving
+ * correctly.
+ */
+function parallelismFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): number {
+  if (value === undefined || value === null)
+    return 0
+
+  const count = Number(value)
+
+  if (!Number.isInteger(count) || count < 1) {
+    errors.push({
+      line: lineOf(source, 'parallelism', jobLine),
+      message: `\`parallelism:\` in job \`${id}\` is not a whole number of at least 1`,
+      fix: 'Write `parallelism: 5`. Each copy learns which one it is from `REVIEWOS_PARALLEL_JOB`.',
+    })
+
+    return 0
+  }
+
+  if (count > MAX_PARALLELISM) {
+    errors.push({
+      line: lineOf(source, 'parallelism', jobLine),
+      message: `\`parallelism:\` in job \`${id}\` asks for ${count} copies, and this instance stops at ${MAX_PARALLELISM}`,
+      // Named rather than silently clamped: a job quietly running twenty times
+      // when the file says two hundred is a suite reporting a fifth of itself
+      // as green.
+      fix: `Ask for at most ${MAX_PARALLELISM}, or split the suite across more than one job.`,
+    })
+
+    return 0
+  }
+
+  return count
 }
 
 /**
@@ -1736,6 +1833,7 @@ export function parseWorkflow(source: string, path = 'workflow.yml', options: Pa
       group: extension.group,
       ifChanged: extension.ifChanged,
       priority: extension.priority,
+      parallelism: extension.parallelism,
     })
   }
 

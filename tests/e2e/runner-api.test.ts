@@ -224,6 +224,68 @@ describe('claiming over HTTP', () => {
     // The steps, in order, as text. Nothing here has been executed.
     expect(answer.body.job?.steps?.map((step: any) => step.run)).toEqual(['bun run build', 'bun test'])
     expect(answer.body.job?.steps?.[0]?.name).toBe('Compile')
+
+    /*
+     * And an ordinary job is told it is not a shard, rather than told it is one
+     * of one: `0 of 1` is indistinguishable from the first shard of a job
+     * somebody scaled down, and a script asking "am I a shard" deserves an
+     * answer it can branch on.
+     */
+    expect(answer.body.job?.parallel).toBeNull()
+  })
+
+  test('a sharded job arrives knowing which shard it is', async () => {
+    if (!available)
+      return
+
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path: '.github/workflows/shard.yml',
+      source: `name: Shard
+on: push
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    reviewos:
+      parallelism: 3
+    steps:
+      - run: ./test
+`,
+      sha: 'e'.repeat(40),
+    })
+
+    await freshRun(unique('s').padEnd(40, '0').slice(0, 40))
+
+    const seen: Array<{ index: number, total: number }> = []
+
+    // Three polls, three different shards: the copies are independent work
+    // rather than a list one machine walks through, which is the whole point.
+    for (let poll = 0; poll < 6 && seen.length < 3; poll++) {
+      const answer = await call('/runner/claim', {})
+      const parallel = answer.body.job?.parallel
+
+      if (parallel)
+        seen.push({ index: Number(parallel.index), total: Number(parallel.total) })
+
+      // Finished as they are taken, so this test leaves nothing queued for the
+      // next one to claim by accident.
+      if (answer.body.job?.token)
+        await call('/runner/report', { state: 'succeeded' }, answer.body.job.token)
+    }
+
+    expect(seen.length).toBe(3)
+    expect(seen.map(one => one.index).sort()).toEqual([0, 1, 2])
+    expect(seen.every(one => one.total === 3)).toBe(true)
+
+    /*
+     * And the workflow goes away again. It is a second file in a repository the
+     * rest of this suite dispatches pushes into, so leaving it behind means
+     * every later `freshRun` quietly creates two runs and the next claim takes
+     * a shard instead of the job that test was watching.
+     */
+    await db.deleteFrom('workflows').where('path', '=', '.github/workflows/shard.yml').execute()
   })
 
   // A runner may want to refuse work it is not willing to run, and an untrusted

@@ -282,7 +282,7 @@ export default new Action({
      */
     const jobRow: any = await db
       .selectFrom('workflow_jobs')
-      .select(['matrix_values', 'timeout_minutes', 'settings', 'approved_at'])
+      .select(['matrix_values', 'timeout_minutes', 'settings', 'approved_at', 'parallel_index', 'parallel_total'])
       .where('id', '=', claimed.jobId)
       .executeTakeFirst()
 
@@ -414,6 +414,21 @@ export default new Action({
          * job rather than about the definition.
          */
         matrix_values: readJson(jobRow?.matrix_values),
+        /*
+         * Which shard this is, when the job asked for `parallelism:`.
+         *
+         * Zero-based, matching what the runner exports and what
+         * `/api/repos/tests/split` takes - the whole point of the attribute is
+         * that a job can hand these two numbers straight to that endpoint and
+         * get its share back, with no arithmetic in the workflow.
+         *
+         * Null for an ordinary job rather than `0 of 1`: a script asking "am I
+         * a shard" should get an answer, and `0 of 1` is indistinguishable from
+         * the first shard of a job somebody reduced to one copy.
+         */
+        parallel: jobRow?.parallel_total
+          ? { index: Number(jobRow.parallel_index ?? 0), total: Number(jobRow.parallel_total) }
+          : null,
         /*
          * `vars`, resolved across the four levels at claim time.
          *

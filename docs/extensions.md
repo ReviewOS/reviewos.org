@@ -297,6 +297,58 @@ about it. See [autoscaling](./autoscaling.md).
 
 **Actions has no equivalent**; labels are all it has.
 
+### `parallelism` - one job, run N times
+
+```yaml
+  test:
+    runs-on: ubuntu-latest
+    reviewos:
+      parallelism: 5
+    steps:
+      - run: |
+          curl -sf "$REVIEWOS_API_URL/repos/tests/split" \
+            -H "authorization: Bearer $REVIEWOS_TOKEN" \
+            -d "{\"owner\":\"acme\",\"repo\":\"api\",\"suite\":\"unit\",
+                 \"nodes\":$REVIEWOS_PARALLEL_JOB_COUNT,\"index\":$REVIEWOS_PARALLEL_JOB,
+                 \"items\":$(ls tests/**/*.test.ts | jq -Rs 'split("\n")')}" \
+          | jq -r '.items[]' | xargs bun test
+```
+
+Five jobs from one definition, handed to five machines, named `test (1/5)`
+through `test (5/5)`. They succeed and fail separately, which is the point: a
+sharded suite where one shard fails should show you which one.
+
+Each copy is told which it is:
+
+| Variable | Value |
+|---|---|
+| `REVIEWOS_PARALLEL_JOB` | Which copy this is, **counting from zero** |
+| `REVIEWOS_PARALLEL_JOB_COUNT` | How many copies there are |
+
+**The index counts from zero and the name counts from one.** That is not an
+oversight and it is the one thing to get wrong here: the number exists to be
+handed to [`/api/repos/tests/split`](./test-intelligence.md), which indexes from
+zero like every other partitioning API, while a person reading a failed run is
+not indexing an array. Buildkite makes the same split for the same reason.
+
+There is no `GITHUB_PARALLEL_JOB`. Actions has no such variable, and inventing
+one would be this instance putting words in GitHub's mouth: a workflow written
+against it would quietly do something else on the platform it names.
+
+A job with no `parallelism:` is told nothing at all, rather than told it is
+copy 0 of 1 - a script asking "am I a shard" should get an answer it can branch
+on, and `0 of 1` is indistinguishable from the first shard of a suite somebody
+scaled down.
+
+**Actions can fake this** with `strategy.matrix: { shard: [1, 2, 3, 4, 5] }`,
+which works and reads as though the numbers meant something. The ceiling here is
+100 copies, and a file asking for more is refused rather than clamped: a suite
+quietly running twenty of the two hundred shards it asked for reports a tenth of
+itself as green.
+
+A barrier, a gate or a trigger cannot have copies. Five copies of a gate is five
+approvals for one deploy.
+
 ### `group` - a label
 
 ```yaml

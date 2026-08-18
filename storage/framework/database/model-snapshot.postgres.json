@@ -9028,6 +9028,22 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 40
+          },
+          {
+            "name": "parallel_index",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "parallel_total",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -12035,7 +12051,7 @@
       }
     ]
   },
-  "hash": "dc4a1770e22e59094726fa6b8b47d483aa943b76a0da29091644ee615d55c36c",
+  "hash": "027b60b7327337661b78806be562efc5d3b975d378250758c24746a288bb44ed",
   "dialect": "postgres",
-  "updatedAt": "2026-08-18T01:00:58.853Z"
+  "updatedAt": "2026-08-18T01:49:23.691Z"
 }

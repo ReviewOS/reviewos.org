@@ -714,60 +714,92 @@ async function createJobs(
             ? paths.reason
             : !skipped.run ? skipped.reason : branch.reason
 
-      const created: any = await db
-        .insertInto('workflow_jobs')
-        .values({
-          workflow_run_id: runId,
-          // Prefixed when this job came from a called workflow, so two
-          // workflows that both have a `build` are two rows rather than one
-          // collision.
-          job_id: prefix ? `${prefix}/${job.job_id}` : job.job_id,
-          concurrency_group: group,
-          condition: job.condition ?? null,
-          condition_reason: runs ? (job.condition ? decision.reason : null) : why,
-          // Actions' shape: `test (ubuntu-latest, 20)`. The values without
-          // their keys, because that is what fits in a job list and what
-          // somebody scanning a failed run already recognises.
-          name: callName(prefix, values ? `${job.name ?? job.job_id} (${labelFor(values)})` : (job.name ?? job.job_id)),
-          position: position++,
-          /*
-           * `blocked` for everything the control plane resolves itself, even
-           * with nothing to wait for.
-           *
-           * `queued` means "a runner may take this", and a gate that no runner
-           * may take would sit in it forever. The settler moves them out on
-           * the same pass that unblocks the rest of the graph.
-           */
-          state: !runs
-            ? 'skipped'
-            : (needs.length > 0 || String(job.kind ?? 'command') !== 'command' ? 'blocked' : 'queued'),
-          needs: job.needs,
-          runs_on: job.runs_on,
-          matrix_values: values ? JSON.stringify(values) : null,
-          /*
-           * Copied onto the run, like `needs` and `condition` above.
-           *
-           * These four decide what the run's outcome *means* - whether a
-           * failure failed it, whether its siblings were stopped, how long it
-           * was allowed to take - and reading them back from a definition that
-           * has since been edited would make a finished run's conclusion
-           * something nobody can reconstruct.
-           */
-          fail_fast: job.fail_fast !== false,
-          max_parallel: job.max_parallel ?? null,
-          timeout_minutes: job.timeout_minutes ?? null,
-          continue_on_error: job.continue_on_error === true,
-          kind: job.kind ?? 'command',
-          settings: job.settings ?? null,
-          group_label: job.group_label ?? null,
-          priority: Number(job.priority ?? 0),
-        } as any)
-        .returning(['id'])
-        .executeTakeFirst()
+      /*
+       * And one row per parallel copy of each of those.
+       *
+       * `parallelism: 5` is five jobs, for the same reason a matrix of four is
+       * four: they are handed to five machines, they succeed and fail
+       * separately, and a person looking at a failed run needs to see *which
+       * shard* broke. The copies differ by one number, which the job spends on
+       * deciding its own share of the work.
+       *
+       * A job with no `parallelism:` runs this loop once, so there is no branch
+       * here and no second insert to keep in step with the first.
+       */
+      const copies = settingsOfJob(job.settings).parallelism
 
-      await supersedeJobs(runId, Number(created?.id), group, job.job_cancel_in_progress === true)
+      for (let copy = 0; copy < copies; copy++) {
+        const created: any = await db
+          .insertInto('workflow_jobs')
+          .values({
+            workflow_run_id: runId,
+            // Prefixed when this job came from a called workflow, so two
+            // workflows that both have a `build` are two rows rather than one
+            // collision.
+            job_id: prefix ? `${prefix}/${job.job_id}` : job.job_id,
+            concurrency_group: group,
+            condition: job.condition ?? null,
+            condition_reason: runs ? (job.condition ? decision.reason : null) : why,
+            // Actions' shape: `test (ubuntu-latest, 20)`. The values without
+            // their keys, because that is what fits in a job list and what
+            // somebody scanning a failed run already recognises.
+            //
+            // A parallel copy adds `(3/5)`, counting from one: the environment
+            // hands the job a zero-based index because that is what the split
+            // endpoint takes, and a person reading a run is not indexing an
+            // array.
+            name: shardName(
+              callName(prefix, values ? `${job.name ?? job.job_id} (${labelFor(values)})` : (job.name ?? job.job_id)),
+              copy,
+              copies,
+            ),
+            parallel_index: copies > 1 ? copy : null,
+            parallel_total: copies > 1 ? copies : null,
+            position: position++,
+            /*
+             * `blocked` for everything the control plane resolves itself, even
+             * with nothing to wait for.
+             *
+             * `queued` means "a runner may take this", and a gate that no runner
+             * may take would sit in it forever. The settler moves them out on
+             * the same pass that unblocks the rest of the graph.
+             */
+            state: !runs
+              ? 'skipped'
+              : (needs.length > 0 || String(job.kind ?? 'command') !== 'command' ? 'blocked' : 'queued'),
+            needs: job.needs,
+            runs_on: job.runs_on,
+            matrix_values: values ? JSON.stringify(values) : null,
+            /*
+             * Copied onto the run, like `needs` and `condition` above.
+             *
+             * These four decide what the run's outcome *means* - whether a
+             * failure failed it, whether its siblings were stopped, how long it
+             * was allowed to take - and reading them back from a definition that
+             * has since been edited would make a finished run's conclusion
+             * something nobody can reconstruct.
+             */
+            fail_fast: job.fail_fast !== false,
+            max_parallel: job.max_parallel ?? null,
+            timeout_minutes: job.timeout_minutes ?? null,
+            continue_on_error: job.continue_on_error === true,
+            kind: job.kind ?? 'command',
+            settings: job.settings ?? null,
+            group_label: job.group_label ?? null,
+            priority: Number(job.priority ?? 0),
+          } as any)
+          .returning(['id'])
+          .executeTakeFirst()
+
+        await supersedeJobs(runId, Number(created?.id), group, job.job_cancel_in_progress === true)
+      }
     }
   }
+}
+
+/** `test` with `(3/5)` after it, or `test` when there is only one of it. */
+function shardName(name: string, index: number, total: number): string {
+  return total > 1 ? `${name} (${index + 1}/${total})` : name
 }
 
 /**
@@ -1035,17 +1067,21 @@ function labelFor(values: Record<string, unknown>): string {
  * is skipped when it should have run is a broken commit nobody noticed.
  */
 /** A definition job's stored `reviewos:` attributes, which are JSON in a column. */
-function settingsOfJob(settings: unknown): { skip: string | null, branches: string[] } {
+function settingsOfJob(settings: unknown): { skip: string | null, branches: string[], parallelism: number } {
   try {
     const parsed = JSON.parse(String(settings ?? '{}'))
+    const parallelism = Number(parsed?.parallelism)
 
     return {
       skip: typeof parsed?.skip === 'string' ? parsed.skip : null,
       branches: Array.isArray(parsed?.branches) ? parsed.branches.map(String) : [],
+      // One copy when the definition said nothing, which keeps the loop below
+      // the same shape with and without the attribute.
+      parallelism: Number.isInteger(parallelism) && parallelism > 0 ? parallelism : 1,
     }
   }
   catch {
-    return { skip: null, branches: [] }
+    return { skip: null, branches: [], parallelism: 1 }
   }
 }
 

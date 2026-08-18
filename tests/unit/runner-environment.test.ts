@@ -236,3 +236,37 @@ describe('the event payload', () => {
     expect(JSON.stringify(payload)).not.toContain('http')
   })
 })
+
+describe('a parallel job', () => {
+  test('learns which shard it is, in the numbering the split endpoint takes', () => {
+    const environment = environmentFor({ ...job, parallel: { index: 2, total: 5 } }, '/w')
+
+    /*
+     * Zero-based, because `/api/repos/tests/split` indexes from zero and the
+     * whole point of `parallelism:` is that a job can pass these two straight
+     * to it. The job's *name* on the run screen says `(3/5)`, counting from
+     * one, because a person reading a run is not indexing an array.
+     */
+    expect(environment.REVIEWOS_PARALLEL_JOB).toBe('2')
+    expect(environment.REVIEWOS_PARALLEL_JOB_COUNT).toBe('5')
+  })
+
+  test('and no GITHUB_ twin is invented for it', () => {
+    // Actions has no such variable. A `GITHUB_PARALLEL_JOB` would be this
+    // instance putting words in GitHub's mouth, and a workflow written against
+    // it would quietly do something else on the platform it names.
+    const environment = environmentFor({ ...job, parallel: { index: 0, total: 3 } }, '/w')
+
+    expect(environment.GITHUB_PARALLEL_JOB).toBeUndefined()
+  })
+
+  test('an ordinary job is told nothing rather than told it is one of one', () => {
+    const environment = environmentFor(job, '/w')
+
+    // `0 of 1` is indistinguishable from the first shard of a job somebody
+    // reduced to a single copy, and a script asking "am I a shard" deserves an
+    // answer.
+    expect(environment.REVIEWOS_PARALLEL_JOB).toBeUndefined()
+    expect(environment.REVIEWOS_PARALLEL_JOB_COUNT).toBeUndefined()
+  })
+})

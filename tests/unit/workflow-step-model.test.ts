@@ -272,7 +272,7 @@ describe('the rules that keep the kinds apart', () => {
 
     expect(message).toContain('`pause` is not a `reviewos:` key')
 
-    for (const key of ['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents', 'skip', 'soft-fail', 'branches'])
+    for (const key of ['wait', 'block', 'trigger', 'group', 'if-changed', 'retry', 'priority', 'agents', 'parallelism', 'skip', 'soft-fail', 'branches'])
       expect(message).toContain(`\`${key}\``)
   })
 })
@@ -464,6 +464,87 @@ describe('priority', () => {
     steps:
       - run: ./deploy
 `).join(' ')).toContain('not a whole number')
+  })
+})
+
+describe('parallelism', () => {
+  test('is a count on the job, and rides in the settings a run copies forward', () => {
+    const [suite] = jobs(`jobs:
+  test:
+    runs-on: ubuntu-latest
+    reviewos:
+      parallelism: 5
+    steps:
+      - run: ./test
+`)
+
+    expect(suite!.parallelism).toBe(5)
+    // In the settings blob too, because that is what the dispatcher reads when
+    // it decides how many rows to write - and a run copies its settings forward
+    // so a finished run stays readable after the file changes.
+    expect((suite!.settings as any).parallelism).toBe(5)
+  })
+
+  test('one copy is a legitimate answer, not an error', () => {
+    /*
+     * The number usually comes from somebody scaling a suite up and down, and
+     * refusing the bottom of that range would break a workflow that is behaving
+     * correctly.
+     */
+    const [suite] = jobs(`jobs:
+  test:
+    runs-on: ubuntu-latest
+    reviewos:
+      parallelism: 1
+    steps:
+      - run: ./test
+`)
+
+    expect(suite!.parallelism).toBe(1)
+  })
+
+  test('and a number past the ceiling is refused, saying what the ceiling is', () => {
+    // Refused rather than clamped: a job quietly running twenty times when the
+    // file asks for two hundred is a suite reporting a tenth of itself as green.
+    const message = errorsIn(`jobs:
+  test:
+    runs-on: ubuntu-latest
+    reviewos:
+      parallelism: 5000
+    steps:
+      - run: ./test
+`).join(' ')
+
+    expect(message).toContain('stops at 100')
+  })
+
+  test('zero and a word are both refused', () => {
+    for (const value of ['0', '-3', 'lots']) {
+      expect(errorsIn(`jobs:
+  test:
+    runs-on: ubuntu-latest
+    reviewos:
+      parallelism: ${value}
+    steps:
+      - run: ./test
+`).join(' ')).toContain('not a whole number of at least 1')
+    }
+  })
+
+  test('a barrier or a gate cannot have copies', () => {
+    /*
+     * Five copies of a gate is five approvals for one deploy, and five copies
+     * of a barrier is a graph shape nobody wrote. Both are refusals rather than
+     * a value quietly ignored.
+     */
+    for (const kind of ['wait: true', 'block: { prompt: Ship it? }']) {
+      expect(errorsIn(`jobs:
+  gate:
+    reviewos:
+      ${kind}
+      parallelism: 3
+`).join(' ')).toContain('cannot be run in parallel copies')
+    }
   })
 })
 

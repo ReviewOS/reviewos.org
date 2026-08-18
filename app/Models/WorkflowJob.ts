@@ -397,6 +397,33 @@ export default defineModel({
     },
 
     /**
+     * Which copy of a parallel job this is, counted from zero.
+     *
+     * Zero-based because it is handed to the job as `REVIEWOS_PARALLEL_JOB` and
+     * spent immediately on `/api/repos/tests/split`, which indexes from zero -
+     * and a number that means one thing in the environment and another in the
+     * endpoint it exists to feed is a number people get wrong once each.
+     *
+     * The *name* counts from one (`test (3/5)`), because a person reading a run
+     * is not indexing an array. Buildkite makes the same split, for the same
+     * reason.
+     */
+    parallel_index: {
+      order: 9,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    /** How many copies there are in total, so a job can size its own share. */
+    parallel_total: {
+      order: 9,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    /**
      * When this job became available to a runner.
      *
      * Not `created_at`, and the difference is the whole reason the column

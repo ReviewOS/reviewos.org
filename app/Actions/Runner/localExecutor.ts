@@ -1178,6 +1178,24 @@ export function environmentFor(job: any, workspace: string): Record<string, stri
     environment[`REVIEWOS_${name}`] = value
   }
 
+  /*
+   * Which shard this is, for a job that asked for `parallelism:`.
+   *
+   * `REVIEWOS_*` only, with no `GITHUB_*` twin: Actions has no such variable,
+   * and inventing a `GITHUB_PARALLEL_JOB` would be this instance putting words
+   * in GitHub's mouth - a workflow written against it would silently do
+   * something else on the platform it names.
+   *
+   * **Zero-based**, which is what `/api/repos/tests/split` takes and what
+   * Buildkite exports, while the job's *name* on the run screen counts from
+   * one. That split is deliberate and it is the one thing to get wrong here, so
+   * it is written down in both places.
+   */
+  if (job?.parallel && Number(job.parallel.total) > 0) {
+    environment.REVIEWOS_PARALLEL_JOB = String(Number(job.parallel.index ?? 0))
+    environment.REVIEWOS_PARALLEL_JOB_COUNT = String(Number(job.parallel.total))
+  }
+
   return environment
 }
 

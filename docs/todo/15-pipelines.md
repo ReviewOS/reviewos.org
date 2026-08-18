@@ -1261,14 +1261,33 @@ below are the internal model's; the Actions key that maps onto each is noted whe
       **It orders a queue, it does not preempt.** A job already running is not stopped for a more
       important one: that would mean killing work somebody is waiting on to start work somebody else
       is waiting on, which needs a policy rather than a number.
-- [ ] `parallelism`, expanding one step into N identical jobs that differ only by index and total
+- [x] `parallelism`, expanding one step into N identical jobs that differ only by index and total
+
+      `reviewos: { parallelism: 5 }`, five rows in the run named `test (1/5)` through `test (5/5)`,
+      each told which it is through `REVIEWOS_PARALLEL_JOB` and `REVIEWOS_PARALLEL_JOB_COUNT`.
+
+      **The index counts from zero and the name counts from one**, deliberately: the number exists
+      to be handed to `/api/repos/tests/split`, which indexes from zero, and a person reading a
+      failed run is not indexing an array. Buildkite makes the same split. Written down in both
+      places because it is the one thing to get wrong here.
+
+      A hundred copies is the ceiling, and a file asking for more is refused rather than clamped: a
+      suite quietly running twenty of the two hundred shards it asked for reports a tenth of itself
+      as green. A barrier, a gate or a trigger cannot have copies - five copies of a gate is five
+      approvals for one deploy.
 - [ ] `matrix`, expanding across named dimensions, with `adjustments` that add a single combination,
       skip one, or soft-fail one, because the useful matrix is never the full cross product
 - [ ] `concurrency` and `concurrency_group`, a named limit shared across runs and workflows, which is
       how a shared staging environment or a deploy lock gets serialized
 - [ ] `concurrency_method`: ordered (a FIFO queue) or eager (whoever is ready). The difference is
       whether a deploy queue preserves commit order.
-- [ ] `agents`, a `key=value` tag query selecting which runners may take the job
+- [x] `agents`, a `key=value` tag query selecting which runners may take the job
+
+      Shipped with the fleet work: `reviewos: { agents: { gpu: a100 } }`, matched against the tags a
+      machine reported at registration. `runs-on:` is a set membership test, which is right for
+      `ubuntu-latest` and wrong for anything with a value in it - a fleet with four GPU models ends
+      up with labels called `gpu-a100`, and a label means whatever the person who typed it was
+      thinking.
 - [ ] `env`, per step, over a workflow-level `env`, over runner environment
 - [ ] `secrets`, naming secrets to inject rather than embedding them, resolved at dispatch
 - [ ] `artifact_paths`, globs uploaded automatically when the step ends, pass or fail

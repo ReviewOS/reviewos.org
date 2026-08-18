@@ -775,6 +775,84 @@ jobs:
  * on it: the job runs after a failed dependency, and the jobs that did *not*
  * ask are skipped as they always were.
  */
+describe('parallelism', () => {
+  const SHARDED = `name: Sharded
+on: push
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    reviewos:
+      parallelism: 5
+    steps:
+      - run: ./test --shard $REVIEWOS_PARALLEL_JOB/$REVIEWOS_PARALLEL_JOB_COUNT
+  once:
+    runs-on: ubuntu-latest
+    steps:
+      - run: ./build
+`
+
+  test('one job in the file is five jobs in the run, each knowing which it is', async () => {
+    if (!available)
+      return
+
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path: '.github/workflows/sharded.yml',
+      source: SHARDED,
+      sha: 'f'.repeat(40),
+    })
+
+    const result = await dispatchPush({
+      repositoryId: created.repositoryId,
+      event: { ref: 'refs/heads/main' },
+      headSha: unique('p').padEnd(40, '0').slice(0, 40),
+    })
+
+    let rows: any[] = []
+
+    for (const candidate of result.created) {
+      const found = await db
+        .selectFrom('workflow_jobs')
+        .select(['job_id', 'name', 'state', 'parallel_index', 'parallel_total'])
+        .where('workflow_run_id', '=', candidate)
+        .orderBy('position')
+        .execute()
+
+      if (found.some((row: any) => String(row.job_id) === 'suite'))
+        rows = found
+    }
+
+    const shards = rows.filter((row: any) => String(row.job_id) === 'suite')
+
+    // Five rows, not one job that somehow ran five times: they go to five
+    // machines and they fail separately, which is the whole reason to shard.
+    expect(shards.length).toBe(5)
+    expect(shards.map((row: any) => Number(row.parallel_index))).toEqual([0, 1, 2, 3, 4])
+    expect(new Set(shards.map((row: any) => Number(row.parallel_total)))).toEqual(new Set([5]))
+
+    /*
+     * Named from one, indexed from zero. The name is for the person scanning a
+     * failed run; the index is for the endpoint that hands the job its share.
+     */
+    expect(shards.map((row: any) => String(row.name))).toEqual([
+      'suite (1/5)', 'suite (2/5)', 'suite (3/5)', 'suite (4/5)', 'suite (5/5)',
+    ])
+
+    // Each is independently claimable, which is what makes the shards parallel
+    // rather than a list one machine works through.
+    expect(shards.every((row: any) => String(row.state) === 'queued')).toBe(true)
+
+    // And a job that asked for nothing is untouched - no `(1/1)` in its name,
+    // no columns set, so nothing downstream has to special-case one of one.
+    const plain = rows.find((row: any) => String(row.job_id) === 'once')
+
+    expect(String(plain.name)).toBe('once')
+    expect(plain.parallel_total).toBeNull()
+  })
+})
+
 describe('a job that runs after a failure on purpose', () => {
   test('is queued while its ordinary sibling is skipped', async () => {
     if (!available)
