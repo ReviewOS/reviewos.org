@@ -63,24 +63,16 @@ const QUOTED_SINGLE_QUOTE = `'\\''`
  */
 export function shellQuote(value: string): string {
   /*
-   * Written with a named constant and `split`/`join` rather than the shorter
+   * Written with named constants rather than the shorter
    * `` `'${value.replace(/'/g, `'\\''`)}'` ``, which is one template literal
-   * nested inside another's `${}`. That form is correct JavaScript and pickier
-   * 0.1.56 mis-scans it: the inner backtick closes the outer template in its
-   * tokenizer, the quote state desyncs, and the *next* function in the file is
-   * reported as having an unused parameter. Reported with a reproducer; this
-   * shape is also easier to read.
+   * nested inside another's `${}`. That form desynced pickier's comment masker
+   * and made it report the *next* function's parameter as unused. Fixed in
+   * pickier 0.1.57; this can go back to the one-liner once that version is
+   * installed here.
    */
   return `'${String(value ?? '').split(SINGLE_QUOTE).join(QUOTED_SINGLE_QUOTE)}'`
 }
 
-/**
- * The commands that put `sha` in the workspace.
- *
- * Two sources, and which one is used is a fact about *where the runner is*
- * rather than a setting: the instance's own machine has the bare repository on
- * disk, and any other machine clones over the ordinary git endpoint.
- */
 export function checkoutPlan(input: CheckoutRequest): CheckoutPlan {
   const options = input.options ?? {}
 
