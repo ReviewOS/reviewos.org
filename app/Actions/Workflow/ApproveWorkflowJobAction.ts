@@ -70,7 +70,7 @@ export default new Action({
     if (!Number.isInteger(number) || number <= 0 || !key)
       return response.json({ error: 'A run number and a job are required' }, 422)
 
-    const run: any = await db
+    const run = await db
       .selectFrom('workflow_runs')
       .select(['id', 'state'])
       .where('repository_id', '=', repository.id)
@@ -80,7 +80,7 @@ export default new Action({
     if (!run)
       return response.json({ error: 'No such workflow run' }, 404)
 
-    const job: any = await db
+    const job = await db
       .selectFrom('workflow_jobs')
       .select(['id', 'job_id', 'state', 'settings', 'name', 'kind'])
       .where('workflow_run_id', '=', Number(run.id))
@@ -182,7 +182,7 @@ export default new Action({
 
     const now = new Date().toISOString()
 
-    const result: any = await db
+    const result = await db
       .updateTable('workflow_jobs')
       .set({
         state: 'succeeded',
@@ -255,7 +255,7 @@ async function approveEnvironment(input: EnvironmentApproval): Promise<ApprovalO
   if (!rules)
     return { ok: false, error: 'That environment does not exist here', status: 404 }
 
-  const run: any = await db
+  const run = await db
     .selectFrom('workflow_runs')
     .select(['actor_id', 'event_ref'])
     .where('id', '=', input.runId)

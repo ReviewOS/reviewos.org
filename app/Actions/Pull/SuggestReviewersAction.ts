@@ -108,7 +108,7 @@ async function changedPaths(diskPath: string, baseSha: string, headSha: string):
  * makes the feature look broken to the person who just added them.
  */
 async function alreadyInvolved(pullRequestId: number, authorId: number): Promise<string[]> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('pull_request_reviewers')
     .innerJoin('users', 'users.id', '=', 'pull_request_reviewers.reviewer_id')
     .select(['users.handle as handle'])

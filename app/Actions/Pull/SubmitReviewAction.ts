@@ -289,7 +289,7 @@ async function writeComments(
   const written: Array<{ id: number, thread_id: number, path: string, line: number }> = []
 
   for (const comment of comments) {
-    const thread: any = await db
+    const thread = await db
       .insertInto('review_threads')
       .values({
         pull_request_id: context.pullRequestId,
@@ -309,7 +309,7 @@ async function writeComments(
 
     const { suggestionIn } = await import('./suggestions')
 
-    const row: any = await db
+    const row = await db
       .insertInto('review_comments')
       .values({
         review_thread_id: threadId,

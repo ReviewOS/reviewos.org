@@ -134,7 +134,7 @@ function newestPerWorkflow(rows: readonly any[]): any[] {
  * Worth revisiting when runs are frequent enough for it to matter.
  */
 async function nextNumber(repositoryId: number): Promise<number> {
-  const row: any = await db
+  const row = await db
     .selectFrom('workflow_runs')
     .select(['number'])
     .where('repository_id', '=', repositoryId)
@@ -212,7 +212,7 @@ export interface SubjectDispatchInput {
 export async function dispatchSubject(input: SubjectDispatchInput): Promise<DispatchResult> {
   const result: DispatchResult = { created: [], duplicates: 0, skipped: [] }
 
-  const repository: any = await db
+  const repository = await db
     .selectFrom('repositories')
     .select(['id', 'default_branch'])
     .where('id', '=', input.repositoryId)
@@ -246,7 +246,7 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
     const group = resolveGroup(version.concurrency_group, context)
 
     try {
-      const run: any = await db
+      const run = await db
         .insertInto('workflow_runs')
         .values({
           workflow_version_id: Number(version.id),
@@ -317,7 +317,7 @@ export interface RepositoryDispatchInput {
 export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput): Promise<DispatchResult> {
   const result: DispatchResult = { created: [], duplicates: 0, skipped: [] }
 
-  const repository: any = await db
+  const repository = await db
     .selectFrom('repositories')
     .select(['id', 'default_branch'])
     .where('id', '=', input.repositoryId)
@@ -352,7 +352,7 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
     const group = resolveGroup(version.concurrency_group, context)
 
     try {
-      const run: any = await db
+      const run = await db
         .insertInto('workflow_runs')
         .values({
           workflow_version_id: Number(version.id),
@@ -429,7 +429,7 @@ export async function dispatchWorkflowRun(input: {
   const result: DispatchResult = { created: [], duplicates: 0, skipped: [] }
   const activity = input.activity ?? 'completed'
 
-  const finished: any = await db
+  const finished = await db
     .selectFrom('workflow_runs')
     .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
     .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
@@ -453,7 +453,7 @@ export async function dispatchWorkflowRun(input: {
   if (String(finished.event) === 'workflow_run')
     return result
 
-  const repository: any = await db
+  const repository = await db
     .selectFrom('repositories')
     .select(['id', 'default_branch'])
     .where('id', '=', Number(finished.repository_id))
@@ -493,7 +493,7 @@ export async function dispatchWorkflowRun(input: {
     const group = resolveGroup(version.concurrency_group, context)
 
     try {
-      const run: any = await db
+      const run = await db
         .insertInto('workflow_runs')
         .values({
           workflow_version_id: Number(version.id),
@@ -652,7 +652,7 @@ async function createPullRequestRun(
   }))
 
   try {
-    const run: any = await db
+    const run = await db
       .insertInto('workflow_runs')
       .values({
         workflow_version_id: Number(version.id),
@@ -754,7 +754,7 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
   const group = resolveGroup(version.concurrency_group, context)
 
   try {
-    const run: any = await db
+    const run = await db
       .insertInto('workflow_runs')
       .values({
         workflow_version_id: Number(version.id),
@@ -838,7 +838,7 @@ async function supersede(
    * queued ones would produce two nobody will.
    */
   if (intermediate === 'skip') {
-    const waiting: any[] = await db
+    const waiting = await db
       .selectFrom('workflow_runs')
       .select(['id'])
       .where('repository_id', '=', repositoryId)
@@ -919,7 +919,7 @@ async function holdForGroup(input: {
   if (!input.group || input.cancelInProgress || input.intermediate !== 'run')
     return false
 
-  const ahead: any = await db
+  const ahead = await db
     .selectFrom('workflow_runs')
     .select(['id'])
     .where('repository_id', '=', input.repositoryId)
@@ -966,7 +966,7 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
   if (!group)
     return null
 
-  const busy: any = await db
+  const busy = await db
     .selectFrom('workflow_runs')
     .select(['id'])
     .where('repository_id', '=', repositoryId)
@@ -980,7 +980,7 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
   if (busy)
     return null
 
-  const next: any = await db
+  const next = await db
     .selectFrom('workflow_runs')
     .select(['id'])
     .where('repository_id', '=', repositoryId)
@@ -1046,7 +1046,7 @@ async function createJobs(
   context?: ConcurrencyContext,
   call: { prefix?: string, depth?: number, trail?: number[], rootNeeds?: string[] } = {},
 ): Promise<void> {
-  const definition: any[] = await db
+  const definition = await db
     .selectFrom('workflow_version_jobs')
     .select([
       'job_id', 'name', 'position', 'runs_on', 'needs', 'matrix',
@@ -1214,7 +1214,7 @@ async function createJobs(
       const plugins = await pluginSettings({ runId, settings: job.settings })
 
       for (let copy = 0; copy < copies; copy++) {
-        const created: any = await db
+        const created = await db
           .insertInto('workflow_jobs')
           .values({
             workflow_run_id: runId,
@@ -1388,7 +1388,7 @@ async function expandCall(input: {
    * outputs are the called workflow's declared outputs - resolved by the settler
    * when the barrier is released.
    */
-  const called: any[] = await db
+  const called = await db
     .selectFrom('workflow_version_jobs')
     .select(['job_id', 'needs'])
     .where('workflow_version_id', '=', resolved.target.versionId)
@@ -1443,7 +1443,7 @@ function parseWith(stored: unknown): Record<string, unknown> {
 
 /** The repository a run belongs to, for resolving a call against it. */
 async function repositoryOf(runId: number): Promise<number> {
-  const run: any = await db
+  const run = await db
     .selectFrom('workflow_runs')
     .select(['repository_id'])
     .where('id', '=', runId)
@@ -1473,7 +1473,7 @@ async function supersedeJobs(
   if (!group || !cancelInProgress || !jobId)
     return
 
-  const run: any = await db
+  const run = await db
     .selectFrom('workflow_runs')
     .select(['repository_id'])
     .where('id', '=', runId)
@@ -1482,7 +1482,7 @@ async function supersedeJobs(
   if (!run)
     return
 
-  const siblings: any[] = await db
+  const siblings = await db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .select(['workflow_jobs.id as id'])
@@ -1648,7 +1648,7 @@ async function pluginSettings(input: {
   if (entries.length === 0)
     return { ok: true, settings: raw }
 
-  const run: any = await db
+  const run = await db
     .selectFrom('workflow_runs')
     .innerJoin('repositories', 'repositories.id', '=', 'workflow_runs.repository_id')
     .select([
@@ -1691,7 +1691,7 @@ async function pluginSettings(input: {
 async function ownerHandle(ownerType: string, ownerId: number): Promise<string | null> {
   const table = ownerType === 'organization' ? 'organizations' : 'users'
 
-  const row: any = await db
+  const row = await db
     .selectFrom(table as any)
     .select(['handle'])
     .where('id', '=', ownerId)

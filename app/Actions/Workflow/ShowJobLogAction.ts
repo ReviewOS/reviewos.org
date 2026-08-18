@@ -58,7 +58,7 @@ export default new Action({
 
     // The job has to belong to this repository. Without this check the id is a
     // number anybody can increment to read another repository's output.
-    const job: any = await db
+    const job = await db
       .selectFrom('workflow_jobs')
       .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
       .select(['workflow_jobs.id as id', 'workflow_jobs.state as state'])

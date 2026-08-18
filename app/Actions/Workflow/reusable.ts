@@ -147,7 +147,7 @@ export async function resolveCall(
     targetRepositoryId = resolved.repositoryId
   }
 
-  const workflow: any = await db
+  const workflow = await db
     .selectFrom('workflows')
     .select(['id', 'path', 'state'])
     .where('repository_id', '=', targetRepositoryId)
@@ -160,7 +160,7 @@ export async function resolveCall(
   if (String(workflow.state) !== 'active')
     return { ok: false, target: null, inputs: {}, error: `the workflow at \`${path}\` is ${workflow.state}` }
 
-  const version: any = await db
+  const version = await db
     .selectFrom('workflow_versions')
     .select(['id', 'reusable', 'call_inputs'])
     .where('workflow_id', '=', Number(workflow.id))
@@ -224,7 +224,7 @@ async function resolveRemoteRepository(
   remote: { owner: string, repository: string },
   scope: CallScope,
 ): Promise<{ ok: true, repositoryId: number } | { ok: false, error: string }> {
-  const caller: any = await db
+  const caller = await db
     .selectFrom('repositories')
     .select(['owner_type', 'owner_id'])
     .where('id', '=', callerId)
@@ -234,7 +234,7 @@ async function resolveRemoteRepository(
   if (!caller)
     return { ok: false, error: 'the calling repository is gone' }
 
-  const owner: any = await db
+  const owner = await db
     .selectFrom('users')
     .select(['id'])
     .where('handle', '=', remote.owner)
@@ -253,7 +253,7 @@ async function resolveRemoteRepository(
   if (!owner && !organization)
     return { ok: false, error: `there is no owner called \`${remote.owner}\` on this instance` }
 
-  const target: any = await db
+  const target = await db
     .selectFrom('repositories')
     .select(['id', 'owner_type', 'owner_id', 'visibility'])
     .where('owner_type', '=', owner ? 'user' : 'organization')

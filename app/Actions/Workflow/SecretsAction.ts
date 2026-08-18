@@ -110,7 +110,7 @@ export default new Action({
      * is a fact about the scope rather than about the endpoint.
      */
     if ((scope === 'instance' || scope === 'owner') && auth.context.user?.is_admin !== true) {
-      const row: any = await db
+      const row = await db
         .selectFrom('repositories')
         .select(['owner_type', 'owner_id'])
         .where('id', '=', repositoryId)
@@ -135,7 +135,7 @@ export default new Action({
       scopeId = 0
     }
     else if (scope === 'owner') {
-      const row: any = await db.selectFrom('repositories').select(['owner_id']).where('id', '=', repositoryId).executeTakeFirst()
+      const row = await db.selectFrom('repositories').select(['owner_id']).where('id', '=', repositoryId).executeTakeFirst()
 
       scopeId = Number(row?.owner_id ?? 0)
     }

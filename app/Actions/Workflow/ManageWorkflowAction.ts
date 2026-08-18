@@ -67,7 +67,7 @@ export default new Action({
      * says the name, the repository says the path, and asking somebody to
      * translate between them is asking them to look it up first.
      */
-    const workflow: any = await db
+    const workflow = await db
       .selectFrom('workflows')
       .select(['id', 'name', 'path', 'state'])
       .where('repository_id', '=', Number(auth.context.repository.id))

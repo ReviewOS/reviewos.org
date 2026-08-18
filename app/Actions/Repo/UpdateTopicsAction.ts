@@ -27,7 +27,7 @@ export default new Action({
     const repositoryId = Number(auth.context.repository.id)
     const decision = decideTopics(request.get('topics'))
 
-    const held: any[] = await db
+    const held = await db
       .selectFrom('repo_topics')
       .select(['topic'])
       .where('repository_id', '=', repositoryId)

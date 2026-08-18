@@ -114,7 +114,7 @@ export default new Action({
     if (!Number.isInteger(number) || number <= 0)
       return response.json({ error: 'A run number is required' }, 422)
 
-    const run: any = await db
+    const run = await db
       .selectFrom('workflow_runs')
       .selectAll()
       .where('repository_id', '=', repository.id)
@@ -124,7 +124,7 @@ export default new Action({
     if (!run)
       return response.json({ error: 'No such workflow run' }, 404)
 
-    const jobs: any[] = await db
+    const jobs = await db
       .selectFrom('workflow_jobs')
       .select([
         'id', 'job_id', 'name', 'position', 'state', 'needs',
@@ -174,7 +174,7 @@ export default new Action({
       labels: splitLabels(runner.labels),
     }))
 
-    const definitionJobs: any[] = await db
+    const definitionJobs = await db
       .selectFrom('workflow_version_jobs')
       .select(['job_id', 'env', 'permissions', 'default_shell', 'default_working_directory'])
       .where('workflow_version_id', '=', Number(run.workflow_version_id))
@@ -186,7 +186,7 @@ export default new Action({
       byJob.set(jobId, [...(byJob.get(jobId) ?? []), step])
     }
 
-    const version: any = await db
+    const version = await db
       .selectFrom('workflow_versions')
       .select([
         'id', 'workflow_id', 'source_path', 'source_sha', 'content_digest',

@@ -41,7 +41,7 @@ import { repositoryPath } from '../Git/storage'
  * rule everywhere else in the expression language.
  */
 async function outputsOfNeeds(runId: number, jobKey: string): Promise<Record<string, unknown>> {
-  const job: any = await db
+  const job = await db
     .selectFrom('workflow_jobs')
     .select(['needs'])
     .where('workflow_run_id', '=', runId)
@@ -53,7 +53,7 @@ async function outputsOfNeeds(runId: number, jobKey: string): Promise<Record<str
   if (needs.length === 0)
     return {}
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('workflow_jobs')
     .select(['job_id', 'state', 'outputs'])
     .where('workflow_run_id', '=', runId)
@@ -100,7 +100,7 @@ function readJson(value: unknown): Record<string, unknown> {
 async function ownerHandleOf(context: any): Promise<string> {
   const table = String(context.owner_type) === 'organization' ? 'organizations' : 'users'
 
-  const owner: any = await db
+  const owner = await db
     .selectFrom(table as any)
     .select(['handle'])
     .where('id', '=', Number(context.owner_id))
@@ -216,7 +216,7 @@ export default new Action({
     // Read after the claim rather than joined into it: the claim is a guarded
     // write and adding columns to it would mean widening the statement whose
     // narrowness is the point.
-    const context: any = await db
+    const context = await db
       .selectFrom('workflow_runs')
       .innerJoin('repositories', 'repositories.id', '=', 'workflow_runs.repository_id')
       .select([
@@ -251,7 +251,7 @@ export default new Action({
      * set so every "what changed on this pull request" action compared against
      * nothing, and `github.actor` was blank on a screen that says who pushed.
      */
-    const workflow: any = await db
+    const workflow = await db
       .selectFrom('workflow_versions')
       .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
       .innerJoin('workflow_runs', 'workflow_runs.workflow_version_id', '=', 'workflow_versions.id')
@@ -286,7 +286,7 @@ export default new Action({
      * deliberately - the claim is a guarded write and widening it would mean
      * widening the statement whose narrowness is the point.
      */
-    const jobRow: any = await db
+    const jobRow = await db
       .selectFrom('workflow_jobs')
       .select([
         'matrix_values', 'timeout_minutes', 'settings', 'approved_at', 'parallel_index', 'parallel_total', 'uploaded_by_job_id',
@@ -297,7 +297,7 @@ export default new Action({
       .where('id', '=', claimed.jobId)
       .executeTakeFirst()
 
-    const definitionJob: any = await db
+    const definitionJob = await db
       .selectFrom('workflow_version_jobs')
       .innerJoin('workflow_runs', 'workflow_runs.workflow_version_id', '=', 'workflow_version_jobs.workflow_version_id')
       .select([
@@ -421,7 +421,7 @@ export default new Action({
      * is which of them this is - so the answer is a position among siblings
      * rather than anything on the row itself.
      */
-    const siblings: any[] = await db
+    const siblings = await db
       .selectFrom('workflow_jobs')
       .select(['id'])
       .where('workflow_run_id', '=', claimed.runId)

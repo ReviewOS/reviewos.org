@@ -44,7 +44,7 @@ export async function recountOpenIssues(repositoryId: number): Promise<number | 
     return null
 
   try {
-    const row: any = await db
+    const row = await db
       .selectFrom('issues')
       .select(db.fn.count('id').as('n'))
       .where('repository_id', '=', repositoryId)
@@ -97,7 +97,7 @@ async function recount(
     return null
 
   try {
-    const row: any = await db
+    const row = await db
       .selectFrom(table as any)
       .select(db.fn.count('id').as('n'))
       .where(column as any, '=', repositoryId)
@@ -124,7 +124,7 @@ export async function recountComments(issueId: number): Promise<number | null> {
     return null
 
   try {
-    const row: any = await db
+    const row = await db
       .selectFrom('issue_comments')
       .select(db.fn.count('id').as('n'))
       .where('commentable_type', '=', 'issue')

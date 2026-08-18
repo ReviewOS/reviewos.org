@@ -133,7 +133,7 @@ export async function rerunRun(input: {
 }): Promise<RerunResult> {
   const now = input.now ?? new Date()
 
-  const run: any = await db
+  const run = await db
     .selectFrom('workflow_runs')
     .select(['id', 'state', 'attempt'])
     .where('id', '=', input.runId)
@@ -152,7 +152,7 @@ export async function rerunRun(input: {
     }
   }
 
-  const jobs: any[] = await db
+  const jobs = await db
     .selectFrom('workflow_jobs')
     .select(['id', 'job_id', 'state', 'needs', 'kind', 'attempt'])
     .where('workflow_run_id', '=', input.runId)

@@ -53,7 +53,7 @@ export default new Action({
       // Read for the record. Afterwards there is nothing left to say what the
       // rule required, and "a rule was removed" answers none of the questions
       // somebody asks after a branch turns out to have been unprotected.
-      const existing: any = await db
+      const existing = await db
         .selectFrom('protected_branches')
         .selectAll()
         .where('repository_id', '=', repositoryId)
@@ -109,7 +109,7 @@ export default new Action({
 
     const rule = decision.rule
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('protected_branches')
       .selectAll()
       .where('repository_id', '=', repositoryId)

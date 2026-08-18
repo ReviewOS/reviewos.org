@@ -25,7 +25,7 @@ export default new Action({
       return response.json({ error: 'Unauthenticated' }, 401)
 
     const number = Number(request.get('number'))
-    const pullRequest: any = await db
+    const pullRequest = await db
       .selectFrom('pull_requests')
       .select(['id'])
       .where('repository_id', '=', Number(repository.id))

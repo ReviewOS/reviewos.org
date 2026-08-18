@@ -100,7 +100,7 @@ export function resolveVariables(settings: readonly VariableSetting[]): Resolved
 
 /** Every level's settings for one repository, in one query per level. */
 export async function settingsFor(repositoryId: number, workflowEnv: Record<string, string> = {}): Promise<VariableSetting[]> {
-  const repository: any = await db
+  const repository = await db
     .selectFrom('repositories')
     .select(['id', 'name', 'owner_type', 'owner_id'])
     .where('id', '=', repositoryId)
@@ -110,7 +110,7 @@ export async function settingsFor(repositoryId: number, workflowEnv: Record<stri
   if (!repository)
     return []
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('workflow_variables')
     .select(['scope_type', 'scope_id', 'key', 'value'])
     .execute()

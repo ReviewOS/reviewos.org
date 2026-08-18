@@ -61,7 +61,7 @@ export default new Action({
     if (!Number.isInteger(number) || number <= 0)
       return response.json({ error: 'A run number is required' }, 422)
 
-    const run: any = await db
+    const run = await db
       .selectFrom('workflow_runs')
       .select(['id'])
       .where('repository_id', '=', Number(repository.id))
@@ -71,7 +71,7 @@ export default new Action({
     if (!run)
       return response.json({ error: 'No such workflow run' }, 404)
 
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('workflow_artifacts')
       .select(['name', 'digest', 'size_bytes', 'expires_at'])
       .where('workflow_run_id', '=', Number(run.id))

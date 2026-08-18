@@ -72,9 +72,15 @@ export default new Action({
     if (!presented)
       return runnerJson({ error: 'A registration token is required' }, 401)
 
-    const token: any = await db
+    const token = await db
       .selectFrom('runner_registration_tokens')
-      .select(['id', 'runner_pool_id', 'runner_queue_id', 'name', 'revoked_at', 'expires_at', 'uses'])
+      /*
+       * `first_used_at` among them: the update below preserves it, and reading
+       * a column that was never selected made that `undefined` - so every use
+       * rewrote the first-use stamp, and "has this token ever been used" could
+       * only ever answer "just now".
+       */
+      .select(['id', 'runner_pool_id', 'runner_queue_id', 'name', 'revoked_at', 'expires_at', 'uses', 'first_used_at'])
       .where('token_hash', '=', hashToken(presented))
       .executeTakeFirst()
 
@@ -116,7 +122,7 @@ export default new Action({
 
     const name = String(request.get('name') ?? '').trim() || `runner-${Date.now()}`
 
-    const created: any = await db
+    const created = await db
       .insertInto('runners')
       .values({
         name: name.slice(0, 200),
@@ -174,7 +180,7 @@ export default new Action({
 
 /** The pool's first queue, for a token that did not name one. */
 async function firstQueueOf(poolId: number): Promise<number | null> {
-  const queue: any = await db
+  const queue = await db
     .selectFrom('runner_queues')
     .select(['id'])
     .where('runner_pool_id', '=', poolId)

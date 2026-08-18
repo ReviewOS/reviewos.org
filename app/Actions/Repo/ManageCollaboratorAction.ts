@@ -65,7 +65,7 @@ export default new Action({
     if (String(repository.owner_type) === 'user' && Number(repository.owner_id) === personId)
       return response.json({ error: 'That is the owner of this repository' }, 422)
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('repo_collaborators')
       .select(['id', 'permission'])
       .where('repository_id', '=', repositoryId)

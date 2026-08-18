@@ -28,7 +28,7 @@ export async function reviewerLoadFor(repositoryId: number): Promise<ReviewerLoa
   if (!Number.isInteger(repositoryId) || repositoryId <= 0)
     return []
 
-  const rows: any = await db.unsafe(
+  const rows = await db.unsafe(
     `SELECT
       "u"."handle" AS "handle",
       COUNT(DISTINCT "p"."id") AS "waiting",

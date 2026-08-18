@@ -202,7 +202,7 @@ export interface RepositoryGrants {
  */
 async function holdsRequiredFactor(organizationId: number, userId: number): Promise<boolean> {
   try {
-    const organization: any = await db
+    const organization = await db
       .selectFrom('organizations')
       .select(['require_two_factor'])
       .where('id', '=', organizationId)
@@ -211,7 +211,7 @@ async function holdsRequiredFactor(organizationId: number, userId: number): Prom
     if (!organization?.require_two_factor)
       return true
 
-    const user: any = await db
+    const user = await db
       .selectFrom('users')
       .select(['two_factor_enabled'])
       .where('id', '=', userId)

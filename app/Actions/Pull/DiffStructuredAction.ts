@@ -69,7 +69,7 @@ export default new Action({
         fix: 'Pass ?number= with the pull request number.',
       })
 
-    const pullRequest: any = await db
+    const pullRequest = await db
       .selectFrom('pull_requests')
       .select(['id', 'base_sha', 'head_sha', 'changed_files'])
       .where('repository_id', '=', repository.id)
@@ -78,6 +78,13 @@ export default new Action({
 
     if (!pullRequest)
       return apiError('not_found', 'No such pull request')
+
+    /*
+     * Bound after the guard, because `build` below is a function declaration:
+     * it is hoisted, so the compiler cannot know the guard ran before it is
+     * called, and narrowing does not reach inside it.
+     */
+    const found = pullRequest
 
     const path = diskPathFor(owner, repository.name)
     if (!path)
@@ -113,7 +120,7 @@ export default new Action({
        * it and inventing a second streaming format nobody asked for. The
        * `path` filter and paging below are what keep the collected size sane.
        */
-      const diff = streamMergeBaseDiff(diskPath, String(pullRequest.base_sha), String(pullRequest.head_sha))
+      const diff = streamMergeBaseDiff(diskPath, String(found.base_sha), String(found.head_sha))
 
       // Null when a sha is not a safe revision, which `isSafeRevision` decides.
       // Refused rather than passed to git, because the shas came off a row but
@@ -146,8 +153,8 @@ export default new Action({
 
       return response.json({
         number,
-        base_sha: pullRequest.base_sha,
-        head_sha: pullRequest.head_sha,
+        base_sha: found.base_sha,
+        head_sha: found.head_sha,
         total_files: files.length,
         offset,
         // Null when this is the last page, matching how the cursor endpoints

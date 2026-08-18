@@ -73,7 +73,7 @@ export default new Action({
     if (!Number.isInteger(number) || number <= 0)
       return response.json({ error: 'A run number is required' }, 422)
 
-    const run: any = await db
+    const run = await db
       .selectFrom('workflow_runs')
       .select(['id', 'state'])
       .where('repository_id', '=', repository.id)

@@ -120,7 +120,7 @@ export default new Action({
        * an administrator of *one* of them is not the same permission, so this
        * asks whether the caller is the owner themselves.
        */
-      const owner: any = await db
+      const owner = await db
         .selectFrom('repositories')
         .select(['owner_type', 'owner_id'])
         .where('id', '=', repositoryId)
@@ -151,7 +151,7 @@ export default new Action({
 
     const value = String(request.get('value') ?? '')
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('workflow_variables')
       .select(['id'])
       .where('scope_type', '=', scope)

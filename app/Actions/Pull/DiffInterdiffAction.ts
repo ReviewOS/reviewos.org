@@ -58,7 +58,7 @@ export default new Action({
     if (!since)
       return response.json({ error: 'Nothing recorded to compare against' }, 409)
 
-    const row: any = await db
+    const row = await db
       .selectFrom('pull_requests')
       .select(['base_sha', 'head_sha'])
       .where('id', '=', Number(pullRequest.id))

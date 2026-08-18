@@ -29,7 +29,7 @@ export default new Action({
     const owner = String(request.get('owner') ?? '').trim().toLowerCase()
     const number = Number(request.get('number'))
 
-    const pullRequest: any = await db
+    const pullRequest = await db
       .selectFrom('pull_requests')
       .select(['id', 'state', 'head_branch', 'head_sha'])
       .where('repository_id', '=', Number(repository.id))

@@ -36,7 +36,7 @@ export default new Action({
     if (!Number.isInteger(number) || number <= 0)
       return response.json({ error: 'A pull request number is required' }, 422)
 
-    const pullRequest: any = await db
+    const pullRequest = await db
       .selectFrom('pull_requests')
       .select(['id', 'state', 'head_sha'])
       .where('repository_id', '=', Number(repository.id))
@@ -46,7 +46,7 @@ export default new Action({
     if (!pullRequest)
       return response.json({ error: 'No such pull request' }, 404)
 
-    const issue: any = await db
+    const issue = await db
       .selectFrom('issues')
       .select(['id'])
       .where('repository_id', '=', Number(repository.id))
@@ -84,7 +84,7 @@ export default new Action({
 
 /** One indexed count. */
 async function countOf(table: string, column: string, id: number): Promise<number> {
-  const row: any = await db
+  const row = await db
     .selectFrom(table as any)
     .select(db.fn.count('id').as('n'))
     .where(column, '=', id)

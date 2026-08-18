@@ -146,7 +146,7 @@ import { performMerge } from './apply'
 
 /** The queue for one branch, in landing order. */
 export async function queueFor(repositoryId: number, baseBranch: string): Promise<MergeQueueEntry[]> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('merge_queue_entries')
     .select(['id', 'pull_request_id', 'position', 'state', 'merge_sha'])
     .where('repository_id', '=', repositoryId)
@@ -181,7 +181,7 @@ export async function enqueue(input: {
   pullRequestId: number
   baseBranch: string
 }): Promise<EnqueueOutcome> {
-  const existing: any = await db
+  const existing = await db
     .selectFrom('merge_queue_entries')
     .select(['id', 'state'])
     .where('pull_request_id', '=', input.pullRequestId)
@@ -209,7 +209,7 @@ export async function enqueue(input: {
     return { ok: true, id: Number(existing.id), position }
   }
 
-  const row: any = await db
+  const row = await db
     .insertInto('merge_queue_entries')
     .values({
       repository_id: input.repositoryId,
@@ -262,7 +262,7 @@ export async function startNext(input: {
   if (!tip || tip.code !== 0)
     return { ok: false, reason: `\`${input.baseBranch}\` does not exist` }
 
-  const pull: any = await db
+  const pull = await db
     .selectFrom('pull_requests')
     .select(['number', 'head_sha', 'title'])
     .where('id', '=', next.pullRequestId)
@@ -327,7 +327,7 @@ export async function settleEntry(input: {
   ownerHandle: string
   repositoryName: string
 }): Promise<{ ok: boolean, merged: boolean, requeued: number }> {
-  const row: any = await db
+  const row = await db
     .selectFrom('merge_queue_entries')
     .select(['id', 'repository_id', 'pull_request_id', 'base_branch', 'position', 'state', 'merge_sha'])
     .where('id', '=', input.entryId)

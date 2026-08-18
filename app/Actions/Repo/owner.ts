@@ -25,7 +25,7 @@ export async function ownerHandleFor(repository: OwnedRow): Promise<string | nul
   const table = String(repository?.owner_type) === 'organization' ? 'organizations' : 'users'
 
   try {
-    const owner: any = await db
+    const owner = await db
       .selectFrom(table)
       .select(['handle'])
       .where('id', '=', id)

@@ -65,7 +65,7 @@ export async function verifySignature(
     if (verification.userId === null)
       return { verification, signer: null }
 
-    const user: any = await db
+    const user = await db
       .selectFrom('users')
       .select(['id', 'handle', 'name'])
       .where('id', '=', verification.userId)

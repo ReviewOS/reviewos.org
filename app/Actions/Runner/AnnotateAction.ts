@@ -65,7 +65,7 @@ export default new Action({
      * anything in the request: a runner that could say which job it is
      * annotating could annotate somebody else's.
      */
-    const job: any = await db
+    const job = await db
       .selectFrom('workflow_jobs')
       .select(['id', 'workflow_run_id', 'job_id', 'name'])
       .where('id', '=', held.jobId)
@@ -74,7 +74,7 @@ export default new Action({
     if (!job)
       return runnerJson({ error: 'Unknown job' }, 401)
 
-    const run: any = await db
+    const run = await db
       .selectFrom('workflow_runs')
       .select(['id', 'repository_id', 'head_sha', 'number'])
       .where('id', '=', Number(job.workflow_run_id))
@@ -106,7 +106,7 @@ export default new Action({
     const context = String(request.get('context') ?? '').trim().slice(0, 200)
     const name = context || String(job.name ?? job.job_id ?? 'job')
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('check_runs')
       .select(['id'])
       .where('repository_id', '=', Number(run.repository_id))
@@ -181,7 +181,7 @@ export default new Action({
 
 /** A check for this job, when it is the first thing to report one. */
 async function createCheck(repositoryId: number, headSha: string, name: string, summary: string): Promise<number> {
-  const created: any = await db
+  const created = await db
     .insertInto('check_runs')
     .values({
       repository_id: repositoryId,
@@ -221,7 +221,7 @@ export const MAX_PER_CONTEXT = 500
 
 /** How many this context is holding now. */
 async function countAnnotations(checkRunId: number): Promise<number> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('check_annotations')
     .select(['id'])
     .where('check_run_id', '=', checkRunId)
@@ -232,7 +232,7 @@ async function countAnnotations(checkRunId: number): Promise<number> {
 
 /** Drop the oldest past the cap, and answer how many went. */
 async function trimAnnotations(checkRunId: number, keep: number): Promise<number> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('check_annotations')
     .select(['id'])
     .where('check_run_id', '=', checkRunId)

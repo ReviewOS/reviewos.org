@@ -42,7 +42,7 @@ export default new Action({
     if (!allowedStrategies(repository as any).includes(strategy))
       return response.json({ error: `This repository does not allow ${strategy} merges` }, 422)
 
-    const pullRequest: any = await db
+    const pullRequest = await db
       .selectFrom('pull_requests')
       .select(['id', 'state', 'draft'])
       .where('repository_id', '=', Number(repository.id))

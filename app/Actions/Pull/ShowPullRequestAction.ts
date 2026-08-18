@@ -58,7 +58,7 @@ export default new Action({
       })
     }
 
-    const row: any = await db
+    const row = await db
       .selectFrom('pull_requests')
       .selectAll()
       .where('repository_id', '=', repository.id)

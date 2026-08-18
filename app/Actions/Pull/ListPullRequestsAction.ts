@@ -68,7 +68,7 @@ export default new Action({
      * pull request bumps the count, an edit bumps the newest `updated_at` -
      * which is exactly the property a tag needs.
      */
-    const summary: any = await db
+    const summary = await db
       .selectFrom('pull_requests')
       .select([
         db.fn.count('id').as('count'),
@@ -85,8 +85,10 @@ export default new Action({
       String(request.get('base') ?? ''),
       String(request.get('cursor') ?? ''),
       size,
-      summary?.count ?? 0,
-      summary?.newest ?? '',
+      // An aggregate select is named by its aliases rather than by the table,
+      // so these arrive unknown-valued and are read out here.
+      Number(summary?.count ?? 0),
+      String(summary?.newest ?? ''),
     ])
 
     return await conditional(request, tag, async () => {
@@ -104,7 +106,7 @@ export default new Action({
 
       const author = String(request.get('author') ?? '').trim().toLowerCase()
       if (author) {
-        const found: any = await db
+        const found = await db
           .selectFrom('users')
           .select(['id'])
           .where('handle', '=', author)
@@ -164,7 +166,7 @@ async function authorsFor(ids: number[]): Promise<Map<number, string>> {
   if (wanted.length === 0)
     return new Map()
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('users')
     .select(['id', 'handle'])
     .where('id', 'in', wanted)

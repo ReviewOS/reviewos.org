@@ -135,7 +135,7 @@ export async function putSecret(input: {
 }): Promise<void> {
   const sealed = await encrypt(input.value)
 
-  const existing: any = await db
+  const existing = await db
     .selectFrom('workflow_secrets')
     .select(['id'])
     .where('scope_type', '=', input.scope)
@@ -234,7 +234,7 @@ export async function secretsForJob(input: {
 
 /** Every row that could apply to this repository, with its scope resolved. */
 async function rowsFor(repositoryId: number): Promise<Array<SecretRow & { updatedAt: string | null }>> {
-  const repository: any = await db
+  const repository = await db
     .selectFrom('repositories')
     .select(['id', 'owner_id'])
     .where('id', '=', repositoryId)
@@ -244,7 +244,7 @@ async function rowsFor(repositoryId: number): Promise<Array<SecretRow & { update
   if (!repository)
     return []
 
-  const environments: any[] = await db
+  const environments = await db
     .selectFrom('environments')
     .select(['id'])
     .where('repository_id', '=', repositoryId)
@@ -253,7 +253,7 @@ async function rowsFor(repositoryId: number): Promise<Array<SecretRow & { update
 
   const environmentIds = new Set(environments.map(one => Number(one.id)))
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('workflow_secrets')
     .select(['scope_type', 'scope_id', 'key', 'sealed', 'updated_at'])
     .execute()
@@ -287,7 +287,7 @@ async function rowsFor(repositoryId: number): Promise<Array<SecretRow & { update
 
 /** One environment's id, by name. */
 export async function environmentIdOf(repositoryId: number, name: string): Promise<number | null> {
-  const row: any = await db
+  const row = await db
     .selectFrom('environments')
     .select(['id'])
     .where('repository_id', '=', repositoryId)

@@ -91,7 +91,7 @@ export interface SigningKey {
  * RS256 because every cloud provider's verifier reads it.
  */
 export async function signingKey(purpose = 'oidc'): Promise<SigningKey> {
-  const existing: any = await db
+  const existing = await db
     .selectFrom('instance_keys')
     .select(['kid', 'algorithm', 'public_jwk', 'sealed_private'])
     .where('purpose', '=', purpose)
@@ -202,7 +202,7 @@ export async function rotateKey(purpose = 'oidc', now = new Date()): Promise<Sig
 
 /** Every key a verifier should still accept: the current one and the retired ones. */
 export async function publicKeys(purpose = 'oidc'): Promise<any[]> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('instance_keys')
     .select(['public_jwk'])
     .where('purpose', '=', purpose)

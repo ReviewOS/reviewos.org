@@ -70,7 +70,7 @@ export class DatabaseLockStore implements LockStore {
   constructor(private readonly repositoryId: number) {}
 
   async find(path: string): Promise<LockRecord | null> {
-    const row: any = await db
+    const row = await db
       .selectFrom('repository_lfs_locks')
       .selectAll()
       .where('repository_id', '=', this.repositoryId)
@@ -81,7 +81,7 @@ export class DatabaseLockStore implements LockStore {
   }
 
   async byId(id: string): Promise<LockRecord | null> {
-    const row: any = await db
+    const row = await db
       .selectFrom('repository_lfs_locks')
       .selectAll()
       .where('repository_id', '=', this.repositoryId)

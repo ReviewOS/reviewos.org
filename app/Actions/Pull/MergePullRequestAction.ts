@@ -374,7 +374,7 @@ export default new Action({
         if (!retargeted.has(Number(child.id)))
           continue
 
-        const row: any = await db
+        const row = await db
           .selectFrom('pull_requests')
           .select(['id', 'head_branch', 'head_sha'])
           .where('id', '=', Number(child.id))
@@ -481,7 +481,7 @@ async function closeReferenced(
     return []
 
   try {
-    const open: any[] = await db
+    const open = await db
       .selectFrom('issues')
       .select(['id', 'number'])
       .where('repository_id', '=', repositoryId)

@@ -135,7 +135,7 @@ export async function environmentRules(repositoryId: number, name: string): Prom
   if (!repositoryId || !clean)
     return null
 
-  const row: any = await db
+  const row = await db
     .selectFrom('environments')
     .select(['id', 'name', 'wait_minutes', 'branches'])
     .where('repository_id', '=', repositoryId)
@@ -153,7 +153,7 @@ export async function environmentRules(repositoryId: number, name: string): Prom
   if (!row)
     return null
 
-  const reviewers: any[] = await db
+  const reviewers = await db
     .selectFrom('environment_reviewers')
     .select(['user_id'])
     .where('environment_id', '=', Number(row.id))

@@ -67,7 +67,7 @@ function byteLength(text: string): number {
 }
 
 async function storedBytes(jobId: number): Promise<number> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('workflow_job_logs')
     .select(['content'])
     .where('workflow_job_id', '=', jobId)
@@ -222,7 +222,7 @@ async function secretsOfJob(jobId: number): Promise<string[]> {
     return held.values
 
   try {
-    const row: any = await db
+    const row = await db
       .selectFrom('workflow_jobs')
       .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
       .select([
@@ -348,7 +348,7 @@ async function throttleFor(bytes: number): Promise<number> {
 /** Which attempt the job is on, for attributing a chunk to it. */
 async function attemptOf(jobId: number): Promise<number> {
   try {
-    const row: any = await db
+    const row = await db
       .selectFrom('workflow_jobs')
       .select(['attempt'])
       .where('id', '=', jobId)
@@ -380,7 +380,7 @@ export async function readLog(jobId: number, after = 0, limit = 200, attempt?: n
    */
   const wanted = Number.isInteger(attempt) && Number(attempt) > 0 ? Number(attempt) : await attemptOf(jobId)
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('workflow_job_logs')
     .select(['sequence', 'stream', 'content', 'events'])
     .where('workflow_job_id', '=', jobId)
@@ -401,7 +401,7 @@ export async function readLog(jobId: number, after = 0, limit = 200, attempt?: n
       // colour, which cannot be recovered from the text afterwards.
       ...(row.events ? { events: safeEvents(row.events) } : {}),
     })),
-    cursor: rows.length > 0 ? Number(rows[rows.length - 1].sequence) : (Number.isFinite(after) ? after : 0),
+    cursor: rows.length > 0 ? Number(rows[rows.length - 1]?.sequence ?? 0) : (Number.isFinite(after) ? after : 0),
   }
 }
 

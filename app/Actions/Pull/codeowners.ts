@@ -274,7 +274,7 @@ export async function resolveOwners(named: readonly string[]): Promise<ResolvedO
       if (orgHandle === '' || teamSlug === '')
         continue
 
-      const members: any[] = await db
+      const members = await db
         .selectFrom('team_members')
         .innerJoin('teams', 'teams.id', '=', 'team_members.team_id')
         .innerJoin('organizations', 'organizations.id', '=', 'teams.organization_id')
@@ -284,13 +284,16 @@ export async function resolveOwners(named: readonly string[]): Promise<ResolvedO
         .where('teams.slug', '=', teamSlug)
         .execute()
 
-      for (const member of members)
-        add(member)
+      for (const member of members) {
+        // A joined select, so the row is named by its aliases: read out here
+        // rather than handed on as a bag of unknowns.
+        add({ id: member.id, handle: member.handle })
+      }
 
       continue
     }
 
-    const person: any = await db
+    const person = await db
       .selectFrom('users')
       .select(['id', 'handle'])
       .where('handle', '=', owner.toLowerCase())

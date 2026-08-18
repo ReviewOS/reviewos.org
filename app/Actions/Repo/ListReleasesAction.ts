@@ -26,7 +26,7 @@ export default new Action({
 
     const { repository, viewerId } = browse.context
 
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('releases')
       .selectAll()
       .where('repository_id', '=', Number(repository.id))

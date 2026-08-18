@@ -71,7 +71,7 @@ export default new Action({
     if (!held)
       return runnerJson({ error: 'Unknown job credential' }, 401)
 
-    const job: any = await db
+    const job = await db
       .selectFrom('workflow_jobs')
       .select(['id', 'workflow_run_id'])
       .where('id', '=', held.jobId)

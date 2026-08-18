@@ -210,7 +210,7 @@ export async function resolveContributors(contributions: readonly Contribution[]
   if (emails.length === 0)
     return []
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('users')
     .select(['handle', 'email'])
     .where('email', 'in', emails)
@@ -261,7 +261,7 @@ export async function reviewLoad(handles: readonly string[]): Promise<Record<str
   if (handles.length === 0)
     return {}
 
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('pull_request_reviewers')
     .innerJoin('users', 'users.id', '=', 'pull_request_reviewers.reviewer_id')
     .innerJoin('pull_requests', 'pull_requests.id', '=', 'pull_request_reviewers.pull_request_id')

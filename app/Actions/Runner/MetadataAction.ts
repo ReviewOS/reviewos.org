@@ -78,7 +78,7 @@ export default new Action({
      * belong to a different commit, which is how a deploy ships the wrong
      * build.
      */
-    const job: any = await db
+    const job = await db
       .selectFrom('workflow_jobs')
       .select(['id', 'workflow_run_id'])
       .where('id', '=', held.jobId)

@@ -28,7 +28,7 @@ export interface AutoMergeAttempt {
 /** Never throws: this runs as a tail on other actions' successes. */
 export async function attemptAutoMerge(pullRequestId: number): Promise<AutoMergeAttempt> {
   try {
-    const pullRequest: any = await db
+    const pullRequest = await db
       .selectFrom('pull_requests')
       .select(['id', 'number', 'state', 'repository_id', 'auto_merge_strategy', 'auto_merge_by_id'])
       .where('id', '=', Number(pullRequestId))
@@ -37,7 +37,7 @@ export async function attemptAutoMerge(pullRequestId: number): Promise<AutoMerge
     if (!pullRequest || pullRequest.state !== 'open' || !pullRequest.auto_merge_strategy || !pullRequest.auto_merge_by_id)
       return { attempted: false, merged: false, reason: 'not armed' }
 
-    const repository: any = await db
+    const repository = await db
       .selectFrom('repositories')
       .select(['id', 'name', 'owner_type', 'owner_id'])
       .where('id', '=', Number(pullRequest.repository_id))
@@ -47,7 +47,7 @@ export async function attemptAutoMerge(pullRequestId: number): Promise<AutoMerge
       return { attempted: false, merged: false, reason: 'no repository' }
 
     const ownerTable = repository.owner_type === 'organization' ? 'organizations' : 'users'
-    const owner: any = await db
+    const owner = await db
       .selectFrom(ownerTable)
       .select(['handle'])
       .where('id', '=', Number(repository.owner_id))
@@ -61,11 +61,19 @@ export async function attemptAutoMerge(pullRequestId: number): Promise<AutoMerge
     // cache hit costs one row read - so the attempt judges the branch as it
     // is, not as it was when somebody last opened the page.
     try {
-      const fresh: any = await db
+      const fresh = await db
         .selectFrom('pull_requests')
         .select(['base_sha', 'head_sha', 'mergeable_state', 'mergeable_base_sha', 'mergeable_head_sha', 'mergeable_conflicts'])
         .where('id', '=', Number(pullRequest.id))
         .executeTakeFirst()
+
+      /*
+       * The row can be gone: this runs from a queue, and the pull request it is
+       * about may have been deleted between the event and the sweep. Nothing to
+       * refresh then, and the attempt below reads the row it already has.
+       */
+      if (!fresh)
+        return { attempted: false, merged: false, reason: 'no pull request' }
 
       const { refreshMergeability } = await import('./refresh-mergeability')
       await refreshMergeability(String(owner.handle), String(repository.name), {
@@ -133,7 +141,7 @@ export async function attemptAutoMergeOnBranches(repositoryId: number, branches:
   let merged = 0
 
   try {
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('pull_requests')
       .select(['id', 'head_branch', 'base_branch'])
       .where('repository_id', '=', Number(repositoryId))

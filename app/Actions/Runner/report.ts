@@ -94,7 +94,7 @@ export async function reportJob(
   input: ReportInput,
   now: Date = new Date(),
 ): Promise<ReportOutcome> {
-  const row: any = await db
+  const row = await db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .innerJoin('repositories', 'repositories.id', '=', 'workflow_runs.repository_id')
@@ -118,7 +118,7 @@ export async function reportJob(
   const facts = {
     id: Number(row.id),
     state: String(row.state),
-    runsOn: splitLabels(row.runs_on),
+    runsOn: splitLabels(row.runs_on === null || row.runs_on === undefined ? null : String(row.runs_on)),
     repositoryId: Number(row.repository_id),
     ownerId: Number(row.owner_id),
     runnerId: row.runner_id === null ? null : Number(row.runner_id),
@@ -277,7 +277,7 @@ export async function reportJob(
    * that hears "run succeeded" before "job succeeded" has to hold the first
    * until the second arrives to make sense of it.
    */
-  const named: any = await db
+  const named = await db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .select([
@@ -304,7 +304,7 @@ export async function reportJob(
 }
 
 async function currentRunState(runId: number): Promise<string> {
-  const run: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
+  const run = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
   return String(run?.state ?? 'queued')
 }
 
@@ -317,7 +317,7 @@ async function currentRunState(runId: number): Promise<string> {
  * is the direction that keeps a broken build visible.
  */
 async function retryDecision(jobId: number, exitStatus: number | null): Promise<{ retrying: boolean, attempt: number, reason: string }> {
-  const job: any = await db
+  const job = await db
     .selectFrom('workflow_jobs')
     .select(['attempt', 'settings'])
     .where('id', '=', jobId)

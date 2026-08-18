@@ -72,7 +72,7 @@ export default new Action({
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)
 
-    const repository: any = await db
+    const repository = await db
       .selectFrom('repositories')
       .select(['id', 'name', 'owner_type', 'owner_id'])
       .where('id', '=', Number(auth.context.repository.id))
@@ -116,7 +116,7 @@ export default new Action({
     if (operation === 'remove') {
       const id = Number(request.get('template'))
 
-      const found: any = await db
+      const found = await db
         .selectFrom('workflow_templates')
         .select(['id', 'owner_type', 'owner_id'])
         .where('id', '=', id)

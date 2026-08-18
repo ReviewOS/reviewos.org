@@ -104,7 +104,7 @@ export async function syncWorkflowFile(input: SyncInput): Promise<SyncResult> {
   const workflowId = await upsertWorkflow(input, parsed.workflow)
   const digest = digestOf(input.source)
 
-  const existing: any = await db
+  const existing = await db
     .selectFrom('workflow_versions')
     .select(['id'])
     .where('workflow_id', '=', workflowId)
@@ -168,7 +168,7 @@ async function upsertWorkflow(input: SyncInput, workflow: NormalizedWorkflow): P
     return Number(found.id)
   }
 
-  const created: any = await db
+  const created = await db
     .insertInto('workflows')
     .values({
       owner_type: input.ownerType,
@@ -194,7 +194,7 @@ async function insertVersion(
 ): Promise<number> {
   const triggers = workflow.triggers
 
-  const version: any = await db
+  const version = await db
     .insertInto('workflow_versions')
     .values({
       workflow_id: workflowId,
@@ -252,7 +252,7 @@ async function insertVersion(
   const versionId = Number(version?.id)
 
   for (const [position, job] of workflow.jobs.entries()) {
-    const row: any = await db
+    const row = await db
       .insertInto('workflow_version_jobs')
       .values({
         workflow_version_id: versionId,

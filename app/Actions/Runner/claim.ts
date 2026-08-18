@@ -266,7 +266,7 @@ export async function claimNextJob(
      * and a dashboard that hears "job running" while the run still says
      * "queued" has to guess which one is stale.
      */
-    const runState: any = await db
+    const runState = await db
       .selectFrom('workflow_runs')
       .select(['state'])
       .where('id', '=', Number(row.run_id))
@@ -332,7 +332,7 @@ async function overParallelLimit(row: any): Promise<boolean> {
   if (!Number.isFinite(limit) || limit <= 0)
     return false
 
-  const running: any[] = await db
+  const running = await db
     .selectFrom('workflow_jobs')
     .select(['id'])
     .where('workflow_run_id', '=', Number(row.run_id))
@@ -374,7 +374,7 @@ async function overNamedLimit(row: any): Promise<boolean> {
   if (!named)
     return false
 
-  const held: any[] = await db
+  const held = await db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .select(['workflow_jobs.id as id', 'workflow_jobs.settings as settings'])
@@ -396,7 +396,7 @@ async function overNamedLimit(row: any): Promise<boolean> {
    * next. Id order is dispatch order, which is push order - the property a
    * deploy queue is bought for.
    */
-  const waiting: any[] = await db
+  const waiting = await db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .select(['workflow_jobs.id as id', 'workflow_jobs.settings as settings'])
@@ -474,7 +474,7 @@ export async function heartbeat(
 ): Promise<string | null> {
   const expires = leaseUntil(now)
 
-  const result: any = await db
+  const result = await db
     .updateTable('workflow_jobs')
     .set({ lease_expires_at: expires } as any)
     .where('id', '=', jobId)
@@ -493,7 +493,7 @@ export async function heartbeat(
  * the same way for every job it is about to consider.
  */
 export async function queueOf(runnerId: number): Promise<QueueFacts | null> {
-  const row: any = await db
+  const row = await db
     .selectFrom('runners')
     .innerJoin('runner_queues', 'runner_queues.id', '=', 'runners.runner_queue_id')
     .innerJoin('runner_pools', 'runner_pools.id', '=', 'runner_queues.runner_pool_id')
@@ -512,7 +512,7 @@ export async function queueOf(runnerId: number): Promise<QueueFacts | null> {
   if (!row)
     return null
 
-  const permitted: any[] = await db
+  const permitted = await db
     .selectFrom('runner_pool_repositories')
     .select(['repository_id'])
     .where('runner_pool_id', '=', Number(row.pool_id))
@@ -538,7 +538,7 @@ export async function queueOf(runnerId: number): Promise<QueueFacts | null> {
  * there is no connection to send a signal down.
  */
 export async function stopRequestedFor(runnerId: number): Promise<string | null> {
-  const row: any = await db
+  const row = await db
     .selectFrom('runners')
     .select(['stop_requested'])
     .where('id', '=', runnerId)

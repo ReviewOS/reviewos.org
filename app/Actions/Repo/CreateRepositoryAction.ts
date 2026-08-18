@@ -63,7 +63,7 @@ export default new Action({
       // `db.fn.count`, the shape `app/Actions/Repo/counters.ts` uses. The
       // callback form other query builders take is not supported here, and it
       // fails at runtime rather than at the type check.
-      const owned: any = await db
+      const owned = await db
         .selectFrom('repositories')
         .select(db.fn.count('id').as('n'))
         .where('owner_type', '=', 'user')

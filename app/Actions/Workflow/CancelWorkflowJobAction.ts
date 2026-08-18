@@ -73,7 +73,7 @@ export default new Action({
     if (!key)
       return response.json({ error: 'A job name is required' }, 422)
 
-    const run: any = await db
+    const run = await db
       .selectFrom('workflow_runs')
       .select(['id'])
       .where('repository_id', '=', repository.id)
@@ -83,7 +83,7 @@ export default new Action({
     if (!run)
       return response.json({ error: 'No such workflow run' }, 404)
 
-    const jobs: any[] = await db
+    const jobs = await db
       .selectFrom('workflow_jobs')
       .select(['id', 'job_id', 'state'])
       .where('workflow_run_id', '=', Number(run.id))
@@ -143,7 +143,12 @@ export default new Action({
     }
 
     return response.json({
-      job: { job_id: key, state: cancelled > 0 ? 'cancelling' : String(jobs[0].state) },
+      /*
+       * `jobs[0]` exists - the guard above returned when the list was empty -
+       * but the compiler cannot see that through the index, and `noUnchecked
+       * IndexedAccess` is right to ask.
+       */
+      job: { job_id: key, state: cancelled > 0 ? 'cancelling' : String(jobs[0]?.state ?? '') },
       run_state: runState,
       // False rather than an error: cancelling something that finished a moment
       // ago is an ordinary thing to do, and 409 would make a client handle a

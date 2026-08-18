@@ -40,7 +40,7 @@ export default new Action({
     if (!isUsableTagName(tag))
       return response.json({ error: 'That tag name cannot be used' }, 422)
 
-    const existing: any = await db
+    const existing = await db
       .selectFrom('releases')
       .selectAll()
       .where('repository_id', '=', Number(repository.id))

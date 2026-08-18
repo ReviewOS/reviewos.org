@@ -67,7 +67,7 @@ export interface LoadThreadsOptions {
 export async function loadReviewThreads(options: LoadThreadsOptions): Promise<StoredThread[]> {
   const { pullRequestId, renderBody } = options
 
-  const threadRows: any[] = await db
+  const threadRows = await db
     .selectFrom('review_threads')
     .selectAll()
     .where('pull_request_id', '=', pullRequestId)
@@ -77,7 +77,7 @@ export async function loadReviewThreads(options: LoadThreadsOptions): Promise<St
   if (threadRows.length === 0)
     return []
 
-  const commentRows: any[] = await db
+  const commentRows = await db
     .selectFrom('review_comments')
     // A LEFT join, not an inner one: a comment whose author has no local
     // account - mirrored from elsewhere, or written by an account since

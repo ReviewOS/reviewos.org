@@ -130,7 +130,7 @@ async function removeFor(
 }
 
 async function idsWhere(table: string, column: string, value: number): Promise<number[]> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom(table as any)
     .select(['id'] as any)
     .where(column as any, '=', value)

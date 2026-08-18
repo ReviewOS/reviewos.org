@@ -37,7 +37,7 @@ export interface WriteOutcome {
 
 /** Everything this run has been told, in key order. */
 export async function listMetadata(runId: number): Promise<MetadataEntry[]> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('run_metadata')
     .select(['key', 'value', 'version'])
     .where('workflow_run_id', '=', runId)
@@ -49,7 +49,7 @@ export async function listMetadata(runId: number): Promise<MetadataEntry[]> {
 
 /** One key, or null when nobody has set it. */
 export async function readMetadata(runId: number, key: string): Promise<MetadataEntry | null> {
-  const row: any = await db
+  const row = await db
     .selectFrom('run_metadata')
     .select(['key', 'value', 'version'])
     .where('workflow_run_id', '=', runId)
@@ -149,7 +149,7 @@ export async function writeMetadata(input: {
 
   const next = existing.version + 1
 
-  const result: any = await db
+  const result = await db
     .updateTable('run_metadata')
     .set({ value, version: next, updated_by_job_id: input.jobId ?? null } as any)
     .where('workflow_run_id', '=', input.runId)

@@ -103,7 +103,7 @@ export default new Action({
 
     const workflow = Number(request.get('workflow'))
     if (Number.isFinite(workflow) && workflow > 0) {
-      const versions: any[] = await db
+      const versions = await db
         .selectFrom('workflow_versions')
         .select(['id'])
         .where('workflow_id', '=', workflow)

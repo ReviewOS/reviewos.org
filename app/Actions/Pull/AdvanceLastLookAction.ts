@@ -38,7 +38,7 @@ export default new Action({
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)
 
-    const pullRequest: any = await db
+    const pullRequest = await db
       .selectFrom('pull_requests')
       .select(['id', 'state', 'head_sha'])
       .where('repository_id', '=', Number(repository.id))

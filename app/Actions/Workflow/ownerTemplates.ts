@@ -62,7 +62,7 @@ export async function publishTemplate(input: TemplateInput): Promise<PublishOutc
     }
   }
 
-  const existing: any = await db
+  const existing = await db
     .selectFrom('workflow_templates')
     .select(['id'])
     .where('owner_type', '=', input.ownerType)
@@ -87,7 +87,7 @@ export async function publishTemplate(input: TemplateInput): Promise<PublishOutc
     return { ok: true, id: Number(existing.id) }
   }
 
-  const row: any = await db.insertInto('workflow_templates').values(values as any).returning(['id']).executeTakeFirst()
+  const row = await db.insertInto('workflow_templates').values(values as any).returning(['id']).executeTakeFirst()
 
   return { ok: true, id: Number(row?.id ?? 0) }
 }
@@ -114,7 +114,7 @@ export async function applyTemplate(input: {
   overwrite?: boolean
   author: { name: string, email: string }
 }): Promise<ApplyOutcome> {
-  const template: any = await db
+  const template = await db
     .selectFrom('workflow_templates')
     .selectAll()
     .where('id', '=', input.templateId)
@@ -123,7 +123,7 @@ export async function applyTemplate(input: {
   if (!template)
     return { ok: false, reason: 'No such template', status: 404 }
 
-  const repository: any = await db
+  const repository = await db
     .selectFrom('repositories')
     .select(['id', 'owner_type', 'owner_id', 'default_branch'])
     .where('id', '=', input.repositoryId)

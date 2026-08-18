@@ -15,7 +15,7 @@ import { settleRun } from './settle'
  * query that has to understand the rules.
  */
 export async function releaseElapsedWaits(now: Date = new Date()): Promise<{ released: number }> {
-  const held: any[] = await db
+  const held = await db
     .selectFrom('workflow_jobs')
     .select(['id', 'workflow_run_id', 'settings', 'kind', 'started_at'])
     .where('state', '=', 'paused')
@@ -49,7 +49,7 @@ export async function releaseElapsedWaits(now: Date = new Date()): Promise<{ rel
      */
     await settleRun(Number(job.workflow_run_id), now)
 
-    const after: any = await db
+    const after = await db
       .selectFrom('workflow_jobs')
       .select(['state'])
       .where('id', '=', Number(job.id))

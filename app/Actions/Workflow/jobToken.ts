@@ -101,7 +101,7 @@ export async function mintJobToken(input: {
 
   const secret = generateToken()
 
-  const row: any = await db
+  const row = await db
     .insertInto('access_tokens')
     .values({
       user_id: input.actorId,

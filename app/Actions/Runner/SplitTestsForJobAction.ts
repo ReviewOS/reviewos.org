@@ -97,7 +97,7 @@ export default new Action({
 
 /** The repository this job's run belongs to. The job token names it, not the request. */
 async function repositoryOf(jobId: number): Promise<number | null> {
-  const row: any = await db
+  const row = await db
     .selectFrom('workflow_jobs')
     .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
     .select(['workflow_runs.repository_id as repository_id'])

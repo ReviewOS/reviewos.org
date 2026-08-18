@@ -150,7 +150,7 @@ export async function settleRun(runId: number, now: Date = new Date()): Promise<
  * be the one that released a stranger's code.
  */
 async function awaitingApproval(runId: number): Promise<boolean> {
-  const run: any = await db
+  const run = await db
     .selectFrom('workflow_runs')
     .select(['approval_state'])
     .where('id', '=', runId)
@@ -413,7 +413,7 @@ export async function gateFor(runId: number, job: any, now: Date): Promise<GateD
   if (!name)
     return { verdict: 'run' }
 
-  const run: any = await db
+  const run = await db
     .selectFrom('workflow_runs')
     .select(['repository_id', 'event_ref'])
     .where('id', '=', runId)
@@ -456,7 +456,7 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
   const settled = await jobsOfRun(runId)
   const state = runStateFromJobs(graphRows(settled).map(effectiveState))
 
-  const run: any = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
+  const run = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
   const from = String(run?.state ?? 'queued')
 
   /*
@@ -517,7 +517,7 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
        */
       await dispatchWorkflowRun({ runId, activity: 'completed' }).catch(() => null)
 
-      const finished: any = await db
+      const finished = await db
         .selectFrom('workflow_runs')
         .select(['repository_id', 'concurrency_group'])
         .where('id', '=', runId)
@@ -552,7 +552,7 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
  * exactly that shape.
  */
 async function startTrigger(runId: number, jobId: number, now: Date): Promise<void> {
-  const job: any = await db
+  const job = await db
     .selectFrom('workflow_jobs')
     .select(['settings', 'job_id'])
     .where('id', '=', jobId)
@@ -561,7 +561,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
   const settings = settingsOf(job)
   const wanted = String(settings.workflow ?? '').trim()
 
-  const run: any = await db
+  const run = await db
     .selectFrom('workflow_runs')
     .select(['repository_id', 'event_ref', 'head_sha', 'actor_id', 'trigger_depth'])
     .where('id', '=', runId)
@@ -606,7 +606,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
    * `release.yml` is the file and `Release` is what the workflow calls itself,
    * and refusing one of them would be a rule nobody can remember.
    */
-  const candidates: any[] = await db
+  const candidates = await db
     .selectFrom('workflows')
     .select(['id', 'name', 'path', 'state'])
     .where('repository_id', '=', Number(run.repository_id))
@@ -626,7 +626,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
     return
   }
 
-  const version: any = await db
+  const version = await db
     .selectFrom('workflow_versions')
     .select(['id'])
     .where('workflow_id', '=', Number(target.id))
@@ -638,7 +638,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
     return
   }
 
-  const previous: any = await db
+  const previous = await db
     .selectFrom('workflow_runs')
     .select(['number'])
     .where('repository_id', '=', Number(run.repository_id))
@@ -646,7 +646,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
     .limit(1)
     .executeTakeFirst()
 
-  const started: any = await db
+  const started = await db
     .insertInto('workflow_runs')
     .values({
       workflow_version_id: Number(version.id),
@@ -718,7 +718,7 @@ export async function settleAwaitingTriggers(runId: number, state: string, now: 
   if (!['succeeded', 'failed', 'cancelled'].includes(state))
     return
 
-  const waiting: any[] = await db
+  const waiting = await db
     .selectFrom('workflow_jobs')
     .select(['id', 'workflow_run_id'])
     .where('triggered_run_id', '=', runId)

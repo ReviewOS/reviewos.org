@@ -135,7 +135,7 @@ export default new Action({
         .replace(/^-|-$/g, '')
         .slice(0, 100)
 
-      const created: any = await db
+      const created = await db
         .insertInto('runner_pools')
         .values({ name: name.slice(0, 100), slug, description: String(request.get('reason') ?? '').slice(0, 1000) || null } as any)
         .returning(['id'])
@@ -197,7 +197,7 @@ export default new Action({
       if (parsed.kind === 'vendored')
         return response.json({ error: 'A vendored plugin belongs to one repository rather than to a pool' }, 422)
 
-      const pool: any = await db.selectFrom('runner_pools').select(['plugins']).where('id', '=', poolId).executeTakeFirst()
+      const pool = await db.selectFrom('runner_pools').select(['plugins']).where('id', '=', poolId).executeTakeFirst()
 
       if (!pool)
         return response.json({ error: 'No such pool' }, 404)
@@ -245,7 +245,7 @@ export default new Action({
         require_pinned: raw === true || raw === 'true' || raw === 1 || raw === '1',
       }
 
-      const existing: any = await db
+      const existing = await db
         .selectFrom('plugin_policies')
         .select(['id'])
         .where('scope_type', '=', 'pool')
@@ -276,7 +276,7 @@ export default new Action({
       if (!Number.isInteger(poolId) || poolId <= 0 || !name)
         return response.json({ error: 'A queue needs a pool and a name' }, 422)
 
-      const created: any = await db
+      const created = await db
         .insertInto('runner_queues')
         .values({ runner_pool_id: poolId, name: name.slice(0, 100), state: 'active' } as any)
         .returning(['id'])
@@ -332,7 +332,7 @@ export default new Action({
           .execute()
       }
       else {
-        const already: any = await db
+        const already = await db
           .selectFrom('runner_pool_repositories')
           .select(['id'])
           .where('runner_pool_id', '=', poolId)
@@ -378,7 +378,7 @@ export default new Action({
           .execute()
       }
       else {
-        const already: any = await db
+        const already = await db
           .selectFrom('runner_pool_maintainers')
           .select(['id'])
           .where('runner_pool_id', '=', poolId)
@@ -417,7 +417,7 @@ export default new Action({
       const { generateToken } = await import('../Tokens/secret')
       const secret = generateToken()
 
-      const created: any = await db
+      const created = await db
         .insertInto('runner_registration_tokens')
         .values({
           runner_pool_id: poolId,
@@ -486,7 +486,7 @@ export default new Action({
         .map(label => label.trim())
         .filter(Boolean)
 
-      const created: any = await db
+      const created = await db
         .insertInto('runners')
         .values({
           name: name.slice(0, 200),
@@ -545,7 +545,7 @@ export default new Action({
          * machine that is force-stopped repeatedly cannot hand one job round a
          * fleet forever.
          */
-        const held: any[] = await db
+        const held = await db
           .selectFrom('workflow_jobs')
           .select(['id', 'attempt'])
           .where('runner_id', '=', String(runnerId))
@@ -612,15 +612,15 @@ export default new Action({
 
 /** Every pool, its queues, its runners, and what it serves. */
 async function fleet(): Promise<Record<string, unknown>> {
-  const pools: any[] = await db.selectFrom('runner_pools').select(['id', 'name', 'slug', 'description']).execute()
-  const queues: any[] = await db.selectFrom('runner_queues').select(['id', 'runner_pool_id', 'name', 'state', 'paused_reason']).execute()
-  const assigned: any[] = await db.selectFrom('runner_pool_repositories').select(['runner_pool_id', 'repository_id']).execute()
-  const runners: any[] = await db
+  const pools = await db.selectFrom('runner_pools').select(['id', 'name', 'slug', 'description']).execute()
+  const queues = await db.selectFrom('runner_queues').select(['id', 'runner_pool_id', 'name', 'state', 'paused_reason']).execute()
+  const assigned = await db.selectFrom('runner_pool_repositories').select(['runner_pool_id', 'repository_id']).execute()
+  const runners = await db
     .selectFrom('runners')
     .select(['id', 'name', 'state', 'labels', 'tags', 'runner_queue_id', 'last_seen_at', 'stop_requested'])
     .execute()
 
-  const tokens: any[] = await db
+  const tokens = await db
     .selectFrom('runner_registration_tokens')
     .select(['id', 'runner_pool_id', 'name', 'first_used_at', 'last_used_at', 'uses', 'revoked_at', 'expires_at'])
     .execute()
@@ -631,7 +631,7 @@ async function fleet(): Promise<Record<string, unknown>> {
    * question a hundred times is how a status page becomes the slowest thing on
    * the instance.
    */
-  const held: any[] = await db
+  const held = await db
     .selectFrom('workflow_jobs')
     .select(['runner_id', 'lease_expires_at'])
     .where('state', '=', 'running')
@@ -736,7 +736,7 @@ async function entry(request: any, user: any, detail: Record<string, unknown>): 
 
 /** The pools this person may manage. */
 async function poolsMaintainedBy(userId: number): Promise<number[]> {
-  const rows: any[] = await db
+  const rows = await db
     .selectFrom('runner_pool_maintainers')
     .select(['runner_pool_id'])
     .where('user_id', '=', userId)
@@ -762,7 +762,7 @@ async function poolOf(request: any, operation: string): Promise<number | null> {
   const queueId = Number(request.get('queue'))
 
   if (Number.isInteger(queueId) && queueId > 0) {
-    const queue: any = await db.selectFrom('runner_queues').select(['runner_pool_id']).where('id', '=', queueId).executeTakeFirst()
+    const queue = await db.selectFrom('runner_queues').select(['runner_pool_id']).where('id', '=', queueId).executeTakeFirst()
 
     return queue ? Number(queue.runner_pool_id) : null
   }
@@ -770,7 +770,7 @@ async function poolOf(request: any, operation: string): Promise<number | null> {
   const tokenId = Number(request.get('token'))
 
   if (Number.isInteger(tokenId) && tokenId > 0) {
-    const token: any = await db.selectFrom('runner_registration_tokens').select(['runner_pool_id']).where('id', '=', tokenId).executeTakeFirst()
+    const token = await db.selectFrom('runner_registration_tokens').select(['runner_pool_id']).where('id', '=', tokenId).executeTakeFirst()
 
     return token ? Number(token.runner_pool_id) : null
   }
@@ -778,7 +778,7 @@ async function poolOf(request: any, operation: string): Promise<number | null> {
   const runnerId = Number(request.get('runner'))
 
   if (Number.isInteger(runnerId) && runnerId > 0) {
-    const runner: any = await db
+    const runner = await db
       .selectFrom('runners')
       .innerJoin('runner_queues', 'runner_queues.id', '=', 'runners.runner_queue_id')
       .select(['runner_queues.runner_pool_id as pool_id'])

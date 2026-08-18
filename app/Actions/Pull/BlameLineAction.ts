@@ -40,7 +40,7 @@ export default new Action({
     if (!path || !Number.isInteger(line) || line <= 0)
       return response.json({ error: 'A path and a line are required' }, 422)
 
-    const row: any = await db
+    const row = await db
       .selectFrom('pull_requests')
       .select(['base_sha', 'head_sha', 'base_branch'])
       .where('id', '=', Number(pullRequest.id))

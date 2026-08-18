@@ -52,7 +52,7 @@ export async function authenticateRunner(request: any): Promise<AuthenticatedRun
   if (!token)
     return null
 
-  const row: any = await db
+  const row = await db
     .selectFrom('runners')
     .select(['id', 'name', 'state', 'scope_type', 'scope_id', 'labels', 'tags'])
     .where('token_hash', '=', hashToken(token))
@@ -108,7 +108,7 @@ export async function authenticateJob(request: any): Promise<AuthenticatedJob | 
   if (!token)
     return null
 
-  const job: any = await db
+  const job = await db
     .selectFrom('workflow_jobs')
     .select(['id', 'runner_id', 'state'])
     .where('job_token_hash', '=', hashToken(token))
@@ -117,7 +117,7 @@ export async function authenticateJob(request: any): Promise<AuthenticatedJob | 
   if (!job?.runner_id)
     return null
 
-  const runner: any = await db
+  const runner = await db
     .selectFrom('runners')
     .select(['id', 'state', 'scope_type', 'scope_id', 'labels', 'tags'])
     .where('id', '=', Number(job.runner_id))

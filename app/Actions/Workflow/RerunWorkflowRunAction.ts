@@ -85,7 +85,7 @@ export default new Action({
     const asked = String(request.get('scope') ?? 'failed')
     const scope: RerunScope = asked === 'all' || asked === 'job' ? asked : 'failed'
 
-    const run: any = await db
+    const run = await db
       .selectFrom('workflow_runs')
       .select(['id'])
       .where('repository_id', '=', repository.id)

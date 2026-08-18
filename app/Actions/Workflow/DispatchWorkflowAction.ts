@@ -89,7 +89,7 @@ export default new Action({
      * Exact path first, then the file name, then the workflow's name: two
      * workflows can share a name, and the path is the thing that is unique.
      */
-    const candidates: any[] = await db
+    const candidates = await db
       .selectFrom('workflows')
       .select(['id', 'name', 'path', 'state'])
       .where('repository_id', '=', repository.id)
@@ -110,7 +110,7 @@ export default new Action({
       }, 409)
     }
 
-    const version: any = await db
+    const version = await db
       .selectFrom('workflow_versions')
       .select(['id', 'on_dispatch', 'dispatch_inputs', 'source_sha', 'concurrency_group', 'cancel_in_progress'])
       .where('workflow_id', '=', Number(workflow.id))
@@ -149,7 +149,7 @@ export default new Action({
 
     const number = await nextNumber(Number(repository.id))
 
-    const run: any = await db
+    const run = await db
       .insertInto('workflow_runs')
       .values({
         workflow_version_id: Number(version.id),
@@ -261,7 +261,7 @@ function suppliedFrom(request: any): Record<string, unknown> {
 
 /** The next run number for this repository. Per repository, so "run 42" means one run. */
 async function nextNumber(repositoryId: number): Promise<number> {
-  const row: any = await db
+  const row = await db
     .selectFrom('workflow_runs')
     .select(['number'])
     .where('repository_id', '=', repositoryId)

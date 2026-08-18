@@ -57,7 +57,7 @@ export default new Action({
     if (!held)
       return runnerJson({ error: 'Unknown or expired job token' }, 401)
 
-    const job: any = await db
+    const job = await db
       .selectFrom('workflow_jobs')
       .select(['id', 'workflow_run_id'])
       .where('id', '=', held.jobId)
@@ -68,7 +68,7 @@ export default new Action({
 
     const name = artifactName(request.get('name'))
 
-    const row: any = await db
+    const row = await db
       .selectFrom('workflow_artifacts')
       .select(['id', 'name', 'digest', 'size_bytes', 'expires_at'])
       .where('workflow_run_id', '=', Number(job.workflow_run_id))

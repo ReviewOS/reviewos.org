@@ -65,7 +65,7 @@ export async function pullRequestForCommit(
 ): Promise<BlamedPullRequest | null> {
   // Two plain queries, not one with a composed predicate: `where(eb => ...)`
   // is the documented builder defect, and this file is not where it recurs.
-  const byMerge: any = await db
+  const byMerge = await db
     .selectFrom('pull_requests')
     .select(['number', 'title'])
     .where('repository_id', '=', repositoryId)
@@ -77,7 +77,7 @@ export async function pullRequestForCommit(
   if (byMerge)
     return { number: Number(byMerge.number), title: String(byMerge.title) }
 
-  const byHead: any = await db
+  const byHead = await db
     .selectFrom('pull_requests')
     .select(['number', 'title'])
     .where('repository_id', '=', repositoryId)
@@ -103,7 +103,7 @@ export async function pullRequestForCommit(
   if (!mergeSha)
     return null
 
-  const carried: any = await db
+  const carried = await db
     .selectFrom('pull_requests')
     .select(['number', 'title'])
     .where('repository_id', '=', repositoryId)

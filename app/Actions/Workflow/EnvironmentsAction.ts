@@ -58,7 +58,7 @@ export default new Action({
     const repositoryId = Number(auth.context.repository.id)
 
     if (operation === 'list') {
-      const rows: any[] = await db
+      const rows = await db
         .selectFrom('environments')
         .selectAll()
         .where('repository_id', '=', repositoryId)
@@ -74,7 +74,7 @@ export default new Action({
       return response.json({ error: 'Which environment?' }, 422)
 
     if (operation === 'create') {
-      const existing: any = await db
+      const existing = await db
         .selectFrom('environments')
         .select(['id'])
         .where('repository_id', '=', repositoryId)
@@ -84,7 +84,7 @@ export default new Action({
       if (existing)
         return response.json({ error: 'That environment already exists', environment: await shape(await row(Number(existing.id))) }, 409)
 
-      const created: any = await db
+      const created = await db
         .insertInto('environments')
         .values({
           repository_id: repositoryId,
@@ -99,7 +99,7 @@ export default new Action({
       return response.json({ environment: await shape(await row(Number(created?.id))) })
     }
 
-    const found: any = await db
+    const found = await db
       .selectFrom('environments')
       .selectAll()
       .where('repository_id', '=', repositoryId)
@@ -127,7 +127,7 @@ export default new Action({
     if (operation === 'add-reviewer' || operation === 'remove-reviewer') {
       const handle = String(request.get('reviewer') ?? '').trim()
 
-      const user: any = await db
+      const user = await db
         .selectFrom('users')
         .select(['id'])
         .where('handle', '=', handle)
@@ -144,7 +144,7 @@ export default new Action({
           .execute()
       }
       else {
-        const already: any = await db
+        const already = await db
           .selectFrom('environment_reviewers')
           .select(['id'])
           .where('environment_id', '=', Number(found.id))
@@ -194,7 +194,7 @@ function cleanBranches(value: unknown): string {
 }
 
 async function shape(environment: any): Promise<Record<string, unknown>> {
-  const reviewers: any[] = await db
+  const reviewers = await db
     .selectFrom('environment_reviewers')
     .innerJoin('users', 'users.id', '=', 'environment_reviewers.user_id')
     .select(['users.handle as handle'])

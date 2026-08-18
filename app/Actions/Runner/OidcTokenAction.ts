@@ -62,7 +62,7 @@ export default new Action({
     if (!held)
       return runnerJson({ error: 'Unknown or expired job token' }, 401)
 
-    const job: any = await db
+    const job = await db
       .selectFrom('workflow_jobs')
       .select(['id', 'workflow_run_id', 'settings'])
       .where('id', '=', held.jobId)
@@ -71,7 +71,7 @@ export default new Action({
     if (!job)
       return runnerJson({ error: 'The credential names a job that has gone' }, 404)
 
-    const run: any = await db
+    const run = await db
       .selectFrom('workflow_runs')
       .innerJoin('repositories', 'repositories.id', '=', 'workflow_runs.repository_id')
       .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')

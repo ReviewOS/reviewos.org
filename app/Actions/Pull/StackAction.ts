@@ -53,7 +53,7 @@ export default new Action({
      * honest version of that is a recursive query, not a `LIMIT`, and it is not
      * worth writing before there is a repository that needs it.
      */
-    const rows: any[] = await db
+    const rows = await db
       .selectFrom('pull_requests')
       .select(['id', 'number', 'title', 'state', 'head_branch', 'base_branch', 'stack_parent_id', 'draft', 'updated_at'])
       .where('repository_id', '=', repository.id)

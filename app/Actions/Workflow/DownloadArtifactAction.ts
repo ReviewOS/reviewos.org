@@ -63,7 +63,7 @@ export default new Action({
      * that matters. The id is a number anybody can increment, and without this
      * the endpoint reads out every repository's artifacts in turn.
      */
-    const row: any = await db
+    const row = await db
       .selectFrom('workflow_artifacts')
       .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_artifacts.workflow_run_id')
       .select([

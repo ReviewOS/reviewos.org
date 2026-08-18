@@ -51,7 +51,7 @@ export interface JobFacts {
  * rows is the wrong trade. Read once per announcement, not per webhook.
  */
 async function identify(repositoryId: number): Promise<{ owner: string, repository: string } | null> {
-  const repository: any = await db
+  const repository = await db
     .selectFrom('repositories')
     .select(['name', 'owner_type', 'owner_id'])
     .where('id', '=', repositoryId)
@@ -150,7 +150,7 @@ export async function announceRunIfMoved(repositoryId: number, runId: number, fr
   if (from === to)
     return
 
-  const run: any = await db
+  const run = await db
     .selectFrom('workflow_runs')
     .select(['id', 'number', 'state', 'event', 'event_ref', 'head_sha'])
     .where('id', '=', runId)

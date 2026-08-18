@@ -72,7 +72,7 @@ export interface UploadOutcome {
  * the run can compare against the file it came from.
  */
 export async function uploadSteps(jobId: number, source: string, now: Date = new Date()): Promise<UploadOutcome> {
-  const job: any = await db
+  const job = await db
     .selectFrom('workflow_jobs')
     .select(['id', 'job_id', 'workflow_run_id', 'state', 'upload_depth', 'runs_on', 'settings', 'priority'])
     .where('id', '=', jobId)
@@ -81,7 +81,7 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
   if (!job)
     return { ok: false, reason: 'no such job', added: [] }
 
-  const run: any = await db
+  const run = await db
     .selectFrom('workflow_runs')
     .select(['id', 'state', 'uploads', 'trusted', 'repository_id'])
     .where('id', '=', Number(job.workflow_run_id))
@@ -117,7 +117,7 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
    * refuses it here. A second, laxer validator for uploaded steps would be the
    * one an attacker reads.
    */
-  const existing: any[] = await db
+  const existing = await db
     .selectFrom('workflow_jobs')
     .select(['id', 'job_id', 'position'])
     .where('workflow_run_id', '=', Number(run.id))
@@ -179,7 +179,7 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
   const added: number[] = []
 
   for (const one of uploaded) {
-    const created: any = await db
+    const created = await db
       .insertInto('workflow_jobs')
       .values({
         workflow_run_id: Number(run.id),

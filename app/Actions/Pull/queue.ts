@@ -183,7 +183,7 @@ export async function outstandingRequestCount(userId: number): Promise<number> {
   if (!Number.isInteger(userId) || userId <= 0)
     return 0
 
-  const rows: any = await db.unsafe(
+  const rows = await db.unsafe(
     `SELECT COUNT(DISTINCT "p"."id") AS "waiting"
     FROM "pull_request_reviewers" "r"
     JOIN "pull_requests" "p" ON "p"."id" = "r"."pull_request_id"
@@ -219,7 +219,7 @@ async function queueRows(scope: { reviewerId?: number, authorId?: number }): Pro
     ? `"r"."reviewer_id" = $1`
     : `"p"."author_id" = $1`
 
-  const rows: any = await db.unsafe(
+  const rows = await db.unsafe(
     `SELECT DISTINCT ON ("p"."id")
       "p"."id" AS "pull_request_id",
       "p"."number" AS "number",
