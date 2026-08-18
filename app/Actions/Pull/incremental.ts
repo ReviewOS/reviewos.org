@@ -151,7 +151,7 @@ export async function fingerprintProposal(
   base: string,
   head: string,
 ): Promise<Fingerprints | null> {
-  const diff = streamMergeBaseDiff(diskPath, base, head)
+  const diff = await streamMergeBaseDiff(diskPath, base, head)
   if (!diff)
     return null
 

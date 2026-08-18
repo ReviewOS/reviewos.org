@@ -59,7 +59,7 @@ export default new Job({
      * percentage breakdown of the first hundred thousand files is the same
      * answer anybody needed.
      */
-    const listed = await runGit(resolved.path!, ['ls-tree', '-r', '--long', ref], { timeoutMs: 120_000 })
+    const listed = await runGit(resolved.path!, ['ls-tree', '-r', '--long', ref], { timeoutMs: 120_000, priority: 'background' })
 
     if (!listed.ok) {
       // An empty repository has no tree and no languages, which is a fact

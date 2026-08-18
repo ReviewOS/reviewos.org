@@ -90,7 +90,7 @@ async function packRepositories(dryRun: boolean): Promise<{ examined: number, pa
       // is the coordination with in-flight pushes: a push between quarantine
       // merge and ref update holds objects nothing references yet, and pruning
       // "now" would delete them under it. See `packArguments` in retention.ts.
-      const result = await runGit(path, packArguments(), { timeoutMs: 15 * 60_000 })
+      const result = await runGit(path, packArguments(), { timeoutMs: 15 * 60_000, priority: 'background' })
 
       if (!result.ok) {
         log.warn(`[maintenance] could not pack ${row.disk_path}: ${result.stderr}`)

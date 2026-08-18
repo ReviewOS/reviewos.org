@@ -51,7 +51,7 @@ export default new Action({
     if (!path)
       return response.json({ error: 'Repository not found' }, 404)
 
-    const diff = streamMergeBaseDiff(path, String(pullRequest.base_sha), String(pullRequest.head_sha))
+    const diff = await streamMergeBaseDiff(path, String(pullRequest.base_sha), String(pullRequest.head_sha))
     if (!diff) {
       // The shas came out of our own table, so this means the row is corrupt
       // rather than the caller being hostile. Still refused rather than passed

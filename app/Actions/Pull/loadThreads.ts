@@ -189,7 +189,7 @@ async function filesBetween(diskPath: string, from: string, to: string): Promise
   const { streamCommitRangeDiff } = await import('../Git/diffStream')
   const { parseDiff } = await import('./diff')
 
-  const diff = streamCommitRangeDiff(diskPath, from, to)
+  const diff = await streamCommitRangeDiff(diskPath, from, to)
   if (!diff)
     return null
 

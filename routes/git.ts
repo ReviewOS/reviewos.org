@@ -1,7 +1,7 @@
 import { route } from '@stacksjs/router'
 import { diskPathFor, findRepositoryByPath, mayUseService, tokenFromBasicAuth } from '../app/Actions/Git/access'
 import { recordTokenUse } from '../app/Actions/Tokens/authenticate'
-import { serviceArgs, spawnGit } from '../app/Actions/Git/git'
+import { serviceArgs, spawnGitLimited } from '../app/Actions/Git/git'
 import { GATE_ENDPOINT, HOOK_ENDPOINT, hookSecret, repositoryByGitDir, repositoryPaths } from '../app/Actions/Git/hooks'
 import { refsToExclude, reportLines, safeQuarantine, scanUpdate } from '../app/Actions/Git/scan'
 import { instancePatterns, pushProtectionSettings } from '../app/Actions/Git/patterns'
@@ -129,7 +129,10 @@ route.get('/{owner}/{repository}/info/refs', async (request: any) => {
   // note on `streamService`: these commands resolve their positional argument
   // themselves and ignore `--git-dir`, so `.` advertised the refs of whatever
   // directory the server process happened to be running in.
-  const child = spawnGit(auth.path, serviceArgs(auth.path, service, { advertiseRefs: true }))
+  const child = await spawnGitLimited('heavy', auth.path, serviceArgs(auth.path, service, { advertiseRefs: true }))
+
+  if (!child)
+    return saturated()
 
   const stream = new ReadableStream({
     start(controller) {
@@ -483,8 +486,26 @@ route.post(HOOK_ENDPOINT, async (request: any) => {
  * advertisement matched what the same wrong command produced on the command
  * line.
  */
-function streamService(request: any, path: string, service: 'upload-pack' | 'receive-pack'): Response {
-  const child = spawnGit(path, serviceArgs(path, service))
+/**
+ * The transfer classes are full and stayed full for the acquire timeout.
+ *
+ * A 503 with `Retry-After` is the polite refusal: git clients surface the
+ * message and a scripted clone loop backs off rather than piling on. The
+ * alternative - queueing the request unboundedly - is how saturation becomes
+ * an OOM kill that takes the served requests down with it.
+ */
+function saturated(): Response {
+  return new Response('The server is at its concurrent transfer limit. Try again shortly.\n', {
+    status: 503,
+    headers: { 'Retry-After': '30' },
+  })
+}
+
+async function streamService(request: any, path: string, service: 'upload-pack' | 'receive-pack'): Promise<Response> {
+  const child = await spawnGitLimited('heavy', path, serviceArgs(path, service))
+
+  if (!child)
+    return saturated()
 
   const body: ReadableStream | null = request.body ?? null
   if (body) {

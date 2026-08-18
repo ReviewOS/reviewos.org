@@ -132,7 +132,7 @@ export default new Action({
       // two endpoints hold one opinion about where every thread sits.
       trackTo: { diskPath: path, headSha: String(pullRequest?.head_sha ?? '') },
     })
-    const diff = streamMergeBaseDiff(path, String(pullRequest.base_sha), String(pullRequest.head_sha), { paths })
+    const diff = await streamMergeBaseDiff(path, String(pullRequest.base_sha), String(pullRequest.head_sha), { paths })
     if (!diff)
       return response.json({ error: 'This pull request has no usable revisions' }, 422)
 

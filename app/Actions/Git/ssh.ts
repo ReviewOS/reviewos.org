@@ -35,6 +35,7 @@ import { fingerprintOf, generateHostKey, parsePrivateKey, parsePublicKey, serve 
 import { deployKeyFor, deployKeyMay, markDeployKeyUsed } from '../Keys/deploy'
 import { diskPathFor, findRepositoryByPath, mayUseService } from './access'
 import { gitEnvironment, serviceArgs } from './git'
+import { acquireGitSlot } from './semaphore'
 import { repositoryPath } from './storage'
 
 /** Where the host key lives, unless configured otherwise. */
@@ -343,6 +344,13 @@ async function runGitCommand(command: Command, report: (error: unknown) => void)
   if (!path)
     return refuse(`Repository not found: ${parsed.owner}/${parsed.name}`)
 
+  // The same `heavy` slot an HTTP transfer holds. Over SSH there is no 503 to
+  // answer, so saturation is a refusal on the channel with the same message a
+  // git client would print from the HTTP path.
+  const releaseSlot = await acquireGitSlot('heavy')
+  if (!releaseSlot)
+    return refuse('The server is at its concurrent transfer limit. Try again shortly.')
+
   // Not `--stateless-rpc`: that is the HTTP framing, where each request is one
   // round of the protocol. Over SSH the process talks for the life of the
   // channel, which is the mode git was written for.
@@ -365,9 +373,13 @@ async function runGitCommand(command: Command, report: (error: unknown) => void)
   child.stderr.on('data', chunk => command.writeStderr(new Uint8Array(chunk)))
 
   child.on('error', (error) => {
+    releaseSlot()
     report(error)
     refuse('git could not be started on the server.')
   })
 
-  child.on('close', code => command.exit(code ?? 0))
+  child.on('close', (code) => {
+    releaseSlot()
+    command.exit(code ?? 0)
+  })
 }

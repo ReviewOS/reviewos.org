@@ -16,7 +16,7 @@
  * nobody to read its output.
  */
 
-import { isSafeRevision, spawnGit } from './git'
+import { isSafeRevision, spawnGitLimited } from './git'
 
 export interface DiffStreamOptions {
   /** Lines of unchanged context either side of a change. */
@@ -62,16 +62,16 @@ export interface DiffStreamResult {
  * two histories parted at, which is exactly the author's work. This is the
  * whole reason the phase 4 checklist calls it out, and it is one character.
  */
-export function streamMergeBaseDiff(
+export async function streamMergeBaseDiff(
   repositoryPath: string,
   base: string,
   head: string,
   options: DiffStreamOptions = {},
-): DiffStreamResult | null {
+): Promise<DiffStreamResult | null> {
   if (!isSafeRevision(base) || !isSafeRevision(head))
     return null
 
-  return streamDiffArgs(repositoryPath, [`${base}...${head}`], options)
+  return await streamDiffArgs(repositoryPath, [`${base}...${head}`], options)
 }
 
 /**
@@ -87,37 +87,53 @@ export function streamMergeBaseDiff(
  * the merge base of the old head and the new one moves with the rebase and the
  * intervening change disappears from the answer.
  */
-export function streamCommitRangeDiff(
+export async function streamCommitRangeDiff(
   repositoryPath: string,
   from: string,
   to: string,
   options: DiffStreamOptions = {},
-): DiffStreamResult | null {
+): Promise<DiffStreamResult | null> {
   if (!isSafeRevision(from) || !isSafeRevision(to))
     return null
 
-  return streamDiffArgs(repositoryPath, [from, to], options)
+  return await streamDiffArgs(repositoryPath, [from, to], options)
 }
 
 /** The diff a single commit introduced. */
-export function streamCommitDiff(
+export async function streamCommitDiff(
   repositoryPath: string,
   sha: string,
   options: DiffStreamOptions = {},
-): DiffStreamResult | null {
+): Promise<DiffStreamResult | null> {
   if (!isSafeRevision(sha))
     return null
 
   // `--first-parent` keeps a merge commit from rendering as the whole merged
   // branch, which is a diff nobody asked for and can be enormous.
-  return streamDiffArgs(repositoryPath, ['--first-parent', `${sha}^!`], options)
+  return await streamDiffArgs(repositoryPath, ['--first-parent', `${sha}^!`], options)
 }
 
-function streamDiffArgs(
+/**
+ * The stream a saturated box answers with: no chunks, and a `done` that says
+ * why. Distinct from `null`, which means the revisions were unsafe - a caller
+ * treats `null` as a bad ref and this as a server too busy, and conflating
+ * them would report a load problem as a user error.
+ */
+function saturatedStream(): DiffStreamResult {
+  return {
+    chunks: {
+      async* [Symbol.asyncIterator]() {},
+    },
+    cancel: () => {},
+    done: Promise.resolve({ ok: false, code: -1, stderr: 'git not started: too many concurrent interactive git processes' }),
+  }
+}
+
+async function streamDiffArgs(
   repositoryPath: string,
   revisionArgs: string[],
   options: DiffStreamOptions,
-): DiffStreamResult {
+): Promise<DiffStreamResult> {
   const { context = 3, paths = [], detectRenames = true } = options
 
   const args = [
@@ -143,7 +159,13 @@ function streamDiffArgs(
     ...paths,
   ]
 
-  const child = spawnGit(repositoryPath, args)
+  // `interactive`: a diff is a page or an API request with a reader waiting,
+  // and the slot is released when the child closes - including a kill from
+  // `cancel()` when the reader walks away.
+  const child = await spawnGitLimited('interactive', repositoryPath, args)
+
+  if (!child)
+    return saturatedStream()
 
   let stderr = ''
   child.stderr.setEncoding('utf8')

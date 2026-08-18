@@ -35,7 +35,7 @@ export function normalizePatchText(fileText: string): string {
 
 /** One file's three-dot patch at one head, buffered. */
 async function patchAt(diskPath: string, base: string, head: string, path: string): Promise<string | null> {
-  const stream = streamMergeBaseDiff(diskPath, base, head, { paths: [path] })
+  const stream = await streamMergeBaseDiff(diskPath, base, head, { paths: [path] })
   if (!stream)
     return null
 

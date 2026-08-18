@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { browseContext, browsePath } from '../Browse/context'
 import { rawHeaders } from './download'
-import { spawnGit } from './git'
+import { spawnGit, spawnGitLimited } from './git'
 
 /**
  * A file's bytes, exactly as they are stored.
@@ -33,14 +33,21 @@ export default new Action({
     const { diskPath, ref } = browse.context
 
     // Asked first, so a missing file is a 404 rather than an empty 200: once
-    // the stream has started there is no status left to change.
-    const kind = spawnGit(diskPath, ['cat-file', '-t', `${ref}:${path}`])
+    // the stream has started there is no status left to change. Sequential
+    // acquisitions, never nested: the type probe's slot is released before
+    // the blob's is taken, which is the semaphore's structural deadlock rule.
+    const kind = await spawnGitLimited('interactive', diskPath, ['cat-file', '-t', `${ref}:${path}`])
+    if (!kind)
+      return response.json({ error: 'The server is busy. Try again shortly.' }, 503)
+
     const type = await readAll(kind).catch(() => '')
 
     if (type.trim() !== 'blob')
       return response.json({ error: 'No such file at that ref' }, 404)
 
-    const child = spawnGit(diskPath, ['cat-file', 'blob', `${ref}:${path}`])
+    const child = await spawnGitLimited('interactive', diskPath, ['cat-file', 'blob', `${ref}:${path}`])
+    if (!child)
+      return response.json({ error: 'The server is busy. Try again shortly.' }, 503)
 
     // git tells us nothing about whether the blob is text until it has been
     // read, and the whole point here is not to read it. `--textconv` would, and

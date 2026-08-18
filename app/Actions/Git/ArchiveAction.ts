@@ -8,7 +8,7 @@ import {
   gitArchiveFormat,
   headerSafeName,
 } from './download'
-import { runGit, spawnGit } from './git'
+import { runGit, spawnGitLimited } from './git'
 
 /**
  * A repository at a ref, as a zip or a tar.gz.
@@ -45,12 +45,21 @@ export default new Action({
     if (!resolved.ok)
       return response.json({ error: 'No such ref' }, 404)
 
-    const child = spawnGit(diskPath, [
+    // `heavy`: an archive is a whole-repository transfer, the same class as a
+    // clone. Saturation answers 503 rather than queueing without bound.
+    const child = await spawnGitLimited('heavy', diskPath, [
       'archive',
       `--format=${gitArchiveFormat(format)}`,
       `--prefix=${archivePrefix(name, ref)}`,
       resolved.stdout.trim(),
     ])
+
+    if (!child) {
+      return new Response(JSON.stringify({ error: 'The server is at its concurrent transfer limit. Try again shortly.' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': '30' },
+      })
+    }
 
     const stream = new ReadableStream({
       start(controller) {

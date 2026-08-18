@@ -120,7 +120,7 @@ export default new Action({
        * it and inventing a second streaming format nobody asked for. The
        * `path` filter and paging below are what keep the collected size sane.
        */
-      const diff = streamMergeBaseDiff(diskPath, String(found.base_sha), String(found.head_sha))
+      const diff = await streamMergeBaseDiff(diskPath, String(found.base_sha), String(found.head_sha))
 
       // Null when a sha is not a safe revision, which `isSafeRevision` decides.
       // Refused rather than passed to git, because the shas came off a row but

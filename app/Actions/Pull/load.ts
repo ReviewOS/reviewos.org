@@ -127,7 +127,7 @@ export async function pullRequestDiff(
   if (!resolved.ok)
     return { text: '', truncated: false }
 
-  const stream = streamMergeBaseDiff(resolved.path!, baseSha, headSha, {
+  const stream = await streamMergeBaseDiff(resolved.path!, baseSha, headSha, {
     context: options.context,
     paths: options.paths,
     ignoreWhitespace: options.ignoreWhitespace,
@@ -181,7 +181,7 @@ export async function commitDiff(
   if (!resolved.ok || !/^[0-9a-f]{40}$/.test(sha))
     return { text: '', truncated: false }
 
-  const stream = streamCommitDiff(resolved.path!, sha, {
+  const stream = await streamCommitDiff(resolved.path!, sha, {
     context: options.context,
     ignoreWhitespace: options.ignoreWhitespace,
   })

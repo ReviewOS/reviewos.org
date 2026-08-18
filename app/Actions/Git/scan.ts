@@ -146,6 +146,10 @@ export async function scanUpdate(
     timeoutMs: 20_000,
     input,
     maxBytes: SCAN_BYTE_LIMIT,
+    // `background` with the other scans. A saturated class fails open - no
+    // findings - which is the push-protection trade this file already makes
+    // with its timeout: never make "the box is busy" mean "nobody can push".
+    priority: 'background',
     env: options.quarantine as Record<string, string> | undefined,
   })
 

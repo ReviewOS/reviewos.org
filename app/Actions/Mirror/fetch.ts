@@ -88,7 +88,9 @@ export async function fetchMirror(
     ],
     // A mirror of a large repository is slow the first time and quick after,
     // so the ceiling is generous rather than tuned to the common case.
-    { timeoutMs: options.timeoutMs ?? 15 * 60 * 1000 },
+    // `background`: a fetch is a job, and the queue holds what the class
+    // will not run yet.
+    { timeoutMs: options.timeoutMs ?? 15 * 60 * 1000, priority: 'background' },
   )
 
   if (!result.ok) {

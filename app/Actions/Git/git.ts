@@ -10,10 +10,12 @@
  * builds a shell command.
  */
 
+import type { GitProcessClass } from './semaphore'
 import { observeGit } from '../../Ops/metrics'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { acquireGitSlot } from './semaphore'
 
 export interface GitResult {
   ok: boolean
@@ -179,14 +181,27 @@ export const RUN_GIT_MAX_BYTES = 10 * 1024 * 1024
  * streams are read as utf8, so a multibyte character spanning a chunk boundary
  * arrives whole rather than as replacement characters. stderr is always capped
  * at 64KB, same constant and same rationale as `diffStream.ts`.
+ *
+ * Every call holds a slot in its `priority` class (`semaphore.ts`) for the
+ * child's lifetime. `interactive` unless the caller says otherwise; jobs and
+ * scans pass `background` so a pile of them can never starve a page. When the
+ * class stays saturated past the acquire timeout the result is a plain
+ * failure naming the class - the caller was not going to get an answer from a
+ * box in that state anyway.
  */
 export async function runGit(repositoryPath: string, args: string[], options: {
   input?: string
   timeoutMs?: number
   env?: Record<string, string>
   maxBytes?: number
+  priority?: GitProcessClass
 } = {}): Promise<GitResult> {
-  const { input, timeoutMs = 30_000, env = {}, maxBytes = RUN_GIT_MAX_BYTES } = options
+  const { input, timeoutMs = 30_000, env = {}, maxBytes = RUN_GIT_MAX_BYTES, priority = 'interactive' } = options
+
+  const releaseSlot = await acquireGitSlot(priority)
+
+  if (!releaseSlot)
+    return { ok: false, stdout: '', stderr: `git not started: too many concurrent ${priority} git processes`, code: -1 }
 
   /*
    * Timed, because git is where this product spends its time and a forge that
@@ -204,6 +219,10 @@ export async function runGit(repositoryPath: string, args: string[], options: {
     const child = spawn('git', ['--git-dir', repositoryPath, ...args], { env: gitEnvironment(env) })
 
     const record = () => {
+      // The slot is held exactly as long as the child could be running, and
+      // `record` is called on every settle path. Release is idempotent.
+      releaseSlot()
+
       try {
         observeGit(subcommand, (Bun.nanoseconds() - startedNs) / 1_000_000_000)
       }
@@ -300,13 +319,52 @@ export async function runGit(repositoryPath: string, args: string[], options: {
  *
  * The caller owns the streams. This is what the wire-protocol endpoints use, so
  * a clone of a large repository never sits in memory.
+ *
+ * Prefer `spawnGitLimited`: this raw form holds no slot in the process
+ * ceiling, and exists for it to build on.
  */
 export function spawnGit(repositoryPath: string, args: string[], env: Record<string, string> = {}) {
   return spawn('git', ['--git-dir', repositoryPath, ...args], { env: gitEnvironment(env) })
 }
 
+/**
+ * Spawn git for streaming, under the process ceiling.
+ *
+ * `spawnGit` with a slot: acquired before the spawn, released when the child
+ * closes or fails to start, held the whole time in between. Returns `null`
+ * when the class stays saturated past the acquire timeout - for a
+ * wire-protocol route that is a 503 with `Retry-After`, which git clients
+ * honor politely.
+ */
+export async function spawnGitLimited(
+  processClass: GitProcessClass,
+  repositoryPath: string,
+  args: string[],
+  env: Record<string, string> = {},
+  acquireTimeoutMs?: number,
+): Promise<ReturnType<typeof spawnGit> | null> {
+  const release = await acquireGitSlot(processClass, acquireTimeoutMs)
+
+  if (!release)
+    return null
+
+  const child = spawnGit(repositoryPath, args, env)
+
+  // `close` rather than `exit`: the slot guards the whole process including
+  // its output being read, and `close` is when the streams are done.
+  child.on('close', release)
+  child.on('error', release)
+
+  return child
+}
+
 /** Create a bare repository. */
 export async function initBare(repositoryPath: string, defaultBranch = 'main'): Promise<GitResult> {
+  const releaseSlot = await acquireGitSlot('interactive')
+
+  if (!releaseSlot)
+    return { ok: false, stdout: '', stderr: 'git not started: too many concurrent interactive git processes', code: -1 }
+
   return await new Promise<GitResult>((resolvePromise) => {
     const child = spawn('git', ['init', '--bare', `--initial-branch=${defaultBranch}`, repositoryPath], {
       env: gitEnvironment(),
@@ -314,8 +372,14 @@ export async function initBare(repositoryPath: string, defaultBranch = 'main'): 
 
     let stderr = ''
     child.stderr.on('data', chunk => stderr += chunk)
-    child.on('error', error => resolvePromise({ ok: false, stdout: '', stderr: String(error), code: -1 }))
-    child.on('close', code => resolvePromise({ ok: code === 0, stdout: '', stderr, code: code ?? -1 }))
+    child.on('error', (error) => {
+      releaseSlot()
+      resolvePromise({ ok: false, stdout: '', stderr: String(error), code: -1 })
+    })
+    child.on('close', (code) => {
+      releaseSlot()
+      resolvePromise({ ok: code === 0, stdout: '', stderr, code: code ?? -1 })
+    })
   })
 }
 
@@ -334,13 +398,24 @@ export async function initBare(repositoryPath: string, defaultBranch = 'main'): 
  * `--local` needs always holds.
  */
 export async function cloneBare(from: string, to: string): Promise<GitResult> {
+  const releaseSlot = await acquireGitSlot('interactive')
+
+  if (!releaseSlot)
+    return { ok: false, stdout: '', stderr: 'git not started: too many concurrent interactive git processes', code: -1 }
+
   return await new Promise<GitResult>((resolvePromise) => {
     const child = spawn('git', ['clone', '--bare', '--local', from, to], { env: gitEnvironment() })
 
     let stderr = ''
     child.stderr.on('data', chunk => stderr += chunk)
-    child.on('error', error => resolvePromise({ ok: false, stdout: '', stderr: String(error), code: -1 }))
-    child.on('close', code => resolvePromise({ ok: code === 0, stdout: '', stderr, code: code ?? -1 }))
+    child.on('error', (error) => {
+      releaseSlot()
+      resolvePromise({ ok: false, stdout: '', stderr: String(error), code: -1 })
+    })
+    child.on('close', (code) => {
+      releaseSlot()
+      resolvePromise({ ok: code === 0, stdout: '', stderr, code: code ?? -1 })
+    })
   })
 }
 
@@ -381,6 +456,13 @@ export async function mirrorClone(from: string, to: string, options: {
 } = {}): Promise<GitResult> {
   const { timeoutMs = MIRROR_CLONE_TIMEOUT_MS } = options
 
+  // `background`: an import is a job, and four simultaneous mirror clones is
+  // already a saturated network - the queue holds the rest.
+  const releaseSlot = await acquireGitSlot('background')
+
+  if (!releaseSlot)
+    return { ok: false, stdout: '', stderr: 'git not started: too many concurrent background git processes', code: -1 }
+
   return await new Promise<GitResult>((resolvePromise) => {
     const child = spawn('git', mirrorCloneArgs(from, to), { env: gitEnvironment() })
 
@@ -392,6 +474,7 @@ export async function mirrorClone(from: string, to: string, options: {
         return
       settled = true
       child.kill('SIGKILL')
+      releaseSlot()
       resolvePromise({ ok: false, stdout: '', stderr: `${stderr}\ngit clone timed out after ${timeoutMs}ms`, code: -1 })
     }, timeoutMs)
 
@@ -406,6 +489,7 @@ export async function mirrorClone(from: string, to: string, options: {
         return
       settled = true
       clearTimeout(timer)
+      releaseSlot()
       resolvePromise({ ok: false, stdout: '', stderr: String(error), code: -1 })
     })
 
@@ -414,6 +498,7 @@ export async function mirrorClone(from: string, to: string, options: {
         return
       settled = true
       clearTimeout(timer)
+      releaseSlot()
       resolvePromise({ ok: code === 0, stdout: '', stderr, code: code ?? -1 })
     })
   })

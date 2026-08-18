@@ -98,6 +98,12 @@ function authenticatedUrl(): string {
   return `http://x:${created.token}@127.0.0.1:${port}/${created.handle}/${created.name}.git`
 }
 
+// Before any app module loads, so the semaphore reads it: the saturation test
+// below should refuse in milliseconds, not sit out the production acquire
+// timeout. Harmless if another file in the run loaded the module first - the
+// test's own timeout covers the slow path too.
+process.env.GIT_SEMAPHORE_ACQUIRE_MS = process.env.GIT_SEMAPHORE_ACQUIRE_MS ?? '300'
+
 beforeAll(async () => {
   created.temp = mkdtempSync(join(tmpdir(), 'reviewos-e2e-'))
 
@@ -277,6 +283,35 @@ describe('the git wire protocol, end to end', () => {
     expect(body).toContain('# service=git-upload-pack')
     expect(body).toContain('refs/heads/main')
   })
+
+  /**
+   * The process ceiling, exercised through the real route. Every heavy slot is
+   * held, so the advertisement cannot spawn its git - and the answer has to be
+   * a 503 with Retry-After, which git clients surface politely, rather than a
+   * request queued without bound.
+   */
+  test('a saturated heavy class answers 503 with Retry-After', async () => {
+    if (!available)
+      return
+
+    const { gitSemaphore } = await import('../../app/Actions/Git/semaphore')
+    const semaphore = gitSemaphore('heavy')
+
+    const held = await Promise.all(
+      Array.from({ length: semaphore.limit }, () => semaphore.acquire()),
+    )
+
+    try {
+      const response = await fetch(`${cloneUrl()}/info/refs?service=git-upload-pack`)
+
+      expect(response.status).toBe(503)
+      expect(Number(response.headers.get('retry-after'))).toBeGreaterThan(0)
+    }
+    finally {
+      for (const release of held)
+        release?.()
+    }
+  }, 30_000)
 
   /**
    * Not "did the clone work" but "which repository did it clone". The bug this

@@ -110,18 +110,21 @@ There is no limit on how many git processes this app will spawn - the only backp
 throttle on three wire-protocol routes, counted per credential. Clone storms are phase 15's normal
 operating condition, and `upload-pack` is the most expensive thing this server runs.
 
-- [ ] A counting semaphore (`app/Actions/Git/semaphore.ts`) with three classes and env-tunable
+- [x] A counting semaphore (`app/Actions/Git/semaphore.ts`) with three classes and env-tunable
       limits: `interactive` (default for `runGit`, ~32), `heavy` (upload-pack, receive-pack,
       archive, ~8), `background` (gc, languages, scans, imports, ~4). FIFO, with an acquire
-      timeout.
-- [ ] `runGit` acquires its class before spawning; a `spawnGitLimited` wrapper does the same for
+      timeout (`GIT_SEMAPHORE_INTERACTIVE` / `_HEAVY` / `_BACKGROUND` / `_ACQUIRE_MS`).
+- [x] `runGit` acquires its class before spawning; a `spawnGitLimited` wrapper does the same for
       the streaming spawns. Wire-protocol saturation answers 503 with `Retry-After`, which git
-      clients honor politely.
-- [ ] Keep the classes structurally deadlock-free: a holder of one class must never acquire the
+      clients honor politely. The diff stream builders went async for it (seven call sites); the
+      SSH transport holds a `heavy` slot too, refusing on the channel where HTTP answers 503.
+- [x] Keep the classes structurally deadlock-free: a holder of one class must never acquire the
       same class again while holding it. The audit found no nested `runGit` today; the rule keeps
-      it that way.
-- [ ] Tests: limits honored per class, FIFO order, release on rejection, and a saturated
-      wire-protocol request answering 503.
+      it that way, is written on the semaphore, and `RawFileAction`'s two sequential spawns note
+      why they are sequential.
+- [x] Tests: limits honored per class, FIFO order, release on rejection, and a saturated
+      wire-protocol request answering 503 (`tests/unit/git-semaphore.test.ts`, and the 503
+      through the real route in `tests/e2e/git-http.test.ts`).
 
 ## M4 - Backpressure on every stream
 

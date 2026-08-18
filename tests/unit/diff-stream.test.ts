@@ -81,7 +81,7 @@ afterAll(() => {
 
 describe('streamMergeBaseDiff', () => {
   test('diffs from the merge base, so work landed on main is not in the review', async () => {
-    const stream = streamMergeBaseDiff(bare, 'main', 'feature')!
+    const stream = await streamMergeBaseDiff(bare, 'main', 'feature')!
     const patch = await collect(stream)
 
     expect(patch).toContain('feature.ts')
@@ -90,14 +90,14 @@ describe('streamMergeBaseDiff', () => {
   })
 
   test('the chunks reassemble into exactly what git wrote', async () => {
-    const streamed = await collect(streamMergeBaseDiff(bare, 'main', 'feature')!)
+    const streamed = await collect(await streamMergeBaseDiff(bare, 'main', 'feature')!)
     const direct = git(work, 'diff', '--no-color', 'main...feature')
 
     expect(streamed).toBe(direct)
   })
 
   test('the splitter turns the stream into parsed files', async () => {
-    const stream = streamMergeBaseDiff(bare, 'main', 'feature')!
+    const stream = await streamMergeBaseDiff(bare, 'main', 'feature')!
     const splitter = createPatchSplitter()
     const paths: string[] = []
 
@@ -118,18 +118,18 @@ describe('streamMergeBaseDiff', () => {
   })
 
   test('context is configurable and reaches git', async () => {
-    const wide = await collect(streamMergeBaseDiff(bare, 'main', 'feature', { context: 0 })!)
+    const wide = await collect(await streamMergeBaseDiff(bare, 'main', 'feature', { context: 0 })!)
     expect(wide).toContain('@@')
   })
 
-  test('a revision that looks like a flag is refused before git sees it', () => {
-    expect(streamMergeBaseDiff(bare, '--output=/tmp/pwned', 'feature')).toBeNull()
-    expect(streamMergeBaseDiff(bare, 'main', '-x')).toBeNull()
-    expect(streamMergeBaseDiff(bare, 'main; rm -rf /', 'feature')).toBeNull()
+  test('a revision that looks like a flag is refused before git sees it', async () => {
+    expect(await streamMergeBaseDiff(bare, '--output=/tmp/pwned', 'feature')).toBeNull()
+    expect(await streamMergeBaseDiff(bare, 'main', '-x')).toBeNull()
+    expect(await streamMergeBaseDiff(bare, 'main; rm -rf /', 'feature')).toBeNull()
   })
 
   test('an unknown revision fails with git saying why, rather than throwing', async () => {
-    const stream = streamMergeBaseDiff(bare, 'main', 'no-such-branch')!
+    const stream = await streamMergeBaseDiff(bare, 'main', 'no-such-branch')!
     await collect(stream)
     const result = await stream.done
 
@@ -138,7 +138,7 @@ describe('streamMergeBaseDiff', () => {
   })
 
   test('abandoning the stream kills the child rather than leaving it running', async () => {
-    const stream = streamMergeBaseDiff(bare, 'main', 'feature')!
+    const stream = await streamMergeBaseDiff(bare, 'main', 'feature')!
 
     // Break after the first chunk, which is what a reader navigating away does.
     for await (const _chunk of stream.chunks)
@@ -149,7 +149,7 @@ describe('streamMergeBaseDiff', () => {
   })
 
   test('cancel before reading anything still settles', async () => {
-    const stream = streamMergeBaseDiff(bare, 'main', 'feature')!
+    const stream = await streamMergeBaseDiff(bare, 'main', 'feature')!
     stream.cancel()
     stream.cancel()
 
@@ -159,13 +159,13 @@ describe('streamMergeBaseDiff', () => {
 
 describe('streamCommitDiff', () => {
   test('shows what one commit introduced', async () => {
-    const patch = await collect(streamCommitDiff(bare, featureSha)!)
+    const patch = await collect(await streamCommitDiff(bare, featureSha)!)
 
     expect(patch).toContain('feature.ts')
     expect(patch).not.toContain('shared.ts')
   })
 
-  test('refuses a revision that could be read as a flag', () => {
-    expect(streamCommitDiff(bare, '--help')).toBeNull()
+  test('refuses a revision that could be read as a flag', async () => {
+    expect(await streamCommitDiff(bare, '--help')).toBeNull()
   })
 })
