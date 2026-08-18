@@ -273,6 +273,20 @@ route.get('/user', 'Actions/Identity/WhoAmIAction')
 
 route.post('/user/profile', 'Actions/Profile/UpdateProfileAction').middleware('auth')
 
+/*
+ * Somebody else's profile: who they are, their repositories, their README.
+ *
+ * Unauthenticated, because a profile is public and the action decides for
+ * itself what this caller may see - private repositories to the owner and to
+ * nobody else, which is the rule `/{handle}` follows.
+ *
+ * It exists because the page could do something a token could not:
+ * `ownerRepositories` had exactly one caller, the profile view, so an agent
+ * asking what an account has was left scraping the page or filtering
+ * `/explore` by hand. `tests/unit/api-parity.test.ts` is what noticed.
+ */
+route.get('/owners', 'Actions/Profile/ShowOwnerAction')
+
 // Organizations. Membership changes carry rules that cannot be recovered from
 // if they are got wrong (an organization with no owner), so each one is its own
 // action rather than a general update endpoint.
@@ -997,6 +1011,13 @@ route.get('/repos/workflow-runs/log', 'Actions/Workflow/ShowJobLogAction')
 // output is as private as the repository - and there is no separate artifact
 // permission, because a second permission that has to be kept in step with the
 // first is one that eventually is not.
+/*
+ * The bytes of an image a job printed into its log. Narrow on purpose: it is
+ * the one path that renders a build's output in place rather than handing it
+ * over as an attachment, so the policy for that lives in one file.
+ */
+route.get('/repos/workflow-runs/log-image', 'Actions/Workflow/LogImageAction')
+
 route.get('/repos/workflow-runs/artifacts', 'Actions/Workflow/ListArtifactsAction')
 route.get('/repos/workflow-runs/artifact', 'Actions/Workflow/DownloadArtifactAction')
 /*

@@ -4321,6 +4321,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/owners
+   */
+  getOwners(input: { "owner": string; "q"?: string; "page"?: number; "per_page"?: number }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "GET", "/api/owners", input ?? {}, ["owner", "q", "page", "per_page"], false, options)
+  },
+
+  /**
    * GET /api/pages
    */
   getPages(options?: RequestOptions): Promise<ApiResult<{ "data": Array<{ "id": number; "uuid": string; "title": string; "template": string; "views"?: number; "published_at"?: unknown; "conversions"?: number; "author_id"?: number; "created_at"?: string; "updated_at"?: string }> }>> {
@@ -5662,6 +5669,13 @@ export function createClient(config: ClientConfig) {
    */
   getReposWorkflowRunsLog(input: { "owner"?: string; "repo"?: string; "job": number; "after"?: number }, options?: RequestOptions): Promise<ApiResult<{ "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string }>> {
     return request(config, "GET", "/api/repos/workflow-runs/log", input ?? {}, ["owner", "repo", "job", "after"], false, options)
+  },
+
+  /**
+   * GET /api/repos/workflow-runs/log-image
+   */
+  getReposWorkflowRunsLogImage(input?: { "owner"?: string; "repo"?: string; "number"?: number; "artifact"?: string }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "GET", "/api/repos/workflow-runs/log-image", input ?? {}, ["owner", "repo", "number", "artifact"], false, options)
   },
 
   /**

@@ -28,17 +28,31 @@
  * shape the renderer can rely on.
  */
 
-export type LogEventType = 'line' | 'group' | 'endgroup'
+export type LogEventType = 'line' | 'group' | 'endgroup' | 'image'
 
 export interface LogEvent {
   type: LogEventType
-  /** The text of a line, or the name of a group. Empty is legal - builds print blank lines. */
+  /** The text of a line, the name of a group, or an image's alt text. Empty is legal - builds print blank lines. */
   text: string
   /** When the *job* printed it, ISO 8601, or empty when the runner did not say. */
   at: string
   /** Which stream this line came from. `stdout` unless the runner says otherwise. */
   stream: 'stdout' | 'stderr'
+  /**
+   * For an `image`, the artifact of this run that holds the bytes.
+   *
+   * A name rather than a URL, and that is the whole of the content policy: the
+   * only thing a job can put on this page is something it already uploaded to
+   * this instance, under its own run. A URL would let a build print a picture
+   * served from anywhere, which is a request the reader's browser makes to
+   * somebody else's server every time the page is opened - a tracking pixel a
+   * build can install in a log a colleague reads.
+   */
+  artifact?: string
 }
+
+/** The longest artifact name an image event may carry, matching the column. */
+export const MAX_ARTIFACT_NAME = 200
 
 /** The most events one append may carry, so a single request cannot be unbounded. */
 export const MAX_EVENTS_PER_APPEND = 2000
@@ -72,7 +86,17 @@ export function parseEvents(sent: unknown): LogEvent[] {
     const candidate = raw as Record<string, unknown>
     const type = String(candidate.type ?? 'line').trim().toLowerCase()
 
-    if (type !== 'line' && type !== 'group' && type !== 'endgroup')
+    if (type !== 'line' && type !== 'group' && type !== 'endgroup' && type !== 'image')
+      continue
+
+    /*
+     * An image with no artifact is not an image. Dropped rather than kept as a
+     * line: a runner that sent one meant to show something, and rendering the
+     * alt text as output would put a caption in the log with nothing under it.
+     */
+    const artifact = String(candidate.artifact ?? '').trim().slice(0, MAX_ARTIFACT_NAME)
+
+    if (type === 'image' && !artifact)
       continue
 
     events.push({
@@ -80,6 +104,7 @@ export function parseEvents(sent: unknown): LogEvent[] {
       text: String(candidate.text ?? '').slice(0, MAX_EVENT_TEXT),
       at: timestampOf(candidate.at),
       stream: String(candidate.stream ?? '') === 'stderr' ? 'stderr' : 'stdout',
+      ...(type === 'image' ? { artifact } : {}),
     })
   }
 
@@ -112,6 +137,14 @@ export function eventsAsText(events: readonly LogEvent[]): string {
 
     if (event.type === 'endgroup')
       return ''
+
+    /*
+     * An image becomes the sentence a plain-text reader would want: what it was
+     * of, and which artifact holds it. `curl`ing a log and finding a blank line
+     * where a screenshot was is worse than being told what to download.
+     */
+    if (event.type === 'image')
+      return `[image: ${event.text || 'no description'} - artifact ${event.artifact ?? ''}]\n`
 
     return `${event.text}\n`
   }).join('')
@@ -169,6 +202,8 @@ export function groupEvents(events: readonly LogEvent[]): LogGroup[] {
       continue
     }
 
+    // An image is content, so it folds with the lines around it: a screenshot
+    // printed inside a group belongs to that group.
     if (current)
       current.lines.push(event)
     else

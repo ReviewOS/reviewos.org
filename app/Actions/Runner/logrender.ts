@@ -34,6 +34,21 @@ export interface RenderOptions {
    * run page: an id is a global name, and two logs on one page would collide.
    */
   jobId?: number
+
+  /**
+   * Where the bytes of an image event actually live, by artifact name.
+   *
+   * A resolver rather than a rule, because this file knows nothing about which
+   * artifacts a run produced and should not: the caller has already read them,
+   * and a renderer that queried the database per line would be a log page that
+   * costs one round trip per screenshot.
+   *
+   * A name that is not in the map renders as a line saying so. That is the case
+   * where a job printed an image event for an artifact it never uploaded, or
+   * one that has expired, and a broken image with no explanation is the worst
+   * of the three ways to answer it.
+   */
+  images?: Record<string, { src: string, caption?: string }>
 }
 
 /** `14:32:07`, in the reader's terms rather than the runner's timezone. */
@@ -44,6 +59,47 @@ function clockOf(at: string): string {
     return ''
 
   return new Date(parsed).toISOString().slice(11, 19)
+}
+
+/**
+ * One image the job produced, shown where it printed it.
+ *
+ * `loading="lazy"` because a log with forty screenshots in it is a page that
+ * would otherwise fetch forty images before the reader has scrolled to the
+ * first, and the failure is usually at the bottom.
+ *
+ * No width or height is asserted: the bytes came off somebody's build and the
+ * dimensions this server would have to state are ones it has not measured. The
+ * stylesheet caps the rendered size instead, which is the property that matters
+ * - an image a build can make fill the screen is one it can use to hide the
+ * output around it.
+ */
+function renderImage(event: LogEvent, options: RenderOptions, line?: number): string {
+  const anchor = options.jobId && line ? ` id="log-${options.jobId}-${line}"` : ''
+  const name = String(event.artifact ?? '')
+  const found = options.images?.[name]
+  const alt = event.text || `image from artifact ${name}`
+
+  if (!found) {
+    /*
+     * Said in words rather than shown as a broken image. An artifact that
+     * expired is the common case and it is not an error: the log is old, the
+     * bytes were kept for as long as the instance keeps them, and the reader
+     * needs to know that rather than to see a torn-page icon.
+     */
+    return `<div${anchor} class="log-image-missing log-line"><span class="log-text">`
+      + `[image: ${escapeHtml(alt)} - artifact <code>${escapeHtml(name)}</code> is not available]`
+      + `</span></div>`
+  }
+
+  const caption = found.caption ?? event.text
+
+  return `<figure${anchor} class="log-image">`
+    + `<a href="${escapeHtml(found.src)}" class="log-image-link">`
+    + `<img src="${escapeHtml(found.src)}" alt="${escapeHtml(alt)}" loading="lazy" decoding="async">`
+    + `</a>`
+    + (caption ? `<figcaption class="log-image-caption">${escapeHtml(caption)}</figcaption>` : '')
+    + `</figure>`
 }
 
 /** One line: its time, its stream, and its text with colour and links. */
@@ -98,7 +154,9 @@ export function renderLog(events: readonly LogEvent[], options: RenderOptions & 
   let number = 0
 
   return groups.map((group) => {
-    const body = group.lines.map(line => renderLine(line, options, ++number)).join('')
+    const body = group.lines
+      .map(line => (line.type === 'image' ? renderImage(line, options, ++number) : renderLine(line, options, ++number)))
+      .join('')
 
     if (!group.grouped)
       return body

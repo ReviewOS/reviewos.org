@@ -11667,6 +11667,30 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/owners": {
+    get: {
+    parameters: {
+      query: { "owner": string; "q"?: string; "page"?: number; "per_page"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/pages": {
     get: {
     parameters: {
@@ -15634,6 +15658,32 @@ export interface paths {
       "401": { content: never }
       "403": { content: never }
       "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/workflow-runs/log-image": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "number"?: number; "artifact"?: string }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: never }
+      "404": { content: never }
+      "410": { content: never }
+      "415": { content: never }
       "422": { content: never }
       "500": { content: never }
     }

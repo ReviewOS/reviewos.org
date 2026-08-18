@@ -208,6 +208,26 @@ catch {
   artifactRows = []
 }
 
+/*
+ * Where an image event's bytes are, by artifact name.
+ *
+ * Built once from the artifacts already read for the list below, and handed to
+ * the renderer: a log with forty screenshots would otherwise be forty queries,
+ * and the renderer has no business knowing what a run produced. A name with no
+ * artifact - one that expired, or one a job named and never uploaded - is
+ * simply absent, and the renderer says so in words rather than showing a broken
+ * image.
+ */
+const logImages: Record<string, { src: string }> = {}
+
+for (const one of artifactRows) {
+  const name = String(one.name)
+  const expired = one.expires_at ? Date.parse(String(one.expires_at)) <= Date.now() : false
+
+  if (!expired)
+    logImages[name] = { src: `/api/repos/workflow-runs/log-image?owner=${encodeURIComponent(ownerHandle)}&repo=${encodeURIComponent(repositoryName)}&number=${Number(run?.number ?? 0)}&artifact=${encodeURIComponent(name)}` }
+}
+
 const artifactList = artifactRows.map(one => ({
   id: Number(one.id),
   name: String(one.name),
@@ -557,7 +577,7 @@ const jobs = jobRows.map((job) => {
     logHtml: renderLog(
       eventsByJob.get(Number(job.id))
       ?? eventsFromText((logByJob.get(Number(job.id)) ?? '').replace(/\s+$/, '')),
-      { failed: String(job.state) === 'failed', jobId: Number(job.id) },
+      { failed: String(job.state) === 'failed', jobId: Number(job.id), images: logImages },
     ),
     // The row id the log endpoint is keyed on, and where this page's copy of
     // the output ends.
@@ -1226,6 +1246,25 @@ const base = `/${ownerHandle}/${repositoryName}`
 
   .log-group { margin: 2px 0; }
   .log-group-name { cursor: pointer; font-weight: 600; }
+
+  /*
+   * An image a job printed. Capped rather than sized: the bytes came off
+   * somebody's build, and an image that can fill the screen is one that can
+   * hide the output around it.
+   */
+  .log-image { margin: 8px 0; }
+  .log-image img {
+    display: block;
+    max-width: min(100%, 720px);
+    max-height: 420px;
+    width: auto;
+    height: auto;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel-2, transparent);
+  }
+  .log-image-caption { margin-top: 4px; font-size: 12px; opacity: 0.75; }
+  .log-image-missing { opacity: 0.75; }
   .log-group-body { padding-left: 14px; border-left: 1px solid var(--line); margin-top: 4px; }
 
   /* A build's own colours. Named rather than hardcoded, so a theme decides what

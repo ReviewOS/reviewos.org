@@ -28668,6 +28668,60 @@
         }
       }
     },
+    "/api/owners": {
+      "get": {
+        "summary": "/api/owners",
+        "operationId": "get__api_owners",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The owner, one page of their repositories, and their profile README when they have written one."
+          },
+          "404": {
+            "description": "No account or organization with that handle. An alias that has moved answers this too; follow `/{handle}` for the redirect."
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
     "/api/pages": {
       "get": {
         "summary": "/api/pages",
@@ -42910,6 +42964,66 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/repos/workflow-runs/log-image": {
+      "get": {
+        "summary": "/api/repos/workflow-runs/log-image",
+        "operationId": "get__api_repos_workflow_runs_log_image",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "artifact",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image, inline, with the type its bytes say it is."
+          },
+          "404": {
+            "description": "No artifact of that name in this run."
+          },
+          "410": {
+            "description": "The artifact expired, or its stored copy is gone."
+          },
+          "415": {
+            "description": "The bytes are not a format this will render in place. SVG is refused whatever it contains."
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
           }
         }
       }

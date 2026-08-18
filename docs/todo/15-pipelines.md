@@ -2084,10 +2084,24 @@ plugins and Actions' actions are not competitors; they sit at different points i
 The screens. Buildkite's advantage here is a decade of small decisions, and most of the list is small
 decisions.
 
-- [ ] Log output streamed live, with collapsible groups the job itself opens and closes, per-line
+- [x] Log output streamed live, with collapsible groups the job itself opens and closes, per-line
       timestamps, ANSI colour, links, and images
 
-      **Everything but images.** Groups, timestamps, colour and links are done, on top of structured
+      **Images, last of the six.** An `image` event names an artifact of its own run - there is no
+      URL field and there will not be one. A URL would let a build put a picture served from
+      anywhere onto a page a colleague opens, which is a request their browser makes to somebody
+      else's server every time the log is read: a tracking pixel a build can install in a page other
+      people look at.
+
+      What renders in place is decided by the bytes rather than by the `Content-Type` of the upload,
+      which is whatever the machine typed. PNG, JPEG, GIF and WEBP, at most 8MB, served with
+      `nosniff` and a `Content-Security-Policy` of `default-src 'none'; sandbox` so a wrong sniff has
+      nowhere to go. **SVG is refused**: it is the one image format that is a document, and rendering
+      it in place means running it. Everything else stays downloadable from the run's artifacts and
+      reads in the log as a line saying so - which is also what an expired artifact shows, because
+      the log outlives the bytes and a broken image with no explanation is the worst way to say it.
+
+      The rest, from before: groups, timestamps, colour and links are done, on top of structured
       log events: an append may carry `line`, `group` and `endgroup` events instead of bytes, and
       the four things text cannot carry stop being guesses. `::group::` is a marker one CI product
       uses and a string somebody's build may legitimately print; the time a chunk arrived is not the

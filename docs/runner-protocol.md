@@ -140,10 +140,37 @@ carry and that cannot be recovered from it afterwards:
 - **where colour started and stopped**, so a page can render it or ignore it per
   reader rather than showing escape bytes as text.
 
-Three event types: `line`, `group`, `endgroup`. Nesting is flat, like every CI
-product that has this. A group nobody closed is closed at the end, because a
-build that fails inside one never gets to close it - and that is the group
-somebody came to read.
+Four event types: `line`, `group`, `endgroup`, `image`. Nesting is flat, like
+every CI product that has this. A group nobody closed is closed at the end,
+because a build that fails inside one never gets to close it - and that is the
+group somebody came to read.
+
+**An image is an artifact of this run, named rather than linked:**
+
+```json
+{ "type": "image", "text": "the failing screen", "artifact": "screenshot.png" }
+```
+
+Upload the bytes as an artifact first, then print the event naming it. There is
+no URL field and there will not be one: the only thing a build may put on a page
+a colleague opens is something it uploaded here, under its own run. A URL would
+be a request the reader's browser makes to somebody else's server every time the
+log is opened, which is a tracking pixel a build can install in a page other
+people read.
+
+An `image` with no `artifact` is dropped rather than kept as a line - a caption
+with nothing under it is not an image. `text` is the alt text, and it is what a
+plain-text reader gets: the stored text form of the event reads
+`[image: the failing screen - artifact screenshot.png]`, so `curl` of a log says
+what was there instead of leaving a gap.
+
+What the log will actually render in place is decided by the bytes, not by the
+`Content-Type` of the upload: PNG, JPEG, GIF and WEBP, at most 8MB. **SVG is
+refused** - it is a document that can carry script, and rendering it in place
+would run it. Anything else, and anything larger, stays downloadable from the
+run's artifacts and shows in the log as a line saying the image is not
+available. An artifact that has expired shows the same line: the log outlives
+the bytes, and a broken image with no explanation is the worst way to say so.
 
 The answer reports how many events were understood. An event type this server
 has not learned is **dropped, not refused**: a newer runner mid-fleet-upgrade
