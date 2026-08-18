@@ -207,7 +207,11 @@ export default defineModel({
   },
 
   set: {
-    password: async (attributes: { password: string }) =>
-      await makeHash(attributes.password, { algorithm: 'bcrypt' }),
+    // Widened to what the ORM actually passes. 0.72 types a setter as
+    // `(attributes: Record<string, unknown>) => unknown`, and narrowing the
+    // parameter to the one field this reads is the shape TypeScript refuses -
+    // a setter must accept every attribute, not only its own.
+    password: async (attributes: Record<string, unknown>) =>
+      await makeHash(String(attributes.password ?? ''), { algorithm: 'bcrypt' }),
   },
 } as const)
