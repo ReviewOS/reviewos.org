@@ -100,11 +100,46 @@ export async function signingKey(purpose = 'oidc'): Promise<SigningKey> {
     .executeTakeFirst()
 
   if (existing) {
-    return {
-      kid: String(existing.kid),
-      algorithm: String(existing.algorithm ?? 'RS256'),
-      publicJwk: JSON.parse(String(existing.public_jwk ?? '{}')),
-      privateJwk: JSON.parse(String(await decrypt(String(existing.sealed_private)))),
+    /*
+     * A key this instance can no longer open.
+     *
+     * The private half is sealed with `APP_KEY`, so a rotated or replaced key
+     * makes every stored row undecryptable. Unwrapped, that surfaced as far
+     * downstream as it possibly could: `decrypt` returned bytes, `JSON.parse`
+     * either threw or produced something that was not a JWK, and the first
+     * honest complaint came from `crypto.subtle.importKey` as
+     * `OperationError: The operation failed for an operation-specific reason`
+     * - a message that names neither the key, nor `APP_KEY`, nor this table,
+     * and reaches the caller as a bare 500.
+     *
+     * It cost hours to recognise here, on a machine where the cause was known.
+     * An operator who has just rotated `APP_KEY` would have no chance.
+     *
+     * Retired rather than deleted, and a fresh key minted in its place. The
+     * row is evidence - it says a key existed and when it stopped being
+     * readable - and the alternative is an instance whose OIDC endpoint
+     * answers 500 forever because one unreadable row sorts first.
+     */
+    try {
+      return {
+        kid: String(existing.kid),
+        algorithm: String(existing.algorithm ?? 'RS256'),
+        publicJwk: JSON.parse(String(existing.public_jwk ?? '{}')),
+        privateJwk: JSON.parse(String(await decrypt(String(existing.sealed_private)))),
+      }
+    }
+    catch (error) {
+      log.error(
+        `[oidc] the stored signing key ${existing.kid} cannot be opened - it was sealed with a different APP_KEY. `
+        + 'Retiring it and minting a new one; anything holding a token signed by the old key will stop verifying.',
+        error,
+      )
+
+      await db
+        .updateTable('instance_keys')
+        .set({ retired_at: new Date().toISOString() } as any)
+        .where('kid', '=', String(existing.kid))
+        .execute()
     }
   }
 
