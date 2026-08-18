@@ -255,22 +255,29 @@ const fileState = !read || ('error' in read && read.error) || ('ok' in read && !
 const movedTo = notFound ? await aliasTarget(owner) : null
 
 /*
- * The repository under the canonical owner, not the exact deep path.
+ * The whole path, not just the repository.
  *
- * A component cannot see the request path on this host. `__stxServeContext` is
- * defaulted to undefined for a component, `useRoute().path` reads that same
- * context so it is empty too, and bun-router's `url` binding does not reach a
- * component's scope either - all three were tried. So a link to a file at a
- * path redirects to the repository rather than to the file.
+ * A deep link is the kind people keep - an issue, a pull request, a file at a
+ * path - so a redirect that drops everything after the repository name throws
+ * away the reason the link was clicked.
  *
- * That is a real loss and it is bounded: the reader lands on the right
- * repository under the right owner, one click from where they were going,
- * rather than on a 404. Closing it properly means the host handing a component
- * the request path, which is a framework change rather than something to fake
- * from here - guessing the path from props would be right for `tree` and wrong
- * for `commit`, `compare` and `blob`, and wrong silently.
+ * `__stxServeContext` was being filtered out on the way into every component,
+ * along with every other `__`-prefixed key. stx 0.2.192 fixes that for its own
+ * `serve()`; this application is mounted by bun-router's file-based routing
+ * instead, which reaches components through a different path that still loses
+ * it - verified by probing the component scope on 0.2.192, where the page sees
+ * the request and the component does not. So `serveContext?.path` is still
+ * empty here and the fallback is what runs.
+ *
+ * The fallback sends a deep link to the repository under the canonical owner:
+ * one click from where the reader was going rather than a 404. Reconstructing
+ * the path from props is not the answer - it is right for `tree` and silently
+ * wrong for `commit`, `compare` and `blob`. When bun-router carries the
+ * context into a component, this line starts preserving the whole path with no
+ * change needed.
  */
-const movedPath = movedTo ? pathUnderOwner(`/${owner}/${repository}`, movedTo) : ''
+const requestPath = String(serveContext?.path ?? '')
+const movedPath = movedTo ? pathUnderOwner(requestPath || `/${owner}/${repository}`, movedTo) : ''
 
 /*
  * A real redirect, and it matters more here than on the profile page: the
