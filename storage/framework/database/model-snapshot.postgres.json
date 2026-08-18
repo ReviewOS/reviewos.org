@@ -9291,6 +9291,15 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": 0
+          },
+          {
+            "name": "attempt",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 1
           }
         ],
         "indexes": [
@@ -9842,6 +9851,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "attempt",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 1
           }
         ],
         "indexes": [
@@ -9849,6 +9867,7 @@
             "name": "workflow_job_logs_job_index",
             "columns": [
               "workflow_job_id",
+              "attempt",
               "sequence"
             ],
             "type": "index"
@@ -9857,6 +9876,7 @@
             "name": "workflow_job_logs_sequence_index",
             "columns": [
               "workflow_job_id",
+              "attempt",
               "sequence"
             ],
             "type": "unique"
@@ -12051,7 +12071,7 @@
       }
     ]
   },
-  "hash": "027b60b7327337661b78806be562efc5d3b975d378250758c24746a288bb44ed",
+  "hash": "9b030cef7696aa44de28deaaa2693abefd0de58ac96591989c54adc10de3a1d7",
   "dialect": "postgres",
-  "updatedAt": "2026-08-18T01:49:23.691Z"
+  "updatedAt": "2026-08-18T05:09:46.988Z"
 }

@@ -217,6 +217,7 @@ export default new Action({
       .select([
         'workflow_runs.id as run_id',
         'workflow_runs.number as run_number',
+        'workflow_runs.attempt as run_attempt',
         'workflow_runs.head_sha as head_sha',
         'workflow_runs.event as event',
         'workflow_runs.event_ref as event_ref',
@@ -374,7 +375,13 @@ export default new Action({
           // "changed files" logic is built on.
           head_ref: pull?.head_ref ? String(pull.head_ref) : '',
           base_ref: pull?.base_ref ? String(pull.base_ref) : '',
-          attempt: 1,
+          /*
+           * Which attempt of this run this is, so `GITHUB_RUN_ATTEMPT` means
+           * something. It was a literal 1 until re-runs existed to make it a
+           * number - which is the shape of bug this phase keeps finding: a
+           * value carried all the way to the runner and computed by nothing.
+           */
+          attempt: Number(context?.run_attempt ?? 1),
           // Said plainly, because a runner may want to refuse work it is not
           // willing to run: an untrusted run is a fork's code.
           trusted: Boolean(context?.trusted),

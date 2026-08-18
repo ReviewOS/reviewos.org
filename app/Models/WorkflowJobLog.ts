@@ -25,11 +25,18 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
-    // The read: everything after the cursor a reader holds.
-    { name: 'workflow_job_logs_job_index', columns: ['workflow_job_id', 'sequence'] },
-    // The append: a repeat of a chunk already stored is refused by the index
-    // rather than by a check somebody has to remember to write.
-    { name: 'workflow_job_logs_sequence_index', columns: ['workflow_job_id', 'sequence'], unique: true },
+    // The read: everything after the cursor a reader holds, within one attempt.
+    { name: 'workflow_job_logs_job_index', columns: ['workflow_job_id', 'attempt', 'sequence'] },
+    /*
+     * The append: a repeat of a chunk already stored is refused by the index
+     * rather than by a check somebody has to remember to write.
+     *
+     * Keyed on the attempt as well, because sequence numbers restart with each
+     * one - without it, the first chunk of a re-run collides with the first
+     * chunk of the attempt it is meant to be compared against, and is silently
+     * dropped as a duplicate.
+     */
+    { name: 'workflow_job_logs_sequence_index', columns: ['workflow_job_id', 'attempt', 'sequence'], unique: true },
   ],
 
   traits: {
@@ -48,6 +55,22 @@ export default defineModel({
     },
 
     /** The runner's own counter, from 1. */
+    /**
+     * Which attempt of the job wrote this.
+     *
+     * Kept so a re-run does not erase the log of the run that was failing -
+     * which is the log somebody re-ran the job to compare against. Defaults to
+     * 1, so every line written before this column existed reads as the first
+     * attempt, which it was.
+     */
+    attempt: {
+      order: 2,
+      fillable: true,
+      default: 1,
+      validation: { rule: schema.number() },
+      factory: () => 1,
+    },
+
     sequence: {
       order: 2,
       fillable: true,

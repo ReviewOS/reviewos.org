@@ -238,6 +238,23 @@ export default defineModel({
       factory: () => null,
     },
 
+    /**
+     * Which attempt of this run is current.
+     *
+     * A re-run does not make a second run: the commit, the workflow version and
+     * the number are the same, and a reader comparing two rows would have no
+     * way to tell which was the answer. It makes a second *attempt*, which is
+     * what `GITHUB_RUN_ATTEMPT` means and what every action that names its
+     * cache after it expects.
+     */
+    attempt: {
+      order: 12,
+      fillable: true,
+      default: 1,
+      validation: { rule: schema.number() },
+      factory: () => 1,
+    },
+
     started_at: {
       order: 12,
       fillable: true,

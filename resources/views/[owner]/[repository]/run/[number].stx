@@ -259,6 +259,23 @@ const canCancel = Boolean(run)
   && Boolean(repoAccess?.can?.('workflow:cancel'))
 
 /*
+ * Running it again, which is only offered on a run that has finished.
+ *
+ * Two attempts of one job in flight is what the lease exists to prevent, so the
+ * action refuses it - and a button that is refused when pressed is worse than
+ * one that is not there.
+ */
+const canRerun = Boolean(run)
+  && runIsFinished(String(run.state))
+  && Boolean(repoAccess?.can?.('workflow:cancel'))
+
+/** Whether anything in this run has a failure to run again. */
+const hasFailures = Boolean(run) && jobRows.some((job: any) => ['failed', 'cancelled'].includes(String(job.state)))
+
+/** Which attempt this run is on. Absent from the screen while it is the first. */
+const runAttempt = Number(run?.attempt ?? 1)
+
+/*
  * The runners this instance has, read only when something is actually waiting.
  *
  * A run whose jobs have all finished has nothing to explain, and a query per
@@ -568,6 +585,15 @@ const base = `/${ownerHandle}/${repositoryName}`
             @if (runDuration(run.started_at, run.finished_at))
               · {{ runDuration(run.started_at, run.finished_at) }}
             @endif
+            {{--
+              Said only once there is more than one, because "attempt 1" on
+              every run is noise that teaches a reader to stop seeing the word -
+              and the one place it matters is where somebody is looking at a
+              second attempt without realising it.
+            --}}
+            @if (runAttempt > 1)
+              · attempt {{ runAttempt }}
+            @endif
           </p>
 
           @if (run.conclusion_reason)
@@ -824,6 +850,35 @@ const base = `/${ownerHandle}/${repositoryName}`
               <input type="hidden" name="repo" value="{{ repositoryName }}">
               <input type="hidden" name="number" value="{{ runNumber }}">
               <button class="button" type="submit">Cancel run</button>
+            </form>
+          @endif
+
+          {{--
+            And running it again, on the run that has finished. Two controls
+            rather than one: "everything" and "what failed" are different
+            questions, and the second is the one people mean - it carries the
+            jobs that were skipped *because* of the failures with it, so the
+            next attempt is not green with half the pipeline never having run.
+          --}}
+          @if (canRerun)
+            @if (hasFailures)
+              <form method="post" action="/api/repos/workflow-runs/rerun" class="run-cancel">
+                <CsrfField />
+                <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                <input type="hidden" name="repo" value="{{ repositoryName }}">
+                <input type="hidden" name="number" value="{{ runNumber }}">
+                <input type="hidden" name="scope" value="failed">
+                <button class="button" type="submit">Re-run failed jobs</button>
+              </form>
+            @endif
+
+            <form method="post" action="/api/repos/workflow-runs/rerun" class="run-cancel">
+              <CsrfField />
+              <input type="hidden" name="owner" value="{{ ownerHandle }}">
+              <input type="hidden" name="repo" value="{{ repositoryName }}">
+              <input type="hidden" name="number" value="{{ runNumber }}">
+              <input type="hidden" name="scope" value="all">
+              <button class="button" type="submit">Re-run everything</button>
             </form>
           @endif
         </div>

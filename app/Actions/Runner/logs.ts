@@ -68,6 +68,9 @@ async function storedBytes(jobId: number): Promise<number> {
     .selectFrom('workflow_job_logs')
     .select(['content'])
     .where('workflow_job_id', '=', jobId)
+    // This attempt's budget, not the sum of every attempt's: a re-run of a job
+    // that filled the ceiling would otherwise be silent from its first line.
+    .where('attempt', '=', await attemptOf(jobId))
     .execute()
 
   return rows.reduce((total, row) => total + byteLength(String(row.content ?? '')), 0)
@@ -115,6 +118,16 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
       .insertInto('workflow_job_logs')
       .values({
         workflow_job_id: input.jobId,
+        /*
+         * Which attempt wrote this.
+         *
+         * Read from the job rather than sent by the runner: the runner knows
+         * what it was handed, and a re-run bumps the row - so trusting the
+         * message would let a stale worker file its output under the new
+         * attempt. The read is one indexed lookup on a row this write already
+         * depends on.
+         */
+        attempt: await attemptOf(input.jobId),
         sequence: input.sequence,
         content: clipped,
         stream,
@@ -156,6 +169,22 @@ export interface LogPage {
   cursor: number
 }
 
+/** Which attempt the job is on, for attributing a chunk to it. */
+async function attemptOf(jobId: number): Promise<number> {
+  try {
+    const row: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['attempt'])
+      .where('id', '=', jobId)
+      .executeTakeFirst()
+
+    return Number(row?.attempt ?? 1) || 1
+  }
+  catch {
+    return 1
+  }
+}
+
 /**
  * Read from where a reader got to.
  *
@@ -164,11 +193,22 @@ export interface LogPage {
  * still being written is a number that means something different a second
  * later.
  */
-export async function readLog(jobId: number, after = 0, limit = 200): Promise<LogPage> {
+export async function readLog(jobId: number, after = 0, limit = 200, attempt?: number): Promise<LogPage> {
+  /*
+   * One attempt's log, the current one unless a reader asks for another.
+   *
+   * Sequence numbers restart with each attempt, so a page that read them all
+   * would interleave two runs of the same job into one nonsensical order. The
+   * earlier attempt is still there - that is the whole point of keeping it -
+   * and a reader who wants it names it.
+   */
+  const wanted = Number.isInteger(attempt) && Number(attempt) > 0 ? Number(attempt) : await attemptOf(jobId)
+
   const rows: any[] = await db
     .selectFrom('workflow_job_logs')
     .select(['sequence', 'stream', 'content', 'events'])
     .where('workflow_job_id', '=', jobId)
+    .where('attempt', '=', wanted)
     .where('sequence', '>', Number.isFinite(after) ? after : 0)
     .orderBy('sequence', 'asc')
     .limit(Math.min(Math.max(limit, 1), 500))

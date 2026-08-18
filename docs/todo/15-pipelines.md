@@ -2008,8 +2008,27 @@ decisions.
       critical path through the run
 - [x] Timing on every job: queue time, run time, and the difference between them, because a slow run
       is usually a queue problem and the graph should say so
-- [ ] Rerun a whole run, rerun failed jobs only, and rerun one job, each recording that it is an
+- [x] Rerun a whole run, rerun failed jobs only, and rerun one job, each recording that it is an
       attempt rather than overwriting the first
+
+      `POST /api/repos/workflow-runs/rerun` with `scope: all | failed | job`, and two buttons on the
+      run screen. A re-run is a new *attempt* of the same run rather than a second run: the commit,
+      the workflow version and the number are unchanged, and two rows would leave a reader guessing
+      which was the answer.
+
+      **Re-running the failed jobs carries the jobs that were skipped because of them.** Without
+      that the second attempt finishes green with half the pipeline never having run, which is worse
+      than not having the button.
+
+      **The failing attempt stays readable**, which is the whole point - somebody re-runs a job to
+      compare it against the failure. Log chunks now carry the attempt that wrote them, and the
+      unique index is keyed on it: sequence numbers restart with each attempt, so without that the
+      first chunk of a re-run collides with the first chunk of the attempt it is meant to be
+      compared against and is silently dropped as a duplicate.
+
+      A run that has not finished is refused: two attempts of one job in flight is exactly what the
+      lease exists to prevent. And `GITHUB_RUN_ATTEMPT` is a real number now - it was a literal 1
+      carried all the way to the runner and computed by nothing.
 - [ ] Cancel a run and cancel a job, cooperative first and forced after a deadline (phase 9)
 - [ ] Unblock a block step from the interface, the API, and the CLI, recording who did it, and
       collecting input fields where declared
