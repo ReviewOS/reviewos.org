@@ -22,6 +22,16 @@ export interface MergeInput {
   body: string
   authorName: string
   authorEmail: string
+  /**
+   * Build the merge commit and stop, leaving the branch where it is.
+   *
+   * The merge queue's whole purpose: the *prospective* result has to exist as
+   * an object to be tested, and moving the branch to it would land the change
+   * before anything ran. Landing later is then moving the ref to the commit
+   * that was tested rather than merging again - which would produce a different
+   * commit from the one that went green.
+   */
+  dryRun?: boolean
 }
 
 export type MergeResult = { ok: true, sha: string } | { ok: false, error: string }
@@ -67,6 +77,9 @@ export async function performMerge(path: string, input: MergeInput): Promise<Mer
 
   const sha = commit.stdout.trim()
 
+  if (input.dryRun)
+    return { ok: true, sha }
+
   const update = await runGit(path, ['update-ref', `refs/heads/${input.base}`, sha, input.baseSha], { env })
   if (!update.ok)
     return { ok: false, error: 'The base branch moved while merging, so nothing was changed' }
@@ -104,6 +117,10 @@ async function performRebase(
   }
 
   const sha = replayed.sha
+
+  if (input.dryRun)
+    return { ok: true, sha }
+
   const update = await runGit(path, ['update-ref', `refs/heads/${input.base}`, sha, input.baseSha], { env })
   if (!update.ok)
     return { ok: false, error: 'The base branch moved while merging, so nothing was changed' }

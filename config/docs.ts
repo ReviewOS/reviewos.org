@@ -84,6 +84,7 @@ const config: BunPressOptions = {
             { text: 'Deployment environments', link: '/environments' },
             { text: 'Workflow variables', link: '/variables' },
             { text: 'Secrets', link: '/secrets' },
+            { text: 'The merge queue', link: '/merge-queue' },
           ],
         },
         {

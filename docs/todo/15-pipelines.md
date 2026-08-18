@@ -1423,8 +1423,31 @@ output, which covers the common case and nothing else.
       One thing writing it turned up: the value was being validated *after* the parser's
       `errors.length > 0` gate, so `intermediate: maybe` was silently read as `run`. A validator
       whose complaints are discarded is worse than none - it reads like a check.
-- [ ] Merge queue support: a run against the prospective merge result rather than the branch tip, so
+- [x] Merge queue support: a run against the prospective merge result rather than the branch tip, so
       a queue of pull requests is tested in the order it will land
+
+      The engine and its rules, not the screen. An entry is tested on the base with everything
+      ahead already merged, built with `merge-tree` and written to `refs/merge-queue/<number>` so a
+      runner can check it out - and the base branch does not move while it is tested.
+
+      **Landing is a ref move, not a second merge.** Merging again at that moment produces a
+      different commit from the one the run went green on - same tree, different parents - and the
+      thing that was tested would never exist. That is the whole failure this feature is built to
+      prevent, so it moves the branch to exactly the tested commit, guarded by where the branch
+      was; a branch that moved underneath puts the entry back in the queue rather than forcing it.
+
+      **A failure ejects and re-queues everything behind it**, because those entries were tested on
+      top of a commit that is now never going to exist. Not re-testing them is precisely how a
+      merge queue lands the change that breaks main. `ejected` rather than `failed`: the pull
+      request did not fail, it did not land this time in this order.
+
+      Found doing it: `performMerge` had no dry run, so the first version would have moved `main`
+      to the prospective commit before anything tested it - the exact bug the feature exists to
+      prevent, in the feature that prevents it. `dryRun` is now a real option rather than something
+      smuggled past the type with `as any`.
+
+      Deliberately not done: parallel speculative testing (double the machines to save latency,
+      before anybody has asked), the stall policy, and the page.
 - [x] A workflow can live at a path other than the repository root, and more than one can live in one
       repository
 
