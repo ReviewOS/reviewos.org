@@ -65,7 +65,8 @@ if (!visible)
 
 @layout('app')
 
-@section('title', 'Tokens')
+@section('title', `Tokens · ${params.owner}`)
+@section('description', `Machine account access tokens belonging to ${params.owner}.`)
 
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">

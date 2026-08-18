@@ -55,6 +55,9 @@ const rows = commitRows(commits, `/${ownerHandle}/${repositoryName}`, relativeTi
 
 @layout('app')
 
+@section('title', `Commits · ${params.owner}/${params.repository}`)
+@section('description', `The commit history of ${params.owner}/${params.repository}, newest first.`)
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (!repoRow)

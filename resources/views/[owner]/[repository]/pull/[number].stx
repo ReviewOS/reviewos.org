@@ -696,6 +696,9 @@ const statePill = pullRequest
 
 @layout('app')
 
+@section('title', `Pull request #${params.number} · ${params.owner}/${params.repository}`)
+@section('description', `Pull request #${params.number} in ${params.owner}/${params.repository}: the discussion, the reviews, and the merge state.`)
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (!pullRequest)

@@ -71,6 +71,7 @@ const base = `/${ownerHandle}/${repositoryName}`
 @layout('app')
 
 @section('title', `Branches · ${params.owner}/${params.repository}`)
+@section('description', `Every branch in ${params.owner}/${params.repository}, with what each one is ahead and behind the default by.`)
 
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">

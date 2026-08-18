@@ -1,9 +1,30 @@
-{{-- The shell every page inside the product uses.
+<script server>
+/**
+ * The shell every page inside the product uses.
+ *
+ * Separate from the marketing page on purpose: that page argues, this one
+ * gets out of the way. Same tokens, denser scale, and the accent is reserved
+ * for one thing per screen so review state (green, red, amber) reads as
+ * state rather than decoration.
+ *
+ * The `<head>` used to carry a title and nothing else - no description, no
+ * canonical URL, no card, no robots policy. Every link to a repository, a
+ * pull request or an issue posted anywhere therefore unfurled as a grey box
+ * with a URL in it, which is most of the links this project's users ever
+ * share. `pageMeta` resolves the rest from the request path; see
+ * `resources/functions/meta.ts`.
+ */
+import { CARD_HEIGHT, CARD_MIME, CARD_WIDTH, pageMeta } from '../../functions/meta'
 
-    Separate from the marketing page on purpose: that page argues, this one
-    gets out of the way. Same tokens, denser scale, and the accent is reserved
-    for one thing per screen so review state (green, red, amber) reads as
-    state rather than decoration. --}}
+// The identifier is bound on the path that serves a request and on no other,
+// and an undeclared identifier is a ReferenceError that would take every other
+// variable in this file with it - which in stx renders the page blank rather
+// than reporting anything.
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const ambientContext = (globalThis as any).__stxServeContext
+const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path ?? '/') })
+</script>
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -25,6 +46,46 @@
       ReviewOS rather than nothing.
     --}}
     <title>@yield('title', 'ReviewOS')</title>
+    <meta name="description" content="@yield('description', 'An open source, self-hostable git forge built around code review.')">
+
+    {{-- Query strings stripped: a repository's file list at three sort orders
+        is one page, and an issue list is not a new page per filter. --}}
+    <link rel="canonical" href="{{ meta.canonical }}">
+
+    {{-- Most of the product is deliberately kept out of an index - somebody's
+        settings and notifications have nothing to offer a stranger arriving
+        from a search result, and the deep repository views (a tree at a ref,
+        a compare range) are an unbounded URL space a crawler would walk
+        forever. `meta.robots` decides from the path; see `noIndex` in
+        resources/functions/meta.ts. --}}
+    <meta name="robots" content="{{ meta.robots }}">
+
+    {{-- The link preview.
+
+        `meta.image` is an on-demand card for anything named after an owner,
+        a repository, a pull request or an issue, and the site card otherwise.
+        The endpoint decides for itself whether what the path names is public
+        before it draws anything, so a private repository's page can carry
+        this tag and still give a scraper nothing but the generic card. --}}
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="ReviewOS">
+    <meta property="og:url" content="{{ meta.canonical }}">
+    <meta property="og:title" content="@yield('title', 'ReviewOS')">
+    <meta property="og:description" content="@yield('description', 'An open source, self-hostable git forge built around code review.')">
+    <meta property="og:image" content="{{ meta.image }}">
+    <meta property="og:image:type" content="{{ CARD_MIME }}">
+    <meta property="og:image:width" content="{{ CARD_WIDTH }}">
+    <meta property="og:image:height" content="{{ CARD_HEIGHT }}">
+    <meta property="og:image:alt" content="@yield('title', 'ReviewOS')">
+
+    {{-- `summary_large_image`, or X renders a small square thumbnail no
+        matter how good the card is. --}}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="@yield('title', 'ReviewOS')">
+    <meta name="twitter:description" content="@yield('description', 'An open source, self-hostable git forge built around code review.')">
+    <meta name="twitter:image" content="{{ meta.image }}">
+    <meta name="twitter:image:alt" content="@yield('title', 'ReviewOS')">
+
     <meta name="color-scheme" content="light dark">
 
     {{--

@@ -53,6 +53,9 @@ const gitignores = Object.entries(GITIGNORES).map(([key, value]) => ({ key, name
 
 @layout('app')
 
+@section('title', 'New repository · ReviewOS')
+@section('description', 'Create a repository on this instance, or import one from somewhere else.')
+
 @section('content')
   <div class="narrow shell">
     @if (!viewer)

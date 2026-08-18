@@ -68,11 +68,21 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       it but the two template blog posts, which went too - `content/blog/` shipped "Introducing
       Stacks", and `config/blog.ts` was titled The Stacks Blog with stacksjs.com as its canonical
       URL, so a blog build here would have published another product's branding.
-- [x] Open Graph and Twitter card metadata, with a generated social image. `buddy social:card`
-      renders `app/Social/card.ts` in headless Chrome over the DevTools protocol and writes
-      `public/images/og.png`; the PNG is committed, so generation needs a browser and serving does
-      not. Every marketing page carries the tags through the shared layout, and a test checks the
-      committed image is the 1200x630 the tags claim.
+- [x] Open Graph and Twitter card metadata, with a generated social image. First shipped as one
+      card, written as HTML and screenshotted through headless Chrome by `buddy social:card` - a
+      Chrome dependency for one image, which is why there was one image.
+- [x] A card per page, and a complete `<head>` on every page. `config/images.ts` declares one card
+      per route and `buddy generate:images` draws all of them with ts-images, no browser in the
+      pipeline; the copy for features, use cases and comparisons is derived from the catalog in
+      `resources/functions/marketing.ts` so a card cannot quote a headline the page no longer has.
+      `resources/functions/meta.ts` resolves the canonical URL, the card and the robots policy from
+      the request path, and both layouts render the full set - description, canonical, `og:*` with
+      the image's dimensions, `twitter:card`, and `noindex` on the personal and unbounded views.
+      Every view now declares a title and a description, which a test enforces.
+- [x] Cards for the pages a build cannot enumerate. A repository, a pull request, an issue and a
+      profile get a card drawn on request by `/api/og`, cached on disk and keyed on what the card
+      says, so a rename redraws it with nothing to invalidate. Everything is resolved as a stranger,
+      so a private repository gets the generic site card and no confirmation that it exists.
 - [ ] Lighthouse pass: no layout shift, fonts preloaded, images sized
 
       Measured rather than assumed, in a browser against the served page. **Layout shift is zero**

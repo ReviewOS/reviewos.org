@@ -44,9 +44,12 @@ export default {
   // `--check` is what a test uses to notice the committed pages have drifted.
   'docs:reference': 'DocsReference',
 
-  // The Open Graph card. Chrome renders it, the PNG is committed, and this
-  // runs when the copy changes rather than on every build.
-  'social:card': 'SocialCard',
+  /*
+   * The Open Graph cards used to be here as `social:card`: one card, written
+   * as HTML and screenshotted through headless Chrome. `buddy generate:images`
+   * replaces it, drawing a card per route from `config/images.ts` with
+   * ts-images and no browser anywhere in the pipeline.
+   */
 
   'inspire': 'Inspire',
   'seed:demo': 'SeedDemo',

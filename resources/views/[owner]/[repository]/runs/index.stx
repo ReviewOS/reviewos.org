@@ -105,6 +105,9 @@ const base = `/${ownerHandle}/${repositoryName}`
 
 @layout('app')
 
+@section('title', `Runs · ${params.owner}/${params.repository}`)
+@section('description', `Workflow runs in ${params.owner}/${params.repository}, newest first.`)
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (!repoRow)

@@ -53,6 +53,7 @@ const loadLines = loadRows.map(row => ({
 @layout('app')
 
 @section('title', `Pull requests · ${params.owner}/${params.repository}`)
+@section('description', `Open and merged pull requests in ${params.owner}/${params.repository}, with the review state of each.`)
 
 @section('content')
   <RepoList

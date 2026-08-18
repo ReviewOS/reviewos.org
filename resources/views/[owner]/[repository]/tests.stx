@@ -117,6 +117,9 @@ const base = `/${ownerHandle}/${repositoryName}`
 
 @layout('app')
 
+@section('title', `Tests · ${params.owner}/${params.repository}`)
+@section('description', `Test results reported into ${params.owner}/${params.repository}, and which of them are flaky.`)
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (!repoRow)

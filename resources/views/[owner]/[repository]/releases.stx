@@ -107,6 +107,9 @@ function fileSize(bytes: number): string {
 
 @layout('app')
 
+@section('title', `Releases · ${params.owner}/${params.repository}`)
+@section('description', `Tagged releases of ${params.owner}/${params.repository}, with their notes and attached assets.`)
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (!repoRow)

@@ -26,6 +26,22 @@ import { response, route } from '@stacksjs/router'
 route.get('/health', 'Actions/Ops/HealthAction')
 
 /*
+ * Link-preview cards for the pages a build cannot enumerate.
+ *
+ * `?path=/owner/repository/pull/12`, answering a PNG. Every page inside the
+ * product points its `og:image` here rather than at a static file, because
+ * there is no static file: an instance has a page per repository, per pull
+ * request, per issue and per account, and those are most of what actually gets
+ * pasted into a chat.
+ *
+ * Unauthenticated on purpose - the reader is whatever server unfurled the
+ * link, arriving with no session - and so the action resolves everything as a
+ * stranger and falls back to the generic site card for anything a stranger may
+ * not see. See `app/Actions/Og/resolve.ts`.
+ */
+route.get('/og', 'Actions/Og/SocialCardAction')
+
+/*
  * Metrics, for a scraper. Prometheus exposition format, because it is what
  * every scraper reads and a self-hosted forge should be observable with the
  * tools people already run.

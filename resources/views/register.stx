@@ -33,7 +33,8 @@ const alreadyIn = Boolean(viewer)
 
 @layout('app')
 
-@section('title', 'Create an account')
+@section('title', 'Create an account · ReviewOS')
+@section('description', 'Create an account on this ReviewOS instance.')
 
 @section('content')
   <div class="shell" style="padding-top: 60px; padding-bottom: 80px;">

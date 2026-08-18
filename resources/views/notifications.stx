@@ -122,6 +122,7 @@ const emptyLine = filtered
 @layout('app')
 
 @section('title', title)
+@section('description', 'Your inbox: reviews waiting on you, mentions, and replies to threads you are in.')
 
 @section('content')
   <main class="inbox">

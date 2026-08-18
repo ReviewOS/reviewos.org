@@ -48,7 +48,7 @@ export default new Action({
   },
 
   async handle(request: RequestInstance) {
-    const auth = await authorizeRepository(request, 'repository:read')
+    const auth = await authorizeRepository(request, 'workflow:logs')
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)
 

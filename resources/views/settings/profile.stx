@@ -47,7 +47,8 @@ const website = String(account?.website ?? '')
 
 @layout('app')
 
-@section('title', 'Profile settings')
+@section('title', 'Profile settings · ReviewOS')
+@section('description', 'Your name, handle, bio, and avatar on this instance.')
 
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">

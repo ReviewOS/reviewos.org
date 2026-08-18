@@ -54,7 +54,7 @@ export default new Action({
      * is failing at three in the morning, and requiring repository
      * administration for that means the person on call cannot.
      */
-    const auth = await authorizeRepository(request, 'workflow:dispatch')
+    const auth = await authorizeRepository(request, 'workflow:manage')
 
     if (!auth.ok)
       return response.json({ error: auth.error }, auth.status)

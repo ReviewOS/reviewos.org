@@ -1,7 +1,7 @@
 import type { ResourceSelection } from '../../TokenScopes'
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
-import { normalizeGrants, ORGANIZATION_SCOPES, REPOSITORY_SCOPES, resolveExpiry } from '../../TokenScopes'
+import { INSTANCE_SCOPES, normalizeGrants, ORGANIZATION_SCOPES, REPOSITORY_SCOPES, resolveExpiry } from '../../TokenScopes'
 import { canInOrganization } from '../../Permissions'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
 import { recordTokenAudit } from './audit'
@@ -213,7 +213,7 @@ function readPermissions(request: RequestInstance): { scope: string, level: stri
 
   const grants: { scope: string, level: string }[] = []
 
-  for (const scope of [...REPOSITORY_SCOPES, ...ORGANIZATION_SCOPES]) {
+  for (const scope of [...REPOSITORY_SCOPES, ...ORGANIZATION_SCOPES, ...INSTANCE_SCOPES]) {
     const level = request.get(`scope_${scope}`)
     if (!level)
       continue

@@ -12,7 +12,8 @@
 
 @layout('app')
 
-@section('title', 'Unsubscribed')
+@section('title', 'Unsubscribed · ReviewOS')
+@section('description', 'You will not receive this kind of email from ReviewOS again.')
 
 @section('content')
   <div class="shell" style="padding-top: 60px; padding-bottom: 80px;">

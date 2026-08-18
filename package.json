@@ -70,6 +70,7 @@
     "@stacksjs/actions": "^0.72.25",
     "@stacksjs/api": "^0.72.25",
     "@stacksjs/buddy": "^0.72.25",
+    "@stacksjs/bunpress": "^0.2.7",
     "@stacksjs/database": "^0.72.25",
     "@stacksjs/env": "^0.72.25",
     "@stacksjs/events": "^0.72.25",
@@ -86,6 +87,7 @@
     "pickier": "^0.1.57",
     "stacks": "^0.72.25",
     "ts-git-lfs": "^0.1.2",
+    "ts-images": "^0.2.12",
     "ts-pantry": "^0.11.26",
     "ts-syntax-highlighter": "^0.2.14"
   },

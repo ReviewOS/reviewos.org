@@ -65,6 +65,9 @@ function windowHref(value) {
 
 @layout('app')
 
+@section('title', 'Explore · ReviewOS')
+@section('description', 'Every public repository on this instance, by language, activity, and recent review.')
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     <header class="explore-head">

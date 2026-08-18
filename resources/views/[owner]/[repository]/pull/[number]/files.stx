@@ -169,6 +169,7 @@ const blameUrl = `/api/repos/pulls/diff/blame?${diffQuery}`
 @layout('app')
 
 @section('title', title)
+@section('description', `The files changed by pull request #${params.number} in ${params.owner}/${params.repository}, against the merge base.`)
 
 @section('content')
   <div class="files-shell shell">

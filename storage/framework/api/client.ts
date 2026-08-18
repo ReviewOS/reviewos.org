@@ -4139,6 +4139,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/og
+   */
+  getOg(input?: { "path"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/og", input ?? {}, ["path"], false, options)
+  },
+
+  /**
    * GET /api/openapi.json
    */
   getOpenapiJson(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

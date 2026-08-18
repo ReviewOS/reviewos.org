@@ -103,6 +103,9 @@ const base = `/${ownerHandle}/${repositoryName}`
 
 @layout('app')
 
+@section('title', `Milestones · ${params.owner}/${params.repository}`)
+@section('description', `Milestones in ${params.owner}/${params.repository}, and what is still open against each one.`)
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (!repositoryRow)

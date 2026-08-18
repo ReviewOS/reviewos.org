@@ -63,6 +63,9 @@ const signature = signatureBadge(signed?.verification.status ?? 'unsigned', sign
 
 @layout('app')
 
+@section('title', `Commit ${String(params.sha ?? '').slice(0, 7)} · ${params.owner}/${params.repository}`)
+@section('description', `One commit in ${params.owner}/${params.repository}: its message, its parents, and the diff it introduced.`)
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (!repoRow)

@@ -73,6 +73,7 @@ const theirs = rowsFor(queue.waitingOnOthers)
 @layout('app')
 
 @section('title', title)
+@section('description', 'The reviews waiting on you, and the pull requests waiting on somebody else.')
 
 @section('content')
   <main class="queue">

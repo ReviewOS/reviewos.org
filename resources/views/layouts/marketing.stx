@@ -17,6 +17,7 @@
 import { COMPARISONS, FEATURE_GROUPS, featuresIn, USE_CASES } from '../../functions/marketing'
 import { SOURCE_ISSUES_PATH, SOURCE_PATH, UPSTREAM_URL } from '../../functions/site'
 import { cookieJarFromHeader, viewerFromCookies } from '../../functions/identity'
+import { CARD_HEIGHT, CARD_MIME, CARD_WIDTH, pageMeta } from '../../functions/meta'
 
 const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
 const headerBag = typeof headers === 'undefined' ? undefined : headers
@@ -30,6 +31,21 @@ try {
 catch {
   viewer = null
 }
+
+/*
+ * The half of the `<head>` that is derived rather than declared.
+ *
+ * Title and description stay with the page - they are copy, and copy belongs
+ * next to the page it describes. The canonical URL, the card, and the robots
+ * policy are all functions of the request path, so asking forty pages to
+ * repeat them is asking for forty chances to get one wrong.
+ *
+ * `(globalThis as any).__stxServeContext` is the fallback for the render paths
+ * where the identifier is not bound; a card is not worth throwing over, so a
+ * render with no request behind it resolves to the site card.
+ */
+const ambientContext = (globalThis as any).__stxServeContext
+const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path ?? '/') })
 </script>
 
 <!DOCTYPE html>
@@ -37,31 +53,47 @@ catch {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@yield('title')</title>
-    <meta name="description" content="@yield('description')">
+    <title>@yield('title', 'ReviewOS')</title>
+    <meta name="description" content="@yield('description', 'An open source, self-hostable git forge built around code review.')">
+
+    {{-- Query strings stripped, so `/explore?page=2` does not compete with
+        `/explore` for the same page's standing. --}}
+    <link rel="canonical" href="{{ meta.canonical }}">
+    <meta name="robots" content="{{ meta.robots }}">
 
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0c1113" media="(prefers-color-scheme: dark)">
 
-    {{-- Every marketing page gets a card. The one image rather than one per
-        page: a feature page's card that says "ReviewOS" is worth far more than
-        no card, and forty generated variants are worth very little more than
-        one. --}}
+    {{-- One card per page, generated from `config/images.ts`.
+
+        This declared a single site-wide image for forty pages, on the argument
+        that a card saying "ReviewOS" beats no card. True, and the comparison
+        was the wrong one: a card that names the page beats both, and the
+        difference between one and forty is a list rather than an afternoon.
+        A page with no entry still falls back to the site card.
+
+        Exactly one `og:image`. Repeated, it is read as a gallery rather than a
+        fallback list - Discord draws every declared image side by side, each
+        cropped to a sliver. --}}
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="ReviewOS">
-    <meta property="og:title" content="@yield('title')">
-    <meta property="og:description" content="@yield('description')">
-    <meta property="og:image" content="https://reviewos.org/images/og.png">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="ReviewOS: a git forge built around review">
+    <meta property="og:url" content="{{ meta.canonical }}">
+    <meta property="og:title" content="@yield('title', 'ReviewOS')">
+    <meta property="og:description" content="@yield('description', 'An open source, self-hostable git forge built around code review.')">
+    <meta property="og:image" content="{{ meta.image }}">
+    <meta property="og:image:type" content="{{ CARD_MIME }}">
+    <meta property="og:image:width" content="{{ CARD_WIDTH }}">
+    <meta property="og:image:height" content="{{ CARD_HEIGHT }}">
+    <meta property="og:image:alt" content="@yield('title', 'ReviewOS')">
 
+    {{-- `summary_large_image`, or X renders a small square thumbnail no matter
+        how good the card is. --}}
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="@yield('title')">
-    <meta name="twitter:description" content="@yield('description')">
-    <meta name="twitter:image" content="https://reviewos.org/images/og.png">
-    <meta name="twitter:image:alt" content="ReviewOS: a git forge built around review">
+    <meta name="twitter:title" content="@yield('title', 'ReviewOS')">
+    <meta name="twitter:description" content="@yield('description', 'An open source, self-hostable git forge built around code review.')">
+    <meta name="twitter:image" content="{{ meta.image }}">
+    <meta name="twitter:image:alt" content="@yield('title', 'ReviewOS')">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

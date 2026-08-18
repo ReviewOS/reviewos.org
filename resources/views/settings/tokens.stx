@@ -68,6 +68,9 @@ const scopes = [
 
 @layout('app')
 
+@section('title', 'Access tokens · ReviewOS')
+@section('description', 'Personal access tokens on your account, and the scopes each one carries.')
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     <SettingsNav current="tokens" />

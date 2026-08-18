@@ -47,6 +47,9 @@ if (!viewer)
 
 @layout('app')
 
+@section('title', 'Organizations · ReviewOS')
+@section('description', 'The organizations you belong to, and the role you hold in each.')
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     <SettingsNav current="organizations" />

@@ -234,6 +234,9 @@ const environments = repoRow
 
 @layout('app')
 
+@section('title', `Workflows · ${params.owner}/${params.repository}`)
+@section('description', `The workflows defined in ${params.owner}/${params.repository}, and when each one runs.`)
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (!repoRow)

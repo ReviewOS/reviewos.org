@@ -21,6 +21,7 @@ const pageNumberParam = String(search.page ?? '')
 @layout('app')
 
 @section('title', `Issues · ${params.owner}/${params.repository}`)
+@section('description', `Open and closed issues in ${params.owner}/${params.repository}, with labels, milestones, and assignees.`)
 
 @section('content')
   <RepoList

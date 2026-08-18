@@ -55,6 +55,15 @@ export default defineModel({
           // enum, every attempt to grant it failed at the insert - the scope
           // existed in the vocabulary and could not be written down.
           'checks',
+          // The pipelines surface and its logs, separable from `checks` so a
+          // reporter that posts results cannot also start runs, and from each
+          // other so watching a build does not mean reading everything it
+          // printed.
+          'actions',
+          'actions_logs',
+          // Instance-wide rather than per repository: the machines belong to
+          // nobody's repository.
+          'fleet',
           'members',
           'organization_administration',
           'billing',

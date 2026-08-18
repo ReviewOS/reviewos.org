@@ -265,7 +265,8 @@ const dayBoxes = [
 
 @layout('app')
 
-@section('title', 'Notification settings')
+@section('title', 'Notification settings · ReviewOS')
+@section('description', 'Choose which events reach you, and by which channel.')
 
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">

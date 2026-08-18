@@ -114,6 +114,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
 @layout('app')
 
 @section('title', `Settings · ${params.owner}/${params.repository}`)
+@section('description', `Settings for ${params.owner}/${params.repository}: visibility, merge strategies, branch protection, and collaborators.`)
 
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">

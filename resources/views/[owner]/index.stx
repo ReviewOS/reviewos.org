@@ -242,6 +242,7 @@ const readmePath = `/${handle}/${handle}`
 @layout('app')
 
 @section('title', found ? `${displayName} (${handle})` : 'Not found')
+@section('description', found ? `${displayName} on ReviewOS: repositories, activity, and what they have been reviewing.` : 'No account with that handle exists on this instance.')
 
 @section('content')
   <div class="shell" style="padding-top: 26px; padding-bottom: 64px;">

@@ -10,6 +10,22 @@ Object.assign(globalThis, autoImports)
 
 // TypeScript declarations
 declare global {
+  const socialCard: typeof autoImports.socialCard
+  const runtimeCard: typeof autoImports.runtimeCard
+  const attr: typeof autoImports.attr
+  const shortenForPreview: typeof autoImports.shortenForPreview
+  const absolute: typeof autoImports.absolute
+  const canonical: typeof autoImports.canonical
+  const noIndex: typeof autoImports.noIndex
+  const pageMeta: typeof autoImports.pageMeta
+  const SITE_URL: typeof autoImports.SITE_URL
+  const SITE_NAME: typeof autoImports.SITE_NAME
+  const SITE_DESCRIPTION: typeof autoImports.SITE_DESCRIPTION
+  const SITE_CARD_ALT: typeof autoImports.SITE_CARD_ALT
+  const DEFAULT_CARD: typeof autoImports.DEFAULT_CARD
+  const CARD_WIDTH: typeof autoImports.CARD_WIDTH
+  const CARD_HEIGHT: typeof autoImports.CARD_HEIGHT
+  const CARD_MIME: typeof autoImports.CARD_MIME
   const pushState: typeof autoImports.pushState
   const enablePush: typeof autoImports.enablePush
   const disablePush: typeof autoImports.disablePush
@@ -29,6 +45,14 @@ declare global {
   const artifactSize: typeof autoImports.artifactSize
   const renderLog: typeof autoImports.renderLog
   const eventsFromText: typeof autoImports.eventsFromText
+  const explainWaiting: typeof autoImports.explainWaiting
+  const startersFor: typeof autoImports.startersFor
+  const layersOf: typeof autoImports.layersOf
+  const criticalPath: typeof autoImports.criticalPath
+  const waitingOn: typeof autoImports.waitingOn
+  const searchLog: typeof autoImports.searchLog
+  const testSummaryForPull: typeof autoImports.testSummaryForPull
+  const testTrends: typeof autoImports.testTrends
   const intervalFor: typeof autoImports.intervalFor
   const watchRun: typeof autoImports.watchRun
   const watchJobLog: typeof autoImports.watchJobLog
@@ -60,6 +84,13 @@ declare global {
   const blockedBy: typeof autoImports.blockedBy
   const stackSummary: typeof autoImports.stackSummary
   const landableThrough: typeof autoImports.landableThrough
+  const SOURCE_OWNER: typeof autoImports.SOURCE_OWNER
+  const SOURCE_REPOSITORY: typeof autoImports.SOURCE_REPOSITORY
+  const SOURCE_PATH: typeof autoImports.SOURCE_PATH
+  const SOURCE_ISSUES_PATH: typeof autoImports.SOURCE_ISSUES_PATH
+  const SOURCE_PULLS_PATH: typeof autoImports.SOURCE_PULLS_PATH
+  const SOURCE_CLONE_URL: typeof autoImports.SOURCE_CLONE_URL
+  const UPSTREAM_URL: typeof autoImports.UPSTREAM_URL
   const toggleDark: typeof autoImports.toggleDark
   const isDark: typeof autoImports.isDark
   const preferredDark: typeof autoImports.preferredDark
@@ -68,6 +99,9 @@ declare global {
   const compareTags: typeof autoImports.compareTags
   const isDraft: typeof autoImports.isDraft
   const looksLikePrerelease: typeof autoImports.looksLikePrerelease
+  const insightFor: typeof autoImports.insightFor
+  const aliasTarget: typeof autoImports.aliasTarget
+  const pathUnderOwner: typeof autoImports.pathUnderOwner
   const draftFromServer: typeof autoImports.draftFromServer
   const viewedFromServer: typeof autoImports.viewedFromServer
   const createReviewStore: typeof autoImports.createReviewStore
@@ -118,6 +152,7 @@ declare global {
   const gapCovering: typeof autoImports.gapCovering
   const mountDiffFiles: typeof autoImports.mountDiffFiles
   const DEFAULT_HEIGHT_METRICS: typeof autoImports.DEFAULT_HEIGHT_METRICS
+  const readDocsPage: typeof autoImports.readDocsPage
   const readPreferences: typeof autoImports.readPreferences
   const writePreferences: typeof autoImports.writePreferences
   const applyPreferences: typeof autoImports.applyPreferences
@@ -128,6 +163,8 @@ declare global {
   const summarizeAll: typeof autoImports.summarizeAll
   const subjectKey: typeof autoImports.subjectKey
   const pressed: typeof autoImports.pressed
+  const settingsFor: typeof autoImports.settingsFor
+  const resolveVariables: typeof autoImports.resolveVariables
   const csrfToken: typeof autoImports.csrfToken
   const writeHeaders: typeof autoImports.writeHeaders
   const featuresIn: typeof autoImports.featuresIn

@@ -76,6 +76,9 @@ const title = repoRow && request
 
 @layout('app')
 
+@section('title', `Compare · ${params.owner}/${params.repository}`)
+@section('description', `The difference between two refs in ${params.owner}/${params.repository}, computed against their merge base.`)
+
 @section('content')
   <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
     @if (!repoRow)

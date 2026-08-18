@@ -25,6 +25,7 @@ const fromLine = String(search.from ?? '')
 @layout('app')
 
 @section('title', `${params.path ? `${params.path} · ` : ''}${params.owner}/${params.repository}`)
+@section('description', `Browse the source of ${params.owner}/${params.repository} at any branch, tag, or commit.`)
 
 {{--
   Imported by its path from the project root rather than relatively: a

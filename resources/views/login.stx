@@ -71,7 +71,8 @@ const alreadyIn = Boolean(viewer)
 
 @layout('app')
 
-@section('title', 'Sign in')
+@section('title', 'Sign in · ReviewOS')
+@section('description', 'Sign in to this ReviewOS instance with a password, a passkey, or a linked account.')
 
 @section('content')
   <div class="shell" style="padding-top: 60px; padding-bottom: 80px;">

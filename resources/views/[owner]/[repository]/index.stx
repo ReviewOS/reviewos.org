@@ -7,6 +7,7 @@
 @layout('app')
 
 @section('title', `${params.owner}/${params.repository}`)
+@section('description', `Code, issues, and pull requests for ${params.owner}/${params.repository} on ReviewOS.`)
 
 @section('content')
   <RepoBrowser owner="{{ params.owner }}" repository="{{ params.repository }}" refName="" path="" />

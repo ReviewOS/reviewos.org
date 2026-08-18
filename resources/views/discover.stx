@@ -33,7 +33,8 @@ function repositoryHref(entry) {
 
 @layout('app')
 
-@section('title', 'Discover - ReviewOS')
+@section('title', 'Discover · ReviewOS')
+@section('description', 'Repositories worth reading on this instance, and the reviews happening on them now.')
 
 @section('content')
   <div class="shell discover-shell">

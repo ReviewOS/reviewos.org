@@ -39,9 +39,36 @@ const config: BunPressOptions = {
 
   markdown: {
     title: 'ReviewOS Documentation',
+    /*
+     * The link preview for every documentation page.
+     *
+     * bunpress only emits Open Graph tags at all when `sitemap.baseUrl` is
+     * set, which it is below. The card itself is the one `buddy
+     * generate:images` draws for `/docs` from `config/images.ts`; it is named
+     * here as an absolute URL because a receiver resolving a relative image
+     * against its own host is how a preview renders as a broken square.
+     *
+     * A page's own `image:` in its frontmatter still wins, so a page with
+     * something better to show can say so.
+     *
+     * The four `og:image:*` shape keys need bunpress 0.2.7, which dropped them
+     * on the floor until then: `basicMeta` filters every `og:` key out of the
+     * arbitrary meta block on the assumption the Open Graph builder handles
+     * them, and it only ever handled `og:image`. They are declared here now
+     * and will start rendering when `@stacksjs/docs` picks up 0.2.7; the image
+     * and the card type work today.
+     */
     meta: {
-      description: 'An open source, self-hostable git forge built around code review.',
-      author: 'ReviewOS',
+      'description': 'An open source, self-hostable git forge built around code review.',
+      'author': 'ReviewOS',
+      'og:image': 'https://reviewos.org/social/docs.png',
+      'og:image:type': 'image/png',
+      'og:image:width': '1200',
+      'og:image:height': '630',
+      'og:image:alt': 'ReviewOS documentation: install it, run it, operate it',
+      // The default is `summary`, which renders a small square thumbnail no
+      // matter how good the card is.
+      'twitter:card': 'summary_large_image',
     },
     syntaxHighlightTheme: 'github-dark',
     toc: {

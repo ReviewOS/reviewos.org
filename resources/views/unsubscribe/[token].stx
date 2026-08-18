@@ -46,7 +46,8 @@ const usable = Boolean(token)
 
 @layout('app')
 
-@section('title', 'Unsubscribe')
+@section('title', 'Unsubscribe · ReviewOS')
+@section('description', 'Stop receiving this kind of email from ReviewOS.')
 
 @section('content')
   <div class="shell" style="padding-top: 60px; padding-bottom: 80px;">
