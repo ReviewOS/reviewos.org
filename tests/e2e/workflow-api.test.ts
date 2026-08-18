@@ -249,6 +249,15 @@ describe('one run', () => {
     // The definition it ran, so a reader can tell it from the file today.
     expect(body.workflow_run.workflow.name).toBe('CI')
     expect(body.workflow_run.version.digest).toBeTruthy()
+
+    /*
+     * Three timestamps rather than two. Without `queued_at` a client cannot
+     * tell a job that took ten minutes from one that waited nine of them, which
+     * is the first question anybody asks about a slow run - and the key has to
+     * be present even when it is null, or a client has to guess whether the
+     * field is missing or the job never queued.
+     */
+    expect(Object.keys(body.workflow_run.jobs[0])).toContain('queued_at')
   })
 
   test('and a number that does not exist is a 404', async () => {

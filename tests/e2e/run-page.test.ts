@@ -544,6 +544,44 @@ describe('a run that is waiting for a runner', () => {
  * and useless; a file they can copy that actually runs is the difference
  * between trying it and closing the tab.
  */
+describe('how long a job waited, against how long it ran', () => {
+  test('are two numbers on the page, not one', async () => {
+    if (!available)
+      return
+
+    /*
+     * A slow run is usually a queue problem, and one combined figure cannot
+     * say which: "eleven minutes" reads the same whether the job took eleven
+     * minutes or spent nine of them waiting for a machine that was not there.
+     */
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', created.finished)
+      .executeTakeFirst()
+
+    const started = new Date(Date.now() - 600_000)
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({
+        queued_at: new Date(started.getTime() - 540_000).toISOString(),
+        started_at: started.toISOString(),
+        finished_at: new Date(started.getTime() + 60_000).toISOString(),
+      } as any)
+      .where('workflow_run_id', '=', Number(run.id))
+      .execute()
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
+
+    // Nine minutes waiting, one minute working - and the page says so in those
+    // words rather than leaving a reader to subtract two timestamps.
+    expect(html).toContain('waited 9m 0s')
+    expect(html).toContain('ran 1m 0s')
+  })
+})
+
 describe('a repository with no workflows', () => {
   test('is offered starters that are real Actions workflows', async () => {
     if (!available)

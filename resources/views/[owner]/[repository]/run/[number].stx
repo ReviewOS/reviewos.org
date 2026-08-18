@@ -462,6 +462,18 @@ const jobs = jobRows.map((job) => {
     runsOn: String(job.runs_on ?? '').split('\n').map(line => line.trim()).filter(Boolean).join(', '),
     runner: job.runner_id ? String(job.runner_id) : '',
     duration: runDuration(job.started_at, job.finished_at),
+    /*
+     * How long it waited for a machine, kept separate from how long it ran.
+     *
+     * A slow run is usually a queue problem, and one combined number cannot
+     * say which - "eleven minutes" reads as a slow job whether the job took
+     * eleven minutes or waited nine of them. A job still waiting measures
+     * against now on purpose: on a live run the wait is the thing growing, and
+     * that is exactly what somebody staring at this page wants to see.
+     */
+    queueTime: job.queued_at
+      ? runDuration(job.queued_at, job.started_at ?? null)
+      : '',
     // Trimmed of trailing blank lines only: everything else is what the job
     // printed, and a log this screen edited is a log nobody can trust.
     log: (logByJob.get(Number(job.id)) ?? '').replace(/\s+$/, ''),
@@ -602,8 +614,16 @@ const base = `/${ownerHandle}/${repositoryName}`
               <span class="run-dot run-{{ job.tone }}" aria-hidden="true"></span>
               <h3 class="job-name">{{ job.name }}</h3>
               <span class="muted job-state">{{ job.label }}@if (job.attempt > 1) · attempt {{ job.attempt }}@endif</span>
+              {{--
+                Waited, then ran. Two numbers rather than one, because a run
+                that is slow because nothing could take its jobs is a different
+                afternoon's work from one that is slow because the jobs are.
+              --}}
+              @if (job.queueTime)
+                <span class="muted job-time">waited {{ job.queueTime }}</span>
+              @endif
               @if (job.duration)
-                <span class="muted job-time">{{ job.duration }}</span>
+                <span class="muted job-time">{{ job.queueTime ? 'ran' : '' }} {{ job.duration }}</span>
               @endif
             </header>
 

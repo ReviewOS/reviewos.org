@@ -1835,7 +1835,7 @@ decisions.
       Webhooks for run transitions are not wired; the box's third vocabulary has no consumer yet.
 - [ ] A dependency graph view: what ran, what is running, what is blocked and on what, and the
       critical path through the run
-- [ ] Timing on every job: queue time, run time, and the difference between them, because a slow run
+- [x] Timing on every job: queue time, run time, and the difference between them, because a slow run
       is usually a queue problem and the graph should say so
 - [ ] Rerun a whole run, rerun failed jobs only, and rerun one job, each recording that it is an
       attempt rather than overwriting the first

@@ -128,7 +128,7 @@ export default new Action({
       .selectFrom('workflow_jobs')
       .select([
         'id', 'job_id', 'name', 'position', 'state', 'needs',
-        'runs_on', 'runner_id', 'started_at', 'finished_at',
+        'runs_on', 'runner_id', 'queued_at', 'started_at', 'finished_at',
       ])
       .where('workflow_run_id', '=', Number(run.id))
       .orderBy('position')
@@ -282,6 +282,16 @@ export default new Action({
           needs: String(job.needs ?? '').split('\n').map(line => line.trim()).filter(Boolean),
           runs_on: String(job.runs_on ?? '').split('\n').map(line => line.trim()).filter(Boolean),
           runner: job.runner_id ?? null,
+          /*
+           * Three timestamps, not two.
+           *
+           * `queued_at` is when a runner could first have taken this job, so
+           * the gap to `started_at` is the wait for a machine and the gap after
+           * it is the work. A client given only two cannot tell a slow job from
+           * a job that could not get a machine, which is the first thing anyone
+           * asks about a slow run.
+           */
+          queued_at: job.queued_at ?? null,
           started_at: job.started_at ?? null,
           finished_at: job.finished_at ?? null,
           /*
