@@ -17,6 +17,7 @@ import { relativeTime, shortSha } from '../../../../functions/browse'
 import { artifactSize, runDuration, runIsFinished, runLabel, runTone } from '../../../../functions/runs'
 import { eventsFromText, renderLog } from '../../../../functions/runs'
 import { explainWaiting } from '../../../../functions/runs'
+import { criticalPath, layersOf } from '../../../../functions/runs'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
 // `resources/components/RepoBrowser.stx`.
@@ -521,6 +522,70 @@ const jobs = jobRows.map((job) => {
 })
 
 /*
+ * The run as a graph: what waited on what, and where the time went.
+ *
+ * A list of jobs cannot answer either question, and both are what somebody
+ * opens a slow or stuck run to find out. Computed from the same rows the list
+ * is built from - a screen that re-derives durations would eventually disagree
+ * with the numbers printed beside each job.
+ */
+const graphNodes = jobRows.map((job: any) => ({
+  id: Number(job.id),
+  jobKey: String(job.job_id),
+  name: String(job.name ?? job.job_id),
+  state: String(job.state),
+  needs: String(job.needs ?? '').split('\n').map((one: string) => one.trim()).filter(Boolean),
+  waitMs: elapsedMs(job.queued_at, job.started_at),
+  runMs: elapsedMs(job.started_at, job.finished_at),
+}))
+
+/** Milliseconds between two of our timestamps, or zero when either is missing. */
+function elapsedMs(from: unknown, to: unknown): number {
+  const start = Date.parse(String(from ?? ''))
+  const end = Date.parse(String(to ?? ''))
+
+  return Number.isFinite(start) && Number.isFinite(end) && end > start ? end - start : 0
+}
+
+const graphLayers = graphNodes.length > 0
+  ? layersOf(graphNodes).map((layer: any) => ({
+      depth: Number(layer.depth),
+      nodes: layer.nodes.map((one: any) => ({
+        name: String(one.name),
+        state: String(one.state),
+        tone: runTone(String(one.state)),
+        label: runLabel(String(one.state)),
+      })),
+    }))
+  : []
+
+const path = graphNodes.length > 0 ? criticalPath(graphNodes) : null
+
+/*
+ * Shown only when there is more than one job and the chain actually took time.
+ * "The critical path is: build" on a one-job run is a sentence that teaches
+ * people to ignore the panel.
+ */
+const criticalNames = path && graphNodes.length > 1 && Number(path.totalMs) > 0
+  ? path.nodes.map((one: any) => String(one.name))
+  : []
+
+const criticalTotal = path ? milliseconds(Number(path.totalMs)) : ''
+const criticalWait = path ? milliseconds(Number(path.waitMs)) : ''
+
+/** A duration in the words this page uses elsewhere. */
+function milliseconds(value: number): string {
+  const seconds = Math.max(0, Math.round(value / 1000))
+
+  if (seconds < 60)
+    return `${seconds}s`
+
+  const minutes = Math.floor(seconds / 60)
+
+  return minutes < 60 ? `${minutes}m ${seconds % 60}s` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+}
+
+/*
  * The heading each group prints once.
  *
  * Computed as a pass over the jobs in their declared order rather than by
@@ -620,6 +685,49 @@ const base = `/${ownerHandle}/${repositoryName}`
       {{-- Reports, never rewrites: see the note in the component. --}}
       @if (!runIsFinished(String(run.state)))
         <RunLive owner="{{ ownerHandle }}" repository="{{ repositoryName }}" number="{{ runNumber }}" />
+      @endif
+
+      {{--
+        The run as a graph, before the list of jobs.
+        
+        Two things a list cannot say: which jobs could have run at the same time,
+        and which chain decided how long the whole thing took. Both are what
+        somebody opens a slow run to find out, and both are computed from the
+        same rows the list below is built from.
+      --}}
+      @if (graphLayers.length > 1)
+        <section class="panel run-graph">
+          <h2 class="side-heading">Shape of this run</h2>
+
+          <div class="graph-layers">
+            @foreach (graphLayers as layer)
+              <div class="graph-layer">
+                <span class="graph-depth muted">{{ layer.depth === 0 ? 'first' : `then` }}</span>
+                <div class="graph-nodes">
+                  @foreach (layer.nodes as one)
+                    <span class="graph-node" title="{{ one.label }}">
+                      <span class="run-dot run-{{ one.tone }}" aria-hidden="true"></span>
+                      {{ one.name }}
+                    </span>
+                  @endforeach
+                </div>
+              </div>
+            @endforeach
+          </div>
+
+          @if (criticalNames.length > 0)
+            {{--
+              The chain that decided the length of the run, and how much of it
+              was waiting rather than working - which is what says whether to
+              add machines or to change the pipeline. Adding runners does
+              nothing for a run whose length is one chain of dependent jobs.
+            --}}
+            <p class="muted checks-note">
+              Longest chain: {{ criticalNames.join(' → ') }} · {{ criticalTotal }}, of which
+              {{ criticalWait }} waiting for a machine
+            </p>
+          @endif
+        </section>
       @endif
 
       <div class="jobs">
@@ -950,6 +1058,46 @@ const base = `/${ownerHandle}/${repositoryName}`
 
   .run-note { font-size: 12.5px; margin: 0; }
   .run-cancel { margin: 0; }
+
+  .run-graph {
+    padding: 15px 17px;
+    margin-top: 16px;
+  }
+
+  .graph-layers {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .graph-layer {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  /* A fixed column so the job names line up whatever the label says. */
+  .graph-depth {
+    font-size: 11px;
+    min-width: 34px;
+  }
+
+  .graph-nodes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .graph-node {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    padding: 3px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
 
   /* Closed by default: a run with six jobs is a page of scrollback otherwise,
     and the reader opening this usually wants the one that failed. */

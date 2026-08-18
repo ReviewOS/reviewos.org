@@ -2004,8 +2004,23 @@ decisions.
       their code by somebody else's workflow.
 
       Webhooks for run transitions are not wired; the box's third vocabulary has no consumer yet.
-- [ ] A dependency graph view: what ran, what is running, what is blocked and on what, and the
+- [x] A dependency graph view: what ran, what is running, what is blocked and on what, and the
       critical path through the run
+
+      Layers on the run screen - which jobs could have run at the same time - and the longest chain
+      through them, named in order with the split between working and waiting.
+
+      **The critical path is the half that pays for itself.** Adding runners does nothing for a run
+      whose length is one chain of dependent jobs, and speeding up the slowest job does nothing when
+      it is not on that chain; every other CI system leaves this to somebody with a stopwatch. The
+      cost of a job is its wait plus its run, because an hour spent queueing is an hour of the run
+      either way - a path that ignored the wait would point at the wrong job on a busy fleet, and
+      pointing at the wrong job is worse than not pointing at all.
+
+      Server-rendered with no JavaScript, per the phase 14 rule, and computed from the same rows the
+      job list is built from so the two cannot disagree about a duration. A `needs:` cycle read out
+      of the database is bounded rather than recursed: the parser refuses one, and a stack overflow
+      is a worse answer than a wrong layer somebody can see.
 - [x] Timing on every job: queue time, run time, and the difference between them, because a slow run
       is usually a queue problem and the graph should say so
 - [x] Rerun a whole run, rerun failed jobs only, and rerun one job, each recording that it is an

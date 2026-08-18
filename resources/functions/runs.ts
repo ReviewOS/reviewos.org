@@ -132,3 +132,16 @@ export const explainWaiting = explainWaitingImpl
 import { startersFor as startersForImpl } from '../../app/Actions/Workflow/templates'
 
 export const startersFor = startersForImpl
+
+import { criticalPath as criticalPathImpl, layersOf as layersOfImpl, waitingOn as waitingOnImpl } from '../../app/Actions/Workflow/graph'
+
+/**
+ * The shape of a run: dependency layers, what a blocked job waits for, and the
+ * chain that decided how long the whole thing took.
+ *
+ * A list of jobs cannot say either of the last two, and both are the questions
+ * somebody opens a slow or stuck run to answer.
+ */
+export const layersOf = layersOfImpl
+export const criticalPath = criticalPathImpl
+export const waitingOn = waitingOnImpl

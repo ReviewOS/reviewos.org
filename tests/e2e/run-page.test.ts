@@ -582,6 +582,58 @@ describe('how long a job waited, against how long it ran', () => {
   })
 })
 
+describe('the shape of a run', () => {
+  test('shows the dependency layers and the chain that decided its length', async () => {
+    if (!available)
+      return
+
+    /*
+     * A list of jobs cannot say which ones could have run at the same time, nor
+     * which chain the run's length actually came from - and adding runners does
+     * nothing for a run that is one chain of dependent jobs.
+     */
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', created.finished)
+      .executeTakeFirst()
+
+    const started = new Date(Date.now() - 900_000)
+
+    // A second job, behind the first, so there is a graph to draw at all.
+    await db.insertInto('workflow_jobs').values({
+      workflow_run_id: Number(run.id),
+      job_id: 'deploy',
+      name: 'Deploy it',
+      position: 1,
+      state: 'succeeded',
+      needs: 'build',
+      runs_on: 'ubuntu-latest',
+      queued_at: new Date(started.getTime() + 120_000).toISOString(),
+      started_at: new Date(started.getTime() + 180_000).toISOString(),
+      finished_at: new Date(started.getTime() + 600_000).toISOString(),
+    } as any).execute()
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ job_id: 'build' } as any)
+      .where('workflow_run_id', '=', Number(run.id))
+      .where('job_id', '=', 'build')
+      .execute()
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`)
+
+    expect(html).toContain('Shape of this run')
+
+    // The chain, named in order, with the split between working and waiting -
+    // which is what says whether to add machines or to change the pipeline.
+    expect(html).toContain('Longest chain:')
+    expect(html).toContain('Deploy it')
+    expect(html).toContain('waiting for a machine')
+  })
+})
+
 describe('a repository with no workflows', () => {
   test('is offered starters that are real Actions workflows', async () => {
     if (!available)
