@@ -5868,6 +5868,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/runner/orchestrator/result
+   */
+  postRunnerOrchestratorResult(input: { body: { "entry_id": number } }, options?: RequestOptions): Promise<ApiResult<{ "recorded"?: boolean }>> {
+    return request(config, "POST", "/api/runner/orchestrator/result", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/runner/register
    */
   postRunnerRegister(input?: { body?: { "name"?: string; "labels"?: string; "tags"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

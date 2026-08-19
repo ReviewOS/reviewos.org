@@ -1,5 +1,6 @@
 import { Job } from '@stacksjs/queue'
 import { db } from '@stacksjs/database'
+import { rowsChanged as changed } from '../Actions/Support/sql'
 import { settleRun } from '../Actions/Workflow/settle'
 import { announceRunIfMoved } from '../Actions/Workflow/announce'
 
@@ -309,18 +310,6 @@ async function forceStalledCancellations(now: Date): Promise<number> {
 }
 
 /** This driver answers with a plain number; see `Runner/claim.ts`. */
-function changed(result: any): boolean {
-  if (typeof result === 'number')
-    return result > 0
-
-  if (typeof result === 'bigint')
-    return result > 0n
-
-  const first = Array.isArray(result) ? result[0] : result
-  const affected = first?.numUpdatedRows ?? first?.numAffectedRows ?? first?.rowCount
-
-  return affected === undefined || affected === null ? false : Number(affected) > 0
-}
 
 /**
  * Move the run on, and say so.

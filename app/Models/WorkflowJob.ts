@@ -93,6 +93,16 @@ export default defineModel({
            * two apart cannot show the button.
            */
           'paused',
+          /*
+           * `sleeping` is an orchestrator that suspended itself on a timer.
+           *
+           * None of the other three waiting states fits, and the difference is
+           * what resolves them: `blocked` is resolved by the graph, `paused` by
+           * a person, `queued` by the next free machine. This one is resolved
+           * by a clock, and it must not be claimable before that clock says so
+           * - which is exactly what putting it in `queued` would do.
+           */
+          'sleeping',
         ]),
       },
       factory: () => 'blocked',
@@ -307,6 +317,28 @@ export default defineModel({
       fillable: true,
       validation: { rule: schema.number() },
       factory: () => null,
+    },
+
+    /**
+     * Whether this job is the program driving the run.
+     *
+     * A flag rather than a `kind`, because an orchestrator *is* a command job
+     * in every way a runner cares about: it is claimed, it holds a lease, it
+     * runs untrusted code on a machine that is not the control plane. Making it
+     * its own kind would take it out of the claim, and the whole architecture
+     * is that it goes through the claim like anything else.
+     *
+     * What the flag is for is the other direction: when a sleep comes due, the
+     * control plane has to know which of a run's jobs to put back in the queue
+     * so the program replays. Without it the sweep would have to guess, and the
+     * guess would be wrong for any run that has more than one job.
+     */
+    orchestrator: {
+      order: 45,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
     },
 
     /** `strategy.fail-fast`: one combination failing stops the rest. */

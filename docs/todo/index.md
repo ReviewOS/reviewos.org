@@ -15,7 +15,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | Phase | What it covers | State |
 |---|---|---|
 | [00 - Bootstrap](./00-bootstrap.md) | Scaffold, Postgres, tooling, agent setup | In progress (37/38) |
-| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (73/73) |
+| [01 - Foundation](./01-foundation.md) | Users, organizations, teams, tokens, keys | Done (74/74) |
 | [02 - Git hosting](./02-git-hosting.md) | Repositories on disk, smart HTTP, code browsing | Done (124/124) |
 | [03 - Issues](./03-issues.md) | Issues, comments, labels, milestones, markdown | Done (37/37) |
 | [04 - Reviews](./04-reviews.md) | Pull requests, reviews, diffs, merging, stacks | Done (95/95) |
@@ -23,7 +23,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [06 - Search and explore](./06-search-explore.md) | Indexing, search, discovery | Started (20/21) |
 | [07 - Marketing and docs](./07-marketing-docs.md) | Landing page, documentation, self-hosting guide | In progress (49/57) |
 | [08 - Migration](./08-migration.md) | Importing from GitHub and other forges | Done (16/16) |
-| [09 - Checks and CI](./09-checks-ci.md) | Checks, durable execution, runner providers, deployments | Started (58/120) |
+| [09 - Checks and CI](./09-checks-ci.md) | Checks, durable execution, runner providers, deployments | Started (59/120) |
 | [10 - Federation](./10-federation.md) | Research: ActivityPub / ForgeFed versus AT Protocol | Research (0/13) |
 | [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Done (47/47) |
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Complete (30/30) |

@@ -90,7 +90,7 @@ pattern rather than something to invent.
       arguments, **fails the run loudly and names the divergence**. Silent divergence is the failure
       mode of every durable-execution system, and this repository has a written history of exactly
       that shape of bug going unnoticed for months.
-- [ ] Sleeps and waits suspend the orchestrator and release its runner. A workflow waiting three days
+- [x] Sleeps and waits suspend the orchestrator and release its runner. A workflow waiting three days
       for an approval must not hold a lease for three days; the control plane wakes it by replay when
       the timer fires or the event arrives.
 - [x] The orchestrator's credential is scoped to its own run: it can create steps, read its own
@@ -116,6 +116,14 @@ Two rules worth naming, because both are places the obvious implementation is wr
 - **A sleep ends on the control plane's clock.** `record` ends a slept call whose time has come and
   answers `replay`, so a runner that woke early - or whose clock is minutes out - gets the same
   answer as one that woke on time.
+- **A suspended run holds nothing, so something has to be watching it.** `sleeping` is a fourth job
+  state because what resolves it is a clock, where `blocked` is resolved by the graph, `paused` by a
+  person and `queued` by the next free machine - leaving it queued would let a runner claim a
+  workflow that asked to wait three days, immediately. `WakeSleepingRuns` sweeps every minute and
+  only requeues; whether the sleep is *over* stays in the journal, because two places deciding one
+  thing eventually disagree. A wait on a **name** rather than a time is the same mechanism:
+  `deliverEvent` resolves the call with the event's payload and requeues, so `await
+  context.waitFor('approval')` returns who approved it.
 - **Restart-from-step forgets rather than diverges.** `forgetFrom` deletes the named step and
   everything after it, which is the only reading of "restart from step 12" that does not replay step
   12. A person restarting a deploy against a new image is deliberately asking for different work, so
@@ -126,8 +134,6 @@ What is **not** built yet, so that the unticked boxes above say what they mean:
 - **The orchestrator job.** The protocol and its client are complete; nothing dispatches a program
   that uses them yet. Until it does, the code-first authoring form does not exist and neither does
   the normalization between it and the static one.
-- **Waking a suspended run.** A slept call resumes correctly the moment somebody asks again, but no
-  sweep re-dispatches the run when the timer fires, so "asks again" needs somebody to make it happen.
 - **Enforced determinism.** `now` and `random` are injected and journaled, so the rule is
   *followable*. Nothing stops a program calling `Date.now()` directly; that needs the execution
   boundary, which is the section this phase gates behind a security review.

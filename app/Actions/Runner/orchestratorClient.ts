@@ -94,6 +94,15 @@ export interface OrchestratorContext {
   step: <T>(name: string, work: () => T | Promise<T>, args?: unknown) => Promise<T>
   /** Wait, without holding a machine while waiting. */
   sleep: (name: string, ms: number) => Promise<void>
+  /**
+   * Wait for something to happen, and read what happened.
+   *
+   * The other shape of waiting, and the one an approval actually is: a workflow
+   * held for three days is waiting for a person, not for a duration. Resolves
+   * to the event's payload, so the program can act on who approved it rather
+   * than only on the fact that somebody did.
+   */
+  waitFor: <T>(name: string) => Promise<T>
   /** The clock, journaled. A replay sees the time the first run saw. */
   now: () => Promise<Date>
   /** Randomness, journaled, for the same reason. */
@@ -172,6 +181,18 @@ export function orchestrator(transport: OrchestratorTransport): OrchestratorCont
       // same answer as one that woke late.
       if (decision.decision === 'replay')
         return
+
+      throw new Suspended(decision.wake_at ?? null)
+    },
+
+    async waitFor<T>(name: string): Promise<T> {
+      const position = next()
+      const decision = await decide(position, 'event', name, {})
+
+      // Arrived: the payload is the recorded result, so a replay after the
+      // program resumes reads the same event rather than waiting again.
+      if (decision.decision === 'replay')
+        return decision.result as T
 
       throw new Suspended(decision.wake_at ?? null)
     },

@@ -153,6 +153,33 @@ export function isNotFalse(value: unknown): boolean {
 }
 
 /**
+ * Whether an update actually moved a row.
+ *
+ * The whole point of a guarded update - `where('state', '=', 'running')` - is
+ * that losing the guard is not an error, it is the answer. Two sweeps racing,
+ * or a sweep racing the runner that just claimed the job, resolve to one winner
+ * by *reading this*, so getting it wrong turns a correct guard into a coin
+ * flip that always says no.
+ *
+ * Written here rather than in each sweep because the shape depends on the
+ * driver and the dialect: a count, a bigint, or an array of result objects
+ * whose affected-row field has three different names. A check that four files
+ * each do slightly differently is one that three of them stop doing.
+ */
+export function rowsChanged(result: unknown): boolean {
+  if (typeof result === 'number')
+    return result > 0
+
+  if (typeof result === 'bigint')
+    return result > 0n
+
+  const first: any = Array.isArray(result) ? result[0] : result
+  const affected = first?.numUpdatedRows ?? first?.numAffectedRows ?? first?.rowCount
+
+  return affected === undefined || affected === null ? false : Number(affected) > 0
+}
+
+/**
  * A moment, in the one literal shape both engines accept.
  *
  * `new Date().toISOString()` is `2026-08-19T04:37:11.396Z`, and MySQL refuses

@@ -34,6 +34,28 @@ import { protocolOf, refuseProtocol, runnerJson } from './gate'
  *   them, determinism would be a rule nobody could follow: a workflow that
  *   needs a timestamp would have no way to get one that survives a restart.
  */
+/**
+ * Put the orchestrator's job to sleep, in the same breath as telling its runner
+ * to let go.
+ *
+ * Not left to the runner to report on its way out. A machine killed between
+ * reading the answer and reporting anything would leave a job that looks
+ * running, holding a lease nobody is using, until the lease sweep guesses. The
+ * control plane made the decision, so the control plane writes it down.
+ *
+ * `sleeping` rather than `queued` is what stops another runner claiming a
+ * workflow that asked to wait three days, immediately.
+ */
+async function sleepJob(jobId: number): Promise<void> {
+  await db
+    .updateTable('workflow_jobs')
+    .set({ state: 'sleeping', runner_id: null, lease_expires_at: null })
+    .where('id', '=', jobId)
+    .where('state', '=', 'running')
+    .execute()
+    .catch(() => null)
+}
+
 export default new Action({
   name: 'OrchestratorCall',
   description: 'Journal one call of a workflow program, and say whether to do the work',
@@ -163,11 +185,28 @@ export default new Action({
       return runnerJson({ decision: 'replay', result: value, entry_id: verdict.entryId })
     }
 
+    /*
+     * Waiting on a name rather than on a time.
+     *
+     * A workflow waiting for an approval is not waiting three days - it is
+     * waiting for a person, and the three days is only when waiting stops being
+     * reasonable. So the entry parks with no wake time and `deliverEvent`
+     * resolves it, which is what makes an approval resume a workflow rather
+     * than merely unblock one.
+     */
+    if (kind === 'event') {
+      await sleepJob(held.jobId)
+
+      return runnerJson({ decision: 'wait', entry_id: verdict.entryId, wake_at: null })
+    }
+
     if (kind === 'sleep') {
       const ms = Math.max(0, Number((args as any)?.ms ?? 0))
       const wakeAt = new Date(Date.now() + ms)
 
       await suspend(verdict.entryId, wakeAt)
+
+      await sleepJob(held.jobId)
 
       // `wait`, not `dispatch`: the caller's job now is to stop and let its
       // runner go, which is the difference between a workflow that can wait

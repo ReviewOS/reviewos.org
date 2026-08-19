@@ -31,6 +31,16 @@ export type JobState =
    * the button - which is the entire difference between a gate and a hang.
    */
   | 'paused'
+  /**
+   * An orchestrator that suspended itself on a timer.
+   *
+   * The fourth kind of waiting, and it needed its own name because what
+   * resolves it is different again: the graph resolves `blocked`, a person
+   * resolves `paused`, the next free machine resolves `queued`, and a clock
+   * resolves this. Leaving it `queued` would let a runner claim a workflow that
+   * asked to wait three days, and it would claim it immediately.
+   */
+  | 'sleeping'
 
 /** A state nothing can leave. */
 export const TERMINAL_RUN_STATES: readonly RunState[] = ['cancelled', 'failed', 'succeeded']
@@ -75,8 +85,15 @@ const JOB_TRANSITIONS: Record<JobState, readonly JobState[]> = {
    * on somebody's commit for a decision that was never made.
    */
   paused: ['succeeded', 'cancelled', 'skipped'],
+  /*
+   * A sleep ends by going back to the queue, and that is its only way forward
+   * other than being stopped. It cannot reach `running` directly: the run
+   * resumes by a machine claiming it, and pretending otherwise would give a run
+   * a state no runner ever agreed to.
+   */
+  sleeping: ['queued', 'cancelling', 'cancelled', 'failed', 'skipped'],
   queued: ['running', 'cancelling', 'cancelled', 'skipped', 'failed'],
-  running: ['cancelling', 'cancelled', 'failed', 'succeeded'],
+  running: ['sleeping', 'cancelling', 'cancelled', 'failed', 'succeeded'],
   cancelling: ['cancelled', 'failed', 'succeeded'],
   cancelled: [],
   failed: [],
@@ -119,14 +136,16 @@ export function runStateFromJobs(states: readonly JobState[]): RunState {
     return 'cancelling'
 
   /*
-   * A run with a gate open is `waiting`, not `running`.
+   * A run with a gate open, or an orchestrator asleep, is `waiting` rather than
+   * `running`.
    *
-   * The difference is who it is waiting for. `running` says a machine is
-   * working; `waiting` says nothing will happen until a person does something,
-   * which is the only state where a spinner is somebody's fault rather than
-   * the instance's.
+   * The difference is whether a machine is working. `running` says one is;
+   * `waiting` says nothing will happen until something outside this instance
+   * moves - a person opening the gate, or a timer coming due. Both are states
+   * where a spinner is not the instance being slow, which is the distinction
+   * worth showing.
    */
-  if (states.some(state => state === 'paused') && !states.some(state => state === 'running'))
+  if (states.some(state => state === 'paused' || state === 'sleeping') && !states.some(state => state === 'running'))
     return 'waiting'
 
   const unfinished = states.some(state => !isTerminalJob(state))

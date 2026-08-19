@@ -9041,7 +9041,8 @@
               "failed",
               "skipped",
               "succeeded",
-              "paused"
+              "paused",
+              "sleeping"
             ],
             "enumTypeName": "workflow_jobs_state_type"
           },
@@ -9341,6 +9342,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "orchestrator",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -13842,7 +13852,7 @@
       }
     ]
   },
-  "hash": "985701b5122a335b38e8d2264a2fe3ba01fac5a25c232df54b6882b4046ac7a1",
+  "hash": "9ccf825acb8dfc14eea66ef5ae12b70980e10d4a989c56713cb95f2004b93973",
   "dialect": "postgres",
-  "updatedAt": "2026-08-19T16:21:07.698Z"
+  "updatedAt": "2026-08-19T16:58:25.936Z"
 }

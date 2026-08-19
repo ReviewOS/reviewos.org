@@ -123,6 +123,17 @@ export default function () {
     .everyMinute()
 
   /*
+   * Orchestrators whose sleep is due, every minute.
+   *
+   * A suspended run holds no lease and no machine, which is what makes waiting
+   * three days affordable and also means nothing is watching it. This is the
+   * only thing that is.
+   */
+  schedule
+    .job('WakeSleepingRuns')
+    .everyMinute()
+
+  /*
    * Test monitors, hourly.
    *
    * They watch days of history, so a shorter cadence asks the same question
