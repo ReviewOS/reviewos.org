@@ -132,4 +132,5 @@ export default {
    */
   'db:keyspaces': 'DbKeyspaces',
   'db:backfill-shard-key': 'DbBackfillShardKey',
+  'search:index': 'SearchIndex',
 } satisfies CommandRegistry
