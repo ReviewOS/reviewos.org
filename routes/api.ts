@@ -520,6 +520,17 @@ route.get('/repos/blame', 'Actions/Browse/BlameAction')
 route.get('/repos/search', 'Actions/Browse/SearchCodeAction')
 
 /*
+ * Code search across the instance.
+ *
+ * The trigram index narrows and `git grep` decides, so a result is the code as
+ * it is on the ref rather than as it was when an indexer last ran. Scope is
+ * decided before anything is searched: a repository the caller cannot read is
+ * never searched, so it cannot contribute a match and its existence cannot be
+ * inferred from one.
+ */
+route.get('/search/code', 'Actions/CodeIndex/SearchCodeInstanceAction')
+
+/*
  * What is happening on this instance: trending, recently active, and the
  * languages and topics to browse by. Public repositories only, enforced in the
  * reads - an explore page is the one surface where a visibility mistake is not
