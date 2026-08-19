@@ -15,6 +15,7 @@ import { db } from '@stacksjs/database'
 import type { NormalizedWorkflow, WorkflowError } from './parse'
 import { parseWorkflow } from './parse'
 import { isProgramPath, programDocument } from './program'
+import { checkDeterminism } from './determinism'
 
 export interface SyncInput {
   /** Null for a workflow an owner carries rather than a repository. */
@@ -111,6 +112,38 @@ export async function syncWorkflowFile(input: SyncInput): Promise<SyncResult> {
    * matter is untouched.
    */
   let source = input.source
+
+  /*
+   * A program's determinism, checked here as well as in the CLI.
+   *
+   * The CLI check is the one that helps the person writing the workflow, and it
+   * is also the one that is easy not to run. This is the same rules on the path
+   * every program actually takes to become a version - which is what "enforced
+   * rather than requested" has to mean, because a rule nobody runs is a
+   * request.
+   *
+   * Refused rather than warned. A clock read in a workflow program is not a
+   * style problem: the graph differs between two builds of one commit, the
+   * replay asks the journal for a call it does not hold, and the failure is not
+   * a crash but a run that quietly did the wrong thing. Refusing here means the
+   * push fails with the line and the reason, which is the moment somebody can
+   * still fix it cheaply.
+   */
+  const nonDeterministic = isProgramPath(input.path) ? checkDeterminism(input.source) : []
+
+  if (nonDeterministic.length > 0) {
+    return {
+      ok: false,
+      workflowId: null,
+      versionId: null,
+      createdVersion: false,
+      errors: nonDeterministic.map(problem => ({
+        line: problem.line,
+        message: `\`${problem.found}\` makes this workflow non-deterministic`,
+        fix: problem.reason,
+      })),
+    }
+  }
 
   if (isProgramPath(input.path)) {
     const translated = programDocument(input.source, input.path)

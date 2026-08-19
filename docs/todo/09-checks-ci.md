@@ -129,9 +129,27 @@ pattern rather than something to invent.
 - [x] On restart the orchestrator replays: calls up to the journal head return their recorded results
       immediately without re-executing, and the first uncommitted call resumes real work. A run whose
       orchestrator was killed at step 40 does not repeat steps 1 to 39.
-- [ ] Determinism rules for orchestrator code, documented and enforced rather than requested: no
+- [x] Determinism rules for orchestrator code, documented and enforced rather than requested: no
       wall-clock reads, no randomness, no direct network or filesystem access. Each has an injected
       equivalent that is journaled, so a replay sees the same values it saw the first time.
+
+      Three layers, and the third was the one missing. **The types** hand the author a builder and
+      nothing else, so most of the rule is not reachable. **`checkDeterminism`** reads the source and
+      names what it found with the line and what to do instead. **And it now runs on the path a
+      program actually takes to become a version**, not only in the CLI - which is what "enforced
+      rather than requested" has to mean, because a check somebody has to remember to run is a
+      request.
+
+      Refused rather than warned. A clock read in a program is not a style problem: the graph
+      differs between two builds of one commit, the replay asks the journal for a call it does not
+      hold, and what follows is not a crash but a run that quietly did the wrong thing. The push
+      fails with the line, which is the moment it is still cheap to fix.
+
+      The injected equivalents were already there and are journaled like any other call: `now` and
+      `random` are resolved by the control plane and recorded, so a replay sees the timestamp it saw
+      the first time. Network and filesystem have no injected form on purpose - their equivalent is
+      `step()`, which is journaled, runs on the machine, and shows on the run as something that
+      happened.
 - [x] A replay that diverges from the journal, a call arriving in a different order or with different
       arguments, **fails the run loudly and names the divergence**. Silent divergence is the failure
       mode of every durable-execution system, and this repository has a written history of exactly

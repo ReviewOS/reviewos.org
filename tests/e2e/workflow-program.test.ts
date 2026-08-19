@@ -504,3 +504,70 @@ describe('a dispatched job carries its steps as rows', () => {
     expect(String(steps[0].state)).toBe('pending')
   }, 120_000)
 })
+
+/*
+ * The determinism rules, on the path a program actually takes to become a
+ * version.
+ *
+ * They were checked in the CLI, which is the check that helps the person
+ * writing the workflow and also the one that is easy not to run. "Enforced
+ * rather than requested" has to mean the server refuses, because a rule nobody
+ * runs is a request.
+ */
+describe('a program that cannot be replayed', () => {
+  test('is refused when it is pushed, with the line and what to do instead', async () => {
+    if (!available)
+      return
+
+    const { syncWorkflowFile } = await import('../../app/Actions/Workflow/sync')
+
+    const result = await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path: '.reviewos/workflows/clock.ts',
+      source: `/* --- reviewos\nname: Clock\non: push\n--- */\n\nexport default async function (workflow) {\n  const stamp = Date.now()\n\n  await workflow.step('build', () => build(stamp))\n}\n`,
+      sha: 'c'.repeat(40),
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.errors.some(one => String(one.message).includes('non-deterministic'))).toBe(true)
+    // The reason says what to do instead, because "this is not allowed" without
+    // an alternative is a rule people work around rather than follow.
+    expect(result.errors.some(one => String(one.fix ?? '').includes('github.run_id'))).toBe(true)
+
+    // And nothing was registered: a refused program is not a workflow with a
+    // problem, it is a workflow this instance does not have.
+    const rows = await db
+      .selectFrom('workflows')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('path', '=', '.reviewos/workflows/clock.ts')
+      .execute()
+
+    expect(rows).toEqual([])
+  }, 120_000)
+
+  test('and an ordinary YAML workflow is not held to the rule', async () => {
+    if (!available)
+      return
+
+    /*
+     * The rule is about a program that has to replay identically. A YAML
+     * workflow whose *step* runs `date` is doing that on the machine, at run
+     * time, which is the thing the rule tells program authors to do.
+     */
+    const { syncWorkflowFile } = await import('../../app/Actions/Workflow/sync')
+
+    const result = await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path: '.github/workflows/stamp.yml',
+      source: 'name: Stamp\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: node -e "console.log(Date.now())"\n',
+      sha: 'd'.repeat(40),
+    })
+
+    expect(result.ok).toBe(true)
+  }, 120_000)
+})
