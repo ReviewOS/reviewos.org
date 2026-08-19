@@ -225,3 +225,48 @@ export function signatureBadge(
       return { show: false, label: '', tone: 'quiet', detail: '', icon: '' }
   }
 }
+
+/** The "last changed" bar above a listing, ready to draw. */
+export interface HeadCommitRow {
+  short: string
+  subject: string
+  /** Where the sha and the subject both point: the commit itself. */
+  href: string
+  authorName: string
+  /** "3 days ago", or empty when git gave no date. */
+  when: string
+  /** The history behind this ref and path, which the bar links to. */
+  historyHref: string
+}
+
+/**
+ * The commit a directory or a file was last touched by.
+ *
+ * The same three facts the bar already drew - sha, subject, author - with the
+ * two links they were missing. Reading "e3f2ea4 fix(strings): ..." and having
+ * nowhere to click is the browse screen's own commit list existing behind a URL
+ * nobody is shown; the commit page and the history page are both one hop away
+ * and neither was reachable from here.
+ *
+ * `historyHref` is scoped to the path being looked at, because the history of
+ * `src/parser.ts` is the question somebody standing on `src/parser.ts` has.
+ */
+export function headCommitRow(
+  commit: CommitSummary,
+  base: string,
+  ref: string,
+  path: string,
+  relativeTime: (when: string) => string,
+  shortSha: (sha: string) => string,
+): HeadCommitRow {
+  const short = shortSha(commit.sha)
+
+  return {
+    short,
+    subject: commit.subject || short,
+    href: `${base}/commit/${commit.sha}`,
+    authorName: commit.authorName,
+    when: commit.when ? relativeTime(commit.when) : '',
+    historyHref: `${base}/commits/${joinRefAndPath(ref, path)}`,
+  }
+}

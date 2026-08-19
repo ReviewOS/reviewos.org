@@ -12,7 +12,7 @@
  */
 import { mirrorFor, repositoryForView, summarizeMirror } from '../functions/repo'
 import { aliasTarget, pathUnderOwner } from '../functions/aliases'
-import { breadcrumbs, childPath, commitCount, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor, languageRulesFor, declaredLanguage } from '../functions/browse'
+import { breadcrumbs, childPath, commitCount, findReadme, formatSize, headCommitRow, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor, languageRulesFor, declaredLanguage } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
 /**
  * The status this page wants, asked for where the binding actually exists.
@@ -185,6 +185,17 @@ const maySyncNow = Boolean(mirrorStatus) && Boolean(repoAccess?.can?.('repositor
 // The base every link on this page hangs off. One string, so a page that links
 // to a file and a page that links to a branch cannot disagree about it.
 const base = `/${ownerHandle}/${repositoryName}`
+
+/*
+ * The "last changed" bar, with the two links it was missing.
+ *
+ * It drew a sha, a subject and a name, and none of them went anywhere - so the
+ * commit it named, and the history behind it, were both one hop away and
+ * neither was reachable from the screen that named them. Shaped in
+ * `app/Actions/Browse/rows.ts` like every other link on this page, because a
+ * link built in a template is a link no test can reach.
+ */
+const headRow = head ? headCommitRow(head, base, ref, requestedPath, relativeTime, shortSha) : null
 
 // Rows and links, shaped where they can be tested. What the components below
 // receive is already decided: a name, a link or none, and one piece of text.
@@ -419,11 +430,24 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
           @endforeach
         </nav>
 
-        @if (head)
+        @if (headRow)
           <div class="last-commit panel">
-            <span class="mono muted">{{ shortSha(head.sha) }}</span>
-            <span class="last-commit-subject">{{ head.subject }}</span>
-            <span class="last-commit-author muted">{{ head.authorName }}</span>
+            <a class="last-commit-sha mono muted" href="{{ headRow.href }}">{{ headRow.short }}</a>
+            <a class="last-commit-subject" href="{{ headRow.href }}">{{ headRow.subject }}</a>
+            <span class="last-commit-author muted">{{ headRow.authorName }}</span>
+            @if (headRow.when)
+              <span class="last-commit-when muted">{{ headRow.when }}</span>
+            @endif
+
+            {{--
+              The history behind what is on screen, scoped to the path being
+              looked at. The commit list has existed since the browse screen
+              did, behind a URL nothing linked to from here.
+            --}}
+            <a class="last-commit-history" href="{{ headRow.historyHref }}" title="Commit history">
+              <span class="i-hugeicons-clock-01" aria-hidden="true"></span>
+              <span>History</span>
+            </a>
           </div>
         @endif
 
@@ -463,5 +487,36 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
   .crumb-sep { color: var(--muted); }
 
   .last-commit { display: flex; align-items: center; gap: 10px; padding: 10px 14px; font-size: 13px; }
-  .last-commit-subject { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .last-commit-sha { flex: none; text-decoration: none; }
+  .last-commit-sha:hover { text-decoration: underline; }
+
+  .last-commit-subject {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .last-commit-subject:hover { text-decoration: underline; }
+  .last-commit-when { flex: none; }
+
+  /* Pushed to the far end and drawn as a control, because it is the one thing
+    on this bar that goes somewhere other than the commit. */
+  .last-commit-history {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--text);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .last-commit-history:hover { border-color: var(--accent); color: var(--accent); }
 </style>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { commitRows, refLinks, signatureBadge, treeRows } from '../../app/Actions/Browse/rows'
+import { commitRows, headCommitRow, refLinks, signatureBadge, treeRows } from '../../app/Actions/Browse/rows'
 
 /**
  * What a directory listing and a ref picker look like once the rules are
@@ -198,5 +198,54 @@ describe('signatureBadge', () => {
       expect(badge.icon.length).toBeGreaterThan(0)
       expect(badge.detail.length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('headCommitRow', () => {
+  const relativeTime = (when: string) => when ? '3 days ago' : ''
+  const commit = { sha: 'e'.repeat(40), subject: 'fix(strings): split by UTF-16 units', authorName: 'Chris', when: '2026-08-16T00:00:00Z' }
+
+  it('points the sha and the subject at the commit, which is what a reader clicks', () => {
+    const row = headCommitRow(commit, BASE, 'main', '', relativeTime, shortSha)
+
+    expect(row.href).toBe(`${BASE}/commit/${'e'.repeat(40)}`)
+    expect(row.short).toBe('eeeeeee')
+    expect(row.subject).toBe('fix(strings): split by UTF-16 units')
+  })
+
+  it('scopes the history to the path being looked at', () => {
+    // Somebody standing on `src/parser.ts` is asking about `src/parser.ts`, not
+    // about the whole repository.
+    const row = headCommitRow(commit, BASE, 'main', 'src/parser.ts', relativeTime, shortSha)
+
+    expect(row.historyHref).toBe(`${BASE}/commits/main/src/parser.ts`)
+  })
+
+  it('keeps a slashed branch whole in the history link', () => {
+    // `fix/rounding` is one branch. A link that treats the slash as a
+    // separator asks for a branch called `fix` holding `rounding`.
+    const row = headCommitRow(commit, BASE, 'fix/rounding', 'src', relativeTime, shortSha)
+
+    expect(row.historyHref).toBe(`${BASE}/commits/fix/rounding/src`)
+  })
+
+  it('has no trailing slash at the repository root', () => {
+    const row = headCommitRow(commit, BASE, 'main', '', relativeTime, shortSha)
+
+    expect(row.historyHref).toBe(`${BASE}/commits/main`)
+  })
+
+  it('falls back to the sha when the commit has no subject', () => {
+    // `git commit --allow-empty-message` is a real thing, and a link with
+    // nothing in it cannot be clicked.
+    const row = headCommitRow({ ...commit, subject: '' }, BASE, 'main', '', relativeTime, shortSha)
+
+    expect(row.subject).toBe('eeeeeee')
+  })
+
+  it('says nothing about when rather than rendering an empty date', () => {
+    const row = headCommitRow({ ...commit, when: '' }, BASE, 'main', '', relativeTime, shortSha)
+
+    expect(row.when).toBe('')
   })
 })

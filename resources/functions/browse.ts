@@ -219,6 +219,11 @@ import { commitRows as commitRowsImpl } from '../../app/Actions/Browse/rows'
 
 export const commitRows = commitRowsImpl
 
+/** The "last changed" bar on the browse screen, shaped for `LastCommit`. */
+import { headCommitRow as headCommitRowImpl } from '../../app/Actions/Browse/rows'
+
+export const headCommitRow = headCommitRowImpl
+
 /** A commit signature, shaped for `SignatureBadge`. */
 import { signatureBadge as signatureBadgeImpl } from '../../app/Actions/Browse/rows'
 

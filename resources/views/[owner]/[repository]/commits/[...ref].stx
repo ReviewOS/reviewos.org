@@ -1,12 +1,19 @@
 <script server>
 /**
- * Commit history for a ref.
+ * Commit history for a ref, and for a path under it.
  *
  * Same division as the browse screen: reading is `app/Actions/Browse/load`,
  * shaping is `resources/functions/browse`, and this lays it out.
+ *
+ * A catch-all segment, for the same reason `/tree/` is one: `fix/rounding` is a
+ * branch name, and a route that took one segment answered 404 for every
+ * repository whose branches have slashes in them - which is most of them. The
+ * rest of the URL after the ref is a path, so `commits/main/src/parser.ts` is
+ * the history of one file. Only `splitRefAndPath` can tell those apart, and
+ * only because it is handed the ref list.
  */
-import { repositoryForView } from '../../../../../functions/repo'
-import { commitHistory, commitRows, relativeTime, shortSha } from '../../../../../functions/browse'
+import { repositoryForView } from '../../../../functions/repo'
+import { branchNames, commitHistory, commitRows, joinRefAndPath, relativeTime, shortSha, splitRefAndPath, tagNames } from '../../../../functions/browse'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
 // `resources/components/RepoBrowser.stx`.
@@ -14,7 +21,6 @@ const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : 
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
-const ref = String(params.ref ?? 'HEAD')
 
 // Resolved and permission-checked together. A repository the reader may not
 // see comes back null, exactly as a repository that does not exist does, so a
@@ -46,11 +52,26 @@ if (!repoRow)
 // The absolute path from the resolver. `disk_path` on the row is relative to
 // the repository root, so git resolved it against the server's own working
 // directory, found nothing, and this page said the repository had no commits.
-const commits = repoRow ? await commitHistory(String(repoAccess?.diskPath ?? ''), ref, '', 50) : []
+const diskPath = String(repoAccess?.diskPath ?? '')
+
+// The refs, read before the URL is split, because the URL cannot be split
+// without them - see `app/Actions/Browse/splitRef.ts`.
+const branches = repoRow ? await branchNames(diskPath) : []
+const tags = repoRow ? await tagNames(diskPath) : []
+
+const addressed = splitRefAndPath(String(params.ref ?? ''), [...branches, ...tags])
+const ref = String(addressed.ref || (repoRow ? (repoRow.default_branch ?? 'HEAD') : 'HEAD'))
+const scopedPath = addressed.path
+
+const commits = repoRow ? await commitHistory(diskPath, ref, scopedPath, 50) : []
 
 // Shaped where it can be tested. What `CommitList` receives is already
 // decided: a subject, a link, a byline.
-const rows = commitRows(commits, `/${ownerHandle}/${repositoryName}`, relativeTime, shortSha)
+const base = `/${ownerHandle}/${repositoryName}`
+const rows = commitRows(commits, base, relativeTime, shortSha)
+
+// Back to the files this history is about, at the same ref and path.
+const browseHref = `${base}/tree/${joinRefAndPath(ref, scopedPath)}`
 </script>
 
 @layout('app')
@@ -85,10 +106,49 @@ const rows = commitRows(commits, `/${ownerHandle}/${repositoryName}`, relativeTi
           in a repository with no way back to the rest of it. --}}
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
 
-      <p class="muted repo-page-caption">Commits on <span class="mono">{{ ref }}</span></p>
+      <div class="commits-caption">
+        @if (scopedPath)
+          <p class="muted">Commits touching <span class="mono">{{ scopedPath }}</span> on <span class="mono">{{ ref }}</span></p>
+        @else
+          <p class="muted">Commits on <span class="mono">{{ ref }}</span></p>
+        @endif
+
+        {{-- The way back to the files. A history reached from the browse
+            screen with no return trip is a dead end. --}}
+        <a class="commits-browse" href="{{ browseHref }}">
+          <span class="i-hugeicons-folder-01" aria-hidden="true"></span>
+          <span>Browse files</span>
+        </a>
+      </div>
 
       <CommitList :rows="rows" />
 
     @endif
   </div>
 @endsection
+
+<style>
+  .commits-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    font-size: 13px;
+  }
+
+  .commits-browse {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .commits-browse:hover { border-color: var(--accent); color: var(--accent); }
+</style>
