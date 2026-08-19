@@ -106,3 +106,30 @@ describe('milestones', () => {
     expect(mapMilestone({ title: 'v2' })).toBeNull()
   })
 })
+
+/**
+ * The homepage, which upstream has and this forge now keeps.
+ *
+ * Checked on the way in rather than trusted: this is a value out of somebody
+ * else's API that becomes an `href` on a page here, and a mirror must not be a
+ * way past a rule the settings form enforces.
+ */
+describe('mapRepository, homepage', () => {
+  it('keeps a plain https homepage', () => {
+    expect(mapRepository({ name: 'x', homepage: 'https://stacksjs.com' })?.homepage).toBe('https://stacksjs.com/')
+  })
+
+  it('completes a bare host, the same way the form does', () => {
+    expect(mapRepository({ name: 'x', homepage: 'stacksjs.com' })?.homepage).toBe('https://stacksjs.com/')
+  })
+
+  it('refuses a scheme that would run, however upstream stored it', () => {
+    expect(mapRepository({ name: 'x', homepage: 'javascript:alert(1)' })?.homepage).toBeNull()
+  })
+
+  it('is null when upstream has none', () => {
+    expect(mapRepository({ name: 'x' })?.homepage).toBeNull()
+    expect(mapRepository({ name: 'x', homepage: '' })?.homepage).toBeNull()
+    expect(mapRepository({ name: 'x', homepage: null })?.homepage).toBeNull()
+  })
+})

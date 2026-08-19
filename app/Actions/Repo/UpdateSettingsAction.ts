@@ -38,6 +38,7 @@ export default new Action({
     const decision = decideSettings(repository as any, {
       name: request.get('name'),
       description: request.get('description'),
+      homepage: request.get('homepage'),
       visibility: request.get('visibility'),
       default_branch: request.get('default_branch'),
       is_archived: readFlag(request.get('is_archived')),

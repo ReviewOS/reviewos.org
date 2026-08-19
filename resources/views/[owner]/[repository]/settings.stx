@@ -178,6 +178,15 @@ const fullName = `${ownerHandle}/${repositoryName}`
           </label>
 
           <label class="field">
+            <span class="label">Homepage</span>
+            <input class="input" name="homepage" value="{{ repoRow.homepage ?? '' }}" maxlength="255" placeholder="stacksjs.com">
+            <span class="hint muted">
+              The project's own site, shown beside the description. http and https only, and
+              a bare host is completed to https. Submitting this empty clears it.
+            </span>
+          </label>
+
+          <label class="field">
             <span class="label">Default branch</span>
             <select class="input" name="default_branch">
               @foreach (branches as branch)

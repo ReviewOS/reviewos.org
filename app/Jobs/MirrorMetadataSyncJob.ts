@@ -396,7 +396,7 @@ async function writeRepositoryMetadata(
 
   const current = await db
     .selectFrom('repositories')
-    .select(['id', 'description', 'visibility', 'default_branch', 'is_archived'])
+    .select(['id', 'description', 'homepage', 'visibility', 'default_branch', 'is_archived'])
     .where('id', '=', repositoryId)
     .executeTakeFirst()
 
@@ -407,6 +407,18 @@ async function writeRepositoryMetadata(
 
   if (mapped.description !== String(current.description ?? ''))
     changes.description = mapped.description
+
+  /*
+   * The homepage follows upstream too, and is cleared when upstream clears it -
+   * unlike visibility below, because a link to a site that no longer exists is
+   * not a disclosure, it is a dead link the mirror is repeating.
+   *
+   * `mapRepository` has already put it through `usableHomepage`, so a value
+   * this writes has been through the same allowlist the settings form goes
+   * through. A mirror must not be a way past a rule the form enforces.
+   */
+  if ((mapped.homepage ?? '') !== String(current.homepage ?? ''))
+    changes.homepage = mapped.homepage
 
   /*
    * The default branch follows upstream, which is the point of this box: a

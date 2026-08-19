@@ -16,6 +16,7 @@ import { isNotFalse } from '../Support/sql'
 export interface SettingsPatch {
   name?: string
   description?: string | null
+  homepage?: string | null
   visibility?: string
   default_branch?: string
   is_archived?: boolean
@@ -90,6 +91,42 @@ export function decideSettings(
     changes.description = description || null
   }
 
+  /*
+   * The project's own site, and the one field here that is a security decision.
+   *
+   * It is rendered as an `href` on a public page, so anybody with write access
+   * choosing the value means anybody with write access choosing what that link
+   * does. `javascript:` and `data:` are the obvious ones; the check is an
+   * allowlist of two schemes rather than a list of what to refuse, because a
+   * denylist has to be right about every scheme a browser has ever supported
+   * and only has to be wrong once.
+   *
+   * Enforced here rather than at render time on purpose: the render happens in
+   * several places and the one somebody forgets is the one that ships.
+   *
+   * A bare `example.com` is not rejected - it is completed to `https://`, which
+   * is what somebody typing it meant. A value with no dot in it is not a host
+   * and is refused, so a typo does not become a link to a path on this site.
+   */
+  if (patch.homepage !== undefined) {
+    const homepage = patch.homepage === null ? '' : String(patch.homepage).trim()
+
+    if (!homepage) {
+      changes.homepage = null
+    }
+    else {
+      const url = usableHomepage(homepage)
+
+      if (!url)
+        return { ok: false, error: 'A homepage has to be an http or https address', status: 422 }
+
+      if (url.length > 255)
+        return { ok: false, error: 'That homepage address is too long', status: 422 }
+
+      changes.homepage = url
+    }
+  }
+
   if (patch.visibility !== undefined) {
     const visibility = String(patch.visibility).trim().toLowerCase()
 
@@ -142,6 +179,56 @@ export function decideSettings(
     return { ok: false, error: 'Nothing to change', status: 422 }
 
   return { ok: true, changes, renamedFrom }
+}
+
+/**
+ * A homepage as it will be stored, or null when it cannot be one.
+ *
+ * Exported because it is the whole of the rule: this value becomes an `href`
+ * on a public page, and a field anybody with write access can put a scheme of
+ * their choosing into is a stored cross-site scripting hole with a form in
+ * front of it.
+ *
+ * `URL` does the parsing rather than a regex. A regex for "is this a URL" has
+ * to agree with a browser about backslashes, whitespace, entity-encoded
+ * schemes and userinfo, and it never does - `new URL` *is* the parser browsers
+ * use, and it either produces a scheme this can check or throws.
+ */
+export function usableHomepage(raw: string): string | null {
+  const value = String(raw ?? '').trim()
+
+  if (!value)
+    return null
+
+  // A scheme-relative `//evil.example` is a URL to a browser and a path to a
+  // naive check, so it is refused before anything is completed.
+  if (value.startsWith('//'))
+    return null
+
+  // Somebody typing `stacksjs.com` means the site. Completed rather than
+  // refused, but only when it looks like a host: `notes` completed to
+  // `https://notes` is a link to nowhere dressed as a link somewhere.
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(value)
+    ? value
+    : (/^[^\s/?#]+\.[^\s/?#]+/.test(value) ? `https://${value}` : value)
+
+  let parsed: URL
+
+  try {
+    parsed = new URL(candidate)
+  }
+  catch {
+    return null
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+    return null
+
+  // A URL with no host is `https:///path`, which parses and points nowhere.
+  if (!parsed.hostname || !parsed.hostname.includes('.'))
+    return null
+
+  return parsed.toString()
 }
 
 /**

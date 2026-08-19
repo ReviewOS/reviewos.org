@@ -15,6 +15,7 @@ import {
   forkName,
   isUsableName,
   retiredPath,
+  usableHomepage,
   VISIBILITIES,
 } from '../../app/Actions/Repo/settings'
 
@@ -232,5 +233,86 @@ describe('isUsableName', () => {
     expect(isUsableName('my-repo.js')).toBe(true)
     expect(isUsableName('..')).toBe(false)
     expect(isUsableName('.git')).toBe(false)
+  })
+})
+
+/**
+ * The homepage, which is the one field here that is a security decision.
+ *
+ * It is rendered as an `href` on a public page, so anybody with write access
+ * choosing the value means anybody with write access choosing what that link
+ * does. The check is an allowlist of two schemes rather than a list of what to
+ * refuse: a denylist has to be right about every scheme a browser has ever
+ * supported, and only has to be wrong once.
+ */
+describe('usableHomepage', () => {
+  test('keeps an http or https address', () => {
+    expect(usableHomepage('https://stacksjs.com')).toBe('https://stacksjs.com/')
+    expect(usableHomepage('http://example.com/docs')).toBe('http://example.com/docs')
+  })
+
+  test('completes a bare host, which is what somebody typing it meant', () => {
+    expect(usableHomepage('stacksjs.com')).toBe('https://stacksjs.com/')
+    expect(usableHomepage('  stacksjs.com/docs  ')).toBe('https://stacksjs.com/docs')
+  })
+
+  test.each([
+    'javascript:alert(1)',
+    'JavaScript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'vbscript:msgbox(1)',
+    'file:///etc/passwd',
+  ])('refuses %s', (raw) => {
+    expect(usableHomepage(raw)).toBeNull()
+  })
+
+  test('refuses a scheme-relative address, which is a URL to a browser', () => {
+    // `//evil.example` is a path by a naive check and an absolute URL to a
+    // browser, which is the case people miss.
+    expect(usableHomepage('//evil.example')).toBeNull()
+  })
+
+  test('refuses something that is not a host', () => {
+    // `https://notes` parses. It is a link to nowhere dressed as a link
+    // somewhere, and it is what a typo produces.
+    expect(usableHomepage('notes')).toBeNull()
+    expect(usableHomepage('https://notes')).toBeNull()
+  })
+
+  test('has nothing to say about nothing', () => {
+    expect(usableHomepage('')).toBeNull()
+    expect(usableHomepage('   ')).toBeNull()
+  })
+})
+
+describe('decideSettings, homepage', () => {
+  const current = { name: 'checkout' }
+
+  test('stores an address that passes', () => {
+    const decision = decideSettings(current, { homepage: 'stacksjs.com' })
+
+    expect(decision.ok).toBe(true)
+    expect((decision as any).changes.homepage).toBe('https://stacksjs.com/')
+  })
+
+  test('clears it when the form is submitted empty', () => {
+    // Absent leaves it alone; empty clears it. The same rule the description
+    // has, and the reason a form that always submits every field is safe.
+    const decision = decideSettings(current, { homepage: '' })
+
+    expect((decision as any).changes.homepage).toBeNull()
+  })
+
+  test('refuses a scheme that would run, rather than storing it', () => {
+    const decision = decideSettings(current, { homepage: 'javascript:alert(1)' })
+
+    expect(decision.ok).toBe(false)
+    expect((decision as any).status).toBe(422)
+  })
+
+  test('leaves it alone when the patch does not mention it', () => {
+    const decision = decideSettings(current, { description: 'x' })
+
+    expect(Object.keys((decision as any).changes)).not.toContain('homepage')
   })
 })

@@ -11,6 +11,8 @@
  * mirror that renumbers is a mirror whose cross-references all lie.
  */
 
+import { usableHomepage } from '../Repo/settings'
+
 export interface GitHubUser {
   login?: string
   id?: number
@@ -300,6 +302,15 @@ export function buildThreads(comments: readonly MappedReviewComment[]): MappedRe
  */
 export interface MappedRepository {
   description: string
+  /**
+   * The project's own site, as upstream records it.
+   *
+   * Checked here rather than trusted: this is a value from somebody else's API
+   * that becomes an `href` on a page here, and `usableHomepage` is the same
+   * allowlist the settings form goes through. A mirror must not be a way past a
+   * rule the form enforces.
+   */
+  homepage: string | null
   /** Lowercased and de-duplicated, so it matches how topics are stored here. */
   topics: string[]
   /** `public` or `private`. GitHub's `internal` has no meaning off a GHE instance. */
@@ -319,6 +330,7 @@ export function mapRepository(repository: any): MappedRepository | null {
 
   return {
     description: String(repository.description ?? '').slice(0, 500),
+    homepage: usableHomepage(String(repository.homepage ?? '')),
     topics,
     /*
      * `private` is the flag GitHub actually sets; `visibility` is a newer field

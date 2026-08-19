@@ -25,6 +25,15 @@ export interface GitRepositoryRow {
   disk_path: string
   /** Carried so a fork can inherit it. Never used by the wire protocol. */
   description: string
+  /**
+   * The project's own site, for the About panel.
+   *
+   * On this row for the reason every other field here is: this projection is
+   * how a *page* reaches a repository, and a column left off it reads as
+   * `undefined` at every use site with no error - which is how the merge
+   * settings above were configurable and silently inert for months.
+   */
+  homepage: string
   /** The repository this one was forked from, when it was. */
   parent_id: number | null
   /**
@@ -77,6 +86,7 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
       'default_branch',
       'disk_path',
       'description',
+      'homepage',
       'parent_id',
       'allow_merge_commit',
       'allow_squash_merge',
@@ -103,6 +113,7 @@ export async function findRepositoryByPath(owner: string, name: string): Promise
     default_branch: String(repository.default_branch),
     disk_path: String(repository.disk_path),
     description: repository.description ? String(repository.description) : '',
+    homepage: repository.homepage ? String(repository.homepage) : '',
     parent_id: repository.parent_id === null || repository.parent_id === undefined ? null : Number(repository.parent_id),
     /*
      * Nulls pass through: a row written before the columns existed reads as

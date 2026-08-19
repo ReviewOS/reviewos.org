@@ -107,6 +107,29 @@ export default defineModel({
       factory: faker => faker.company.catchPhrase(),
     },
 
+    /**
+     * The project's own site, shown beside the description.
+     *
+     * A column rather than a line in the README, because it is the first thing
+     * somebody landing on a repository looks for and reading it out of prose
+     * means guessing which link in a document is *the* one. GitHub has the
+     * field, every mirror carries a value for it, and `MirrorMetadataSyncJob`
+     * imports it - so a mirrored repository arrives with it filled in.
+     *
+     * **`http` and `https` only, enforced where it is set** rather than where
+     * it is rendered - `app/Actions/Repo/settings.ts`. This value becomes an
+     * `href` on a public page, and a field anybody with write access can put
+     * `javascript:` in is a stored cross-site scripting hole with a form in
+     * front of it. Checking at render time would mean checking in every place
+     * that renders it, and the place somebody forgets is the one that ships.
+     */
+    homepage: {
+      order: 24,
+      fillable: true,
+      validation: { rule: schema.string().max(255) },
+      factory: faker => faker.internet.url(),
+    },
+
     visibility: {
       order: 5,
       fillable: true,
