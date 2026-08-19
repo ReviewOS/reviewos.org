@@ -3009,6 +3009,25 @@ already commits us to the principle. These are the pipeline-specific pieces.
       when it gets there.
 - [ ] Terraform provider covering workflows, schedules, pools, queues, tokens, and secrets, because
       a fleet that cannot be declared is a fleet that drifts
+
+      **The declarative half is done and the provider is not**, and the split is deliberate rather
+      than a stopping point. `buddy fleet:apply fleet.yml` converges pools, their queues - including
+      a queue declared paused, with its reason - and which repositories each pool serves, with
+      `--plan` printing what would change and touching nothing. It is idempotent by construction, so
+      it is safe to run from a pipeline, and **it never removes what the file does not mention**: a
+      partial file applied on the wrong afternoon would otherwise drain the fleet, so anything on the
+      instance and absent from the file is reported as drift for a person to decide about.
+
+      What is left is the provider binary itself. Terraform providers are Go programs published to
+      their registry from their own repository with their own release, and this machine has neither
+      a Go toolchain nor Terraform - so writing one here would mean shipping several hundred lines
+      nobody had compiled, which is the thing this roadmap keeps refusing to do. The endpoints it
+      would drive exist and are idempotent; the work is a repository, not a feature.
+
+      Two of the six named resources are not the provider's to own, and that is worth writing down
+      before somebody tries: **workflows and schedules are files in git**. A provider that wrote
+      them would be a second source of truth for something the repository already holds, and the
+      first force-push would decide which of the two was real.
 - [x] MCP surface for runs, logs, and test results, so a coding agent can read a failure without
       scraping a page
 

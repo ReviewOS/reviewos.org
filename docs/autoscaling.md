@@ -142,6 +142,39 @@ as the user who started the runner. Isolation is a separate machine, which is
 what an autoscaler is already giving you - one job per machine with `--jobs 1`
 is the strongest boundary this design offers, and it is a strong one.
 
+## The fleet as a file
+
+A fleet that cannot be declared is a fleet that drifts: a pool created during an
+incident, a queue paused on a Friday and never resumed, and six months later
+nobody can say what the intended shape was.
+
+```yaml
+# fleet.yml
+pools:
+  - name: Deployment
+    description: machines with the release credentials
+    require_signed_steps: true
+    queues:
+      - name: linux-x64
+      - name: macos-arm64
+        state: paused
+        reason: waiting for the new mac mini
+    repositories:
+      - acme/api
+      - acme/web
+```
+
+```sh
+buddy fleet:apply fleet.yml --plan   # what would change, touching nothing
+buddy fleet:apply fleet.yml
+```
+
+Applying twice does nothing the second time, so the file is safe to run from a
+pipeline. **Nothing is ever removed**: anything on the instance that the file
+does not mention is reported as drift and left alone, because the failure mode
+of a convergence tool has to be "nothing happened" rather than "everything went
+away" on the day somebody applies a partial file.
+
 ## macOS machines
 
 Mobile delivery runs on macOS and nothing else can, which makes these the
