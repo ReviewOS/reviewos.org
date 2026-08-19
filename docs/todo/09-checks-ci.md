@@ -1489,6 +1489,26 @@ was needed ships the bug.
       than silently omitting data
 - [ ] Aggregate metrics for success rate, failure by step, queue time, duration, retry count, cache
       effectiveness, and runner utilization, filterable by owner, repository, and workflow
+
+      **All seven numbers, filterable by repository, by workflow and by window. The owner-level
+      rollup is what is left**, and it needs an authorization this codebase does not have yet:
+      everything here answers to `authorizeRepository`, and "every repository under this owner"
+      needs an owner-scoped check that does not exist.
+
+      `GET /repos/workflow-metrics`. Success rate is over *finished* runs, because a run still going
+      is not a run that failed and counting it as one makes a busy afternoon look like an outage.
+      Durations are medians rather than means: one job that hung until its timeout moves a mean far
+      enough to hide a week of ordinary builds, and "how long does this usually take" is the
+      question being asked.
+
+      Failures are grouped by step *name* rather than position - `make test` at step 3 in one job
+      and step 5 in another is one step failing, and a table keyed on position reports it as two
+      problems neither of which looks serious. Queue time is beside duration rather than added to
+      it, because the two have different fixes and the sum hides which one is needed.
+
+      Every rate is null rather than zero when nothing has happened: a repository that does not use
+      the cache has no hit rate, and 0% reads as one that is broken. And the window travels in the
+      answer, so a client cannot show a number without saying what it is of.
 - [ ] Local validation and a fake-runner test harness use the same parser and transition rules as
       production
 - [x] CLI commands to validate a workflow, dispatch it, follow logs, inspect a run, cancel it, and

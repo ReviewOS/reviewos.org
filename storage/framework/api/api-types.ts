@@ -15477,6 +15477,32 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/workflow-metrics": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "workflow"?: number; "days"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "window"?: { "days"?: number; "since"?: string }; "runs"?: Record<string, unknown>; "jobs"?: Record<string, unknown>; "steps"?: Array<Record<string, unknown>>; "cache"?: Record<string, unknown> } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/workflow-notifications": {
     get?: never
     put?: never

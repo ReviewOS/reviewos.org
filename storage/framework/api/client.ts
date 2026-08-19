@@ -5623,6 +5623,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/workflow-metrics
+   */
+  getReposWorkflowMetrics(input?: { "owner"?: string; "repo"?: string; "workflow"?: number; "days"?: number }, options?: RequestOptions): Promise<ApiResult<{ "window"?: { "days"?: number; "since"?: string }; "runs"?: Record<string, unknown>; "jobs"?: Record<string, unknown>; "steps"?: Array<Record<string, unknown>>; "cache"?: Record<string, unknown> }>> {
+    return request(config, "GET", "/api/repos/workflow-metrics", input ?? {}, ["owner", "repo", "workflow", "days"], false, options)
+  },
+
+  /**
    * POST /api/repos/workflow-notifications
    */
   postReposWorkflowNotifications(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "list" | "add" | "remove"; "user"?: string; "workflow"?: string; "branch"?: string; "job"?: string; "condition"?: "failure" | "success" | "recovery" | "always"; "id"?: number } }, options?: RequestOptions): Promise<ApiResult<unknown>> {

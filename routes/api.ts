@@ -871,6 +871,14 @@ route.post('/repos/workflow-runs/cancel-job', 'Actions/Workflow/CancelWorkflowJo
  * here.
  */
 route.get('/repos/workflows', 'Actions/Workflow/ListWorkflowsAction')
+/*
+ * What this repository's CI has been doing, in aggregate.
+ *
+ * Every number here can be worked out by reading runs one at a time, which is
+ * why nobody does: "is CI getting slower" is a question about a hundred runs
+ * and the run screen answers one. So it is asked where the rows are.
+ */
+route.get('/repos/workflow-metrics', 'Actions/Workflow/MetricsAction')
 route.get('/repos/workflows/show', 'Actions/Workflow/ShowWorkflowAction')
 route.post('/repos/workflows/dispatch', 'Actions/Workflow/DispatchWorkflowAction').middleware('auth')
 /*

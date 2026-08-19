@@ -404,6 +404,77 @@ describe('cancelling', () => {
  * that matter are about the inputs, because that is the one place a person
  * hands values straight to a pipeline.
  */
+describe('what this repository\'s CI has been doing', () => {
+  const path = '/api/repos/workflow-metrics'
+
+  const reading = (): RequestInit => ({
+    headers: { 'Authorization': `Bearer ${created.token}`, 'Accept': 'application/json' },
+  })
+
+  test('answers with the numbers and the window they are of', async () => {
+    if (!available)
+      return
+
+    const { status, body } = await api(`${path}?owner=${created.handle}&repo=${created.name}`, reading())
+
+    expect(status).toBe(200)
+
+    /*
+     * The window travels in the answer, so a client cannot show a success rate
+     * without saying what it is of - a rate with no window gets less useful
+     * every day the instance runs, since a repository that was broken for a
+     * week in March never recovers its average.
+     */
+    expect(Number(body.window.days)).toBe(30)
+    expect(String(body.window.since)).not.toBe('')
+
+    expect(Number(body.runs.total)).toBeGreaterThan(0)
+    expect(body).toHaveProperty('cache')
+    expect(body).toHaveProperty('steps')
+  })
+
+  test('and a window a caller asks for, bounded', async () => {
+    if (!available)
+      return
+
+    const short = await api(`${path}?owner=${created.handle}&repo=${created.name}&days=7`, reading())
+    const silly = await api(`${path}?owner=${created.handle}&repo=${created.name}&days=9000`, reading())
+
+    expect(Number(short.body.window.days)).toBe(7)
+    // A ceiling rather than a refusal: somebody asking for everything wants the
+    // most this can answer, not an error about a number they typed.
+    expect(Number(silly.body.window.days)).toBe(90)
+  })
+
+  test('a rate is null rather than zero when nothing has happened yet', async () => {
+    if (!available)
+      return
+
+    /*
+     * A repository that does not use the cache has no hit rate, and 0% reads
+     * as one that is broken. The same for a success rate over no finished runs.
+     */
+    const { body } = await api(`${path}?owner=${created.handle}&repo=${created.name}&workflow=999999`, reading())
+
+    expect(Number(body.runs.total)).toBe(0)
+    expect(body.runs.success_rate).toBeNull()
+    expect(body.cache.hit_rate).toBeNull()
+  })
+
+  test('and a stranger cannot read them', async () => {
+    if (!available)
+      return
+
+    await db.updateTable('repositories').set({ visibility: 'private' } as any).where('id', '=', created.repositoryId).execute()
+
+    const { status } = await api(`${path}?owner=${created.handle}&repo=${created.name}`)
+
+    expect([401, 403, 404]).toContain(status)
+
+    await db.updateTable('repositories').set({ visibility: 'public' } as any).where('id', '=', created.repositoryId).execute()
+  })
+})
+
 describe('the workflows a repository has', () => {
   const path = '/api/repos/workflows'
 
