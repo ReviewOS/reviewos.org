@@ -65,7 +65,15 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Type check
-        run: ./buddy typecheck
+        # `tsc` directly rather than `./buddy typecheck`, which is the same
+        # check through a wrapper that does not survive this runner: a dispatch
+        # on 2026-08-19 sat in that step for fourteen minutes and took the
+        # twenty-minute job cap with it, so the deploy never ran. CI's own
+        # typecheck job gets away with the wrapper because it has the Pantry
+        # toolchain and a warm `node_modules` cache; this job has neither, and a
+        # deploy path that only works with a cache is a deploy path that fails
+        # when it is needed most.
+        run: bun x --bun tsc --noEmit -p tsconfig.json --pretty false
 
       - name: Test
         run: bun test tests/unit/
