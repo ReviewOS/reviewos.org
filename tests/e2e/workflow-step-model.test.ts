@@ -1079,8 +1079,8 @@ jobs:
     const byNode = new Map(rows.map((row: any) => [String(JSON.parse(String(row.matrix_values)).node), row]))
 
     // The ordinary one: runs, and its failure would fail the run.
-    expect(isTrue(String(byNode.get('20').state)).toBe('queued')
-    expect(byNode.get('20').continue_on_error)).toBe(false)
+    expect(String(byNode.get('20').state)).toBe('queued')
+    expect(isTrue(byNode.get('20').continue_on_error)).toBe(false)
 
     /*
      * Skipped, with the reason on the row - which is what an adjustment buys
@@ -1096,8 +1096,8 @@ jobs:
      * there means tolerating 20 and 22 as well, and a matrix that tolerates
      * everything cannot fail a build.
      */
-    expect(isTrue(String(byNode.get('24').state)).toBe('queued')
-    expect(byNode.get('24').continue_on_error)).toBe(true)
+    expect(String(byNode.get('24').state)).toBe('queued')
+    expect(isTrue(byNode.get('24').continue_on_error)).toBe(true)
 
     await db.deleteFrom('workflows').where('path', '=', path).execute()
   }, 120_000)
