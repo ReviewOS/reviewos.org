@@ -85,6 +85,41 @@ services:
       database:
         condition: service_healthy
 
+  # The scheduler, and it is the process this file forgot.
+  #
+  # `app/Scheduler.ts` declares everything that happens on a clock - the mirror
+  # sweep, the lease reclaim, artifact expiry, WAL reconciliation, the nightly
+  # checkpoint, ref-drift auditing - and **none of it runs unless something runs
+  # the scheduler**. A worker processes what is enqueued; nothing was enqueuing.
+  # The symptom is an instance that looks perfectly healthy while every mirror
+  # on it silently stops updating, which is exactly what happened here.
+  #
+  # Its own container rather than a flag on the app, for the same reason the
+  # worker is one: it must be exactly one process. Two web replicas would mean
+  # two schedulers firing the same minute, and while the scheduler takes a
+  # cross-cluster advisory lock per task, relying on that to paper over a
+  # deployment shape is how the one host that cannot reach the lock runs
+  # everything twice.
+  scheduler:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: database
+      DB_PORT: '3306'
+      TYPESENSE_HOST: search
+      TYPESENSE_PORT: 8108
+      TYPESENSE_PROTOCOL: http
+    command: ['bun', 'run', '--bun', './buddy', 'schedule:run']
+    volumes:
+      # The same repositories the worker and the web process see. The nightly
+      # checkpoint and the ref-drift audit both read them directly.
+      - repos:/app/storage/repos
+      - uploads:/app/storage/app
+    depends_on:
+      database:
+        condition: service_healthy
+
   # Search. Typesense, because that is what `config/search-engine.ts` declares
   # and what the indexing trait speaks - this service was Meilisearch until
   # 2026-08, so a compose deployment had a search container the application

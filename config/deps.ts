@@ -200,6 +200,32 @@ export const config: PantryConfig = {
       worker: {
         command: './buddy queue:work --concurrency 4',
       },
+      /*
+       * The clock, and the process this file forgot.
+       *
+       * `app/Scheduler.ts` declares everything that happens on a schedule -
+       * the mirror sweep, the lease reclaim, artifact expiry, WAL
+       * reconciliation, the nightly checkpoint, the ref-drift audit - and
+       * **none of it runs unless something runs the scheduler**. A worker
+       * processes what is enqueued; until this line existed, nothing enqueued
+       * any of it, on any deployment. The instance looked healthy the whole
+       * time, because it was: the queue was empty because nothing was filling
+       * it, and every mirror on it quietly stopped updating with no error to
+       * show for it.
+       *
+       * Exactly one, which is why it is a service of its own rather than a
+       * flag on `app`. The framework takes a cross-cluster advisory lock per
+       * task, so a second one is not a catastrophe - but a deployment shape
+       * that depends on the lock is a deployment where the host that cannot
+       * reach the database runs everything twice.
+       *
+       * No health check, for the worker's reason: a live process proves
+       * nothing about whether the clock is being honoured. `/api/health`
+       * reports overdue scheduled work instead.
+       */
+      scheduler: {
+        command: './buddy schedule:run',
+      },
     },
 
     /**

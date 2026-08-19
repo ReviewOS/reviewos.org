@@ -66,6 +66,7 @@ export async function checkHealth(options: { writeProbe?: boolean } = {}): Promi
     await database(),
     await databaseClock(),
     await queue(),
+    await scheduledWork(),
     await repositoryStorage(options.writeProbe !== false),
   ])
 }
@@ -214,6 +215,56 @@ async function queue(): Promise<Check> {
       return { status: 'degraded' as const, detail: `${depth} jobs queued, oldest waiting ${Math.round(waitedMs / 1000)}s - is a worker running?` }
 
     return depth > 0 ? { status: 'ok' as const, detail: `${depth} queued` } : undefined
+  })
+}
+
+/**
+ * Is anything honouring the clock.
+ *
+ * The check that would have caught the worst deployment bug this instance has
+ * had. `app/Scheduler.ts` declares the mirror sweep, the lease reclaim,
+ * artifact expiry, WAL reconciliation, the nightly checkpoint and the ref-drift
+ * audit - and **nothing in any documented deployment ran the scheduler**, so
+ * none of it had ever fired. The instance was healthy by every measure it had:
+ * the database answered, the disk was writable, and the queue was empty *because
+ * nothing was filling it*. The only visible symptom was mirrors quietly going a
+ * day stale with no error against them, on the one page that happens to show a
+ * sync time.
+ *
+ * Measured from mirrors rather than from a heartbeat, and that is deliberate.
+ * A heartbeat proves a process is alive; this proves the work is being done,
+ * which is the question. `mirrorHealth` already knows what overdue means and is
+ * tested for it, so the rule is not restated here.
+ *
+ * Silent on an instance with no mirrors: it has no evidence either way, and a
+ * check that warns without evidence is a check people turn off.
+ */
+async function scheduledWork(): Promise<Check> {
+  return await timed('scheduled work', async () => {
+    const { staleMirrors } = await import('../Actions/Mirror/overdue')
+
+    const mirrors = await db
+      .selectFrom('repository_mirrors')
+      .select(['enabled', 'interval_seconds', 'last_synced_at', 'last_error', 'failure_count'])
+      .where('enabled', '=', true)
+      .execute()
+
+    const stalled = staleMirrors(mirrors as any[])
+
+    if (stalled === 0)
+      return undefined
+
+    /*
+     * Degraded rather than failed. An instance whose clock has stopped is still
+     * serving every page correctly, and refusing traffic for it would turn a
+     * background problem into an outage - the same reasoning as the queue check
+     * two functions up.
+     */
+    return {
+      status: 'degraded' as const,
+      detail: `${stalled} ${stalled === 1 ? 'mirror is' : 'mirrors are'} overdue with nothing errored `
+        + '- is `buddy schedule:run` running?',
+    }
   })
 }
 

@@ -1066,3 +1066,33 @@ to their own timezone gets every timestamp wrong by it.
   repairs an account left behind by the broken version - but only where the
   email matches the cast exactly, so a developer whose own account happens to be
   called `ada` does not get their password reset by a demo command.
+- [x] The scheduler runs in every documented deployment, and health says so when it does not
+
+  **Nothing ran it.** `app/Scheduler.ts` has declared the mirror sweep, the
+  lease reclaim, artifact expiry, WAL reconciliation, the nightly checkpoint and
+  the ref-drift audit since each was written, and no deployment shape here ever
+  started `buddy schedule:run` - not `compose.yaml`, not the systemd units in
+  the guide, not `config/deps.ts`. A worker processes what is enqueued; nothing
+  was enqueuing. Every scheduled job in this codebase had never fired on any
+  instance.
+
+  What makes it the worst kind of bug is that it is invisible in the direction
+  nobody watches. A missing *worker* shows up as a growing queue, which the
+  health check already reported. A missing *scheduler* shows up as an **empty**
+  one, which is what a healthy instance looks like. Nothing errored, nothing
+  backed up, no log line was written. The first symptom anybody saw was a
+  repository page saying "synced 1 day ago" under a mirror with a clean record -
+  the one screen in the product that happens to show a sync time.
+
+  So the fix is three deployments plus a check. `compose.yaml` gets a
+  `scheduler` service, `config/deps.ts` gets one beside `app` and `worker` so
+  `pantry start scheduler` manages it the way Postgres is managed, and the guide
+  gets its systemd unit and a section saying plainly why this one is easy to
+  leave out. `/api/health` reports `scheduled work` degraded when enabled
+  mirrors are past their staleness window with nothing errored against them -
+  measured from the work rather than from a heartbeat, because a heartbeat
+  proves a process is alive and the question is whether the work is happening.
+  On the database this was found against, it reported 151.
+
+  A *failing* mirror is deliberately not counted. That is a credential to
+  reissue, not a clock that stopped, and the two have opposite fixes.

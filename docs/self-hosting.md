@@ -98,8 +98,8 @@ cp .env.example .env          # then edit it, see Configuration below
 ./buddy instance:check
 ```
 
-Then run the two processes under whatever supervises this machine. A systemd
-unit each, both with `Restart=always`, both in the project directory:
+Then run the three processes under whatever supervises this machine. A systemd
+unit each, all with `Restart=always`, all in the project directory:
 
 ```ini
 # /etc/systemd/system/reviewos.service
@@ -116,6 +116,16 @@ TimeoutStopSec=30
 [Service]
 WorkingDirectory=/srv/reviewos
 ExecStart=/srv/reviewos/buddy queue:work --concurrency 4
+Restart=always
+KillSignal=SIGTERM
+TimeoutStopSec=30
+```
+
+```ini
+# /etc/systemd/system/reviewos-scheduler.service
+[Service]
+WorkingDirectory=/srv/reviewos
+ExecStart=/srv/reviewos/buddy schedule:run
 Restart=always
 KillSignal=SIGTERM
 TimeoutStopSec=30
@@ -350,6 +360,40 @@ anything asynchronous: no mirror syncs, no webhooks, no notification email. The
 health endpoint reports it - a job that has been waiting more than five minutes
 is `degraded` with "is a worker running?" - which is the fastest way to notice.
 
+## The scheduler
+
+**A third process, and the one that is easiest to leave out.** A worker
+processes what has been enqueued; the scheduler is what enqueues it.
+
+```sh
+bun run --bun ./buddy schedule:run
+```
+
+`app/Scheduler.ts` is the whole list, and none of it happens without this
+running: the mirror sweep every five minutes, the lease reclaim every minute,
+WAL reconciliation every ten, artifact expiry and the ref-drift audit hourly,
+the repository checkpoint nightly.
+
+This is worth being blunt about, because the failure is invisible in a way the
+worker's is not. **A missing worker shows up as a growing queue. A missing
+scheduler shows up as an empty one** - and an empty queue is what a healthy
+instance looks like. Nothing errors, nothing backs up, no log line is written.
+The only symptom is that scheduled things stop: mirrors go stale a day at a
+time, expired artifacts are never deleted, and a runner's lapsed lease is never
+returned. This shipped exactly that way, and the first thing anybody noticed was
+a repository page saying "synced 1 day ago".
+
+`/api/health` reports it now: enabled mirrors that are far past their interval
+with nothing errored against them are `degraded` with "is `buddy schedule:run`
+running?". A mirror that is *failing* is deliberately not counted - that is a
+credential to fix, not a clock.
+
+**Exactly one.** Two web replicas do not mean two schedulers: the framework
+takes a cross-cluster advisory lock per task, so a duplicate skips rather than
+doubles, but a deployment that relies on the lock is a deployment where the host
+that cannot reach the database runs everything twice. Run one, supervised, like
+the worker.
+
 ## Pantry runs the instance, not just its dependencies
 
 The canonical deployment is pantry plus a `.env`. No container runtime, and no
@@ -365,14 +409,21 @@ pantry start app
 pantry start worker
 ```
 
+```sh
+pantry start scheduler
+```
+
 Each becomes a KeepAlive launchd agent (macOS) or systemd unit (Linux), with
 its own logs under `~/.local/share/pantry/logs/<project>/`, restarting on crash
 and surviving a reboot. `pantry inspect app` prints the status, the PID, the
 port, the health check, and the exact command that is running.
 
-The worker deliberately has no health check. Its liveness is queue depth, which
-`/api/health` already reports, and a check that only proved the process exists
-would report a wedged worker as healthy - which is the failure worth catching.
+Neither the worker nor the scheduler has a health check, for the same reason:
+liveness is not the question. A worker's health is queue depth and a scheduler's
+is whether scheduled work is actually happening, and `/api/health` reports both.
+A check that only proved the process exists would report a wedged worker, or a
+scheduler whose tasks all throw, as healthy - which is the failure worth
+catching.
 
 This needs pantry 0.11.31 or newer: project-defined services were built for
 this, along with the two fixes underneath them (a per-project service port that
@@ -635,6 +686,7 @@ What is there:
 | `reviewos_http_request_seconds` | Latency, as a histogram. |
 | `reviewos_git_operation_seconds` | How long git takes, by subcommand. This is where a forge's time goes. |
 | `reviewos_queue_depth` / `reviewos_queue_oldest_seconds` | Work waiting. The second climbing steadily means no worker is running. |
+| `reviewos_queue_depth` staying at zero *and* mirrors going stale | The opposite failure: nothing is enqueuing. See [The scheduler](#the-scheduler). |
 | `reviewos_repositories_total` / `reviewos_users_total` | How big this instance is. |
 
 Labels are **route patterns, never URLs**, and status is a class (`2xx`) rather
@@ -693,14 +745,14 @@ reports an error, which is what makes this the important sentence on this page.
 
 ```sh
 # Stop writes for the length of the snapshot. Seconds, not minutes.
-docker compose stop app worker
+docker compose stop app worker scheduler
 
 docker compose exec -T database mysqldump -uroot -p"$DB_PASSWORD" \
   --single-transaction --routines --triggers reviewos | gzip > backup/db.sql.gz
 tar -czf backup/repos.tar.gz -C /var/lib/docker/volumes/reviewos_repos/_data .
 tar -czf backup/uploads.tar.gz -C /var/lib/docker/volumes/reviewos_uploads/_data .
 
-docker compose start app worker
+docker compose start app worker scheduler
 ```
 
 Stopping the two application containers is what makes them the same moment. An
@@ -800,7 +852,7 @@ does not carry. **Stop the application and the worker first.** The stop is the
 part that matters, not how long the copy takes.
 
 ```sh
-docker compose stop app worker
+docker compose stop app worker scheduler
 docker compose exec app bun run --bun ./buddy db:migrate-engine \
   --to mysql --host 127.0.0.1 --port 3306 --database reviewos --username root --password "$DB_PASSWORD"
 ```
@@ -835,7 +887,7 @@ DB_PASSWORD=...
 ```
 
 ```sh
-docker compose start app worker
+docker compose start app worker scheduler
 docker compose exec app bun run --bun ./buddy instance:check
 ```
 
