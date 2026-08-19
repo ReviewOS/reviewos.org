@@ -339,4 +339,115 @@ describe('a sleep', () => {
     expect(seen.decision).toBe('wait')
     expect(Date.parse(String((seen as any).wakeAt))).toBe(wakeAt.getTime())
   }, 120_000)
+
+  /**
+   * The case the whole suspend mechanism exists for: the runner that started
+   * the sleep is long gone, and the run continues on a different machine.
+   *
+   * Nothing about the wake belongs to that first runner - it parked a row and
+   * released a lease, and the row is the run.
+   */
+  test('outlives the runner that started it, and the run carries on afterwards', async () => {
+    if (!available)
+      return
+
+    const { record, resolve, suspend } = await import('../../app/Actions/Workflow/journal')
+
+    const runId = await aRun()
+    const call = { runId, sequence: 1, kind: 'sleep', name: 'approval', args: { ms: 1000 } }
+
+    const first = await record(call)
+
+    // Parked in the past, which is where a sleep is by the time somebody comes
+    // back to it.
+    await suspend((first as any).entryId, new Date(Date.now() - 1000))
+
+    // A different orchestrator, on a different machine, replaying the program
+    // from its first line.
+    const resumed = await record(call)
+
+    // Over. On the control plane's clock, not the new runner's - a machine with
+    // a wrong clock gets the same answer as one without.
+    expect(resumed.decision).toBe('replay')
+
+    // And the program goes on into the step after the sleep.
+    const after = await record({ runId, sequence: 2, kind: 'step', name: 'deploy', args: {} })
+
+    expect(after.decision).toBe('dispatch')
+
+    await resolve((after as any).entryId, { result: 'deployed' })
+  }, 120_000)
+})
+
+describe('a restart from a named step', () => {
+  /**
+   * Restarting from step 12 means exactly one thing: the journal has to stop at
+   * 11. Anything else and the restart replays the step it was asked to redo,
+   * which is the whole feature not working.
+   */
+  test('forgets that step and everything after it, and keeps what came before', async () => {
+    if (!available)
+      return
+
+    const { forgetFrom, journalFor, positionOf } = await import('../../app/Actions/Workflow/journal')
+
+    const runId = await aRun()
+    const executed: string[] = []
+
+    await runProgram(runId, ['checkout', 'install', 'test', 'deploy'], executed)
+
+    const position = await positionOf(runId, 'test')
+
+    expect(position).toBe(3)
+
+    const forgotten = await forgetFrom(runId, position!)
+
+    expect(forgotten).toBe(2)
+
+    const left = await journalFor(runId)
+
+    expect(left.entries.map(one => one.name)).toEqual(['checkout', 'install'])
+  }, 120_000)
+
+  /**
+   * The case the roadmap names, and the one that would be wrong under a naive
+   * reading of divergence: the inputs changed *because somebody changed them*.
+   * A person restarting a deploy against a new image is not a program that
+   * drifted, and refusing it would make restart-from-step useless exactly when
+   * it is wanted.
+   */
+  test('runs again with the new inputs rather than being refused for disagreeing', async () => {
+    if (!available)
+      return
+
+    const { forgetFrom, record, resolve } = await import('../../app/Actions/Workflow/journal')
+
+    const runId = await aRun()
+
+    for (const [index, name] of ['checkout', 'deploy'].entries()) {
+      const verdict = await record({ runId, sequence: index + 1, kind: 'step', name, args: { image: 'app:1' } })
+
+      await resolve((verdict as any).entryId, { result: `${name}-done` })
+    }
+
+    // Without forgetting first, this is a divergence - correctly, because a
+    // program that quietly changed its own arguments is exactly the bug.
+    const diverged = await record({ runId, sequence: 2, kind: 'step', name: 'deploy', args: { image: 'app:2' } })
+
+    expect(diverged.decision).toBe('diverged')
+
+    // With it, the restart is what it says it is.
+    await forgetFrom(runId, 2)
+
+    const restarted = await record({ runId, sequence: 2, kind: 'step', name: 'deploy', args: { image: 'app:2' } })
+
+    expect(restarted.decision).toBe('dispatch')
+
+    // And the step before it is still recorded, so the restart resumes rather
+    // than starting the run over.
+    const untouched = await record({ runId, sequence: 1, kind: 'step', name: 'checkout', args: { image: 'app:1' } })
+
+    expect(untouched.decision).toBe('replay')
+    expect((untouched as any).result).toBe('checkout-done')
+  }, 120_000)
 })

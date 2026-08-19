@@ -98,23 +98,36 @@ pattern rather than something to invent.
 - [x] An orchestrator that exceeds its own wall-time, step-count, or journal-size budget is
       terminated with a stated reason, so a runaway loop in a workflow file is bounded by the control
       plane rather than by whoever notices the bill
-- [ ] Tests: kill the orchestrator mid-run and assert no completed step re-executes; a non-deterministic
+- [x] Tests: kill the orchestrator mid-run and assert no completed step re-executes; a non-deterministic
       workflow detected on replay; a sleep that outlives the runner that started it; a restart from a
       named step whose inputs changed; and two orchestrators for one run, where the second is refused.
 
-The journal is built: `WorkflowJournalEntry`, `app/Actions/Workflow/journal.ts`, and
-`POST /api/runner/orchestrator`. `tests/e2e/workflow-journal.test.ts` covers three of the five test
-cases above - killed mid-run, divergence, and two orchestrators racing, where the loser waits and
-the step runs once. The remaining two need the pieces below.
+The journal is built: `WorkflowJournalEntry`, `app/Actions/Workflow/journal.ts`, and the two halves
+of a call, `POST /api/runner/orchestrator` and `POST /api/runner/orchestrator/result`. The client for
+them is `app/Actions/Runner/orchestratorClient.ts`, which is what a workflow program actually calls.
+
+All five test cases are covered. `tests/e2e/workflow-journal.test.ts` runs them against the real
+table; `tests/unit/runner-orchestrator-client.test.ts` runs the same claims from the program's side,
+against a journal in memory, because what a `try` around a failed step does on replay is not a
+question about HTTP.
+
+Two rules worth naming, because both are places the obvious implementation is wrong:
+
+- **A sleep ends on the control plane's clock.** `record` ends a slept call whose time has come and
+  answers `replay`, so a runner that woke early - or whose clock is minutes out - gets the same
+  answer as one that woke on time.
+- **Restart-from-step forgets rather than diverges.** `forgetFrom` deletes the named step and
+  everything after it, which is the only reading of "restart from step 12" that does not replay step
+  12. A person restarting a deploy against a new image is deliberately asking for different work, so
+  it must not be refused as the drift that divergence detection exists to catch.
 
 What is **not** built yet, so that the unticked boxes above say what they mean:
 
-- **The orchestrator job and its SDK.** The endpoint is the whole protocol a workflow program needs,
-  and nothing dispatches such a program yet. Until it does, the code-first authoring form does not
-  exist and neither does the normalization between it and the static one.
-- **Waking a suspended call.** `sleep` parks the entry and tells the runner to let go, which is the
-  half that matters for not holding a lease for three days - but no sweep re-dispatches it when the
-  time comes.
+- **The orchestrator job.** The protocol and its client are complete; nothing dispatches a program
+  that uses them yet. Until it does, the code-first authoring form does not exist and neither does
+  the normalization between it and the static one.
+- **Waking a suspended run.** A slept call resumes correctly the moment somebody asks again, but no
+  sweep re-dispatches the run when the timer fires, so "asks again" needs somebody to make it happen.
 - **Enforced determinism.** `now` and `random` are injected and journaled, so the rule is
   *followable*. Nothing stops a program calling `Date.now()` directly; that needs the execution
   boundary, which is the section this phase gates behind a security review.

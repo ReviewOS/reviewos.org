@@ -141,6 +141,9 @@ export default new Action({
     if (verdict.decision === 'failed')
       return runnerJson({ decision: 'failed', reason: verdict.error, entry_id: verdict.entryId })
 
+    // A sleep whose time has already come never reaches here: `record` ends it
+    // and answers `replay`, on the control plane's clock rather than the
+    // runner's.
     if (verdict.decision === 'wait')
       return runnerJson({ decision: 'wait', entry_id: verdict.entryId, wake_at: verdict.wakeAt ?? null })
 

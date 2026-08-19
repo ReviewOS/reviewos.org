@@ -33,8 +33,8 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
   },
   {
     file: 'routes/api.ts',
-    count: 15,
-    because: 'the MCP endpoint, the mirror webhook, the eight runner routes, and the '
+    count: 16,
+    because: 'the MCP endpoint, the mirror webhook, the nine runner routes, and the '
       + 'three GitHub-compatible paths an action posts to. '
       + 'MCP reads its bearer itself and refuses a request without one before '
       + 'anything else happens; the mirror webhook is signed over its body by an '
@@ -59,7 +59,10 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
       + 'choose, since the instance works that out from the run row. The ninth '
       + 'is the orchestrator call - a workflow program journaling its next '
       + 'step, on the job credential that names its own run, which is the '
-      + 'whole of its scoping.',
+      + 'whole of its scoping. The tenth is the other half of that call: the '
+      + 'result the program reports when the step finishes, on the same '
+      + 'credential, and the entry it names is checked against that run rather '
+      + 'than believed.',
   },
   {
     file: 'routes/actions.ts',
@@ -181,12 +184,13 @@ describe('what is not exempt', () => {
     // refuses a request without one, so there is no ambient credential for a
     // forged post to ride - and once more for the dependency cache save, whose
     // body is a tar and whose scope the instance decides rather than the
-    // sender, and once more for the orchestrator call, whose only
-    // identifier is the job token it arrives with.
+    // sender, and twice more for the two halves of an orchestrator call -
+    // asking what to do, and saying what it returned - whose only identifier
+    // is the job token they arrive with.
     const source = await Bun.file('routes/api.ts').text()
     const unsafe = (source.match(/route\.(post|put|patch|delete)\(/g) ?? []).length
 
     expect(unsafe).toBeGreaterThan(50)
-    expect(await skipCount('routes/api.ts')).toBe(15)
+    expect(await skipCount('routes/api.ts')).toBe(16)
   })
 })

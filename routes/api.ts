@@ -996,6 +996,7 @@ route.post('/runner/artifacts', 'Actions/Runner/UploadArtifactAction').skipCsrf(
  * request to get wrong.
  */
 route.post('/runner/orchestrator', 'Actions/Runner/OrchestratorCallAction').skipCsrf()
+route.post('/runner/orchestrator/result', 'Actions/Runner/OrchestratorResultAction').skipCsrf()
 route.post('/runner/caches', 'Actions/Runner/SaveCacheAction').skipCsrf()
 route.get('/runner/caches/restore', 'Actions/Runner/RestoreCacheAction')
 // What a job's steps said about the code: `::error file=...,line=...::` becomes
