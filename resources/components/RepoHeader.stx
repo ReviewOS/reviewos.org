@@ -20,6 +20,11 @@
     <p class="muted repo-description">{{ description }}</p>
   @endif
 
+  {{-- Only where refs were read. The issue and pull-request lists are database
+      pages that touch no git at all, and loading branches, a commit count and a
+      size for the chrome above them would be three git processes for a line
+      nobody came for. They render the identity block and stop. --}}
+  @if (branches.length > 0)
   <div class="muted repo-meta">
     <BranchPicker :branches="branches" :tags="tags" current="{{ refName }}" />
 
@@ -27,9 +32,19 @@
       <span>&middot; {{ branches.length }} branches</span>
     @endif
 
-    <span>&middot; <a href="/{{ owner }}/{{ repository }}/commits/{{ refName }}">commits</a></span>
-    <span>&middot; {{ size }}</span>
+    {{-- The count, when the ref has one. The line used to read
+        `main · 2 branches · commits · 0 B`: a row of counts with a bare word
+        in the middle, which reads as a number that failed to render. --}}
+    <span>&middot; <a href="/{{ owner }}/{{ repository }}/commits/{{ refName }}">{{ commits ? `${commits} ${Number(commits) === 1 ? 'commit' : 'commits'}` : 'Commits' }}</a></span>
+
+    {{-- Only when somebody has measured it. `size_kb` is 0 on every repository
+        nothing has counted yet, and "0 B" beside a page full of files is the
+        header stating something false rather than staying quiet. --}}
+    @if (Number(sizeKb ?? 0) > 0)
+      <span>&middot; {{ size }}</span>
+    @endif
   </div>
+  @endif
 </header>
 
 <style>

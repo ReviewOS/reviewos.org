@@ -12,7 +12,7 @@
  */
 import { mirrorFor, repositoryForView, summarizeMirror } from '../functions/repo'
 import { aliasTarget, pathUnderOwner } from '../functions/aliases'
-import { breadcrumbs, childPath, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor, languageRulesFor, declaredLanguage } from '../functions/browse'
+import { breadcrumbs, childPath, commitCount, findReadme, formatSize, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor, languageRulesFor, declaredLanguage } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
 /**
  * The status this page wants, asked for where the binding actually exists.
@@ -148,6 +148,9 @@ const highlighted = sourceLines.length > 0 ? await highlightLines(sourceLines, r
 const language = sourceLines.length > 0 ? (declared ?? languageFor(requestedPath)) : null
 
 const head = repoRow ? await lastCommit(diskPath, ref, requestedPath) : null
+
+// For the header line, which listed branches and a size around a bare word.
+const commits = repoRow ? await commitCount(diskPath, ref) : null
 // Tags are capped for the picker: a repository with a release per week has
 // hundreds, and a picker that lists them all is a scroll, not a chooser. The
 // split above sees all of them, because a tag missing from that list is a tag
@@ -334,6 +337,8 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
         description="{{ repoRow.description ?? '' }}"
         refName="{{ ref }}"
         size="{{ formatSize(Number(repoRow.size_kb ?? 0) * 1024) }}"
+        sizeKb="{{ Number(repoRow.size_kb ?? 0) }}"
+        commits="{{ commits === null ? '' : String(commits) }}"
         :branches="branchLinks"
         :tags="tagLinks" />
 

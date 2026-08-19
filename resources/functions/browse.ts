@@ -109,7 +109,7 @@ export function shortSha(sha: string): string {
  * exists at all: the template gets one import and no logic.
  */
 import type { TreeEntry as TreeEntryImpl } from '../../app/Actions/Browse/parse'
-import { branchNames as branchNamesImpl, commitDetail as commitDetailImpl, commitHistory as commitHistoryImpl, compareDiffText as compareDiffTextImpl, compareRefs as compareRefsImpl, lastCommit as lastCommitImpl, listTree as listTreeImpl, MAX_BLOB_BYTES as MAX_BLOB_BYTES_IMPL, readBlob as readBlobImpl, tagNames as tagNamesImpl } from '../../app/Actions/Browse/load'
+import { branchNames as branchNamesImpl, commitCount as commitCountImpl, commitDetail as commitDetailImpl, commitHistory as commitHistoryImpl, compareDiffText as compareDiffTextImpl, compareRefs as compareRefsImpl, lastCommit as lastCommitImpl, listTree as listTreeImpl, MAX_BLOB_BYTES as MAX_BLOB_BYTES_IMPL, readBlob as readBlobImpl, tagNames as tagNamesImpl } from '../../app/Actions/Browse/load'
 import { parseCompareRefs as parseCompareRefsImpl } from '../../app/Actions/Browse/compare'
 import { highlightLines as highlightLinesImpl, languageFor as languageForImpl } from '../../app/Actions/Browse/highlight'
 import { declaredLanguage as declaredLanguageImpl, languageRulesFor as languageRulesForImpl } from '../../app/Actions/Browse/attributes'
@@ -127,6 +127,7 @@ type TreeEntry = TreeEntryImpl
 export const listTree = listTreeImpl
 export const readBlob = readBlobImpl
 export const lastCommit = lastCommitImpl
+export const commitCount = commitCountImpl
 export const branchNames = branchNamesImpl
 export const tagNames = tagNamesImpl
 export const commitHistory = commitHistoryImpl

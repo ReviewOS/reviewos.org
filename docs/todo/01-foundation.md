@@ -179,6 +179,24 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   to people who may not see it, and rendered through the one markdown pipeline, so the sanitising
   cannot exist in two places. Somebody who could write the file and has not gets one line telling
   them where it goes; a reader who could not does not need to know it is missing.
+- [x] The repository header says the same thing on every tab, and nothing it does not know
+
+  `main · 2 branches · commits · 0 B`. Two of those four are wrong. "commits"
+  was a bare word in a row of counts, which reads as a number that failed to
+  render; `commitCount` puts the number there, singular when there is one. And
+  `0 B` was `size_kb` on every repository nothing has measured yet - a header
+  stating something false about a page full of files - so the size shows only
+  once somebody has counted it.
+
+  The issue and pull-request lists carried a cut-down copy of the header: the
+  name and the visibility pill, no description, no clone URL. A repository
+  changed shape depending on which tab you stood on, and the clone URL - the
+  thing an empty repository exists to give you - was on exactly one of them.
+  They render `RepoHeader` now.
+
+  The branch line stays behind a guard rather than being loaded everywhere:
+  those two pages read no git at all, and three git processes for a line nobody
+  came for is a slow page for chrome. The header renders what it was given.
 - [x] A form field that looks like one, on every page that has a form
 
   **Sign in and sign up rendered their boxes with no border, no padding and the

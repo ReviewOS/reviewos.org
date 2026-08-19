@@ -147,6 +147,27 @@ export async function lastCommit(repositoryPath: string, ref: string, path = '')
   return { sha, subject: subject ?? '', authorName: authorName ?? '', when: when ?? '' }
 }
 
+/**
+ * How many commits a ref has behind it.
+ *
+ * For the header, where the line read `main · 2 branches · commits · 0 B` - a
+ * row of counts with a bare word in the middle of it, which reads as a number
+ * that failed to render rather than as a link.
+ *
+ * `null` on an empty repository or a bad ref rather than 0, because those are
+ * different facts and the header shows one and hides the other.
+ */
+export async function commitCount(repositoryPath: string, ref: string): Promise<number | null> {
+  if (!isSafeRevision(ref)) return null
+
+  const result = await runGit(repositoryPath, ['rev-list', '--count', ref])
+  if (!result.ok) return null
+
+  const count = Number(result.stdout.trim())
+
+  return Number.isFinite(count) ? count : null
+}
+
 /** Branch names, for the ref picker. */
 export async function branchNames(repositoryPath: string): Promise<string[]> {
   const result = await runGit(repositoryPath, ['for-each-ref', '--format=%(refname:short)', 'refs/heads'])

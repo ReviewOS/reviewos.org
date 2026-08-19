@@ -207,14 +207,23 @@ const notFound = !repoRow
         </p>
       </div>
     @else
-      <header class="repo-head">
-        <div class="repo-title-row">
-          <h1 class="repo-title">
-            <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="/{{ ownerHandle }}/{{ repositoryName }}">{{ repositoryName }}</a>
-          </h1>
-          <span class="pill pill-{{ repoRow.visibility }}">{{ repoRow.visibility }}</span>
-        </div>
-      </header>
+      {{-- `RepoHeader`, the same one the code screen draws. This page carried a
+          cut-down copy of it: the name and the visibility pill, without the
+          description or the clone URL, so a repository changed shape depending
+          on which tab you were standing on. The refs are left empty because
+          this page reads no git - the header renders its identity block and
+          leaves the branch line out. --}}
+      <RepoHeader
+        owner="{{ ownerHandle }}"
+        repository="{{ repositoryName }}"
+        visibility="{{ repoRow.visibility }}"
+        description="{{ repoRow.description ?? '' }}"
+        refName=""
+        size=""
+        sizeKb="0"
+        commits=""
+        :branches="[]"
+        :tags="[]" />
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="{{ kind }}" />
 
