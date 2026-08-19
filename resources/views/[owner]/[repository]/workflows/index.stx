@@ -256,16 +256,22 @@ const environments = repoRow
         <h1 style="font-size: 20px;">No such repository</h1>
       </div>
     @else
-      <header class="repo-head">
-        <h1 class="repo-title">
-          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
-        </h1>
-        <p class="muted" style="margin-top: 6px;">
-          {{ rows.length }} {{ rows.length === 1 ? 'workflow' : 'workflows' }}
-        </p>
-      </header>
+      {{-- `RepoHeader`, like every other repository screen. --}}
+      <RepoHeader
+        owner="{{ ownerHandle }}"
+        repository="{{ repositoryName }}"
+        visibility="{{ repoRow.visibility }}"
+        description="{{ repoRow.description ?? '' }}"
+        refName=""
+        size=""
+        sizeKb="0"
+        commits=""
+        :branches="[]"
+        :tags="[]" />
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="runs" />
+
+      <p class="muted repo-page-caption">{{ rows.length }} {{ rows.length === 1 ? 'workflow' : 'workflows' }}</p>
 
       <p class="muted" style="margin-top: 14px; font-size: 12.5px;">
         <a href="{{ base }}/runs">Runs</a> shows what has happened. This page shows what is

@@ -123,14 +123,22 @@ const fullName = `${ownerHandle}/${repositoryName}`
         <h1 style="font-size: 20px;">No such repository</h1>
       </div>
     @else
-      <header class="repo-head">
-        <h1 class="repo-title">
-          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
-        </h1>
-        <p class="muted" style="margin-top: 6px;">Settings</p>
-      </header>
+      {{-- `RepoHeader`, like every other repository screen. --}}
+      <RepoHeader
+        owner="{{ ownerHandle }}"
+        repository="{{ repositoryName }}"
+        visibility="{{ repoRow.visibility }}"
+        description="{{ repoRow.description ?? '' }}"
+        refName=""
+        size=""
+        sizeKb="0"
+        commits=""
+        :branches="[]"
+        :tags="[]" />
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+
+      <p class="muted repo-page-caption">Settings</p>
 
       @if (isArchived)
         <div class="notice panel">

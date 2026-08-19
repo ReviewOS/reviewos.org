@@ -128,16 +128,24 @@ const base = `/${ownerHandle}/${repositoryName}`
         <h1 style="font-size: 20px;">No such repository</h1>
       </div>
     @else
-      <header class="repo-head">
-        <h1 class="repo-title">
-          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
-        </h1>
-        <p class="muted" style="margin-top: 6px;">
-          Tests over the last {{ days }} days@if (branch) on <code>{{ branch }}</code>@endif
-        </p>
-      </header>
+      {{-- `RepoHeader`, like every other repository screen. --}}
+      <RepoHeader
+        owner="{{ ownerHandle }}"
+        repository="{{ repositoryName }}"
+        visibility="{{ repoRow.visibility }}"
+        description="{{ repoRow.description ?? '' }}"
+        refName=""
+        size=""
+        sizeKb="0"
+        commits=""
+        :branches="[]"
+        :tags="[]" />
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="tests" />
+
+      <p class="muted repo-page-caption">
+        Tests over the last {{ days }} days@if (branch) on <code>{{ branch }}</code>@endif
+      </p>
 
       @if (!reported)
         {{-- The empty state carries the instructions, because the reason this

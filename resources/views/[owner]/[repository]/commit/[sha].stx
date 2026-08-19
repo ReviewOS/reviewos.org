@@ -80,11 +80,19 @@ const signature = signatureBadge(signed?.verification.status ?? 'unsigned', sign
         </p>
       </div>
     @else
-      <header class="repo-head">
-        <h1 class="repo-title">
-          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
-        </h1>
-      </header>
+      {{-- `RepoHeader`, like every other repository screen. This one drew a
+          bare title: no visibility pill, no description, no clone URL. --}}
+      <RepoHeader
+        owner="{{ ownerHandle }}"
+        repository="{{ repositoryName }}"
+        visibility="{{ repoRow.visibility }}"
+        description="{{ repoRow.description ?? '' }}"
+        refName=""
+        size=""
+        sizeKb="0"
+        commits=""
+        :branches="[]"
+        :tags="[]" />
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
 
