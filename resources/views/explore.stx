@@ -58,6 +58,30 @@ function repositoryHref(entry) {
   return `/${entry.owner}/${entry.name}`
 }
 
+/*
+ * A row the way `RepositoryCard` reads one, so this page and a profile render
+ * the same repository the same way. They did not: the same card carried a
+ * different type scale, a different order and its own class names on each
+ * page, and a field added to one - forks, the archived pill - reached only
+ * that one.
+ *
+ * `owner/name` is the label here because explore mixes owners. A profile
+ * passes the bare name, having already said whose these are.
+ */
+const asCard = entry => ({
+  label: `${entry.owner}/${entry.name}`,
+  href: repositoryHref(entry),
+  description: entry.description ?? '',
+  language: entry.language ?? '',
+  stars: entry.stars ?? 0,
+  gained: entry.gained ?? 0,
+  updated: entry.pushedAt ? relativeTime(entry.pushedAt) : '',
+})
+
+const filteredCards = filteredRepositories.map(asCard)
+const gainingCards = gaining.map(asCard)
+const activeCards = active.map(asCard)
+
 function windowHref(value) {
   return `/explore?days=${value}`
 }
@@ -94,22 +118,8 @@ function windowHref(value) {
         </div>
       @else
         <ul class="explore-grid">
-          @foreach (filteredRepositories as entry)
-            <li class="explore-card">
-              <a class="explore-card-name" href="{{ repositoryHref(entry) }}">{{ entry.owner }}/{{ entry.name }}</a>
-              @if (entry.description)
-                <p class="explore-card-description">{{ entry.description }}</p>
-              @endif
-              <p class="explore-card-meta muted">
-                @if (entry.language)
-                  <span class="explore-language">{{ entry.language }}</span>
-                @endif
-                <span>{{ entry.stars }} stars</span>
-                @if (entry.pushedAt)
-                  <span>updated {{ relativeTime(entry.pushedAt) }}</span>
-                @endif
-              </p>
-            </li>
+          @foreach (filteredCards as card)
+            <RepositoryCard :row="card" />
           @endforeach
         </ul>
       @endif
@@ -141,19 +151,8 @@ function windowHref(value) {
           </div>
         @else
           <ul class="explore-grid">
-            @foreach (gaining as entry)
-              <li class="explore-card">
-                <a class="explore-card-name" href="{{ repositoryHref(entry) }}">{{ entry.owner }}/{{ entry.name }}</a>
-                @if (entry.description)
-                  <p class="explore-card-description">{{ entry.description }}</p>
-                @endif
-                <p class="explore-card-meta muted">
-                  <span class="explore-gained">+{{ entry.gained }} stars</span>
-                  @if (entry.language)
-                    <span class="explore-language">{{ entry.language }}</span>
-                  @endif
-                </p>
-              </li>
+            @foreach (gainingCards as card)
+              <RepositoryCard :row="card" />
             @endforeach
           </ul>
         @endif
@@ -168,21 +167,8 @@ function windowHref(value) {
           </div>
         @else
           <ul class="explore-grid">
-            @foreach (active as entry)
-              <li class="explore-card">
-                <a class="explore-card-name" href="{{ repositoryHref(entry) }}">{{ entry.owner }}/{{ entry.name }}</a>
-                @if (entry.description)
-                  <p class="explore-card-description">{{ entry.description }}</p>
-                @endif
-                <p class="explore-card-meta muted">
-                  @if (entry.language)
-                    <span class="explore-language">{{ entry.language }}</span>
-                  @endif
-                  @if (entry.pushedAt)
-                    <span>updated {{ relativeTime(entry.pushedAt) }}</span>
-                  @endif
-                </p>
-              </li>
+            @foreach (activeCards as card)
+              <RepositoryCard :row="card" />
             @endforeach
           </ul>
         @endif
@@ -211,8 +197,9 @@ function windowHref(value) {
 <style>
   /*
    * Styled here rather than in a global sheet, the way `search.stx` is: the
-   * page owns its own vocabulary, and a class named `explore-card` in a shared
-   * file is one nobody dares change because they cannot see what uses it.
+   * page owns its own vocabulary. What it no longer owns is the repository
+   * card - that is `RepositoryCard`, because three pages drawing the same
+   * object four different ways is not vocabulary, it is drift.
    *
    * Every colour and radius is a variable from the theme. A page that hard-codes
    * one is a page that is wrong in dark mode, and wrong in a way nobody notices
@@ -274,61 +261,9 @@ function windowHref(value) {
     margin: 0;
   }
 
-  .explore-card {
-    padding: 13px 15px;
-    border: 1px solid var(--line);
-    border-radius: var(--r-panel, 12px);
-    background: var(--bg);
-    min-width: 0;
-  }
-
-  .explore-card-name {
-    display: block;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-    text-decoration: none;
-    /* A long owner/name pair truncates rather than pushing the card wider. */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .explore-card-name:hover { text-decoration: underline; }
-
-  .explore-card-description {
-    margin-top: 6px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--muted);
-    /* Two lines, so one verbose description cannot make its card twice the
-       height of every other card in the row. */
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .explore-card-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 10px;
-    font-size: 12.5px;
-  }
-
-  .explore-gained { color: var(--accent, var(--text)); font-weight: 600; }
-
-  .explore-language::before {
-    content: '';
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    margin-right: 5px;
-    border-radius: 50%;
-    background: currentColor;
-    opacity: 0.55;
-  }
+  /* The cards themselves are `RepositoryCard`, which carries its own styles -
+     what is left here is the grid they sit in. The three lists on this page
+     used to declare a card of their own, and a profile declared a fourth. */
 
   .explore-empty { padding: 16px 18px; font-size: 13.5px; }
   .explore-empty p { margin: 0; }

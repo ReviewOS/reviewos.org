@@ -179,6 +179,28 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   to people who may not see it, and rendered through the one markdown pipeline, so the sanitising
   cannot exist in two places. Somebody who could write the file and has not gets one line telling
   them where it goes; a reader who could not does not need to know it is missing.
+- [x] One repository card, rendered by every page that shows a repository
+
+  Three pages drew the same object three ways. A profile showed a name, a
+  description, stars and when it last moved; explore showed the same four in a
+  different order at a different type scale under its own class names; discover
+  showed a bare link. So the same repository looked like three different kinds
+  of thing depending on where you arrived from, and a field added to one card -
+  forks, the archived pill, the language dot - reached exactly one of them.
+
+  `resources/components/RepositoryCard.stx` is the card, and the profile and
+  both explore lists render it. Its **styles live in the layout, not in the
+  component**: stx emits a component's `<style>` once per instance, and a
+  profile renders twenty-four cards, which was forty-eight kilobytes of the same
+  rules in one document. Every other component here renders once per page and
+  keeps its own.
+
+  The caller passes the label, which is the one thing the pages legitimately
+  differ on: a profile has already said whose repositories these are, and
+  `owner/name` twenty-four times under a heading carrying the owner's name is
+  noise. Discover keeps its compact list on purpose - it is a summary of what is
+  happening on the instance, not a browse surface, and cards there would be a
+  page of chrome around eight links.
 - [x] The product's navigation bar says where you are
 
   Five destinations at the same weight as each other, the account pair jammed against Docs with

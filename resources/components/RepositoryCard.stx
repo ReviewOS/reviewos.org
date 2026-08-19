@@ -1,0 +1,83 @@
+<script server>
+/**
+ * One repository, as a card.
+ *
+ * Its own component for the reason `RepoTabs.stx` is: so the screens cannot
+ * disagree about what a repository has. Three of them did. A profile showed the
+ * name, a description, stars and when it last moved; explore showed the same
+ * four in a different order with a different type scale and its own class
+ * names; discover showed a bare link. The same repository therefore looked like
+ * three different kinds of thing depending on which page you arrived from, and
+ * a field added to one card - forks, the archived pill - reached exactly one of
+ * them.
+ *
+ * **Bound with `:row`, not `row="{{ }}"`.** The interpolation form is string
+ * interpolation into an attribute, so an object arrives as `[object Object]`.
+ *
+ * **The styles are in `resources/views/layouts/app.stx`, not here.** stx emits
+ * a component's `<style>` once per instance, and a profile renders twenty-four
+ * of these - which was forty-eight kilobytes of the same rules in one document.
+ * Every other component on a page renders once and can keep its own.
+ *
+ * The row is already shaped by whoever read it: this renders, it does not
+ * decide. `app/Actions/Profile/read.ts` and `app/Actions/Explore/explore.ts`
+ * both produce the fields below, which is what keeps this file free of
+ * anything worth testing.
+ */
+const row = props.row ?? {}
+
+// The label is the caller's, because it is the one thing the two pages
+// legitimately differ on: a profile has already said whose repositories these
+// are, and `owner/name` twenty times under a heading with the owner's name on
+// it is noise. Explore mixes owners and cannot leave it out.
+const label = String(row.label ?? row.name ?? '')
+const href = String(row.href ?? '')
+const description = String(row.description ?? '')
+const language = String(row.language ?? '')
+const updated = String(row.updated ?? '')
+const stars = Number(row.stars ?? 0) || 0
+const forks = Number(row.forks ?? 0) || 0
+
+// Stars gained in a window, on the trending list only. A total is a different
+// number that answers a different question, so the two never replace each
+// other - see `app/Actions/Explore/explore.ts`.
+const gained = Number(row.gained ?? 0) || 0
+
+const pills = [
+  row.isPrivate ? 'Private' : '',
+  row.isFork ? 'Fork' : '',
+  row.isTemplate ? 'Template' : '',
+  row.isArchived ? 'Archived' : '',
+].filter(Boolean)
+</script>
+
+<li class="repo-card">
+  <div class="repo-card-head">
+    <a class="repo-card-name" href="{{ href }}">{{ label }}</a>
+    @foreach (pills as pill)
+      <span class="repo-card-pill">{{ pill }}</span>
+    @endforeach
+  </div>
+
+  @if (description)
+    <p class="muted repo-card-about">{{ description }}</p>
+  @endif
+
+  <p class="muted repo-card-meta">
+    @if (gained)
+      <span class="repo-card-stat repo-card-gained">+{{ gained }} stars</span>
+    @endif
+    @if (language)
+      <span class="repo-card-stat repo-card-language">{{ language }}</span>
+    @endif
+    @if (stars)
+      <span class="repo-card-stat"><span class="i-hugeicons-star" aria-hidden="true"></span>{{ stars }}</span>
+    @endif
+    @if (forks)
+      <span class="repo-card-stat"><span class="i-hugeicons-git-fork" aria-hidden="true"></span>{{ forks }}</span>
+    @endif
+    @if (updated)
+      <span class="repo-card-stat">Updated {{ updated }}</span>
+    @endif
+  </p>
+</li>

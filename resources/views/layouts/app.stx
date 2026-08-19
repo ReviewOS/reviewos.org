@@ -1087,7 +1087,14 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
 
       @media (max-width: 700px) { .profile-repos { grid-template-columns: 1fr; } }
 
-      .profile-repo {
+      /* One repository, as a card: `resources/components/RepositoryCard.stx`,
+        which the profile and both explore lists render. They used to draw four
+        of these between them.
+
+        The rules live here rather than in the component because stx emits a
+        component's `<style>` once per instance, and a profile renders
+        twenty-four cards. */
+      .repo-card {
         display: flex;
         flex-direction: column;
         gap: 6px;
@@ -1097,12 +1104,19 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         border-radius: var(--r-panel);
       }
 
-      .profile-repo:hover { border-color: var(--line-strong); }
-      .profile-repo-head { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
-      .profile-repo-name { font-weight: 600; font-size: 14.5px; text-decoration: none; overflow-wrap: anywhere; }
-      .profile-repo-name:hover { color: var(--accent-text); }
+      .repo-card:hover { border-color: var(--line-strong); }
+      .repo-card-head { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
 
-      .profile-pill {
+      .repo-card-name {
+        font-weight: 600;
+        font-size: 14.5px;
+        text-decoration: none;
+        overflow-wrap: anywhere;
+      }
+
+      .repo-card-name:hover { color: var(--accent-text); }
+
+      .repo-card-pill {
         padding: 0 7px;
         border: 1px solid var(--line);
         border-radius: 999px;
@@ -1111,9 +1125,9 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         color: var(--pill-text, var(--muted));
       }
 
-      /* Two lines and then an ellipsis: a card grid whose rows are different
-        heights reads as a broken layout rather than as a long description. */
-      .profile-repo-about {
+      /* Two lines and then an ellipsis: a grid whose rows are different heights
+        reads as a broken layout rather than as a long description. */
+      .repo-card-about {
         margin: 0;
         font-size: 13px;
         line-height: 1.5;
@@ -1123,24 +1137,35 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         overflow: hidden;
       }
 
-      .profile-repo-meta { display: flex; flex-wrap: wrap; gap: 14px; margin: auto 0 0; padding-top: 4px; font-size: 12px; }
-      .profile-repo-stat { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+      .repo-card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin: auto 0 0;
+        padding-top: 4px;
+        font-size: 12px;
+      }
 
-      /* The same dot the explore cards carry, from the same reading of
-        `repository_languages`, so one repository cannot be called TypeScript on
-        one page and nothing on the other. */
-      .profile-repo-language { display: inline-flex; align-items: center; }
+      .repo-card-stat {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-variant-numeric: tabular-nums;
+      }
 
-      .profile-repo-language::before {
+      .repo-card-language::before {
         content: '';
         display: inline-block;
         width: 8px;
         height: 8px;
-        margin-right: 5px;
         border-radius: 50%;
         background: currentColor;
         opacity: 0.55;
       }
+
+      /* The one number on the card that is the reason the list exists, so it is
+        the one that gets the accent. */
+      .repo-card-gained { color: var(--accent-text); font-weight: 500; }
 
       .profile-pager { display: flex; align-items: center; gap: 12px; margin-top: 18px; font-size: 13px; }
 

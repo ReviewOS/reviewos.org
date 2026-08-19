@@ -135,6 +135,10 @@ const now = new Date()
 
 const repoRows = repositories.rows.map(row => ({
   ...row,
+  // `label` is what the card prints. The bare name here, because the heading it
+  // sits under has already said whose repositories these are; explore passes
+  // `owner/name` for the same card, because it mixes owners.
+  label: row.name,
   href: `/${handle}/${row.name}`,
   updated: row.activeAt ? relativeTime(row.activeAt, now) : '',
 }))
@@ -409,44 +413,13 @@ const readmePath = `/${handle}/${handle}`
                 @endif
               </p>
             @else
+              {{-- `RepositoryCard`, the same one explore renders, so the two
+                  pages cannot disagree about what a repository has. The label
+                  is the bare name here because the heading above has already
+                  said whose these are. --}}
               <ul class="profile-repos">
                 @foreach (repoRows as repo)
-                  <li class="profile-repo">
-                    <div class="profile-repo-head">
-                      <a class="profile-repo-name" href="{{ repo.href }}">{{ repo.name }}</a>
-                      @if (repo.isPrivate)
-                        <span class="profile-pill">Private</span>
-                      @endif
-                      @if (repo.isFork)
-                        <span class="profile-pill">Fork</span>
-                      @endif
-                      @if (repo.isTemplate)
-                        <span class="profile-pill">Template</span>
-                      @endif
-                      @if (repo.isArchived)
-                        <span class="profile-pill">Archived</span>
-                      @endif
-                    </div>
-
-                    @if (repo.description)
-                      <p class="muted profile-repo-about">{{ repo.description }}</p>
-                    @endif
-
-                    <p class="muted profile-repo-meta">
-                      @if (repo.language)
-                        <span class="profile-repo-language">{{ repo.language }}</span>
-                      @endif
-                      @if (repo.stars)
-                        <span class="profile-repo-stat"><span class="i-hugeicons-star" aria-hidden="true"></span>{{ repo.stars }}</span>
-                      @endif
-                      @if (repo.forks)
-                        <span class="profile-repo-stat"><span class="i-hugeicons-git-fork" aria-hidden="true"></span>{{ repo.forks }}</span>
-                      @endif
-                      @if (repo.updated)
-                        <span class="profile-repo-stat">Updated {{ repo.updated }}</span>
-                      @endif
-                    </p>
-                  </li>
+                  <RepositoryCard :row="repo" />
                 @endforeach
               </ul>
 

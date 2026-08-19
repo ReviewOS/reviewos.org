@@ -359,7 +359,7 @@ describe('finding one repository among many', () => {
    */
   const listed = (html: string, handle: string): string[] => {
     const names: string[] = []
-    const pattern = new RegExp(`class="profile-repo-name" href="/${handle}/([^"]+)"`, 'g')
+    const pattern = new RegExp(`class="repo-card-name" href="/${handle}/([^"]+)"`, 'g')
 
     for (const match of html.matchAll(pattern))
       names.push(match[1])
