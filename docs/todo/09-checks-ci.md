@@ -1025,7 +1025,7 @@ requeue is not yet reading it.
 - [ ] The interface, CLI, webhooks, and provider integrations call the same actions as the public API
 - [ ] Every endpoint has a fine-grained token requirement, generated OpenAPI, stable errors, rate
       limits, audit events, and request ids that continue into dispatched jobs
-- [ ] Webhook events for run and job transitions, action required, deployment, and artifact expiry
+- [x] Webhook events for run and job transitions, action required, deployment, and artifact expiry
 
       **The two transitions are done; the other three have nothing to fire yet.** `run:transitioned`
       and `job:transitioned` carry the new state in `action`, so one subscription covers queued
@@ -1054,7 +1054,10 @@ requeue is not yet reading it.
       size and the run rather than a link - the file is gone by the time it arrives, and a URL that
       answers 404 is worse than no URL.
 
-      Deployment waits on deployments, which do not exist yet.
+      **And deployment, now that there is a deployment history to fire from.** `deployment:status`
+      covers recorded, in progress, active, failed, inactive and rolled back, with the state in
+      `action` like the rest - so a dashboard subscribes once rather than polling a history
+      endpoint, and the next stage of a pipeline can wait on the one before it landing.
 - [x] Tests cover every state transition, token boundaries, idempotency, stale writes, cursor
       pagination, recovery after lease expiry, and restart from a step
 
