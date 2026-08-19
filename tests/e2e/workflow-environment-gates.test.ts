@@ -184,7 +184,6 @@ describe('a job naming an environment', () => {
     const runId = await runTo('refs/heads/main')
     const deploy = jobNamed(await jobsOf(runId), 'deploy')
 
-
     expect(String(deploy.state)).toBe('paused')
 
     // The reason is on the job, where somebody looking at a stuck run is
@@ -224,7 +223,6 @@ describe('the wait timer', () => {
 
     const runId = await runTo('refs/heads/main')
     const deploy = jobNamed(await jobsOf(runId), 'deploy')
-
 
     expect(String(deploy.state)).toBe('paused')
     expect(String(deploy.condition_reason)).toContain('holds a deploy for 10 minutes')

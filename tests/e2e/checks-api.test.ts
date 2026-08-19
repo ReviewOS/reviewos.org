@@ -404,7 +404,6 @@ describe('annotations', () => {
   }, 30_000)
 })
 
-
 describe('the webhook a report sends', () => {
   /*
    * The event a CI receiver exists for, and the one the roadmap left open: a
@@ -539,7 +538,6 @@ describe('the webhook a report sends', () => {
     expect(await deliveries(hook)).toEqual([])
   })
 })
-
 
 describe('the document and the endpoint agree', () => {
   /*

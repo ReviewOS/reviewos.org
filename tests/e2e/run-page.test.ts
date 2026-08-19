@@ -313,7 +313,6 @@ describe('the cancel control', () => {
   })
 })
 
-
 describe('following a run that is still going', () => {
   /*
    * The live layer is markup plus a client script, and an e2e that fetches HTML
@@ -366,7 +365,6 @@ describe('following a run that is still going', () => {
   })
 })
 
-
 describe('what the run produced', () => {
   /*
    * The collection point. An artifact a run built is no use behind an API call
@@ -405,7 +403,6 @@ describe('what the run produced', () => {
     expect(html).toContain('/api/repos/workflow-runs/artifact?owner=')
   })
 })
-
 
 describe('a log the runner sent as events', () => {
   /*

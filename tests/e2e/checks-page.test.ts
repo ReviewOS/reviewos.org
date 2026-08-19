@@ -15,6 +15,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { removeRepositoryDirectory } from '../helpers/repositoryDirectory'
 
 const created = {
   ownerId: 0,
@@ -243,7 +244,7 @@ afterAll(async () => {
   try { rmSync(created.temp, { recursive: true, force: true }) }
   catch { /* a temp directory */ }
 
-  try { rmSync(created.diskPath, { recursive: true, force: true }) }
+  try { removeRepositoryDirectory(created.diskPath) }
   catch { /* a bare repository under storage */ }
 })
 

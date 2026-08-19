@@ -28,9 +28,10 @@
 // process the kernel kills reports nothing.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
 
 const FIXTURES = 'tests/fixtures/gpg'
 const meta = JSON.parse(readFileSync(join(FIXTURES, 'meta.json'), 'utf8'))
@@ -189,10 +190,10 @@ afterAll(async () => {
   catch { /* the directory still goes, below */ }
 
   if (created.diskPath) {
-    rmSync(created.diskPath, { recursive: true, force: true })
+    removeRepositoryDirectory(created.diskPath)
 
     try {
-      rmSync(resolve(created.diskPath, '..'), { recursive: false })
+      removeRepositoryOwnerDirectory(created.diskPath)
     }
     catch { /* not empty, which is somebody else's repository */ }
   }

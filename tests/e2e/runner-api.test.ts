@@ -434,7 +434,6 @@ describe('heartbeat and report over HTTP', () => {
   })
 })
 
-
 describe('acknowledging a cancellation over HTTP', () => {
   async function claimOne(): Promise<{ id: number, token: string }> {
     await freshRun(`${Math.random().toString(16).slice(2)}`.padEnd(40, '0'))
@@ -493,7 +492,6 @@ describe('acknowledging a cancellation over HTTP', () => {
     expect(String(row.state)).toBe('cancelling')
   })
 })
-
 
 describe('the run lifecycle, as a program hears it', () => {
   /*
@@ -621,7 +619,6 @@ describe('the run lifecycle, as a program hears it', () => {
   }, 30_000)
 })
 
-
 describe('speaking the same protocol', () => {
   /*
    * A self-hosted runner is a program somebody else installs, on a machine
@@ -691,7 +688,6 @@ describe('speaking the same protocol', () => {
     }
   })
 })
-
 
 describe('the cases a fake provider is put through', () => {
   /*

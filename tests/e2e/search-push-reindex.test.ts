@@ -8,6 +8,7 @@
 // stops tracking reality, which is the kind of wrong that never throws.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { removeRepositoryDirectory } from '../helpers/repositoryDirectory'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '' }
 
@@ -200,7 +201,7 @@ describe('a push queues the reindex', () => {
     finally {
       indexJob.dispatch = original
       await db.deleteFrom('repositories').where('id', '=', repositoryId).execute()
-      rmSync(diskPath, { recursive: true, force: true })
+      removeRepositoryDirectory(diskPath)
       rmSync(temp, { recursive: true, force: true })
     }
   }, 60_000)

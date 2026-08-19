@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { removeRepositoryDirectory } from '../helpers/repositoryDirectory'
 
 const created = { ownerId: 0, repositoryId: 0, runnerId: 0, handle: '', name: '', diskPath: '', temp: '', token: '', headSha: '' }
 
@@ -218,7 +219,7 @@ afterAll(async () => {
   catch { /* the files still go, below */ }
 
   if (created.diskPath)
-    rmSync(created.diskPath, { recursive: true, force: true })
+    removeRepositoryDirectory(created.diskPath)
 
   if (created.temp)
     rmSync(created.temp, { recursive: true, force: true })

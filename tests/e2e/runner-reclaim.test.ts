@@ -237,7 +237,6 @@ describe('a run that already finished', () => {
   })
 })
 
-
 describe('a cancellation nobody acknowledged', () => {
   /*
    * A sha nobody else in this file used.

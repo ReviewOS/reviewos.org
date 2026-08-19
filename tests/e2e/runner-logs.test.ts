@@ -304,7 +304,6 @@ describe('reading', () => {
   })
 })
 
-
 describe('output sent as events', () => {
   const ESC = String.fromCharCode(27)
 

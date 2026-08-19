@@ -13,9 +13,10 @@
 // on purpose.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, rmSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { applyTemplate, publishTemplate, templatesFor } from '../../app/Actions/Workflow/ownerTemplates'
+import { removeRepositoryDirectory } from '../helpers/repositoryDirectory'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', diskPath: '', templateId: 0 }
 
@@ -102,7 +103,7 @@ afterAll(async () => {
   }
   catch { /* the next run uses fresh names */ }
 
-  rmSync(created.diskPath, { recursive: true, force: true })
+  removeRepositoryDirectory(created.diskPath)
 })
 
 describe('publishing', () => {

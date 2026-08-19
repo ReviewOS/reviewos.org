@@ -18,10 +18,11 @@
 // URL. Every assertion below names the repository it expects.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
 
 /** Everything this run created, removed in afterAll however it ends. */
 const created = { userId: 0, repositoryId: 0, tokenId: 0, token: '', handle: '', name: '', diskPath: '', temp: '' }
@@ -243,13 +244,13 @@ afterAll(async () => {
   catch { /* the temp files still go, below */ }
 
   if (created.diskPath) {
-    rmSync(created.diskPath, { recursive: true, force: true })
+    removeRepositoryDirectory(created.diskPath)
 
     // And the owner's directory, which the repository was the only thing in.
     // Leaving it behind means a run of this file adds an empty directory to
     // `storage/repos` every time, and after a week the tree is mostly them.
     try {
-      rmdirSync(resolve(created.diskPath, '..'))
+      removeRepositoryOwnerDirectory(created.diskPath)
     }
     catch { /* somebody else's repository lives there too */ }
   }

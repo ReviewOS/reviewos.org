@@ -15,8 +15,9 @@
 // alternative is somebody re-pasting the same key.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, rmSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
 
 const created = { userId: 0, repositoryId: 0, handle: '', name: '', diskPath: '' }
 
@@ -115,10 +116,10 @@ afterAll(async () => {
   catch { /* the directory still goes, below */ }
 
   if (created.diskPath) {
-    rmSync(created.diskPath, { recursive: true, force: true })
+    removeRepositoryDirectory(created.diskPath)
 
     try {
-      rmSync(resolve(created.diskPath, '..'), { recursive: false })
+      removeRepositoryOwnerDirectory(created.diskPath)
     }
     catch { /* not empty, which is somebody else's repository */ }
   }

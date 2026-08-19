@@ -14,10 +14,11 @@
 // checkout without Postgres still runs everything else.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { chmodSync, mkdirSync, mkdtempSync, rmdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
 
 /** Everything this run created, removed in afterAll however it ends. */
 const created = {
@@ -305,7 +306,7 @@ afterAll(async () => {
   if (created.diskPath) {
     // And the owner's directory, which the repositories were the only things in.
     try {
-      rmdirSync(resolve(created.diskPath, '..'))
+      removeRepositoryOwnerDirectory(created.diskPath)
     }
     catch { /* not empty, which is somebody else's repository */ }
   }

@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { enqueue, queueFor, settleEntry, startNext } from '../../app/Actions/Pull/mergeQueue'
+import { removeRepositoryDirectory } from '../helpers/repositoryDirectory'
 
 const created = {
   ownerId: 0,
@@ -195,7 +196,7 @@ afterAll(async () => {
   catch { /* the next run uses fresh names */ }
 
   rmSync(created.temp, { recursive: true, force: true })
-  rmSync(created.diskPath, { recursive: true, force: true })
+  removeRepositoryDirectory(created.diskPath)
 })
 
 describe('a queue of two', () => {

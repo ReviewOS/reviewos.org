@@ -6,10 +6,11 @@
 // the hook is git-http.test.ts's subject.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
 
 const created = {
   ownerId: 0,
@@ -196,10 +197,10 @@ afterAll(async () => {
   catch { /* the temp files still go, below */ }
 
   if (created.diskPath) {
-    rmSync(created.diskPath, { recursive: true, force: true })
+    removeRepositoryDirectory(created.diskPath)
 
     try {
-      rmdirSync(resolve(created.diskPath, '..'))
+      removeRepositoryOwnerDirectory(created.diskPath)
     }
     catch { /* somebody else's repository lives there too */ }
   }

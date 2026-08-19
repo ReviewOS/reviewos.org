@@ -14,6 +14,7 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
 
 // Before any app module loads: the budget is read once, at import.
 process.env.SSR_DIFF_BYTE_LIMIT = '2048'
@@ -156,7 +157,7 @@ afterAll(async () => {
   catch {}
 
   rmSync(created.temp, { recursive: true, force: true })
-  rmSync(resolve(created.diskPath, '..'), { recursive: true, force: true })
+  removeRepositoryOwnerDirectory(created.diskPath)
 })
 
 describe('a diff larger than the page renders', () => {
