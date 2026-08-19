@@ -16145,7 +16145,7 @@ export interface paths {
   "/api/runner/caches/restore": {
     get: {
     parameters: {
-      query?: never
+      query?: { "key"?: string }
       header?: never
       path?: never
       cookie?: never

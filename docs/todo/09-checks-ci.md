@@ -124,6 +124,13 @@ Their dependency cache is a snapshot of the workspace after `install`, restored 
 rather than a keyed archive of a named directory. It is the better primitive for the common case,
 because it needs no author to know which paths a package manager writes to.
 
+The control plane's half is built: `app/Actions/Workflow/cacheScope.ts` (who may read and write),
+`cacheKey.ts` (the derived key), `cache.ts` (lookup and save through the phase 18 blob store),
+`WorkflowCacheEntry`, and the two runner endpoints. What is missing is the runner's half - making
+the archive and unpacking it - so nothing below is ticked yet. Start at `localExecutor.ts`: restore
+after the checkout and before the install, save at the end of a job whose restore was not an exact
+hit.
+
 - [ ] Snapshot a step's workspace on completion, content-addressed, and restore it as the starting
       state of dependent steps
 - [ ] The snapshot key is derived from declared inputs (lockfile digest, runtime version,

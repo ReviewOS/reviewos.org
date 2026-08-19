@@ -45643,7 +45643,16 @@
       "get": {
         "summary": "/api/runner/caches/restore",
         "operationId": "get__api_runner_caches_restore",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "The archive. `X-Cache-Scope` says whose it was and `X-Cache-Exact` whether it was this run's own rather than the fallback.",

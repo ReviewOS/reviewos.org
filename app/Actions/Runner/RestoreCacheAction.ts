@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { blobStore } from '../Git/blobs'
 import { findRestorable, markRestored, runFactsFor } from '../Workflow/cache'
 import { authenticateJob } from './authenticate'
@@ -26,6 +27,18 @@ export default new Action({
   name: 'RestoreCache',
   description: 'Fetch the workspace snapshot this run may restore for a key',
   method: 'GET',
+
+  validations: {
+    /*
+     * Declared so the published reference says what this takes.
+     *
+     * The header is the form a runner uses; this is the query fallback, and it
+     * is the one the document can describe today. Documenting the headers needs
+     * `requestHeaders`, which the framework gained for exactly this and which
+     * reaches this app when that release lands.
+     */
+    key: { rule: schema.string() },
+  },
 
   responses: {
     200: { description: 'The archive. `X-Cache-Scope` says whose it was and `X-Cache-Exact` whether it was this run\'s own rather than the fallback.' },
