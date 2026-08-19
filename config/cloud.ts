@@ -845,6 +845,46 @@ export const tsCloud: TsCloudConfig = {
       // unit the sweep never fires and the repository silently freezes at
       // whatever it held on the day it was deployed.
       scheduler: true,
+      /*
+       * The workers, which this box had none of - and that is why the mirrors
+       * stopped.
+       *
+       * `scheduler: true` writes a unit that runs `buddy schedule:run`, so the
+       * sweep fired on time. What it does is **enqueue**: `MirrorSweep` is a
+       * job on the `mirrors` queue, and `queues` being absent here meant
+       * ts-cloud wrote no worker unit at all. So the sweep was queued every
+       * five minutes and never ran, no `MirrorSyncJob` was ever created, and
+       * every mirror on the instance froze with a clean record and no error to
+       * show for it. The jobs table proves it: rows sitting untouched for days,
+       * and not one of them on `mirrors`, because the job that would have made
+       * them never executed.
+       *
+       * **Every queue this application uses is named here, and that is not
+       * optional.** ts-cloud's Stacks driver runs each worker as
+       * `queue:work --queue=<name>`, defaulting to `default` - so a queue with
+       * no entry in this list is a queue nothing works, silently and forever.
+       * `tests/unit/cloud-queues.test.ts` fails when a job names a queue this
+       * list does not, because the failure mode is invisible: nothing errors,
+       * the feature just stops happening.
+       *
+       * One process each. These are almost all waiting on git or on somebody
+       * else's HTTP, so the useful number is bounded by the disk and the
+       * remote rather than by the core count; raise `processes` on whichever
+       * queue's depth stays above zero in `/api/health`.
+       */
+      queues: [
+        // Push processing, and everything without a queue of its own.
+        { queue: 'default' },
+        // The git side of a push: WAL reconciliation, checkpoints, ref audits.
+        { queue: 'git' },
+        // Mirror sweeps, syncs and metadata imports.
+        { queue: 'mirrors' },
+        // Indexing, and the language and contributor measures.
+        { queue: 'search' },
+        { queue: 'notifications' },
+        { queue: 'webhooks' },
+        { queue: 'emails' },
+      ],
       // Bare repositories live on the box and are authoritative there: the
       // mirror fetches into them, and pushes land in them. Packaging a local
       // copy turned a 2 MB release into a 195 MB one and would have replaced

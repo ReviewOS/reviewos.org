@@ -1068,13 +1068,19 @@ to their own timezone gets every timestamp wrong by it.
   called `ada` does not get their password reset by a demo command.
 - [x] The scheduler runs in every documented deployment, and health says so when it does not
 
-  **Nothing ran it.** `app/Scheduler.ts` has declared the mirror sweep, the
-  lease reclaim, artifact expiry, WAL reconciliation, the nightly checkpoint and
-  the ref-drift audit since each was written, and no deployment shape here ever
-  started `buddy schedule:run` - not `compose.yaml`, not the systemd units in
-  the guide, not `config/deps.ts`. A worker processes what is enqueued; nothing
-  was enqueuing. Every scheduled job in this codebase had never fired on any
-  instance.
+  **Three of the four deployment shapes never ran it.** `app/Scheduler.ts` has
+  declared the mirror sweep, the lease reclaim, artifact expiry, WAL
+  reconciliation, the nightly checkpoint and the ref-drift audit since each was
+  written, and neither `compose.yaml`, nor the systemd units in the guide, nor
+  `config/deps.ts` started `buddy schedule:run`. Anybody self-hosting through
+  those had never had a scheduled job fire.
+
+  **This instance was not one of them, and that correction matters.**
+  `config/cloud.ts` has carried `scheduler: true` all along, so ts-cloud wrote
+  the unit and the sweep fired on time here. The reason the mirrors were a day
+  stale is the entry *beside* it - see the next box. Do not read the rest of
+  this one as a diagnosis of reviewos.org; it is a gap in what other people
+  would have deployed.
 
   What makes it the worst kind of bug is that it is invisible in the direction
   nobody watches. A missing *worker* shows up as a growing queue, which the
@@ -1096,3 +1102,32 @@ to their own timezone gets every timestamp wrong by it.
 
   A *failing* mirror is deliberately not counted. That is a credential to
   reissue, not a clock that stopped, and the two have opposite fixes.
+- [x] A worker for every queue, because a queue with none is silence rather than an error
+
+  **The actual reason the mirrors stopped.** `config/cloud.ts` set
+  `scheduler: true` and declared no `queues` at all, and ts-cloud writes one
+  systemd unit per entry in that list. So `MirrorSweep` - a job on the `mirrors`
+  queue - was enqueued every five minutes exactly as intended, and nothing ever
+  ran it. No `MirrorSyncJob` was ever created. Every mirror on the instance
+  froze with `failure_count` at zero and `last_error` null, which is precisely
+  the state the repository page reports as "this mirror has not synced recently,
+  and nothing has errored".
+
+  The jobs table is the proof: rows sitting untouched for days, and not one of
+  them on `mirrors`, because the job that would have created them never ran. The
+  same silence covered notifications, webhooks, outbound email, and the language
+  and contributor measures.
+
+  ts-cloud's Stacks driver runs each worker as `queue:work --queue=<name>` and
+  defaults to `default`, so this is not a matter of scale - a queue absent from
+  the list is worked by nobody, forever. All seven this application dispatches
+  onto are now named, and `tests/unit/cloud-queues.test.ts` reads the `queue:`
+  line out of every file in `app/Jobs/` and fails when one names a queue the
+  list does not. It also fails on the reverse, because a worker for a queue
+  nothing dispatches to is usually half of a rename.
+
+  Worth writing down for whoever meets this next: **a missing worker and a
+  missing scheduler look the same from the outside**, and the first diagnosis
+  here was the wrong one of the two. `/api/health` says both - a queue whose
+  oldest job has waited five minutes, and mirrors overdue with nothing errored -
+  and the first line was the answer while the second was the one that got read.

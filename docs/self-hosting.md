@@ -380,8 +380,17 @@ scheduler shows up as an empty one** - and an empty queue is what a healthy
 instance looks like. Nothing errors, nothing backs up, no log line is written.
 The only symptom is that scheduled things stop: mirrors go stale a day at a
 time, expired artifacts are never deleted, and a runner's lapsed lease is never
-returned. This shipped exactly that way, and the first thing anybody noticed was
-a repository page saying "synced 1 day ago".
+returned.
+
+**And the two fail together in a way that looks like one of them.** A scheduler
+with no worker behind it is the same silence: the sweep fires on time, enqueues
+`MirrorSyncJob`, and the queue grows with nobody to work it. That is what
+happened on the instance this guide is written from - the scheduler unit was
+running the whole time, and there was no worker for the `mirrors` queue at all,
+so every mirror froze with a clean record. The first thing anybody noticed was a
+repository page saying "synced 1 day ago". Check both before concluding
+anything about either, and check the queue *by name*: a worker started without
+`--queue` works `default` and leaves every other queue untouched.
 
 `/api/health` reports it now: enabled mirrors that are far past their interval
 with nothing errored against them are `degraded` with "is `buddy schedule:run`
@@ -393,6 +402,19 @@ takes a cross-cluster advisory lock per task, so a duplicate skips rather than
 doubles, but a deployment that relies on the lock is a deployment where the host
 that cannot reach the database runs everything twice. Run one, supervised, like
 the worker.
+
+### A worker per queue, not a worker
+
+`buddy queue:work` takes `--queue`, and without one it works `default`. This
+application dispatches onto seven: `default`, `git`, `mirrors`, `search`,
+`notifications`, `webhooks` and `emails`. A queue with no worker is not an
+error - it is a queue that grows quietly while the feature behind it stops
+happening, which is how mirroring, notifications and outbound email can all be
+"configured correctly" and all be dead at once.
+
+`config/cloud.ts` names every one of them under `sites.reviewos.queues`, and
+`tests/unit/cloud-queues.test.ts` fails when a job names a queue that list does
+not - because nothing else would ever tell you.
 
 ## Pantry runs the instance, not just its dependencies
 
