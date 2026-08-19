@@ -124,26 +124,30 @@ Their dependency cache is a snapshot of the workspace after `install`, restored 
 rather than a keyed archive of a named directory. It is the better primitive for the common case,
 because it needs no author to know which paths a package manager writes to.
 
-The control plane's half is built: `app/Actions/Workflow/cacheScope.ts` (who may read and write),
-`cacheKey.ts` (the derived key), `cache.ts` (lookup and save through the phase 18 blob store),
-`WorkflowCacheEntry`, and the two runner endpoints. What is missing is the runner's half - making
-the archive and unpacking it - so nothing below is ticked yet. Start at `localExecutor.ts`: restore
-after the checkout and before the install, save at the end of a job whose restore was not an exact
-hit.
+Built. `cacheScope.ts` decides who may read and write, `cacheKey.ts` derives the key, `cache.ts`
+and `WorkflowCacheEntry` store it through the phase 18 blob store, two runner endpoints carry it,
+and `snapshot.ts` with `cacheClient.ts` make and unpack the archive. The restore happens after the
+checkout and before the first step; the save happens at the end of a job that succeeded and whose
+restore was not an exact hit. `cacheCollect.ts` and `buddy ci:caches` are the collection half.
 
-- [ ] Snapshot a step's workspace on completion, content-addressed, and restore it as the starting
+One difference from the wording below: the snapshot is taken per **job**, not per step. Steps of a
+job already share a workspace, so a per-step snapshot would store the same tree several times to
+answer a question - "what did this step leave behind" - that nothing asks. Across jobs, which is
+where the sharing actually happens, this is exactly what the line describes.
+
+- [x] Snapshot a step's workspace on completion, content-addressed, and restore it as the starting
       state of dependent steps
-- [ ] The snapshot key is derived from declared inputs (lockfile digest, runtime version,
+- [x] The snapshot key is derived from declared inputs (lockfile digest, runtime version,
       architecture, image), so a lockfile change invalidates it without anyone maintaining a key
       expression
-- [ ] Keyed path caching also exists, because `actions/cache` is what a migrating workflow already
+- [x] Keyed path caching also exists, because `actions/cache` is what a migrating workflow already
       uses and it must keep working
-- [ ] Cache restore permissions prevent a fork or a lower-trust branch from writing a snapshot a
+- [x] Cache restore permissions prevent a fork or a lower-trust branch from writing a snapshot a
       protected branch would restore. This is listed in the execution-plane section too, and it is
       the one cache property that is a security boundary rather than an optimization.
-- [ ] Snapshots are garbage collected by size and age with the policy visible before it deletes
+- [x] Snapshots are garbage collected by size and age with the policy visible before it deletes
       anything
-- [ ] Tests: a snapshot restored into a parallel fan-out, an invalidated key, a poisoning attempt
+- [x] Tests: a snapshot restored into a parallel fan-out, an invalidated key, a poisoning attempt
       from a fork, and a restore whose base image no longer exists
 
 ## Commit status and checks API
@@ -1020,7 +1024,7 @@ gate, in order.
 
 ## Workflow developer experience
 
-- [ ] Setup or install step can produce a cache snapshot consumed by later steps without giving
+- [x] Setup or install step can produce a cache snapshot consumed by later steps without giving
       those steps a shared mutable machine
 - [ ] Independent jobs run in parallel; dependencies and barriers are explicit in the graph
 - [ ] Conditional steps can inspect declared prior results, ref, changed paths, trigger, and approved

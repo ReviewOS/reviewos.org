@@ -104,6 +104,17 @@ export default {
   'ci:cancel': 'Ci',
   'ci:rerun': 'Ci',
   /*
+   * The dependency cache's disk, and what the nightly sweep would take.
+   *
+   * Not in `Ci.ts`, and the exception is deliberate: everything above is a
+   * client of the public API, and this reads the database. It answers a
+   * question about the instance's disk rather than about anybody's repository,
+   * and there is no API for "every repository's cache" that would be safe to
+   * expose. It is what makes the collection policy visible before it deletes
+   * anything, which the roadmap asks for by name.
+   */
+  'ci:caches': 'Caches',
+  /*
    * Move this instance to another database engine, and prove the copy.
    *
    * Phase 17 makes MySQL the metadata database and every existing install is

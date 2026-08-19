@@ -1086,6 +1086,35 @@ this server makes from inside your network on somebody else's say-so.
 
 Read by `app/Actions/Workflow/secretStore.ts`.
 
+### `REVIEWOS_CACHE_MAX_BYTES`
+
+Default: `10737418240`, and the line is commented out.
+
+How much of the dependency cache one repository may keep.
+
+Ten gigabytes by default: a few snapshots of a large repository and many of an
+ordinary one. Past it, the least recently *restored* snapshots go first - an
+entry a hundred runs a day reach for should outlive one written this morning
+and never read again, and age from the write gets that backwards.
+
+`buddy ci:caches` prints what the next sweep would remove before it removes
+anything, through the same function the sweep uses.
+
+Read by `app/Actions/Workflow/cacheCollect.ts`.
+
+### `REVIEWOS_CACHE_MAX_IDLE_DAYS`
+
+Default: `7`, and the line is commented out.
+
+How long a dependency snapshot nobody restores is kept.
+
+Seven days by default: long enough that a branch somebody returns to on Monday
+still has its cache, short enough that a fork's entry from a merged pull
+request does not sit there for a quarter. Applied before the size limit above,
+because idle is its own rule rather than a tiebreak.
+
+Read by `app/Actions/Workflow/cacheCollect.ts`.
+
 ## Set by git, not by you
 
 Git hands these to a hook on every push, per repository. A value for one of them in `.env`

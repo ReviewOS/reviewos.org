@@ -38,6 +38,9 @@ import type { FleetStage, HookStage, InstalledPlugin, ResolvedHook } from './hoo
 import { fleetHook, hooksFor, repositoryHooksAllowed } from './hooks'
 import { CommandReader } from './commands'
 import { redactWithCount } from './redact'
+import { restoreCache, saveCache } from './cacheClient'
+import { keyFor, worthCaching } from './snapshot'
+import { cacheActionMode, isCacheAction, requestFrom, restoreKeyed, saveKeyed } from './keyedCache'
 import type { ServiceRequest } from './services'
 import { resolveServices, serviceEnvironment, waitForPort } from './services'
 import { interpolate, shouldRun } from '../Workflow/expression'
@@ -543,6 +546,54 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       return { jobId: Number(job.id), state: 'failed', reason: checkout.reason }
     }
 
+    /*
+     * The dependency cache, restored here: after the checkout, before the first
+     * step.
+     *
+     * After, because the clone refuses a directory with anything in it and
+     * because a snapshot is restored *over* the commit under test rather than
+     * instead of it. Before the first step, because the step that would have
+     * installed those dependencies is the one this is meant to make cheap.
+     *
+     * The key is derived from the workspace as it now stands - the lockfiles
+     * the checkout just wrote, this machine's architecture, the runtime, the
+     * image - so nobody maintains a key expression and a lockfile change
+     * invalidates the cache on its own.
+     *
+     * Every failure here is survivable. A miss, an instance with caching off, a
+     * network that dropped: the job installs the slow way, which is what it did
+     * before any of this existed.
+     */
+    const cacheKey = worthCaching(workspace)
+      ? keyFor(workspace, { runtime: `bun@${Bun.version}`, image: String((job as any)?.container_image ?? '') || null })
+      : null
+
+    let cacheWasExact = false
+
+    if (cacheKey) {
+      const restored = await restoreCache({
+        baseUrl: options.baseUrl,
+        jobToken,
+        key: cacheKey,
+        workspace,
+        scratch: join(workspace, '.reviewos-runner'),
+      })
+
+      cacheWasExact = restored.exact
+
+      /*
+       * Said in the log, always, hit or miss.
+       *
+       * A build that is slow today and fast tomorrow with no explanation
+       * anywhere is one people stop trusting, and "restored from
+       * refs/heads/main" is the sentence somebody needs when a job behaves
+       * differently on a branch than it did on the pull request.
+       */
+      await send(restored.restored
+        ? `Restored dependencies from ${restored.scope}${restored.exact ? '' : ' (this branch has no snapshot of its own yet)'}\n`
+        : `No dependency snapshot to restore: ${restored.reason}\n`)
+    }
+
   /*
    * The event payload, on disk, before the first step and after the checkout.
    *
@@ -748,6 +799,44 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         if (step.id) {
           stepContext[String(step.id)] = { outputs: {}, outcome: 'skipped', conclusion: 'skipped' }
         }
+
+        continue
+      }
+
+      /*
+       * `actions/cache`, answered here rather than fetched and run.
+       *
+       * The real action talks to GitHub's cache service over an API this
+       * instance does not implement, with a token it does not mint - so running
+       * it would fail on a machine where caching already works, and a workflow
+       * arriving from GitHub would conclude the feature is broken. Intercepting
+       * is the same choice the checkout makes, and for the same reason: a
+       * workflow copied from somewhere else should run rather than explain
+       * itself.
+       */
+      if (step.uses && isCacheAction(String(step.uses))) {
+        await send(`::group::${name}\n`)
+
+        const outcome = await runKeyedCache({
+          mode: cacheActionMode(String(step.uses)),
+          request: requestFrom(interpolateValues(step.with ?? {}, context) as Record<string, unknown>),
+          baseUrl: options.baseUrl,
+          jobToken,
+          workspace,
+          send,
+        })
+
+        if (step.id) {
+          stepContext[String(step.id)] = {
+            // The output real workflows read: `if: steps.cache.outputs.cache-hit
+            // != 'true'` is how half of them skip their install.
+            outputs: { 'cache-hit': outcome.hit ? 'true' : 'false' },
+            outcome: 'success',
+            conclusion: 'success',
+          }
+        }
+
+        await send('::endgroup::\n')
 
         continue
       }
@@ -1123,6 +1212,39 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      * down what it set up - which is the one thing that hook exists for.
      */
     const state = failed ? 'failed' : 'succeeded'
+
+    /*
+     * The snapshot, saved before the conclusion and only on the way out.
+     *
+     * Three conditions, each of them load bearing:
+     *
+     * - **the job succeeded.** A workspace from a failed job is a half-finished
+     *   install as often as a finished one, and caching it would hand the next
+     *   run the state that broke this one.
+     * - **the restore was not exact.** An exact hit means this scope already
+     *   has this key: re-packing a gigabyte to store what is already stored is
+     *   an upload spent to reach the state it is in.
+     * - **there was a key at all**, which means the workspace had a lockfile.
+     *
+     * Before the conclusion because reporting it is what makes a run terminal,
+     * and a snapshot that lands after its run finished is one the next run had
+     * already given up waiting for.
+     */
+    if (cacheKey && !cacheWasExact && !failed) {
+      const saved = await saveCache({
+        baseUrl: options.baseUrl,
+        jobToken,
+        key: cacheKey,
+        workspace,
+        scratch: join(workspace, '.reviewos-runner'),
+      })
+
+      await send(saved.saved
+        ? `Saved a dependency snapshot (${Math.round(Number(saved.sizeBytes ?? 0) / 1024)} KiB) for the runs after this one\n`
+        : `No dependency snapshot saved: ${saved.reason}\n`)
+
+      await flush()
+    }
 
     await report(options.baseUrl, jobToken, state, failed ?? '', resolvedOutputs, failedStatus)
     say(`job ${job.id} ${state}`)
@@ -2910,4 +3032,77 @@ async function report(
     outputs: outputs ?? null,
     exit_status: exitStatus ?? null,
   })
+}
+
+/**
+ * One intercepted `actions/cache` step.
+ *
+ * Says what it did, always. An intercepted step is a step that did not run the
+ * program its author named, and a runner that stayed quiet about that would be
+ * a runner somebody debugs for an hour - so the log names the substitution as
+ * well as the outcome.
+ */
+async function runKeyedCache(input: {
+  mode: 'both' | 'restore' | 'save'
+  request: ReturnType<typeof requestFrom>
+  baseUrl: string
+  jobToken: string
+  workspace: string
+  send: (text: string, stream?: 'stdout' | 'stderr') => Promise<void> | void
+}): Promise<{ hit: boolean }> {
+  const scratch = join(input.workspace, '.reviewos-runner')
+
+  await input.send('Handled by this instance rather than by the action: same store, same scopes, same collection policy.\n')
+
+  if (!input.request.key) {
+    await input.send('This step named no key, so there is nothing to look up.\n', 'stderr')
+
+    return { hit: false }
+  }
+
+  let hit = false
+
+  if (input.mode !== 'save') {
+    const restored = await restoreKeyed({
+      baseUrl: input.baseUrl,
+      jobToken: input.jobToken,
+      request: input.request,
+      workspace: input.workspace,
+      scratch,
+    })
+
+    hit = restored.hit
+
+    await input.send(restored.restored
+      ? `Restored ${restored.hit ? 'an exact match' : 'the closest earlier cache'} for "${input.request.key}" from ${restored.scope}\n`
+      : `Nothing cached for "${input.request.key}": ${restored.reason}\n`)
+  }
+
+  /*
+   * Saved on the way through rather than at the end of the job.
+   *
+   * The real action saves in a post-step, which this runner has no equivalent
+   * of. Saving now is a smaller difference than it looks: the paths a keyed
+   * step names are written by the step before it - that is the whole shape of
+   * the form - and anything written afterwards was never part of what the
+   * author asked to cache.
+   *
+   * An exact hit skips the save, because storing what is already stored is an
+   * upload spent to reach the state it is in.
+   */
+  if (input.mode !== 'restore' && !hit) {
+    const saved = await saveKeyed({
+      baseUrl: input.baseUrl,
+      jobToken: input.jobToken,
+      request: input.request,
+      workspace: input.workspace,
+      scratch,
+    })
+
+    await input.send(saved.saved
+      ? `Cached ${JSON.stringify(input.request.path)} under "${input.request.key}"\n`
+      : `Nothing cached under "${input.request.key}": ${saved.reason}\n`)
+  }
+
+  return { hit }
 }

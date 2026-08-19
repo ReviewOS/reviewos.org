@@ -73,7 +73,22 @@ export default new Action({
     if (!key)
       return runnerJson({ error: 'Ask for a key' }, 422)
 
-    const hit = await findRestorable(context.repositoryId, context.facts, key)
+    /*
+     * `restore-keys`, in the author's order.
+     *
+     * Sent by the runner because they are the author's, not the instance's -
+     * unlike the scope, which the runner does not get a say in. A prefix
+     * decides *which of this run's own entries* is close enough; it cannot
+     * reach an entry the scope rules would refuse, because the prefix search
+     * runs inside those same scopes.
+     */
+    const prefixes = header(request, 'X-Cache-Restore-Keys')
+      .split(',')
+      .map(one => one.trim())
+      .filter(Boolean)
+      .slice(0, 10)
+
+    const hit = await findRestorable(context.repositoryId, context.facts, key, prefixes)
 
     if (!hit)
       return new Response(null, { status: 204 })

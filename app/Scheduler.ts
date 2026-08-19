@@ -77,6 +77,20 @@ export default function () {
     .job('AuditRefDrift')
     .hourly()
 
+  /*
+   * Dependency snapshots past the size and age policy, nightly.
+   *
+   * The policy is configuration and `buddy ci:caches` prints what this would
+   * remove before it removes it, through the same function - so a cache that
+   * disappears is one somebody could have seen coming. Nightly because nothing
+   * depends on the exact moment: an entry a day past its window costs disk, not
+   * a wrong answer.
+   */
+  schedule
+    .job('CollectCaches')
+    .daily()
+    .at('03:20')
+
   // What was held, sent as one message per thread. A sweep rather than a timer
   // armed per notification: a timer has to survive a restart and a sweep reads
   // what is actually pending, so a process that dies mid-digest loses nothing -

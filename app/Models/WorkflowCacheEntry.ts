@@ -109,6 +109,25 @@ export default defineModel({
       factory: () => 'b'.repeat(64),
     },
 
+    /**
+     * The key an author wrote, when one did.
+     *
+     * Empty for a workspace snapshot, whose key nobody writes. Present for the
+     * `actions/cache` form, and present because that form's `restore-keys` are
+     * **prefix** matches - `deps-linux-` finding `deps-linux-abc123` - which a
+     * hashed key cannot answer. So the hash above stays the unique identity and
+     * this is what a prefix search reads.
+     *
+     * Longer than the hash for the obvious reason: people write long keys, and
+     * a key silently truncated to 64 characters is two caches that collide.
+     */
+    label: {
+      order: 35,
+      fillable: true,
+      validation: { rule: schema.string().max(512) },
+      factory: () => null,
+    },
+
     /** SHA-256 of the archive. The bytes' address, and how two scopes share a file. */
     digest: {
       order: 4,

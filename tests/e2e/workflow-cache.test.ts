@@ -247,6 +247,194 @@ describe('what is refused before the bytes are read', () => {
   }, 120_000)
 })
 
+describe('a key that was invalidated', () => {
+  /**
+   * The property the whole derivation exists for: a lockfile change produces a
+   * different key, so the old snapshot is not *evicted* - it is simply not
+   * asked for. Nobody maintains a key expression, and nobody has to remember to
+   * bump one.
+   */
+  test('is a miss, and leaves the old snapshot alone rather than serving it', async () => {
+    if (!available)
+      return
+
+    const { findRestorable, saveSnapshot } = await import('../../app/Actions/Workflow/cache')
+    const { lockfileDigest, snapshotKey } = await import('../../app/Actions/Workflow/cacheKey')
+
+    const before = snapshotKey({ lockfiles: { 'bun.lock': lockfileDigest('one') }, runtime: 'bun@1.3.14', architecture: 'arm64' })
+    const after = snapshotKey({ lockfiles: { 'bun.lock': lockfileDigest('two') }, runtime: 'bun@1.3.14', architecture: 'arm64' })
+
+    expect(after).not.toBe(before)
+
+    await saveSnapshot({
+      repositoryId: created.repositoryId,
+      facts: main,
+      cacheKey: before,
+      digest: await digestOf(SNAPSHOT),
+      sizeBytes: SNAPSHOT.byteLength,
+      body: SNAPSHOT,
+    })
+
+    expect(await findRestorable(created.repositoryId, main, after)).toBeNull()
+    // Still there under its own key: collection removes it later, on age, and
+    // a branch that has not changed its lockfile still hits it today.
+    expect(await findRestorable(created.repositoryId, main, before)).not.toBeNull()
+  }, 120_000)
+})
+
+describe('a snapshot whose base image is gone', () => {
+  /**
+   * The image is part of the key, so this needs no special handling and that is
+   * the point of testing it: a snapshot built inside one base image holds
+   * binaries linked against that image's libc, and restoring it into another is
+   * a build that fails somewhere unrelated to anything the author changed. The
+   * key means it is never offered rather than offered and then regretted.
+   */
+  test('is never offered to a run using a different one', async () => {
+    if (!available)
+      return
+
+    const { findRestorable, saveSnapshot } = await import('../../app/Actions/Workflow/cache')
+    const { lockfileDigest, snapshotKey } = await import('../../app/Actions/Workflow/cacheKey')
+
+    const lockfiles = { 'bun.lock': lockfileDigest('unchanged') }
+    const onOldImage = snapshotKey({ lockfiles, runtime: 'bun@1.3.14', architecture: 'arm64', image: 'oven/bun@sha256:aaa' })
+    const onNewImage = snapshotKey({ lockfiles, runtime: 'bun@1.3.14', architecture: 'arm64', image: 'oven/bun@sha256:bbb' })
+    const onNoImage = snapshotKey({ lockfiles, runtime: 'bun@1.3.14', architecture: 'arm64', image: '' })
+
+    await saveSnapshot({
+      repositoryId: created.repositoryId,
+      facts: main,
+      cacheKey: onOldImage,
+      digest: await digestOf(SNAPSHOT),
+      sizeBytes: SNAPSHOT.byteLength,
+      body: SNAPSHOT,
+    })
+
+    expect(await findRestorable(created.repositoryId, main, onOldImage)).not.toBeNull()
+    // The image was replaced, and the image was removed. Both are misses.
+    expect(await findRestorable(created.repositoryId, main, onNewImage)).toBeNull()
+    expect(await findRestorable(created.repositoryId, main, onNoImage)).toBeNull()
+  }, 120_000)
+})
+
+describe('restore-keys', () => {
+  /**
+   * The `actions/cache` form's partial hit, which is the ordinary case for it:
+   * the lockfile moved, so the exact key misses, and last week's install is
+   * still most of the answer.
+   */
+  test('find the closest earlier entry by prefix, inside the same scopes', async () => {
+    if (!available)
+      return
+
+    const { findRestorable, saveSnapshot } = await import('../../app/Actions/Workflow/cache')
+    const { keyedCacheKey } = await import('../../app/Actions/Runner/keyedCache')
+
+    const prefix = unique('deps-linux-')
+    const written = `${prefix}abc123`
+
+    await saveSnapshot({
+      repositoryId: created.repositoryId,
+      facts: main,
+      cacheKey: keyedCacheKey(written),
+      label: written,
+      digest: await digestOf(SNAPSHOT),
+      sizeBytes: SNAPSHOT.byteLength,
+      body: SNAPSHOT,
+    })
+
+    const wanted = `${prefix}def456`
+
+    // The exact key misses, as it should: it was never stored.
+    expect(await findRestorable(created.repositoryId, main, keyedCacheKey(wanted))).toBeNull()
+
+    const hit = await findRestorable(created.repositoryId, main, keyedCacheKey(wanted), [prefix])
+
+    expect(hit).not.toBeNull()
+    // Never exact - a prefix match is by definition not the key asked for, and
+    // a caller told otherwise would skip the save that refreshes it.
+    expect(hit?.exact).toBe(false)
+  }, 120_000)
+
+  test('cannot reach a fork\'s entry, because the prefix search runs inside the scopes', async () => {
+    if (!available)
+      return
+
+    /*
+     * The property worth pinning: `restore-keys` is the author's input, and a
+     * prefix decides which of *this run's own* entries is close enough. It is
+     * not a second way into somebody else's scope.
+     */
+    const { findRestorable, saveSnapshot } = await import('../../app/Actions/Workflow/cache')
+    const { keyedCacheKey } = await import('../../app/Actions/Runner/keyedCache')
+
+    const prefix = unique('shared-')
+    const written = `${prefix}from-a-fork`
+
+    await saveSnapshot({
+      repositoryId: created.repositoryId,
+      facts: fork,
+      cacheKey: keyedCacheKey(written),
+      label: written,
+      digest: await digestOf(SNAPSHOT),
+      sizeBytes: SNAPSHOT.byteLength,
+      body: SNAPSHOT,
+    })
+
+    expect(await findRestorable(created.repositoryId, main, keyedCacheKey('anything'), [prefix])).toBeNull()
+    expect(await findRestorable(created.repositoryId, fork, keyedCacheKey('anything'), [prefix])).not.toBeNull()
+  }, 120_000)
+})
+
+describe('a parallel fan-out', () => {
+  /**
+   * Four jobs of one run restoring the same snapshot at once, which is what a
+   * matrix does. The interesting failure would be a lookup that mutates
+   * something shared - a counter read then written, a row moved between scopes
+   * - and the way to catch it is to have them all arrive together rather than
+   * one after another.
+   */
+  test('all restore the same snapshot, and the count survives the race', async () => {
+    if (!available)
+      return
+
+    const { findRestorable, markRestored, saveSnapshot } = await import('../../app/Actions/Workflow/cache')
+
+    const key = unique('key').padEnd(64, '0').slice(0, 64)
+
+    await saveSnapshot({
+      repositoryId: created.repositoryId,
+      facts: main,
+      cacheKey: key,
+      digest: await digestOf(SNAPSHOT),
+      sizeBytes: SNAPSHOT.byteLength,
+      body: SNAPSHOT,
+    })
+
+    const fanned = await Promise.all([1, 2, 3, 4].map(async () => {
+      const hit = await findRestorable(created.repositoryId, feature, key)
+      await markRestored(Number(hit?.id))
+
+      return hit
+    }))
+
+    // Every one of them got the default branch's snapshot, and got the same one.
+    expect(fanned.every(one => one?.scope === 'refs/heads/main')).toBe(true)
+    expect(new Set(fanned.map(one => one?.id)).size).toBe(1)
+
+    const rows = await db
+      .selectFrom('workflow_cache_entries')
+      .select(['id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('cache_key', '=', key)
+      .execute()
+
+    // One row still, rather than one per restorer.
+    expect(rows).toHaveLength(1)
+  }, 120_000)
+})
+
 describe('restoring is recorded', () => {
   test('so collection can prefer an entry that is actually used', async () => {
     if (!available)

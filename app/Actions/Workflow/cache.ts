@@ -105,6 +105,16 @@ export async function findRestorable(
   repositoryId: number,
   facts: RunFacts,
   cacheKey: string,
+  /**
+   * Prefixes to fall back on, in the author's order, when the key itself misses.
+   *
+   * This is `actions/cache`'s `restore-keys`, and it is the reason the row keeps
+   * the key somebody wrote as well as its hash: `deps-linux-` finding
+   * `deps-linux-abc123` is a prefix match, and a hash cannot answer one. A
+   * partial hit is the ordinary case for that form - the lockfile moved, and
+   * last week's `node_modules` is still most of the answer.
+   */
+  prefixes: readonly string[] = [],
 ): Promise<RestoreHit | null> {
   const scopes = readableScopes(facts)
 
@@ -143,6 +153,52 @@ export async function findRestorable(
     }
   }
 
+  /*
+   * The prefixes, after every scope has been asked for the exact key.
+   *
+   * Order is the author's prefixes outermost and the scopes within, because
+   * `restore-keys` is a ranked list: their first prefix beating their second
+   * matters more than this branch beating the default one, which is what the
+   * form means by writing them in order.
+   */
+  for (const prefix of prefixes) {
+    const clean = String(prefix ?? '').trim()
+
+    // An empty prefix matches every entry in the repository, which is
+    // `restore-keys: ""` asking for whatever happens to be lying around.
+    if (!clean)
+      continue
+
+    for (const scope of scopes) {
+      const row: any = await db
+        .selectFrom('workflow_cache_entries')
+        .select(['id', 'scope', 'cache_key', 'digest', 'blob_key', 'size_bytes', 'label'])
+        .where('repository_id', '=', repositoryId)
+        .where('scope', '=', scope)
+        .where('label', 'like', `${clean.replace(/[%_]/g, character => `\\${character}`)}%`)
+        // The newest, because a prefix match is "something close enough" and
+        // the most recent is the closest thing to what this run would build.
+        .orderBy('id', 'desc')
+        .executeTakeFirst()
+        .catch(() => null)
+
+      if (!row || !canRestore(facts, String(row.scope)))
+        continue
+
+      return {
+        id: Number(row.id),
+        scope: String(row.scope),
+        cacheKey: String(row.cache_key),
+        digest: String(row.digest),
+        blobKey: String(row.blob_key ?? snapshotBlobKey(repositoryId, String(row.digest))),
+        sizeBytes: Number(row.size_bytes ?? 0),
+        // Never exact: a prefix match is by definition not the key asked for,
+        // and a caller told otherwise would skip the save that refreshes it.
+        exact: false,
+      }
+    }
+  }
+
   return null
 }
 
@@ -171,6 +227,8 @@ export interface SaveInput {
   sizeBytes: number
   body: ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>
   workflowRunId?: number | null
+  /** The key an author wrote, when this came from the `actions/cache` form. */
+  label?: string | null
   /** The scope the runner believes it has, checked rather than believed. */
   claimedScope?: string | null
 }
@@ -249,6 +307,7 @@ export async function saveSnapshot(input: SaveInput): Promise<SaveOutcome> {
         repository_id: input.repositoryId,
         scope,
         cache_key: String(input.cacheKey),
+        label: input.label ? String(input.label).slice(0, 512) : null,
         digest: String(input.digest),
         blob_key: key,
         size_bytes: Math.round(input.sizeBytes),

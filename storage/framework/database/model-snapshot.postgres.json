@@ -13523,10 +13523,164 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "workflow_cache_entries",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "scope",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "cache_key",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "digest",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "blob_key",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "size_bytes",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "last_used_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "restores",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "workflow_run_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "label",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 512
+          }
+        ],
+        "indexes": [
+          {
+            "name": "workflow_cache_entries_key_index",
+            "columns": [
+              "repository_id",
+              "scope",
+              "cache_key"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "workflow_cache_entries_used_index",
+            "columns": [
+              "last_used_at"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_cache_entries_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_cache_entries_digest_index",
+            "columns": [
+              "digest"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "b53b611d804f9977b4b88bef293e93d4eb86a069dc96687c7db96e6358a358ad",
+  "hash": "77eceb9eee5c6a5e392f38ca23811070bf1f82e09eeea7c9b663c74070111f40",
   "dialect": "postgres",
-  "updatedAt": "2026-08-19T14:35:45.807Z"
+  "updatedAt": "2026-08-19T16:06:22.626Z"
 }

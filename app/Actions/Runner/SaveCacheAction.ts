@@ -83,6 +83,10 @@ export default new Action({
       sizeBytes: bytes.byteLength,
       body: bytes,
       workflowRunId: context.runId,
+      // The key an author wrote, when this is the `actions/cache` form. It is
+      // metadata: the identity is still the hash, and this is what a later
+      // `restore-keys` prefix search reads.
+      label: header(request, 'X-Cache-Label') || null,
       claimedScope: header(request, 'X-Cache-Scope') || null,
     })
 
