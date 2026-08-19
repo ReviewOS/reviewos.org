@@ -122,6 +122,21 @@ so the linearizer is built once, on the engine it will live on.
       `tests/unit/mysql-corpus.test.ts` holds the review: it reads the corpus rather than the
       generator, because what matters is what an operator's database ends up with.
 
+      **Two things to know before regenerating either corpus.** The per-dialect directory is
+      chosen by `resolveMigrationDirectory`, and it used to hand the *incumbent* dialect a fresh
+      empty subdirectory the moment a second snapshot existed - so the first Postgres run after
+      this work wrote into `database/migrations/postgres/`, orphaning 206 applied files. Fixed
+      upstream (Stacks `127c2bd3c8`): a non-empty flat corpus is now claimed by whoever wrote it,
+      read off the identifier quoting. Until that release lands here, pass an **absolute**
+      `DB_MIGRATIONS_PATH` to pin a corpus - a relative one equal to the default is ignored, which
+      is its own small trap. And the mysql snapshot stays out of git (it is in `.gitignore`
+      already, for a different reason), which is what keeps CI generating Postgres into the flat
+      directory.
+
+      MySQL runs locally as a pantry service on port 3307 (`pantry start mysql --port 3307`),
+      alongside the Postgres this instance still uses. Installing it at all took four pantry
+      fixes; see the pantry note under the `config/deps.ts` box below.
+
       One finding is left open on purpose. `created_at` defaults to `CURRENT_TIMESTAMP` in the
       model-generated corpus on **both** engines - the session's local wall clock, which is the
       exact bug `sqlHelpers.utcNow` exists to prevent and which the framework fixed only for its
