@@ -12,6 +12,7 @@ import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { generateKey, publicKeys, rotateKey, subjectFor } from '../../app/Actions/Workflow/oidc'
 import { signWork, verifyWork } from '../../app/Actions/Workflow/stepSignature'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = {
   ownerId: 0,
@@ -402,6 +403,75 @@ describe('a fork run', () => {
 
     expect(answer.status).toBe(403)
     expect(String((await answer.json().catch(() => ({}))).error ?? '')).toContain('untrusted')
+  }, 120_000)
+})
+
+describe('a fork\'s pull request and the workflow it runs', () => {
+  test('runs the base branch\'s definition, and the run records which commit supplied it', async () => {
+    if (!available)
+      return
+
+    /*
+     * The first line of the fork policy, and the one every other control here
+     * depends on: a pull request that could supply its own workflow could write
+     * one that prints the instance's secrets, and the scoping, the trust flag
+     * and the approval gate would all be decoration.
+     *
+     * Which is why the run records **two** commits. The head is the code under
+     * test; `definition_sha` is where the instructions came from, and a reader
+     * who cannot see the difference cannot tell a run of their code from a run
+     * of their code by somebody else's workflow.
+     */
+    const path = '.github/workflows/pr.yml'
+    const baseSha = unique('b').padEnd(40, '0').slice(0, 40)
+
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path,
+      source: 'name: PR\non: pull_request\njobs:\n  check:\n    runs-on: ubuntu-latest\n    steps:\n      - run: make check\n',
+      sha: baseSha,
+    })
+
+    const { dispatchPullRequest } = await import('../../app/Actions/Workflow/dispatch')
+
+    const headSha = unique('h').padEnd(40, '0').slice(0, 40)
+
+    await dispatchPullRequest({
+      repositoryId: created.repositoryId,
+      headSha,
+      ref: 'refs/pull/7/head',
+      number: 7,
+      event: {
+        activity: 'opened',
+        headBranch: 'their-branch',
+        baseBranch: 'main',
+        fromFork: true,
+      },
+    })
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['id', 'head_sha', 'definition_sha', 'trusted', 'state'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('event_ref', '=', 'refs/pull/7/head')
+      .orderBy('id', 'desc')
+      .executeTakeFirst()
+
+    expect(run).toBeTruthy()
+    expect(String(run.head_sha)).toBe(headSha)
+
+    // The definition is the registered one from this repository, not anything
+    // the pull request brought with it.
+    expect(String(run.definition_sha)).toBe(baseSha)
+    expect(String(run.definition_sha)).not.toBe(headSha)
+
+    // And it is untrusted for its whole life, which is what keeps the secrets
+    // away from it at the claim.
+    expect(isTrue(run.trusted)).toBe(false)
+
+    await db.deleteFrom('workflows').where('path', '=', path).where('repository_id', '=', created.repositoryId).execute()
   }, 120_000)
 })
 

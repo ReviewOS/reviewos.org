@@ -668,10 +668,27 @@ run is inspected.
 - [ ] Such a workflow declares what it needs from each repository it covers (checkout, changed paths,
       metadata) and gets nothing else. It runs at the owner's trust level over the repository's data,
       never at the repository's trust level, which is what makes it safe to give it a secret.
-- [ ] A typed event API can start a run directly, so a workflow is reachable from a webhook, another
+- [x] A typed event API can start a run directly, so a workflow is reachable from a webhook, another
       run, a scheduler, or an external system without a synthetic push
-- [ ] Trigger policy records which source revision supplied the workflow. A pull request from a fork
+
+      Four ways in, none of them a fake push. `POST /repos/repository-dispatch` names an event type
+      and a payload and nothing else - not the ref, not the workflow, not which repository the
+      payload claims to be about - which is what makes it safe to hand to a program with a narrow
+      token. `on: workflow_run` reaches it from another run, `schedules` from a clock, and
+      `POST /repos/workflow-runs/event` from anything that has something to tell a run already
+      waiting.
+- [x] Trigger policy records which source revision supplied the workflow. A pull request from a fork
       cannot replace a trusted workflow and gain secrets.
+
+      Two commits on the run, kept apart: `head_sha` is the code under test and `definition_sha` is
+      where the instructions came from. They are the same for a push and different for a pull
+      request, and a reader who cannot see the difference cannot tell a run of their code from a run
+      of their code by somebody else's workflow. The run screen and the API both say which.
+
+      The definition comes from `currentVersions` - what this repository has registered - so a fork
+      cannot supply one at all: there is no path by which a pull request's tree becomes a version
+      row. `tests/e2e/ci-security.test.ts` pins both halves, the definition and the trust flag, and
+      the claim test beside it pins what the flag buys: no secrets, and no identity token.
 - [ ] Monorepository support: changed-path matching, working directory, shared setup jobs, and more
       than one deployable application per repository
 - [x] Deduplicate trigger delivery so replaying a push webhook does not create a second run
