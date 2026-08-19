@@ -165,3 +165,31 @@ export const searchLog = searchLogImpl
 import { poolsMaintainedBy as poolsMaintainedByImpl } from '../../app/Actions/Runner/fleet'
 
 export const poolsMaintainedBy = poolsMaintainedByImpl
+
+/**
+ * A duration in milliseconds, as a person reads it.
+ *
+ * Separate from `runDuration` above, which takes two timestamps: a step reports
+ * its queue time and its active time as numbers, and turning them back into
+ * timestamps to reuse one formatter would be arithmetic in the wrong direction.
+ *
+ * Sub-second values keep a decimal. A step that took 400ms and one that took
+ * 900ms both reading "0s" is a table that cannot tell them apart, and the whole
+ * reason these two numbers are stored separately is to be able to.
+ */
+export function millisFor(value: unknown): string {
+  const millis = Number(value)
+
+  if (!Number.isFinite(millis) || millis < 0)
+    return ''
+
+  if (millis < 1000)
+    return `${millis}ms`
+
+  const seconds = millis / 1000
+
+  if (seconds < 10)
+    return `${seconds.toFixed(1)}s`
+
+  return runDuration(new Date(0).toISOString(), new Date(Math.round(seconds) * 1000).toISOString())
+}

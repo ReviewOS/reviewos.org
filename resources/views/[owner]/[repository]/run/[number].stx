@@ -14,7 +14,7 @@
  */
 import { repositoryForView, repositoryHeaderActions } from '../../../../functions/repo'
 import { relativeTime, shortSha } from '../../../../functions/browse'
-import { artifactSize, runDuration, runIsFinished, runLabel, runTone } from '../../../../functions/runs'
+import { artifactSize, millisFor, runDuration, runIsFinished, runLabel, runTone } from '../../../../functions/runs'
 import { eventsFromText, renderLog } from '../../../../functions/runs'
 import { explainWaiting } from '../../../../functions/runs'
 import { criticalPath, layersOf } from '../../../../functions/runs'
@@ -552,6 +552,17 @@ const jobs = jobRows.map((job) => {
     // "attempt 2" is a fact about this row, and a job that quietly ran twice
     // is a flaky test nobody ever fixes.
     attempt: Number(job.attempt ?? 1),
+    /*
+     * Whether the cache did anything for this job.
+     *
+     * Shown only when it asked at all, which reads better than "0 of 0" on the
+     * majority of jobs that never touch it - and a job that asked five times
+     * and hit twice is the one worth looking at, because the fix is a key that
+     * changes less often rather than a bigger machine.
+     */
+    cache: Number(job.cache_lookups ?? 0) > 0
+      ? `cache ${Number(job.cache_hits ?? 0)}/${Number(job.cache_lookups ?? 0)}`
+      : '',
     group: job.group_label ? String(job.group_label) : '',
     /*
      * A gate's prompt and fields, flattened onto the job rather than nested.
@@ -657,6 +668,18 @@ const jobs = jobRows.map((job) => {
       label: runLabel(String(step.state)),
       tone: runTone(String(step.state)),
       attempts: Number(step.attempts ?? 0),
+      /*
+       * The three numbers, because one cannot say which problem it is.
+       *
+       * Wall time is the subtraction and is derived here rather than stored;
+       * `queued` is what the step spent waiting before anything ran it, and
+       * `active` is the command's own duration. A step that took nine minutes
+       * of which eight were queueing is a different problem from one that took
+       * nine minutes of work, and the two have different fixes.
+       */
+      wall: runDuration(step.started_at, step.finished_at),
+      queued: millisFor(step.queued_ms),
+      active: millisFor(step.active_ms),
       /** Why it failed, in the one line a run screen can show without opening the log. */
       error: step.error ? String(step.error) : '',
       /*
@@ -1073,7 +1096,7 @@ const base = `/${ownerHandle}/${repositoryName}`
             <header class="job-head">
               <span class="run-dot run-{{ job.tone }}" aria-hidden="true"></span>
               <h3 class="job-name">{{ job.name }}</h3>
-              <span class="muted job-state">{{ job.label }}@if (job.attempt > 1) · attempt {{ job.attempt }}@endif</span>
+              <span class="muted job-state">{{ job.label }}@if (job.attempt > 1) · attempt {{ job.attempt }}@endif@if (job.cache) · {{ job.cache }}@endif</span>
               {{--
                 Waited, then ran. Two numbers rather than one, because a run
                 that is slow because nothing could take its jobs is a different
@@ -1305,6 +1328,20 @@ const base = `/${ownerHandle}/${repositoryName}`
                     <span class="muted step-state">
                       {{ step.label }}@if (step.attempts > 1) · attempt {{ step.attempts }}@endif
                     </span>
+                    {{--
+                      Where the time went, when the step recorded it.
+
+                      Wall first because it is the number somebody came for,
+                      then the two it is made of - a step that waited eight of
+                      its nine minutes is a fleet problem, and one that worked
+                      for nine is a step problem, and the single number cannot
+                      say which.
+                    --}}
+                    @if (step.wall || step.active)
+                      <span class="muted step-time">
+                        @if (step.wall){{ step.wall }}@endif@if (step.queued) · queued {{ step.queued }}@endif@if (step.active) · ran {{ step.active }}@endif
+                      </span>
+                    @endif
                     {{--
                       And why, when there is a why. A step that says "failed"
                       and nothing else is a screen that sends everybody into
@@ -1725,6 +1762,7 @@ const base = `/${ownerHandle}/${repositoryName}`
 
   .step-name { flex: 1; min-width: 0; }
   .step-state { font-size: 12px; }
+  .step-time { font-size: 12px; font-variant-numeric: tabular-nums; flex: none; }
   .step-error { font-size: 12px; color: var(--bad); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .step-reused { font-size: 12px; color: var(--muted); text-decoration: none; border-bottom: 1px dotted currentColor; }
   .step-reused:hover { color: var(--fg); }

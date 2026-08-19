@@ -294,6 +294,34 @@ export default defineModel({
     },
 
     /**
+     * How many cache lookups this job made, and how many found something.
+     *
+     * Two counters rather than a ratio, because the ratio is the derived
+     * number and a stored one eventually disagrees with the pair it came from.
+     * They are on the job rather than in the log because "did the cache work"
+     * is asked of a run somebody is looking at, and answering it by grepping a
+     * log is answering it for one person at a time.
+     *
+     * A job with no lookups shows nothing, which is the ordinary case and reads
+     * better than "0 of 0".
+     */
+    cache_lookups: {
+      order: 61,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number() },
+      factory: () => 0,
+    },
+
+    cache_hits: {
+      order: 62,
+      fillable: true,
+      default: 0,
+      validation: { rule: schema.number() },
+      factory: () => 0,
+    },
+
+    /**
      * The step this attempt starts at, counting from zero.
      *
      * Null on an ordinary job, which starts at the beginning. Set only by a

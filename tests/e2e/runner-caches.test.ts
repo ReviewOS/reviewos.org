@@ -65,6 +65,19 @@ async function claimOne(): Promise<string> {
   return String(body.job.token)
 }
 
+/** Which job a claim's credential belongs to, for reading its counters back. */
+async function jobOf(token: string): Promise<number> {
+  const { hashToken } = await import('../../app/Actions/Runner/authenticate')
+
+  const row: any = await db
+    .selectFrom('workflow_jobs')
+    .select(['id'])
+    .where('job_token_hash', '=', hashToken(token))
+    .executeTakeFirst()
+
+  return Number(row?.id ?? 0)
+}
+
 async function save(token: string, cacheKey: string, body: string, extra: Record<string, string> = {}) {
   const answer = await fetch(`http://127.0.0.1:${port}/api/runner/caches`, {
     method: 'POST',
@@ -221,6 +234,40 @@ describe('saving and restoring', () => {
 
     expect(again.status).toBe(200)
     expect(again.body.duplicate).toBe(true)
+  }, 120_000)
+})
+
+describe('whether the cache did anything', () => {
+  test('is counted on the job, hit and miss, so a run screen can say so', async () => {
+    if (!available)
+      return
+
+    /*
+     * The only place this could be answered before was a log line, which
+     * answers it for one person at a time and only while the log is still
+     * there. A job that asked five times and hit twice is the one worth
+     * looking at, because the fix is a key that changes less often rather than
+     * a bigger machine.
+     */
+    const token = await claimOne()
+    const cacheKey = key()
+
+    const job = await jobOf(token)
+
+    await restore(token, cacheKey)
+    await save(token, cacheKey, SNAPSHOT)
+    await restore(token, cacheKey)
+
+    const row: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['cache_lookups', 'cache_hits'])
+      .where('id', '=', job)
+      .executeTakeFirst()
+
+    // Two lookups, one of which found something: the cold one before the save
+    // and the warm one after it.
+    expect(Number(row.cache_lookups)).toBe(2)
+    expect(Number(row.cache_hits)).toBe(1)
   }, 120_000)
 })
 

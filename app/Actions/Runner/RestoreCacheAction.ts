@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
 import { blobStore } from '../Git/blobs'
+import { db } from '@stacksjs/database'
 import { findRestorable, markRestored, runFactsFor } from '../Workflow/cache'
 import { authenticateJob } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
@@ -90,6 +91,17 @@ export default new Action({
 
     const hit = await findRestorable(context.repositoryId, context.facts, key, prefixes)
 
+    /*
+     * Counted on the job, hit or miss.
+     *
+     * "Did the cache work" is asked of a run somebody is looking at, and the
+     * only place it could be answered before this was a log line - which
+     * answers it for one person at a time, and only while the log is still
+     * there. Two counters rather than a ratio, because the ratio is derived and
+     * a stored one eventually disagrees with the pair it came from.
+     */
+    await countLookup(held.jobId, Boolean(hit))
+
     if (!hit)
       return new Response(null, { status: 204 })
 
@@ -131,4 +143,39 @@ function header(request: any, name: string): string {
     ?? request?.header?.(name)
     ?? '',
   ).trim()
+}
+
+/**
+ * Record that a job asked the cache something, and whether it got it.
+ *
+ * Never throws and never blocks the restore: a counter is a fact about a build,
+ * and failing a cache lookup because the count could not be written would trade
+ * a working job for a statistic.
+ */
+async function countLookup(jobId: number, hit: boolean): Promise<void> {
+  /*
+   * Read then written, like `markRestored` next door and with the same
+   * tolerance: two lookups landing together can lose a count, and a cache
+   * statistic that is occasionally one low is worth less than the lock it would
+   * take to be exact.
+   */
+  const row: any = await db
+    .selectFrom('workflow_jobs')
+    .select(['cache_lookups', 'cache_hits'])
+    .where('id', '=', jobId)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!row)
+    return
+
+  await db
+    .updateTable('workflow_jobs')
+    .set({
+      cache_lookups: Number(row.cache_lookups ?? 0) + 1,
+      cache_hits: Number(row.cache_hits ?? 0) + (hit ? 1 : 0),
+    })
+    .where('id', '=', jobId)
+    .execute()
+    .catch(() => null)
 }

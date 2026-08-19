@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS `workflow_jobs` (
   `approved_at` varchar(40),
   `attempt` integer default 1,
   `resume_from_step` integer,
+  `cache_lookups` integer default 0,
+  `cache_hits` integer default 0,
   `uploaded_by_job_id` integer,
   `upload_depth` integer default 0,
   `triggered_run_id` integer,

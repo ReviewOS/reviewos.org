@@ -1468,8 +1468,23 @@ designed against - a step that runs when it need not have costs a minute, and on
 was needed ships the bug.
 - [ ] Preview deployment on non-default branches and deployment after all required checks pass,
       through the deployment model below
-- [ ] Run view shows the dependency graph, current branch of execution, retries, cache hits, wall
+- [x] Run view shows the dependency graph, current branch of execution, retries, cache hits, wall
       time, active execution time, queue time, and the workflow version
+
+      Six of the eight were already there - the graph with its critical path, which branch of it is
+      executing, the attempt count on the run and on each job, wall time, and the version with the
+      commit that supplied it. The two that were missing were the two that make the others
+      actionable.
+
+      **The three numbers per step**, which were recorded and shown nowhere: wall, then the queue
+      time and the active time it is made of. A step that waited eight of its nine minutes is a
+      fleet problem and one that worked for nine is a step problem, and the single number cannot say
+      which - the whole reason they are stored separately.
+
+      **Cache hits**, counted on the job as a pair rather than a ratio. Before this the only place
+      the answer existed was a log line, which answers it for one person at a time and only while
+      the log is still there. "Two of five" points at a key that changes too often; a percentage
+      points at nothing.
 - [x] Logs and step output can mark fields sensitive, and the API returns redaction metadata rather
       than silently omitting data
 - [ ] Aggregate metrics for success rate, failure by step, queue time, duration, retry count, cache

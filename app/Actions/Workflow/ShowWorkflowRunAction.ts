@@ -132,6 +132,9 @@ export default new Action({
         // Where this attempt was told to begin, so a client can say why the
         // first steps of a job show a result nothing on this attempt produced.
         'resume_from_step',
+        // Whether the cache did anything for this job, as the pair rather than
+        // the ratio: the ratio is derived, and a stored one disagrees with it.
+        'cache_lookups', 'cache_hits',
       ])
       .where('workflow_run_id', '=', Number(run.id))
       .orderBy('position')
@@ -334,6 +337,17 @@ export default new Action({
           resume_from_step: job.resume_from_step === null || job.resume_from_step === undefined
             ? null
             : Number(job.resume_from_step),
+          /**
+           * How many cache lookups this job made and how many found something.
+           *
+           * Both, so a client can say "two of five" - which is the answer that
+           * points at a key that changes too often, where a percentage points
+           * at nothing.
+           */
+          cache: {
+            lookups: Number(job.cache_lookups ?? 0),
+            hits: Number(job.cache_hits ?? 0),
+          },
           /*
            * What this job's steps run with when they say nothing themselves.
            *

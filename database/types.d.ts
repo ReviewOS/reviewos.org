@@ -3223,6 +3223,8 @@ declare module '@stacksjs/database' {
       approved_by_id: number
       approved_at: string
       attempt: number
+      cache_lookups: number
+      cache_hits: number
       resume_from_step: number
       uploaded_by_job_id: number
       upload_depth: number
@@ -3255,6 +3257,8 @@ declare module '@stacksjs/database' {
       groupLabel: string
       approvedById: number
       approvedAt: string
+      cacheLookups: number
+      cacheHits: number
       resumeFromStep: number
       uploadedByJobId: number
       uploadDepth: number
