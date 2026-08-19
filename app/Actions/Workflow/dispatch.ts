@@ -1085,6 +1085,12 @@ async function createJobs(
   const trail = call.trail ?? [versionId]
   const prefix = call.prefix ?? ''
 
+  // Read once rather than per job. Every row written here carries it: the shard
+  // key is what keeps a dispatch - the run, its jobs and the version it came
+  // from - on one shard, and a column written only sometimes cannot be routed
+  // on at all.
+  const repositoryId = await repositoryOf(runId)
+
   /*
    * What the *whole called workflow* waits for.
    *
@@ -1112,7 +1118,7 @@ async function createJobs(
     if (job.uses) {
       await expandCall({
         runId,
-        repositoryId: await repositoryOf(runId),
+        repositoryId,
         job,
         context,
         depth,
@@ -1238,6 +1244,7 @@ async function createJobs(
           .insertInto('workflow_jobs')
           .values({
             workflow_run_id: runId,
+            repository_id: repositoryId,
             // Prefixed when this job came from a called workflow, so two
             // workflows that both have a `build` are two rows rather than one
             // collision.
@@ -1346,6 +1353,7 @@ async function expandCall(input: {
       .insertInto('workflow_jobs')
       .values({
         workflow_run_id: runId,
+        repository_id: repositoryId,
         job_id: name,
         name: callName(prefix, String(job.name ?? job.job_id)),
         position: 9000,
@@ -1418,6 +1426,7 @@ async function expandCall(input: {
     .insertInto('workflow_jobs')
     .values({
       workflow_run_id: runId,
+      repository_id: repositoryId,
       job_id: name,
       name: callName(prefix, String(job.name ?? job.job_id)),
       position: input.position ?? 8000,

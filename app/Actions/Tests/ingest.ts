@@ -135,6 +135,7 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
     .insertInto('test_runs')
     .values({
       test_suite_id: suite,
+      repository_id: input.repositoryId,
       head_sha: input.headSha,
       branch: input.branch ?? null,
       pull_request_id: input.pullRequestId ?? null,
@@ -149,7 +150,7 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
   const touched: number[] = []
 
   for (const execution of input.executions) {
-    const test = await testFor(suite, execution.scope, execution.name)
+    const test = await testFor(suite, input.repositoryId, execution.scope, execution.name)
 
     touched.push(test.id)
 
@@ -171,6 +172,7 @@ export async function ingestTestRun(input: IngestInput): Promise<IngestOutcome> 
       .insertInto('test_executions')
       .values({
         test_run_id: runId,
+        repository_id: input.repositoryId,
         managed_test_id: test.id,
         result: execution.result,
         duration_ms: Math.max(0, Math.round(Number(execution.durationMs ?? 0))),
@@ -382,7 +384,7 @@ async function suiteFor(repositoryId: number, slug: string): Promise<number> {
  * still exists - which is the history somebody is about to make a decision
  * from.
  */
-async function testFor(suiteId: number, scope: string, name: string): Promise<{ id: number, state: string }> {
+async function testFor(suiteId: number, repositoryId: number, scope: string, name: string): Promise<{ id: number, state: string }> {
   const cleanScope = String(scope ?? '').slice(0, 500)
   const cleanName = String(name ?? '').slice(0, 500) || 'a test'
 
@@ -399,7 +401,7 @@ async function testFor(suiteId: number, scope: string, name: string): Promise<{ 
 
   const created = await db
     .insertInto('managed_tests')
-    .values({ test_suite_id: suiteId, scope: cleanScope, name: cleanName, state: 'enabled' })
+    .values({ test_suite_id: suiteId, repository_id: repositoryId, scope: cleanScope, name: cleanName, state: 'enabled' })
     .returning(['id'])
     .executeTakeFirst()
 

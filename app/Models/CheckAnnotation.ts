@@ -23,6 +23,7 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
+    { name: 'check_annotations_repository_index', columns: ['repository_id'] },
     // How the diff asks: everything on this run, for this file.
     { name: 'check_annotations_run_path_index', columns: ['check_run_id', 'path'] },
   ],
@@ -123,6 +124,25 @@ export default defineModel({
       fillable: true,
       type: 'text',
       validation: { rule: schema.string() },
+      factory: () => null,
+    },
+
+    /**
+     * The repository this belongs to, copied from its check run.
+     *
+     * Denormalized, and the duplication is the point: this is the column a
+     * sharded keyspace routes on, and Vitess cannot follow a foreign key to
+     * find it. Without it this table lands in the unsharded keyspace, and every
+     * transaction touching it and its check run crosses keyspaces - the one
+     * thing sharding by repository was chosen to avoid.
+     *
+     * Written where the row is created, from the parent already in hand.
+     * `buddy db:keyspaces --check` is what notices when it is not.
+     */
+    repository_id: {
+      order: 90,
+      fillable: true,
+      validation: { rule: schema.number() },
       factory: () => null,
     },
   },

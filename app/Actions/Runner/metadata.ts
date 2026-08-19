@@ -122,6 +122,14 @@ export async function writeMetadata(input: {
         .insertInto('run_metadata')
         .values({
           workflow_run_id: input.runId,
+          // Read from the run rather than asked of every caller: metadata is
+          // written from the runner API, where the repository is not in hand,
+          // and a key that is only sometimes routable is not routable.
+          repository_id: Number((await db
+            .selectFrom('workflow_runs')
+            .select(['repository_id'])
+            .where('id', '=', input.runId)
+            .executeTakeFirst())?.repository_id ?? 0) || null,
           key,
           value,
           version: 1,

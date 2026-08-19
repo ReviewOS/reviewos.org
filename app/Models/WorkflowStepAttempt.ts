@@ -22,6 +22,7 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
+    { name: 'workflow_step_attempts_repository_index', columns: ['repository_id'] },
     { name: 'workflow_step_attempts_step_index', columns: ['workflow_step_id', 'attempt'] },
   ],
 
@@ -91,6 +92,24 @@ export default defineModel({
       order: 8,
       fillable: true,
       validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
+
+    /**
+     * The repository this belongs to, copied from the step it records.
+     *
+     * Denormalized like every other row under a repository: Vitess routes on a
+     * column, not on a chain of foreign keys, and this table sits three of them
+     * away from `repositories`. Without it the table lands in the unsharded
+     * keyspace and takes its parent's transaction with it.
+     *
+     * Written where the row is created, from the parent already in hand.
+     * `buddy db:keyspaces --check` is what notices when it is not.
+     */
+    repository_id: {
+      order: 90,
+      fillable: true,
+      validation: { rule: schema.number() },
       factory: () => null,
     },
   },

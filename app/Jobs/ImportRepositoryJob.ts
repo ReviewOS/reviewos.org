@@ -603,7 +603,7 @@ async function importReviews(progress: ImportProgress, context: StageContext): P
     }
 
     for (const thread of buildThreads(own)) {
-      const row = threadRow(thread, Number(pull.id))
+      const row = threadRow(thread, Number(pull.id), context.repositoryId)
 
       if (!row)
         continue
@@ -634,7 +634,7 @@ async function importReviews(progress: ImportProgress, context: StageContext): P
         if (seen)
           continue
 
-        await db.insertInto('review_comments').values(reviewCommentRow(comment, threadId) as any).execute()
+        await db.insertInto('review_comments').values(reviewCommentRow(comment, threadId, context.repositoryId) as any).execute()
         record(progress, 'comments')
       }
     }
@@ -825,6 +825,7 @@ async function importAsset(progress: ImportProgress, releaseId: number, asset: a
 
     await db.insertInto('release_assets').values({
       release_id: releaseId,
+      repository_id: context.repositoryId,
       name: decision.name,
       storage_path: path,
       content_type: String(asset?.content_type ?? 'application/octet-stream'),

@@ -148,6 +148,7 @@ export default new Action({
         .insertInto('check_annotations')
         .values({
           check_run_id: checkRunId,
+          repository_id: Number(run.repository_id),
           path: annotation.path,
           start_line: annotation.startLine,
           end_line: annotation.endLine,

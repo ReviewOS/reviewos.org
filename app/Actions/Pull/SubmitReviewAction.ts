@@ -125,6 +125,10 @@ export default new Action({
       .insertInto('pull_request_reviews')
       .values({
         pull_request_id: Number(pullRequest.id),
+        // The shard key, carried from the pull request. A review submit writes
+        // the review, its threads and its drafts together, and that stays one
+        // transaction on one shard only while every row carries the key.
+        repository_id: Number(repository.id),
         reviewer_id: user.id,
         state,
         body,
@@ -149,6 +153,7 @@ export default new Action({
      */
     const writtenComments = await writeComments(inline.comments, {
       pullRequestId: Number(pullRequest.id),
+      repositoryId: Number(repository.id),
       reviewId,
       authorId: user.id,
       headSha: String(pullRequest.head_sha ?? ''),
@@ -284,7 +289,7 @@ function readComments(request: RequestInstance): CommentsRead {
  */
 async function writeComments(
   comments: readonly InlineComment[],
-  context: { pullRequestId: number, reviewId: number, authorId: number, headSha: string },
+  context: { pullRequestId: number, repositoryId: number, reviewId: number, authorId: number, headSha: string },
 ): Promise<Array<{ id: number, thread_id: number, path: string, line: number }>> {
   const written: Array<{ id: number, thread_id: number, path: string, line: number }> = []
 
@@ -293,6 +298,7 @@ async function writeComments(
       .insertInto('review_threads')
       .values({
         pull_request_id: context.pullRequestId,
+        repository_id: context.repositoryId,
         path: comment.path,
         line: comment.line,
         start_line: comment.startLine,
@@ -313,6 +319,7 @@ async function writeComments(
       .insertInto('review_comments')
       .values({
         review_thread_id: threadId,
+        repository_id: context.repositoryId,
         author_id: context.authorId,
         body: comment.body,
         suggestion: suggestionIn(comment.body),

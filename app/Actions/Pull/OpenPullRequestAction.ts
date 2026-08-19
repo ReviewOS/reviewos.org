@@ -149,6 +149,7 @@ export default new Action({
     const requested = await requestCodeOwners({
       diskPath: resolved.path!,
       pullRequestId: Number(created?.id),
+      repositoryId: Number(repository.id),
       baseSha,
       headSha,
       authorId: user.id,
@@ -222,6 +223,8 @@ async function revision(path: string, ref: string): Promise<string | null> {
 async function requestCodeOwners(options: {
   diskPath: string
   pullRequestId: number
+  /** The shard key, carried down so the row can be routed on it. */
+  repositoryId: number
   baseSha: string
   headSha: string
   authorId: number
@@ -248,6 +251,7 @@ async function requestCodeOwners(options: {
 
       await db.insertInto('pull_request_reviewers').values({
         pull_request_id: options.pullRequestId,
+        repository_id: options.repositoryId,
         reviewer_type: 'user',
         reviewer_id: person.id,
         from_code_owners: true,

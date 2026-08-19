@@ -19,6 +19,7 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
+    { name: 'release_assets_repository_index', columns: ['repository_id'] },
     // One name per release. A second `checkout-linux-amd64` in one release is
     // two answers to which file that name means.
     { name: 'release_assets_release_name_index', columns: ['release_id', 'name'], unique: true },
@@ -98,6 +99,25 @@ export default defineModel({
       default: 0,
       validation: { rule: schema.number() },
       factory: faker => faker.number.int({ min: 0, max: 5000 }),
+    },
+
+    /**
+     * The repository this belongs to, copied from its release.
+     *
+     * Denormalized, and the duplication is the point: this is the column a
+     * sharded keyspace routes on, and Vitess cannot follow a foreign key to
+     * find it. Without it this table lands in the unsharded keyspace, and every
+     * transaction touching it and its release crosses keyspaces - the one
+     * thing sharding by repository was chosen to avoid.
+     *
+     * Written where the row is created, from the parent already in hand.
+     * `buddy db:keyspaces --check` is what notices when it is not.
+     */
+    repository_id: {
+      order: 90,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
     },
   },
 } as const)

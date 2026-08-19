@@ -14,6 +14,7 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
+    { name: 'pull_request_reviewers_repository_index', columns: ['repository_id'] },
     { name: 'pr_reviewers_pr_index', columns: ['pull_request_id'] },
   ],
 
@@ -78,6 +79,25 @@ export default defineModel({
       order: 6,
       fillable: true,
       validation: { rule: schema.string() },
+      factory: () => null,
+    },
+
+    /**
+     * The repository this belongs to, copied from its pull request.
+     *
+     * Denormalized, and the duplication is the point: this is the column a
+     * sharded keyspace routes on, and Vitess cannot follow a foreign key to
+     * find it. Without it this table lands in the unsharded keyspace, and every
+     * transaction touching it and its pull request crosses keyspaces - the one
+     * thing sharding by repository was chosen to avoid.
+     *
+     * Written where the row is created, from the parent already in hand.
+     * `buddy db:keyspaces --check` is what notices when it is not.
+     */
+    repository_id: {
+      order: 90,
+      fillable: true,
+      validation: { rule: schema.number() },
       factory: () => null,
     },
   },

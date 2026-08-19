@@ -106,6 +106,15 @@ CREATE TABLE IF NOT EXISTS `environments_seq` (
 INSERT INTO `environments_seq` (id, next_id, cache) VALUES (0, 1, 1000)
   ON DUPLICATE KEY UPDATE next_id = next_id;
 
+CREATE TABLE IF NOT EXISTS `git_refs_seq` (
+  `id` bigint NOT NULL,
+  `next_id` bigint DEFAULT NULL,
+  `cache` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) COMMENT='vitess_sequence';
+INSERT INTO `git_refs_seq` (id, next_id, cache) VALUES (0, 1, 1000)
+  ON DUPLICATE KEY UPDATE next_id = next_id;
+
 CREATE TABLE IF NOT EXISTS `git_wal_entries_seq` (
   `id` bigint NOT NULL,
   `next_id` bigint DEFAULT NULL,
@@ -295,6 +304,15 @@ CREATE TABLE IF NOT EXISTS `review_checkpoints_seq` (
 INSERT INTO `review_checkpoints_seq` (id, next_id, cache) VALUES (0, 1, 1000)
   ON DUPLICATE KEY UPDATE next_id = next_id;
 
+CREATE TABLE IF NOT EXISTS `review_comments_seq` (
+  `id` bigint NOT NULL,
+  `next_id` bigint DEFAULT NULL,
+  `cache` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) COMMENT='vitess_sequence';
+INSERT INTO `review_comments_seq` (id, next_id, cache) VALUES (0, 1, 1000)
+  ON DUPLICATE KEY UPDATE next_id = next_id;
+
 CREATE TABLE IF NOT EXISTS `review_drafts_seq` (
   `id` bigint NOT NULL,
   `next_id` bigint DEFAULT NULL,
@@ -356,6 +374,15 @@ CREATE TABLE IF NOT EXISTS `team_repositories_seq` (
   PRIMARY KEY (`id`)
 ) COMMENT='vitess_sequence';
 INSERT INTO `team_repositories_seq` (id, next_id, cache) VALUES (0, 1, 1000)
+  ON DUPLICATE KEY UPDATE next_id = next_id;
+
+CREATE TABLE IF NOT EXISTS `test_executions_seq` (
+  `id` bigint NOT NULL,
+  `next_id` bigint DEFAULT NULL,
+  `cache` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) COMMENT='vitess_sequence';
+INSERT INTO `test_executions_seq` (id, next_id, cache) VALUES (0, 1, 1000)
   ON DUPLICATE KEY UPDATE next_id = next_id;
 
 CREATE TABLE IF NOT EXISTS `test_monitors_seq` (
@@ -421,6 +448,15 @@ CREATE TABLE IF NOT EXISTS `workflow_artifacts_seq` (
 INSERT INTO `workflow_artifacts_seq` (id, next_id, cache) VALUES (0, 1, 1000)
   ON DUPLICATE KEY UPDATE next_id = next_id;
 
+CREATE TABLE IF NOT EXISTS `workflow_job_logs_seq` (
+  `id` bigint NOT NULL,
+  `next_id` bigint DEFAULT NULL,
+  `cache` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) COMMENT='vitess_sequence';
+INSERT INTO `workflow_job_logs_seq` (id, next_id, cache) VALUES (0, 1, 1000)
+  ON DUPLICATE KEY UPDATE next_id = next_id;
+
 CREATE TABLE IF NOT EXISTS `workflow_jobs_seq` (
   `id` bigint NOT NULL,
   `next_id` bigint DEFAULT NULL,
@@ -446,6 +482,42 @@ CREATE TABLE IF NOT EXISTS `workflow_runs_seq` (
   PRIMARY KEY (`id`)
 ) COMMENT='vitess_sequence';
 INSERT INTO `workflow_runs_seq` (id, next_id, cache) VALUES (0, 1, 1000)
+  ON DUPLICATE KEY UPDATE next_id = next_id;
+
+CREATE TABLE IF NOT EXISTS `workflow_step_attempts_seq` (
+  `id` bigint NOT NULL,
+  `next_id` bigint DEFAULT NULL,
+  `cache` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) COMMENT='vitess_sequence';
+INSERT INTO `workflow_step_attempts_seq` (id, next_id, cache) VALUES (0, 1, 1000)
+  ON DUPLICATE KEY UPDATE next_id = next_id;
+
+CREATE TABLE IF NOT EXISTS `workflow_steps_seq` (
+  `id` bigint NOT NULL,
+  `next_id` bigint DEFAULT NULL,
+  `cache` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) COMMENT='vitess_sequence';
+INSERT INTO `workflow_steps_seq` (id, next_id, cache) VALUES (0, 1, 1000)
+  ON DUPLICATE KEY UPDATE next_id = next_id;
+
+CREATE TABLE IF NOT EXISTS `workflow_version_jobs_seq` (
+  `id` bigint NOT NULL,
+  `next_id` bigint DEFAULT NULL,
+  `cache` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) COMMENT='vitess_sequence';
+INSERT INTO `workflow_version_jobs_seq` (id, next_id, cache) VALUES (0, 1, 1000)
+  ON DUPLICATE KEY UPDATE next_id = next_id;
+
+CREATE TABLE IF NOT EXISTS `workflow_version_steps_seq` (
+  `id` bigint NOT NULL,
+  `next_id` bigint DEFAULT NULL,
+  `cache` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) COMMENT='vitess_sequence';
+INSERT INTO `workflow_version_steps_seq` (id, next_id, cache) VALUES (0, 1, 1000)
   ON DUPLICATE KEY UPDATE next_id = next_id;
 
 CREATE TABLE IF NOT EXISTS `workflow_versions_seq` (

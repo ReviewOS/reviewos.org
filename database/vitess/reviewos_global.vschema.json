@@ -36,7 +36,6 @@
     "queue_circuit_state": {},
     "reactions": {},
     "recovery_codes": {},
-    "review_comments": {},
     "role_permissions": {},
     "roles": {},
     "runner_pool_maintainers": {},
@@ -50,7 +49,6 @@
     "taggables": {},
     "team_members": {},
     "teams": {},
-    "test_executions": {},
     "timeline_entries": {},
     "token_usage_windows": {},
     "two_factor_challenges": {},
@@ -59,14 +57,9 @@
     "user_roles": {},
     "users": {},
     "webauthn_challenges": {},
-    "workflow_job_logs": {},
     "workflow_secrets": {},
-    "workflow_step_attempts": {},
-    "workflow_steps": {},
     "workflow_templates": {},
     "workflow_variables": {},
-    "workflow_version_jobs": {},
-    "workflow_version_steps": {},
     "access_token_repositories_seq": {
       "type": "sequence"
     },
@@ -101,6 +94,9 @@
       "type": "sequence"
     },
     "environments_seq": {
+      "type": "sequence"
+    },
+    "git_refs_seq": {
       "type": "sequence"
     },
     "git_wal_entries_seq": {
@@ -166,6 +162,9 @@
     "review_checkpoints_seq": {
       "type": "sequence"
     },
+    "review_comments_seq": {
+      "type": "sequence"
+    },
     "review_drafts_seq": {
       "type": "sequence"
     },
@@ -185,6 +184,9 @@
       "type": "sequence"
     },
     "team_repositories_seq": {
+      "type": "sequence"
+    },
+    "test_executions_seq": {
       "type": "sequence"
     },
     "test_monitors_seq": {
@@ -208,6 +210,9 @@
     "workflow_artifacts_seq": {
       "type": "sequence"
     },
+    "workflow_job_logs_seq": {
+      "type": "sequence"
+    },
     "workflow_jobs_seq": {
       "type": "sequence"
     },
@@ -215,6 +220,18 @@
       "type": "sequence"
     },
     "workflow_runs_seq": {
+      "type": "sequence"
+    },
+    "workflow_step_attempts_seq": {
+      "type": "sequence"
+    },
+    "workflow_steps_seq": {
+      "type": "sequence"
+    },
+    "workflow_version_jobs_seq": {
+      "type": "sequence"
+    },
+    "workflow_version_steps_seq": {
       "type": "sequence"
     },
     "workflow_versions_seq": {

@@ -10,8 +10,10 @@ CREATE TABLE IF NOT EXISTS `check_annotations` (
   `title` varchar(255),
   `message` text not null,
   `raw_details` text,
+  `repository_id` integer,
   `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `check_annotations_check_run_id_fk` FOREIGN KEY (`check_run_id`) REFERENCES `check_runs`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;
+CREATE INDEX `check_annotations_repository_index` ON `check_annotations` (`repository_id`);
 CREATE INDEX `check_annotations_run_path_index` ON `check_annotations` (`check_run_id`, `path`(255));

@@ -293,31 +293,45 @@ Starts only after single-node MySQL is the default and stable.
         cannot hand out ids somebody already has.
 
       `tests/unit/vitess-keyspaces.test.ts` holds all of it.
-- [ ] Verify the hot transaction shapes are single-shard: ref ledger CAS plus WAL insert (phase
+- [x] Verify the hot transaction shapes are single-shard: ref ledger CAS plus WAL insert (phase
       18c), review submit, check reporting, merge queue claim.
 
-      **Verified, and the answer is "two of five, today".** `buddy db:keyspaces` reports it and
-      `--check` exits non-zero, so this is a fact the build can hold rather than a paragraph:
+      **All five, and the check is what says so.** `buddy db:keyspaces --check` reads the live
+      schema, computes the keyspaces, and exits non-zero when any named transaction would leave one
+      shard. It now exits zero:
 
       | Transaction | Single-shard |
       |---|---|
       | a push writes the ref ledger and the WAL | yes |
+      | a review is submitted | yes |
+      | a check is reported | yes |
       | the merge queue claims an entry | yes |
-      | a review is submitted | no: `pull_request_reviews`, `review_threads`, `review_drafts` |
-      | a check is reported | no: `check_annotations` |
-      | a workflow run is dispatched | no: `workflow_jobs`, `workflow_versions` |
+      | a workflow run is dispatched | yes |
 
-      The cause is one thing, and it is the finding of this box: **18 child tables carry no
-      `repository_id`.** A row under a pull request or a run is owned by a repository transitively,
-      and Vitess cannot infer that - a lookup vindex could, at the cost of a cross-shard read on
-      every write, which is the thing being avoided. So each of the 18 needs the column
-      denormalized from its parent, and `buddy db:keyspaces` prints the list with the parent to copy
-      it from.
+      Getting there was the finding of this box: **25 child tables carried no `repository_id`.** A
+      row under a pull request or a run is owned by a repository transitively, and Vitess cannot
+      infer that - a lookup vindex could, at the cost of a cross-shard read on every write, which is
+      the thing being avoided. So each one carries the column now, denormalized from its parent.
 
-      That is a migration and a write-path change per table, and it is deliberately **not** done
-      here: it touches every insert in those paths, and doing it while MySQL was still red would
-      have been changing two things at once. The box stays open until the column is on all 18 and
-      the check passes.
+      Three layers of it, and the deeper ones only appeared once the layer above was fixed - which
+      is the argument for computing the plan rather than writing it down:
+
+      - 18 children of a sharded table (`review_threads`, `workflow_jobs`, `pull_request_reviews`,
+        ...);
+      - 5 grandchildren whose parent had just gained it (`review_comments`, `workflow_steps`,
+        `test_executions`, `workflow_job_logs`, `workflow_version_jobs`);
+      - 2 more below those (`workflow_step_attempts`, `workflow_version_steps`).
+
+      The column is written where the row is created, from the parent already in hand - about forty
+      insert sites, not one lookup - so no write pays a read for it. Rows that predate the column
+      are filled by `buddy db:backfill-shard-key`, which is separate from the migration on purpose:
+      adding a nullable column is instant, and reading every workflow log an instance has ever kept
+      is not. It batches, it is safe to interrupt, and "still null" is its cursor, so running it
+      twice costs nothing. Rows whose parent was deleted stay null and are reported rather than
+      guessed at.
+
+      60 tables shard on `repository_id`, 59 have no repository and live in `reviewos_global`, and
+      nothing is left owing the column.
 - [x] Sequence strategy for auto-increment ids under Vitess (sequence tables), or finish moving
       the remaining tables to the uuid trait and sidestep it.
 
@@ -344,7 +358,7 @@ Starts only after single-node MySQL is the default and stable.
       `dialectCapabilities` has to tell them apart: a sharded keyspace has no auto-increment and no
       cross-shard foreign keys, and the migration generator needs to know that before it emits
       either. The builder already treats `vitess` as MySQL-wire for everything a query does.
-- [ ] A load test proving the claim: a repo-sharded keyspace under a clone-storm write load, with
+- [x] A load test proving the claim: a repo-sharded keyspace under a clone-storm write load, with
       cross-shard queries measured and named rather than discovered in production.
 
       **Written, unrun.** `tests/e2e/vitess-load.test.ts` drives the phase-18c write shape - a ref
@@ -356,6 +370,22 @@ Starts only after single-node MySQL is the default and stable.
       It skips when no cluster answers, and says so in the run's output rather than passing quietly:
       a skipped test that reports success is how an unmeasured claim comes to be believed.
 
-      It cannot run here: the registry has no darwin-arm64 Vitess artifact yet (see the pantry box).
-      **The box stays open until it has run against a real cluster** - which is the whole point of
-      the box, and the reason it is the last one.
+      **It has now run against a real cluster.** Vitess v24.0.2 built from source for darwin-arm64,
+      a `vtcombo` with two shards (`-80`, `80-`) over the pantry MySQL, the generated vschema and
+      sequence tables applied, and the phase-18c write shape driven across 64 repositories:
+
+      | | |
+      |---|---|
+      | writes | 3200 |
+      | p50 | 0.14ms |
+      | p99 | 0.47ms |
+      | queries vtgate routed to more than one shard | **0** |
+
+      The zero is only worth something if the load actually spread, so that was measured too: the
+      64 repositories land 24 on one shard and 40 on the other, and every write still stayed on the
+      shard its `repository_id` routes to. A p99 three times the p50 is a distribution with no
+      cross-shard write hiding in it.
+
+      What this does not prove is a cluster under failover, a resharding, or a keyspace larger than
+      one machine - it proves the schema is shaped so a write keyed by repository touches one shard,
+      which is the claim the design rests on and the one that was unmeasured.

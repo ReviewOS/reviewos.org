@@ -13,6 +13,8 @@
  */
 
 import { db } from '@stacksjs/database'
+import { secretsOfJob } from './logs'
+import { redactSecrets } from './redact'
 import { announceJob, announceRunIfMoved } from '../Workflow/announce'
 import type { JobState } from '../Workflow/states'
 import { canJobMove } from '../Workflow/states'
@@ -56,17 +58,31 @@ export interface ReportInput {
  * lives away from the write is a limit somebody bypasses by calling the other
  * path.
  */
-function cappedOutputs(outputs: Record<string, string> | null | undefined): string | null {
+async function cappedOutputs(
+  outputs: Record<string, string> | null | undefined,
+  jobId: number,
+): Promise<string | null> {
   if (!outputs || typeof outputs !== 'object')
     return null
 
+  /*
+   * Redacted here for the same reason a log chunk is: the runner masking its
+   * own outputs is the first line, and the first line is somebody else's
+   * program. An output is the worse of the two to get wrong - a log is read by
+   * a person, and an output is put into the environment of every job that
+   * declares `needs` on this one, which is a secret leaving the job it was
+   * scoped to.
+   *
+   * A workflow that wants a secret in a later job asks for the secret there.
+   */
+  const secrets = await secretsOfJob(jobId)
   const values: Record<string, string> = {}
 
   for (const [name, value] of Object.entries(outputs).slice(0, 64)) {
     if (!name)
       continue
 
-    values[name.slice(0, 200)] = String(value ?? '').slice(0, 4000)
+    values[name.slice(0, 200)] = redactSecrets(String(value ?? ''), secrets).slice(0, 4000)
   }
 
   return Object.keys(values).length > 0 ? JSON.stringify(values) : null
@@ -220,7 +236,7 @@ export async function reportJob(
        * waiting on it would read them without knowing whether the job that
        * produced them succeeded.
        */
-      outputs: cappedOutputs(input.outputs),
+      outputs: await cappedOutputs(input.outputs, input.jobId),
       // The lease is released with the result. Leaving it would let a
       // heartbeat from this runner keep a finished job looking held.
       lease_expires_at: null,
@@ -248,6 +264,7 @@ export async function reportJob(
       .insertInto('workflow_step_attempts')
       .values({
         workflow_step_id: null,
+        repository_id: facts.repositoryId,
         attempt: 1,
         state: input.state === 'succeeded' ? 'succeeded' : 'failed',
         runner_id: String(runner.id),

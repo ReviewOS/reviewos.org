@@ -125,9 +125,13 @@ export function pullRow(
 export function reviewCommentRow(
   comment: MappedReviewComment,
   threadId: number,
+  repositoryId: number,
 ): Record<string, unknown> {
   return {
     review_thread_id: threadId,
+    // Carried down two levels: a comment's repository is its thread's, and a
+    // sharded keyspace can follow neither foreign key to find it.
+    repository_id: repositoryId,
     body: comment.body,
     author_id: comment.attribution.userId,
     external_author: comment.attribution.userId === null ? comment.attribution.displayName : null,
@@ -144,12 +148,16 @@ export function reviewCommentRow(
 export function threadRow(
   thread: readonly MappedReviewComment[],
   pullRequestId: number,
+  repositoryId: number,
 ): Record<string, unknown> | null {
   const root = thread[0]
   if (!root) return null
 
   return {
     pull_request_id: pullRequestId,
+    // Denormalized from the pull request, because a thread is read and written
+    // beside it: the shard key on the row is what keeps the pair on one shard.
+    repository_id: repositoryId,
     path: root.path,
     line: root.line,
     side: root.side,

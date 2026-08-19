@@ -40,7 +40,7 @@ export default new Action({
     const raw = request.get('viewed')
     const viewed = raw === undefined ? true : raw !== false && raw !== 'false' && raw !== 0 && raw !== '0'
 
-    await setFileViewed(pullRequest.id, user.id, path, viewed, pullRequest.head_sha)
+    await setFileViewed(pullRequest.id, Number(repository.id), user.id, path, viewed, pullRequest.head_sha)
 
     return response.json({ path, viewed, head_sha: viewed ? pullRequest.head_sha : null })
   },

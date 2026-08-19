@@ -78,6 +78,7 @@ export default new Action({
       .insertInto('release_assets')
       .values({
         release_id: Number(release.id),
+        repository_id: Number(repository.id),
         name: decision.name,
         storage_path: blobKey,
         // Recorded as declared, and never used to serve the file. See

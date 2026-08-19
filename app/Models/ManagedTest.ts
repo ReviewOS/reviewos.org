@@ -22,6 +22,7 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
+    { name: 'managed_tests_repository_index', columns: ['repository_id'] },
     { name: 'managed_tests_identity_index', columns: ['test_suite_id', 'scope', 'name'], unique: true },
     { name: 'managed_tests_state_index', columns: ['test_suite_id', 'state'] },
   ],
@@ -150,6 +151,25 @@ export default defineModel({
       order: 12,
       fillable: true,
       validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
+
+    /**
+     * The repository this belongs to, copied from its test suite.
+     *
+     * Denormalized, and the duplication is the point: this is the column a
+     * sharded keyspace routes on, and Vitess cannot follow a foreign key to
+     * find it. Without it this table lands in the unsharded keyspace, and every
+     * transaction touching it and its test suite crosses keyspaces - the one
+     * thing sharding by repository was chosen to avoid.
+     *
+     * Written where the row is created, from the parent already in hand.
+     * `buddy db:keyspaces --check` is what notices when it is not.
+     */
+    repository_id: {
+      order: 90,
+      fillable: true,
+      validation: { rule: schema.number() },
       factory: () => null,
     },
   },

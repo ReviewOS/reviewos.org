@@ -73,7 +73,7 @@ export default new Action({
 
     await db.upsert(
       'review_checkpoints',
-      [{ pull_request_id: Number(pullRequest.id), reviewer_id: Number(user.id), head_sha: head, created_at: now, updated_at: now }],
+      [{ pull_request_id: Number(pullRequest.id), repository_id: Number(repository.id), reviewer_id: Number(user.id), head_sha: head, created_at: now, updated_at: now }],
       ['pull_request_id', 'reviewer_id'],
       ['head_sha', 'updated_at'],
     )

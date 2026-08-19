@@ -459,10 +459,10 @@ async function seedInstance(): Promise<void> {
    * the queue is for, and it is the only way to tell whether the ordering and
    * the empty states are right.
    */
-  await ensureReview(timeout.id, people.rowan!.id, 'changes_requested', REVIEW_ASKING, timeoutHead)
-  await ensureReview(retry.id, people.mira!.id, 'approved', REVIEW_APPROVING, retryHead)
-  await ensureReviewRequest(timeout.id, people.theo!.id, author.id)
-  await ensureReviewRequest(retry.id, people.theo!.id, author.id)
+  await ensureReview(timeout.id, repositoryId, people.rowan!.id, 'changes_requested', REVIEW_ASKING, timeoutHead)
+  await ensureReview(retry.id, repositoryId, people.mira!.id, 'approved', REVIEW_APPROVING, retryHead)
+  await ensureReviewRequest(timeout.id, repositoryId, people.theo!.id, author.id)
+  await ensureReviewRequest(retry.id, repositoryId, people.theo!.id, author.id)
 
   console.log(`  ${ORGANIZATION}/${SERVICE} with a stack of two`)
   console.log(`    #${timeout.number} changes requested by rowan, waiting on theo`)
@@ -690,6 +690,7 @@ async function ensurePullRequest(seed: PullRequestSeed): Promise<{ id: number, n
 /** A submitted review, made if this person has not reviewed already. */
 async function ensureReview(
   pullRequestId: number,
+  repositoryId: number,
   reviewerId: number,
   state: string,
   body: string,
@@ -707,6 +708,7 @@ async function ensureReview(
 
   await db.insertInto('pull_request_reviews').values({
     pull_request_id: pullRequestId,
+    repository_id: repositoryId,
     reviewer_id: reviewerId,
     state,
     body,
@@ -716,7 +718,7 @@ async function ensureReview(
 }
 
 /** A request nobody has answered, which is what a review queue is made of. */
-async function ensureReviewRequest(pullRequestId: number, reviewerId: number, requestedById: number): Promise<void> {
+async function ensureReviewRequest(pullRequestId: number, repositoryId: number, reviewerId: number, requestedById: number): Promise<void> {
   const existing = await db
     .selectFrom('pull_request_reviewers')
     .select(['id'])
@@ -730,6 +732,7 @@ async function ensureReviewRequest(pullRequestId: number, reviewerId: number, re
 
   await db.insertInto('pull_request_reviewers').values({
     pull_request_id: pullRequestId,
+    repository_id: repositoryId,
     reviewer_type: 'user',
     reviewer_id: reviewerId,
     requested_by_id: requestedById,

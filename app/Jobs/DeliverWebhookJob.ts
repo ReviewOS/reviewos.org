@@ -61,7 +61,7 @@ export default new Job({
 
     const webhook = await db
       .selectFrom('webhooks')
-      .select(['id', 'url', 'secret', 'content_type', 'active', 'consecutive_failures', 'last_success_at'])
+      .select(['id', 'url', 'secret', 'content_type', 'active', 'consecutive_failures', 'last_success_at', 'repository_id'])
       .where('id', '=', webhookId)
       .executeTakeFirst()
 
@@ -96,6 +96,9 @@ export default new Job({
 
     await record({
       webhookId,
+      // Null for an instance-level webhook, which has no repository - the same
+      // value the webhook row carries.
+      repositoryId: Number(webhook.repository_id) || null,
       event,
       body,
       headers,
@@ -258,6 +261,7 @@ async function resolveHost(hostname: string): Promise<string | null> {
  */
 async function record(entry: {
   webhookId: number
+  repositoryId: number | null
   event: string
   body: string
   headers: Record<string, string>
@@ -270,6 +274,7 @@ async function record(entry: {
   try {
     await db.insertInto('webhook_deliveries').values({
       webhook_id: entry.webhookId,
+      repository_id: entry.repositoryId,
       event: entry.event,
       payload: entry.body,
       // The signature is not stored. It is reproducible from the payload and

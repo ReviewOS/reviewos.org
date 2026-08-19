@@ -165,7 +165,7 @@ async function setLabel(ids: number[], requested: unknown, repositoryId: number,
   if (missing.length > 0) {
     await db
       .insertInto('issue_labels')
-      .values(missing.map(id => ({ issue_id: id, label_id: labelId })))
+      .values(missing.map(id => ({ issue_id: id, repository_id: repositoryId, label_id: labelId })))
       .execute()
   }
 

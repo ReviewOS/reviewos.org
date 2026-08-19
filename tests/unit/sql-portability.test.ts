@@ -92,6 +92,18 @@ describe('the hand-written SQL', () => {
       if (file.path === 'app/Actions/Support/sql.ts')
         continue
 
+      /*
+       * The engine tools are the dialect layer rather than users of it.
+       *
+       * `engineMigration`, `vitess` and `shardKeyBackfill` open their own
+       * connection to a named engine and write each dialect out in full - a
+       * joined update has no shared syntax between MySQL and Postgres at all,
+       * so there is nothing for `portable()` to translate and asking it to try
+       * would mean pretending one statement fits both.
+       */
+      if (file.path.startsWith('app/Actions/Database/'))
+        continue
+
       const text = code(file.text)
 
       /*

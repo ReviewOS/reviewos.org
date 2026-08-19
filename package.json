@@ -67,26 +67,26 @@
     "typecheck:framework": "bun x --bun tsc --noEmit -p storage/framework/tsconfig.framework.json --pretty false"
   },
   "dependencies": {
-    "@stacksjs/actions": "^0.72.32",
+    "@stacksjs/actions": "^0.72.34",
     "@stacksjs/api": "^0.72.32",
-    "@stacksjs/buddy": "^0.72.32",
+    "@stacksjs/buddy": "^0.72.34",
     "@stacksjs/bunpress": "^0.2.8",
-    "@stacksjs/database": "^0.72.32",
+    "@stacksjs/database": "^0.72.34",
     "@stacksjs/docs": "^0.72.32",
     "@stacksjs/env": "^0.72.32",
     "@stacksjs/events": "^0.72.32",
     "@stacksjs/faker": "^0.72.32",
-    "@stacksjs/orm": "^0.72.32",
+    "@stacksjs/orm": "^0.72.34",
     "@stacksjs/queue": "^0.72.32",
     "@stacksjs/search-engine": "^0.72.32",
     "@stacksjs/server": "^0.72.32",
     "@stacksjs/stx": "^0.2.193",
     "@stacksjs/ts-ssh": "^0.1.1",
     "buddy-bot": "^0.9.27",
-    "bun-query-builder": "^0.2.55",
+    "bun-query-builder": "0.2.59",
     "mermaid": "^11.16.1",
     "pickier": "^0.1.57",
-    "stacks": "^0.72.32",
+    "stacks": "^0.72.34",
     "ts-git-lfs": "^0.1.3",
     "ts-images": "^0.2.12",
     "ts-pantry": "^0.11.32",
@@ -110,7 +110,7 @@
     "better-dx": "^0.2.22"
   },
   "overrides": {
-    "bun-query-builder": "^0.2.55",
+    "bun-query-builder": "^0.2.59",
     "@stacksjs/bun-router": "^0.0.27",
     "@stacksjs/stx": "^0.2.192",
     "@stacksjs/ts-ssh": "^0.1.0",
@@ -118,6 +118,6 @@
     "bun-plugin-stx": "^0.2.193",
     "@stacksjs/components": "^0.2.193",
     "@stacksjs/ts-cloud": "^0.8.3",
-    "@stacksjs/buddy": "^0.72.31"
+    "@stacksjs/buddy": "^0.72.34"
   }
 }

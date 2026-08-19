@@ -14,6 +14,7 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
+    { name: 'review_comments_repository_index', columns: ['repository_id'] },
     { name: 'review_comments_thread_index', columns: ['review_thread_id'] },
     // Every re-sync looks up each incoming comment by its upstream id, so this
     // is the difference between one index scan and a table scan per comment.
@@ -103,6 +104,25 @@ export default defineModel({
       order: 8,
       fillable: true,
       validation: { rule: schema.string().max(120) },
+      factory: () => null,
+    },
+
+    /**
+     * The repository this belongs to, copied from its review thread.
+     *
+     * Denormalized, and the duplication is the point: this is the column a
+     * sharded keyspace routes on, and Vitess cannot follow a foreign key to
+     * find it - least of all through two of them, which is the shape here. A
+     * grandchild left without it lands in the unsharded keyspace, and every
+     * transaction touching it and its parent crosses keyspaces.
+     *
+     * Written where the row is created, from the parent already in hand.
+     * `buddy db:keyspaces --check` is what notices when it is not.
+     */
+    repository_id: {
+      order: 90,
+      fillable: true,
+      validation: { rule: schema.number() },
       factory: () => null,
     },
   },

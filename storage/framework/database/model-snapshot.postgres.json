@@ -1596,6 +1596,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -1604,6 +1612,13 @@
             "columns": [
               "issue_id",
               "user_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "issue_assignees_repository_index",
+            "columns": [
+              "repository_id"
             ],
             "type": "index"
           }
@@ -1798,6 +1813,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -1806,6 +1829,13 @@
             "columns": [
               "issue_id",
               "label_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "issue_labels_repository_index",
+            "columns": [
+              "repository_id"
             ],
             "type": "index"
           }
@@ -3457,6 +3487,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -3472,6 +3510,13 @@
             "columns": [
               "pull_request_id",
               "reviewer_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "pull_request_reviews_repository_index",
+            "columns": [
+              "repository_id"
             ],
             "type": "index"
           }
@@ -3568,6 +3613,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -3575,6 +3628,13 @@
             "name": "pr_reviewers_pr_index",
             "columns": [
               "pull_request_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "pull_request_reviewers_repository_index",
+            "columns": [
+              "repository_id"
             ],
             "type": "index"
           }
@@ -4163,6 +4223,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -4173,6 +4241,13 @@
               "name"
             ],
             "type": "unique"
+          },
+          {
+            "name": "release_assets_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -5145,6 +5220,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -5155,6 +5238,13 @@
               "reviewer_id"
             ],
             "type": "unique"
+          },
+          {
+            "name": "review_checkpoints_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -5270,6 +5360,14 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -5293,6 +5391,13 @@
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "review_comments_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -5395,6 +5500,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -5405,6 +5518,13 @@
               "author_id"
             ],
             "type": "unique"
+          },
+          {
+            "name": "review_drafts_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -5478,6 +5598,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -5495,6 +5623,13 @@
             "columns": [
               "pull_request_id",
               "reviewer_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "reviewed_files_repository_index",
+            "columns": [
+              "repository_id"
             ],
             "type": "index"
           }
@@ -5633,6 +5768,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -5655,6 +5798,13 @@
             "name": "review_threads_external_index",
             "columns": [
               "external_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "review_threads_repository_index",
+            "columns": [
+              "repository_id"
             ],
             "type": "index"
           }
@@ -6764,6 +6914,14 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -6780,6 +6938,13 @@
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "webhook_deliveries_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -7496,6 +7661,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -7504,6 +7677,13 @@
             "columns": [
               "check_run_id",
               "path"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "check_annotations_repository_index",
+            "columns": [
+              "repository_id"
             ],
             "type": "index"
           }
@@ -8290,6 +8470,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8307,6 +8495,13 @@
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "workflow_versions_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -8579,6 +8774,14 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": 0
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8587,6 +8790,13 @@
             "columns": [
               "workflow_version_id",
               "position"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_version_jobs_repository_index",
+            "columns": [
+              "repository_id"
             ],
             "type": "index"
           }
@@ -8735,6 +8945,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -8743,6 +8961,13 @@
             "columns": [
               "workflow_version_job_id",
               "position"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_version_steps_repository_index",
+            "columns": [
+              "repository_id"
             ],
             "type": "index"
           }
@@ -9108,6 +9333,14 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 40
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -9140,6 +9373,13 @@
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "workflow_jobs_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -9637,6 +9877,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -9645,6 +9893,13 @@
             "columns": [
               "workflow_job_id",
               "position"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_steps_repository_index",
+            "columns": [
+              "repository_id"
             ],
             "type": "index"
           }
@@ -9758,6 +10013,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -9766,6 +10029,13 @@
             "columns": [
               "workflow_step_id",
               "attempt"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_step_attempts_repository_index",
+            "columns": [
+              "repository_id"
             ],
             "type": "index"
           }
@@ -10047,6 +10317,14 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": 1
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -10067,6 +10345,13 @@
               "sequence"
             ],
             "type": "unique"
+          },
+          {
+            "name": "workflow_job_logs_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -10170,6 +10455,23 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "blob_key",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -10201,6 +10503,13 @@
               "name"
             ],
             "type": "unique"
+          },
+          {
+            "name": "workflow_artifacts_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -10857,6 +11166,14 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 40
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -10883,6 +11200,13 @@
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "managed_tests_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -11012,6 +11336,14 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -11036,6 +11368,13 @@
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "test_executions_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -11189,6 +11528,14 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -11222,6 +11569,13 @@
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "test_runs_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -11635,6 +11989,14 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -11652,6 +12014,13 @@
               "uuid"
             ],
             "type": "unique"
+          },
+          {
+            "name": "environment_reviewers_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -12348,6 +12717,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -12358,6 +12735,13 @@
               "key"
             ],
             "type": "unique"
+          },
+          {
+            "name": "run_metadata_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
           }
         ]
       },
@@ -12892,6 +13276,108 @@
         ]
       },
       {
+        "table": "git_refs",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "ref",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 255
+          },
+          {
+            "name": "sha",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 64
+          },
+          {
+            "name": "sequence",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "git_refs_unique",
+            "columns": [
+              "repository_id",
+              "ref"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "git_refs_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "git_refs_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
+      },
+      {
         "table": "git_wal_entries",
         "columns": [
           {
@@ -12911,7 +13397,8 @@
             "hasDefault": false,
             "references": {
               "table": "repositories",
-              "column": "id"
+              "column": "id",
+              "onDelete": "cascade"
             }
           },
           {
@@ -13039,7 +13526,7 @@
       }
     ]
   },
-  "hash": "e153893fafcaa5e42604870f029475a837197badf6c90fb5f3d7caffbdcf070e",
+  "hash": "b53b611d804f9977b4b88bef293e93d4eb86a069dc96687c7db96e6358a358ad",
   "dialect": "postgres",
-  "updatedAt": "2026-08-19T03:34:13.663Z"
+  "updatedAt": "2026-08-19T14:35:45.807Z"
 }

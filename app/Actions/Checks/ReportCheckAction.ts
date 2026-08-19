@@ -236,7 +236,7 @@ async function reportCheckRun(request: any, about: About, sha: string, reporterI
       .returning(['id'])
       .executeTakeFirst()
 
-    await writeAnnotations(request, Number(created?.id))
+    await writeAnnotations(request, Number(created?.id), repositoryId)
 
     await announce(about, 'check:reported', {
       name,
@@ -271,7 +271,7 @@ async function reportCheckRun(request: any, about: About, sha: string, reporterI
   }
 
   await db.updateTable('check_runs').set(fields as any).where('id', '=', Number(existing.id)).execute()
-  await writeAnnotations(request, Number(existing.id))
+  await writeAnnotations(request, Number(existing.id), repositoryId)
 
   await announce(about, 'check:reported', {
     name,
@@ -294,7 +294,7 @@ async function reportCheckRun(request: any, about: About, sha: string, reporterI
  * them into the five already stored would leave the two it fixed on the diff
  * forever.
  */
-async function writeAnnotations(request: any, checkRunId: number): Promise<void> {
+async function writeAnnotations(request: any, checkRunId: number, repositoryId: number): Promise<void> {
   const raw = request.get('annotations')
 
   if (!raw || !checkRunId)
@@ -323,6 +323,10 @@ async function writeAnnotations(request: any, checkRunId: number): Promise<void>
 
     await db.insertInto('check_annotations').values({
       check_run_id: checkRunId,
+      // Carried from the check run rather than joined to it: the shard key is
+      // what keeps a check report on one shard under Vitess, and a column that
+      // is only written sometimes is a column that cannot be routed on.
+      repository_id: repositoryId,
       path,
       start_line: startLine,
       // A single-line annotation has no end, and storing the start rather than

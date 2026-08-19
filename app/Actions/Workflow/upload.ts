@@ -183,6 +183,7 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
       .insertInto('workflow_jobs')
       .values({
         workflow_run_id: Number(run.id),
+        repository_id: Number(run.repository_id),
         job_id: one.id,
         name: one.name ?? one.id,
         position: position++,
@@ -224,6 +225,7 @@ export async function uploadSteps(jobId: number, source: string, now: Date = new
         .insertInto('workflow_steps')
         .values({
           workflow_job_id: id,
+          repository_id: Number(run.repository_id),
           position: index,
           name: step.name ?? step.run ?? step.uses ?? `step ${index + 1}`,
           state: 'pending',

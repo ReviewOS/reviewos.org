@@ -135,17 +135,17 @@ describe('threadRow', () => {
   }
 
   it('anchors the thread on its root comment', () => {
-    const row = threadRow([comment(1), comment(2, { path: 'other.ts', line: 99 })], 8)
+    const row = threadRow([comment(1), comment(2, { path: 'other.ts', line: 99 })], 8, 3)
 
-    expect(row).toMatchObject({ pull_request_id: 8, path: 'src/a.ts', line: 12, external_id: 1 })
+    expect(row).toMatchObject({ pull_request_id: 8, repository_id: 3, path: 'src/a.ts', line: 12, external_id: 1 })
   })
 
   it('returns nothing for an empty thread rather than an anchorless row', () => {
-    expect(threadRow([], 8)).toBeNull()
+    expect(threadRow([], 8, 3)).toBeNull()
   })
 
   it('links a comment to the thread it was placed in', () => {
-    expect(reviewCommentRow(comment(3), 55)).toMatchObject({ review_thread_id: 55, external_id: 3 })
+    expect(reviewCommentRow(comment(3), 55, 3)).toMatchObject({ review_thread_id: 55, repository_id: 3, external_id: 3 })
   })
 })
 

@@ -25,6 +25,7 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
+    { name: 'workflow_job_logs_repository_index', columns: ['repository_id'] },
     // The read: everything after the cursor a reader holds, within one attempt.
     { name: 'workflow_job_logs_job_index', columns: ['workflow_job_id', 'attempt', 'sequence'] },
     /*
@@ -132,6 +133,25 @@ export default defineModel({
       // `schema.string()` becomes `varchar(255)`, which holds about two events
       // and truncates the rest of a chunk without saying so.
       validation: { rule: schema.string().max(65_535) },
+      factory: () => null,
+    },
+
+    /**
+     * The repository this belongs to, copied from the job that wrote it.
+     *
+     * Denormalized, and the duplication is the point: this is the column a
+     * sharded keyspace routes on, and Vitess cannot follow a foreign key to
+     * find it - least of all through two of them, which is the shape here. A
+     * grandchild left without it lands in the unsharded keyspace, and every
+     * transaction touching it and its parent crosses keyspaces.
+     *
+     * Written where the row is created, from the parent already in hand.
+     * `buddy db:keyspaces --check` is what notices when it is not.
+     */
+    repository_id: {
+      order: 90,
+      fillable: true,
+      validation: { rule: schema.number() },
       factory: () => null,
     },
   },

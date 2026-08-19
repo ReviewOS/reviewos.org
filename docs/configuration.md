@@ -207,25 +207,25 @@ changes. It is opt-in and nobody self-hosting a forge needs it - see
 docs/todo/17-database.md for what the keyspaces look like and what a sharded
 keyspace refuses.
 
-Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
+Read by `app/Commands/DbBackfillShardKey.ts`, `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_HOST`
 
 Default: `127.0.0.1`.
 
-Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
+Read by `app/Commands/DbBackfillShardKey.ts`, `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_PORT`
 
 Default: `3306`. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
 
-Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
+Read by `app/Commands/DbBackfillShardKey.ts`, `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_DATABASE`
 
 Default: `reviewos`.
 
-Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`, `app/Commands/Doctor.ts`.
+Read by `app/Commands/DbBackfillShardKey.ts`, `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`, `app/Commands/Doctor.ts`.
 
 ### `DB_USERNAME`
 
@@ -240,13 +240,13 @@ On Postgres it is `postgres`, for the same kind of reason: pantry initialises
 that cluster with `initdb --auth-local=trust --auth-host=trust
 --username=postgres`, so that is the only role there is.
 
-Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
+Read by `app/Commands/DbBackfillShardKey.ts`, `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_PASSWORD`
 
 Default: empty.
 
-Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
+Read by `app/Commands/DbBackfillShardKey.ts`, `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
 
 ### `DATABASE_URL`
 

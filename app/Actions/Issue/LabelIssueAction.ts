@@ -88,7 +88,7 @@ export default new Action({
     if (labels.length > 0) {
       await db
         .insertInto('issue_labels')
-        .values(labels.map((label) => ({ issue_id: Number(issue.id), label_id: Number(label.id) })))
+        .values(labels.map((label) => ({ issue_id: Number(issue.id), repository_id: Number(repository.id), label_id: Number(label.id) })))
         .execute()
     }
 

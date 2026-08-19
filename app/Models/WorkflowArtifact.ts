@@ -27,6 +27,7 @@ export default defineModel({
   autoIncrement: true,
 
   indexes: [
+    { name: 'workflow_artifacts_repository_index', columns: ['repository_id'] },
     // The list: everything one run produced, which is how the run screen and
     // the API both read them.
     { name: 'workflow_artifacts_run_index', columns: ['workflow_run_id'] },
@@ -145,6 +146,25 @@ export default defineModel({
       order: 8,
       fillable: true,
       validation: { rule: schema.string().max(100) },
+      factory: () => null,
+    },
+
+    /**
+     * The repository this belongs to, copied from its workflow run.
+     *
+     * Denormalized, and the duplication is the point: this is the column a
+     * sharded keyspace routes on, and Vitess cannot follow a foreign key to
+     * find it. Without it this table lands in the unsharded keyspace, and every
+     * transaction touching it and its workflow run crosses keyspaces - the one
+     * thing sharding by repository was chosen to avoid.
+     *
+     * Written where the row is created, from the parent already in hand.
+     * `buddy db:keyspaces --check` is what notices when it is not.
+     */
+    repository_id: {
+      order: 90,
+      fillable: true,
+      validation: { rule: schema.number() },
       factory: () => null,
     },
   },

@@ -27,6 +27,14 @@ import {
 
 export interface StoreInput {
   runId: number
+  /**
+   * The shard key, when the caller already has it.
+   *
+   * Read from the run when it does not: an artifact belongs to a repository
+   * whatever route it arrived by, and a row that is missing the key is a row
+   * Vitess would have to scatter to find.
+   */
+  repositoryId?: number | null
   jobId?: number | null
   name: unknown
   bytes: Uint8Array
@@ -106,10 +114,17 @@ export async function storeArtifact(input: StoreInput): Promise<StoreOutcome> {
 
   const retention = expiresAt({ requestedDays: input.retentionDays ?? null, now: input.now })
 
+  const repositoryId = input.repositoryId ?? (Number((await db
+    .selectFrom('workflow_runs')
+    .select(['repository_id'])
+    .where('id', '=', input.runId)
+    .executeTakeFirst())?.repository_id ?? 0) || null)
+
   const created = await db
     .insertInto('workflow_artifacts')
     .values({
       workflow_run_id: input.runId,
+      repository_id: repositoryId,
       workflow_job_id: input.jobId ?? null,
       name,
       digest,

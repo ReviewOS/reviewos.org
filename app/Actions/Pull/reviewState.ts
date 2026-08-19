@@ -89,6 +89,7 @@ export async function viewedFiles(pullRequestId: number, reviewerId: number): Pr
  */
 export async function setFileViewed(
   pullRequestId: number,
+  repositoryId: number,
   reviewerId: number,
   path: string,
   viewed: boolean,
@@ -109,7 +110,7 @@ export async function setFileViewed(
 
   await db.upsert(
     'reviewed_files',
-    [{ pull_request_id: pullRequestId, reviewer_id: reviewerId, path, head_sha: headSha, created_at: now, updated_at: now }],
+    [{ pull_request_id: pullRequestId, repository_id: repositoryId, reviewer_id: reviewerId, path, head_sha: headSha, created_at: now, updated_at: now }],
     ['pull_request_id', 'reviewer_id', 'path'],
     ['head_sha', 'updated_at'],
   )
@@ -136,7 +137,7 @@ export async function draftFor(pullRequestId: number, authorId: number): Promise
 }
 
 /** Replace the reviewer's draft, or remove it when the text is gone. */
-export async function saveDraft(pullRequestId: number, authorId: number, draft: DraftComment | null): Promise<void> {
+export async function saveDraft(pullRequestId: number, repositoryId: number, authorId: number, draft: DraftComment | null): Promise<void> {
   if (draft == null || draft.text.trim() === '') {
     await db
       .deleteFrom('review_drafts')
@@ -155,6 +156,7 @@ export async function saveDraft(pullRequestId: number, authorId: number, draft: 
     'review_drafts',
     [{
       pull_request_id: pullRequestId,
+      repository_id: repositoryId,
       author_id: authorId,
       path: draft.path,
       side: draft.side,

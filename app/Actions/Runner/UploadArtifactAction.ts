@@ -73,7 +73,7 @@ export default new Action({
 
     const job = await db
       .selectFrom('workflow_jobs')
-      .select(['id', 'workflow_run_id'])
+      .select(['id', 'workflow_run_id', 'repository_id'])
       .where('id', '=', held.jobId)
       .executeTakeFirst()
 
@@ -99,6 +99,7 @@ export default new Action({
 
     const stored = await storeArtifact({
       runId: Number(job.workflow_run_id),
+      repositoryId: Number(job.repository_id) || null,
       jobId: Number(job.id),
       name: header(request, 'X-Artifact-Name') || 'artifact',
       bytes,

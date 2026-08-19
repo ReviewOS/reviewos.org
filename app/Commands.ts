@@ -120,4 +120,5 @@ export default {
    * a decision in prose drifts the first time somebody adds a model.
    */
   'db:keyspaces': 'DbKeyspaces',
+  'db:backfill-shard-key': 'DbBackfillShardKey',
 } satisfies CommandRegistry

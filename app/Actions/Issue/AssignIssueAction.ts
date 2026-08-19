@@ -108,7 +108,7 @@ export default new Action({
     if (users.length > 0) {
       await db
         .insertInto('issue_assignees')
-        .values(users.map((row) => ({ issue_id: Number(issue.id), user_id: Number(row.id) })))
+        .values(users.map((row) => ({ issue_id: Number(issue.id), repository_id: Number(repository.id), user_id: Number(row.id) })))
         .execute()
     }
 

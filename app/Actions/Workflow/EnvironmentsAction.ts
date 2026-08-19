@@ -178,7 +178,7 @@ export default new Action({
         if (!already) {
           await db
             .insertInto('environment_reviewers')
-            .values({ environment_id: Number(found.id), user_id: Number(user.id) })
+            .values({ environment_id: Number(found.id), repository_id: repositoryId, user_id: Number(user.id) })
             .execute()
         }
       }

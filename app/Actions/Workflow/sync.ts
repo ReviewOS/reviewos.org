@@ -198,6 +198,10 @@ async function insertVersion(
     .insertInto('workflow_versions')
     .values({
       workflow_id: workflowId,
+      // Null for an instance-level workflow, which belongs to no repository -
+      // the same value its workflow row carries, and what puts it in the
+      // unsharded keyspace rather than on an arbitrary shard.
+      repository_id: input.repositoryId,
       source_sha: input.sha,
       source_path: input.path,
       content_digest: digest,
@@ -256,6 +260,7 @@ async function insertVersion(
       .insertInto('workflow_version_jobs')
       .values({
         workflow_version_id: versionId,
+        repository_id: input.repositoryId,
         job_id: job.id,
         position,
         name: job.name,
@@ -303,6 +308,7 @@ async function insertVersion(
         .insertInto('workflow_version_steps')
         .values({
           workflow_version_job_id: jobId,
+          repository_id: input.repositoryId,
           position: stepPosition,
           step_id: step.id,
           name: step.name,

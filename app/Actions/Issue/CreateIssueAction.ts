@@ -176,7 +176,7 @@ async function applyLabels(issueId: number, repositoryId: number, requested: unk
 
   await db
     .insertInto('issue_labels')
-    .values(matched.map(row => ({ issue_id: issueId, label_id: Number(row.id) })))
+    .values(matched.map(row => ({ issue_id: issueId, repository_id: repositoryId, label_id: Number(row.id) })))
     .execute()
 
   return matched.map(row => String(row.name))

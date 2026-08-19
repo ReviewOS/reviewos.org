@@ -15,7 +15,7 @@
  */
 
 import { db } from '@stacksjs/database'
-import { redactSecrets } from './redact'
+import { countRedactions, MARKER, redactSecrets } from './redact'
 import type { LogEvent } from './logevents'
 import { eventsAsText } from './logevents'
 import { isNotFalse } from '../Support/sql'
@@ -74,7 +74,7 @@ async function storedBytes(jobId: number): Promise<number> {
     .where('workflow_job_id', '=', jobId)
     // This attempt's budget, not the sum of every attempt's: a re-run of a job
     // that filled the ceiling would otherwise be silent from its first line.
-    .where('attempt', '=', await attemptOf(jobId))
+    .where('attempt', '=', (await attemptOf(jobId)).attempt)
     .execute()
 
   return rows.reduce((total, row) => total + byteLength(String(row.content ?? '')), 0)
@@ -143,11 +143,14 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
     ? `${content.slice(0, room)}\n[log truncated: this job reached ${MAX_JOB_LOG_BYTES} bytes]\n`
     : content
 
+  const job = await attemptOf(input.jobId)
+
   try {
     await db
       .insertInto('workflow_job_logs')
       .values({
         workflow_job_id: input.jobId,
+        repository_id: job.repositoryId,
         /*
          * Which attempt wrote this.
          *
@@ -157,7 +160,7 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
          * attempt. The read is one indexed lookup on a row this write already
          * depends on.
          */
-        attempt: await attemptOf(input.jobId),
+        attempt: job.attempt,
         sequence: input.sequence,
         content: clipped,
         stream,
@@ -207,6 +210,16 @@ export interface LogPage {
   chunks: Array<{ sequence: number, stream: string, content: string, events?: LogEvent[] }>
   /** Where to ask from next. Unchanged when there was nothing new. */
   cursor: number
+  /**
+   * What was taken out of this page, and what it was replaced with.
+   *
+   * Metadata rather than a silent omission: the chunks above already carry the
+   * marker inline, and this says how many of them there are so a client can
+   * render "2 values hidden" beside the log instead of leaving a reader to
+   * spot the markers themselves. `count` is per page, because that is what the
+   * client is showing.
+   */
+  redaction: { marker: string, count: number }
 }
 
 /**
@@ -226,7 +239,7 @@ const MEMO_MS = 5 * 60_000
 /** The most jobs to remember at once. Past this, the oldest entry goes. */
 const MEMO_LIMIT = 200
 
-async function secretsOfJob(jobId: number): Promise<string[]> {
+export async function secretsOfJob(jobId: number): Promise<string[]> {
   const held = secretMemo.get(jobId)
 
   if (held && Date.now() - held.at < MEMO_MS)
@@ -357,18 +370,21 @@ async function throttleFor(bytes: number): Promise<number> {
 }
 
 /** Which attempt the job is on, for attributing a chunk to it. */
-async function attemptOf(jobId: number): Promise<number> {
+async function attemptOf(jobId: number): Promise<{ attempt: number, repositoryId: number | null }> {
   try {
     const row = await db
       .selectFrom('workflow_jobs')
-      .select(['attempt'])
+      // The shard key comes along with the attempt because both are read from
+      // the same row: a log chunk belongs to the job's repository, and the
+      // runner API has no repository in hand to tell it so.
+      .select(['attempt', 'repository_id'])
       .where('id', '=', jobId)
       .executeTakeFirst()
 
-    return Number(row?.attempt ?? 1) || 1
+    return { attempt: Number(row?.attempt ?? 1) || 1, repositoryId: Number(row?.repository_id) || null }
   }
   catch {
-    return 1
+    return { attempt: 1, repositoryId: null }
   }
 }
 
@@ -389,7 +405,7 @@ export async function readLog(jobId: number, after = 0, limit = 200, attempt?: n
    * earlier attempt is still there - that is the whole point of keeping it -
    * and a reader who wants it names it.
    */
-  const wanted = Number.isInteger(attempt) && Number(attempt) > 0 ? Number(attempt) : await attemptOf(jobId)
+  const wanted = Number.isInteger(attempt) && Number(attempt) > 0 ? Number(attempt) : (await attemptOf(jobId)).attempt
 
   const rows = await db
     .selectFrom('workflow_job_logs')
@@ -401,18 +417,29 @@ export async function readLog(jobId: number, after = 0, limit = 200, attempt?: n
     .limit(Math.min(Math.max(limit, 1), 500))
     .execute()
 
+  const chunks = rows.map(row => ({
+    sequence: Number(row.sequence),
+    stream: String(row.stream ?? 'stdout'),
+    content: String(row.content ?? ''),
+    // Present only for the chunks a runner sent structured. A reader that does
+    // not know about events sees the text and misses nothing it could have
+    // used; one that does gets the groups, the timestamps and the colour,
+    // which cannot be recovered from the text afterwards.
+    ...(row.events ? { events: safeEvents(row.events) } : {}),
+  }))
+
   return {
-    chunks: rows.map(row => ({
-      sequence: Number(row.sequence),
-      stream: String(row.stream ?? 'stdout'),
-      content: String(row.content ?? ''),
-      // Present only for the chunks a runner sent structured. A reader that
-      // does not know about events sees the text and misses nothing it could
-      // have used; one that does gets the groups, the timestamps and the
-      // colour, which cannot be recovered from the text afterwards.
-      ...(row.events ? { events: safeEvents(row.events) } : {}),
-    })),
+    chunks,
     cursor: rows.length > 0 ? Number(rows[rows.length - 1]?.sequence ?? 0) : (Number.isFinite(after) ? after : 0),
+    /*
+     * Counted over what is being sent, not over what was stored.
+     *
+     * The redaction happened on the way in, so this is reading the markers back
+     * out of the text. That is the only count that is right for pages written
+     * before it was recorded anywhere, and a client showing a page is asking
+     * about that page.
+     */
+    redaction: { marker: MARKER, count: chunks.reduce((total, chunk) => total + countRedactions(chunk.content), 0) },
   }
 }
 

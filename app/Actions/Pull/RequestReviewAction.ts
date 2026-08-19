@@ -113,6 +113,7 @@ export default new Action({
         .insertInto('pull_request_reviewers')
         .values({
           pull_request_id: Number(pullRequest.id),
+          repository_id: Number(repository.id),
           reviewer_type: reviewerType,
           reviewer_id: reviewerId,
           requested_by_id: user.id,

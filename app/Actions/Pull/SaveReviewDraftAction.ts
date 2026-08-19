@@ -38,7 +38,7 @@ export default new Action({
     if (!parsed.ok)
       return response.json({ error: parsed.error }, 422)
 
-    await saveDraft(pullRequest.id, user.id, parsed.draft)
+    await saveDraft(pullRequest.id, Number(repository.id), user.id, parsed.draft)
 
     return response.json({ draft: parsed.draft })
   },

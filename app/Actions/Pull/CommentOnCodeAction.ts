@@ -90,6 +90,7 @@ export default new Action({
         .insertInto('review_comments')
         .values({
           review_thread_id: replyTo,
+          repository_id: Number(repository.id),
           author_id: user.id,
           body,
           suggestion: suggestionIn(body),
@@ -121,6 +122,7 @@ export default new Action({
       .insertInto('review_threads')
       .values({
         pull_request_id: Number(pullRequest.id),
+        repository_id: Number(repository.id),
         path,
         line,
         start_line: startLine,
@@ -139,6 +141,7 @@ export default new Action({
       .insertInto('review_comments')
       .values({
         review_thread_id: threadId,
+        repository_id: Number(repository.id),
         author_id: user.id,
         body,
         suggestion: suggestionIn(body),

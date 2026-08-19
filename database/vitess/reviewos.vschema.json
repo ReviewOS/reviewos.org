@@ -150,6 +150,18 @@
         "sequence": "reviewos_global.environments_seq"
       }
     },
+    "git_refs": {
+      "column_vindexes": [
+        {
+          "column": "repository_id",
+          "name": "repository_id_vdx"
+        }
+      ],
+      "auto_increment": {
+        "column": "id",
+        "sequence": "reviewos_global.git_refs_seq"
+      }
+    },
     "git_wal_entries": {
       "column_vindexes": [
         {
@@ -402,6 +414,18 @@
         "sequence": "reviewos_global.review_checkpoints_seq"
       }
     },
+    "review_comments": {
+      "column_vindexes": [
+        {
+          "column": "repository_id",
+          "name": "repository_id_vdx"
+        }
+      ],
+      "auto_increment": {
+        "column": "id",
+        "sequence": "reviewos_global.review_comments_seq"
+      }
+    },
     "review_drafts": {
       "column_vindexes": [
         {
@@ -484,6 +508,18 @@
       "auto_increment": {
         "column": "id",
         "sequence": "reviewos_global.team_repositories_seq"
+      }
+    },
+    "test_executions": {
+      "column_vindexes": [
+        {
+          "column": "repository_id",
+          "name": "repository_id_vdx"
+        }
+      ],
+      "auto_increment": {
+        "column": "id",
+        "sequence": "reviewos_global.test_executions_seq"
       }
     },
     "test_monitors": {
@@ -570,6 +606,18 @@
         "sequence": "reviewos_global.workflow_artifacts_seq"
       }
     },
+    "workflow_job_logs": {
+      "column_vindexes": [
+        {
+          "column": "repository_id",
+          "name": "repository_id_vdx"
+        }
+      ],
+      "auto_increment": {
+        "column": "id",
+        "sequence": "reviewos_global.workflow_job_logs_seq"
+      }
+    },
     "workflow_jobs": {
       "column_vindexes": [
         {
@@ -604,6 +652,54 @@
       "auto_increment": {
         "column": "id",
         "sequence": "reviewos_global.workflow_runs_seq"
+      }
+    },
+    "workflow_step_attempts": {
+      "column_vindexes": [
+        {
+          "column": "repository_id",
+          "name": "repository_id_vdx"
+        }
+      ],
+      "auto_increment": {
+        "column": "id",
+        "sequence": "reviewos_global.workflow_step_attempts_seq"
+      }
+    },
+    "workflow_steps": {
+      "column_vindexes": [
+        {
+          "column": "repository_id",
+          "name": "repository_id_vdx"
+        }
+      ],
+      "auto_increment": {
+        "column": "id",
+        "sequence": "reviewos_global.workflow_steps_seq"
+      }
+    },
+    "workflow_version_jobs": {
+      "column_vindexes": [
+        {
+          "column": "repository_id",
+          "name": "repository_id_vdx"
+        }
+      ],
+      "auto_increment": {
+        "column": "id",
+        "sequence": "reviewos_global.workflow_version_jobs_seq"
+      }
+    },
+    "workflow_version_steps": {
+      "column_vindexes": [
+        {
+          "column": "repository_id",
+          "name": "repository_id_vdx"
+        }
+      ],
+      "auto_increment": {
+        "column": "id",
+        "sequence": "reviewos_global.workflow_version_steps_seq"
       }
     },
     "workflow_versions": {

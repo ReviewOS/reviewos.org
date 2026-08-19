@@ -313,7 +313,7 @@ async function writeReviewThreads(
       .filter((c): c is NonNullable<typeof c> => c !== null)
 
     for (const thread of buildThreads(mapped)) {
-      const row = threadRow(thread, pullId)
+      const row = threadRow(thread, pullId, repositoryId)
       if (!row) continue
 
       const existingThread = await db
@@ -353,14 +353,14 @@ async function writeReviewThreads(
       const plan = planByExternalId(thread, existing)
 
       for (const comment of plan.create) {
-        await db.insertInto('review_comments').values(reviewCommentRow(comment, threadId) as any).execute()
+        await db.insertInto('review_comments').values(reviewCommentRow(comment, threadId, repositoryId) as any).execute()
         created++
       }
 
       for (const { id, incoming } of plan.update) {
         await db
           .updateTable('review_comments')
-          .set(reviewCommentRow(incoming, threadId) as any)
+          .set(reviewCommentRow(incoming, threadId, repositoryId) as any)
           .where('id', '=', id)
           .execute()
         updated++
