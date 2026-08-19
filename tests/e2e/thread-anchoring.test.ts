@@ -86,7 +86,7 @@ async function anchorNow(): Promise<{ line: number | null, outdated: boolean } |
     .where('id', '=', created.pullRequestId)
     .executeTakeFirst()
 
-  const diff = streamMergeBaseDiff(created.diskPath, String(row.base_sha), String(row.head_sha))
+  const diff = await streamMergeBaseDiff(created.diskPath, String(row.base_sha), String(row.head_sha))
   if (!diff)
     return null
 

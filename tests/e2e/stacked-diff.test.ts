@@ -69,7 +69,7 @@ async function pathsInDiff(base: string, head: string): Promise<string[]> {
   const { streamMergeBaseDiff } = await import('../../app/Actions/Git/diffStream')
   const { parseDiff } = await import('../../app/Actions/Pull/diff')
 
-  const diff = streamMergeBaseDiff(created.diskPath, base, head)
+  const diff = await streamMergeBaseDiff(created.diskPath, base, head)
   if (!diff)
     return []
 
