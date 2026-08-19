@@ -117,6 +117,29 @@ Until an operator says where SSH answers, no SSH URL is shown at all: a clone UR
 connect is worse than one fewer, because it looks like the forge is broken rather than like a
 feature is off.
 
+## The page on your profile
+
+`/{handle}` is a profile, and the text at the top of it is a markdown file in a repository - the same
+arrangement GitHub uses, so a profile you have already written moves without being rewritten.
+
+**An organization** publishes it in its `.github` repository, at `profile/README.md`. A repository
+name is a path segment on disk here and a leading dot is refused, so a mirror of that repository
+lands one letter shorter:
+
+```bash
+./buddy mirror:add --remote stacksjs/.github --owner stacks
+```
+
+That is `stacks/github` on this instance, and `/stacks` renders its `profile/README.md` from then on -
+kept current by the mirror rather than by copying markdown between two places. A repository named
+after the organization works too, and is the natural place on an instance that mirrors nothing.
+
+**A person** publishes it in the repository named after them: `profile/README.md` first, then
+`README.md`, which is the file GitHub renders on a user profile.
+
+Both are read through the same permission check as any other file, so a private repository is not a
+way to publish a page to people who may not see it.
+
 ## What happens when you push
 
 Worth knowing early, because it explains most of what you will see afterwards. The push runs through
