@@ -71,24 +71,6 @@ export function parseRemote(raw: string): { owner: string, name: string } | null
   return { owner, name }
 }
 
-/**
- * The local name for a remote whose own name cannot be one here.
- *
- * A repository name is a path segment on disk, and `app/Actions/Git/storage.ts`
- * rejects a leading dot on purpose: a name like `.git` or `..` is how a name
- * hides a directory or climbs out of the repository root.
- *
- * That rule made GitHub's `.github` repository impossible to mirror, which is
- * the one repository an organization keeps its profile page in - so an
- * instance mirroring an organization could mirror everything it publishes
- * except the page describing it. The dots come off, `.github` mirrors as
- * `github`, and `resources/views/[owner]/index.stx` reads the profile from
- * there. `--name` still overrides, for anything this guess is wrong about.
- */
-export function localNameFor(remoteName: string): string {
-  return String(remoteName ?? '').replace(/^\.+/, '')
-}
-
 async function addMirror(options: MirrorOptions): Promise<void> {
   const remote = parseRemote(options.remote ?? '')
   if (!remote)
@@ -99,9 +81,9 @@ async function addMirror(options: MirrorOptions): Promise<void> {
     throw new Error('--owner is required: the local owner the mirror belongs to')
 
   // The local name defaults to the remote's, which is the common case, but it
-  // is a default rather than a derivation - `--name` overrides it. A leading
-  // dot cannot survive as a path segment, so `.github` becomes `github`.
-  const localName = String(options.name ?? '').trim() || localNameFor(remote.name)
+  // is a default rather than a derivation - `--name` overrides it. A dotted
+  // name survives now, so `.github` mirrors as `.github`.
+  const localName = String(options.name ?? '').trim() || remote.name
 
   const owner = await resolveOwner(ownerHandle)
   const resolved = repositoryPath(owner.handle, localName)
@@ -119,9 +101,6 @@ async function addMirror(options: MirrorOptions): Promise<void> {
   await upsertMirror(repositoryId, remote, options)
 
   console.log(`Mirroring ${remote.owner}/${remote.name} as ${owner.handle}/${localName}`)
-
-  if (localName !== remote.name)
-    console.log(`  the leading dot cannot be a directory here; pass --name to choose something else`)
   console.log(`  repository ${repositoryId} at ${diskPath}`)
   console.log(options.metadata
     ? '  metadata sync enabled (issues, pull requests, review threads)'

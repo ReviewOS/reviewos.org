@@ -119,26 +119,32 @@ feature is off.
 
 ## The page on your profile
 
-`/{handle}` is a profile, and the text at the top of it is a markdown file in a repository - the same
-arrangement GitHub uses, so a profile you have already written moves without being rewritten.
-
-**An organization** publishes it in its `.github` repository, at `profile/README.md`. A repository
-name is a path segment on disk here and a leading dot is refused, so a mirror of that repository
-lands one letter shorter:
+`/{handle}` is a profile, and the text at the top of it is a markdown file in a repository called
+`.profile` - the same for a person and an organization:
 
 ```bash
-./buddy mirror:add --remote stacksjs/.github --owner stacks
+# on the instance, once
+git init .profile && cd .profile
+printf '# Who we are\n' > README.md
+git add . && git commit -m 'the page my profile shows'
+git remote add origin https://reviewos.localhost/you/.profile.git
+git push -u origin main
 ```
 
-That is `stacks/github` on this instance, and `/stacks` renders its `profile/README.md` from then on -
-kept current by the mirror rather than by copying markdown between two places. A repository named
-after the organization works too, and is the natural place on an instance that mirrors nothing.
+`README.md` at its root is the page. `profile/README.md` is read too, so a profile written for
+somewhere else can be copied across without being rearranged.
 
-**A person** publishes it in the repository named after them: `profile/README.md` first, then
-`README.md`, which is the file GitHub renders on a user profile.
+**Arriving from GitHub**, two more places are read before this one gives up, so an instance that
+mirrors an organization shows the page it already publishes: a mirrored `.github` at
+`profile/README.md`, which is where GitHub keeps an organization's, and the repository named after
+the handle, which is where it keeps a person's.
 
-Both are read through the same permission check as any other file, so a private repository is not a
-way to publish a page to people who may not see it.
+```bash
+./buddy mirror:add --remote yourorg/.github --owner yourorg
+```
+
+All of them are read through the same permission check as any other file, so a private repository is
+not a way to publish a page to people who may not see it.
 
 ## What happens when you push
 

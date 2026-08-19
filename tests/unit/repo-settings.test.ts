@@ -38,8 +38,18 @@ describe('decideSettings', () => {
    * repository behind it.
    */
   test('refuses a name that cannot be a directory', () => {
-    for (const name of ['..', '.hidden', 'a/b', '', 'a b', 'x'.repeat(101)])
+    for (const name of ['..', '.', '.git', 'a/b', '', 'a b', 'x'.repeat(101)])
       expect(decideSettings(current, { name }).ok, name).toBe(false)
+  })
+
+  /**
+   * A dotted name is a name. `.profile` is where an owner writes the page their
+   * profile shows, so the path builder accepts a leading dot and this has to
+   * agree - the two disagreeing is the failure the rule above exists to stop,
+   * in whichever direction it happens.
+   */
+  test('accepts a dotted name, which the path builder also accepts', () => {
+    expect(decideSettings(current, { name: '.profile' }).ok).toBe(true)
   })
 
   /** Absent leaves it alone; empty clears it. A form that submits everything

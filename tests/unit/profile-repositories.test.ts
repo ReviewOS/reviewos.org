@@ -12,8 +12,8 @@
 // asked for.
 
 import { describe, expect, test } from 'bun:test'
-import { clampPage, pageCount, PROFILE_README_PATHS, profileRepositoriesFor, readmePathsFor, REPOSITORIES_PER_PAGE, searchPattern } from '../../app/Actions/Profile/read'
-import { localNameFor } from '../../app/Commands/MirrorAdd'
+import { clampPage, pageCount, PROFILE_README_PATHS, profileRepositoriesFor, readmePathsIn, REPOSITORIES_PER_PAGE, searchPattern } from '../../app/Actions/Profile/read'
+import { isSafeSegment } from '../../app/Actions/Git/storage'
 
 describe('how many pages there are', () => {
   test('an exact multiple does not gain an empty last page', () => {
@@ -76,52 +76,51 @@ describe('the search pattern', () => {
   })
 })
 
-describe('where a profile page is written', () => {
-  test('an organization writes one file and only that file', () => {
+describe('which file is read, in the repository being read', () => {
+  test('a `.profile` repository holds the page at its root', () => {
+    // `.profile/profile/README.md` would be saying it twice. The nested path is
+    // still read, because it is what somebody copying a profile across has.
+    expect(readmePathsIn('.profile', true)).toEqual(['README.md', 'profile/README.md'])
+  })
+
+  test('a mirrored `.github` is read where GitHub puts it', () => {
+    expect(readmePathsIn('.github', true)).toEqual(['profile/README.md'])
+  })
+
+  test('an organization\'s namesake repository gives up only its profile file', () => {
     // `stacks/stacks` is the framework, and its README is the framework's. On
     // the organization page it would be a project's install instructions under
     // a heading that says who these people are.
-    expect(readmePathsFor(true)).toEqual(['profile/README.md'])
+    expect(readmePathsIn('stacks', true)).toEqual(['profile/README.md'])
   })
 
-  test('a person may use either, and the profile one wins', () => {
-    expect(readmePathsFor(false)).toEqual([...PROFILE_README_PATHS])
-    expect(readmePathsFor(false)[0]).toBe('profile/README.md')
+  test('a person\'s namesake repository is their profile, README and all', () => {
+    expect(readmePathsIn('chrisbbreuer', false)).toEqual([...PROFILE_README_PATHS])
   })
 })
 
 describe('which repository a profile page is read from', () => {
-  test('an organization publishes it where GitHub does, mirrored', () => {
-    // `.github` cannot be a repository name here - a leading dot is rejected so
-    // a name cannot hide a directory or climb out of the repository root - so a
-    // mirror of it lands as `github`, and that is read first. An instance
-    // mirroring an organization then shows the same page the organization
-    // publishes upstream, kept current by the mirror rather than by copying.
-    expect(profileRepositoriesFor('stacks', true)).toEqual(['github', 'stacks'])
+  test('the forge asks for `.profile`, which carries nobody else\'s brand', () => {
+    expect(profileRepositoriesFor('stacks', true)[0]).toBe('.profile')
+    expect(profileRepositoriesFor('chrisbbreuer', false)[0]).toBe('.profile')
   })
 
-  test('a person publishes it in the repository named after them', () => {
-    expect(profileRepositoriesFor('chrisbbreuer', false)).toEqual(['chrisbbreuer'])
+  test('an organization arriving from elsewhere is read where it already writes one', () => {
+    // A mirrored `.github` is GitHub's place for an organization page and the
+    // repository named after the handle is its place for a person's. Read as
+    // compatibility, after the name this forge asks for.
+    expect(profileRepositoriesFor('stacks', true)).toEqual(['.profile', '.github', 'stacks'])
+    expect(profileRepositoriesFor('chrisbbreuer', false)).toEqual(['.profile', 'chrisbbreuer'])
   })
 
   test('the handle is read the way a URL spells it', () => {
-    expect(profileRepositoriesFor('Stacks', true)).toEqual(['github', 'stacks'])
-  })
-})
-
-describe('mirroring a repository whose name cannot be one here', () => {
-  test('drops the leading dot, so `.github` can be mirrored at all', () => {
-    // Without this, the one repository an organization keeps its profile page
-    // in is the one repository this forge could not mirror.
-    expect(localNameFor('.github')).toBe('github')
+    expect(profileRepositoriesFor('Stacks', true)).toEqual(['.profile', '.github', 'stacks'])
   })
 
-  test('leaves an ordinary name alone', () => {
-    expect(localNameFor('stacks')).toBe('stacks')
-    expect(localNameFor('bun-router')).toBe('bun-router')
-  })
-
-  test('a dot inside the name is part of the name', () => {
-    expect(localNameFor('reviewos.org')).toBe('reviewos.org')
+  test('every name it asks for is one this forge can actually host', () => {
+    // The whole feature turned on this: `isSafeSegment` refused a leading dot,
+    // so the repository the profile page reads from could not be created.
+    for (const name of profileRepositoriesFor('stacks', true))
+      expect(isSafeSegment(name)).toBe(true)
   })
 })

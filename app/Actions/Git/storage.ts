@@ -35,18 +35,27 @@ export interface RepositoryPathResult {
 /**
  * A single path segment: an owner handle or a repository name.
  *
- * Deliberately narrower than what a filesystem allows. `.` and `..` are the
- * traversal cases, but a leading dot also hides a directory and a name
- * containing a slash is two segments pretending to be one.
+ * Deliberately narrower than what a filesystem allows: a name containing a
+ * slash is two segments pretending to be one, and `.` and `..` are the
+ * traversal cases.
+ *
+ * **A leading dot is allowed, apart from those.** It was not, and the cost was
+ * a convention this forge could not host: `.profile` is where an owner writes
+ * the page their profile shows, and every forge that has such a thing spells it
+ * with a dot. The reason to refuse one was that it hides the directory from
+ * `ls` - true, and not a security property. Nothing here walks the repository
+ * root with a shell glob; `app/Ops/repositories.ts` uses `readdirSync`, which
+ * sees dotted entries like any other.
+ *
+ * `.git` stays out. Git treats a directory of that name as a repository's own
+ * metadata everywhere it looks, and a *repository* called `.git` is a name
+ * whose meaning changes depending on which tool reads it.
  */
 export function isSafeSegment(segment: string): boolean {
   if (segment.length === 0 || segment.length > 100)
     return false
 
-  if (segment === '.' || segment === '..')
-    return false
-
-  if (segment.startsWith('.'))
+  if (segment === '.' || segment === '..' || segment === '.git')
     return false
 
   return /^[A-Za-z0-9._-]+$/.test(segment)

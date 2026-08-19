@@ -207,14 +207,14 @@ function lastActive(row: any): string | null {
 /**
  * The file an owner's profile page is written in.
  *
- * GitHub keeps this in a repository called `.github`, at `profile/README.md`,
- * and a user's own profile in a repository named after them. The dot cannot
- * survive here - repository names are a path segment on disk, and a leading dot
- * is rejected by `app/Actions/Git/storage.ts` precisely so a name cannot hide a
- * directory or climb out of the repository root - so `buddy mirror:add` drops
- * it, and an organization's `.github` mirrors as `github`. That repository is
- * read first, which is what makes an instance mirroring an organization show
- * the same profile page the organization publishes upstream.
+ * **`{handle}/.profile`, at `profile/README.md`.** One repository, one name,
+ * for a person and an organization alike, and it carries nobody else's brand:
+ * this is a forge, not a mirror of one, and the repository holding your page
+ * should be called what it is.
+ *
+ * A dotted name is what every forge with this feature uses and it took a change
+ * in `app/Actions/Git/storage.ts` to allow one here - see `isSafeSegment` for
+ * why the old rule refused it and why refusing it was not buying anything.
  *
  * So one rule covers both kinds of owner, which is the same choice the profile
  * route itself makes: **the repository named after the handle**, and inside it
@@ -241,20 +241,41 @@ export const PROFILE_README_PATHS = ['profile/README.md', 'README.md'] as const
 export function profileRepositoriesFor(handle: string, isOrganization: boolean): string[] {
   const owner = String(handle ?? '').toLowerCase()
 
-  return isOrganization ? ['github', owner] : [owner]
+  /*
+   * `.profile` first, then the two places somebody arriving from elsewhere
+   * already has one: a mirrored `.github`, which is where GitHub keeps an
+   * organization's page, and the repository named after the handle, which is
+   * where it keeps a person's. Compatibility rather than recommendation - the
+   * name this forge asks for is the first one.
+   */
+  return isOrganization ? ['.profile', '.github', owner] : ['.profile', owner]
 }
 
 /**
- * Which of them an owner may write their profile in.
+ * Which file to read, in the repository being read.
  *
- * An organization gets `profile/README.md` only. `stacks/stacks` is the
- * framework and its README is the framework's - rendering it on the
- * organization page would put a project's install instructions under a heading
- * that says who these people are, which is exactly what GitHub avoids by
- * keeping the organization page in a repository of its own.
+ * A repository called `.profile` holds one thing, so the page is its `README.md`
+ * and `.profile/profile/README.md` would be saying it twice. `profile/README.md`
+ * is read there too, because that is the path somebody copying an existing
+ * profile across will already have.
+ *
+ * In the repository named after the handle the two differ, and the difference
+ * matters: `stacks/stacks` is a framework and its README is the framework's, so
+ * an organization is read from `profile/README.md` only - rendering a project's
+ * install instructions under a heading that says who these people are is
+ * exactly what a separate profile repository exists to avoid. A person's
+ * namesake repository *is* their profile, so its `README.md` counts.
  */
-export function readmePathsFor(isOrganization: boolean): readonly string[] {
-  return isOrganization ? [PROFILE_README_PATHS[0]] : PROFILE_README_PATHS
+export function readmePathsIn(repository: string, isOrganization: boolean): readonly string[] {
+  const name = String(repository ?? '')
+
+  if (name === '.profile')
+    return ['README.md', 'profile/README.md']
+
+  if (name === '.github')
+    return ['profile/README.md']
+
+  return isOrganization ? ['profile/README.md'] : PROFILE_README_PATHS
 }
 
 export interface ProfileReadme {
@@ -278,7 +299,7 @@ export async function profileReadme(handle: string, isOrganization: boolean, coo
 
     const ref = String((access.repository as any).default_branch || 'HEAD')
 
-    for (const path of readmePathsFor(isOrganization)) {
+    for (const path of readmePathsIn(repository, isOrganization)) {
       const blob = await readBlob(diskPath, ref, path)
 
       if (!blob.ok || blob.binary || blob.tooLarge || !blob.text)

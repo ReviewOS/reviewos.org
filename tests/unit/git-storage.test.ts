@@ -21,9 +21,17 @@ describe('isSafeSegment', () => {
     expect(isSafeSegment('..')).toBe(false)
   })
 
-  test('rejects a hidden segment', () => {
+  test('accepts a dotted name, which is how a profile repository is spelled', () => {
+    // `.profile` is where an owner writes the page their profile shows. The
+    // rule used to refuse every leading dot on the grounds that it hides the
+    // directory, which is true of `ls` and is not a safety property - nothing
+    // here walks the repository root with a shell glob.
+    expect(isSafeSegment('.profile')).toBe(true)
+    expect(isSafeSegment('.github')).toBe(true)
+  })
+
+  test('still rejects `.git`, whose meaning changes with the tool reading it', () => {
     expect(isSafeSegment('.git')).toBe(false)
-    expect(isSafeSegment('.ssh')).toBe(false)
   })
 
   test('rejects a segment that is really two', () => {
