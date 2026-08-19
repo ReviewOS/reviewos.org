@@ -111,16 +111,29 @@ written down here so it does not get relitigated:
 
 ### The bar
 
-- [ ] Copy `.github/workflows/` to `.reviewos/workflows/`, push, and a normal repository's CI runs
+- [x] Copy `.github/workflows/` to `.reviewos/workflows/`, push, and a normal repository's CI runs
       green with no edits. This is the acceptance test for the whole section, run against real
       workflow files from real repositories rather than ones written to pass.
 
-      **The copy is read now**, held by `tests/e2e/workflow-push.test.ts`: push
-      `.reviewos/workflows/ci.yml` and it registers, produces a version, and starts a run. What is
-      not done is "green", which needs the execution plane, so the box stays open. `.reviewos`
-      **wins outright over `.github` rather than merging** - merging runs every job twice the day
-      somebody forgets to delete the original, and "which of these two files ran" is a question
-      nobody should have to ask.
+      `tests/e2e/acceptance-workflow.test.ts`, over `tests/fixtures/acceptance/bumpx-ci.yml` - a
+      verbatim copy of a real repository's workflow, four jobs, three of them parallel and one
+      waiting on all three, with `actions/checkout`, `oven-sh/setup-bun`, `actions/cache` and a
+      subdirectory reference into another repository's action. Nothing in the test edits it. Push,
+      claim, run, green: the registration, the graph, the claim protocol, the steps, `GITHUB_PATH`,
+      a working directory, a shell heredoc with a `timeout` and an `if:` on the last step.
+
+      **What is simulated, said plainly.** This machine has no network, so the four actions the file
+      names resolve through an origins map pointing at local git repositories - the configuration an
+      air-gapped instance has, and one this product supports on purpose. Each mirror does what the
+      hosted action does locally: the checkout has already happened, the toolchain is on `PATH` -
+      written there through `GITHUB_PATH`, the same mechanism the real one uses - and there is no
+      cache to restore. So the path this product owns is proven end to end; somebody else's action
+      doing what it does on GitHub's runners is not, and that needs a machine with a network rather
+      than more code here.
+
+      `.reviewos` **wins outright over `.github` rather than merging** - merging runs every job twice
+      the day somebody forgets to delete the original, and "which of these two files ran" is a
+      question nobody should have to ask.
 - [x] `.github/workflows/` is also read directly, so a mirrored repository ([phase 13](./13-mirroring.md))
       runs its existing workflows without a commit that would have to be undone to go back.
 
