@@ -223,6 +223,18 @@ by a test that found the wrong one, which is the luckier of the two ways to noti
 ramp for runs dispatched before this change, not a design, and it should go once no such run can be
 claimed - two answers to "what does this job run" is one more than there should be.
 
+An output too large for the store is now **dropped with a marker rather than truncated**, which is
+the third of the test cases above. Truncating looks like it works: the row holds a string, the screen
+shows a string, and the job reading `needs.build.outputs.manifest` gets a JSON document with no
+closing brace and fails somewhere else entirely, on a line with nothing to do with the cause. The
+marker says the size and where the value belongs instead. Measured in bytes, because a limit counted
+in characters lets a value of CJK text through at three times the size the column was sized for.
+
+The two test cases still open both need restart-from-step to reuse a recorded result, which is the
+same work as the reuse-labelling box above it: `rerun.ts` currently plans at job granularity, so
+there is no point at which a step's recorded output is offered to a second attempt. The rows to
+reuse now exist, which is what was missing - the plan does not read them yet.
+
 ### Snapshot caching
 
 Their dependency cache is a snapshot of the workspace after `install`, restored into later steps,

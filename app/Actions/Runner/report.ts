@@ -89,6 +89,28 @@ export interface StepReport {
 const MAX_STEPS_REPORTED = 200
 
 /**
+ * A value too big for the store, said out loud rather than quietly shortened.
+ *
+ * Truncating looks like it works. The row holds a string, the screen shows a
+ * string, and nothing anywhere says the last nine kilobytes are missing - so a
+ * later job reading `needs.build.outputs.manifest` gets a JSON document with no
+ * closing brace and fails somewhere else entirely, on a line that has nothing
+ * to do with the cause.
+ *
+ * A marker fails in the right place instead: whatever reads it gets something
+ * that is obviously not the value, and whoever wrote the workflow is told what
+ * to do instead of guessing.
+ */
+export function boundedValue(value: string, limit: number): string {
+  const bytes = Buffer.byteLength(value, 'utf8')
+
+  if (bytes <= limit)
+    return value
+
+  return `[dropped: ${bytes} bytes, over the ${limit} this store keeps. Pass a value this size as an artifact and read it from there.]`
+}
+
+/**
  * Write down what each step did.
  *
  * Matched by position rather than by name: two steps in one job may share a
@@ -123,7 +145,7 @@ async function recordSteps(jobId: number, steps: StepReport[] | null | undefined
        * outputs are: the runner masking its own values is the first line, and
        * the first line is somebody else's program.
        */
-      values[name.slice(0, 200)] = redactSecrets(String(value ?? ''), secrets).slice(0, 2000)
+      values[name.slice(0, 200)] = boundedValue(redactSecrets(String(value ?? ''), secrets), 2000)
     }
 
     const result = await db
@@ -182,7 +204,7 @@ async function cappedOutputs(
     if (!name)
       continue
 
-    values[name.slice(0, 200)] = redactSecrets(String(value ?? ''), secrets).slice(0, 4000)
+    values[name.slice(0, 200)] = boundedValue(redactSecrets(String(value ?? ''), secrets), 4000)
   }
 
   return Object.keys(values).length > 0 ? JSON.stringify(values) : null
