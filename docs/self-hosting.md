@@ -57,9 +57,12 @@ closed setting for the same reason, otherwise an instance closed before anybody
 signed up is one nobody can administer. Register through the interface, then:
 
 ```sh
-docker compose exec -T postgres psql -U postgres reviewos \
-  -c "UPDATE users SET is_admin = true WHERE handle = 'you'"
+docker compose exec -T database mysql -uroot -p"$DB_PASSWORD" reviewos \
+  -e "UPDATE users SET is_admin = 1 WHERE handle = 'you'"
 ```
+
+(On Postgres: `docker compose exec -T database psql -U postgres reviewos -c
+"UPDATE users SET is_admin = true WHERE handle = 'you'"`.)
 
 and turn registration off from the settings API, or leave it open if this is a
 public instance.
@@ -208,10 +211,10 @@ The values that have to be right:
 | `APP_KEY` | none | Signs and encrypts everything. Absent means sessions that do not survive a restart; short means it looks configured and is not. `buddy key:generate` writes one. |
 | `APP_URL` | `reviewos.localhost` | The host this instance believes it is at, used in email links and redirects. A scheme is optional; a *path* is a mistake and appears twice in every link. |
 | `APP_ENV` | `local` | `production` turns on the stricter half of the boot check. |
-| `DB_CONNECTION` | `postgres` | The engine: `postgres` or `mysql`. Both are supported and the schema is generated for each; see [Changing the database engine](#changing-the-database-engine) for moving an instance between them. |
-| `DB_HOST` | `127.0.0.1` | `postgres` inside compose, which is the service name. |
-| `DB_PORT` | `5432` | `3306` on MySQL. A stray space or quote here reads as a connection refused, which sends people to look at the network. |
-| `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `reviewos` / `postgres` / - | Postgres has exactly one role in the pantry-managed local cluster, so `postgres` is not a placeholder. |
+| `DB_CONNECTION` | `mysql` | The engine: `mysql` or `postgres`. Both are supported, the schema is generated for each, and the suite runs green against both. MySQL is the default from phase 17; Postgres is supported for one release cycle and then deprecated. See [Changing the database engine](#changing-the-database-engine) for moving an instance between them. |
+| `DB_HOST` | `127.0.0.1` | `database` inside compose, which is the service name. |
+| `DB_PORT` | `3306` | `5432` on Postgres. A stray space or quote here reads as a connection refused, which sends people to look at the network. |
+| `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `reviewos` / `root` / - | A pantry-managed MySQL initialises with `root` and no password, so `root` is not a placeholder. On Postgres it is `postgres`, whose cluster is initialised with exactly one role. |
 | `AUTH_IDLE_TIMEOUT` | `0` (off) | How long a session may go **unused** before it stops working, in milliseconds. Distinct from how long it may live at all: an absolute limit alone lets a browser left open on a machine somebody walked away from keep working for its full term. `1800000` is thirty minutes. A value that is not a number stops the instance rather than quietly meaning "off". |
 | `MAIL_HOST` and friends | none | Absent means no password reset and no notification email can be sent, silently. Fine for an invite-only instance, and worth knowing. |
 | `TYPESENSE_HOST` / `TYPESENSE_PORT` / `TYPESENSE_API_KEY` | `127.0.0.1` / `8108` / `pantry-dev` | The search node. The instance works without it and the search page is empty. The development key is a development key: a search node reachable from anywhere, with a guessable key, answers anybody's questions about private repositories. |
@@ -692,7 +695,8 @@ reports an error, which is what makes this the important sentence on this page.
 # Stop writes for the length of the snapshot. Seconds, not minutes.
 docker compose stop app worker
 
-docker compose exec -T postgres pg_dump -U postgres reviewos | gzip > backup/db.sql.gz
+docker compose exec -T database mysqldump -uroot -p"$DB_PASSWORD" \
+  --single-transaction --routines --triggers reviewos | gzip > backup/db.sql.gz
 tar -czf backup/repos.tar.gz -C /var/lib/docker/volumes/reviewos_repos/_data .
 tar -czf backup/uploads.tar.gz -C /var/lib/docker/volumes/reviewos_uploads/_data .
 
@@ -708,12 +712,13 @@ instead, and both are outside what this file can honestly describe.
 ```sh
 docker compose down
 docker volume rm reviewos_repos reviewos_uploads   # only when replacing them wholesale
-docker compose up -d postgres
+docker compose up -d database
 
 # Into an EMPTY database, and stopping at the first error. Both matter - see below.
-docker compose exec -T postgres dropdb -U postgres --if-exists reviewos
-docker compose exec -T postgres createdb -U postgres reviewos
-gunzip -c backup/db.sql.gz | docker compose exec -T postgres psql -U postgres -v ON_ERROR_STOP=1 reviewos
+docker compose exec -T database mysql -uroot -p"$DB_PASSWORD" \
+  -e "DROP DATABASE IF EXISTS reviewos; CREATE DATABASE reviewos CHARACTER SET utf8mb4"
+gunzip -c backup/db.sql.gz \
+  | docker compose exec -T database mysql -uroot -p"$DB_PASSWORD" reviewos
 
 docker compose up -d
 tar -xzf backup/repos.tar.gz -C /var/lib/docker/volumes/reviewos_repos/_data
@@ -746,8 +751,8 @@ different database and a different directory, and check the pair without
 touching what is running:
 
 ```sh
-createdb -U postgres reviewos_rehearsal
-gunzip -c backup/db.sql.gz | psql -U postgres -v ON_ERROR_STOP=1 reviewos_rehearsal
+mysql -uroot -p"$DB_PASSWORD" -e "CREATE DATABASE reviewos_rehearsal CHARACTER SET utf8mb4"
+gunzip -c backup/db.sql.gz | mysql -uroot -p"$DB_PASSWORD" reviewos_rehearsal
 mkdir -p /tmp/rehearsal/repos && tar -xzf backup/repos.tar.gz -C /tmp/rehearsal/repos
 
 DB_DATABASE=reviewos_rehearsal ./buddy instance:repos --root /tmp/rehearsal/repos
@@ -838,10 +843,13 @@ docker compose exec app bun run --bun ./buddy instance:check
 `DB_CONNECTION` back and starting the processes again - which is why the old
 database should be left alone for a few days rather than dropped on the day.
 
-Postgres remains supported for one release cycle after MySQL becomes the
-default, and is then deprecated. An instance that stays on it keeps working;
-what it stops getting is new dialect-specific work, and phase 18's ref ledger
-is built against MySQL's locking rather than Postgres advisory locks.
+**MySQL is the default from phase 17.** Postgres remains supported for one
+release cycle and is then deprecated: an instance that stays on it keeps
+working, and what it stops getting is new dialect-specific work. Phase 18's ref
+ledger is built against MySQL's locking rather than Postgres advisory locks.
+
+Both engines run the whole end-to-end suite in CI, on every push, and the
+matrix is what makes that claim checkable rather than a promise.
 
 ## Agents and MCP
 

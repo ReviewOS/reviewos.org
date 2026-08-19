@@ -19,6 +19,7 @@
 import { repositoryForView } from '../../../../functions/repo'
 import { relativeTime } from '../../../../functions/browse'
 import { startersFor } from '../../../../functions/runs'
+import { isTrue } from '../../../../functions/truth'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script.
 const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
@@ -174,7 +175,7 @@ const rows = workflows.map((workflow) => {
     state: String(workflow.state ?? 'active'),
     triggers: triggersOf(version),
     problems: problemsOf(workflow, version),
-    dispatchable: String(workflow.state) === 'active' && version?.on_dispatch === true,
+    dispatchable: String(workflow.state) === 'active' && isTrue(version?.on_dispatch),
     inputs,
     updated: workflow.updated_at ? relativeTime(String(workflow.updated_at)) : '',
     concurrency: String(version?.concurrency_group ?? ''),

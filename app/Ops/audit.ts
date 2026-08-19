@@ -1,5 +1,5 @@
 import { db } from '@stacksjs/database'
-import { DATABASE_WALL_CLOCK } from '../Actions/Support/sql'
+import { DATABASE_WALL_CLOCK, dbTimestamp } from '../Actions/Support/sql'
 /**
  * Reading the audit log.
  *
@@ -260,7 +260,16 @@ function shift(iso: string, offsetMs: number): string {
   if (!Number.isFinite(parsed))
     return iso
 
-  return new Date(parsed + offsetMs).toISOString()
+  /*
+   * The literal both engines take, not an ISO string.
+   *
+   * `created_at` is a real `datetime`, and MySQL compares it against
+   * `2026-08-19T05:39:46.000Z` by failing to read the string as a date - which
+   * is not an error, just a predicate that matches nothing. A search that
+   * quietly returns no events reads as "it did not happen", which is the worst
+   * answer an audit log can give.
+   */
+  return dbTimestamp(new Date(parsed + offsetMs))
 }
 
 /** For tests, and for a process that outlives a timezone change. */

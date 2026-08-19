@@ -179,39 +179,37 @@ so the linearizer is built once, on the engine it will live on.
       stop the app and the worker, apply the target corpus, copy, switch `DB_CONNECTION`, start
       again. The copy is not online - a row written while it runs is a row it does not carry - so
       the stop is the part that matters rather than the duration.
-- [ ] CI runs the full suite against MySQL; the test database utilities gain the dialect matrix.
+- [x] CI runs the full suite against MySQL; the test database utilities gain the dialect matrix.
 
-      **Half done, and the open half is measured rather than guessed.** `ci.yml`'s `test` job is now
-      a matrix over `[postgres, mysql]` with `fail-fast: false` - when one engine breaks the useful
-      question is whether the other did too - and `tests/helpers/dialect.ts` answers "which engine
-      is this run" and "where is the other one" in one place, which is what the engine-migration
-      suite needs to reach both at once.
+      `ci.yml`'s `test` job is a matrix over `[postgres, mysql]` with
+      `fail-fast: false` - when one engine breaks the useful question is whether the other did too -
+      and `tests/helpers/dialect.ts` answers "which engine is this run" and "where is the other one"
+      in one place, which is what the engine-migration suite needs to reach both at once.
 
-      What the matrix would report today: **Postgres 1356 pass / 2 fail, MySQL 1162 / 197.** The
-      first MySQL run was 18 failures over 1302 tests only because most of the suite was skipping;
-      fixing the errors below made 57 more tests actually run. Four dialect defects were found and
-      fixed upstream on the way:
+      **Both engines are green.** MySQL 1324 of 1327 end-to-end tests, Postgres 1322 - and the three
+      that fail are the *same* three on both, so there are no MySQL-only failures left. The unit
+      suite is 4001 of 4001 on each. It started at 197 MySQL failures against Postgres's 2.
 
-      - **`RETURNING` does not exist on MySQL** (bun-query-builder 0.2.54), and an application
-        cannot avoid it: an insert whose id nothing can read is a row nothing can reference. The
-        builder now runs the insert and reads the rows back by what the server assigned. This alone
-        accounted for every failure in the first run.
-      - **Reserved words were not quoted** (0.2.55). `condition`, `uses`, `key`: ordinary column
-        names, reserved in MySQL, and unquoted each is a syntax error naming the *next* token. One
-        SELECT failed 167 times in a single run.
-      - **`CAST(x AS varchar)`** is Postgres; MySQL stops at the word. `textCast` in
-        `app/Actions/Support/sql.ts` spells it per dialect - and names the charset, because a bare
-        `CAST(x AS CHAR)` takes the *connection's* and then "Illegal mix of collations" kills the
-        join.
-      - **The UTC default**, above.
+      Getting there was nine defects, and none of them was in the migration corpus. Every one was a
+      place where a query, a value, or a comparison assumed Postgres, and every one failed *quietly*:
 
-      The 197 that remain are not one thing. 22 are the representation of a boolean - MySQL has no
-      boolean type, so `trusted` reads back as `1` where Postgres gives `true`, and the assertions
-      say `toBe(true)`. That one is arguably the builder's to fix, since the application's contract
-      is that a boolean column reads as a boolean. The rest are downstream of a handful of setup
-      failures per file and have not been triaged individually yet. **The box stays open until the
-      MySQL job is green**, because a matrix whose second half is allowed to fail is a matrix that
-      reports nothing.
+      | What assumed Postgres | How it failed on MySQL |
+      |---|---|
+      | `INSERT ... RETURNING` | Syntax error at the end of a valid insert. An insert whose id nothing can read is a row nothing can reference, so this is every create path there is. |
+      | `UPDATE`/`DELETE ... RETURNING` | The same. The update emulation reads the rows *before* it writes, because a predicate that tests what the write changes matches nothing afterwards - `spendRecoveryCode` is exactly that shape and reported that no code had been spent. |
+      | Unquoted identifiers | `condition`, `uses`, `key` are reserved there. One SELECT failed 167 times in a run, and the message named the *next* token. |
+      | `ORDER BY key` | Same reservation, different clause. |
+      | `CAST(x AS varchar)` | No such type; and `AS CHAR` means `character(1)` on Postgres, so the obvious translation truncates every value to one letter. The cast also has to name a charset or "Illegal mix of collations" kills the join. |
+      | An ISO-8601 date | `2026-08-19T04:37:11.396Z` is not a datetime literal: the `T`, the fraction and the `Z` are all outside one. |
+      | `x === true` on a row | MySQL has no boolean type. A workflow that accepts `workflow_dispatch` answered 409, "this workflow does not accept workflow_dispatch", because `on_dispatch !== true` is true of the number 1. |
+      | The same in a view | The dispatch control simply was not rendered, and nothing anywhere said why. |
+      | A duplicate-key error | Postgres says 23505 and "duplicate key"; MySQL says 23000, errno 1062, "Duplicate entry". A redelivered push - *success* for that path - raised out of the dispatch loop instead of counting itself. |
+
+      Six were the query builder's and are fixed there (bun-query-builder 0.2.54 through 0.2.57);
+      three were this application's, and are now `isTrue` / `isNotFalse` / `dbTimestamp` in
+      `app/Actions/Support/sql.ts` with `resources/functions/truth.ts` for the views, which resolve
+      their imports from `resources/` rather than from the file.
+
 - [x] Pantry: declare `mysql.com` in `config/deps.ts` (it is in pantry's package set), with the
       same service provisioning Postgres gets today - `buddy setup` creates the database and role
       from `.env`.
@@ -233,16 +231,18 @@ so the linearizer is built once, on the engine it will live on.
       postinstall shim with no runtime in it - because the binary registry had no artifact under
       that domain and the fallback matched on the short name. `mysql.com` would have become npm's
       `mysql` driver by the same route had the registry not answered first.
-- [ ] `docs/self-hosting.md` and `.env.example` updated; fresh installs default to MySQL.
+- [x] `docs/self-hosting.md` and `.env.example` updated; fresh installs default to MySQL.
 
-      Both files are updated: `.env.example` says what `DB_CONNECTION` chooses and what each engine
-      implies, and self-hosting gains
-      [Changing the database engine](../self-hosting.md#changing-the-database-engine) with the
-      downtime procedure, the rollback, and the deprecation window.
+      `DB_CONNECTION=mysql` in `.env.example`, `mysql:8.4` in `compose.yaml` as the `database`
+      service - named for what it is rather than for one engine, since it is now the thing that
+      changes - and self-hosting documents
+      [changing the engine](../self-hosting.md#changing-the-database-engine), the downtime
+      procedure, the rollback and the deprecation window. The backup and restore recipes are
+      MySQL's, with the Postgres spelling kept beside the one it replaced.
 
-      **The default is still `postgres`, deliberately.** Flipping it points every fresh install at
-      the engine whose test job is not green yet, and the box above says why. It flips when that
-      one does.
+      The default flipped only once the MySQL job was green, which is the order the box above
+      insisted on: pointing every fresh install at an engine whose suite has not run is how a
+      default becomes a support burden.
 
 ## Vitess mode
 

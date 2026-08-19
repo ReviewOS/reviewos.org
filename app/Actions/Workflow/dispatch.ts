@@ -1307,7 +1307,7 @@ async function createJobs(
           .returning(['id'])
           .executeTakeFirst()
 
-        await supersedeJobs(runId, Number(created?.id), group, job.job_cancel_in_progress === true)
+        await supersedeJobs(runId, Number(created?.id), group, isTrue(job.job_cancel_in_progress))
       }
     }
   }

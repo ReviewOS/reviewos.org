@@ -15,6 +15,7 @@
  */
 import { repositoryForView } from '../../../functions/repo'
 import { testTrends } from '../../../functions/tests'
+import { isTrue } from '../../../functions/truth'
 
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script.
@@ -97,7 +98,7 @@ const leastReliable = (trends?.leastReliable ?? []).map((test: any) => ({
   samples: Number(test.samples ?? 0),
   failures: Number(test.failures ?? 0),
   reliability: share(test.reliability ?? null),
-  flaky: test.flaky === true,
+  flaky: isTrue(test.flaky),
   owner: test.owner ? String(test.owner) : '',
 }))
 

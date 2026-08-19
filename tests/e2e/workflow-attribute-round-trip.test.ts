@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { EXTENSION_KEYS } from '../../app/Actions/Workflow/parse'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '' }
 
@@ -282,7 +283,7 @@ const ATTRIBUTES: Attribute[] = [
     run: (row) => {
       const values = JSON.parse(String(row.matrix_values ?? '{}'))
 
-      expect(row.continue_on_error).toBe(Number(values.node) === 22)
+      expect(isTrue(row.continue_on_error)).toBe(Number(values.node) === 22)
     },
     malformed: [{ job: `  matrixed:
     runs-on: ubuntu-latest

@@ -32,7 +32,8 @@ services:
       # `config/search-engine.ts` actually reads - this file shipped a
       # `SEARCH_HOST` nothing read, and a Meilisearch nothing spoke to, for
       # months.
-      DB_HOST: postgres
+      DB_HOST: database
+      DB_PORT: '3306'
       TYPESENSE_HOST: search
       TYPESENSE_PORT: 8108
       TYPESENSE_PROTOCOL: http
@@ -45,10 +46,10 @@ services:
       - repos:/app/storage/repos
       - uploads:/app/storage/app
     depends_on:
-      postgres:
+      database:
         # Not merely started. A container that is running is not a database that
         # is accepting connections, and the difference is a crash loop on every
-        # `docker compose up` while Postgres finishes its first-run
+        # `docker compose up` while the server finishes its first-run
         # initialisation.
         condition: service_healthy
 
@@ -68,7 +69,8 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DB_HOST: postgres
+      DB_HOST: database
+      DB_PORT: '3306'
       TYPESENSE_HOST: search
       TYPESENSE_PORT: 8108
       TYPESENSE_PROTOCOL: http
@@ -80,7 +82,7 @@ services:
       - repos:/app/storage/repos
       - uploads:/app/storage/app
     depends_on:
-      postgres:
+      database:
         condition: service_healthy
 
   # Search. Typesense, because that is what `config/search-engine.ts` declares
@@ -98,18 +100,26 @@ services:
     volumes:
       - search:/data
 
-  postgres:
-    image: postgres:17-alpine
+  # The metadata database. MySQL from phase 17; an instance still on Postgres
+  # keeps working, and `buddy db:migrate-engine` is how it moves.
+  #
+  # utf8mb4 is named rather than inherited: a server left on latin1 accepts the
+  # schema and then rejects the first four-byte character - an emoji in a
+  # comment, a name outside the BMP - years later.
+  database:
+    image: mysql:8.4
     restart: unless-stopped
+    command: ['--character-set-server=utf8mb4', '--collation-server=utf8mb4_0900_ai_ci']
     environment:
-      POSTGRES_DB: ${DB_DATABASE:-reviewos}
-      POSTGRES_USER: ${DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      MYSQL_DATABASE: ${DB_DATABASE:-reviewos}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-reviewos}
     volumes:
-      - postgres:/var/lib/postgresql/data
+      - database:/var/lib/mysql
     healthcheck:
-      # What `depends_on: service_healthy` above waits for.
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-reviewos}']
+      # What `depends_on: service_healthy` above waits for. Named host, because
+      # `mysqladmin ping` with none goes to its compiled-in socket and reports
+      # the server up before it is listening on the port.
+      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -uroot -p${DB_PASSWORD:-reviewos} --silent']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -119,5 +129,5 @@ volumes:
   # it. `down -v` still does, which is the one command to be careful with.
   repos:
   uploads:
-  postgres:
+  database:
   search:

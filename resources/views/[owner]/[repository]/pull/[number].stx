@@ -21,6 +21,7 @@ import { testSummaryForPull } from '../../../../functions/tests'
 // in the product, so the convenience went.
 import { blockedBy, buildStack, orphanMessage, orphanReason, stackSummary } from '../../../../functions/stack'
 import { renderMarkdown, renderMarkdownHighlighted } from '../../../../functions/markdown'
+import { isTrue } from '../../../../functions/truth'
 
 const owner = String(params.owner)
 const repositoryName = String(params.repository)
@@ -302,7 +303,7 @@ const testNewlyFlaky = tests?.newlyFlaky ?? []
 const testAlreadyFlaky = tests?.alreadyFlaky ?? []
 const shownFailures = testFailures.slice(0, 10)
 const hiddenFailures = Math.max(0, testFailures.length - shownFailures.length)
-const testsReported = tests?.reported === true
+const testsReported = isTrue(tests?.reported)
 const testsTone = !testsReported ? 'muted' : tests?.verdict === 'failed' ? 'bad' : 'good'
 
 const testsHeadline = !testsReported

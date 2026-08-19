@@ -25,6 +25,7 @@ import { searchLog } from '../../../../functions/runs'
 const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
 import { cookieJarFromHeader } from '../../../../functions/identity'
 import { renderMarkdown } from '../../../../functions/markdown'
+import { isNotFalse, isTrue } from '../../../../functions/truth'
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
@@ -545,7 +546,7 @@ const jobs = jobRows.map((job) => {
      * and a screen that shows the failure without the permission has somebody
      * hunting a broken build that the workflow expected.
      */
-    allowedToFail: job.continue_on_error === true && String(job.state) === 'failed',
+    allowedToFail: isTrue(job.continue_on_error) && String(job.state) === 'failed',
     runsOn: String(job.runs_on ?? '').split('\n').map(line => line.trim()).filter(Boolean).join(', '),
     runner: job.runner_id
       ? String(runnersById.get(String(job.runner_id))?.name ?? `runner ${String(job.runner_id)}`)
@@ -725,7 +726,7 @@ const provenance = run
        * saying so is better than an empty space that reads as a missing name.
        */
       actor: actor?.handle ? String(actor.handle) : (run.event === 'schedule' ? 'the schedule' : ''),
-      trusted: run.trusted !== false,
+      trusted: isNotFalse(run.trusted),
     }
   : null
 
