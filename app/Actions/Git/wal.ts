@@ -58,6 +58,13 @@ export interface WalEntry {
 /** How long a bundle may take to write before it is abandoned. */
 const BUNDLE_TIMEOUT_MS = 10 * 60_000
 
+/**
+ * A bundle carrying nothing is about this long: `# v2 git bundle` and a
+ * newline. At or under it, no pack was written - the shape a bare-sha bundle
+ * produced, which looked like a successful write and restored nothing.
+ */
+const BUNDLE_HEADER_BYTES = 32
+
 /** The blob key a repository's bundle for one sequence lives at. */
 export function bundleKey(repositoryId: number, sequence: number): string {
   // Zero-padded so a lexical listing of the store is also chronological, which
@@ -95,19 +102,36 @@ export function carriesObjects(updates: readonly WalRefUpdate[]): boolean {
  * bundle of "everything reachable from this tip" on the first push of a fork
  * is the whole upstream history.
  */
-export function bundleArgs(updates: readonly WalRefUpdate[], excludeRefs: readonly string[]): string[] {
-  const tips = updates
-    .filter(update => update.after && !/^0{40}$/.test(update.after))
-    .map(update => update.after)
-
+export function bundleArgs(refs: readonly string[], excludeRefs: readonly string[]): string[] {
   return [
     'bundle',
     'create',
     '--quiet',
     '-',
-    ...tips,
+    ...refs,
     ...excludeRefs.map(ref => `^${ref}`),
   ]
+}
+
+/**
+ * Where a push's tips are parked so they can be bundled at all.
+ *
+ * **A bundle needs ref names, not shas.** `git bundle create - <sha>` answers
+ * "Refusing to create empty bundle": a bundle records *references*, and a bare
+ * revision names none. That bites here specifically because at pre-receive the
+ * refs the push is about still point at their old values - the new objects sit
+ * in the quarantine with nothing pointing at them.
+ *
+ * The first version of this passed shas and produced a seventeen-byte header
+ * with no pack behind it: a successful write, a plausible row, and nothing to
+ * restore. The unit test that was supposed to cover it bundled with `--all`,
+ * so it proved git works rather than that these arguments do.
+ *
+ * Namespaced and sequence-scoped so two pushes in flight cannot collide, and
+ * removed in a `finally` so a refused push leaves none behind.
+ */
+export function temporaryRef(sequence: number, index: number): string {
+  return `refs/reviewos-wal/${sequence}/${index}`
 }
 
 export interface RecordPushInput {
@@ -171,42 +195,95 @@ export async function recordPush(input: RecordPushInput): Promise<WalEntry | nul
 
 /** Stream a bundle of the pushed objects into the blob store. */
 async function writeBundle(input: RecordPushInput, sequence: number): Promise<{ key: string, size: number } | null> {
-  const args = bundleArgs(input.updates, input.excludeRefs ?? [])
+  const environment = (input.quarantine ?? {}) as Record<string, string>
 
-  // `background`, with the other push-path work: a bundle is bounded by how
-  // much the push brought, and a fleet pushing at once must not starve the
-  // pages a person is reading.
-  const child = await spawnGitLimited('background', input.repositoryPath, args, input.quarantine as Record<string, string> ?? {})
+  const tips = input.updates
+    .map((update, index) => ({ update, ref: temporaryRef(sequence, index) }))
+    .filter(entry => entry.update.after && !/^0{40}$/.test(entry.update.after))
 
-  if (!child)
+  if (tips.length === 0)
     return null
 
-  const timer = setTimeout(() => child.kill('SIGKILL'), BUNDLE_TIMEOUT_MS)
+  const parked: string[] = []
 
   try {
-    const key = bundleKey(input.repositoryId, sequence)
-    const store = await blobStore()
+    for (const tip of tips) {
+      /*
+       * The quarantine environment is what makes the new object resolvable:
+       * without it `update-ref` refuses a sha the repository cannot see yet,
+       * which is the same silence the secret scanner was built around.
+       */
+      const written = await runGit(input.repositoryPath, ['update-ref', tip.ref, tip.update.after], {
+        env: environment,
+        priority: 'background',
+      })
 
-    // Streamed straight through: the bundle is never held in this process, and
-    // the store decides how it is persisted.
-    const written = await store.put(key, child.stdout as AsyncIterable<Uint8Array>)
-    const code = await new Promise<number>(resolve => child.on('close', value => resolve(value ?? -1)))
-
-    if (code !== 0 || written.size === 0) {
-      // A bundle git refused to finish is not a bundle. Better no blob than
-      // one that fails to verify on the day somebody restores from it.
-      await store.delete(key).catch(() => undefined)
-
-      return null
+      if (written.ok)
+        parked.push(tip.ref)
     }
 
-    return { key, size: written.size }
+    if (parked.length === 0)
+      return null
+
+    // `background`, with the other push-path work: a bundle is bounded by how
+    // much the push brought, and a fleet pushing at once must not starve the
+    // pages a person is reading.
+    const child = await spawnGitLimited('background', input.repositoryPath, bundleArgs(parked, input.excludeRefs ?? []), environment)
+
+    if (!child)
+      return null
+
+    const timer = setTimeout(() => child.kill('SIGKILL'), BUNDLE_TIMEOUT_MS)
+
+    /*
+     * The exit promise is created *before* stdout is consumed, and that
+     * ordering is the whole of a bug worth remembering. Attaching the listener
+     * afterwards races the event: `store.put` reads the stream to EOF, which
+     * is usually the moment the child exits, so `close` had often already
+     * fired and the promise never settled.
+     *
+     * The symptom was not an error. It was the gate hanging, pre-receive
+     * timing out, the push being allowed by the documented fail-open rule, and
+     * the log staying empty while every visible part of the push worked.
+     */
+    const exited = new Promise<number>(resolve => child.on('close', value => resolve(value ?? -1)))
+
+    try {
+      const key = bundleKey(input.repositoryId, sequence)
+      const store = await blobStore()
+
+      // Streamed straight through: the bundle is never held in this process,
+      // and the store decides how it is persisted.
+      const written = await store.put(key, child.stdout as AsyncIterable<Uint8Array>)
+      const code = await exited
+
+      /*
+       * A bundle git refused to finish is not a bundle, and neither is a
+       * header with no pack behind it - which is exactly what the bare-sha
+       * version produced. Better no blob at all than one that fails on the day
+       * somebody needs it.
+       */
+      if (code !== 0 || written.size <= BUNDLE_HEADER_BYTES) {
+        await store.delete(key).catch(() => undefined)
+
+        return null
+      }
+
+      return { key, size: written.size }
+    }
+    finally {
+      clearTimeout(timer)
+    }
   }
   catch {
     return null
   }
   finally {
-    clearTimeout(timer)
+    // Always, including when the push is refused a moment later: a temporary
+    // ref left behind holds objects alive and turns up in somebody's
+    // `for-each-ref` as a mystery.
+    for (const ref of parked)
+      await runGit(input.repositoryPath, ['update-ref', '-d', ref], { priority: 'background' }).catch(() => undefined)
   }
 }
 

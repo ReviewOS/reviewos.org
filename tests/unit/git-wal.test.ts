@@ -12,7 +12,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { bundleArgs, bundleKey, carriesObjects, replay, verifyBundle, walUpdatesFrom } from '../../app/Actions/Git/wal'
+import { bundleArgs, bundleKey, carriesObjects, replay, temporaryRef, verifyBundle, walUpdatesFrom } from '../../app/Actions/Git/wal'
 import { initBare, runGit } from '../../app/Actions/Git/git'
 
 const ZERO = '0'.repeat(40)
@@ -92,15 +92,29 @@ describe('carriesObjects', () => {
 })
 
 describe('bundleArgs', () => {
-  test('bundles the new tips and excludes what is already here', () => {
-    const args = bundleArgs(
-      [{ ref: 'refs/heads/main', before: firstSha, after: secondSha }],
-      ['refs/heads/other'],
-    )
+  test('bundles by ref name and excludes what is already here', () => {
+    const args = bundleArgs([temporaryRef(4, 0)], ['refs/heads/other'])
 
     expect(args.slice(0, 4)).toEqual(['bundle', 'create', '--quiet', '-'])
-    expect(args).toContain(secondSha)
+    expect(args).toContain('refs/reviewos-wal/4/0')
     expect(args).toContain('^refs/heads/other')
+  })
+
+  /**
+   * The bug this signature exists to prevent, and the reason it takes refs
+   * rather than the shas it obviously "should".
+   *
+   * `git bundle create - <sha>` answers "Refusing to create empty bundle": a
+   * bundle records *references*, and a bare revision names none. The version
+   * that passed shas wrote a seventeen-byte header with no pack behind it,
+   * reported success, and restored nothing - and the test meant to cover it
+   * bundled with `--all`, so it proved git works rather than that these
+   * arguments do. Verified against real git below.
+   */
+  test('never passes a bare sha', () => {
+    const args = bundleArgs([temporaryRef(4, 0), temporaryRef(4, 1)], [])
+
+    expect(args.filter(argument => /^[0-9a-f]{40}$/.test(argument))).toEqual([])
   })
 
   /**
@@ -108,11 +122,74 @@ describe('bundleArgs', () => {
    * of the whole project. Without it the first push of a fork writes the
    * upstream's entire history into the log, every time.
    */
-  test('a deleted ref contributes no tip', () => {
-    const args = bundleArgs([{ ref: 'refs/heads/gone', before: firstSha, after: ZERO }], [])
+  test('exclusions are ref names too, negated', () => {
+    const args = bundleArgs([temporaryRef(1, 0)], ['refs/heads/main', 'refs/tags/v1'])
 
-    expect(args).not.toContain(ZERO)
-    expect(args.filter(argument => /^[0-9a-f]{40}$/.test(argument))).toEqual([])
+    expect(args).toContain('^refs/heads/main')
+    expect(args).toContain('^refs/tags/v1')
+  })
+})
+
+describe('temporaryRef', () => {
+  test('is namespaced and scoped per push, so two in flight cannot collide', () => {
+    expect(temporaryRef(7, 0)).toBe('refs/reviewos-wal/7/0')
+    expect(temporaryRef(7, 1)).not.toBe(temporaryRef(8, 1))
+  })
+
+  test('sits outside every namespace a repository already uses', () => {
+    const ref = temporaryRef(1, 0)
+
+    expect(ref.startsWith('refs/heads/')).toBe(false)
+    expect(ref.startsWith('refs/tags/')).toBe(false)
+    expect(ref.startsWith('refs/pull/')).toBe(false)
+  })
+})
+
+describe('what git does with these arguments', () => {
+  /**
+   * The end of the story the two tests above tell: parking the tip under a
+   * temporary ref is what makes git produce a bundle with a pack in it, and
+   * the pack is what restores.
+   */
+  test('a parked ref bundles into something that carries objects', async () => {
+    const parked = temporaryRef(99, 0)
+    await runGit(bare, ['update-ref', parked, secondSha])
+
+    const bundlePath = join(root, 'parked.bundle')
+
+    try {
+      // The same argument list the push path builds, with `-` swapped for a
+      // file so the test can weigh the result.
+      const args = bundleArgs([parked], []).map(argument => (argument === '-' ? bundlePath : argument))
+      const created = await runGit(bare, args)
+
+      expect(created.ok, created.stderr).toBe(true)
+
+      const written = await Bun.file(bundlePath).size
+
+      // Comfortably past a bare header, which is all the sha version wrote.
+      expect(written).toBeGreaterThan(100)
+
+      const restored = join(root, 'from-parked.git')
+      await initBare(restored, 'main')
+
+      const fetched = await runGit(restored, ['fetch', bundlePath, '+refs/*:refs/*'])
+      expect(fetched.ok, fetched.stderr).toBe(true)
+
+      const present = await runGit(restored, ['cat-file', '-e', `${secondSha}^{commit}`])
+      expect(present.ok).toBe(true)
+    }
+    finally {
+      await runGit(bare, ['update-ref', '-d', parked])
+    }
+  })
+
+  test('a bare sha is refused by git, which is why the signature changed', async () => {
+    const bundlePath = join(root, 'bare.bundle')
+    const created = await runGit(bare, ['bundle', 'create', bundlePath, secondSha])
+
+    expect(created.ok).toBe(false)
+    expect(created.stderr).toContain('empty bundle')
   })
 })
 
