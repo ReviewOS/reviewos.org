@@ -20,6 +20,7 @@
  */
 
 import { SQL } from 'bun'
+import { portable } from '../Support/sql'
 
 /** Where a database is, and what speaks to it. */
 export interface Connection {
@@ -103,7 +104,11 @@ export function rowDigest(row: Record<string, unknown>, columns: readonly string
     hasher.update(text)
   }
 
-  return new Uint8Array(hasher.digest() as ArrayBufferLike)
+  // `digest()` answers a Buffer, which is already a `Uint8Array` view - so it
+  // is copied through the constructor rather than cast. The cast that was here
+  // claimed the Buffer was an `ArrayBufferLike`, which it is not: it is a view
+  // *onto* one, and the compiler rejected the conversion outright.
+  return new Uint8Array(hasher.digest())
 }
 
 /**
@@ -407,9 +412,20 @@ export async function migrateEngine(options: MigrateOptions): Promise<MigrationR
       const names = shared.map(column => column.name)
 
       if (options.truncate) {
-        await target.unsafe(options.to.adapter === 'mysql'
-          ? `DELETE FROM \`${table}\``
-          : `TRUNCATE TABLE "${table}" CASCADE`)
+        /*
+         * Spelled for the *target*, not for the connection this process
+         * happens to have open. `portable()` defaults to `currentDialect()`,
+         * which is the one dialect that is certainly wrong here: the whole
+         * point of this command is that source and target are different
+         * engines. Passing the adapter explicitly is what makes it a no-op on
+         * the branch that is already correct rather than a rewrite of it.
+         */
+        await target.unsafe(portable(
+          options.to.adapter === 'mysql'
+            ? `DELETE FROM \`${table}\``
+            : `TRUNCATE TABLE "${table}" CASCADE`,
+          options.to.adapter,
+        ))
       }
       else if (await countRows(target, options.to, table) > 0) {
         tables.push({

@@ -12,7 +12,6 @@
 
 import type { Connection } from '../../app/Actions/Database/engineMigration'
 import { describe, expect, test } from 'bun:test'
-import process from 'node:process'
 import {
   canonicalValue,
   connect,
@@ -20,30 +19,19 @@ import {
   migrateEngine,
   rowDigest,
 } from '../../app/Actions/Database/engineMigration'
+import { adminDatabase, connectionFor } from '../helpers/dialect'
 
-const MYSQL: Connection = {
-  adapter: 'mysql',
-  hostname: process.env.DB_MYSQL_HOST ?? '127.0.0.1',
-  port: Number(process.env.DB_MYSQL_PORT ?? 3307),
-  database: process.env.DB_MYSQL_DATABASE ?? 'reviewos_engine_test',
-  username: process.env.DB_MYSQL_USERNAME ?? 'root',
-  password: process.env.DB_MYSQL_PASSWORD ?? '',
-}
-
-const POSTGRES: Connection = {
-  adapter: 'postgres',
-  hostname: process.env.DB_HOST ?? '127.0.0.1',
-  port: Number(process.env.DB_PORT ?? 5432),
-  database: 'reviewos_engine_source',
-  username: process.env.DB_USERNAME ?? 'postgres',
-  password: process.env.DB_PASSWORD ?? '',
-}
+// Its own databases, not the ones the rest of the suite is using: this creates
+// and drops them, and doing that to the database another test file is mid-way
+// through would be its own kind of data loss.
+const MYSQL: Connection = { ...connectionFor('mysql'), database: 'reviewos_engine_test' }
+const POSTGRES: Connection = { ...connectionFor('postgres'), database: 'reviewos_engine_source' }
 
 /** Whether both engines answer. Neither round trip is worth faking. */
 async function reachable(): Promise<boolean> {
   for (const connection of [
-    { ...MYSQL, database: 'mysql' },
-    { ...POSTGRES, database: 'postgres' },
+    { ...MYSQL, database: adminDatabase('mysql') },
+    { ...POSTGRES, database: adminDatabase('postgres') },
   ]) {
     try {
       const sql = connect(connection)
@@ -109,12 +97,12 @@ describe.if(available)('copying an instance between engines', () => {
   const table = 'engine_migration_probe'
 
   async function fixture(): Promise<void> {
-    const source = connect({ ...POSTGRES, database: 'postgres' })
+    const source = connect({ ...POSTGRES, database: adminDatabase('postgres') })
     await source.unsafe(`DROP DATABASE IF EXISTS ${POSTGRES.database}`)
     await source.unsafe(`CREATE DATABASE ${POSTGRES.database}`)
     await source.close()
 
-    const target = connect({ ...MYSQL, database: 'mysql' })
+    const target = connect({ ...MYSQL, database: adminDatabase('mysql') })
     await target.unsafe(`DROP DATABASE IF EXISTS \`${MYSQL.database}\``)
     await target.unsafe(`CREATE DATABASE \`${MYSQL.database}\` CHARACTER SET utf8mb4`)
     await target.close()

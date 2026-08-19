@@ -127,18 +127,44 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+
+    # Both engines, every time.
+    #
+    # Phase 17 moves the metadata database to MySQL, and a dialect that is only
+    # exercised on the maintainer's laptop is a dialect that breaks on somebody
+    # else's server. The two jobs run the same suite against the same code; what
+    # differs is `DB_CONNECTION` and which migration corpus is applied.
+    #
+    # `fail-fast: false` on purpose: when one engine breaks, the useful question
+    # is whether the other one did too, and cancelling the sibling job takes
+    # that answer away.
+    strategy:
+      fail-fast: false
+      matrix:
+        dialect: [postgres, mysql]
+
+    name: test (${{ matrix.dialect }})
 
     services:
       mysql:
-        image: mysql:latest
+        image: mysql:8.4
         env:
           MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: test_db
+          MYSQL_DATABASE: reviewos
           MYSQL_USER: user
           MYSQL_PASSWORD: password
         ports:
           - 3306:3306
+        # Without a health check the job races the server's first boot, which
+        # takes tens of seconds on a cold image - and the failure reads as a
+        # connection refused from the application rather than as a service that
+        # was not up.
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
 
       dynamodb:
         image: amazon/dynamodb-local
@@ -211,25 +237,44 @@ jobs:
       # the committed corpus, which is the same thing a real deploy does - so a
       # migration that cannot apply from empty fails here rather than on
       # somebody's server.
+      # The corpus each dialect has, applied from empty.
+      #
+      # `DB_MIGRATIONS_PATH` is absolute, deliberately: passed the relative
+      # default the resolver ignores it and picks a directory from which
+      # snapshots exist, which is how a Postgres run once wrote into an empty
+      # `database/migrations/postgres` and orphaned everything already applied.
       - name: Migrate
         env:
-          DB_CONNECTION: postgres
+          DB_CONNECTION: ${{ matrix.dialect }}
           DB_HOST: 127.0.0.1
-          DB_PORT: '5432'
+          DB_PORT: ${{ matrix.dialect == 'mysql' && '3306' || '5432' }}
           DB_DATABASE: reviewos
-          DB_USERNAME: postgres
-          DB_PASSWORD: postgres
-        run: ./buddy migrate
+          DB_USERNAME: ${{ matrix.dialect == 'mysql' && 'root' || 'postgres' }}
+          DB_PASSWORD: ${{ matrix.dialect == 'mysql' && 'root' || 'postgres' }}
+        run: |
+          if [ "${{ matrix.dialect }}" = mysql ]; then
+            export DB_MIGRATIONS_PATH="$PWD/database/migrations/mysql"
+          else
+            export DB_MIGRATIONS_PATH="$PWD/database/migrations"
+          fi
+          ./buddy migrate
 
       - name: Test Suite
         env:
           AWS_DYNAMODB_ENDPOINT: http://localhost:8000
-          DB_CONNECTION: postgres
+          DB_CONNECTION: ${{ matrix.dialect }}
           DB_HOST: 127.0.0.1
-          DB_PORT: '5432'
+          DB_PORT: ${{ matrix.dialect == 'mysql' && '3306' || '5432' }}
           DB_DATABASE: reviewos
-          DB_USERNAME: postgres
-          DB_PASSWORD: postgres
+          DB_USERNAME: ${{ matrix.dialect == 'mysql' && 'root' || 'postgres' }}
+          DB_PASSWORD: ${{ matrix.dialect == 'mysql' && 'root' || 'postgres' }}
+          # Where the engine-migration suite finds the *other* engine. It copies
+          # Postgres to MySQL and verifies the copy, so it needs both whichever
+          # dialect this job is running as.
+          DB_MYSQL_HOST: 127.0.0.1
+          DB_MYSQL_PORT: '3306'
+          DB_MYSQL_USERNAME: root
+          DB_MYSQL_PASSWORD: root
           # The hook posts back to the application, and the endpoint does not
           # exist without a secret. Any value will do; it never leaves the
           # runner.

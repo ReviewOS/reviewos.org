@@ -110,6 +110,7 @@
     "better-dx": "^0.2.22"
   },
   "overrides": {
+    "bun-query-builder": "^0.2.55",
     "@stacksjs/bun-router": "^0.0.27",
     "@stacksjs/stx": "^0.2.192",
     "@stacksjs/ts-ssh": "^0.1.0",

@@ -186,7 +186,7 @@ reproducible from the source, and these three are not.
 |---|---|---|
 | `storage/repos` | Every bare git repository, as `{owner}/{name}.git` | The code. This is the one that cannot be rebuilt from anything else. |
 | `storage/app` | Uploads and attachments | Images in issues and comments. |
-| Postgres | Everything else: accounts, pull requests, reviews, threads, tokens | The conversation around the code. |
+| The database | Everything else: accounts, pull requests, reviews, threads, tokens | The conversation around the code. |
 
 Everything under `storage/framework/` is a build artifact and a cache. It is
 safe to delete and is rebuilt on the next boot, so do not back it up and do not
@@ -208,9 +208,9 @@ The values that have to be right:
 | `APP_KEY` | none | Signs and encrypts everything. Absent means sessions that do not survive a restart; short means it looks configured and is not. `buddy key:generate` writes one. |
 | `APP_URL` | `reviewos.localhost` | The host this instance believes it is at, used in email links and redirects. A scheme is optional; a *path* is a mistake and appears twice in every link. |
 | `APP_ENV` | `local` | `production` turns on the stricter half of the boot check. |
-| `DB_CONNECTION` | `postgres` | The driver. |
+| `DB_CONNECTION` | `postgres` | The engine: `postgres` or `mysql`. Both are supported and the schema is generated for each; see [Changing the database engine](#changing-the-database-engine) for moving an instance between them. |
 | `DB_HOST` | `127.0.0.1` | `postgres` inside compose, which is the service name. |
-| `DB_PORT` | `5432` | A stray space or quote here reads as a connection refused, which sends people to look at the network. |
+| `DB_PORT` | `5432` | `3306` on MySQL. A stray space or quote here reads as a connection refused, which sends people to look at the network. |
 | `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `reviewos` / `postgres` / - | Postgres has exactly one role in the pantry-managed local cluster, so `postgres` is not a placeholder. |
 | `AUTH_IDLE_TIMEOUT` | `0` (off) | How long a session may go **unused** before it stops working, in milliseconds. Distinct from how long it may live at all: an absolute limit alone lets a browser left open on a machine somebody walked away from keep working for its full term. `1800000` is thirty minutes. A value that is not a number stops the instance rather than quietly meaning "off". |
 | `MAIL_HOST` and friends | none | Absent means no password reset and no notification email can be sent, silently. Fine for an invite-only instance, and worth knowing. |
@@ -785,6 +785,63 @@ Migrations run forward and are checked before they are applied. Take a backup
 first - the one above, both halves - because a migration that fails halfway is
 the case where having one matters, and it is the only case where the answer is
 "restore" rather than "fix and re-run".
+
+## Changing the database engine
+
+An instance runs on MySQL or on Postgres, chosen by `DB_CONNECTION`, and moving
+between them is a command rather than a page of instructions. What it is not is
+online: the copy reads a snapshot, so a row written while it runs is a row it
+does not carry. **Stop the application and the worker first.** The stop is the
+part that matters, not how long the copy takes.
+
+```sh
+docker compose stop app worker
+docker compose exec app bun run --bun ./buddy db:migrate-engine \
+  --to mysql --host 127.0.0.1 --port 3306 --database reviewos --username root --password "$DB_PASSWORD"
+```
+
+It copies every table both databases share, and then checks its work: each
+table is counted on both sides and hashed on both sides, over the *values* as
+the application would read them. A boolean that arrived as the wrong number or
+a timestamp shifted by the host's offset changes the checksum, which a row
+count would not notice. It ends by naming the tables that did not match, and
+exits non-zero if any did.
+
+**The target schema has to exist first.** Create the database and apply the
+corpus for the engine you are moving to:
+
+```sh
+DB_CONNECTION=mysql DB_MIGRATIONS_PATH="$PWD/database/migrations/mysql" ./buddy migrate
+```
+
+The path is absolute deliberately: passed the relative default the resolver
+picks a directory of its own, which is how a Postgres run once wrote into an
+empty `database/migrations/postgres` and orphaned everything already applied.
+
+Then point `.env` at the new engine and start again:
+
+```sh
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=reviewos
+DB_USERNAME=root
+DB_PASSWORD=...
+```
+
+```sh
+docker compose start app worker
+docker compose exec app bun run --bun ./buddy instance:check
+```
+
+**Nothing is ever written to the source.** Rolling back is putting the old
+`DB_CONNECTION` back and starting the processes again - which is why the old
+database should be left alone for a few days rather than dropped on the day.
+
+Postgres remains supported for one release cycle after MySQL becomes the
+default, and is then deprecated. An instance that stays on it keeps working;
+what it stops getting is new dialect-specific work, and phase 18's ref ledger
+is built against MySQL's locking rather than Postgres advisory locks.
 
 ## Agents and MCP
 

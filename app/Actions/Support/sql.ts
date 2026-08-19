@@ -120,6 +120,25 @@ export function portable(sql: string, dialect = currentDialect()): string {
 }
 
 /**
+ * An expression as text, in a cast both engines accept.
+ *
+ * `CAST(x AS varchar)` is Postgres. MySQL has no `varchar` cast type and stops
+ * at the word - "check the manual ... near 'varchar)'" - and the obvious
+ * translation is a trap in the other direction: `CAST(x AS CHAR)` is exactly
+ * right on MySQL and means `character(1)` on Postgres, which silently truncates
+ * every value to its first letter. A join written that way would match almost
+ * nothing and raise nothing.
+ *
+ * So the type name is chosen per dialect rather than spelled once. `portable()`
+ * cannot do this - it moves placeholders and quotes, and a type name is neither.
+ */
+export function textCast(expression: string, dialect = currentDialect()): string {
+  return speaksMysql(dialect)
+    ? `CAST(${expression} AS CHAR)`
+    : `CAST(${expression} AS text)`
+}
+
+/**
  * The database's own wall clock, in the spelling each engine has.
  *
  * `LOCALTIMESTAMP` is standard and both engines have it, which is the point:
