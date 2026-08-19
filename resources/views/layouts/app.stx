@@ -1186,6 +1186,26 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         header, because it describes the page rather than the repository. */
       .repo-page-caption { margin: 14px 0 0; font-size: 13px; }
 
+      /* An empty repository: the commands, because there is nothing else to
+        show and somebody is standing there with a checkout and no idea what
+        this instance wants them to type. */
+      .empty-repo { padding: 24px 26px; margin-top: 18px; max-width: 680px; }
+      .empty-repo-title { font-size: 17px; margin-bottom: 6px; }
+      .empty-repo-heading { margin: 20px 0 8px; font-size: 13.5px; font-weight: 600; }
+
+      .empty-repo-commands {
+        margin: 0;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: var(--r-control);
+        background: var(--bg);
+        font-size: 12.5px;
+        line-height: 1.7;
+        overflow-x: auto;
+      }
+
+      .empty-repo-note { margin-top: 16px; font-size: 13px; }
+
       /* One repository, as a card: `resources/components/RepositoryCard.stx`,
         which the profile and both explore lists render. They used to draw four
         of these between them.

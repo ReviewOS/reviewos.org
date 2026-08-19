@@ -149,6 +149,11 @@ const language = sourceLines.length > 0 ? (declared ?? languageFor(requestedPath
 
 const head = repoRow ? await lastCommit(diskPath, ref, requestedPath) : null
 
+// For the empty-repository screen, which is a page of commands and needs the
+// same URL the clone box shows rather than a second guess at it.
+const cloneUrl = repoRow ? cloneUrlFor(serveContext, ownerHandle, repositoryName, process.env.APP_URL) : ''
+const defaultBranch = repoRow ? String(repoRow.default_branch ?? 'main') : 'main'
+
 // For the header line, which listed branches and a size around a bare word.
 const commits = repoRow ? await commitCount(diskPath, ref) : null
 // Tags are capped for the picker: a repository with a release per week has
@@ -480,9 +485,30 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
       @endif
 
       @if (emptyRepository)
-        <div class="panel" style="padding: 32px; text-align: center; margin-top: 18px;">
-          <h2 style="font-size: 17px;">This repository is empty</h2>
-          <p class="muted" style="margin-top: 6px;">Push a commit and it will appear here.</p>
+        {{-- The one screen where somebody is stuck. A repository with nothing
+            in it used to say so and stop there, which leaves the reader to go
+            and find the clone URL, work out that an empty repository has no
+            branch to push to yet, and guess the rest. The commands are the
+            page: they are what this screen is for. --}}
+        <div class="panel empty-repo">
+          <h2 class="empty-repo-title">This repository is empty</h2>
+          <p class="muted">Push a commit and it appears here. Both routes start from a checkout on your machine.</p>
+
+          <h3 class="empty-repo-heading">Somewhere new</h3>
+          <pre class="empty-repo-commands mono">git init
+git add .
+git commit -m "first"
+git remote add origin {{ cloneUrl }}
+git push -u origin {{ defaultBranch }}</pre>
+
+          <h3 class="empty-repo-heading">A repository you already have</h3>
+          <pre class="empty-repo-commands mono">git remote add origin {{ cloneUrl }}
+git push -u origin {{ defaultBranch }}</pre>
+
+          <p class="muted empty-repo-note">
+            Pushing needs a credential: a token from
+            <a href="/settings/tokens">Settings, then Tokens</a>, as the password.
+          </p>
         </div>
       @else
         {{-- Where you are, and the way back. --}}
