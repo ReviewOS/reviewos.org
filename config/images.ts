@@ -197,6 +197,37 @@ const config: ImagesConfig = {
 
     pages: SOCIAL_PAGES,
   },
+
+  /*
+   * The browser tab, the home screen, and the bookmark bar.
+   *
+   * There was no favicon at all: nothing declared one and `public/` held no
+   * `favicon.ico`, so every tab showed the browser's blank-page glyph and
+   * every request for `/favicon.ico` was a 404 in the log. The two `favicon`
+   * SVGs under `public/images/logos/` are leftovers from the Stacks template
+   * and are somebody else's logo.
+   *
+   * Generated from the same mark the cards carry, so the tab and the link
+   * preview cannot end up showing different logos.
+   *
+   * `platforms: []` means no iOS or macOS asset catalogs. This is a web
+   * application; an Xcode catalog would be a directory nothing here reads.
+   */
+  appIcons: {
+    enabled: true,
+    source: 'public/images/mark.png',
+    platforms: [],
+    favicon: true,
+    faviconDir: 'public',
+    manifest: {
+      name: 'ReviewOS',
+      shortName: 'ReviewOS',
+      // The dark surface, because a home screen splash paints this behind the
+      // icon and the icon is teal on nothing.
+      themeColor: '#0c1113',
+      backgroundColor: '#0c1113',
+    },
+  },
 }
 
 export default config

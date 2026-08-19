@@ -111,6 +111,54 @@ describe('the tags that point at them', () => {
   })
 })
 
+describe('the favicon', () => {
+  // There was none: nothing declared one, `public/` held no `favicon.ico`, and
+  // every tab carried the browser's blank-page glyph. The failure is silent in
+  // exactly the way a card's is - the page works, it just has no identity.
+  const files = ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png', 'site.webmanifest', 'favicon-32x32.png', 'favicon-192x192.png', 'favicon-512x512.png']
+
+  test('every file the tags name is in public/', async () => {
+    for (const file of files)
+      expect(await Bun.file(`public/${file}`).exists()).toBe(true)
+  })
+
+  test('the apple-touch icon is the 180px square iOS asks for', async () => {
+    expect(await dimensions('public/apple-touch-icon.png')).toEqual([180, 180])
+  })
+
+  test('the manifest names this application rather than the generator default', async () => {
+    // It said "App", with a theme colour belonging to no brand, until
+    // `config/images.ts` could declare one.
+    const manifest = await Bun.file('public/site.webmanifest').json()
+
+    expect(manifest.name).toBe('ReviewOS')
+    expect(manifest.theme_color).toBe('#0c1113')
+    expect(manifest.icons.map((icon: { src: string }) => icon.src)).toEqual([
+      '/favicon-192x192.png',
+      '/favicon-512x512.png',
+    ])
+  })
+
+  test('and every page declares them, through a layout or its own head', async () => {
+    for (const page of ['resources/views/layouts/marketing.stx', 'resources/views/layouts/app.stx', 'resources/views/index.stx']) {
+      const source = await Bun.file(page).text()
+
+      expect(source).toContain('rel="icon" href="/favicon.svg"')
+      expect(source).toContain('rel="apple-touch-icon"')
+      expect(source).toContain('rel="manifest"')
+    }
+  })
+
+  test('the docs site declares the same three, absolutely', async () => {
+    // bunpress prefixes root-relative hrefs with its base path, so `/favicon.svg`
+    // becomes `/docs/favicon.svg` - a file that does not exist.
+    const source = await Bun.file('config/docs.ts').text()
+
+    expect(source).toContain('https://reviewos.org/favicon.svg')
+    expect(source).toContain('https://reviewos.org/apple-touch-icon.png')
+  })
+})
+
 describe('what a page tells a scraper', () => {
   test('a repository, a pull request, an issue and a profile are drawn on demand', () => {
     expect(runtimeCard('/owner/repository')).toContain('/api/og?path=')

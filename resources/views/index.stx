@@ -149,6 +149,24 @@ const nots = [
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0c1113" media="(prefers-color-scheme: dark)">
+    {{-- The tab, the home screen, and the bookmark bar.
+
+        Four declarations because browsers disagree about what they want, and
+        each one is the shortest answer for somebody: the SVG is what a modern
+        browser prefers and is crisp at every size, the ICO is what an old one
+        and Windows ask for by name, the 180px PNG is what iOS puts on a home
+        screen, and the manifest is what Android reads to do the same. All of
+        them are `buddy generate:images` output from one mark - see
+        `config/images.ts` and `scripts/brand-mark.ts`.
+
+        There was none of this at all until now: every tab carried the
+        browser's blank-page glyph and every request for `/favicon.ico` was a
+        404 in the log. --}}
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/favicon.ico" sizes="32x32">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+
 
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="ReviewOS">

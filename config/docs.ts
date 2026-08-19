@@ -19,6 +19,29 @@ const config: BunPressOptions = {
   title: 'ReviewOS',
   description: 'An open source, self-hostable git forge built around code review.',
 
+  /*
+   * The tab icon, the same mark the application and the cards carry.
+   *
+   * The docs are served from `/docs` on the same origin as the application, so
+   * these are the very files `buddy generate:images` wrote into `public/`.
+   *
+   * **Absolute, for the same reason the card above is.** bunpress prefixes
+   * every root-relative `href` in the document with its base path, which it
+   * takes from `sitemap.baseUrl` - so `/favicon.svg` is rewritten to
+   * `/docs/favicon.svg`, where no such file exists. That rewrite is right for
+   * a link to another documentation page and wrong for a file that belongs to
+   * the origin rather than to the docs, and a bare path cannot tell the two
+   * apart. An absolute URL can.
+   *
+   * Needs bunpress 0.2.8, which added the site-wide `head` list. Before it a
+   * favicon could only be declared per page, in frontmatter, on all 41 of them.
+   */
+  head: [
+    ['link', { rel: 'icon', href: 'https://reviewos.org/favicon.svg', type: 'image/svg+xml' }],
+    ['link', { rel: 'icon', href: 'https://reviewos.org/favicon.ico', sizes: '32x32' }],
+    ['link', { rel: 'apple-touch-icon', href: 'https://reviewos.org/apple-touch-icon.png' }],
+  ],
+
   nav: [
     { text: 'Roadmap', link: '/todo/' },
     { text: 'Discover', link: 'https://reviewos.org/discover' },

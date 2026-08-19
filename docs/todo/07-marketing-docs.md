@@ -83,6 +83,13 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       profile get a card drawn on request by `/api/og`, cached on disk and keyed on what the card
       says, so a rename redraws it with nothing to invalidate. Everything is resolved as a stranger,
       so a private repository gets the generic site card and no confirmation that it exists.
+- [x] A favicon, which there was none of: nothing declared one and `public/` held no
+      `favicon.ico`, so every tab showed the browser's blank-page glyph and every request for it
+      was a 404 in the log. `scripts/brand-mark.ts` draws the mark once as a PNG for the cards
+      and as `public/favicon.svg` for the tab, off the same numbers the navigation's CSS uses;
+      `buddy generate:images --app-icons` resizes the PNG into `favicon.ico`, the apple-touch
+      icon, and a `site.webmanifest` that names the application. The documentation site declares
+      the same three, so the tab does not change identity at `/docs`.
 - [ ] Lighthouse pass: no layout shift, fonts preloaded, images sized
 
       Measured rather than assumed, in a browser against the served page. **Layout shift is zero**

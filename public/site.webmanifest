@@ -1,0 +1,22 @@
+{
+  "name": "ReviewOS",
+  "short_name": "ReviewOS",
+  "icons": [
+    {
+      "src": "/favicon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#0c1113",
+  "background_color": "#0c1113",
+  "display": "standalone",
+  "start_url": "/"
+}
