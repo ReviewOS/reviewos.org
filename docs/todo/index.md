@@ -29,7 +29,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Complete (30/30) |
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | In progress (43/45) |
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (141/171) |
-| [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | Started (185/189) |
+| [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | Started (187/189) |
 | [16 - Single-node hardening](./16-hardening-scale.md) | Bounded buffers, backpressure, process ceilings, pantry-first infra | In progress (28/34) |
 | [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Not started (0/13) |
 | [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | Not started (0/23) |

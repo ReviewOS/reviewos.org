@@ -117,6 +117,7 @@ const config: BunPressOptions = {
             { text: 'Plugins', link: '/plugins' },
             { text: 'Identity tokens', link: '/oidc' },
             { text: 'Signed work', link: '/signed-work' },
+            { text: 'Workflows as code', link: '/workflows-as-code' },
             { text: 'Arriving from Buildkite', link: '/from-buildkite' },
           ],
         },

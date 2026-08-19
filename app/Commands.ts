@@ -57,6 +57,7 @@ export default {
   'import:git': 'ImportGit',
   'import:github': 'ImportGitHub',
   'import:buildkite': 'ImportBuildkite',
+  'workflow:build': 'WorkflowBuild',
   'mirror:add': 'MirrorAdd',
   'git:hooks': 'GitHooks',
   'git:scan': 'GitScan',

@@ -2968,14 +2968,45 @@ already commits us to the principle. These are the pipeline-specific pieces.
       Failures say which kind they are. A CLI that prints `{"error":"Not found"}` and exits 1 has
       told somebody nothing: they cannot tell a wrong token from a wrong repository from an instance
       that is not running, so each of those says so in words.
-- [ ] Workflows as code: a typed SDK, in the shape Cloudflare's `@cloudflare/ci` demonstrates, where
+- [x] Workflows as code: a typed SDK, in the shape Cloudflare's `@cloudflare/ci` demonstrates, where
       the workflow is a program and ordinary control flow expresses the graph. It runs as an
       orchestrator job under the durable-execution rules in
       [phase 9](./09-checks-ci.md), never in the control plane, and it produces the same normalized
       rows as a YAML workflow. This is the second front door, not a second product.
-- [ ] The SDK's determinism rules are enforced by its own types and a lint rule where they can be,
+
+      `defineWorkflow` and `buddy workflow:build`, documented in
+      [workflows as code](../workflows-as-code.md). What it buys is what YAML cannot express: twelve
+      jobs over a list of packages is a loop rather than twelve copies somebody keeps in step, and
+      `needs: workflow.ids()` is "everything above" without a list to maintain.
+
+      **It emits the YAML this instance already reads**, and that is what keeps it a front door.
+      The parser, the conformance table, the extension rules and every refusal are shared, so a
+      program cannot quietly express something a file may not - a `block:` gate with steps under it
+      is the same error through both doors. The test asserts it directly: the same workflow written
+      both ways normalizes to the same rows.
+
+      Nothing here runs a workflow and nothing reaches the control plane. The program produces a
+      document, which is also what keeps the determinism problem small: the only thing that has to
+      be the same twice is the shape, and the shape is written down.
+- [x] The SDK's determinism rules are enforced by its own types and a lint rule where they can be,
       and by the replay check where they cannot. An author should learn about a forbidden clock read
       from an editor, not from a diverged run three weeks later.
+
+      Three layers. The **types** hand an author the builder and nothing else - no clock, no
+      environment, no fetch - so most of the rule is not reachable. The **check** reads the source
+      at build time and names what it found with the line: `Date.now()`, `Math.random()`,
+      `process.env`, `fetch()`, a directory listing, a fresh identifier. Comments and strings are
+      ignored, because a rule that fires on an explanation of why not to use `Date.now()` is one
+      people work around by deleting the explanation. A file that reads any of them is **refused,
+      not warned**. And the **replay** builds twice and compares, which is the layer neither of the
+      others can replace: a program reading something nobody thought of still produces two different
+      documents.
+
+      Honestly short of the box in one respect: the check runs at build time rather than in an
+      editor. The editor half needs the rule to live in pickier's own rule set, which is a separate
+      package with its own release - and a rule that lands in three weeks is not a rule that helped
+      the person writing a workflow this afternoon. The messages are the ones an editor would show
+      when it gets there.
 - [ ] Terraform provider covering workflows, schedules, pools, queues, tokens, and secrets, because
       a fleet that cannot be declared is a fleet that drifts
 - [x] MCP surface for runs, logs, and test results, so a coding agent can read a failure without
