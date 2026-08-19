@@ -920,12 +920,24 @@ export const tsCloud: TsCloudConfig = {
      * same-origin `/api` requests to it. This site is what makes that process
      * exist; without it the proxy has nowhere to send anything.
      *
-     * It carries no `path`, so nothing routes to it from the outside: the only
-     * way in is the page server's loopback proxy, which is what keeps one
-     * front door and one set of security headers over everything.
+     * `path: '/api'`, stated rather than left off.
+     *
+     * Leaving it off would have been the tidier story - everything in through
+     * the page server's loopback proxy, one front door, one set of security
+     * headers - and it rests on knowing what ts-cloud does with a server app
+     * that declares no path. If the answer is "defaults to `/`" then this site
+     * competes with the page server for the same domain and root, which is the
+     * collision the note above this block warns about, and the symptom is the
+     * whole site answering from whichever service the reverse proxy picked.
+     * Not worth being clever about: `/api` is what this process serves, so it
+     * is what the route says.
+     *
+     * The page server's proxy stays useful either way - it is what its own
+     * server-side `fetch('/api/...')` calls go through.
      */
     api: {
       root: '.',
+      path: '/api',
       domain: env.APP_DOMAIN || 'reviewos.org',
       /*
        * The port is passed as well as declared.
