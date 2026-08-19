@@ -1566,5 +1566,26 @@ failed evidence into success.
       latter is already an audit event name and two emissions sharing one would deliver
       audit-shaped payloads to webhook receivers half the time. `action` carries the state, so one
       subscription covers recorded through rolled back.
-- [ ] Tests: failed checks prevent deployment, approval gates survive a restart, a fork cannot read
+- [x] Tests: failed checks prevent deployment, approval gates survive a restart, a fork cannot read
       environment secrets, and rollback records the version restored
+
+      Four cases, and two of them were properties nothing had ever asserted.
+
+      **Failed checks prevent deployment** is not a rule anybody wrote - it is the graph. A job
+      whose dependency failed can never run, so it is skipped with the reason on it and the
+      deployment it would have recorded is one nothing records. Worth pinning precisely because it
+      is emergent: a change to how unreachable jobs settle could turn a failed build into a deploy
+      that runs, and no test with "deployment" in its name would notice.
+
+      **Approval gates survive a restart** turned out to be false, which is why the box could not
+      have been ticked by reading the code. `rerunRun` cleared everything the last attempt left -
+      the runner, the lease, the token, the outputs - and not `approved_at`, so a re-run of an
+      approved deployment shipped again on a decision somebody made about a different attempt. The
+      same failure as a green check surviving a re-run, one step further down the pipeline and with
+      the machines already pointed at production. Fixed in the same commit; the gate is now asked
+      again by the code that asked the first time.
+
+      A fork and environment secrets are `tests/unit/workflow-secrets.test.ts`, which holds the
+      whole ladder: a fork gets nothing, an environment's secrets wait for the gate, and another
+      environment's never apply. Rollback is in `previews.test.ts`, where the restored deployment's
+      status names what it put back.

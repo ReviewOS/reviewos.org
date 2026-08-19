@@ -248,3 +248,87 @@ describe('the wait timer', () => {
     expect(String(jobNamed(await jobsOf(runId), 'deploy').state)).toBe('queued')
   }, 120_000)
 })
+
+/*
+ * The two properties a deployment gate is *for*, which the rules above imply
+ * and nothing asserted: work that failed does not ship, and a re-run does not
+ * ship something an approval was never given for.
+ */
+describe('what a gate is actually protecting', () => {
+  test('a build that failed never reaches the deploy job at all', async () => {
+    if (!available)
+      return
+
+    /*
+     * "Failed checks prevent deployment" is not a rule anybody wrote - it is
+     * the graph. A job whose dependency failed can never run, so it is skipped
+     * with the reason on it, and the deployment it would have recorded is a
+     * deployment nothing records.
+     *
+     * Worth pinning precisely because it is emergent: a change to how
+     * unreachable jobs are settled could turn a failed build into a deploy that
+     * runs, and no test named "deployment" would notice.
+     */
+    const result = await dispatchPush({
+      repositoryId: created.repositoryId,
+      event: { ref: 'refs/heads/main' },
+      headSha: unique('f').padEnd(40, '0').slice(0, 40),
+    })
+
+    const runId = Number(result.created[0])
+    const build = jobNamed(await jobsOf(runId), 'build')
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'failed', finished_at: new Date().toISOString() } as any)
+      .where('id', '=', Number(build.id))
+      .execute()
+
+    await settleRun(runId)
+
+    const deploy = jobNamed(await jobsOf(runId), 'deploy')
+
+    expect(String(deploy.state)).toBe('skipped')
+    // And it never paused for anybody: there was nothing to approve, which is
+    // the difference between a gate that held and a gate nobody reached.
+    expect(deploy.approved_at).toBeNull()
+  }, 120_000)
+
+  test('and a re-run asks again rather than keeping the approval', async () => {
+    if (!available)
+      return
+
+    const runId = await runTo('refs/heads/main')
+    const held = jobNamed(await jobsOf(runId), 'deploy')
+
+    expect(String(held.state)).toBe('paused')
+
+    // Somebody opens it, and the job runs.
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'succeeded', approved_at: new Date().toISOString(), finished_at: new Date().toISOString() } as any)
+      .where('id', '=', Number(held.id))
+      .execute()
+
+    await db
+      .updateTable('workflow_runs')
+      .set({ state: 'succeeded', finished_at: new Date().toISOString() } as any)
+      .where('id', '=', runId)
+      .execute()
+
+    const { rerunRun } = await import('../../app/Actions/Workflow/rerun')
+
+    await rerunRun({ runId, scope: 'all' })
+
+    /*
+     * The property: an approval belongs to the attempt it was given for. A
+     * re-run that kept it would be a deployment shipping on a decision somebody
+     * made about different code - which is the same failure as a green check
+     * surviving a re-run, one step further down the pipeline.
+     */
+    const again = jobNamed(await jobsOf(runId), 'deploy')
+
+    expect(again.approved_at).toBeNull()
+    expect(['blocked', 'paused']).toContain(String(again.state))
+  }, 120_000)
+})

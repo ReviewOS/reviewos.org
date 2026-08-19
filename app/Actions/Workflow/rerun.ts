@@ -356,6 +356,20 @@ export async function rerunRun(input: {
         runner_id: null,
         lease_expires_at: null,
         job_token_hash: null,
+        /*
+         * And the approval, which is the one that matters most.
+         *
+         * An approval belongs to the attempt it was given for. A re-run that
+         * kept it would ship a deployment on a decision somebody made about a
+         * different attempt - the same failure as a green check surviving a
+         * re-run, one step further down the pipeline, and with the fleet's
+         * machines already pointed at production.
+         *
+         * The gate is asked again when the job becomes eligible, by the same
+         * code that asked the first time.
+         */
+        approved_at: null,
+        approved_by_id: null,
         queued_at: resetState(job) === 'queued' ? now.toISOString() : null,
         started_at: null,
         finished_at: null,
