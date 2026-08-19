@@ -8,7 +8,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-const created = { ownerId: 0, repositoryId: 0, handle: '' }
+const created = { ownerId: 0, repositoryId: 0, versionId: 0, handle: '' }
 
 let available = false
 let db: any = null
@@ -62,6 +62,19 @@ beforeAll(async () => {
     }).returning(['id']).executeTakeFirst()
 
     created.repositoryId = Number(repository?.id)
+
+    const { syncWorkflowFile } = await import('../../app/Actions/Workflow/sync')
+
+    const synced = await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path: '.reviewos/workflows/fixture.ts',
+      source: PROGRAM,
+      sha: '9'.repeat(40),
+    })
+
+    created.versionId = Number(synced.versionId)
     available = true
   }
   catch (error) {
@@ -77,6 +90,33 @@ afterAll(async () => {
   await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => null)
   await db.deleteFrom('users').where('id', '=', created.ownerId).execute().catch(() => null)
 })
+
+/** A run with its orchestrator on it, sleeping the way a suspended one is. */
+async function aRunWithOrchestrator(): Promise<{ runId: number, jobId: number }> {
+  const run: any = await db.insertInto('workflow_runs').values({
+    workflow_version_id: created.versionId,
+    repository_id: created.repositoryId,
+    number: Math.floor(Math.random() * 1_000_000),
+    state: 'running',
+    event: 'push',
+    event_ref: 'refs/heads/main',
+    head_sha: '7'.repeat(40),
+    definition_sha: '7'.repeat(40),
+    trusted: true,
+  }).returning(['id']).executeTakeFirst()
+
+  const job: any = await db.insertInto('workflow_jobs').values({
+    workflow_run_id: Number(run.id),
+    repository_id: created.repositoryId,
+    job_id: 'orchestrate',
+    name: 'orchestrate',
+    position: 1,
+    state: 'sleeping',
+    orchestrator: true,
+  }).returning(['id']).executeTakeFirst()
+
+  return { runId: Number(run.id), jobId: Number(job.id) }
+}
 
 describe('storing a program', () => {
   test('makes an ordinary workflow version, with the triggers from its front matter', async () => {
@@ -257,5 +297,161 @@ describe('dispatching a program', () => {
 
     for (const job of jobs)
       expect(Boolean(job.orchestrator)).toBe(false)
+  }, 120_000)
+})
+
+describe('a job a program asked for', () => {
+  /**
+   * The normalization, at the level that matters. A program calling
+   * `job('test', { run: 'bun test' })` does not run `bun test` in its own
+   * process - the control plane writes a row, a runner claims it through the
+   * ordinary claim, and the result comes back through the ordinary report.
+   */
+  test('is an ordinary job row on the same run, with a step under it', async () => {
+    if (!available)
+      return
+
+    const { createOrchestratedJob, specFrom } = await import('../../app/Actions/Workflow/orchestratedJob')
+    const { record } = await import('../../app/Actions/Workflow/journal')
+
+    const run = await aRunWithOrchestrator()
+
+    const call = await record({ runId: run.runId, sequence: 1, kind: 'job', name: 'test', args: { run: 'bun test' } })
+
+    const jobId = await createOrchestratedJob({
+      runId: run.runId,
+      repositoryId: created.repositoryId,
+      entryId: (call as any).entryId,
+      name: 'test',
+      spec: specFrom({ 'run': 'bun test', 'runs-on': 'ubuntu-latest' }),
+    })
+
+    const job: any = await db
+      .selectFrom('workflow_jobs')
+      .select(['name', 'state', 'kind', 'runs_on', 'orchestrator'])
+      .where('id', '=', jobId)
+      .executeTakeFirst()
+
+    // Queued straight away: there is no graph above it. What it waited for was
+    // the program, and the program has already decided by asking.
+    expect(job.state).toBe('queued')
+    expect(job.name).toBe('test')
+    expect(String(job.kind)).toBe('command')
+    // Not itself an orchestrator - it is work, not a program.
+    expect(Boolean(job.orchestrator)).toBe(false)
+
+    const steps: any[] = await db
+      .selectFrom('workflow_steps')
+      .select(['command', 'name'])
+      .where('workflow_job_id', '=', jobId)
+      .execute()
+
+    expect(steps).toHaveLength(1)
+    expect(String(steps[0].command)).toBe('bun test')
+  }, 120_000)
+
+  test('and its outputs become the call\'s result, so the program reads them on its next pass', async () => {
+    if (!available)
+      return
+
+    const { createOrchestratedJob, resolveJobCall, specFrom } = await import('../../app/Actions/Workflow/orchestratedJob')
+    const { record } = await import('../../app/Actions/Workflow/journal')
+
+    const run = await aRunWithOrchestrator()
+    const call = await record({ runId: run.runId, sequence: 1, kind: 'job', name: 'build', args: { run: 'make' } })
+
+    const jobId = await createOrchestratedJob({
+      runId: run.runId,
+      repositoryId: created.repositoryId,
+      entryId: (call as any).entryId,
+      name: 'build',
+      spec: specFrom({ run: 'make' }),
+    })
+
+    expect(await resolveJobCall(jobId, { state: 'succeeded', outputs: { artifact: 'app.tar.gz' } })).toBe(true)
+
+    const replayed = await record({ runId: run.runId, sequence: 1, kind: 'job', name: 'build', args: { run: 'make' } })
+
+    expect(replayed.decision).toBe('replay')
+    expect((replayed as any).result).toEqual({ artifact: 'app.tar.gz' })
+
+    // And the program is back in the queue rather than waiting for a sweep: the
+    // result is in hand, so making it wait a minute would add a minute to every
+    // step of every code-first workflow.
+    const orchestrator: any = await db
+      .selectFrom('workflow_jobs').select(['state']).where('id', '=', run.jobId).executeTakeFirst()
+
+    expect(String(orchestrator.state)).toBe('queued')
+  }, 120_000)
+
+  test('and a job that failed is replayed as a failure the program can catch', async () => {
+    if (!available)
+      return
+
+    const { createOrchestratedJob, resolveJobCall, specFrom } = await import('../../app/Actions/Workflow/orchestratedJob')
+    const { record } = await import('../../app/Actions/Workflow/journal')
+
+    const run = await aRunWithOrchestrator()
+    const call = await record({ runId: run.runId, sequence: 1, kind: 'job', name: 'deploy', args: { run: 'ship' } })
+
+    const jobId = await createOrchestratedJob({
+      runId: run.runId,
+      repositoryId: created.repositoryId,
+      entryId: (call as any).entryId,
+      name: 'deploy',
+      spec: specFrom({ run: 'ship' }),
+    })
+
+    await resolveJobCall(jobId, { state: 'failed', outputs: null, error: 'the registry rejected the tag' })
+
+    const replayed = await record({ runId: run.runId, sequence: 1, kind: 'job', name: 'deploy', args: { run: 'ship' } })
+
+    // Failed rather than left pending. Leaving it pending would hang the run on
+    // work that is already over.
+    expect(replayed.decision).toBe('failed')
+    expect((replayed as any).error).toContain('registry')
+  }, 120_000)
+
+  test('and a loop calling one name twelve times makes twelve addressable jobs', async () => {
+    if (!available)
+      return
+
+    const { createOrchestratedJob, specFrom } = await import('../../app/Actions/Workflow/orchestratedJob')
+    const { record } = await import('../../app/Actions/Workflow/journal')
+
+    const run = await aRunWithOrchestrator()
+    const ids: string[] = []
+
+    for (const index of [1, 2, 3]) {
+      const call = await record({ runId: run.runId, sequence: index, kind: 'job', name: 'publish', args: { index } })
+
+      const jobId = await createOrchestratedJob({
+        runId: run.runId,
+        repositoryId: created.repositoryId,
+        entryId: (call as any).entryId,
+        name: 'publish',
+        spec: specFrom({ run: `publish ${index}` }),
+      })
+
+      const job: any = await db.selectFrom('workflow_jobs').select(['job_id']).where('id', '=', jobId).executeTakeFirst()
+
+      ids.push(String(job.job_id))
+    }
+
+    // `job_id` is what `needs:` and the API address a job by, so three jobs with
+    // one name still need three keys. Naming cannot tell them apart; the
+    // journal position can.
+    expect(new Set(ids).size).toBe(3)
+  }, 120_000)
+
+  test('and a call with nothing to run is refused rather than made into a job no machine can execute', async () => {
+    if (!available)
+      return
+
+    const { isRunnable, specFrom } = await import('../../app/Actions/Workflow/orchestratedJob')
+
+    expect(isRunnable(specFrom({ env: { A: '1' } }))).toBe(false)
+    expect(isRunnable(specFrom({ run: 'make' }))).toBe(true)
+    expect(isRunnable(specFrom({ uses: 'actions/checkout@v4' }))).toBe(true)
   }, 120_000)
 })

@@ -16,6 +16,7 @@ import { db } from '@stacksjs/database'
 import { secretsOfJob } from './logs'
 import { redactSecrets } from './redact'
 import { announceJob, announceRunIfMoved } from '../Workflow/announce'
+import { resolveJobCall } from '../Workflow/orchestratedJob'
 import type { JobState } from '../Workflow/states'
 import { canJobMove } from '../Workflow/states'
 import { revokeJobTokens } from '../Workflow/jobToken'
@@ -283,6 +284,21 @@ export async function reportJob(
    * backstop for the runner that dies without reporting, which is the case
    * this line cannot cover.
    */
+  /*
+   * A job a workflow program asked for closes the call it was standing in for,
+   * and puts the program back in the queue.
+   *
+   * Here rather than in a sweep, because the result is in hand: the program is
+   * waiting on exactly this job, and making it wait for the next tick of a
+   * timer would add a minute to every step of every code-first workflow. Does
+   * nothing for a job no program asked for.
+   */
+  await resolveJobCall(Number(row.id), {
+    state: input.state,
+    outputs: input.outputs ?? null,
+    error: input.error ?? null,
+  }).catch(() => false)
+
   await revokeJobTokens(Number(row.run_id), Number(row.id), now)
 
   const before = await currentRunState(Number(row.run_id))

@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { DEFAULT_BUDGETS, overWallTime, record, resolve, suspend } from '../Workflow/journal'
+import { createOrchestratedJob, isRunnable, NOTHING_TO_RUN, specFrom } from '../Workflow/orchestratedJob'
 import { authenticateJob } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 
@@ -23,39 +24,26 @@ import { protocolOf, refuseProtocol, runnerJson } from './gate'
  * there is no run identifier in the request to get wrong, because there is no
  * run identifier in the request at all.
  *
- * ## The four kinds
+ * ## The kinds
  *
- * - **`step`** - real work. `dispatch` means the caller owns it.
+ * - **`job`** - work the control plane schedules. A `workflow_jobs` row with a
+ *   step under it, claimed by a runner through the ordinary claim, shown on the
+ *   run screen beside every other job. This is what makes the normalization
+ *   real: there is one kind of row, so no screen has to know which authoring
+ *   form produced a run.
+ * - **`step`** - work the program does itself. `dispatch` means the caller owns
+ *   it, and it is for the glue a job would be absurd for: reading a file,
+ *   deciding a list, shaping a value between two jobs.
  * - **`sleep`** - park until a time and release the runner. A workflow waiting
  *   three days for an approval must not hold a lease for three days.
+ * - **`event`** - park on a *name* instead of a time, which is what waiting for
+ *   an approval actually is. `deliverEvent` resolves it with a payload.
  * - **`now`** and **`random`** - the injected equivalents of the two things a
  *   deterministic program may not read directly. They are journaled like
  *   everything else, so a replay sees the value it saw the first time. Without
  *   them, determinism would be a rule nobody could follow: a workflow that
  *   needs a timestamp would have no way to get one that survives a restart.
  */
-/**
- * Put the orchestrator's job to sleep, in the same breath as telling its runner
- * to let go.
- *
- * Not left to the runner to report on its way out. A machine killed between
- * reading the answer and reporting anything would leave a job that looks
- * running, holding a lease nobody is using, until the lease sweep guesses. The
- * control plane made the decision, so the control plane writes it down.
- *
- * `sleeping` rather than `queued` is what stops another runner claiming a
- * workflow that asked to wait three days, immediately.
- */
-async function sleepJob(jobId: number): Promise<void> {
-  await db
-    .updateTable('workflow_jobs')
-    .set({ state: 'sleeping', runner_id: null, lease_expires_at: null })
-    .where('id', '=', jobId)
-    .where('state', '=', 'running')
-    .execute()
-    .catch(() => null)
-}
-
 export default new Action({
   name: 'OrchestratorCall',
   description: 'Journal one call of a workflow program, and say whether to do the work',
@@ -200,6 +188,37 @@ export default new Action({
       return runnerJson({ decision: 'wait', entry_id: verdict.entryId, wake_at: null })
     }
 
+    /*
+     * Work the control plane schedules, rather than work the program does.
+     *
+     * The difference that makes the normalization real: this writes a
+     * `workflow_jobs` row with a step under it, a runner claims it through the
+     * ordinary claim, and the run screen shows it beside every other job. The
+     * program suspends while it runs, because holding a machine to wait for a
+     * machine is two runners doing one job's work.
+     */
+    if (kind === 'job') {
+      const spec = specFrom(args)
+
+      if (!isRunnable(spec)) {
+        await resolve(verdict.entryId, { error: NOTHING_TO_RUN })
+
+        return runnerJson({ decision: 'failed', reason: NOTHING_TO_RUN, entry_id: verdict.entryId })
+      }
+
+      await createOrchestratedJob({
+        runId: Number(job.run_id),
+        repositoryId: Number(job.repository_id) || null,
+        entryId: verdict.entryId,
+        name,
+        spec,
+      })
+
+      await sleepJob(held.jobId)
+
+      return runnerJson({ decision: 'wait', entry_id: verdict.entryId, wake_at: null })
+    }
+
     if (kind === 'sleep') {
       const ms = Math.max(0, Number((args as any)?.ms ?? 0))
       const wakeAt = new Date(Date.now() + ms)
@@ -217,3 +236,25 @@ export default new Action({
     return runnerJson({ decision: 'dispatch', entry_id: verdict.entryId })
   },
 })
+
+/**
+ * Put the orchestrator's job to sleep, in the same breath as telling its runner
+ * to let go.
+ *
+ * Not left to the runner to report on its way out. A machine killed between
+ * reading the answer and reporting anything would leave a job that looks
+ * running, holding a lease nobody is using, until the lease sweep guesses. The
+ * control plane made the decision, so the control plane writes it down.
+ *
+ * `sleeping` rather than `queued` is what stops another runner claiming a
+ * workflow that asked to wait three days, immediately.
+ */
+async function sleepJob(jobId: number): Promise<void> {
+  await db
+    .updateTable('workflow_jobs')
+    .set({ state: 'sleeping', runner_id: null, lease_expires_at: null })
+    .where('id', '=', jobId)
+    .where('state', '=', 'running')
+    .execute()
+    .catch(() => null)
+}

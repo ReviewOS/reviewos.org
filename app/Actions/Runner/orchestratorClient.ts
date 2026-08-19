@@ -92,6 +92,25 @@ export interface OrchestratorContext {
    * what makes a killed orchestrator resume rather than restart.
    */
   step: <T>(name: string, work: () => T | Promise<T>, args?: unknown) => Promise<T>
+  /**
+   * Ask the control plane to run something, on a machine of its own.
+   *
+   * The difference from `step`, and it is the important one: this becomes a
+   * real job on the run, claimed and reported like any other, so the run
+   * screen, the logs and restart-from-step are the ones that already exist.
+   * `step` is for the glue a job would be absurd for - reading a file, deciding
+   * a list - and `job` is for the work.
+   *
+   * The program suspends while it runs. Holding a machine to wait for a machine
+   * is two runners doing one job's work.
+   */
+  job: <T = Record<string, string>>(name: string, spec: {
+    run?: string
+    uses?: string
+    with?: Record<string, unknown>
+    env?: Record<string, string>
+    'runs-on'?: string
+  }) => Promise<T>
   /** Wait, without holding a machine while waiting. */
   sleep: (name: string, ms: number) => Promise<void>
   /**
@@ -181,6 +200,24 @@ export function orchestrator(transport: OrchestratorTransport): OrchestratorCont
       // same answer as one that woke late.
       if (decision.decision === 'replay')
         return
+
+      throw new Suspended(decision.wake_at ?? null)
+    },
+
+    async job<T>(name: string, spec: Record<string, unknown>): Promise<T> {
+      const position = next()
+      const decision = await decide(position, 'job', name, spec)
+
+      // Finished: the job's outputs are the call's result, so a later job
+      // reading an earlier one's output is reading the database.
+      if (decision.decision === 'replay')
+        return decision.result as T
+
+      // The job failed, and the program may catch it. Same shape as a failed
+      // step, deliberately: from the program's side there is one way work goes
+      // wrong, whichever machine it went wrong on.
+      if (decision.decision === 'failed')
+        throw new StepFailed(name, decision.reason ?? 'the job failed')
 
       throw new Suspended(decision.wake_at ?? null)
     },

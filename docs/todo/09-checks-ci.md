@@ -56,13 +56,13 @@ Ours is a Bun process holding the database, the session keys, and every bare rep
 [phase 2's `--git-dir`](./02-git-hosting.md), where a check passed against one repository while a
 different one was handed over.** So the decision:
 
-- [ ] **The workflow program runs as a job, not in the control plane.** A code-first workflow is
+- [x] **The workflow program runs as a job, not in the control plane.** A code-first workflow is
       dispatched to a runner like any other untrusted work, holding a lease. Its `step()` calls are
       authenticated API calls back to the control plane, which schedules the real work and returns
       the result. The control plane never imports, transpiles, or evaluates repository code.
 - [x] A static workflow document needs no orchestrator job at all: the graph is known before
       dispatch. The orchestrator exists only for definitions whose graph is decided at runtime.
-- [ ] Both forms normalize to the same `WorkflowRun` and step rows, so the interface, API, logs, and
+- [x] Both forms normalize to the same `WorkflowRun` and step rows, so the interface, API, logs, and
       restart-from-step behave identically whichever way a workflow was written. If a screen can tell
       which authoring form produced a run, the normalization is wrong.
 - [ ] An organization-wide workflow runs as its own orchestrator with its own trust level, and the
@@ -86,12 +86,28 @@ intercepts `reviewos/orchestrate@v1` the same way it intercepts `actions/cache`.
 suspends is `suspended`, not `failed`: it reports nothing and hands its machine back, because a
 workflow waiting for an approval must not put a red cross on somebody's commit.
 
-What is still missing from the first box, so its unticked state says what it means: **`step()` runs
-the work in the orchestrator's own process rather than as a job the control plane schedules.** The
-call is journaled and authenticated exactly as described, and the durability is real - but the jobs a
-program decides on at runtime do not become `workflow_jobs` rows, so a run written as a program shows
-one job where the same work written in YAML would show several. That is the whole of the
-normalization box, and it is the next piece.
+A program has two ways to ask for work, and the distinction is the normalization:
+
+- **`job(name, spec)`** writes a `workflow_jobs` row with a `workflow_steps` row under it, queued
+  immediately because there is no graph above it - what it waited for was the program, and the
+  program has already decided by asking. A runner claims it through the ordinary claim and reports it
+  through the ordinary report, so the run screen, the logs, the artifacts and restart-from-step are
+  the ones that already exist. The spec vocabulary is deliberately the same as a step's - `run`,
+  `uses`, `with`, `env`, `runs-on` - because the moment the two forms can express different things,
+  the normalization is a promise nobody can keep.
+- **`step(name, fn)`** is the glue a job would be absurd for: reading a file, deciding a list,
+  shaping a value between two jobs. It runs in the program's own process and is journaled all the
+  same.
+
+The program **suspends while a job runs**, and `reportJob` wakes it when the job finishes - in the
+report path rather than in a sweep, because the result is already in hand and waiting for the next
+tick of a timer would add a minute to every step of every code-first workflow. A failed job resolves
+the call as a failure the program can catch, rather than leaving it pending and hanging the run on
+work that is already over.
+
+`job_id` is keyed by the journal position rather than the name, because a loop calling
+`job('publish', ...)` twelve times is twelve jobs, `needs:` and the API address a job by that key,
+and naming cannot tell them apart.
 
 ### Durable execution
 
