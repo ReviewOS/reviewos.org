@@ -104,8 +104,22 @@ export async function writeCheckpoint(
 
   const child = await spawnGitLimited('background', repositoryPath, ['bundle', 'create', '--quiet', '-', '--all'])
 
-  if (!child)
+  /*
+   * Every way this function fails answers `null`, and for a long time it
+   * answered it silently - so "no checkpoint was written" arrived with no way
+   * to tell a saturated box from a broken repository. That matters more here
+   * than in most places: a checkpoint is what makes pruning safe, and pruning
+   * that goes ahead believing in a checkpoint nobody wrote deletes the only
+   * copy of those pushes.
+   *
+   * It also cost an afternoon on CI, where this returned null on a runner and
+   * passed on every machine anybody could reach.
+   */
+  if (!child) {
+    console.warn(`[checkpoint] repository ${repositoryId}: no background git slot within the acquire timeout; no checkpoint at sequence ${sequence}`)
+
     return null
+  }
 
   const timer = setTimeout(() => child.kill('SIGKILL'), CHECKPOINT_TIMEOUT_MS)
   // Before the stream is read: attaching after races the exit, which is the
@@ -119,6 +133,10 @@ export async function writeCheckpoint(
     const code = await exited
 
     if (code !== 0 || written.size <= BUNDLE_HEADER_BYTES) {
+      console.warn(code !== 0
+        ? `[checkpoint] repository ${repositoryId}: git bundle exited ${code}; no checkpoint at sequence ${sequence}`
+        : `[checkpoint] repository ${repositoryId}: git wrote ${written.size} bytes, a header and no pack; no checkpoint at sequence ${sequence}`)
+
       await store.delete(key).catch(() => undefined)
 
       return null
@@ -126,7 +144,9 @@ export async function writeCheckpoint(
 
     return { key, sequence, bytes: written.size }
   }
-  catch {
+  catch (error) {
+    console.warn(`[checkpoint] repository ${repositoryId}: writing the bundle failed: ${error instanceof Error ? error.message : String(error)}`)
+
     return null
   }
   finally {

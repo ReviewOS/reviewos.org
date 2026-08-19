@@ -36,6 +36,29 @@ if (!Bun.env.GIT_HOOK_SECRET || Bun.env.GIT_HOOK_SECRET.trim().length < 16)
  */
 Bun.env.QUEUE_DRIVER = 'sync'
 
+/**
+ * Git slots, sized for a test process rather than for a box.
+ *
+ * `app/Actions/Git/semaphore.ts` caps concurrent git processes per class -
+ * four background ones by default - and hands back `null` when a class stays
+ * saturated for ten seconds. That is the right answer in production: a busy
+ * box refuses work rather than queueing forever.
+ *
+ * A test run is not a busy box, it is one process running two hundred and
+ * fifty files in sequence, each leaving its own git children to finish exiting
+ * while the next file starts. A slot held by a child of a file that already
+ * ended is contention no assertion is about, and it made `writeCheckpoint`
+ * answer `null` on CI - only for the first call in its file, only on a runner,
+ * never on any machine anybody could try it on.
+ *
+ * Raised rather than removed, so the limiter is still the code under test
+ * wherever a test means to exercise it: a suite that wants saturation sets its
+ * own value.
+ */
+Bun.env.GIT_SEMAPHORE_BACKGROUND ||= '32'
+Bun.env.GIT_SEMAPHORE_HEAVY ||= '32'
+Bun.env.GIT_SEMAPHORE_ACQUIRE_MS ||= '60000'
+
 import { afterAll } from 'bun:test'
 import { applyRuntimeDirectoryEnv } from '@stacksjs/path'
 import { setupTestEnvironment } from '@stacksjs/testing'
