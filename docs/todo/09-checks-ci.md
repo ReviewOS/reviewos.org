@@ -230,10 +230,28 @@ closing brace and fails somewhere else entirely, on a line with nothing to do wi
 marker says the size and where the value belongs instead. Measured in bytes, because a limit counted
 in characters lets a value of CJK text through at three times the size the column was sized for.
 
-The two test cases still open both need restart-from-step to reuse a recorded result, which is the
-same work as the reuse-labelling box above it: `rerun.ts` currently plans at job granularity, so
-there is no point at which a step's recorded output is offered to a second attempt. The rows to
-reuse now exist, which is what was missing - the plan does not read them yet.
+The decision half of restart-reuse is written and tested: `app/Actions/Workflow/reuse.ts` says which
+recorded results a restart keeps. Pure, like `rerunPlan` beside it, because it is the part people
+will argue about and an argument settled by reading a test is shorter than one settled by running a
+build twice.
+
+The rule is that a result survives when **the step is unchanged, every step before it is unchanged,
+and it succeeded**. The middle clause is the one that gets forgotten and the one that makes this
+safe: a step reads the workspace its predecessors left behind, so reusing step 7's output after step
+3 was edited hands a later job a value produced from a world that no longer exists. So the walk stops
+at the first step it cannot keep - a set of reusable steps with a hole in it is not a set of reusable
+steps.
+
+Two smaller decisions worth knowing: a **renamed** step is the same step, since refusing to reuse it
+would re-run a twenty-minute build because a label got clearer; and a step whose result was **lost**
+- reported by a runner too old to send it, or dropped for being too large - is re-run rather than
+skipped with nothing, because skipping would hand later steps an empty value they would read as the
+answer.
+
+What remains is the wiring, and it is the whole of both open boxes: `rerun.ts` plans at job
+granularity, so nothing yet asks `reusePlan` what to skip, no `reused_from_step_id` links a kept
+result to the attempt that produced it, and neither the interface nor the API says a result was
+reused rather than produced.
 
 ### Snapshot caching
 
