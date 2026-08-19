@@ -70,11 +70,20 @@ export async function viewedFiles(pullRequestId: number, reviewerId: number): Pr
 /**
  * Tick or untick one file.
  *
- * `ON CONFLICT` rather than a read followed by a write, and written out rather
- * than built, because the query builder has no upsert. The alternative is to
- * select, branch, and insert - which is three statements and a race: a reviewer
- * with the same pull request open in two tabs would have one of them fail on the
- * unique index. Every value is bound.
+ * An upsert rather than a read followed by a write: the alternative is three
+ * statements and a race, where a reviewer with the same pull request open in
+ * two tabs has one of them fail on the unique index.
+ *
+ * Through the query builder's own `upsert` rather than written out, which is
+ * the phase 17 rule made concrete - `ON CONFLICT ... DO UPDATE` is Postgres
+ * and SQLite, `ON DUPLICATE KEY UPDATE` is MySQL, and a hand-written statement
+ * picks one engine forever. The builder knows which dialect it is on; this
+ * file should not have to.
+ *
+ * The timestamps are bound rather than `CURRENT_TIMESTAMP`, the same rule the
+ * rest of this codebase follows: these columns are naive timestamps written by
+ * the application, and letting the database fill one writes the *server's*
+ * local clock into a column every other row got from ours.
  */
 export async function setFileViewed(
   pullRequestId: number,
@@ -84,20 +93,24 @@ export async function setFileViewed(
   headSha: string | null,
 ): Promise<void> {
   if (!viewed) {
-    await db.unsafe(
-      `DELETE FROM "reviewed_files" WHERE "pull_request_id" = $1 AND "reviewer_id" = $2 AND "path" = $3`,
-      [pullRequestId, reviewerId, path],
-    ).execute()
+    await db
+      .deleteFrom('reviewed_files')
+      .where('pull_request_id', '=', pullRequestId)
+      .where('reviewer_id', '=', reviewerId)
+      .where('path', '=', path)
+      .execute()
+
     return
   }
 
-  await db.unsafe(
-    `INSERT INTO "reviewed_files" ("pull_request_id", "reviewer_id", "path", "head_sha", "created_at", "updated_at")
-    VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    ON CONFLICT ("pull_request_id", "reviewer_id", "path")
-    DO UPDATE SET "head_sha" = EXCLUDED."head_sha", "updated_at" = CURRENT_TIMESTAMP`,
-    [pullRequestId, reviewerId, path, headSha],
-  ).execute()
+  const now = new Date().toISOString()
+
+  await db.upsert(
+    'reviewed_files',
+    [{ pull_request_id: pullRequestId, reviewer_id: reviewerId, path, head_sha: headSha, created_at: now, updated_at: now }],
+    ['pull_request_id', 'reviewer_id', 'path'],
+    ['head_sha', 'updated_at'],
+  )
 }
 
 export async function draftFor(pullRequestId: number, authorId: number): Promise<DraftComment | null> {
@@ -123,23 +136,35 @@ export async function draftFor(pullRequestId: number, authorId: number): Promise
 /** Replace the reviewer's draft, or remove it when the text is gone. */
 export async function saveDraft(pullRequestId: number, authorId: number, draft: DraftComment | null): Promise<void> {
   if (draft == null || draft.text.trim() === '') {
-    await db.unsafe(
-      `DELETE FROM "review_drafts" WHERE "pull_request_id" = $1 AND "author_id" = $2`,
-      [pullRequestId, authorId],
-    ).execute()
+    await db
+      .deleteFrom('review_drafts')
+      .where('pull_request_id', '=', pullRequestId)
+      .where('author_id', '=', authorId)
+      .execute()
+
     return
   }
 
   // One draft per reviewer per pull request, so a second one replaces the
   // first. See the model: the viewer only ever has one open.
-  await db.unsafe(
-    `INSERT INTO "review_drafts" ("pull_request_id", "author_id", "path", "side", "from_line", "to_line", "body", "created_at", "updated_at")
-    VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    ON CONFLICT ("pull_request_id", "author_id")
-    DO UPDATE SET "path" = EXCLUDED."path", "side" = EXCLUDED."side", "from_line" = EXCLUDED."from_line",
-                  "to_line" = EXCLUDED."to_line", "body" = EXCLUDED."body", "updated_at" = CURRENT_TIMESTAMP`,
-    [pullRequestId, authorId, draft.path, draft.side, draft.from, draft.to, draft.text],
-  ).execute()
+  const now = new Date().toISOString()
+
+  await db.upsert(
+    'review_drafts',
+    [{
+      pull_request_id: pullRequestId,
+      author_id: authorId,
+      path: draft.path,
+      side: draft.side,
+      from_line: draft.from,
+      to_line: draft.to,
+      body: draft.text,
+      created_at: now,
+      updated_at: now,
+    }],
+    ['pull_request_id', 'author_id'],
+    ['path', 'side', 'from_line', 'to_line', 'body', 'updated_at'],
+  )
 }
 
 /**

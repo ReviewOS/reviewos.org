@@ -565,6 +565,14 @@ The key is the one pantry's service runs with. It is a development default and
 an instance reachable from anywhere needs its own: a search node with a
 guessable key answers anybody's question about private repositories.
 
+8208 rather than Typesense's default 8108, and it has to agree with the
+`pantry start typesense --port 8208` in config/deps.ts - there is no third
+place deriving one from the other. The point is one instance per project:
+every project asking for 8108 means whichever starts second fails to bind,
+and its health check gets the first project's answer and reports success.
+Working since pantry 0.11.31; see the note in config/deps.ts for what had to
+be fixed upstream, twice, to make it true.
+
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
 ### `TYPESENSE_HOST`
@@ -575,7 +583,7 @@ Default: `127.0.0.1`.
 
 ### `TYPESENSE_PORT`
 
-Default: `8108`.
+Default: `8208`.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
@@ -879,6 +887,22 @@ byte on a phone. The benchmark harness pins it so the on-demand path can be
 measured at all.
 
 Read by `app/Actions/Pull/manifest.ts`.
+
+## Ssr
+
+### `SSR_DIFF_BYTE_LIMIT`
+
+Default: `8388608`, and the line is commented out.
+
+How much patch text the server-rendered pull request page will hold, in
+bytes. The same default as the budget above and for the same reason: past it,
+a diff is not something a whole-page render serves anybody with, and the
+virtualized review screen is where the reader belongs - the page says so in a
+banner rather than rendering part of a change as though it were all of it.
+Lower it on a small box; a value that is not a number falls back to the
+default rather than to zero, which would truncate every diff on the site.
+
+Read by `app/Actions/Pull/load.ts`.
 
 ## GitHub
 

@@ -12,6 +12,7 @@
  */
 
 import { existsSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { DATABASE_WALL_CLOCK } from '../Actions/Support/sql'
 import { join } from 'node:path'
 import { REPOSITORY_ROOT } from '../Actions/Git/storage'
 import { draining } from './shutdown'
@@ -137,14 +138,21 @@ async function databaseClock(): Promise<Check> {
   return await timed('database clock', async () => {
 
     /*
-     * `CURRENT_TIMESTAMP::timestamp` is exactly what a defaulted column stores:
-     * the cast drops the offset, the same way the column type does. Comparing
-     * that against this process's clock measures the bug directly, without
-     * writing anything and without depending on how old any row happens to be.
+     * `LOCALTIMESTAMP` is exactly what a defaulted column stores: the naive
+     * clock, no offset, the same way the column type has none. Comparing it
+     * against this process's clock measures the bug directly, without writing
+     * anything and without depending on how old any row happens to be.
+     *
+     * It was `CURRENT_TIMESTAMP::timestamp`, which says the same thing in
+     * Postgres and is a syntax error in MySQL - and the audit's own rule is
+     * that the statement running today should be the one that survives the
+     * engine changing. `LOCALTIMESTAMP` is standard and both engines have it,
+     * which also makes this the same spelling `Ops/audit.ts` uses for the same
+     * measurement.
      */
-    const rows = await db.raw`SELECT CURRENT_TIMESTAMP::timestamp AS stored`
+    const rows = await db.unsafe(DATABASE_WALL_CLOCK).execute()
     const row = Array.isArray(rows) ? rows[0] : rows
-    const stored = (row as Record<string, unknown> | undefined)?.stored
+    const stored = (row as Record<string, unknown> | undefined)?.wall
     if (!stored)
       return
 

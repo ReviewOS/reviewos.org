@@ -1,4 +1,5 @@
 import { db } from '@stacksjs/database'
+import { DATABASE_WALL_CLOCK } from '../Actions/Support/sql'
 /**
  * Reading the audit log.
  *
@@ -226,9 +227,13 @@ async function databaseOffset(): Promise<number> {
     return databaseOffsetMs
 
   try {
-    const { sql } = await import('bun')
     const before = Date.now()
-    const rows: any = await sql`SELECT LOCALTIMESTAMP AS wall`
+    /*
+     * The one spelling, shared with the health check: both read the database's
+     * naive wall clock, and two spellings of one measurement is how they end up
+     * measuring two different things on two engines.
+     */
+    const rows: any = await db.unsafe(DATABASE_WALL_CLOCK).execute()
     const wall = Date.parse(String(rows?.[0]?.wall ?? ''))
 
     databaseOffsetMs = Number.isFinite(wall)

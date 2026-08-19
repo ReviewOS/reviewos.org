@@ -17,6 +17,8 @@
  *   than anything derived from the clock.
  */
 
+import { portable } from '../Support/sql'
+
 /** One pull request in somebody's queue. */
 export interface QueueEntry {
   pullRequestId: number
@@ -184,13 +186,13 @@ export async function outstandingRequestCount(userId: number): Promise<number> {
     return 0
 
   const rows = await db.unsafe(
-    `SELECT COUNT(DISTINCT "p"."id") AS "waiting"
+    portable(`SELECT COUNT(DISTINCT "p"."id") AS "waiting"
     FROM "pull_request_reviewers" "r"
     JOIN "pull_requests" "p" ON "p"."id" = "r"."pull_request_id"
     WHERE "r"."reviewer_id" = $1
       AND "r"."responded_at" IS NULL
       AND "p"."state" = 'open'
-      AND NOT "p"."draft"`,
+      AND NOT "p"."draft"`),
     [userId],
   ).execute()
 
@@ -206,6 +208,10 @@ export async function outstandingRequestCount(userId: number): Promise<number> {
  * variants are the same statement with one predicate swapped, so they cannot
  * drift in the parts that are not the difference between them. Every value is
  * bound; the only thing interpolated is a predicate chosen from this file.
+ *
+ * Written out *and portable*: every construct here is standard SQL, so the
+ * statement that survives the move to MySQL is the one running today rather
+ * than one somebody rewrote on the day of the migration.
  */
 async function queueRows(scope: { reviewerId?: number, authorId?: number }): Promise<QueueEntry[]> {
   const id = scope.reviewerId ?? scope.authorId
@@ -219,13 +225,23 @@ async function queueRows(scope: { reviewerId?: number, authorId?: number }): Pro
     ? `"r"."reviewer_id" = $1`
     : `"p"."author_id" = $1`
 
+  /*
+   * `MIN("r"."created_at")` with a `GROUP BY` rather than `DISTINCT ON`.
+   *
+   * The two say the same thing here - one row per pull request, carrying the
+   * *earliest* request - and only one of them is portable: `DISTINCT ON` is
+   * Postgres', and MySQL has no equivalent at all, so phase 17 would have had
+   * to rewrite this under time pressure during an engine migration rather than
+   * calmly now. The aggregate is also the plainer statement: the thing being
+   * asked for is "how long has this been waiting", which is a minimum.
+   */
   const rows = await db.unsafe(
-    `SELECT DISTINCT ON ("p"."id")
+    portable(`SELECT
       "p"."id" AS "pull_request_id",
       "p"."number" AS "number",
       "p"."title" AS "title",
       "p"."draft" AS "draft",
-      "r"."created_at" AS "waiting_since",
+      MIN("r"."created_at") AS "waiting_since",
       "repo"."name" AS "repository",
       "owner"."handle" AS "owner",
       "author"."handle" AS "author_handle",
@@ -241,7 +257,8 @@ async function queueRows(scope: { reviewerId?: number, authorId?: number }): Pro
     WHERE ${predicate}
       AND "r"."responded_at" IS NULL
       AND "p"."state" = 'open'
-    ORDER BY "p"."id", "r"."created_at" ASC`,
+    GROUP BY "p"."id", "p"."number", "p"."title", "p"."draft", "repo"."name", "owner"."handle", "author"."handle"
+    ORDER BY MIN("r"."created_at") ASC`),
     [id],
   ).execute()
 

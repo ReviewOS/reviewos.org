@@ -1,4 +1,5 @@
 import { db } from '@stacksjs/database'
+import { portable } from '../Support/sql'
 /**
  * The four questions an explore page answers.
  *
@@ -44,14 +45,14 @@ export async function trending(days = 7, limit = EXPLORE_LIMIT): Promise<Explore
      * than a counter.
      */
     const rows: any[] = await db.unsafe(
-      `SELECT "r"."id", COUNT("s"."id") AS "gained"
+      portable(`SELECT "r"."id", COUNT("s"."id") AS "gained"
       FROM "stars" "s"
       JOIN "repositories" "r" ON "r"."id" = "s"."repository_id"
       WHERE "s"."created_at" >= $1
         AND "r"."visibility" = 'public'
       GROUP BY "r"."id"
       ORDER BY "gained" DESC, "r"."id" DESC
-      LIMIT $2`,
+      LIMIT $2`),
       [since, limit],
     ).execute()
 
@@ -161,13 +162,13 @@ export async function languageIndex(limit = 30): Promise<{ language: string, rep
 
   try {
     const rows: any[] = await db.unsafe(
-      `SELECT "l"."language", COUNT(DISTINCT "l"."repository_id") AS "repositories"
+      portable(`SELECT "l"."language", COUNT(DISTINCT "l"."repository_id") AS "repositories"
       FROM "repository_languages" "l"
       JOIN "repositories" "r" ON "r"."id" = "l"."repository_id"
       WHERE "r"."visibility" = 'public'
       GROUP BY "l"."language"
       ORDER BY "repositories" DESC, "l"."language" ASC
-      LIMIT $1`,
+      LIMIT $1`),
       [limit],
     ).execute()
 

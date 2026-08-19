@@ -35,12 +35,43 @@ so the linearizer is built once, on the engine it will live on.
 
 ## Single-node MySQL
 
-- [ ] Dialect audit of the query layer: several hundred `selectFrom` sites in `app/Actions/` and
+- [x] Dialect audit of the query layer: several hundred `selectFrom` sites in `app/Actions/` and
       the views. bun-query-builder abstracts the dialect, so the audit hunts raw SQL fragments and
       Postgres-isms: `ILIKE`, `RETURNING`, `ON CONFLICT`, JSON operators, enum types. Findings
       that are the tool's gap get fixed in bun-query-builder upstream, per the standing rule - and
       per the five silent query-builder failures in the [index](./index.md), every fix arrives
       with the SQL checked, not the shape of the call.
+
+      The prediction held: the builder covers the surface, and the whole of the Postgres in this
+      codebase was **eight hand-written statements and two clock reads**. No `ILIKE`, no JSON
+      operators, no array functions, no advisory locks anywhere.
+
+      What was found, and what happened to it:
+
+      - **Three `INSERT ... ON CONFLICT ... DO UPDATE`** - the viewed-files tick, the review draft,
+        the last-look checkpoint - now go through the builder's own `upsert`, which spells
+        `ON DUPLICATE KEY UPDATE` on MySQL. That was the tool's gap and the tool already had the
+        answer; the statements were written by hand because an older builder emitted SQL Postgres
+        refused, and the comment saying so outlived the defect.
+      - **One `SELECT DISTINCT ON`** in the review queue, which MySQL has no equivalent for at all.
+        Rewritten as `MIN(created_at)` with a `GROUP BY`: the same rows, standard SQL, and the
+        plainer statement - what the query asks for is "how long has this been waiting", which is a
+        minimum.
+      - **Two readings of the database's clock**, `CURRENT_TIMESTAMP::timestamp` in the health check
+        and `LOCALTIMESTAMP` in the audit's offset probe. One spelling now, `LOCALTIMESTAMP`, which
+        both engines have and which is what a naive column stores - and one constant, because two
+        spellings of one measurement is how they end up measuring two different things.
+      - **Every remaining raw statement** goes through `portable()`, which moves `$1` to `?` and
+        `"ident"` to backticks when the connection speaks MySQL. Both are silent failures rather
+        than loud ones: MySQL reads `"state"` as a string literal, so `WHERE "state" = 'open'`
+        becomes a comparison of two constants that returns nothing and raises nothing.
+
+      **The audit is a test, not a memory.** `tests/unit/sql-portability.test.ts` scans `app/`,
+      `routes/` and `resources/` for constructs MySQL does not have and for raw statements that
+      reach the driver unspelled, with the remedy on each rule. It is matched case-sensitively,
+      because the builder's own `.returning()` and `.distinctOn()` are the portable path - a
+      case-insensitive first draft flagged sixty call sites that were already right, which is how a
+      guard test teaches people to disable it.
 - [ ] Regenerate the migration corpus against the mysql dialect with
       `./buddy generate:migrations`. The 198 migrations are model-generated, so this is
       regeneration and review rather than hand-porting; the review checks charset and collation

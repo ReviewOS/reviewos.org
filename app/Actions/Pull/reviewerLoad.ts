@@ -14,6 +14,7 @@
  */
 
 import { agePhrase, hoursWaiting } from './queue'
+import { portable } from '../Support/sql'
 
 export interface ReviewerLoadRow {
   handle: string
@@ -29,7 +30,7 @@ export async function reviewerLoadFor(repositoryId: number): Promise<ReviewerLoa
     return []
 
   const rows = await db.unsafe(
-    `SELECT
+    portable(`SELECT
       "u"."handle" AS "handle",
       COUNT(DISTINCT "p"."id") AS "waiting",
       MIN("r"."created_at") AS "oldest"
@@ -41,7 +42,7 @@ export async function reviewerLoadFor(repositoryId: number): Promise<ReviewerLoa
       AND "p"."state" = 'open'
       AND NOT "p"."draft"
     GROUP BY "u"."handle"
-    ORDER BY MIN("r"."created_at") ASC, "u"."handle" ASC`,
+    ORDER BY MIN("r"."created_at") ASC, "u"."handle" ASC`),
     [repositoryId],
   ).execute()
 
