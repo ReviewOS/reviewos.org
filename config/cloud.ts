@@ -4,6 +4,23 @@ import { servers } from '../cloud/servers'
 import { env } from '@stacksjs/env'
 
 /**
+ * The port the API process listens on, and the one the page server proxies to.
+ *
+ * Adjacent to the page server's 3072 so this project's ports read as one block
+ * on a box it shares with other deployments, and deliberately not the
+ * framework default of 3008: the same reasoning that moved the page server off
+ * 3010, which verygoodadblock's api already held. Two processes can bind one
+ * port without erroring - one on loopback, one on every interface - and which
+ * of them answers then depends on how the request arrived.
+ *
+ * Named once because it has to be right in two places: the API binds it and
+ * the page server's `PORT_API` points at it. `assertPortsAreFree` checks it
+ * against `ss -lntp` on the box before a release ships, so a collision fails
+ * the deploy rather than producing a site that answers intermittently.
+ */
+const API_PORT = 3073
+
+/**
  * Stacks Cloud Configuration
  *
  * This file defines your cloud infrastructure configuration for Stacks.
@@ -873,6 +890,81 @@ export const tsCloud: TsCloudConfig = {
         // `String(...)` because the env helper types a value as
         // `string | number | true` - a bare `||` leaves the number and the
         // boolean, and this field is a string.
+        GITHUB_TOKEN: String(env.GITHUB_TOKEN ?? ''),
+        /*
+         * Where this site's `/api/**` proxy sends same-origin requests.
+         *
+         * Required, and its absence is why the whole API surface answered 502
+         * in production for as long as it did. The page server proxies `/api`
+         * to the API process rather than routing it itself, and
+         * `resolveApiBase` refuses to guess the port on a deployed box - this
+         * one is shared, and the framework default (3008) belongs to whoever
+         * claimed it first. With nothing to resolve, every request under
+         * `/api` answered 502: health, metrics, the OpenAPI document, the MCP
+         * endpoint, the on-demand social cards, and every `fetch('/api/...')`
+         * the interface makes. The front page was 200 throughout, which is
+         * what the deploy's own verification looks at.
+         *
+         * Stacks refuses to deploy this shape now (`apiDeploymentProblem`),
+         * so a project cannot ship half of the pair again.
+         */
+        PORT_API: String(API_PORT),
+      },
+    },
+
+    /*
+     * The API, as its own process.
+     *
+     * Stacks serves the JSON API from a separate service - `buddy serve:api`,
+     * bun-router over `app/Routes.ts` - and the page server above proxies
+     * same-origin `/api` requests to it. This site is what makes that process
+     * exist; without it the proxy has nowhere to send anything.
+     *
+     * It carries no `path`, so nothing routes to it from the outside: the only
+     * way in is the page server's loopback proxy, which is what keeps one
+     * front door and one set of security headers over everything.
+     */
+    api: {
+      root: '.',
+      domain: env.APP_DOMAIN || 'reviewos.org',
+      start: 'bun node_modules/@stacksjs/buddy/dist/cli.js serve:api',
+      port: API_PORT,
+
+      /*
+       * The repositories, linked the same way the page server links them.
+       *
+       * The API is not a metadata-only surface: the git wire protocol, raw
+       * file reads, archives and attachments all read the bare repositories
+       * off disk. A release without this link answers every one of them as an
+       * empty repository, which reads as data loss rather than as a broken
+       * mount.
+       *
+       * Deliberately no `migrate` and no docs build. The page server owns both
+       * - it is the site ts-cloud picks as the database owner - and running
+       * migrations from two services in one deploy is a race whose loser
+       * corrupts the schema it was trying to create.
+       */
+      preStart: [
+        'bun install',
+        'mkdir -p "$(cd ../.. && pwd)/shared/storage/repos"',
+        'rm -rf storage/repos',
+        'ln -sfn "$(cd ../.. && pwd)/shared/storage/repos" storage/repos',
+        'test -d storage/repos/ || { echo "storage/repos does not resolve" >&2; exit 1; }',
+      ],
+
+      exclude: ['storage/repos'],
+
+      // The same database, the same key, the same token. `mergeSiteDeployEnv`
+      // folds the resolved production values in underneath these, so the two
+      // services cannot end up pointed at different databases.
+      env: {
+        DB_CONNECTION: 'postgres',
+        DB_HOST: '127.0.0.1',
+        DB_PORT: '5432',
+        DB_DATABASE: 'reviewos',
+        DB_USERNAME: 'reviewos',
+        DB_PASSWORD: env.DB_PASSWORD || '',
+        APP_KEY: env.APP_KEY || '',
         GITHUB_TOKEN: String(env.GITHUB_TOKEN ?? ''),
       },
     },
