@@ -14,6 +14,7 @@
 import { db } from '@stacksjs/database'
 import type { NormalizedWorkflow, WorkflowError } from './parse'
 import { parseWorkflow } from './parse'
+import { isProgramPath, programDocument } from './program'
 
 export interface SyncInput {
   /** Null for a workflow an owner carries rather than a repository. */
@@ -95,7 +96,32 @@ function lines(values: readonly string[]): string | null {
  * version per commit, and it is why the digest column is unique per workflow.
  */
 export async function syncWorkflowFile(input: SyncInput): Promise<SyncResult> {
-  const parsed = parseWorkflow(input.source, input.path)
+  /*
+   * A program is translated to the document it declares, and then it is an
+   * ordinary workflow.
+   *
+   * Everything downstream of this line - the parser, the version rows, the
+   * trigger filters, the dispatch, the claim - is the code that already exists
+   * and is already tested. Giving the second authoring form its own pipeline is
+   * exactly the fork this design exists to avoid: if a screen could tell which
+   * way a run was written, the normalization would be wrong.
+   *
+   * The digest below still hashes the *program*, not the translation, so
+   * editing the body of a workflow makes a new version even when its front
+   * matter is untouched.
+   */
+  let source = input.source
+
+  if (isProgramPath(input.path)) {
+    const translated = programDocument(input.source, input.path)
+
+    if (!translated.ok)
+      return { ok: false, workflowId: null, versionId: null, createdVersion: false, errors: [{ line: 1, message: translated.error, fix: 'Add the front matter block at the top of the file.' }] }
+
+    source = translated.document
+  }
+
+  const parsed = parseWorkflow(source, input.path)
 
   if (!parsed.ok) {
     return { ok: false, workflowId: null, versionId: null, createdVersion: false, errors: parsed.errors }

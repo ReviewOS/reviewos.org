@@ -41,6 +41,9 @@ import { redactWithCount } from './redact'
 import { restoreCache, saveCache } from './cacheClient'
 import { keyFor, worthCaching } from './snapshot'
 import { cacheActionMode, isCacheAction, requestFrom, restoreKeyed, saveKeyed } from './keyedCache'
+import { ORCHESTRATE_ACTION } from '../Workflow/program'
+import { drive } from './orchestrate'
+import { httpTransport } from './orchestratorClient'
 import type { ServiceRequest } from './services'
 import { resolveServices, serviceEnvironment, waitForPort } from './services'
 import { interpolate, shouldRun } from '../Workflow/expression'
@@ -124,7 +127,14 @@ export interface LocalRunnerOptions {
 
 export interface JobOutcome {
   jobId: number
-  state: 'succeeded' | 'failed' | 'cancelled'
+  /*
+   * `suspended` is a job that stopped without finishing, and it is not a
+   * failure. A workflow program that sleeps hands its machine back; the control
+   * plane holds the timer and requeues the job when it comes due. Reporting a
+   * conclusion here would turn a workflow waiting for an approval into a red
+   * cross on somebody's commit.
+   */
+  state: 'succeeded' | 'failed' | 'cancelled' | 'suspended'
   reason: string
 }
 
@@ -814,6 +824,48 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
        * workflow copied from somewhere else should run rather than explain
        * itself.
        */
+      /*
+       * The workflow program itself, run here because here is where running
+       * repository code is allowed.
+       *
+       * Named as an action rather than a shell line for two reasons: what has
+       * to happen - load this file and drive it against the journal - is not
+       * something a shell command can express, and making it one would make it
+       * depend on what happens to be installed on the machine.
+       */
+      if (step.uses && String(step.uses) === ORCHESTRATE_ACTION) {
+        await send(`::group::${name}\n`)
+
+        const file = join(workspace, String((interpolateValues(step.with ?? {}, context) as any)?.workflow ?? ''))
+
+        const outcome = await drive(file, httpTransport({ server: options.baseUrl, token: jobToken }))
+
+        await send(`${outcome.reason} after ${outcome.calls} call${outcome.calls === 1 ? '' : 's'}\n`)
+        await send('::endgroup::\n')
+
+        if (outcome.state === 'failed') {
+          failed = outcome.reason
+          break
+        }
+
+        /*
+         * Suspended is not a finished job and not a failed one.
+         *
+         * The control plane already moved this job to `sleeping` when it
+         * answered the call, so there is nothing to report - and reporting a
+         * conclusion would either be rejected or, worse, accepted and turn a
+         * workflow waiting for an approval into a red cross.
+         */
+        if (outcome.state === 'suspended') {
+          await flush()
+          say(`job ${job.id} suspended: ${outcome.reason}`)
+
+          return { jobId: Number(job.id), state: 'suspended', reason: outcome.reason }
+        }
+
+        continue
+      }
+
       if (step.uses && isCacheAction(String(step.uses))) {
         await send(`::group::${name}\n`)
 

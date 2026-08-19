@@ -60,7 +60,7 @@ different one was handed over.** So the decision:
       dispatched to a runner like any other untrusted work, holding a lease. Its `step()` calls are
       authenticated API calls back to the control plane, which schedules the real work and returns
       the result. The control plane never imports, transpiles, or evaluates repository code.
-- [ ] A static workflow document needs no orchestrator job at all: the graph is known before
+- [x] A static workflow document needs no orchestrator job at all: the graph is known before
       dispatch. The orchestrator exists only for definitions whose graph is decided at runtime.
 - [ ] Both forms normalize to the same `WorkflowRun` and step rows, so the interface, API, logs, and
       restart-from-step behave identically whichever way a workflow was written. If a screen can tell
@@ -68,6 +68,30 @@ different one was handed over.** So the decision:
 - [ ] An organization-wide workflow runs as its own orchestrator with its own trust level, and the
       repositories it covers supply data, not code. This is the condition the old paragraph set, and
       it is the reason the orchestrator is per-run rather than per-repository.
+
+The authoring form exists: a `.ts` file in `.reviewos/workflows` whose triggers are declared in a
+front matter block. `app/Actions/Workflow/program.ts` reads that block **as text** and translates it
+into an ordinary workflow document with one job, so everything downstream - the parser, the version
+rows, the trigger filters, the dispatch, the claim - is the code that already exists. The program
+below the block is never parsed, imported, or evaluated on this side of the boundary; it is bytes on
+their way to a machine, exactly like a `run:` script.
+
+The front matter is not a convenience. A workflow's triggers have to be readable *before* it runs,
+or the only way to find out whether a program wanted to run on this push is to run it - which is the
+thing that must not happen. That is why the block is required and why a file without one is refused
+with a sentence naming what is missing, rather than ignored.
+
+On the runner, `app/Actions/Runner/orchestrate.ts` imports the file and drives it, and the executor
+intercepts `reviewos/orchestrate@v1` the same way it intercepts `actions/cache`. A program that
+suspends is `suspended`, not `failed`: it reports nothing and hands its machine back, because a
+workflow waiting for an approval must not put a red cross on somebody's commit.
+
+What is still missing from the first box, so its unticked state says what it means: **`step()` runs
+the work in the orchestrator's own process rather than as a job the control plane schedules.** The
+call is journaled and authenticated exactly as described, and the durability is real - but the jobs a
+program decides on at runtime do not become `workflow_jobs` rows, so a run written as a program shows
+one job where the same work written in YAML would show several. That is the whole of the
+normalization box, and it is the next piece.
 
 ### Durable execution
 

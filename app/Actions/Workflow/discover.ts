@@ -15,6 +15,7 @@
  */
 
 import { isSafeRevision, runGit } from '../Git/git'
+import { isProgramPath } from './program'
 
 /** Where Actions keeps them, and where a repository being imported will have them. */
 export const WORKFLOW_DIRECTORY = '.github/workflows'
@@ -53,9 +54,28 @@ export const MAX_WORKFLOW_FILES = 100
 /** Bigger than any workflow anybody writes, small enough not to matter. */
 export const MAX_WORKFLOW_BYTES = 512 * 1024
 
-/** `.yml` and `.yaml`, which Actions treats alike and repositories mix freely. */
-function isWorkflowFile(name: string): boolean {
-  return /\.ya?ml$/i.test(name)
+/**
+ * `.yml` and `.yaml`, which Actions treats alike and repositories mix freely -
+ * and the program forms, whose front matter is read the same way.
+ *
+ * A program is discovered exactly like a document because that is the point: it
+ * is a second way to *write* a workflow, not a second kind of workflow. What
+ * differs is only that the graph below the front matter is decided at runtime,
+ * and nothing on this side of the boundary reads it.
+ */
+function isWorkflowFile(name: string, directory: string): boolean {
+  if (/\.ya?ml$/i.test(name))
+    return true
+
+  /*
+   * A program is only a workflow in *our* directory.
+   *
+   * `.github/workflows` has a meaning that belongs to GitHub, and in it a `.ts`
+   * file is somebody's helper script - a thing their workflows import, not a
+   * thing that runs. Treating it as a workflow would report a missing front
+   * matter block on every push for a file that was never claiming to be one.
+   */
+  return directory === REVIEWOS_WORKFLOW_DIRECTORY && isProgramPath(name)
 }
 
 /**
@@ -100,7 +120,7 @@ export async function discoverWorkflows(
   const names = listing.stdout
     .split('\0')
     .map(name => name.trim())
-    .filter(name => name.length > 0 && isWorkflowFile(name))
+    .filter(name => name.length > 0 && isWorkflowFile(name, directory))
     .slice(0, MAX_WORKFLOW_FILES)
 
   const found: DiscoveredWorkflow[] = []

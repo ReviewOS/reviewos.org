@@ -26,6 +26,7 @@ import { policyLevels } from '../Plugin/store'
 import { setting } from '../../Ops/settings'
 import { branchDecision, skipDecision } from './stepAttributes'
 import type { Combination, MatrixAdjustment } from './matrix'
+import { isOrchestratorJob } from './program'
 import { adjustmentFor } from './matrix'
 import type { ConcurrencyContext } from './concurrency'
 import { resolveGroup } from './concurrency'
@@ -1097,6 +1098,14 @@ async function createJobs(
   const repositoryId = await repositoryOf(runId)
 
   /*
+   * Where this version was written, so the orchestrator job can be recognised.
+   *
+   * Read once per version rather than per job, next to the repository id and
+   * for the same reason: it is a property of the dispatch, not of a row.
+   */
+  const sourcePath = await sourcePathOf(versionId)
+
+  /*
    * What the *whole called workflow* waits for.
    *
    * A call job's `needs:` belongs to the caller's graph, and the jobs it
@@ -1312,6 +1321,15 @@ async function createJobs(
            */
           continue_on_error: isTrue(job.continue_on_error) || adjusted?.softFail === true,
             kind: job.kind ?? 'command',
+            /*
+             * The one job of a workflow that was written as a program.
+             *
+             * Derived from the version's path rather than stored a second time
+             * in the definition: a workflow either lives in a `.ts` file or it
+             * does not, and a flag that could disagree with the file it came
+             * from is a flag that eventually will.
+             */
+            orchestrator: isOrchestratorJob(String(job.job_id), sourcePath),
             settings: plugins.ok ? plugins.settings : (job.settings ?? null),
             group_label: job.group_label ?? null,
             priority: Number(job.priority ?? 0),
@@ -1323,6 +1341,18 @@ async function createJobs(
       }
     }
   }
+}
+
+/** The file a version came from, or null when the row has gone. */
+async function sourcePathOf(versionId: number): Promise<string | null> {
+  const row: any = await db
+    .selectFrom('workflow_versions')
+    .select(['source_path'])
+    .where('id', '=', versionId)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  return row?.source_path ? String(row.source_path) : null
 }
 
 /** `test` with `(3/5)` after it, or `test` when there is only one of it. */
