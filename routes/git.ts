@@ -209,10 +209,42 @@ route.post(GATE_ENDPOINT, async (request: any) => {
   if (!sameSecret(offered, secret))
     return new Response('Not found', { status: 404 })
 
-  const allow = (extra: Record<string, unknown> = {}) => new Response(
-    JSON.stringify({ ok: true, ...extra }),
-    { headers: { 'Content-Type': 'application/json' } },
-  )
+  /*
+   * What the WAL needs, filled in once the repository is known.
+   *
+   * The log is written *here*, in the gate, rather than at post-receive: the
+   * whole point is that a push is written down before it is acknowledged, and
+   * post-receive runs after git has already accepted it. Recorded on the way
+   * out through `allow()`, so every path that lets a push through records it
+   * and no path can be added later that forgets to.
+   */
+  let walTarget: { repositoryId: number, path: string, updates: ReturnType<typeof parseRefUpdates> } | null = null
+
+  const allow = async (extra: Record<string, unknown> = {}): Promise<Response> => {
+    const recorded = await recordWal(walTarget, payload)
+
+    // `required` and the log could not be written: the push is refused. This
+    // is the deliberate inversion of the fail-open rule that governs branch
+    // protection - see config/git-wal.ts for why the two want opposite
+    // failure modes.
+    if (recorded === 'failed') {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          refused: [{
+            ref: '',
+            reason: 'This instance requires every push to be written to its log before it is accepted, and the log could not be written. Nothing was lost; try again.',
+          }],
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      )
+    }
+
+    return new Response(
+      JSON.stringify({ ok: true, ...extra }),
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  }
 
   const payload = await request.json().catch(() => null)
   const gitDir = String(payload?.gitDir ?? '')
@@ -227,6 +259,11 @@ route.post(GATE_ENDPOINT, async (request: any) => {
 
   const path = repositoryPaths(gitDir).absolute
   const refused: Array<{ ref: string, reason: string }> = []
+
+  // Everything the log needs is known now. A push refused below never reaches
+  // `allow()` and so never becomes a row, which is what keeps `pending` to its
+  // one meaning: allowed, and not yet confirmed to have landed.
+  walTarget = { repositoryId: Number(repository.id), path, updates }
 
   // Branch rules first. They are a database read and an occasional
   // `merge-base`, where the scan below reads the patch of every commit - and a
@@ -434,6 +471,23 @@ route.post(HOOK_ENDPOINT, async (request: any) => {
   const { default: ProcessPushJob } = await import('../app/Jobs/ProcessPushJob')
   await ProcessPushJob.dispatch({ gitDir, updates })
 
+  /*
+   * The push landed, so its log entry is no longer pending.
+   *
+   * Never fails the report: post-receive runs after git has accepted the
+   * commits, and an entry left pending is exactly what the reconciler sweeps -
+   * it compares pending rows against the repository's real refs and commits
+   * or voids them. So the cost of missing this is a row that gets settled
+   * later, which is the right cost for something on the acknowledged path.
+   */
+  try {
+    const { commitLanded } = await import('../app/Actions/Git/wal')
+    await commitLanded(gitDir, updates)
+  }
+  catch (error) {
+    console.error('[wal] could not commit a landed push:', error)
+  }
+
   // Noticed synchronously, because this response is the one moment the
   // pusher is guaranteed to be looking: the hook prints these lines and git
   // relays them to the terminal. Cheap - a few ancestor checks - and never
@@ -477,6 +531,60 @@ route.post(HOOK_ENDPOINT, async (request: any) => {
     headers: { 'Content-Type': 'application/json' },
   })
 }).skipCsrf()
+
+/**
+ * Write a push to the log, if this instance keeps one.
+ *
+ * Answers what the caller has to know: `skipped` when the log is off or there
+ * is nothing to record, `recorded` when the row is written, and `failed` only
+ * in `required` mode - because in `advisory` a failure is logged and the push
+ * goes through, which is the entire difference between the two modes.
+ */
+async function recordWal(
+  target: { repositoryId: number, path: string, updates: ReturnType<typeof parseRefUpdates> } | null,
+  payload: any,
+): Promise<'skipped' | 'recorded' | 'failed'> {
+  const { walMode } = await import('../config/git-wal')
+  const mode = walMode()
+
+  if (mode === 'off' || !target || target.updates.length === 0)
+    return 'skipped'
+
+  try {
+    const { recordPush, walUpdatesFrom } = await import('../app/Actions/Git/wal')
+    const { safeQuarantine, refsToExclude } = await import('../app/Actions/Git/scan')
+
+    const quarantine = safeQuarantine(payload?.quarantine, target.path)
+    const updates = walUpdatesFrom(target.updates)
+
+    // What the repository already reaches, so the bundle carries the push
+    // rather than the history. The same exclusion the secret scan computes,
+    // and for the same reason: without it the first push of a fork bundles
+    // the entire upstream project.
+    const excludeRefs = await refsToExclude(target.path, updates.map(update => update.ref), quarantine)
+
+    const entry = await recordPush({
+      repositoryId: target.repositoryId,
+      repositoryPath: target.path,
+      updates,
+      quarantine,
+      excludeRefs,
+    })
+
+    if (entry)
+      return 'recorded'
+
+    console.error('[wal] the push produced no log entry')
+  }
+  catch (error) {
+    console.error('[wal] could not record a push:', error)
+  }
+
+  // Reached only when the log could not be written. `advisory` says so and
+  // lets the push through - it buys backup without adding a way for a push to
+  // fail; `required` refuses, which is the guarantee an operator opted into.
+  return mode === 'required' ? 'failed' : 'skipped'
+}
 
 /**
  * Pipe the request body into git and its output back out, without either side
