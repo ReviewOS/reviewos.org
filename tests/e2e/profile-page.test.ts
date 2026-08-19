@@ -314,8 +314,12 @@ describe('a handle nobody has', () => {
      */
     const { html } = await fetchPage('/definitely-nobody-at-all-here')
 
-    expect(html).toContain('Inbox')
+    // Items every reader gets, signed in or not: the bar's contents depend on
+    // who is reading now, and a marker that only a session sees would make this
+    // pass or fail for the wrong reason.
     expect(html).toContain('Explore')
+    expect(html).toContain('Discover')
+    expect(html).toContain('ReviewOS')
   })
 
   test('and answers 404, which it did not for a long time', async () => {

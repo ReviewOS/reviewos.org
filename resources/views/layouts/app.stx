@@ -259,51 +259,6 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
 
       .shell { width: 100%; max-width: 1320px; margin: 0 auto; padding: 0 20px; }
 
-      .topbar {
-        position: sticky;
-        top: 0;
-        z-index: 20;
-        display: flex;
-        align-items: center;
-        height: 56px;
-        border-bottom: 1px solid var(--line);
-        background: color-mix(in srgb, var(--bg) 92%, transparent);
-        backdrop-filter: blur(8px);
-      }
-
-      /* The bar is one flex row: brand, destinations, then who you are at the
-        far end. The gap after the brand is larger than the gap between the
-        links, so the wordmark reads as a mark rather than as the first item of
-        the menu. */
-      .topbar-inner { display: flex; align-items: center; gap: 22px; }
-
-      .brand {
-        display: inline-flex;
-        align-items: center;
-        gap: 9px;
-        text-decoration: none;
-        font-weight: 600;
-        letter-spacing: -0.02em;
-      }
-
-      .brand-mark {
-        width: 17px;
-        height: 17px;
-        border-radius: 5px;
-        background: var(--accent);
-        position: relative;
-      }
-
-      .brand-mark::after {
-        content: '';
-        position: absolute;
-        inset: 5px 4px auto 4px;
-        height: 2px;
-        border-radius: 1px;
-        background: var(--on-accent);
-        box-shadow: 0 4px 0 var(--on-accent);
-      }
-
       .panel {
         background: var(--surface);
         border: 1px solid var(--line);
@@ -2234,19 +2189,7 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
   </head>
 
   <body>
-    <header class="topbar">
-      <div class="shell topbar-inner">
-        <a class="brand" href="/">
-          <span class="brand-mark" aria-hidden="true"></span>
-          ReviewOS
-        </a>
-        {{-- Every link in the bar, and which one you are standing on, in one
-            component. The layout deliberately has no server script of its
-            own: the first one added here is one mistake away from blanking
-            every page in the product. See `TopNav.stx`. --}}
-        <TopNav />
-      </div>
-    </header>
+    <SiteNav />
 
     <main>
       @yield('content')

@@ -9,7 +9,7 @@
  * hydration and on a page that never hydrates, and a keyboard reaches it
  * because the browser already knows how a disclosure behaves.
  *
- * Use cases and Compare are footer-only here, matching `MarketingNav` on the
+ * Use cases and Compare are footer-only here, matching `SiteNav` on the
  * landing page: they are read once before deciding, and the bar has to carry
  * what a returning reader uses. The footer below links every page in both
  * catalogs, which is more than the menus fitted.
@@ -179,7 +179,9 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       p { margin: 0; }
       ul { margin: 0; padding: 0; list-style: none; }
 
-      .shell { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+      /* The product's measure, so the bar - and everything under it - sits on the
+         same line on both sides of the site. */
+      .shell { width: 100%; max-width: 1320px; margin: 0 auto; padding: 0 20px; }
       .muted { color: var(--muted); }
       .mono { font-family: var(--mono); }
 
@@ -198,9 +200,9 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         gap: 28px;
         height: 72px;
         width: 100%;
-        max-width: 1180px;
+        max-width: 1320px;
         margin: 0 auto;
-        padding: 0 24px;
+        padding: 0 20px;
       }
 
       .nav-brand {
@@ -409,57 +411,7 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
   </head>
 
   <body>
-    {{-- The bar spans the window and the row inside it carries the page's
-        measure, the same shape the product's own top bar uses. As one element
-        the sticky background stopped at 1180px, so scrolling put a floating
-        band over the page rather than a bar across it. --}}
-    <header class="nav-bar">
-      <nav class="nav" aria-label="Main">
-        <a class="nav-brand" href="/">
-          <span class="nav-mark" aria-hidden="true"></span>
-          ReviewOS
-        </a>
-
-        <div class="nav-links">
-          <details class="mega">
-            <summary>Features <span class="mega-chevron" aria-hidden="true"></span></summary>
-            <div class="mega-features mega-panel">
-              <div class="mega-grid">
-                @foreach (FEATURE_GROUPS as group)
-                  <div>
-                    <p class="mega-group-title">{{ group }}</p>
-                    @foreach (featuresIn(group) as feature)
-                      <a class="mega-item" href="/features/{{ feature.slug }}">
-                        <span class="mega-item-name">{{ feature.name }}</span>
-                        <span class="mega-item-text">{{ feature.summary }}</span>
-                      </a>
-                    @endforeach
-                  </div>
-                @endforeach
-              </div>
-              <div class="mega-foot">
-                <span class="muted">Every feature, in one place.</span>
-                <a href="/features" style="color: var(--accent-text); font-weight: 500;">All features</a>
-              </div>
-            </div>
-          </details>
-
-          <a class="nav-link" href="/discover">Discover</a>
-          <a class="nav-link" href="{{ SOURCE_PATH }}">Source</a>
-          <a class="nav-link" href="/docs">Docs</a>
-          <a class="nav-link" href="/docs/todo/">Roadmap</a>
-        </div>
-
-        <div class="nav-right">
-          @if (viewer)
-            <a class="btn btn-primary" href="/reviews">Open ReviewOS</a>
-          @else
-            <a class="btn" href="/login">Sign in</a>
-            <a class="btn btn-primary" href="/register">Sign up</a>
-          @endif
-        </div>
-      </nav>
-    </header>
+    <SiteNav />
 
     <main>
       @yield('content')

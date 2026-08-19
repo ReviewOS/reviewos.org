@@ -277,11 +277,13 @@ const nots = [
       p { margin: 0; }
       ul { margin: 0; padding: 0; list-style: none; }
 
+      /* The product's measure, so the bar - and everything under it - sits on
+        the same line on both sides of the site. */
       .shell {
         width: 100%;
-        max-width: 1180px;
+        max-width: 1320px;
         margin: 0 auto;
-        padding: 0 24px;
+        padding: 0 20px;
       }
 
       /* Navigation: one line, 72px, no dropdowns.
@@ -304,9 +306,9 @@ const nots = [
         gap: 32px;
         height: 72px;
         width: 100%;
-        max-width: 1180px;
+        max-width: 1320px;
         margin: 0 auto;
-        padding: 0 24px;
+        padding: 0 20px;
       }
 
       .nav-brand {
@@ -724,9 +726,9 @@ const nots = [
         page is not already at its maximum. */
       .footer-inner {
         width: 100%;
-        max-width: 1180px;
+        max-width: 1320px;
         margin: 0 auto;
-        padding: 0 24px;
+        padding: 0 20px;
         display: grid;
         gap: 40px;
         grid-template-columns: 1fr;
@@ -763,9 +765,9 @@ const nots = [
         maximum the licence line started 24px left of the columns above it. */
       .footer-legal {
         width: 100%;
-        max-width: 1180px;
+        max-width: 1320px;
         margin: 44px auto 0;
-        padding: 0 24px;
+        padding: 0 20px;
         color: var(--muted);
         font-size: 13.5px;
       }
@@ -859,7 +861,7 @@ const nots = [
   </head>
 
   <body>
-    <MarketingNav />
+    <SiteNav />
 
     <main>
       <section class="hero shell">

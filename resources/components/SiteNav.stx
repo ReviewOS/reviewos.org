@@ -1,0 +1,297 @@
+<script server>
+/**
+ * The top bar, everywhere.
+ *
+ * There were three of these. The landing page rendered `MarketingNav`, the
+ * marketing layout carried its own copy inline, and the product had `TopNav` -
+ * 72px tall against 56, a 1180px measure against 1320, `.nav-brand` against
+ * `.brand`, and a different item set on each. Going from the landing page to
+ * `/discover` moved the bar's height, the logo's position and the gutter under
+ * it, which reads as the page jumping rather than as a site.
+ *
+ * One component, one bar, one measure. **What changes is who is reading, not
+ * which page they are on**: a signed-out visitor is somebody deciding, so the
+ * bar offers what there is to decide about; a signed-in reader is somebody
+ * working, so it offers their queue, their inbox and a way to make something.
+ * Source and Roadmap keep their place in the marketing footer, which is where a
+ * link you follow once belongs.
+ *
+ * A component rather than a script in either layout, for the reason written at
+ * length in `ReviewQueueBadge.stx`: an stx server script that throws renders
+ * its page with every variable undefined and says nothing, so a script in a
+ * shared layout is one mistake away from blanking the site. Everything here
+ * sits inside a guard that cannot throw, and the failure mode is the
+ * signed-out bar - links that work, for a reader who may not need them.
+ */
+import { cookieJarFromHeader, viewerFromCookies } from '../functions/identity'
+import { FEATURE_GROUPS, featuresIn } from '../functions/marketing'
+
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
+const headerBag = typeof headers === 'undefined' ? undefined : headers
+
+let viewer = null
+try {
+  viewer = await viewerFromCookies(serveContext?.cookies ?? cookieJarFromHeader(headerBag?.cookie))
+}
+catch {
+  viewer = null
+}
+
+let here = '/'
+try {
+  here = String(serveContext?.path ?? '/')
+}
+catch {
+  here = '/'
+}
+
+/*
+ * On this section, not on this exact URL. `/notifications/settings` is still
+ * the inbox, and a marker that disappears one click into a section is worse
+ * than no marker: it reads as having left the place you are standing in.
+ */
+const on = (prefix: string) => here === prefix || here.startsWith(`${prefix}/`)
+
+const onReviews = on('/reviews')
+const onInbox = on('/notifications')
+const onExplore = on('/explore')
+const onDiscover = on('/discover')
+const onDocs = on('/docs')
+const onFeatures = on('/features')
+
+const signedIn = Boolean(viewer)
+</script>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <a class="brand" href="/" aria-label="ReviewOS home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      ReviewOS
+    </a>
+
+    <nav class="topbar-nav" aria-label="Main">
+      @if (signedIn)
+        {{-- First, because it is the question somebody opens a forge to
+            answer. Explore is for finding somebody else's work; this is for
+            finding your own. --}}
+        <a class="topbar-link {{ onReviews ? 'is-current' : '' }}" aria-current="{{ onReviews ? 'page' : 'false' }}" href="/reviews">Reviews<ReviewQueueBadge /></a>
+        {{-- Second, and deliberately not first. Reviews is what needs the
+            reader; the inbox is what happened to them, and a product that
+            leads with the inbox teaches people to work from notifications
+            rather than from their queue. --}}
+        <a class="topbar-link {{ onInbox ? 'is-current' : '' }}" aria-current="{{ onInbox ? 'page' : 'false' }}" href="/notifications">Inbox<InboxBadge /></a>
+      @else
+        {{-- The feature catalogue, as a disclosure: no script, it works before
+            anything hydrates, and the keyboard already knows how a `<details>`
+            behaves. Only for a reader who has not signed in - somebody working
+            wants their queue there instead. --}}
+        <details class="mega">
+          <summary class="topbar-link {{ onFeatures ? 'is-current' : '' }}">Features <span class="mega-chevron" aria-hidden="true"></span></summary>
+          <div class="mega-panel">
+            <div class="mega-grid">
+              @foreach (FEATURE_GROUPS as group)
+                <div>
+                  <p class="mega-group-title">{{ group }}</p>
+                  @foreach (featuresIn(group) as feature)
+                    <a class="mega-item" href="/features/{{ feature.slug }}">
+                      <span class="mega-item-name">{{ feature.name }}</span>
+                      <span class="mega-item-text">{{ feature.summary }}</span>
+                    </a>
+                  @endforeach
+                </div>
+              @endforeach
+            </div>
+            <div class="mega-foot">
+              <span class="mega-foot-note">Every feature, in one place.</span>
+              <a class="mega-foot-link" href="/features">All features</a>
+            </div>
+          </div>
+        </details>
+      @endif
+
+      <a class="topbar-link {{ onExplore ? 'is-current' : '' }}" aria-current="{{ onExplore ? 'page' : 'false' }}" href="/explore">Explore</a>
+      <a class="topbar-link {{ onDiscover ? 'is-current' : '' }}" aria-current="{{ onDiscover ? 'page' : 'false' }}" href="/discover">Discover</a>
+      <a class="topbar-link {{ onDocs ? 'is-current' : '' }}" aria-current="{{ onDocs ? 'page' : 'false' }}" href="/docs">Docs</a>
+    </nav>
+
+    <div class="topbar-right">
+      {{-- Creating a repository is the first thing anybody does on a forge,
+          and `/new` was reachable only by typing the URL. --}}
+      <NewRepositoryLink />
+      {{-- Last: who you are, or how to become somebody. Both halves matter.
+          See `AccountNav.stx`. --}}
+      <AccountNav />
+    </div>
+  </div>
+</header>
+
+<style>
+  /* The bar's own styles, here rather than in a layout.
+    
+    They lived in `app.stx`, which is why the marketing pages could not use this
+    component and grew their own bar instead - 72px against 56, a different
+    measure, a different brand mark. A component that renders on both sides of
+    the site carries its own appearance. */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    height: 56px;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(8px);
+  }
+
+  /* The bar is one flex row: brand, destinations, then who you are at the
+    far end. The gap after the brand is larger than the gap between the
+    links, so the wordmark reads as a mark rather than as the first item of
+    the menu. */
+  .topbar-inner { display: flex; align-items: center; gap: 22px; }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    text-decoration: none;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .brand-mark {
+    width: 17px;
+    height: 17px;
+    border-radius: 5px;
+    background: var(--accent);
+    position: relative;
+  }
+
+  .brand-mark::after {
+    content: '';
+    position: absolute;
+    inset: 5px 4px auto 4px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--on-accent);
+    box-shadow: 0 4px 0 var(--on-accent);
+  }
+
+.topbar-nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
+
+  /* Padded rather than bare, which is the whole difference between a row of
+    links and a navigation bar: the hover target is the item, not the six
+    characters of its name. */
+  .topbar-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: var(--r-control);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .topbar-link:hover { color: var(--text); background: var(--surface-tint); }
+
+  /* Where you are. A dot rather than an underline: the bar is 56px tall and an
+    underline in it sits too far from the text to belong to it. */
+  .topbar-link.is-current { color: var(--text); }
+
+  .topbar-link.is-current::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* Pushed to the far end, so the two halves of the bar are what you can do
+    here and who you are - rather than seven links in one undifferentiated
+    run. */
+  .topbar-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+  /* Below the point where the bar stops fitting, the destinations that survive
+    are the two nothing else in the product replaces. Explore and Discover are
+    both reachable from the pages that remain. */
+  @media (max-width: 860px) {
+    .topbar-link[href='/explore'], .topbar-link[href='/discover'], .topbar-link[href='/docs'] { display: none; }
+  }
+
+  /* The feature menu, for a reader who has not signed in. */
+  .mega { position: relative; display: inline-flex; }
+
+  .mega > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .mega > summary::-webkit-details-marker { display: none; }
+
+  .mega-chevron {
+    width: 6px;
+    height: 6px;
+    margin-left: 2px;
+    border-right: 1.25px solid currentColor;
+    border-bottom: 1.25px solid currentColor;
+    transform: translateY(-1px) rotate(45deg);
+    opacity: 0.55;
+  }
+
+  .mega-panel {
+    position: absolute;
+    top: calc(100% + 14px);
+    left: -12px;
+    z-index: 60;
+    width: min(860px, calc(100vw - 48px));
+    padding: 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-panel);
+    box-shadow: 0 12px 32px rgb(18 25 27 / 0.10);
+    text-align: left;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .mega-panel { box-shadow: 0 12px 32px rgb(0 0 0 / 0.45); }
+  }
+
+  .mega-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+
+  @media (max-width: 900px) {
+    .mega-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  .mega-group-title {
+    margin-bottom: 8px;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .mega-item { display: block; padding: 8px 9px; border-radius: var(--r-control); text-decoration: none; }
+  .mega-item:hover { background: var(--surface-tint); }
+  .mega-item-name { display: block; font-size: 14px; font-weight: 500; color: var(--text); }
+  .mega-item-text { display: block; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+
+  .mega-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    font-size: 13.5px;
+  }
+
+  .mega-foot-note { color: var(--muted); }
+  .mega-foot-link { color: var(--accent-text); font-weight: 500; text-decoration: none; }
+</style>
