@@ -5,6 +5,15 @@
   delivers strings faithfully, and there is nothing here to parse.
 --}}
 <header class="pr-head">
+  {{-- Which repository this is, and the way back to it. A pull request page
+      named the repository only inside a sentence - "somebody wants to merge
+      change into main" - so a reader who arrived from a review queue, a
+      notification or a search had no link to the repository at all, and the
+      way out was editing the URL. --}}
+  <p class="pr-where mono">
+    <a href="/{{ owner }}">{{ owner }}</a><span class="muted">/</span><a href="/{{ owner }}/{{ repository }}">{{ repository }}</a>
+  </p>
+
   <div class="pr-title-row">
     <h1 class="pr-title">{{ title }}</h1>
     <span class="pr-number mono muted">#{{ number }}</span>

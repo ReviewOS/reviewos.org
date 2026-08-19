@@ -205,6 +205,18 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   `/stacks` from `.profile/README.md`, social card, badge, headings, nested
   lists, blockquote and rule intact.
 - [x] The repository header says the same thing on every tab, and nothing it does not know
+- [x] A pull request and an issue say which repository they belong to
+
+  Neither did. A pull request named its repository only inside a sentence -
+  "somebody wants to merge change into main" - and an issue named it nowhere at
+  all, so a reader arriving from a review queue, a notification, a search or a
+  cross-reference had no link back to the repository and had to edit the URL to
+  get there.
+
+  One line above each title, `owner/repository`, both halves linked. Not the
+  full header: these pages carry their own tab row and their own sidebar, and a
+  second row of repository chrome above that is furniture rather than
+  navigation.
 - [x] Every repository screen draws the same header, including the one with no tabs
 
   Eleven screens, six headers. Branches, tags, releases and insight each drew a

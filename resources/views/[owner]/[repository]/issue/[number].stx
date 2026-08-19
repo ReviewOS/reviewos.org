@@ -318,6 +318,14 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
       </div>
     @else
       <header class="issue-head">
+        {{-- Which repository this is, and the way back to it. The page named it
+            nowhere: a reader arriving from a search, a notification or a
+            cross-reference had no link to the repository the issue belongs
+            to. --}}
+        <p class="issue-where mono">
+          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="/{{ ownerHandle }}/{{ repositoryName }}">{{ repositoryName }}</a>
+        </p>
+
         <div class="issue-title-row">
           <h1 class="issue-title">{{ issue.title }}</h1>
           <span class="issue-number mono muted">#{{ issue.number }}</span>
@@ -423,6 +431,9 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
 
 <style>
   .issue-head { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .issue-where { margin-bottom: 6px; font-size: 13px; }
+  .issue-where a { text-decoration: none; }
+  .issue-where a:hover { text-decoration: underline; }
   .issue-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .issue-title { font-size: 25px; font-weight: 600; line-height: 1.25; }
   .issue-number { font-size: 20px; }

@@ -1174,6 +1174,9 @@ const statePill = pullRequest
 
 <style>
   .pr-head { padding-bottom: 14px; }
+  .pr-where { margin-bottom: 6px; font-size: 13px; }
+  .pr-where a { text-decoration: none; }
+  .pr-where a:hover { text-decoration: underline; }
 
   .pr-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .pr-title { font-size: 25px; }
