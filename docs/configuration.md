@@ -185,20 +185,22 @@ How many committed entries to keep behind the newest checkpoint.
 
 ### `DB_CONNECTION`
 
-Default: `postgres`.
+Default: `mysql`.
 
 The metadata database. `postgres` or `mysql`; both are supported, each has its
 own generated migration corpus, and `buddy setup` installs whichever one this
 names - `postgresql.org@^17.10` or `mysql.com@^9.2` - as a pantry service.
 
-Phase 17 makes MySQL the direction of travel: it is what the sharded mode in
-phase 18 is built on, and Postgres is supported for one release cycle after
-MySQL becomes the default. An existing instance moves with
-`buddy db:migrate-engine`, which copies through the drivers and verifies both
-the row counts and a checksum of the values. See docs/self-hosting.md.
+MySQL is the default from phase 17: it is what the sharded mode in phase 18
+is built on, and the suite runs green against both engines in CI. Postgres
+stays supported for one release cycle and is then deprecated - an existing
+instance moves with `buddy db:migrate-engine`, which copies through the
+drivers and verifies both the row counts and a checksum of the values. See
+docs/self-hosting.md.
 
-On MySQL, `DB_PORT` is 3306 and `DB_USERNAME` is root for a pantry-managed local
-server, which initialises with no password.
+`root` with no password is what a pantry-managed local server initialises
+with, so it is not a placeholder. On Postgres, `DB_PORT` is 5432 and
+`DB_USERNAME` is `postgres` for the same reason.
 
 Read by `app/Commands/DbMigrateEngine.ts`.
 
@@ -210,7 +212,7 @@ Read by `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_PORT`
 
-Default: `5432`. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
+Default: `3306`. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
 
 Read by `app/Commands/DbMigrateEngine.ts`.
 
@@ -222,13 +224,16 @@ Read by `app/Commands/DbMigrateEngine.ts`, `app/Commands/Doctor.ts`.
 
 ### `DB_USERNAME`
 
-Default: `postgres`.
+Default: `root`.
 
-Pantry initialises its Postgres cluster with `initdb --auth-local=trust
---auth-host=trust --username=postgres`, so `postgres` is the only role that
-exists and the password is ignored. This value is also load-bearing for
-automatic database creation: pantry skips `createdb` entirely when
-`DB_USERNAME` is empty.
+A pantry-managed MySQL initialises with `--initialize-insecure`, so `root`
+exists with no password. This value is also load-bearing for automatic
+database creation: pantry skips creating one entirely when `DB_USERNAME` is
+empty.
+
+On Postgres it is `postgres`, for the same kind of reason: pantry initialises
+that cluster with `initdb --auth-local=trust --auth-host=trust
+--username=postgres`, so that is the only role there is.
 
 Read by `app/Commands/DbMigrateEngine.ts`.
 
@@ -240,7 +245,7 @@ Read by `app/Commands/DbMigrateEngine.ts`.
 
 ### `DATABASE_URL`
 
-Default: `postgres://postgres@127.0.0.1:5432/reviewos`.
+Default: `mysql://root@127.0.0.1:3306/reviewos`.
 
 Read natively by bun:sql as a fallback for connections that setConfig does
 not reach. Keep it in sync with the DB_* values above.
