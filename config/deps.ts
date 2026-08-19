@@ -89,8 +89,19 @@ export const config: PantryConfig = {
      * adapter written here.
      */
     'typesense.org': '^30.2.0',
-    // The database engine is swapped for the one DB_CONNECTION names when
-    // `buddy setup` regenerates deps.yaml, so only one ever gets installed.
+    /*
+     * The placeholder engine. Whichever one `DB_CONNECTION` names replaces it
+     * when `buddy setup` regenerates deps.yaml, so exactly one is ever
+     * installed: `postgres` becomes `postgresql.org@^17.10` and `mysql`
+     * becomes `mysql.com@^9.2`, each with the matching pantry service, and the
+     * unused engine is dropped from the file.
+     *
+     * That mapping is the framework's (`DB_CONNECTION_PACKAGES` in buddy's
+     * setup command) rather than something to restate here: naming an engine
+     * in this list would install a second one that nothing connects to. Phase
+     * 17 moves this instance to MySQL, and the line that decides it is
+     * `DB_CONNECTION` in `.env`.
+     */
     sqlite: '^3.47.2',
     /*
      * The cross-process store, for instances running more than one process.
