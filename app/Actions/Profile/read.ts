@@ -208,10 +208,13 @@ function lastActive(row: any): string | null {
  * The file an owner's profile page is written in.
  *
  * GitHub keeps this in a repository called `.github`, at `profile/README.md`,
- * and a user's own profile in a repository named after them. Half of that cannot
- * exist here: repository names are a path segment on disk, and a leading dot is
- * rejected by `app/Actions/Git/storage.ts` precisely so a name cannot hide a
- * directory or climb out of the repository root.
+ * and a user's own profile in a repository named after them. The dot cannot
+ * survive here - repository names are a path segment on disk, and a leading dot
+ * is rejected by `app/Actions/Git/storage.ts` precisely so a name cannot hide a
+ * directory or climb out of the repository root - so `buddy mirror:add` drops
+ * it, and an organization's `.github` mirrors as `github`. That repository is
+ * read first, which is what makes an instance mirroring an organization show
+ * the same profile page the organization publishes upstream.
  *
  * So one rule covers both kinds of owner, which is the same choice the profile
  * route itself makes: **the repository named after the handle**, and inside it
@@ -225,6 +228,21 @@ function lastActive(row: any): string | null {
  * way to publish a profile page to people who may not see it.
  */
 export const PROFILE_README_PATHS = ['profile/README.md', 'README.md'] as const
+
+/**
+ * The repositories a profile page may be written in, in the order they are read.
+ *
+ * An organization's `.github`, mirrored here as `github`, comes first: it is
+ * where the upstream organization already keeps the page, and where a mirror
+ * will keep it current without anybody copying anything. The repository named
+ * after the handle is the native place to write one on an instance that mirrors
+ * nothing.
+ */
+export function profileRepositoriesFor(handle: string, isOrganization: boolean): string[] {
+  const owner = String(handle ?? '').toLowerCase()
+
+  return isOrganization ? ['github', owner] : [owner]
+}
 
 /**
  * Which of them an owner may write their profile in.
@@ -251,27 +269,30 @@ export async function profileReadme(handle: string, isOrganization: boolean, coo
   if (!owner)
     return null
 
-  const access = await repositoryForView(owner, owner, cookies as any)
-  const diskPath = String(access?.diskPath ?? '')
-  if (!access?.repository || !diskPath)
-    return null
+  for (const repository of profileRepositoriesFor(owner, isOrganization)) {
+    const access = await repositoryForView(owner, repository, cookies as any)
+    const diskPath = String(access?.diskPath ?? '')
 
-  const ref = String((access.repository as any).default_branch || 'HEAD')
-
-  for (const path of readmePathsFor(isOrganization)) {
-    const blob = await readBlob(diskPath, ref, path)
-
-    if (!blob.ok || blob.binary || blob.tooLarge || !blob.text)
+    if (!access?.repository || !diskPath)
       continue
 
-    // Rendered here rather than in the template: `@markdown` runs before
-    // interpolation, so it would render the literal token and drop the file's
-    // text into the page untouched - and this file is written by whoever owns
-    // the handle. `renderMarkdownHighlighted` is where the sanitising lives.
-    return {
-      html: await renderMarkdownHighlighted(blob.text, { owner, repository: owner }),
-      repository: owner,
-      path,
+    const ref = String((access.repository as any).default_branch || 'HEAD')
+
+    for (const path of readmePathsFor(isOrganization)) {
+      const blob = await readBlob(diskPath, ref, path)
+
+      if (!blob.ok || blob.binary || blob.tooLarge || !blob.text)
+        continue
+
+      // Rendered here rather than in the template: `@markdown` runs before
+      // interpolation, so it would render the literal token and drop the file's
+      // text into the page untouched - and this file is written by whoever owns
+      // the handle. `renderMarkdownHighlighted` is where the sanitising lives.
+      return {
+        html: await renderMarkdownHighlighted(blob.text, { owner, repository }),
+        repository,
+        path,
+      }
     }
   }
 

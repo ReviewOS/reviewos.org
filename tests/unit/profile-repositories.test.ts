@@ -12,7 +12,8 @@
 // asked for.
 
 import { describe, expect, test } from 'bun:test'
-import { clampPage, pageCount, PROFILE_README_PATHS, readmePathsFor, REPOSITORIES_PER_PAGE, searchPattern } from '../../app/Actions/Profile/read'
+import { clampPage, pageCount, PROFILE_README_PATHS, profileRepositoriesFor, readmePathsFor, REPOSITORIES_PER_PAGE, searchPattern } from '../../app/Actions/Profile/read'
+import { localNameFor } from '../../app/Commands/MirrorAdd'
 
 describe('how many pages there are', () => {
   test('an exact multiple does not gain an empty last page', () => {
@@ -86,5 +87,41 @@ describe('where a profile page is written', () => {
   test('a person may use either, and the profile one wins', () => {
     expect(readmePathsFor(false)).toEqual([...PROFILE_README_PATHS])
     expect(readmePathsFor(false)[0]).toBe('profile/README.md')
+  })
+})
+
+describe('which repository a profile page is read from', () => {
+  test('an organization publishes it where GitHub does, mirrored', () => {
+    // `.github` cannot be a repository name here - a leading dot is rejected so
+    // a name cannot hide a directory or climb out of the repository root - so a
+    // mirror of it lands as `github`, and that is read first. An instance
+    // mirroring an organization then shows the same page the organization
+    // publishes upstream, kept current by the mirror rather than by copying.
+    expect(profileRepositoriesFor('stacks', true)).toEqual(['github', 'stacks'])
+  })
+
+  test('a person publishes it in the repository named after them', () => {
+    expect(profileRepositoriesFor('chrisbbreuer', false)).toEqual(['chrisbbreuer'])
+  })
+
+  test('the handle is read the way a URL spells it', () => {
+    expect(profileRepositoriesFor('Stacks', true)).toEqual(['github', 'stacks'])
+  })
+})
+
+describe('mirroring a repository whose name cannot be one here', () => {
+  test('drops the leading dot, so `.github` can be mirrored at all', () => {
+    // Without this, the one repository an organization keeps its profile page
+    // in is the one repository this forge could not mirror.
+    expect(localNameFor('.github')).toBe('github')
+  })
+
+  test('leaves an ordinary name alone', () => {
+    expect(localNameFor('stacks')).toBe('stacks')
+    expect(localNameFor('bun-router')).toBe('bun-router')
+  })
+
+  test('a dot inside the name is part of the name', () => {
+    expect(localNameFor('reviewos.org')).toBe('reviewos.org')
   })
 })

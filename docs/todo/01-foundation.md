@@ -179,6 +179,25 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   to people who may not see it, and rendered through the one markdown pipeline, so the sanitising
   cannot exist in two places. Somebody who could write the file and has not gets one line telling
   them where it goes; a reader who could not does not need to know it is missing.
+- [x] An organization's profile page comes from its mirrored `.github`
+
+  GitHub keeps an organization's profile in a repository called `.github`, at
+  `profile/README.md`. This forge could not mirror that repository at all: a
+  name is a path segment on disk and `app/Actions/Git/storage.ts` rejects a
+  leading dot, so `buddy mirror:add --remote stacksjs/.github` failed on the
+  path check. An instance could mirror everything an organization publishes
+  except the page describing it.
+
+  `mirror:add` drops the leading dot now - `.github` mirrors as `github`, and
+  says so when it does - and the profile page reads that repository first,
+  falling back to the repository named after the handle. So an instance
+  mirroring an organization shows the same profile the organization publishes
+  upstream, kept current by the mirror rather than by somebody copying markdown
+  between two places.
+
+  Verified against the real thing: `stacksjs/.github`'s `profile/README.md`
+  rendered on `/stacks` with its images, badges, headings, nested lists,
+  blockquote and rule intact.
 - [x] The repository header says the same thing on every tab, and nothing it does not know
 
   `main · 2 branches · commits · 0 B`. Two of those four are wrong. "commits"
