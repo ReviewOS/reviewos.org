@@ -125,6 +125,63 @@ Who opened it is recorded on the job and shown on the run.
 **Actions has no equivalent.** Its nearest thing is an environment protection
 rule, which is configured in the interface rather than written in the file.
 
+### `await` - hold until a clock, or until the world says so
+
+```yaml
+  soak:
+    needs: [deploy]
+    reviewos:
+      await: 30m
+
+  approval:
+    needs: [soak]
+    reviewos:
+      await:
+        event: deploy-approved
+        timeout: 1h
+```
+
+A job that is waiting. What ends it is either a clock - `await: 30m`, or
+`until: 2026-08-20T10:00:00Z` - or an event somebody sends it.
+
+`block:` waits for **a person with an account here**. This waits for whatever
+sends the event: a deployment that finished somewhere else, a soak that has to
+last twenty minutes, a customer who clicked a link. It is the primitive under
+approvals and webhooks rather than a second kind of approval.
+
+Send one with `POST /api/repos/workflow-runs/event`:
+
+```bash
+curl -X POST "$REVIEWOS_URL/api/repos/workflow-runs/event" \
+  -H "Authorization: Bearer $REVIEWOS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"owner":"acme","repo":"web","number":42,"event":"deploy-approved","payload":{"version":"4.2.0"},"key":"deploy-4.2.0"}'
+```
+
+The payload becomes the job's **outputs**, so a later job reads it the way it
+reads any other job's: `${{ needs.approval.outputs.version }}`.
+
+Four rules worth knowing:
+
+- **A wait nothing can end is refused** when the file is parsed. `await:` with
+  neither a clock nor an event is a job that holds a pull request's checks open
+  forever, and that failure otherwise turns up days later on somebody else's
+  screen.
+- **A timeout fails the job.** A run that goes green because nobody replied is a
+  green check for a deployment nobody approved. `on-timeout: continue` is for the
+  wait whose whole point is "give it a minute, then carry on".
+- **`key:` makes a resend a resend.** A sender that does not hear the answer
+  sends again - every webhook in the world does - and without a key those are two
+  events letting one deployment through twice.
+- **An event that arrives early is not lost.** It is recorded even when nothing
+  is waiting for it yet, and the wait finds it when it starts. The alternative is
+  a run that sits until its timeout on a message that did arrive, which is the
+  hardest kind of report to believe.
+
+**Actions has no equivalent.** Its nearest thing is a job that polls something in
+a loop, which holds a machine for as long as it waits. A held `await` job holds
+no runner at all.
+
 ### `trigger` - start another run
 
 ```yaml

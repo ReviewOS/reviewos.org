@@ -15,6 +15,7 @@ export { default as DispatchScheduledWorkflowsJob } from '../../../app/Jobs/Disp
 export { default as IndexRepositoryJob } from '../../../app/Jobs/IndexRepositoryJob'
 export { default as MeasureLanguagesJob } from '../../../app/Jobs/MeasureLanguagesJob'
 export { default as WarnExpiringTokensJob } from '../../../app/Jobs/WarnExpiringTokensJob'
+export { default as EndDueWaitsJob } from '../../../app/Jobs/EndDueWaitsJob'
 export { default as ReleaseEnvironmentWaitsJob } from '../../../app/Jobs/ReleaseEnvironmentWaitsJob'
 export { default as EvaluateTestMonitorsJob } from '../../../app/Jobs/EvaluateTestMonitorsJob'
 export { default as SendWelcomeEmail } from '../../../app/Jobs/SendWelcomeEmail'

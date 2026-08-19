@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS `workflow_version_jobs` (
   `condition` text,
   `matrix` text,
   `continue_on_error` tinyint(1) default 0,
-  `kind` ENUM('command', 'wait', 'block', 'trigger') default 'command',
+  `kind` ENUM('command', 'wait', 'block', 'trigger', 'await') default 'command',
   `settings` text,
   `if_changed` text,
   `priority` integer default 0,

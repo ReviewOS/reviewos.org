@@ -8746,7 +8746,8 @@
               "command",
               "wait",
               "block",
-              "trigger"
+              "trigger",
+              "await"
             ],
             "enumTypeName": "workflow_version_jobs_kind_type"
           },
@@ -9229,7 +9230,8 @@
               "command",
               "wait",
               "block",
-              "trigger"
+              "trigger",
+              "await"
             ],
             "enumTypeName": "workflow_jobs_kind_type"
           },
@@ -9368,6 +9370,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "wake_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
           }
         ],
         "indexes": [
@@ -14009,10 +14020,138 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "workflow_run_events",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "workflow_run_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "workflow_runs",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 200
+          },
+          {
+            "name": "payload",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "idempotency_key",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 200
+          },
+          {
+            "name": "actor_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "source",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": "api",
+            "maxLength": 30
+          },
+          {
+            "name": "delivered_to",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "repository_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "workflow_run_events_key_index",
+            "columns": [
+              "idempotency_key"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "workflow_run_events_run_index",
+            "columns": [
+              "workflow_run_id",
+              "name"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "workflow_run_events_repository_index",
+            "columns": [
+              "repository_id"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "00147808fbcf77d17b81b7175e60685a187142234b5afb023a2bb027d90d09c5",
+  "hash": "dd06e5e656e89012ad51b3fa49d44cd954a512340fe0b6822b3a6689a24a379c",
   "dialect": "postgres",
-  "updatedAt": "2026-08-19T20:28:04.715Z"
+  "updatedAt": "2026-08-19T20:37:37.633Z"
 }

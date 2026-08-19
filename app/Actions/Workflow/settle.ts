@@ -22,6 +22,7 @@ import type { GateDecision } from './environments'
 import { decideGate, environmentRules } from './environments'
 import { createJobsForRun, dispatchWorkflowRun, releaseGroup } from './dispatch'
 import { callMarkerOf, resolveCallOutputs } from './callOutputs'
+import { alreadySent, waitPlan, waitSettingsOf } from './awaits'
 import { deliverJobNotify } from './notify'
 import { deliverRunNotifications } from './notifyDelivery'
 import { withRedeliveryKey } from './redelivery'
@@ -323,6 +324,66 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
           started_at: now.toISOString(),
           finished_at: now.toISOString(),
           ...(outputs && Object.keys(outputs).length > 0 ? { outputs: JSON.stringify(outputs) } : {}),
+        })
+        .where('id', '=', job.id)
+        .where('state', '=', 'blocked')
+        .execute()
+
+      continue
+    }
+
+    if (job.kind === 'await') {
+      /*
+       * A run holding still for a clock or for the world.
+       *
+       * `paused` and not `blocked`, which is the same distinction a gate makes:
+       * blocked means "something before this has not finished", and this job's
+       * dependencies are all done. It is waiting for something that is not in
+       * the graph at all, and a screen has to be able to say so.
+       *
+       * The deadline goes on the row rather than being recomputed by whatever
+       * reads it: a wait that starts now and lasts thirty minutes has one end,
+       * and two places deriving it from a duration eventually disagree about
+       * when it began.
+       */
+      const row = jobs.find(one => Number(one.id) === Number(job.id))
+      const plan = waitPlan(row?.settings, now)
+      const wanted = waitSettingsOf(row?.settings).event
+
+      /*
+       * The event that arrived before anything was waiting for it.
+       *
+       * The classic lost wakeup, and the hardest kind of report to believe: the
+       * sender saw a 200, the run sat until its timeout, and nothing anywhere
+       * says the message was dropped. It was not dropped - it was recorded, and
+       * nobody looked. This is the looking.
+       */
+      const early = wanted ? await alreadySent(runId, wanted) : null
+
+      if (early) {
+        await db
+          .updateTable('workflow_jobs')
+          .set({
+            state: 'succeeded',
+            started_at: now.toISOString(),
+            finished_at: now.toISOString(),
+            outputs: early.payload,
+            condition_reason: `The \`${wanted}\` event had already arrived.`,
+          })
+          .where('id', '=', job.id)
+          .where('state', '=', 'blocked')
+          .execute()
+
+        continue
+      }
+
+      await db
+        .updateTable('workflow_jobs')
+        .set({
+          state: 'paused',
+          started_at: now.toISOString(),
+          wake_at: plan.wakeAt,
+          condition_reason: plan.reason,
         })
         .where('id', '=', job.id)
         .where('state', '=', 'blocked')

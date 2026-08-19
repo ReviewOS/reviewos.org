@@ -284,6 +284,47 @@ describe('a step whose result an earlier attempt produced', () => {
 })
 
 /*
+ * A run holding still for something outside it, and the control that ends the
+ * wait. Asked of the rendered page, because a template that renders nothing is
+ * this codebase's most common way to ship a feature that does not exist.
+ */
+describe('a job waiting for an event', () => {
+  test('says what it waits for, and offers to send it', async () => {
+    if (!available)
+      return
+
+    const job: any = await db
+      .selectFrom('workflow_jobs')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select(['workflow_jobs.id as id'])
+      .where('workflow_runs.repository_id', '=', created.repositoryId)
+      .where('workflow_runs.number', '=', created.running)
+      .executeTakeFirst()
+
+    await db
+      .updateTable('workflow_jobs')
+      .set({
+        kind: 'await',
+        state: 'paused',
+        settings: JSON.stringify({ event: 'deploy-approved', timeoutSeconds: 3600 }),
+        condition_reason: 'Waiting for the `deploy-approved` event.',
+      })
+      .where('id', '=', Number(job.id))
+      .execute()
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.running}`, created.ownerToken)
+
+    expect(html).toContain('deploy-approved')
+    expect(html).toContain('Send this event')
+    expect(html).toContain('/api/repos/workflow-runs/event')
+
+    // A gate is a different thing, and its Approve button must not appear on a
+    // job that is waiting for a machine somewhere else rather than for a person.
+    expect(html).not.toContain('>Approve<')
+  })
+})
+
+/*
  * A step summary is the one part of a run written *for a reader* - the table of
  * what was built, the three numbers somebody wanted - and it was being kept on
  * the check and shown nowhere. A run page with ten thousand lines of output and

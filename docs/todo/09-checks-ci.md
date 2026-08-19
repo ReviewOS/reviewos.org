@@ -778,8 +778,22 @@ requeue is not yet reading it.
       steps kept the last attempt's states, so the screen showed a queued job made of succeeded
       steps. "One named attempt" is the half not built - the rows hold the latest attempt's results
       and nothing older, so a restart reuses those or none.
-- [ ] Waiting steps can sleep until a time or wait for a typed external event, with a timeout. This
+- [x] Waiting steps can sleep until a time or wait for a typed external event, with a timeout. This
       is the primitive for approvals, webhooks, and other human-in-the-loop gates.
+
+      `reviewos.await:` - `30m`, `until: <instant>`, or `event: deploy-approved` with a `timeout:`.
+      One kind rather than two, because "a job that is waiting" is one thing and the difference is
+      only what ends it. It is the control plane's own work like a barrier and a gate, so a run
+      waiting three days costs three days of a row rather than of a machine - which is also why it
+      needs a sweep, since a run that holds nothing is a run nothing is looking at.
+
+      A wait that nothing could ever end is refused at parse time rather than defaulted. That
+      failure appears days later on somebody else's screen: a job nobody can end holds a pull
+      request's checks open forever, and by then the workflow file is three commits old.
+
+      An event that times out **fails** the job, and that is the default rather than the choice: a
+      run that goes green on "nobody replied" is a green check for a deployment nobody approved.
+      `on-timeout: continue` is there for the wait whose whole point is "give it a minute".
 - [x] Cancellation is cooperative first and forceful after a deadline, with the runner lease
       revoked so a disconnected worker cannot publish a late success
 
@@ -906,7 +920,23 @@ requeue is not yet reading it.
       than `check:report`, because a CI integration that publishes results has no business stopping
       somebody's build, and a person who can stop one need not be able to report a passing check -
       which is the more dangerous of the two, since that is what satisfies a branch protection rule.
-- [ ] Send a typed event to one waiting run, idempotently, and record who or what sent it
+- [x] Send a typed event to one waiting run, idempotently, and record who or what sent it
+
+      `POST /repos/workflow-runs/event`, behind `workflow:approve` rather than `workflow:cancel`:
+      an event is what lets a held deployment through, which is approval wearing different clothes.
+      The payload becomes the waiting job's outputs, so a later job reads it as
+      `needs.approval.outputs.version` - the same way it reads any other job's.
+
+      Idempotent on a key the sender chooses, because a sender that does not hear the answer sends
+      again - that is what every webhook in the world does, and without a key those are two events
+      that let one deployment through twice. A sender that names no key gets one derived from the
+      delivery, since a unique index over a nullable column enforces nothing for exactly the callers
+      least likely to be careful.
+
+      **Recorded even when nothing is waiting yet**, which closes the lost wakeup from the other
+      side. An event that arrives a second before its job becomes eligible would otherwise vanish
+      and the run would sit until its timeout on a message that did arrive - the hardest kind of
+      report to believe, because the sender saw a 200 and nothing anywhere says it was dropped.
 - [ ] The interface, CLI, webhooks, and provider integrations call the same actions as the public API
 - [ ] Every endpoint has a fine-grained token requirement, generated OpenAPI, stable errors, rate
       limits, audit events, and request ids that continue into dispatched jobs

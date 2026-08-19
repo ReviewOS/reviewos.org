@@ -380,6 +380,25 @@ function gateOf(settings: unknown): { prompt: string, fields: any[] } {
   }
 }
 
+/**
+ * What a waiting job is waiting to be told, out of the same settings column.
+ *
+ * Its own reader rather than a shared one, for the reason `gateOf` above has
+ * one: a view reaches `resources/functions`, not into the actions, and a
+ * settings blob this cannot parse should leave the page rendering rather than
+ * blank.
+ */
+function eventOf(settings: unknown): string {
+  try {
+    const parsed = JSON.parse(String(settings ?? '{}'))
+
+    return typeof parsed?.event === 'string' ? parsed.event.trim() : ''
+  }
+  catch {
+    return ''
+  }
+}
+
 /*
  * Who opened each gate, by handle.
  *
@@ -510,6 +529,15 @@ const jobs = jobRows.map((job) => {
      * path through one, and the failure is an empty region rather than an
      * error. One level is the shape that works.
      */
+    /*
+     * The event this job is holding for, when it is holding for one.
+     *
+     * Read off the row rather than inferred from the reason sentence, because
+     * the sentence is for a person and this is what a form posts.
+     */
+    awaitingEvent: String(job.kind ?? '') === 'await' && String(job.state) === 'paused'
+      ? eventOf(job.settings)
+      : '',
     gatePrompt: String(job.kind ?? '') === 'block' ? gateOf(job.settings).prompt : '',
     gateFields: String(job.kind ?? '') === 'block' ? gateOf(job.settings).fields : [],
     /** Only a gate that is actually waiting, and only for somebody who may open it. */
@@ -1055,6 +1083,29 @@ const base = `/${ownerHandle}/${repositoryName}`
               to the same public action the API calls, like the cancel control
               above it.
             --}}
+            {{--
+              A run waiting to be told, and the control that tells it.
+
+              The same public action a webhook posts to, for the same reason
+              the cancel control above uses the public one: a screen with a way
+              to change state that the API does not have is a product growing a
+              second, undocumented door.
+            --}}
+            @if (job.awaitingEvent && canApprove)
+              <div class="job-gate">
+                <p class="job-gate-prompt">Waiting for the <code>{{ job.awaitingEvent }}</code> event.</p>
+
+                <form method="post" action="/api/repos/workflow-runs/event" class="job-gate-form">
+                  <CsrfField />
+                  <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                  <input type="hidden" name="repo" value="{{ repositoryName }}">
+                  <input type="hidden" name="number" value="{{ runNumber }}">
+                  <input type="hidden" name="event" value="{{ job.awaitingEvent }}">
+                  <button class="button" type="submit">Send this event</button>
+                </form>
+              </div>
+            @endif
+
             @if (job.gatePrompt && job.state === 'paused')
               <div class="job-gate">
                 <p class="job-gate-prompt">{{ job.gatePrompt }}</p>

@@ -195,15 +195,34 @@ export default defineModel({
      *
      * `command` is the only kind a runner may claim. The others are the
      * control plane's own work - a barrier its dependencies satisfy, a gate a
-     * person opens, a trigger that starts another run - and handing one to a
-     * machine would mean a runner deciding a deployment approval.
+     * person opens, a trigger that starts another run, a wait that ends on a
+     * clock or on an event - and handing one to a machine would mean a runner
+     * deciding a deployment approval.
      */
     kind: {
       order: 39,
       fillable: true,
       default: 'command',
-      validation: { rule: schema.enum(['command', 'wait', 'block', 'trigger']) },
+      validation: { rule: schema.enum(['command', 'wait', 'block', 'trigger', 'await']) },
       factory: () => 'command',
+    },
+
+    /**
+     * When something should look at this job again.
+     *
+     * The sleep's end, or the deadline on a wait for an event. Null on every
+     * other job, and null on a wait for an event that named no timeout - which
+     * is a run that waits until it is told, on purpose.
+     *
+     * A column rather than a field inside `settings`, because a sweep runs
+     * every minute and asks exactly one question: which rows are due. That
+     * question against JSON is a scan of every job this instance has ever run.
+     */
+    wake_at: {
+      order: 43,
+      fillable: true,
+      validation: { rule: schema.string().max(40) },
+      factory: () => null,
     },
 
     /** The kind's configuration, copied so a finished run stays readable. */

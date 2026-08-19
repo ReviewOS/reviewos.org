@@ -128,7 +128,7 @@ export default defineModel({
     },
 
     /**
-     * What kind of job this is: `command`, `wait`, `block` or `trigger`.
+     * What kind of job this is: `command`, `wait`, `block`, `trigger` or `await`.
      *
      * A column rather than an inference, because everything downstream asks
      * this question and none of it should have to re-read a settings blob to
@@ -139,7 +139,7 @@ export default defineModel({
       order: 44,
       fillable: true,
       default: 'command',
-      validation: { rule: schema.enum(['command', 'wait', 'block', 'trigger']) },
+      validation: { rule: schema.enum(['command', 'wait', 'block', 'trigger', 'await']) },
       factory: () => 'command',
     },
 

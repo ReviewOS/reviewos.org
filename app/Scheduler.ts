@@ -134,6 +134,18 @@ export default function () {
     .everyMinute()
 
   /*
+   * Workflow waits whose sleep or timeout is due, every minute.
+   *
+   * The same reason the orchestrator sweep exists, one layer down: a job
+   * waiting for a clock or for an event holds nothing, so nothing is looking at
+   * it. A wait written in minutes needs a sweep faster than a minute, or the
+   * thing that ends it is a person refreshing the page.
+   */
+  schedule
+    .job('EndDueWaits')
+    .everyMinute()
+
+  /*
    * Test monitors, hourly.
    *
    * They watch days of history, so a shorter cadence asks the same question

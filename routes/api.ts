@@ -881,6 +881,15 @@ route.post('/gh/repos/{owner}/{repo}/{resource}', 'Api/GitHubCompatAction').skip
  */
 route.post('/repos/workflow-runs/approve', 'Actions/Workflow/ApproveWorkflowJobAction').middleware('auth')
 /*
+ * Telling a waiting run that something happened.
+ *
+ * The other half of `await:`, and the same ability as opening a gate: an event
+ * is what lets a held deployment through, which is approval wearing different
+ * clothes. Idempotent on a key the sender chooses, because a sender that does
+ * not hear the answer sends again.
+ */
+route.post('/repos/workflow-runs/event', 'Actions/Workflow/SendRunEventAction').middleware('auth')
+/*
  * And the other approval: letting a fork's pull request run at all.
  *
  * A different question from opening a deployment gate, and the same ability -

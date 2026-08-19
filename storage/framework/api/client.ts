@@ -5686,10 +5686,17 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/workflow-runs/event
+   */
+  postReposWorkflowRunsEvent(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "event"?: string; "payload"?: string; "key"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "event"?: string; "duplicate"?: boolean; "delivered"?: number }>> {
+    return request(config, "POST", "/api/repos/workflow-runs/event", input ?? {}, [], true, options)
+  },
+
+  /**
    * GET /api/repos/workflow-runs/log
    */
-  getReposWorkflowRunsLog(input: { "owner"?: string; "repo"?: string; "job": number; "after"?: number }, options?: RequestOptions): Promise<ApiResult<{ "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string }>> {
-    return request(config, "GET", "/api/repos/workflow-runs/log", input ?? {}, ["owner", "repo", "job", "after"], false, options)
+  getReposWorkflowRunsLog(input: { "owner"?: string; "repo"?: string; "job": number; "after"?: number; "attempt"?: number }, options?: RequestOptions): Promise<ApiResult<{ "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string; "attempt"?: number }>> {
+    return request(config, "GET", "/api/repos/workflow-runs/log", input ?? {}, ["owner", "repo", "job", "after", "attempt"], false, options)
   },
 
   /**
@@ -5702,7 +5709,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/workflow-runs/rerun
    */
-  postReposWorkflowRunsRerun(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "scope"?: string; "job"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "workflow_run"?: { "number"?: number; "state"?: string; "attempt"?: number }; "jobs"?: number }>> {
+  postReposWorkflowRunsRerun(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "scope"?: string; "job"?: string; "step"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "workflow_run"?: { "number"?: number; "state"?: string; "attempt"?: number }; "jobs"?: number; "reused"?: number; "reason"?: string }>> {
     return request(config, "POST", "/api/repos/workflow-runs/rerun", input ?? {}, [], true, options)
   },
 
@@ -5849,8 +5856,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/runner/heartbeat
    */
-  postRunnerHeartbeat(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/runner/heartbeat", {}, [], false, options)
+  postRunnerHeartbeat(input?: { body?: { "steps"?: Array<unknown> } }, options?: RequestOptions): Promise<ApiResult<{ "lease_expires_at"?: string; "steps_recorded"?: number }>> {
+    return request(config, "POST", "/api/runner/heartbeat", input ?? {}, [], true, options)
   },
 
   /**

@@ -547,7 +547,7 @@ const JOB_KEYS = new Set([
 ])
 
 /** What a job *is*, which Actions has one of and this engine has five. */
-export type JobKind = 'command' | 'wait' | 'block' | 'trigger'
+export type JobKind = 'command' | 'wait' | 'block' | 'trigger' | 'await'
 
 /**
  * Every key that may appear under `reviewos:` on a job.
@@ -561,6 +561,10 @@ export const EXTENSION_KEYS = new Set([
   'wait',
   'block',
   'trigger',
+  // A run holding still for a clock or for something outside it. The primitive
+  // under approvals and webhooks, and the one thing `block:` cannot express: a
+  // gate waits for a person, and this waits for whatever the world sends.
+  'await',
   'group',
   'if-changed',
   'retry',
@@ -1007,7 +1011,7 @@ function extensionOf(
   const branches = branchesFrom(raw.branches)
   const allowDependencyFailure = raw['allow-dependency-failure'] === true
 
-  const kinds = (['wait', 'block', 'trigger'] as const).filter(key => key in raw)
+  const kinds = (['wait', 'block', 'trigger', 'await'] as const).filter(key => key in raw)
 
   if (kinds.length > 1) {
     errors.push({
@@ -1056,7 +1060,7 @@ function extensionOf(
     errors.push({
       line: jobLine,
       message: `Job \`${id}\` is a \`${kind}\` job and also has steps`,
-      fix: 'A wait, block or trigger job runs no commands. Move the steps into a job of their own.',
+      fix: 'A wait, block, trigger or await job runs no commands. Move the steps into a job of their own.',
     })
   }
 
@@ -1082,6 +1086,27 @@ function extensionOf(
         continueOnFailure: asRecord(raw.wait)?.['continue-on-failure'] === true || allowDependencyFailure,
       },
       group,
+      allowDependencyFailure,
+      parallelism: 0,
+      artifactPaths: [],
+      secrets: null,
+      cancelOnBuildFailing: false,
+      checkout: null,
+      concurrencyLimit: null,
+      adjustments: [],
+    }
+  }
+
+  if (kind === 'await') {
+    return {
+      kind,
+      settings: settingsWithAllowance(awaitFrom(raw.await, id, jobLine, source, errors), allowDependencyFailure),
+      group,
+      ifChanged,
+      priority,
+      skip,
+      softFail,
+      branches,
       allowDependencyFailure,
       parallelism: 0,
       artifactPaths: [],
@@ -1204,6 +1229,151 @@ export function softFailFrom(value: unknown): { any: boolean, statuses: number[]
  */
 export function branchesFrom(value: unknown): string[] {
   return asStringList(value).map(one => one.trim()).filter(Boolean)
+}
+
+/**
+ * `reviewos.await:` - a run holding still for a clock, or for the world.
+ *
+ * The primitive under approvals, webhooks and every other human-in-the-loop
+ * gate, and the thing `block:` cannot express: a gate waits for **a person with
+ * an account here**, and this waits for whatever sends the event - a deployment
+ * that finished somewhere else, a soak that has to last twenty minutes, a
+ * customer who clicked a link.
+ *
+ * Two shapes and one rule about combining them:
+ *
+ * - `sleep: 30m` or `until: 2026-08-20T10:00:00Z` is a clock. It ends by
+ *   itself.
+ * - `event: deploy-approved` waits to be told, and `timeout:` bounds how long.
+ *
+ * A wait with neither is a run that never finishes, which is why it is refused
+ * rather than defaulted: a job nobody can end holds a pull request's checks
+ * open forever, and the failure appears days later on somebody else's screen.
+ *
+ * **A held job holds nothing.** It never reaches a runner - it is the control
+ * plane's own work, like a barrier and a gate - so a workflow waiting three
+ * days for an approval costs three days of a row rather than of a machine.
+ */
+function awaitFrom(
+  value: unknown,
+  id: string,
+  jobLine: number,
+  source: string,
+  errors: WorkflowError[],
+): Record<string, unknown> {
+  // `await: 30m` is the short form, because "wait a bit" is most of them.
+  if (typeof value === 'string' || typeof value === 'number') {
+    const seconds = secondsFrom(value)
+
+    if (seconds === null) {
+      errors.push({
+        line: jobLine,
+        message: `Job \`${id}\` waits for \`${String(value)}\`, which is not a length of time`,
+        fix: 'Write `await: 30m`, or `await: { event: deploy-approved, timeout: 1h }`.',
+      })
+
+      return { sleepSeconds: 60 }
+    }
+
+    return { sleepSeconds: seconds }
+  }
+
+  const body = asRecord(value) ?? {}
+  const event = typeof body.event === 'string' ? body.event.trim() : ''
+  const until = typeof body.until === 'string' ? body.until.trim() : ''
+  const sleep = body.sleep === undefined ? null : secondsFrom(body.sleep)
+  const timeout = body.timeout === undefined ? null : secondsFrom(body.timeout)
+
+  if (body.sleep !== undefined && sleep === null) {
+    errors.push({
+      line: lineOf(source, 'sleep', jobLine),
+      message: `Job \`${id}\` sleeps for \`${String(body.sleep)}\`, which is not a length of time`,
+      fix: 'Write a duration: `30s`, `10m`, `2h`, or a plain number of seconds.',
+    })
+  }
+
+  if (body.timeout !== undefined && timeout === null) {
+    errors.push({
+      line: lineOf(source, 'timeout', jobLine),
+      message: `Job \`${id}\` waits with a timeout of \`${String(body.timeout)}\`, which is not a length of time`,
+      fix: 'Write a duration: `30s`, `10m`, `2h`, or a plain number of seconds.',
+    })
+  }
+
+  if (until && Number.isNaN(Date.parse(until))) {
+    errors.push({
+      line: lineOf(source, 'until', jobLine),
+      message: `Job \`${id}\` waits until \`${until}\`, which is not a time`,
+      fix: 'Write an ISO 8601 instant: `2026-08-20T10:00:00Z`.',
+    })
+  }
+
+  /*
+   * A timeout on a wait that already ends by itself is two clocks for one wait,
+   * and the shorter one wins in a way nobody reading the file would predict.
+   */
+  if (timeout !== null && !event) {
+    errors.push({
+      line: lineOf(source, 'timeout', jobLine),
+      message: `Job \`${id}\` has a \`timeout\` but waits for no event`,
+      fix: 'A `timeout:` bounds an `event:`. For a plain delay, `sleep:` is the whole wait.',
+    })
+  }
+
+  if (!event && sleep === null && !until) {
+    errors.push({
+      line: jobLine,
+      message: `Job \`${id}\` waits for nothing, so nothing ends it`,
+      fix: 'Give it `sleep:`, `until:`, or an `event:` to wait for.',
+    })
+
+    return { sleepSeconds: 60 }
+  }
+
+  const onTimeout = String(body['on-timeout'] ?? 'fail') === 'continue' ? 'continue' : 'fail'
+
+  return {
+    ...(event ? { event } : {}),
+    ...(sleep === null ? {} : { sleepSeconds: sleep }),
+    ...(until ? { until } : {}),
+    ...(timeout === null ? {} : { timeoutSeconds: timeout }),
+    /*
+     * What an event that never arrives means. Failing is the default because a
+     * wait that times out is a thing that did not happen, and a run that goes
+     * green on "nobody replied" is a green check for a deployment nobody
+     * approved. `continue` is for the wait whose whole point is "give it a
+     * minute, then carry on".
+     */
+    ...(event ? { onTimeout } : {}),
+  }
+}
+
+/**
+ * A length of time, in seconds.
+ *
+ * `30`, `30s`, `10m`, `2h`, `1d` - the spellings people write without looking
+ * them up. Null when it is not one, so the caller can say which key was wrong
+ * rather than quietly waiting a minute.
+ */
+export function secondsFrom(value: unknown): number | null {
+  if (typeof value === 'number')
+    return Number.isFinite(value) && value >= 0 ? Math.round(value) : null
+
+  const text = String(value ?? '').trim().toLowerCase()
+
+  if (!text)
+    return null
+
+  const match = /^(\d+(?:\.\d+)?)\s*(s|m|h|d|)$/.exec(text)
+
+  if (!match)
+    return null
+
+  const size = Number(match[1])
+  const unit = match[2] || 's'
+  const scale = unit === 'd' ? 86_400 : unit === 'h' ? 3600 : unit === 'm' ? 60 : 1
+
+  return Math.round(size * scale)
 }
 
 /** `reviewos.block:` - the prompt, and the fields collected on the way through. */

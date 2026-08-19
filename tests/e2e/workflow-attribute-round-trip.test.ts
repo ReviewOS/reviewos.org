@@ -374,6 +374,30 @@ const ATTRIBUTES: Attribute[] = [
     definition: row => expect(String(row.kind)).toBe('trigger'),
     run: row => expect(String(row.kind)).toBe('trigger'),
   },
+  {
+    keys: ['await'],
+    job: `  approval:
+    reviewos:
+      await:
+        event: deploy-approved
+        timeout: 1h`,
+    definition: (row) => {
+      expect(String(row.kind)).toBe('await')
+      // The event and the deadline both, because a wait that survived as "a
+      // wait" and lost what it waits for is a job nothing can ever end.
+      expect(settingsOf(row).event).toBe('deploy-approved')
+      expect(settingsOf(row).timeoutSeconds).toBe(3600)
+    },
+    run: (row) => {
+      expect(String(row.kind)).toBe('await')
+      expect(settingsOf(row).event).toBe('deploy-approved')
+      expect(settingsOf(row).timeoutSeconds).toBe(3600)
+    },
+    malformed: [
+      { job: `  stuck:\n    reviewos:\n      await:\n        on-timeout: continue`, says: 'waits for nothing' },
+      { job: `  soon:\n    reviewos:\n      await: shortly`, says: 'not a length of time' },
+    ],
+  },
 ]
 
 /** The definition row and the run row for the first job of a workflow. */

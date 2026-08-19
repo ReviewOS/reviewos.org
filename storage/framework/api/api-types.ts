@@ -15720,17 +15720,44 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/workflow-runs/event": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "event"?: string; "payload"?: string; "key"?: string } } }
+    responses: {
+      "200": { content: { "application/json": { "event"?: string; "duplicate"?: boolean; "delivered"?: number } } }
+      "303": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/workflow-runs/log": {
     get: {
     parameters: {
-      query: { "owner"?: string; "repo"?: string; "job": number; "after"?: number }
+      query: { "owner"?: string; "repo"?: string; "job": number; "after"?: number; "attempt"?: number }
       header?: never
       path?: never
       cookie?: never
     }
     requestBody?: never
     responses: {
-      "200": { content: { "application/json": { "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string } } }
+      "200": { content: { "application/json": { "chunks"?: Array<Record<string, unknown>>; "cursor"?: number; "state"?: string; "attempt"?: number } } }
       "401": { content: never }
       "403": { content: never }
       "404": { content: never }
@@ -15782,9 +15809,9 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "scope"?: string; "job"?: string } } }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "scope"?: string; "job"?: string; "step"?: string } } }
     responses: {
-      "200": { content: { "application/json": { "workflow_run"?: { "number"?: number; "state"?: string; "attempt"?: number }; "jobs"?: number } } }
+      "200": { content: { "application/json": { "workflow_run"?: { "number"?: number; "state"?: string; "attempt"?: number }; "jobs"?: number; "reused"?: number; "reason"?: string } } }
       "303": { content: never }
       "401": { content: never }
       "403": { content: never }
@@ -16272,9 +16299,9 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "steps"?: Array<unknown> } } }
     responses: {
-      "200": { content: { "application/json": Record<string, unknown> } }
+      "200": { content: { "application/json": { "lease_expires_at"?: string; "steps_recorded"?: number } } }
       "401": { content: never }
       "422": { content: never }
       "426": { content: never }
