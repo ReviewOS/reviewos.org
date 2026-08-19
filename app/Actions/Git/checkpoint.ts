@@ -102,6 +102,21 @@ export async function writeCheckpoint(
     await runGit(repositoryPath, ['gc'], { timeoutMs: CHECKPOINT_TIMEOUT_MS, priority: 'background' })
   }
 
+  /*
+   * Everything the write needs, resolved *before* git is spawned.
+   *
+   * The bundle is a pipe, and a pipe whose reader attaches after the child has
+   * closed hands back nothing: git exits 0, the store records zero bytes, and
+   * `writeCheckpoint` reports no checkpoint for a repository that has plenty to
+   * bundle. Fifty milliseconds between the spawn and the read is enough to lose
+   * it, which is why this failed on a loaded CI runner and never on a laptop -
+   * and why the await that used to sit here, `await blobStore()`, was the whole
+   * bug. Nothing may be awaited between the spawn below and the `put` that
+   * follows it.
+   */
+  const key = checkpointKey(repositoryId, sequence)
+  const store = await blobStore()
+
   const child = await spawnGitLimited('background', repositoryPath, ['bundle', 'create', '--quiet', '-', '--all'])
 
   /*
@@ -126,10 +141,11 @@ export async function writeCheckpoint(
   // bug `wal.ts` carries a paragraph about.
   const exited = new Promise<number>(resolve => child.on('close', value => resolve(value ?? -1)))
 
+  // The read starts here, on the line after the spawn, for the reason above.
+  const writing = store.put(key, child.stdout as AsyncIterable<Uint8Array>)
+
   try {
-    const key = checkpointKey(repositoryId, sequence)
-    const store = await blobStore()
-    const written = await store.put(key, child.stdout as AsyncIterable<Uint8Array>)
+    const written = await writing
     const code = await exited
 
     if (code !== 0 || written.size <= BUNDLE_HEADER_BYTES) {

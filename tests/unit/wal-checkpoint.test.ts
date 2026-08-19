@@ -137,6 +137,31 @@ describe('writeCheckpoint', () => {
     expect(found?.sequence).toBe(12)
   })
 
+  /**
+   * The failure this was written for, which took four blocked deploys to catch.
+   *
+   * A bundle arrives on a pipe, and a pipe whose reader attaches after the
+   * child has closed hands back nothing at all: git exits 0, the store records
+   * zero bytes, and a repository with plenty to bundle reports no checkpoint.
+   * `writeCheckpoint` used to `await blobStore()` between the spawn and the
+   * read, which is enough on a loaded machine and never enough on a laptop -
+   * so it failed only on CI, only for the first call in this file.
+   *
+   * Anything awaited between the two brings it back, so this asserts the thing
+   * that would be lost: bytes, over and over, with work in between.
+   */
+  test('reads the bundle even when the process is busy, which is the whole ordering', async () => {
+    for (const sequence of [21, 22, 23]) {
+      const written = await writeCheckpoint(7, bare, sequence, { repack: false })
+
+      expect(written).not.toBeNull()
+      expect(written!.bytes).toBeGreaterThan(100)
+
+      // Work between the calls, the way a suite or a busy box has work.
+      await Bun.sleep(25)
+    }
+  })
+
   test('the newest wins when there are several', async () => {
     await writeCheckpoint(8, bare, 5, { repack: false })
     await writeCheckpoint(8, bare, 40, { repack: false })
