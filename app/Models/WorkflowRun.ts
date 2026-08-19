@@ -124,6 +124,29 @@ export default defineModel({
     },
 
     /**
+     * What the event touched, as JSON, for the conditions that ask.
+     *
+     * Computed at dispatch - the control plane has the repository on disk and
+     * the runner does not - and kept so a **step's** `if:` can read it, not
+     * only a job's. `if: contains(github.changed_files, 'migrations/')` is the
+     * shape people actually want, and until this existed the answer was only
+     * available at the moment the run was created.
+     *
+     * **Bounded, and it says when it was bounded.** A merge of a long-lived
+     * branch changes thousands of files, and a column that grew with it would
+     * be a run row nobody can load. Past the cap the list is cut and
+     * `changed_files_truncated` goes true in the context beside it - because a
+     * condition that quietly answers "no, that path did not change" from a
+     * truncated list is the one failure worth designing against.
+     */
+    changed_paths: {
+      order: 8,
+      fillable: true,
+      validation: { rule: schema.text() },
+      factory: () => null,
+    },
+
+    /**
      * The commit the *definition* came from.
      *
      * Equal to `head_sha` for an ordinary push and deliberately not for a fork

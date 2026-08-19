@@ -1026,9 +1026,20 @@ gate, in order.
 
 - [x] Setup or install step can produce a cache snapshot consumed by later steps without giving
       those steps a shared mutable machine
-- [ ] Independent jobs run in parallel; dependencies and barriers are explicit in the graph
-- [ ] Conditional steps can inspect declared prior results, ref, changed paths, trigger, and approved
+- [x] Independent jobs run in parallel; dependencies and barriers are explicit in the graph
+- [x] Conditional steps can inspect declared prior results, ref, changed paths, trigger, and approved
       inputs without arbitrary access to control-plane state
+
+Prior results are `steps.*` and `needs.*`, the ref and the trigger are `github.ref` and
+`github.event_name`, and an approval's typed values become the approving job's outputs - so they are
+read as `needs.approve.outputs.x` rather than through a second mechanism. Changed paths are computed
+at dispatch, where the repository is on disk, and carried to the runner in the claim: a step's
+condition reads a value it was handed, never the control plane.
+
+A very large push is cut to `MAX_CHANGED_PATHS`, and `github.changed_files_truncated` says so. A
+condition that quietly answers "that path did not change" out of a cut list is the failure this is
+designed against - a step that runs when it need not have costs a minute, and one skipped when it
+was needed ships the bug.
 - [ ] Preview deployment on non-default branches and deployment after all required checks pass,
       through the deployment model below
 - [ ] Run view shows the dependency graph, current branch of execution, retries, cache hits, wall

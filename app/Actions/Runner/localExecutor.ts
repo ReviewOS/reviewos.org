@@ -1415,6 +1415,20 @@ function expressionContext(
     ref_type: ref.startsWith('refs/tags/') ? 'tag' : (ref.startsWith('refs/heads/') ? 'branch' : ''),
     head_ref: String(run.head_ref ?? ''),
     base_ref: String(run.base_ref ?? ''),
+    /*
+     * What the event touched, so a step's condition can ask.
+     *
+     * `if: contains(github.changed_files, 'migrations/')` is the shape people
+     * want, and it is a *declared* value rather than access to control-plane
+     * state: the list was computed at dispatch and handed over with the job,
+     * so a condition cannot reach anything the claim did not already give it.
+     *
+     * The flag beside it is not decoration. A very large push is cut, and a
+     * condition answering "no, that did not change" out of a cut list is the
+     * failure this exists to make visible.
+     */
+    changed_files: Array.isArray(run.changed_files) ? run.changed_files : [],
+    changed_files_truncated: run.changed_files_truncated === true,
     sha: String(run.head_sha ?? ''),
     repository: full,
     repository_owner: full.split('/')[0] ?? '',

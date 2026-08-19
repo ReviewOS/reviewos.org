@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
+import { changedPathsFromColumn } from '../Workflow/dispatch'
 import { mintJobToken } from '../Workflow/jobToken'
 import { secretsForJobDetailed } from '../Workflow/secrets'
 import { variablesFor } from '../Workflow/variables'
@@ -225,6 +226,7 @@ export default new Action({
         'workflow_runs.number as run_number',
         'workflow_runs.attempt as run_attempt',
         'workflow_runs.head_sha as head_sha',
+        'workflow_runs.changed_paths as changed_paths',
         'workflow_runs.event as event',
         'workflow_runs.event_ref as event_ref',
         'workflow_runs.trusted as trusted',
@@ -562,6 +564,20 @@ export default new Action({
            * on a decision nobody made.
            */
           actor: actor?.handle ? String(actor.handle) : '',
+          /*
+           * What the event touched, computed at dispatch and carried here.
+           *
+           * A step's `if:` can ask - `contains(github.changed_files,
+           * 'migrations/')` - which until now only a job's could, because the
+           * control plane has the repository on disk and the runner does not.
+           *
+           * The truncation flag travels with it. A condition that quietly
+           * answers "that path did not change" out of a cut list is the one
+           * failure worth designing against, so a workflow that cares can guard
+           * on `github.changed_files_truncated`.
+           */
+          changed_files: changedPathsFromColumn(context?.changed_paths).paths,
+          changed_files_truncated: changedPathsFromColumn(context?.changed_paths).truncated,
           // A pull request's branches, which is what half the ecosystem's
           // "changed files" logic is built on.
           head_ref: pull?.head_ref ? String(pull.head_ref) : '',

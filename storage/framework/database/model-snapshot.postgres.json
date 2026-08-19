@@ -9646,6 +9646,14 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 64
+          },
+          {
+            "name": "changed_paths",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -13680,7 +13688,7 @@
       }
     ]
   },
-  "hash": "77eceb9eee5c6a5e392f38ca23811070bf1f82e09eeea7c9b663c74070111f40",
+  "hash": "0088b7eca6ea4e6f259f20b171976baed5cdc7316a123cc25a6adfb655eb41c9",
   "dialect": "postgres",
-  "updatedAt": "2026-08-19T16:06:22.626Z"
+  "updatedAt": "2026-08-19T16:13:49.179Z"
 }

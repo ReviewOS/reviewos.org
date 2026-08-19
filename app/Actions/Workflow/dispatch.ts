@@ -666,6 +666,7 @@ async function createPullRequestRun(
         event: target ? 'pull_request_target' : 'pull_request',
         event_ref: input.ref,
         head_sha: input.headSha,
+        changed_paths: changedPathsColumn((input as any).changed),
         /*
          * The two commits, kept apart.
          *
@@ -766,6 +767,10 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
         event: 'push',
         event_ref: input.event.ref,
         head_sha: input.headSha,
+        // What the push touched, kept so a step's `if:` can read it and not
+        // only a job's - the control plane has the repository on disk and the
+        // runner does not.
+        changed_paths: changedPathsColumn(input.event.changed),
         // For a push these are the same commit. They are stored separately
         // because for a fork's pull request they are not, and a reader must be
         // able to see which commit supplied the workflow.
@@ -1774,4 +1779,57 @@ function pathDecision(globs: unknown, changed: readonly string[]): { run: boolea
         // opening the file.
         reason: `Nothing this push changed matches ${patterns.map(pattern => `\`${pattern}\``).join(', ')}.`,
       }
+}
+
+/**
+ * How many paths a run row will carry.
+ *
+ * A merge of a long-lived branch changes thousands of files, and a column that
+ * grew with it would be a run row nobody can load. Two thousand covers every
+ * ordinary push and most extraordinary ones.
+ */
+export const MAX_CHANGED_PATHS = 2000
+
+/**
+ * The changed set as it is stored, and whether it had to be cut.
+ *
+ * The flag is the point. A condition that quietly answers "no, that path did
+ * not change" out of a truncated list is the one failure worth designing
+ * against, so the truncation travels with the data and the expression context
+ * exposes it as `github.changed_files_truncated` for a workflow that wants to
+ * be careful.
+ */
+export function changedPathsColumn(paths: readonly string[] | null | undefined): string | null {
+  const all = (paths ?? []).map(one => String(one ?? '')).filter(Boolean)
+
+  if (all.length === 0)
+    return null
+
+  const kept = all.slice(0, MAX_CHANGED_PATHS)
+
+  return JSON.stringify({ paths: kept, truncated: kept.length < all.length })
+}
+
+/** The stored set, read back. Never throws: an unreadable value is no answer, not a failure. */
+export function changedPathsFromColumn(value: unknown): { paths: string[], truncated: boolean } {
+  if (!value)
+    return { paths: [], truncated: false }
+
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value
+
+    return {
+      paths: Array.isArray(parsed?.paths) ? parsed.paths.map((one: unknown) => String(one)) : [],
+      truncated: parsed?.truncated === true,
+    }
+  }
+  catch {
+    /*
+     * A row written by a version that is gone, or one somebody edited. Reported
+     * as "truncated" rather than as "nothing changed", because those two
+     * answers send a conditional in opposite directions and only one of them is
+     * safe to be wrong about.
+     */
+    return { paths: [], truncated: true }
+  }
 }
