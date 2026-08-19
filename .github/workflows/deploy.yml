@@ -179,17 +179,24 @@ jobs:
         # reach it.
         run: |
           set -euo pipefail
+          # Twenty-four attempts, not ten. The page process takes around four
+          # minutes to come up on this box - it compiles every stx view at boot
+          # - and a two-and-a-half minute window closed on a release that was
+          # busy starting. The run went red, the site came up a minute later,
+          # and the red was read as "the release broke the site" and rolled back
+          # a deploy that was fine. Six minutes is longer than the boot has ever
+          # taken; a real failure still fails, four minutes later than before.
           check() {
-            for attempt in $(seq 1 10); do
+            for attempt in $(seq 1 24); do
               code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$1" || echo 000)
               if [ "$code" = "200" ]; then
-                echo "$1 responded 200"
+                echo "$1 responded 200 (attempt $attempt)"
                 return 0
               fi
               echo "attempt $attempt: $1 -> $code"
               sleep 15
             done
-            echo "$1 did not return 200 after the deploy" >&2
+            echo "$1 did not return 200 within six minutes of the deploy" >&2
             return 1
           }
           check https://reviewos.org/
