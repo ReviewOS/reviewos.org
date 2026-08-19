@@ -130,6 +130,25 @@ describe('reading a stream', () => {
     expect(reader.read('a normal line').line).toBe('a normal line')
   })
 
+  /**
+   * Masks are readable, because a log line is not the only place a masked value
+   * can escape.
+   *
+   * A job's outputs are the other one, and they travel further: they are
+   * stored, and they are put into the environment of every job declaring
+   * `needs` on this one. `::add-mask::` is the only way a step says "this is
+   * secret", so the executor reads the set back out and takes those values out
+   * of the outputs before they leave the machine.
+   */
+  test('the registered masks can be read back, for values that are not lines', () => {
+    const reader = new CommandReader()
+
+    reader.read('::add-mask::s3cret-value')
+    reader.addMask('another-secret')
+
+    expect(reader.maskedValues().sort()).toEqual(['another-secret', 's3cret-value'])
+  })
+
   /*
    * A build that prints something looking like a command gets to say so. The
    * pause ends only on the exact token, because a stream that can be resumed by

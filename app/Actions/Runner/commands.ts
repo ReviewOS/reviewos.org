@@ -189,6 +189,21 @@ export class CommandReader {
     if (trimmed.length >= 3)
       this.masks.add(trimmed)
   }
+
+  /**
+   * Everything registered so far, for callers that hide something other than a
+   * log line.
+   *
+   * A job's outputs are the case this exists for. `::add-mask::` is how a step
+   * says a value is sensitive, and a value that is sensitive in the log is
+   * sensitive in an output too - it travels further from there, into the
+   * environment of every job that declares `needs`. Reading the set rather than
+   * masking through this class because outputs are not lines: they leave in a
+   * report, they are stored, and they are redacted again on arrival.
+   */
+  maskedValues(): string[] {
+    return [...this.masks]
+  }
 }
 
 /** `file=src/a.ts,line=12,col=3` into a record, with Actions' escaping undone. */

@@ -1022,14 +1022,24 @@ gate, in order.
       through the deployment model below
 - [ ] Run view shows the dependency graph, current branch of execution, retries, cache hits, wall
       time, active execution time, queue time, and the workflow version
-- [ ] Logs and step output can mark fields sensitive, and the API returns redaction metadata rather
+- [x] Logs and step output can mark fields sensitive, and the API returns redaction metadata rather
       than silently omitting data
 - [ ] Aggregate metrics for success rate, failure by step, queue time, duration, retry count, cache
       effectiveness, and runner utilization, filterable by owner, repository, and workflow
 - [ ] Local validation and a fake-runner test harness use the same parser and transition rules as
       production
-- [ ] CLI commands to validate a workflow, dispatch it, follow logs, inspect a run, cancel it, and
+- [x] CLI commands to validate a workflow, dispatch it, follow logs, inspect a run, cancel it, and
       retry from a step, as clients of the public API
+
+`buddy ci:validate`, `ci:runs`, `ci:run`, `ci:logs --follow`, `ci:dispatch`, `ci:unblock`,
+`ci:cancel` and `ci:rerun`, all in `app/Commands/Ci.ts` and all going out through one HTTP client -
+so a command can do nothing the API does not already offer somebody with `curl`. The exception is
+`ci:validate`, which parses locally on purpose: checking a file before it is pushed is the point,
+and an instance is not needed to read one.
+
+The retry unit is a job (`--scope all | failed | job`) rather than a step, because a step is not
+independently resumable: it inherits a workspace the steps before it wrote, and restarting one on a
+fresh machine would run it against state that was never built.
 
 ## Repair agents
 

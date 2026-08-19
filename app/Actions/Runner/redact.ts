@@ -75,17 +75,56 @@ export function formsOf(value: string): string[] {
  * feature people believe is total is worse than one whose edge they know.
  */
 export function redactSecrets(text: string, values: readonly string[]): string {
+  return redactWithCount(text, values).text
+}
+
+/**
+ * The same pass, and how much it took out.
+ *
+ * The count is what turns redaction from a thing that happened into a thing a
+ * reader is told about. A log that silently drops a value is indistinguishable
+ * from a log that never had one, and the difference matters to the person
+ * asking why the curl failed: "three values were removed here" sends them to
+ * the secrets page, and nothing sends them nowhere.
+ */
+export function redactWithCount(text: string, values: readonly string[]): { text: string, count: number } {
   if (!text)
-    return text
+    return { text, count: 0 }
 
   const forms = [...new Set(values.flatMap(formsOf))].sort((left, right) => right.length - left.length)
 
   let out = text
+  let count = 0
 
   for (const form of forms) {
-    if (out.includes(form))
-      out = out.split(form).join(MARKER)
+    if (!out.includes(form))
+      continue
+
+    const parts = out.split(form)
+    count += parts.length - 1
+    out = parts.join(MARKER)
   }
 
-  return out
+  return { text: out, count }
+}
+
+/**
+ * How many values were taken out of text that was redacted already.
+ *
+ * Reading the stored text rather than a stored number, deliberately. Logs are
+ * redacted on the way in, which means every chunk written before this function
+ * existed carries its markers and no count - and a stored count would report
+ * zero for all of them, which is the one wrong answer that matters. Counting
+ * what is actually there can never say "nothing was hidden" about text where
+ * something was.
+ *
+ * The cost is the opposite error: a job that literally prints `[redacted]`
+ * inflates its own count. That is visible, harmless, and vanishingly rare next
+ * to under-reporting.
+ */
+export function countRedactions(text: string): number {
+  if (!text)
+    return 0
+
+  return text.split(MARKER).length - 1
 }

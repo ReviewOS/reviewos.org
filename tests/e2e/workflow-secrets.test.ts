@@ -380,6 +380,20 @@ describe('a secret that reaches the log anyway', () => {
     // with no sign reads as a bug in the log, and somebody goes looking for it.
     expect(text).toContain('[redacted]')
 
+    /*
+     * And the read says so, rather than leaving a reader to spot the marker.
+     *
+     * "Redaction metadata rather than silently omitting data" is the phase 9
+     * rule, and this is where a client meets it: the page carries the marker it
+     * used and how many values it stands for, so a screen can put "1 value
+     * hidden" beside the log instead of hoping somebody notices.
+     */
+    const { readLog } = await import('../../app/Actions/Runner/logs')
+    const page = await readLog(Number(job.id))
+
+    expect(page.redaction.marker).toBe('[redacted]')
+    expect(page.redaction.count).toBe(1)
+
     await db.deleteFrom('workflows').where('id', '=', Number(workflow.id)).execute()
   }, 120_000)
 })

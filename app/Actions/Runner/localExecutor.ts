@@ -37,6 +37,7 @@ import { checkoutPlan } from './checkout'
 import type { FleetStage, HookStage, InstalledPlugin, ResolvedHook } from './hooks'
 import { fleetHook, hooksFor, repositoryHooksAllowed } from './hooks'
 import { CommandReader } from './commands'
+import { redactWithCount } from './redact'
 import type { ServiceRequest } from './services'
 import { resolveServices, serviceEnvironment, waitForPort } from './services'
 import { interpolate, shouldRun } from '../Workflow/expression'
@@ -1016,6 +1017,31 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         }),
       )
     }
+
+    /*
+     * A value a step called sensitive does not leave in an output.
+     *
+     * `::add-mask::` is the only way a step says "this is secret", and until
+     * now it meant "hide this in the log" - which is the smaller half. An
+     * output travels further than a log line does: it is stored, and it is put
+     * into the environment of every job that declares `needs` on this one. A
+     * masked value reaching one of those has been un-masked by the trip.
+     *
+     * Said out loud rather than done quietly. An output that arrives as the
+     * marker is one somebody will come asking about, and the answer belongs in
+     * the log of the job that produced it, not in a support thread.
+     */
+    for (const [name, value] of Object.entries(resolvedOutputs)) {
+      const hidden = redactWithCount(value, reader.maskedValues())
+
+      if (hidden.count === 0)
+        continue
+
+      resolvedOutputs[name] = hidden.text
+      await send(`output "${name}" carried a masked value, so it leaves this runner redacted\n`, 'stderr')
+    }
+
+    await flush()
 
     /*
      * What the job asked to have kept, collected on the way out.
