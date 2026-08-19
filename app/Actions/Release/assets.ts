@@ -63,6 +63,42 @@ export function assetPath(key: string): string | null {
 }
 
 /**
+ * The blob-store key for an asset.
+ *
+ * The same fan-out as the path, minus the `storage/` the store's own root
+ * supplies - so a local instance keeps every asset exactly where it already
+ * is, and only the code that reaches them changes.
+ */
+export function assetBlobKey(key: string): string | null {
+  if (!isAssetKey(key))
+    return null
+
+  return `release-assets/${key.slice(0, 2)}/${key.slice(2, 4)}/${key}`
+}
+
+/**
+ * The key to read an asset from, given what the row stored.
+ *
+ * `release_assets.storage_path` holds a full relative path on every row
+ * written so far (`storage/release-assets/aa/bb/key`), and a store key on rows
+ * written from now on. Both are accepted, because a column that means two
+ * things is exactly the situation where each reader inventing its own guess
+ * produces a feature that works for new rows and 404s for old ones.
+ */
+export function assetKeyFrom(storagePath: unknown): string | null {
+  const value = String(storagePath ?? '').trim()
+
+  if (value.length === 0)
+    return null
+
+  // The legacy shape: strip the store root the driver now supplies itself.
+  if (value.startsWith('storage/'))
+    return value.slice('storage/'.length)
+
+  return value
+}
+
+/**
  * The name an asset is downloaded as.
  *
  * Kept close to what was uploaded, because the name of a release binary is

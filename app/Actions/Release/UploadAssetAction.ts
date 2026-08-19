@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { authorizeRepository } from '../Repo/authorize'
-import { assetPath, checksumOf, decideAsset, newAssetKey } from './assets'
+import { assetBlobKey, checksumOf, decideAsset, newAssetKey } from './assets'
 
 /**
  * Attach a built artefact to a release.
@@ -63,11 +63,12 @@ export default new Action({
       return response.json({ error: `That release already has a file called ${decision.name}` }, 409)
 
     const key = newAssetKey()
-    const path = assetPath(key)!
+    const blobKey = assetBlobKey(key)!
 
     try {
-      await mkdir(dirname(path), { recursive: true })
-      await Bun.write(path, bytes)
+      const { blobStore } = await import('../Git/blobs')
+      const store = await blobStore()
+      await store.put(blobKey, bytes)
     }
     catch (error) {
       return response.json({ error: `Could not store that file: ${error}` }, 500)
@@ -78,7 +79,7 @@ export default new Action({
       .values({
         release_id: Number(release.id),
         name: decision.name,
-        storage_path: path,
+        storage_path: blobKey,
         // Recorded as declared, and never used to serve the file. See
         // `assets.ts`: a release asset goes out as an opaque download whatever
         // it says it is.

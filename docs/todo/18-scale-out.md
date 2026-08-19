@@ -67,7 +67,14 @@ No push-path changes in this sub-phase.
 - [ ] LFS through the store: `app/Actions/Git/lfs.ts` currently hard-wires ts-git-lfs's local
       object store; adapt it over `BlobStore`, upstream a custom-store seam in ts-git-lfs if it
       lacks one.
-- [ ] Release assets and attachments through the store.
+- [x] Release assets and attachments through the store. Both already used a two-level fan-out
+      under `storage/<feature>`, so their keys are the same paths minus the root the store
+      supplies - nothing on disk moves.
+
+      `release_assets.storage_path` is the one column that had to learn two shapes: every row
+      written so far holds a full relative path and new ones hold a store key, so `assetKeyFrom`
+      accepts both. A column meaning two things is exactly where each reader inventing its own
+      guess produces a feature that works for new rows and 404s for old ones.
 - [x] The repo-store seam in `app/Actions/Git/storage.ts`, behavior-neutral for now:
       `ensureLocal(owner, name)` as a thin wrapper over `repositoryPath()`, adopted by the git
       routes, ssh, and `write.ts`. This is the hook 18c grows teeth on. Async from the first

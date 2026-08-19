@@ -56,8 +56,13 @@ export default new Action({
     if (!asset)
       return response.json({ error: 'Not found' }, 404)
 
-    const file = Bun.file(String(asset.storage_path))
-    if (!(await file.exists()))
+    const { blobStore } = await import('../Git/blobs')
+    const { assetKeyFrom } = await import('./assets')
+    const store = await blobStore()
+    const key = assetKeyFrom(asset.storage_path)
+    const stream = key ? await store.get(key).catch(() => null) : null
+
+    if (!stream)
       return response.json({ error: 'Not found' }, 404)
 
     // Counted before the bytes go out, because afterwards there is no response
@@ -65,8 +70,8 @@ export default new Action({
     // it. Never fails the download: a count is a nicety and the file is not.
     await countDownload(Number(asset.id)).catch(() => {})
 
-    return new Response(file.stream(), {
-      headers: assetHeaders(String(asset.name), Number(asset.size_bytes ?? file.size)),
+    return new Response(stream, {
+      headers: assetHeaders(String(asset.name), Number(asset.size_bytes ?? 0)),
     })
   },
 })

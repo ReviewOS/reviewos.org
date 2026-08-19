@@ -174,6 +174,16 @@ export function isAttachmentKey(value: unknown): value is string {
  * derived from a URL can name a path. There is nothing to escape: a key is 32
  * hex characters or it is not a key.
  */
+export function attachmentBlobKey(key: string): string | null {
+  if (!isAttachmentKey(key))
+    return null
+
+  // The same fan-out as the path below, minus the `storage/` the blob store's
+  // own root supplies - so an attachment already on disk is exactly where the
+  // store looks for it.
+  return `attachments/${key.slice(0, 2)}/${key.slice(2, 4)}/${key}`
+}
+
 export function attachmentPath(key: string): string | null {
   if (!isAttachmentKey(key))
     return null

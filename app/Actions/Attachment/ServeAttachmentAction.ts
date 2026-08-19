@@ -2,7 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { canOnRepository } from '../../Permissions'
 import { permissionOn } from '../Git/access'
 import { currentUser } from '../Identity/lookup'
-import { attachmentPath, isAttachmentKey, kindFor } from './storage'
+import { attachmentBlobKey, isAttachmentKey, kindFor } from './storage'
 
 /**
  * Serve an uploaded file.
@@ -75,16 +75,17 @@ export default new Action({
     if (!mayRead)
       return response.json({ error: 'Not found' }, 404)
 
-    const path = attachmentPath(key)!
-    const file = Bun.file(path)
+    const { blobStore } = await import('../Git/blobs')
+    const store = await blobStore()
+    const stream = await store.get(attachmentBlobKey(key)!).catch(() => null)
 
-    if (!(await file.exists()))
+    if (!stream)
       return response.json({ error: 'Not found' }, 404)
 
     const kind = kindFor(String(attachment.content_type))
     const disposition = kind?.inline ? 'inline' : 'attachment'
 
-    return new Response(file, {
+    return new Response(stream, {
       headers: {
         // The stored type, not the requested one. The stored type was decided
         // by reading the bytes when the file arrived.

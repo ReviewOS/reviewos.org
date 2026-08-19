@@ -11,8 +11,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { AttachmentKind } from './storage'
 import {
-  attachmentPath,
-  attachmentUrl,
+  attachmentBlobKey, attachmentUrl,
   kindFor,
   markdownFor,
   MAX_ATTACHMENT_BYTES,
@@ -93,11 +92,14 @@ export async function storeAttachment(
 
   const { kind, bytes } = inspected
   const key = newAttachmentKey()
-  const path = attachmentPath(key)!
   const filename = safeFilename(String(file.originalName ?? file.filename ?? ''), key, kind.extension)
 
-  await mkdir(dirname(path), { recursive: true })
-  await Bun.write(path, bytes)
+  // Through the store, which for a local instance writes exactly where
+  // attachments have always been - `attachments/aa/bb/key` under the store's
+  // `storage` root is the same file `attachmentPath` names.
+  const { blobStore } = await import('../Git/blobs')
+  const store = await blobStore()
+  await store.put(attachmentBlobKey(key)!, bytes)
 
   await db
     .insertInto('attachments')
