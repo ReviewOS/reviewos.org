@@ -244,6 +244,18 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   The branch line stays behind a guard rather than being loaded everywhere:
   those two pages read no git at all, and three git processes for a line nobody
   came for is a slow page for chrome. The header renders what it was given.
+- [x] The settings screens have padding, and a width somebody can read
+
+  The same fault as the fields themselves, one layer up: `.keys-head`,
+  `.keys-title`, `.keys-section`, `.keys-heading` and `.key-form` were declared
+  inside `settings/keys.stx`, and four other pages used them - the profile form,
+  notification settings, a repository's webhooks and the token list. On those
+  four the form had no padding at all, so every input ran into the edge of its
+  own panel.
+
+  They are in the layout now, with a reading width on the form. A settings form
+  is a column of short fields, and at the shell's full 1320 pixels a handle box
+  is a metre wide with its label a long way from the value it names.
 - [x] A form field that looks like one, on every page that has a form
 
   **Sign in and sign up rendered their boxes with no border, no padding and the

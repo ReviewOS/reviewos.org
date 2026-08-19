@@ -236,30 +236,9 @@ if (!viewer)
 @endsection
 
 <style>
-  .keys-head { margin-bottom: 26px; }
-  .keys-title { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
-
-  .keys-section { margin-bottom: 34px; }
-
-  .keys-section-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
-  .keys-heading { font-size: 16px; font-weight: 600; }
-
-  .key-form {
-    padding: 16px;
-    margin-bottom: 14px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--r-panel, 14px);
-  }
-
-  .keys-empty { padding: 26px; text-align: center; }
+  /* The settings vocabulary lives in the layout: four other pages use these
+     names, and for as long as they were declared here those pages rendered a
+     form with no padding in it. */
   .keys-list { overflow: hidden; }
 
   .key-row {

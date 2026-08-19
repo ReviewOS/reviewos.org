@@ -839,6 +839,42 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         four rules interact behind it and the answer is not derivable from the
         switches above without doing the interaction in your head. */
       /* Sign in, sign up, and anything else that is one card and one form. */
+      /* A settings screen: a heading, sections, and a form in a panel.
+        
+        These were declared inside `settings/keys.stx`, and four other pages -
+        profile, notification settings, a repository's webhooks, and the token
+        list - used the same names. On those pages the form had no padding at
+        all, so every input ran into the edge of its own panel.
+
+        The width is the other half. A settings form is a column of short
+        fields, and at the shell's full 1320 pixels a handle box is a metre
+        wide and the label above it is a long way from the value it names. */
+      .keys-head { margin-bottom: 26px; }
+      .keys-title { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+
+      .keys-section { margin-bottom: 34px; }
+
+      .keys-section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .keys-heading { font-size: 16px; font-weight: 600; }
+
+      .key-form {
+        max-width: 640px;
+        padding: 18px;
+        margin-bottom: 14px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel, 14px);
+      }
+
+      .keys-empty { padding: 26px; text-align: center; }
+
       /* A form field, anywhere in the product.
         
         These lived in `settings/keys.stx`, inside that page's own `<style>`
