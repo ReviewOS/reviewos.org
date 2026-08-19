@@ -5,7 +5,10 @@
 // pointed at a path that does not exist looks exactly like a card that works
 // until somebody posts a link somewhere.
 
-import { describe, expect, test } from 'bun:test'
+import { afterAll, describe, expect, test } from 'bun:test'
+import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { basename, join, resolve } from 'node:path'
 import images, { SOCIAL_OUTPUT_DIR, SOCIAL_PAGES } from '../../config/images'
 import { cardKey } from '../../app/Actions/Og/card'
 import {
@@ -18,6 +21,9 @@ import {
   socialCard,
   shortenForPreview,
 } from '../../resources/functions/meta'
+
+/** The repository root, which the generators resolve their inputs against. */
+const projectRoot = resolve(import.meta.dir, '../..')
 
 /** PNG width and height are big-endian 32-bit words at byte 16 of the IHDR. */
 async function dimensions(path: string): Promise<[number, number]> {
@@ -157,6 +163,63 @@ describe('the favicon', () => {
     expect(source).toContain('https://reviewos.org/favicon.svg')
     expect(source).toContain('https://reviewos.org/apple-touch-icon.png')
   })
+})
+
+describe('the committed imagery', () => {
+  /*
+   * The drift check, and the reason the cards are committed at all.
+   *
+   * `buddy generate:images` runs when somebody remembers, not as part of the
+   * deploy: `config/cloud.ts` ships `public/` as it is committed. So a headline
+   * edited in `config/images.ts` - or in the marketing catalog it derives from -
+   * changes what every card *should* say and changes nothing about what is
+   * served, and the only symptom is a preview quoting copy the page no longer
+   * has. Nothing fails, which is exactly the failure.
+   *
+   * The generator is byte-deterministic from the same inputs, so regenerating
+   * into a temporary directory and comparing is the whole check. Run
+   * `./buddy generate:images` and commit what changes.
+   */
+  const scratch = join(tmpdir(), 'reviewos-image-drift')
+
+  afterAll(async () => {
+    await rm(scratch, { recursive: true, force: true })
+  })
+
+  test('is what the generator produces today', async () => {
+    const { generateAppIconSet, generateSocialCardSet } = await import('@stacksjs/image')
+
+    // The same declaration, written somewhere disposable. Everything else -
+    // the palette, the faces, the mark, the page list - is the config's own,
+    // so this compares the committed output against the current inputs rather
+    // than against a second description of them.
+    const redirected = {
+      ...images,
+      social: { ...images.social!, outputDir: join(scratch, 'social') },
+      appIcons: { ...images.appIcons!, faviconDir: join(scratch, 'icons') },
+    }
+
+    const cards = await generateSocialCardSet(redirected, projectRoot)
+    const icons = await generateAppIconSet(redirected, projectRoot)
+
+    const stale: string[] = []
+
+    for (const written of [...cards.flatMap(card => Object.values(card.files)), ...icons.favicons.map(icon => icon.path)]) {
+      const committed = join(projectRoot, written.startsWith(join(scratch, 'social'))
+        ? SOCIAL_OUTPUT_DIR
+        : 'public', basename(written))
+
+      const fresh = new Uint8Array(await Bun.file(written).arrayBuffer())
+      const onDisk = await Bun.file(committed).exists()
+        ? new Uint8Array(await Bun.file(committed).arrayBuffer())
+        : new Uint8Array()
+
+      if (fresh.byteLength !== onDisk.byteLength || !fresh.every((byte, index) => byte === onDisk[index]))
+        stale.push(committed.replace(`${projectRoot}/`, ''))
+    }
+
+    expect(stale).toEqual([])
+  }, 60_000)
 })
 
 describe('what a page tells a scraper', () => {
