@@ -211,15 +211,25 @@ async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason
      * instance like this one, and the symptom is an About panel with two
      * sections missing on exactly the repositories people came to look at.
      *
-     * Only when refs moved: a sweep that found nothing changed nothing, and
-     * re-walking the history every fifteen minutes to learn the same answer is
-     * what the `search` queue is for avoiding.
+     * When refs moved, **or when nothing has ever measured this repository**.
+     *
+     * The change check alone is not enough, and the case it misses is the
+     * common one on an instance whose mirrors are already up to date: a
+     * repository that syncs cleanly and finds nothing new would never be
+     * measured at all, so its About panel would stay blank forever - waiting
+     * for an upstream commit to make this forge notice a history that has been
+     * sitting on disk the whole time. Every one of the 151 mirrors here is in
+     * exactly that state today.
+     *
+     * The "never measured" read is one indexed count against a table that is
+     * empty for precisely the repositories that need it, and it is only reached
+     * when nothing changed - so a busy mirror pays nothing for it.
      *
      * Separately caught, and after the row is already updated: these are two
      * conveniences, and neither is worth turning a successful sync into a
      * retry.
      */
-    if (changes.length > 0) {
+    if (changes.length > 0 || await neverMeasured(Number(repository.id))) {
       for (const name of ['MeasureLanguagesJob', 'MeasureContributorsJob'] as const) {
         try {
           const job = (await import(`./${name}`)).default
@@ -241,5 +251,30 @@ async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason
     })
 
     return { ok: true, changes: changes.length, summary: describeChanges(changes), rewroteHistory: rewrote }
+  }
+}
+
+/**
+ * Whether anything has ever worked out what this repository is.
+ *
+ * Both tables at once, because a repository measured for languages and not for
+ * contributors is exactly what an instance looks like the day after the second
+ * measure is added - and asking only about the first would leave it that way.
+ *
+ * A read that fails is answered `false`: the cost of guessing wrong here is a
+ * measure that does not run this sweep and runs on the next one, and the cost
+ * of the opposite guess is re-walking every history on every sweep forever.
+ */
+async function neverMeasured(repositoryId: number): Promise<boolean> {
+  try {
+    const [languages, contributors] = await Promise.all([
+      db.selectFrom('repository_languages').select(['id']).where('repository_id', '=', repositoryId).limit(1).executeTakeFirst(),
+      db.selectFrom('repository_contributors').select(['id']).where('repository_id', '=', repositoryId).limit(1).executeTakeFirst(),
+    ])
+
+    return !languages || !contributors
+  }
+  catch {
+    return false
   }
 }
