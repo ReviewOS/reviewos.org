@@ -34,20 +34,13 @@ export default defineModel({
      * so the second insert collides here and no second run exists. Enforced by
      * the database rather than by a check-then-insert, because two deliveries
      * arriving together would both pass the check.
-     */
-    /*
-     * Partial, and what it excludes is the point.
      *
-     * This guards against a *redelivered* event: the same push arriving twice
-     * must not make two runs. A manual `workflow_dispatch` and a `schedule`
-     * are not deliveries - nothing arrived - and both repeat at the same ref
-     * and the same commit by design. A nightly job would otherwise run once,
-     * ever, and pressing "run workflow" a second time would be refused.
-     *
-     * What stops a schedule double-firing is not this index but the
-     * compare-and-swap on `workflows.last_scheduled_at`.
+     * The events that repeat on purpose - a manual dispatch, a schedule - carry
+     * a null key and so never collide. That exclusion used to be a `WHERE` on
+     * this index, which MySQL has no equivalent for; `app/Actions/Workflow/
+     * redelivery.ts` says what moved and why.
      */
-    { name: 'workflow_runs_redelivery_index', columns: ['workflow_version_id', 'event_ref', 'head_sha', 'event'], unique: true, where: 'event NOT IN (\'workflow_dispatch\', \'schedule\')' },
+    { name: 'workflow_runs_redelivery_index', columns: ['redelivery_key'], unique: true },
   ],
 
   traits: {
@@ -310,6 +303,23 @@ export default defineModel({
       order: 14,
       fillable: true,
       validation: { rule: schema.string().max(1000) },
+      factory: () => null,
+    },
+
+    /**
+     * What a second delivery of the same event would collide on.
+     *
+     * Null for the events that repeat on purpose - see
+     * `app/Actions/Workflow/redelivery.ts`, which computes it and explains why
+     * this is a column rather than a `WHERE` on the index above. A row written
+     * without one is a row with no redelivery protection, which is what a test
+     * inserting a run directly wants and is never what a delivery path should
+     * do.
+     */
+    redelivery_key: {
+      order: 73,
+      fillable: true,
+      validation: { rule: schema.string().max(64) },
       factory: () => null,
     },
   },

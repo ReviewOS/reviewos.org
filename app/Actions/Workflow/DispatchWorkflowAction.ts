@@ -8,6 +8,7 @@ import { wantsHtml } from '../Auth/session'
 import { authorizeRepository } from '../Repo/authorize'
 import { resolveGroup } from './concurrency'
 import { checkInputs } from './inputs'
+import { withRedeliveryKey } from './redelivery'
 
 /**
  * Start a workflow by hand.
@@ -153,7 +154,7 @@ export default new Action({
 
     const run = await db
       .insertInto('workflow_runs')
-      .values({
+      .values(withRedeliveryKey({
         workflow_version_id: Number(version.id),
         repository_id: Number(repository.id),
         number,
@@ -173,7 +174,7 @@ export default new Action({
         // The values that were actually used, defaults filled in - not what was
         // typed. A person reading the run later needs to know what it ran with.
         dispatch_inputs: Object.keys(checked.values).length > 0 ? JSON.stringify(checked.values) : null,
-      })
+      }))
       .returning(['id'])
       .executeTakeFirst()
 

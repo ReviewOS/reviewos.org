@@ -24,6 +24,7 @@ import { createJobsForRun, dispatchWorkflowRun, releaseGroup } from './dispatch'
 import { callMarkerOf, resolveCallOutputs } from './callOutputs'
 import { deliverJobNotify } from './notify'
 import { deliverRunNotifications } from './notifyDelivery'
+import { withRedeliveryKey } from './redelivery'
 import type { JobState } from './states'
 import { cancelOnFailingCasualties, effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
 
@@ -659,7 +660,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
 
   const started = await db
     .insertInto('workflow_runs')
-    .values({
+    .values(withRedeliveryKey({
       workflow_version_id: Number(version.id),
       repository_id: Number(run.repository_id),
       number: Number(previous?.number ?? 0) + 1,
@@ -669,7 +670,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
        *
        * A triggered run was not started by a person pressing a button, and a
        * screen that says it was is a screen that sends somebody looking for
-       * whoever pressed it. It also keeps the redelivery index out of the way:
+       * whoever pressed it. It also keeps the redelivery key out of the way:
        * two triggers from two runs of the same commit are two runs.
        */
       event: 'workflow_trigger',
@@ -688,7 +689,7 @@ async function startTrigger(runId: number, jobId: number, now: Date): Promise<vo
       dispatch_inputs: settings.inputs && Object.keys(settings.inputs as object).length > 0
         ? JSON.stringify(settings.inputs)
         : null,
-    })
+    }))
     .returning(['id'])
     .executeTakeFirst()
 

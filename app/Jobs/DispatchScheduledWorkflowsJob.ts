@@ -1,5 +1,6 @@
 import { parseCron } from '@stacksjs/cron'
 import { db } from '@stacksjs/database'
+import { withRedeliveryKey } from '../Actions/Workflow/redelivery'
 
 /**
  * `on: schedule`, which was stored on every version and read by nothing.
@@ -195,7 +196,7 @@ async function createScheduledRun(workflow: any, version: any): Promise<boolean>
   try {
     const run = await db
       .insertInto('workflow_runs')
-      .values({
+      .values(withRedeliveryKey({
         workflow_version_id: Number(version.id),
         repository_id: Number(repository.id),
         number: await nextNumber(Number(repository.id)),
@@ -210,7 +211,7 @@ async function createScheduledRun(workflow: any, version: any): Promise<boolean>
         actor_id: null,
         concurrency_group: group,
         started_at: null,
-      })
+      }))
       .returning(['id'])
       .executeTakeFirst()
 

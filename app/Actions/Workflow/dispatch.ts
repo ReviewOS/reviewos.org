@@ -38,6 +38,7 @@ import type { PullRequestEvent, PushEvent } from './triggers'
 import { pullRequestStartsRun, pushStartsRun } from './triggers'
 import { repositoryDispatchStartsRun, workflowRunStartsRun } from './triggers'
 import { forkApprovalFacts, forkApprovalVerdict } from './forkApproval'
+import { withRedeliveryKey } from './redelivery'
 
 export interface DispatchResult {
   /** Runs created by this delivery, not runs that exist. */
@@ -248,7 +249,7 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
     try {
       const run = await db
         .insertInto('workflow_runs')
-        .values({
+        .values(withRedeliveryKey({
           workflow_version_id: Number(version.id),
           repository_id: input.repositoryId,
           number: await nextNumber(input.repositoryId),
@@ -256,8 +257,8 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
           event: input.event,
           /*
            * The subject in the ref, so two issues do not look like one run
-           * redelivered. The redelivery index is on (version, ref, head,
-           * event), and every issue event in a repository shares a head.
+           * redelivered. The redelivery key covers version, ref, head and
+           * event, and every issue event in a repository shares a head.
            */
           event_ref: `${ref}#${input.event}/${input.subject}/${input.activity}`,
           head_sha: sha,
@@ -265,7 +266,7 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
           trusted: true,
           actor_id: input.actorId ?? null,
           concurrency_group: group,
-        })
+        }))
         .returning(['id'])
         .executeTakeFirst()
 
@@ -354,7 +355,7 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
     try {
       const run = await db
         .insertInto('workflow_runs')
-        .values({
+        .values(withRedeliveryKey({
           workflow_version_id: Number(version.id),
           repository_id: input.repositoryId,
           number: await nextNumber(input.repositoryId),
@@ -363,7 +364,7 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
           /*
            * The event type and the clock in the ref.
            *
-           * The redelivery index is on (version, ref, head, event), and a
+           * The redelivery key covers version, ref, head and event, and a
            * program calling this twice for two different things means two runs
            * - the same call for the same thing twice usually does as well,
            * because a caller retrying is a caller that did not hear the first
@@ -378,7 +379,7 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
           // Handed to the job as `github.event.client_payload`, which is the
           // whole reason a caller sends one.
           dispatch_inputs: payload ? JSON.stringify({ client_payload: payload, event_type: input.eventType }) : null,
-        })
+        }))
         .returning(['id'])
         .executeTakeFirst()
 
@@ -495,7 +496,7 @@ export async function dispatchWorkflowRun(input: {
     try {
       const run = await db
         .insertInto('workflow_runs')
-        .values({
+        .values(withRedeliveryKey({
           workflow_version_id: Number(version.id),
           repository_id: Number(finished.repository_id),
           number: await nextNumber(Number(finished.repository_id)),
@@ -522,7 +523,7 @@ export async function dispatchWorkflowRun(input: {
               event: String(finished.event ?? ''),
             },
           }),
-        })
+        }))
         .returning(['id'])
         .executeTakeFirst()
 
@@ -654,7 +655,7 @@ async function createPullRequestRun(
   try {
     const run = await db
       .insertInto('workflow_runs')
-      .values({
+      .values(withRedeliveryKey({
         workflow_version_id: Number(version.id),
         repository_id: input.repositoryId,
         number: await nextNumber(input.repositoryId),
@@ -688,7 +689,7 @@ async function createPullRequestRun(
         trusted,
         actor_id: input.actorId ?? null,
         concurrency_group: group,
-      })
+      }))
       .returning(['id'])
       .executeTakeFirst()
 
@@ -756,7 +757,7 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
   try {
     const run = await db
       .insertInto('workflow_runs')
-      .values({
+      .values(withRedeliveryKey({
         workflow_version_id: Number(version.id),
         repository_id: input.repositoryId,
         number: await nextNumber(input.repositoryId),
@@ -771,7 +772,7 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
         trusted: true,
         actor_id: input.actorId ?? null,
         concurrency_group: group,
-      })
+      }))
       .returning(['id'])
       .executeTakeFirst()
 

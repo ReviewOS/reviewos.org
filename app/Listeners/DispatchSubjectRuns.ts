@@ -48,7 +48,7 @@ export async function handleEvent(event: any, eventName = ''): Promise<void> {
 
     /*
      * The subject in the ref keeps two issues from looking like one run
-     * redelivered: the redelivery index is on (version, ref, head, event), and
+     * redelivered: the redelivery key covers version, ref, head and event, and
      * every issue event in a repository shares a head commit.
      */
     const subject = String(event?.number ?? event?.subjectId ?? '')

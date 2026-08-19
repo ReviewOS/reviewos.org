@@ -9397,6 +9397,15 @@
             "isNullable": true,
             "hasDefault": false,
             "maxLength": 40
+          },
+          {
+            "name": "redelivery_key",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 64
           }
         ],
         "indexes": [
@@ -9426,13 +9435,9 @@
           {
             "name": "workflow_runs_redelivery_index",
             "columns": [
-              "workflow_version_id",
-              "event_ref",
-              "head_sha",
-              "event"
+              "redelivery_key"
             ],
-            "type": "unique",
-            "where": "event NOT IN ('workflow_dispatch', 'schedule')"
+            "type": "unique"
           }
         ]
       },
@@ -12885,10 +12890,156 @@
             "type": "unique"
           }
         ]
+      },
+      {
+        "table": "git_wal_entries",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id"
+            }
+          },
+          {
+            "name": "sequence",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "updates",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "blob_key",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "blob_bytes",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "status",
+            "type": "enum",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "pending",
+            "enumValues": [
+              "pending",
+              "committed",
+              "void"
+            ],
+            "enumTypeName": "git_wal_entries_status_type"
+          },
+          {
+            "name": "actor_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "committed_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "reason",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "CURRENT_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "uuid",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": true,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "git_wal_entries_sequence_unique",
+            "columns": [
+              "repository_id",
+              "sequence"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "git_wal_entries_status_index",
+            "columns": [
+              "status",
+              "created_at"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "git_wal_entries_uuid_unique",
+            "columns": [
+              "uuid"
+            ],
+            "type": "unique"
+          }
+        ]
       }
     ]
   },
-  "hash": "d4d43f7c14a9c863edf7e4da0891dc24de63a40f6a10d0cccb3f91617e98ece0",
+  "hash": "519421ad1c09d5120a2da0afb5f55b867305a49431d47bae658887d7af3f66b6",
   "dialect": "postgres",
-  "updatedAt": "2026-08-18T22:26:47.424Z"
+  "updatedAt": "2026-08-19T02:50:41.801Z"
 }

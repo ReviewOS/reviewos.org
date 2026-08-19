@@ -113,7 +113,7 @@ async function ownerHandleOf(context: any): Promise<string> {
  * The ref a run was created against, without the bookkeeping.
  *
  * A subject run records `refs/heads/main#issues/7/opened`, because the
- * redelivery index needs every issue event to look different and they all share
+ * redelivery key needs every issue event to look different and they all share
  * a head commit. That suffix is this instance's own bookkeeping and a step that
  * checks out `$GITHUB_REF` must never see it.
  */
