@@ -5203,6 +5203,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/media
+   */
+  getReposMedia(input: { "owner": string; "repo"?: string; "repository"?: string; "ref"?: string; "path": string }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "GET", "/api/repos/media", input ?? {}, ["owner", "repo", "repository", "ref", "path"], false, options)
+  },
+
+  /**
    * POST /api/repos/milestones
    */
   postReposMilestones(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
@@ -5590,8 +5597,15 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/watches
    */
-  putReposWatches(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "subscription"?: "all" | "participating" | "ignore" } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+  putReposWatches(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "subscription"?: "all" | "participating" | "ignore" | "none" } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
     return request(config, "PUT", "/api/repos/watches", input ?? {}, [], true, options)
+  },
+
+  /**
+   * POST /api/repos/watches
+   */
+  postReposWatches(input: { body: { "owner": string; "repo"?: string; "repository"?: string; "subscription"?: "all" | "participating" | "ignore" | "none" } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "POST", "/api/repos/watches", input ?? {}, [], true, options)
   },
 
   /**

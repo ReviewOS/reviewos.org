@@ -14105,6 +14105,32 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/media": {
+    get: {
+    parameters: {
+      query: { "owner": string; "repo"?: string; "repository"?: string; "ref"?: string; "path": string }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: never }
+      "404": { content: never }
+      "413": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+      "503": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/milestones": {
     get?: never
     put?: never
@@ -15059,6 +15085,7 @@ export interface paths {
     requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string } } }
     responses: {
       "200": { content: never }
+      "302": { content: never }
       "401": { content: never }
       "404": { content: never }
       "422": { content: never }
@@ -15367,16 +15394,33 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string; "subscription"?: "all" | "participating" | "ignore" } } }
+    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string; "subscription"?: "all" | "participating" | "ignore" | "none" } } }
     responses: {
       "200": { content: never }
+      "302": { content: never }
       "401": { content: never }
       "404": { content: never }
       "422": { content: never }
       "500": { content: never }
     }
   }
-    post?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: { content: { "application/json": { "owner": string; "repo"?: string; "repository"?: string; "subscription"?: "all" | "participating" | "ignore" | "none" } } }
+    responses: {
+      "200": { content: never }
+      "302": { content: never }
+      "401": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
     delete?: never
     options?: never
     head?: never
