@@ -35,6 +35,13 @@ FROM oven/bun:1.3 AS runtime
 #
 # `ca-certificates` for outbound https: mirrors, webhooks, and anything fetching
 # from another forge.
+#
+# **This list duplicates `config/deps.ts`, and that is now the only reason it
+# exists.** The canonical deployment is pantry on the box - it installs these
+# same binaries and manages the app and worker as services - so this image is
+# the convenience path for people who already run containers. When the two
+# disagree, `config/deps.ts` is right: it is what the application is tested
+# against, and it is the list every non-container install gets.
 RUN apt-get update \
   && apt-get install --no-install-recommends -y git ca-certificates openssh-client \
   && rm -rf /var/lib/apt/lists/*

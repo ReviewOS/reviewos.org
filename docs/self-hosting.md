@@ -347,6 +347,39 @@ anything asynchronous: no mirror syncs, no webhooks, no notification email. The
 health endpoint reports it - a job that has been waiting more than five minutes
 is `degraded` with "is a worker running?" - which is the fastest way to notice.
 
+## Pantry runs the instance, not just its dependencies
+
+The canonical deployment is pantry plus a `.env`. No container runtime, and no
+hand-written unit file: `config/deps.ts` declares this instance's own processes
+beside its dependencies, so the app server and the queue worker are managed the
+same way Postgres and Typesense are.
+
+```sh
+pantry start app
+```
+
+```sh
+pantry start worker
+```
+
+Each becomes a KeepAlive launchd agent (macOS) or systemd unit (Linux), with
+its own logs under `~/.local/share/pantry/logs/<project>/`, restarting on crash
+and surviving a reboot. `pantry inspect app` prints the status, the PID, the
+port, the health check, and the exact command that is running.
+
+The worker deliberately has no health check. Its liveness is queue depth, which
+`/api/health` already reports, and a check that only proved the process exists
+would report a wedged worker as healthy - which is the failure worth catching.
+
+This needs pantry 0.11.31 or newer: project-defined services were built for
+this, along with the two fixes underneath them (a per-project service port that
+reaches the *peering* port too, and an `inspect` that reads the unit it
+installed rather than recomputing a default).
+
+The systemd units in "Without Docker" below still work and are still fine to
+use. They are what to write when you want something pantry does not express;
+they are no longer what you have to write to run this at all.
+
 ## Running more than one process
 
 One app process and one worker is the default shape and needs nothing below.

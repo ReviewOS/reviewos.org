@@ -18,3 +18,10 @@ services:
   autoStart:
     - postgres
     - typesense
+  define:
+    app:
+      command: ./buddy serve
+      port: 3000
+      health: curl -sf http://127.0.0.1:3000/api/health
+    worker:
+      command: ./buddy queue:work --concurrency 4

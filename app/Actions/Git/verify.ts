@@ -7,25 +7,27 @@
  * slightly wrong: reconstructing the signed payload byte for byte, which git
  * already does correctly.
  *
- * **Not yet reachable from a route,** and the reason is smaller than it looked.
- * This was written down as memory pressure - gpg allocates locked, unswappable
- * secure memory, and a host whose swap is exhausted has the kernel kill the
- * process group rather than the allocation. That did happen. It is not what is
- * happening now.
+ * **This works now, and the history is worth keeping** because the diagnosis
+ * was wrong twice and each wrong one cost more than the fix.
  *
- * Run today on a machine with headroom, `git verify-commit` answers
- * `error: cannot run gpg: No such file or directory`, because there is no gpg
- * on this machine at all. `gnupg.org` is declared in `deps.yaml`, and
- * `pantry install gnupg.org` reports `✓ 28 packages installed` and leaves
- * `pantry list` showing none, no binary on `PATH`, and no `gnupg.org` directory
- * anywhere under the pantry root. The installed pantry is 0.11.12 against a
- * 0.11.18 checkout, so it may already be fixed upstream.
+ * It was first written down as memory pressure - gpg allocates locked,
+ * unswappable secure memory, and a host whose swap is exhausted has the kernel
+ * kill the process group rather than the allocation. That did happen once, and
+ * as a *recorded blocker* it was poison: "the kernel kills us" reads as
+ * unfixable and gets left alone. The real cause, when looked at again, was that
+ * `git verify-commit` answered `cannot run gpg: No such file or directory` -
+ * there was no gpg on the machine, because `pantry install gnupg.org` reported
+ * `✓ 28 packages installed` and installed nothing on pantry 0.11.12.
  *
- * Worth stating plainly because the wrong diagnosis is the expensive part: a
- * blocker recorded as "the kernel kills us" reads as unfixable and gets left
- * alone, and one recorded as "the dependency did not install" gets tried again.
- * The verification itself is still proven - the same keyring and signature this
- * builds verify `GOODSIG` when gpg is run from a shell that has one.
+ * Both are gone. Pantry builds the GnuPG dependency chain from source, gpg
+ * 2.4.8 sits under `pantry/gnupg.org` where `dependencyPath()` in `git.ts` puts
+ * it on the child's `PATH`, and `tests/e2e/git-signature.test.ts` verifies a
+ * real signature against a real keyring - `REVIEWOS_GPG_TESTS=1`, opt-in only
+ * because a process the kernel kills reports nothing rather than failing.
+ *
+ * The rule the two wrong diagnoses paid for: **record what was observed, not
+ * what it was assumed to mean.** A blocker naming a symptom gets retried; a
+ * blocker naming a conclusion gets believed.
  *
  * What is left here is the keyring: git verifies against whatever `GNUPGHOME`
  * holds, so each verification gets a temporary one containing only the keys

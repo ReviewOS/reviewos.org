@@ -38,6 +38,25 @@ export const config: PantryConfig = {
     // typechecked for any domain-style name.
     'gnupg.org': '^2.4.8',
     /*
+     * The ssh client, because git invokes it rather than implementing it.
+     *
+     * A mirror with an `ssh://` or `git@host:` remote authenticates with a key
+     * (`app/Actions/Mirror/credentials.ts` leaves those URLs alone precisely
+     * because they do), and git shells out to `ssh` to make the connection. No
+     * client, no mirror - and the failure surfaces as git's own "cannot run
+     * ssh", once per sync, on a job nobody is watching.
+     *
+     * Declared here because until now only the Dockerfile installed one
+     * (`apt-get install ... openssh-client`), so a bare-metal install got
+     * whatever the operating system happened to ship, or nothing. That is the
+     * whole point of the inventory: every binary this application causes to be
+     * run traces to a declaration, including the ones git runs on our behalf.
+     *
+     * Note this is the *client*. The forge's own ssh server is `ts-ssh` in
+     * `app/Actions/Git/ssh.ts` - TypeScript, no sshd, nothing to declare.
+     */
+    'openssh.com': '^9.9.0',
+    /*
      * The LFS client, for the operator rather than for the server.
      *
      * Nothing here shells out to it: the protocol is `ts-git-lfs` and the
@@ -117,6 +136,41 @@ export const config: PantryConfig = {
     autoStart: true,
 
     /**
+     * This instance's own processes, managed the way its dependencies are.
+     *
+     * A production box is then pantry plus a `.env`: `pantry start app` and
+     * `pantry start worker` write KeepAlive launchd agents (or systemd units
+     * on Linux) with their own logs and health checks, restart on crash and
+     * survive a reboot. No container runtime, no hand-written unit file, and
+     * no terminal somebody has to remember to leave open - which is what the
+     * queue actually ran in before this, and is why an instance that "looked
+     * fine" could be quietly doing nothing asynchronous at all.
+     *
+     * The worker deliberately has no health check. Its liveness is queue
+     * depth, which `/api/health` already reports, and a check that only
+     * proved the process exists would report a wedged worker as healthy.
+     *
+     * Needs pantry 0.11.31 or newer, which is where `services.define` landed
+     * (it was built for this).
+     */
+    define: {
+      app: {
+        // `./buddy` directly, never `bun run --bun ./buddy`: buddy is a POSIX
+        // shell script with its own shebang that finds the right bun and sets
+        // the environment up first, and handing it to `bun run` parses the
+        // shell as JavaScript - `Expected ";" but found "$0"`, which is how
+        // this first failed. It resolves bun itself, so a launchd agent with
+        // no PATH still works.
+        command: './buddy serve',
+        port: 3000,
+        health: 'curl -sf http://127.0.0.1:3000/api/health',
+      },
+      worker: {
+        command: './buddy queue:work --concurrency 4',
+      },
+    },
+
+    /**
      * Database configuration
      * Automatically provisions and starts the database
      */
@@ -177,11 +231,20 @@ export const config: PantryConfig = {
          * Idempotent: pantry writes a launchd agent with KeepAlive, so this
          * survives a reboot and re-running setup is a no-op.
          *
-         * **`--port` does not do this on pantry 0.10.3.** The agent it writes
-         * still runs `--api-port 8108` and `pantry inspect typesense` reports
-         * 8108, so the reasoning above describes an intent rather than what
-         * happens. `.env.example` says 8108 because that is what listens; when
-         * pantry honours the flag, both move together or neither does.
+         * **This works as written from pantry 0.11.31.** It did not before,
+         * in two stages, and both are worth knowing because the symptom was
+         * the same each time: `--port` reached the flag parser and stopped
+         * there (fixed upstream in 0.11.20), and then reached the start
+         * command but not typesense's *peering* port - which defaults to 8107
+         * regardless of the API port, so a second project bound 8208 for HTTP
+         * and then fought the first project for 8107 forever, logging
+         * "has started listening on port 8208" and never becoming healthy.
+         * Fixed upstream by deriving the peering port from the API port,
+         * along with `pantry inspect`, which recomputed the definition from
+         * scratch and so reported the default port, the wrong health check,
+         * and a `Command:` line that was not the one running.
+         *
+         * `.env` and `.env.example` say 8208 to match.
          */
         args: ["start", "typesense", "--port", "8208"],
         description: "Typesense, on this project's own port and data directory",

@@ -186,23 +186,45 @@ bun-query-builder. The CI runner already lives this way: job toolchains via `pan
 and job services via `pantry start` (`app/Actions/Runner/localExecutor.ts`). The rest of the
 infrastructure converges on that pattern, and the container path stops being the deployment story.
 
-- [ ] Complete the declared inventory in `config/deps.ts`: add `openssh` (mirror pushes over ssh
+- [x] Complete the declared inventory in `config/deps.ts`: add `openssh` (mirror pushes over ssh
       remotes need a client; today only the Dockerfile installs one, and bare-metal installs get
       whatever the OS has). Every binary this app spawns - git, gpg, and what git itself invokes -
-      traces to a pantry declaration.
-- [ ] Fix `pantry install gnupg.org` upstream. On pantry 0.11.12 it reports 28 packages installed
+      traces to a pantry declaration. Declared as `openssh.com`; the note on it says why the
+      forge's *own* ssh server (ts-ssh, TypeScript) needs nothing.
+- [x] Fix `pantry install gnupg.org` upstream. On pantry 0.11.12 it reports 28 packages installed
       while installing nothing: no binary on PATH, nothing in `pantry list`. This is the documented
       blocker for the entire commit signature verification feature (`app/Actions/Git/verify.ts`
       names it, and `app/Actions/Keys/gpg.ts` spawns gpg directly for key imports). Check whether
       the 0.11.18 checkout already fixed it, upgrade the installed pantry, add a regression test
-      upstream, then unblock the verify routes here.
-- [ ] Fix `pantry start --port` upstream. The launchd agent it writes still runs the default port,
+      upstream, then unblock the verify routes here. **Fixed upstream** (pantry builds the GnuPG
+      dependency chain from source); gpg 2.4.8 is installed here, the verify route was already
+      wired, and `REVIEWOS_GPG_TESTS=1 bun test tests/e2e/git-signature.test.ts` verifies a real
+      signature against a real keyring - 8 passing. The comment in `verify.ts` now records what
+      was observed rather than what it was assumed to mean, which is what cost two wrong
+      diagnoses.
+- [x] Fix `pantry start --port` upstream. The launchd agent it writes still runs the default port,
       documented as a known lie in `config/deps.ts`, and per-project Typesense depends on it.
-- [ ] Extend pantry to manage project-level processes as services: the app server and the queue
+      **Two bugs, not one.** The flag reaching the start command was fixed upstream in 0.11.20;
+      what remained was that typesense-server binds *twice* and its peering port defaults to 8107
+      regardless of the API port - so this project came up on 8208 for HTTP and then fought
+      another project for 8107 forever, logging "has started listening on port 8208" and never
+      becoming healthy. And `pantry inspect` recomputed the definition from scratch, so it
+      reported the default port, the wrong health check, and a `Command:` line that was not the
+      one running. Both fixed in pantry 0.11.31 with tests; two projects' Typesense instances now
+      run side by side, and `.env`/`.env.example` say 8208 to match.
+- [x] Extend pantry to manage project-level processes as services: the app server and the queue
       worker as KeepAlive launchd/systemd agents, the same mechanism pantry already uses for
       Postgres and Typesense. A production box becomes pantry plus a `.env`, with no container
-      runtime required.
-- [ ] Production provisioning follows the same line: ts-cloud provisions the box
+      runtime required. **Built upstream** as `services.define` in deps.yaml (pantry 0.11.31),
+      generated from `config/deps.ts` by the Stacks setup command; verified by running this
+      instance's queue worker as a managed launchd agent. `command` is required, `cwd` defaults to
+      the project root, and the worker deliberately declares no health check - its liveness is
+      queue depth, and a check that only proved the process exists would call a wedged worker
+      healthy.
+- [x] Production provisioning follows the same line: ts-cloud provisions the box
       (`config/cloud.ts` already targets Hetzner server mode), pantry installs every system
       dependency and runs every service. The Dockerfile's `apt-get install git ca-certificates
-      openssh-client` duplication goes away when the compose path is demoted (M0).
+      openssh-client` duplication goes away when the compose path is demoted (M0). The division
+      of labour is written on `config/cloud.ts` (the driver's job ends at a machine with an
+      address and ssh; everything above it is pantry) and the Dockerfile says its list is a
+      duplicate of `config/deps.ts` rather than a second source of truth.

@@ -56,6 +56,24 @@ export const tsCloud: TsCloudConfig = {
     attachTo: 'stacks',
   },
 
+  /*
+   * Where the division of labour sits, because it is not obvious from either
+   * side alone.
+   *
+   * **ts-cloud provisions the box; pantry runs everything on it.** The cloud
+   * driver's job ends at a server with an address, a disk and ssh - it does
+   * not install git, it does not install a search engine, and it does not
+   * write unit files. Everything above the machine is pantry: the binaries
+   * from `config/deps.ts`, the managed services declared there (Postgres,
+   * Typesense, and this instance's own `app` and `worker`), each as a
+   * KeepAlive agent with its own logs and health check.
+   *
+   * So a production box is pantry plus a `.env`, with no container runtime
+   * required, and the Dockerfile's `apt-get install git ca-certificates
+   * openssh-client` is a duplicate of a declaration rather than a second
+   * source of truth. See "Pantry runs the instance" in docs/self-hosting.md.
+   */
+
   /**
    * Deployment Mode
    *
