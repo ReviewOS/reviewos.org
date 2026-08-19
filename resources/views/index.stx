@@ -366,8 +366,15 @@ const nots = [
       .button-quiet:hover { border-color: var(--muted); }
 
       /* Hero */
+      /* `padding-block`, not the shorthand.
+        
+        Every section on this page carries `.shell`, which is what lines its
+        content up with the navigation above it - and `padding: 72px 0` quietly
+        overwrote the shell's 24px on the way past, so the hero, the terminal
+        and all six sections sat flush against the window while the nav stayed
+        inset. The page read as two designs stacked on each other. */
       .hero {
-        padding: 72px 0 80px;
+        padding-block: 72px 80px;
       }
 
       .hero-title {
@@ -475,7 +482,7 @@ const nots = [
       .terminal .comment { color: var(--muted); }
 
       /* Section rhythm */
-      .section { padding: 80px 0; }
+      .section { padding-block: 80px; }
       .section-sep { border-top: 1px solid var(--line); }
 
       .eyebrow {
@@ -698,12 +705,19 @@ const nots = [
       /* Footer */
       .footer {
         border-top: 1px solid var(--line);
-        padding: 60px 24px 40px;
+        padding-block: 60px 40px;
       }
 
+      /* The same measure as `.shell`, declared the same way, so the footer's
+        columns start on the line every section above them starts on. It had the
+        max-width but took its inset from the footer's own padding, which put it
+        24px wider than the page and visibly out of step at any width where the
+        page is not already at its maximum. */
       .footer-inner {
+        width: 100%;
         max-width: 1180px;
         margin: 0 auto;
+        padding: 0 24px;
         display: grid;
         gap: 40px;
         grid-template-columns: 1fr;
@@ -735,9 +749,14 @@ const nots = [
 
       .footer-col a:hover { color: var(--accent-text); }
 
+      /* The same measure and inset as everything else in the footer. It had the
+        max-width and no padding, so on any window narrower than the page's
+        maximum the licence line started 24px left of the columns above it. */
       .footer-legal {
+        width: 100%;
         max-width: 1180px;
         margin: 44px auto 0;
+        padding: 0 24px;
         color: var(--muted);
         font-size: 13.5px;
       }

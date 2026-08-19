@@ -80,8 +80,46 @@ const columns = [
 </template>
 
 <style>
-  /* Five columns now rather than three, and the two catalogs are long. The
-     landing page's own `.footer-inner` grid sets the columns; this only stops
-     them collapsing to one line each on a narrow screen. */
+  /*
+   * The footer's own measure, here rather than on one page.
+   *
+   * `.footer-inner` was styled only in `resources/views/index.stx`, and this
+   * component renders on every marketing page - so on all of them except the
+   * landing page the footer had no width and no inset at all, and its columns
+   * ran from the left edge of the window while everything above them sat in the
+   * page's 1180px column. The landing page keeps its own responsive column
+   * counts; the measure is here, matching `.shell` exactly.
+   */
+  .footer { margin-top: 80px; padding-block: 40px 56px; border-top: 1px solid var(--line); }
+
+  .footer-inner {
+    width: 100%;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: grid;
+    gap: 40px;
+    grid-template-columns: 1fr;
+  }
+
+  .footer-legal {
+    width: 100%;
+    max-width: 1180px;
+    margin: 26px auto 0;
+    padding: 0 24px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  @media (min-width: 700px) {
+    .footer-inner { grid-template-columns: 2fr 1fr 1fr; }
+  }
+
+  @media (min-width: 1000px) {
+    .footer-inner { grid-template-columns: 1.6fr repeat(4, 1fr); gap: 32px; }
+  }
+
+  /* Five columns now rather than three, and the two catalogs are long. This
+     only stops them collapsing to one line each on a narrow screen. */
   .footer-col ul { display: grid; gap: 6px; }
 </style>
