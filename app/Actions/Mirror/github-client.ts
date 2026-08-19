@@ -277,4 +277,74 @@ export class GitHubClient {
       return null
     }
   }
+
+  /**
+   * Post a review on a pull request.
+   *
+   * The one write this client does, and it carries whichever token it was
+   * constructed with - which for write-through is one person's own, never the
+   * mirror's. See `writeThrough.ts` for why that distinction is the feature
+   * rather than a precaution.
+   *
+   * The failure is returned rather than thrown: a review that upstream refuses
+   * is still a review somebody wrote, it is already saved here, and what the
+   * caller needs is the reason to show them - not an exception that loses it.
+   */
+  async postReview(input: {
+    owner: string
+    name: string
+    number: number
+    event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'
+    body: string
+    commitId?: string | null
+    comments?: Array<{ path: string, line: number, side?: string, body: string }>
+  }): Promise<{ ok: true, review: any } | { ok: false, status: number, message: string }> {
+    const payload: Record<string, unknown> = {
+      event: input.event,
+      body: input.body,
+    }
+
+    // Anchored to the head that was reviewed. Without it GitHub attaches the
+    // review to whatever is current, so a verdict written against one commit
+    // can arrive labelled as a verdict on the next one.
+    if (input.commitId)
+      payload.commit_id = input.commitId
+
+    if (input.comments && input.comments.length > 0) {
+      payload.comments = input.comments.map(comment => ({
+        path: comment.path,
+        line: comment.line,
+        side: (comment.side ?? 'right').toUpperCase() === 'LEFT' ? 'LEFT' : 'RIGHT',
+        body: comment.body,
+      }))
+    }
+
+    try {
+      const answer = await this.fetchImpl(
+        `${this.baseUrl}/repos/${input.owner}/${input.name}/pulls/${input.number}/reviews`,
+        { method: 'POST', headers: { ...this.headers(), 'content-type': 'application/json' }, body: JSON.stringify(payload) },
+      )
+
+      if (!answer.ok) {
+        const detail = await answer.text().catch(() => '')
+        let message = detail.slice(0, 300)
+
+        try {
+          const parsed = JSON.parse(detail)
+          if (parsed && typeof parsed.message === 'string')
+            message = String(parsed.message)
+        }
+        catch {
+          // Not JSON; the truncated body is the best message available.
+        }
+
+        return { ok: false, status: answer.status, message }
+      }
+
+      return { ok: true, review: await answer.json() }
+    }
+    catch (error) {
+      return { ok: false, status: 0, message: error instanceof Error ? error.message : String(error) }
+    }
+  }
 }

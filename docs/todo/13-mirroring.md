@@ -97,11 +97,48 @@ there?
 - [x] Decide, and write down, whether a mirror is read-only or write-through. Read-only is the
       honest default and should ship first: the importer is one-way, and `MirrorMetadataSyncJob`
       says so in as many words
-- [ ] If write-through: a review submitted here posts to GitHub through the API as the reviewing
+- [x] If write-through: a review submitted here posts to GitHub through the API as the reviewing
       user, using their own credential, and the resulting GitHub state syncs back as the source of
       truth
-- [ ] Never write back with a shared or admin credential. A review must be attributable to the
+
+      Off by default, per mirror: `repository_mirrors.write_through`. A copy that writes to its
+      source without being asked is a surprise nobody wants to find out about from a notification,
+      so turning it on is a decision somebody makes for a repository where the reviews are meant to
+      count upstream.
+
+      The order is local first, upstream second, and it is not an implementation detail: an expired
+      token, an archived repository or GitHub being down are reasons for the *forwarding* to fail
+      and none of them are reasons to lose somebody's review. So the review is saved, the request is
+      marked answered, the notification goes out, and only then is it posted - with the outcome
+      returned in the response rather than swallowed, because the reviewer is the only person who
+      can act on it.
+
+      Anchored to the head it was written against (`commit_id`), which is the difference between a
+      verdict on the commit somebody read and a verdict labelled as one on whatever landed since.
+      The review id upstream returns is stored on the local row, so the next metadata sync
+      recognises it as already imported rather than filing a second copy beside the one that created
+      it - and what that sync then writes is whatever GitHub says, including a state GitHub decided
+      rather than the one that was asked for.
+- [x] Never write back with a shared or admin credential. A review must be attributable to the
       person who wrote it, and a bot account posting on their behalf destroys that
+
+      **There is no fallback to fall back to.** `credentialFor` reads one person's own token out of
+      `forge_credentials` - per user, per provider, per host, encrypted with the same seam workflow
+      secrets use - and returns null when there is not one. A review by somebody who has not
+      connected an account stays here, and the response says which of the three things happened:
+      no credential, a credential without the scope, or upstream refusing it.
+
+      The host is part of the key rather than an afterthought. A credential for a company's own
+      GitHub Enterprise is not a credential for github.com, and trying it there is not a failed
+      request - it is a token disclosed to a party it was never issued to. `hostOf` reads the scp
+      form (`git@host:owner/name`) as well as a URL, because half the mirrors in the wild carry it
+      and parsing that as a URL throws straight into the default host.
+
+      A test asserts the absence rather than the behaviour: `writeThrough.ts` may not name
+      `mirrorToken`, `./credentials`, `GITHUB_TOKEN` or `process.env`. Testing that a review without
+      a credential stays local proves the branch works today; this is what stops somebody wiring a
+      convenient fallback next quarter and turning every review into one a machine appears to have
+      written.
 
 ## Divergence
 

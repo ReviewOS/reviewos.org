@@ -159,8 +159,26 @@ export default defineModel({
       factory: () => false,
     },
 
-    last_synced_at: {
+    /**
+     * Whether a review written here is posted back upstream.
+     *
+     * Off by default, and the default is the honest one: a mirror is a copy,
+     * and a copy that writes to its source without being asked is a surprise
+     * nobody wants to discover from a notification. Turning it on says the
+     * people reviewing here intend their verdicts to count there - and it still
+     * only works for a reviewer who has connected their own credential, because
+     * `writeThrough.ts` has no instance-wide fallback to reach for.
+     */
+    write_through: {
       order: 12,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
+    last_synced_at: {
+      order: 13,
       fillable: true,
       validation: { rule: schema.string() },
       factory: () => null,
@@ -168,14 +186,14 @@ export default defineModel({
 
     /** Head of the default branch at the last sync, to spot a rewrite. */
     last_sha: {
-      order: 13,
+      order: 14,
       fillable: true,
       validation: { rule: schema.string().max(64) },
       factory: () => null,
     },
 
     last_error: {
-      order: 14,
+      order: 15,
       fillable: true,
       validation: { rule: schema.string().max(1000) },
       factory: () => null,
@@ -186,7 +204,7 @@ export default defineModel({
      * work stops being retried every fifteen minutes forever.
      */
     failure_count: {
-      order: 15,
+      order: 16,
       fillable: true,
       default: 0,
       validation: { rule: schema.number().min(0) },
@@ -203,7 +221,7 @@ export default defineModel({
      * huge repository may reasonably want the code and not the backlog.
      */
     sync_metadata: {
-      order: 16,
+      order: 17,
       fillable: true,
       default: false,
       validation: { rule: schema.boolean() },
@@ -211,7 +229,7 @@ export default defineModel({
     },
 
     last_metadata_sync_at: {
-      order: 17,
+      order: 18,
       fillable: true,
       validation: { rule: schema.string() },
       factory: () => null,
@@ -225,7 +243,7 @@ export default defineModel({
      * repository page claim the mirror is broken when only half of it is.
      */
     metadata_error: {
-      order: 18,
+      order: 19,
       fillable: true,
       validation: { rule: schema.string().max(1000) },
       factory: () => null,
@@ -233,7 +251,7 @@ export default defineModel({
 
     /** Consecutive metadata failures, so the retry interval can widen. */
     metadata_failure_count: {
-      order: 19,
+      order: 20,
       fillable: true,
       default: 0,
       validation: { rule: schema.number().min(0) },

@@ -193,11 +193,62 @@ export default new Action({
     const { attemptAutoMerge } = await import('./autoMerge')
     await attemptAutoMerge(Number(pullRequest.id))
 
+    /*
+     * And, on a write-through mirror, upstream - as this reviewer.
+     *
+     * After the local write on purpose. The review exists here whatever
+     * upstream says: a token that expired last night, a repository that was
+     * archived this morning, or GitHub being down are all reasons to fail the
+     * *forwarding*, and none of them are reasons to lose somebody's review.
+     *
+     * The outcome is reported rather than raised, in the response, because the
+     * person who wrote the review is the only one who can act on it - connect
+     * an account, reconnect one with the right scope, or read what upstream
+     * refused. A silent failure here is the shape this whole feature exists to
+     * avoid: a reviewer believing their verdict counted upstream when it did
+     * not.
+     */
+    const { postReviewUpstream } = await import('../Mirror/writeThrough')
+
+    const upstream = await postReviewUpstream({
+      repositoryId: Number(repository.id),
+      userId: user.id,
+      pullNumber: number,
+      state,
+      body,
+      commitSha: String(pullRequest.head_sha ?? ''),
+      comments: inline.comments.map(comment => ({
+        path: comment.path,
+        line: comment.line,
+        side: comment.side,
+        body: comment.body,
+      })),
+    }).catch(() => ({ ok: false, reason: 'not-a-mirror' } as const))
+
+    if (upstream.ok) {
+      // Recorded so the next metadata sync recognises this review as one it has
+      // already seen rather than importing a second copy of it beside the one
+      // that produced it.
+      await db
+        .updateTable('pull_request_reviews')
+        .set({ external_id: upstream.externalId })
+        .where('id', '=', reviewId)
+        .execute()
+        .catch(() => undefined)
+    }
+
     return response.json({
       id: reviewId,
       state,
       commit_sha: pullRequest.head_sha,
       comments: writtenComments,
+      // Absent on a repository that is not a write-through mirror, which is
+      // every repository by default.
+      upstream: upstream.ok
+        ? { posted: true, url: upstream.url, state: upstream.state }
+        : upstream.reason === 'not-a-mirror'
+          ? undefined
+          : { posted: false, reason: upstream.reason, ...('message' in upstream ? { message: upstream.message } : {}) },
     }, 201)
   },
 })
