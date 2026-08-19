@@ -10,7 +10,7 @@
  * Server-rendered, like the review screen, so a repository with thousands of
  * files costs the browser nothing.
  */
-import { mirrorFor, repositoryForView, repositoryHeaderActions, summarizeMirror } from '../functions/repo'
+import { aboutFor, filesIn, mirrorFor, repositoryForView, repositoryHeaderActions, standingFor, summarizeMirror } from '../functions/repo'
 import { aliasTarget, pathUnderOwner } from '../functions/aliases'
 import { breadcrumbs, childPath, commitCount, findReadme, formatSize, headCommitRow, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor, languageRulesFor, declaredLanguage } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
@@ -190,6 +190,14 @@ const notFound = !repoRow
  * synced, and `mirrorHealth` decides whether that is recent enough to say so
  * plainly or to warn.
  */
+const mirror = repoRow ? await mirrorFor(Number(repoRow.id)) : null
+const mirrorStatus = summarizeMirror(mirror)
+const maySyncNow = Boolean(mirrorStatus) && Boolean(repoAccess?.can?.('repository:settings'))
+
+// The base every link on this page hangs off. One string, so a page that links
+// to a file and a page that links to a branch cannot disagree about it.
+const base = `/${ownerHandle}/${repositoryName}`
+
 /*
  * Star and watch, for the header.
  *
@@ -199,13 +207,51 @@ const notFound = !repoRow
  */
 const repoActions = await repositoryHeaderActions(repoAccess, ownerHandle, repositoryName, requestedPath ? `tree/${joinRefAndPath(ref, requestedPath)}` : '')
 
-const mirror = repoRow ? await mirrorFor(Number(repoRow.id)) : null
-const mirrorStatus = summarizeMirror(mirror)
-const maySyncNow = Boolean(mirrorStatus) && Boolean(repoAccess?.can?.('repository:settings'))
+/*
+ * The panel beside the file list, at the repository root only.
+ *
+ * Every fact in it already existed and none of it was on a page: topics have
+ * had a table since phase 6 and are imported from every GitHub mirror,
+ * languages are measured by `MeasureLanguagesJob` and were read only by the
+ * explore screen, releases have a table and a page, and the licence, code of
+ * conduct and security policy are files in the tree already listed above.
+ *
+ * The root only, because it is a description of the *repository* and a reader
+ * three directories down is looking at a directory. That also keeps it off the
+ * file view, where the file is the subject.
+ *
+ * `.github` is listed as well, since that is where most projects put
+ * everything except the README and the licence, and the root listing is passed
+ * first so a project carrying both is described by the root one.
+ */
+const atRoot = isDirectory && !requestedPath
 
-// The base every link on this page hangs off. One string, so a page that links
-// to a file and a page that links to a branch cannot disagree about it.
-const base = `/${ownerHandle}/${repositoryName}`
+const githubListing = atRoot ? await listTree(diskPath, ref, '.github') : { ok: false, entries: [] }
+
+const licenseEntry = atRoot
+  ? entries.find(entry => entry.type === 'blob' && /^(licen[sc]e|copying)(\.(md|markdown|txt))?$/i.test(entry.name))
+  : null
+
+// Only the opening is needed to identify a licence, and `readBlob` refuses
+// anything over half a megabyte anyway - which no licence is.
+const licenseBlob = licenseEntry ? await readBlob(diskPath, ref, childPath('', licenseEntry.name)) : null
+
+const standing = atRoot ? await standingFor(repoRow?.id, repoAccess?.viewer?.id ?? null) : null
+
+const about = atRoot
+  ? await aboutFor({
+      repositoryId: Number(repoRow.id),
+      base,
+      ref,
+      description: String(repoRow.description ?? ''),
+      files: [...filesIn(entries), ...filesIn(githubListing.ok ? githubListing.entries : [], '.github')],
+      licenseText: licenseBlob?.ok ? licenseBlob.text : null,
+      stars: String(standing?.stars ?? 0),
+      watchers: String(standing?.watchers ?? 0),
+      forks: String(standing?.forks ?? 0),
+      relativeTime,
+    })
+  : null
 
 /*
  * The "last changed" bar, with the two links it was missing.
@@ -478,10 +524,27 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
             <p class="muted" style="margin: 8px 0;">This directory has more entries than the page can list. The listing below is incomplete.</p>
           @endif
 
-          <FileTree :rows="rows" />
+          {{-- Two columns at the root, one everywhere else. The grid collapses
+              below the panel's own width, so the About panel lands under the
+              files on a narrow screen rather than squeezing them. --}}
+          @if (about)
+            <div class="browse-with-about">
+              <div class="browse-main">
+                <FileTree :rows="rows" />
 
-          @if (readmeHtml)
-            <MarkdownContent title="{{ readmeEntry.name }}" :html="readmeHtml" />
+                @if (readmeHtml)
+                  <MarkdownContent title="{{ readmeEntry.name }}" :html="readmeHtml" />
+                @endif
+              </div>
+
+              <RepoAbout :about="about" />
+            </div>
+          @else
+            <FileTree :rows="rows" />
+
+            @if (readmeHtml)
+              <MarkdownContent title="{{ readmeEntry.name }}" :html="readmeHtml" />
+            @endif
           @endif
         @else
           <CodeView
@@ -507,6 +570,16 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
   .crumb:hover { text-decoration: underline; }
   .crumb-current { font-weight: 600; }
   .crumb-sep { color: var(--muted); }
+
+  .browse-with-about { display: grid; grid-template-columns: minmax(0, 1fr) 296px; gap: 20px; align-items: start; }
+  .browse-main { min-width: 0; }
+
+  /* The panel is a description, and the files are the subject. Below 960 it
+    goes under them rather than squeezing them into a column too narrow to
+    read a path in. */
+  @media (max-width: 960px) {
+    .browse-with-about { grid-template-columns: minmax(0, 1fr); }
+  }
 
   .last-commit { display: flex; align-items: center; gap: 10px; padding: 10px 14px; font-size: 13px; }
   .last-commit-sha { flex: none; text-decoration: none; }

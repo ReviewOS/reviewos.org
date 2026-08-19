@@ -136,6 +136,15 @@ beforeAll(async () => {
     writeFileSync(join(work, 'docs', 'setup.md'), '# Setup\n')
     writeFileSync(join(work, 'notes.txt'), 'not an image at all\n')
 
+    // For the About panel: a licence it has to identify from the text, and one
+    // health file in each of the two places projects put them.
+    writeFileSync(
+      join(work, 'LICENSE.md'),
+      'MIT License\n\nCopyright (c) 2026 Somebody\n\nPermission is hereby granted, free of charge, to any person\n',
+    )
+    mkdirSync(join(work, '.github'), { recursive: true })
+    writeFileSync(join(work, '.github', 'CODE_OF_CONDUCT.md'), '# Be kind\n')
+
     // The two shapes a README puts a banner in: markdown, and a centred block
     // of raw HTML. Both were broken, and fixing only one fixes half of them.
     writeFileSync(
@@ -297,5 +306,60 @@ describe('the raw endpoint, which this does not change', () => {
 
     expect(answer.status).toBe(200)
     expect(answer.headers.get('content-type')).toBe('application/octet-stream')
+  })
+})
+
+/**
+ * The panel beside the file list.
+ *
+ * Every fact in it existed already and none of it was on a page: the licence
+ * was a file in the tree, the topics were rows imported from every GitHub
+ * mirror, and the languages were measured by a job only the explore screen
+ * read.
+ */
+describe('the About panel', () => {
+  test('names the licence from the file rather than from its name', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}`)
+
+    expect(html).toContain('MIT license')
+    expect(html).toContain(`/${created.handle}/${created.name}/tree/main/LICENSE.md`)
+  })
+
+  test('finds the health files projects keep in `.github`', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}`)
+
+    expect(html).toContain('Code of conduct')
+    expect(html).toContain(`/${created.handle}/${created.name}/tree/main/.github/CODE_OF_CONDUCT.md`)
+  })
+
+  test('links each topic to the repositories that share it', async () => {
+    if (!available)
+      return
+
+    // The query that justifies topics being a table, which nothing had ever
+    // linked to from the page that showed them.
+    await (globalThis as any).db
+      .insertInto('repo_topics')
+      .values({ repository_id: created.repositoryId, topic: 'code-review' })
+      .execute()
+
+    const html = await page(`/${created.handle}/${created.name}`)
+
+    expect(html).toContain('/explore?topic=code-review')
+  })
+
+  test('is not drawn inside a directory, where the directory is the subject', async () => {
+    if (!available)
+      return
+
+    const html = await page(`/${created.handle}/${created.name}/tree/main/docs`)
+
+    expect(html).not.toContain('aria-label="About this repository"')
   })
 })

@@ -174,3 +174,15 @@ export async function repositoryHeaderActions(
     signedIn: Boolean(access?.viewer),
   })
 }
+
+/**
+ * The panel beside the file list: description, topics, health files, counts,
+ * languages and the latest release.
+ *
+ * See `app/Actions/Repo/about.ts` - almost all of it is data this instance
+ * already had and never showed anybody.
+ */
+import { aboutFor as aboutForImpl, filesIn as filesInImpl } from '../../app/Actions/Repo/about'
+
+export const aboutFor = aboutForImpl
+export const filesIn = filesInImpl

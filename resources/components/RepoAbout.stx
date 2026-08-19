@@ -1,0 +1,220 @@
+{{--
+  What this repository is, beside the files that say so.
+
+  Every fact here already existed and none of it was on a page. Topics have had
+  their own table since phase 6 and are imported from every GitHub mirror;
+  languages are measured by `MeasureLanguagesJob` and were read only by the
+  explore screen; releases have a table, a page and a rule for which one is
+  latest; and the licence, code of conduct, contributing guide and security
+  policy are files in the tree the browse screen has already listed.
+
+  Every section disappears when it has nothing to show, rather than rendering a
+  heading over an empty box. A repository with no topics and no releases is
+  ordinary, and a panel full of empty headings reads as a page that failed to
+  load - see `app/Actions/Repo/about.ts` for the same argument about the health
+  links.
+--}}
+<aside class="about panel" aria-label="About this repository">
+  <h2 class="about-title">About</h2>
+
+  @if (about.description)
+    <p class="about-description">{{ about.description }}</p>
+  @else
+    <p class="about-description muted">No description has been given.</p>
+  @endif
+
+  @if (about.topics.length > 0)
+    {{-- Each one links to the repositories that share it, which is the entire
+        reason topics are a table rather than a string on the repository - and
+        nothing anywhere linked to that query until now. --}}
+    <ul class="about-topics">
+      @foreach (about.topics as topic)
+        <li><a class="about-topic" href="{{ topic.href }}">{{ topic.name }}</a></li>
+      @endforeach
+    </ul>
+  @endif
+
+  @if (about.links.length > 0)
+    <ul class="about-links">
+      @foreach (about.links as link)
+        <li>
+          <a href="{{ link.href }}">
+            <span class="{{ link.icon }}" aria-hidden="true"></span>
+            <span>{{ link.label }}</span>
+          </a>
+        </li>
+      @endforeach
+    </ul>
+  @endif
+
+  <ul class="about-counts">
+    @foreach (about.counts as count)
+      <li>
+        <span class="{{ count.icon }}" aria-hidden="true"></span>
+        <strong>{{ count.value }}</strong>
+        <span class="muted">{{ count.label }}</span>
+      </li>
+    @endforeach
+  </ul>
+
+  @if (about.release)
+    <section class="about-section">
+      <h3 class="about-heading">
+        Releases
+        <span class="about-heading-count">{{ about.releaseCount }}</span>
+      </h3>
+
+      <a class="about-release" href="{{ about.release.href }}">
+        <span class="i-hugeicons-tag-01" aria-hidden="true"></span>
+        <span class="about-release-tag">{{ about.release.tag }}</span>
+        <span class="about-release-latest">Latest</span>
+      </a>
+
+      @if (about.release.when)
+        <p class="muted about-release-when">{{ about.release.when }}</p>
+      @endif
+
+      @if (about.releaseCount > 1)
+        <a class="about-more" href="{{ about.releasesHref }}">+ {{ about.releaseCount - 1 }} releases</a>
+      @endif
+    </section>
+  @endif
+
+  @if (about.languages.length > 0)
+    <section class="about-section">
+      <h3 class="about-heading">Languages</h3>
+
+      {{-- One bar rather than a row of them, because the proportions are the
+          point and proportions read as segments of a whole. --}}
+      <div class="about-language-bar" aria-hidden="true">
+        @foreach (about.languages as language)
+          <span class="about-language-slice {{ language.swatch }}" style="width: {{ language.width }}"></span>
+        @endforeach
+      </div>
+
+      <ul class="about-language-list">
+        @foreach (about.languages as language)
+          <li>
+            <span class="about-language-dot {{ language.swatch }}" aria-hidden="true"></span>
+            <span>{{ language.name }}</span>
+            <span class="muted">{{ language.percent }}</span>
+          </li>
+        @endforeach
+      </ul>
+    </section>
+  @endif
+</aside>
+
+<style>
+  .about { padding: 16px; font-size: 13px; }
+  .about-title { font-size: 15px; font-weight: 600; }
+  .about-description { margin-top: 8px; line-height: 1.55; }
+
+  .about-topics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+
+  .about-topic {
+    display: inline-block;
+    padding: 2px 10px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--accent-text);
+    background: var(--accent-quiet);
+    border-radius: 999px;
+    text-decoration: none;
+  }
+
+  .about-topic:hover { text-decoration: underline; }
+
+  .about-links { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .about-links li + li { margin-top: 7px; }
+
+  .about-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .about-links a:hover { color: var(--accent); }
+
+  .about-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-top: 14px;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+  }
+
+  .about-counts li { display: inline-flex; align-items: center; gap: 5px; }
+  .about-counts strong { font-weight: 600; }
+
+  .about-section { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+
+  .about-heading {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .about-heading-count {
+    padding: 0 7px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--surface-strong, var(--surface));
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
+
+  .about-release {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 9px;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .about-release:hover .about-release-tag { text-decoration: underline; }
+  .about-release-tag { font-weight: 600; }
+
+  .about-release-latest {
+    padding: 0 7px;
+    font-size: 11.5px;
+    color: var(--accent-text);
+    background: var(--accent-quiet);
+    border-radius: 999px;
+  }
+
+  .about-release-when { margin-top: 3px; font-size: 12px; }
+  .about-more { display: inline-block; margin-top: 9px; font-size: 12.5px; }
+
+  .about-language-bar {
+    display: flex;
+    height: 8px;
+    margin-top: 10px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--line);
+  }
+
+  .about-language-slice { display: block; height: 100%; }
+
+  .about-language-list { margin-top: 9px; }
+  .about-language-list li { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+
+  .about-language-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+  /* Five, because the breakdown is capped at five. Fixed rather than derived
+    from the language name, so the bar and the list below it cannot disagree
+    about which colour a language is. */
+  .lang-0 { background: #3178c6; }
+  .lang-1 { background: #e6a04b; }
+  .lang-2 { background: #5aa469; }
+  .lang-3 { background: #b46bc4; }
+  .lang-4 { background: #d05f5f; }
+</style>

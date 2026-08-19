@@ -711,3 +711,62 @@ as stx 0.2.151.
 
 The app also carried eight copies of stx-router at three versions, which is why patching one never
 took effect. `overrides` pins a single version.
+- [x] The repository page says what the repository *is*, not only what is in it
+
+  Everything in the About panel already existed and none of it was on a page.
+  Topics have had their own table since phase 6 and are imported from every
+  GitHub mirror, and nothing anywhere linked to `/explore?topic=…` - so the
+  query that justifies topics being a table rather than a string was unreachable
+  from the one screen that showed them. Languages are measured by
+  `MeasureLanguagesJob` and were read only by the explore screen. Releases have
+  a table, a page and a tested rule for which one is latest. The licence, code
+  of conduct, contributing guide and security policy are files in the tree the
+  browse screen has already listed by the time it draws anything.
+
+  So the panel is mostly a matter of putting what is known where somebody is
+  looking. The two decisions in it that are rules rather than markup are in
+  `app/Actions/Repo/about.ts` and tested: which spellings of each health file
+  count (including the `.github/` copies, with the root winning), and which
+  licence a `LICENSE` file is - matched on the distinctive line each one leads
+  with, and **null rather than a guess**, because somebody deciding whether they
+  can ship this reads that word and believes it.
+
+  Root only. It describes the repository, and a reader three directories down is
+  looking at a directory.
+
+  Deliberately not in it: a homepage link, which needs a column nothing has yet
+  and which the mirror metadata sync would then want to import; and a
+  contributors list, which means `git shortlog` over the whole history on every
+  page load - GitHub precomputes that for a reason.
+
+- [x] The last-commit bar goes somewhere, and so does the history
+
+  It drew a sha, a subject and an author, and none of the three was a link - so
+  the commit it named and the history behind it were each one hop away and
+  neither was reachable from the screen that named them.
+
+  The commit list route became a catch-all in the process, for the reason
+  `/tree/` is one: `fix/rounding` is a branch, and a route taking one segment
+  answered 404 for every repository whose branches have slashes in them. The
+  rest of the URL after the ref is a path, so `commits/main/src/parser.ts` is the
+  history of one file.
+
+- [x] Somebody can star a repository, and choose what they hear about it
+
+  `stars` and `watches` have had a table, a model, an endpoint and a unique index
+  since phase 1, and no control anywhere in the interface. The only way to star a
+  repository on this forge was to post to the API by hand, and `stars_count` was
+  a column the seeder filled and nothing else ever moved.
+
+  Both are forms, because these pages run no client-side JavaScript - so both
+  endpoints answer a browser with a redirect back to the page and a script with
+  the JSON they always sent, and `/repos/watches` gained POST because HTML cannot
+  send PUT. Drawn on all twelve screens that share `RepoHeader`: a star button
+  that appears on one tab and vanishes on the next teaches a reader that the
+  repository changed between two views of itself.
+
+  Writing the test found a second bug. `WatchAction` has always documented an
+  empty or `none` subscription as "stop watching" - a state deliberately distinct
+  from `ignore` - while its validation rule listed only the three stored values,
+  so the one way to clear a watch was refused with a 422 naming a value the
+  endpoint's own documentation tells you to send.
