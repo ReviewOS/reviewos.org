@@ -160,6 +160,31 @@ beforeAll(async () => {
     serve = await route.serve({ port: 0, hostname: '127.0.0.1' })
     baseUrl = `http://127.0.0.1:${Number((serve as any)?.port ?? 0)}`
 
+    /*
+     * Waited for, because the push path is fire and forget: `push:received` is
+     * dispatched and not awaited - a push is answered when the refs have moved,
+     * not when CI has been thought about - so a test that claimed immediately
+     * would sometimes claim before the run existed. It passed alone and failed
+     * beside another suite, which is the worst version of this bug.
+     */
+    const deadline = Date.now() + 20_000
+
+    while (Date.now() < deadline) {
+      const queued = await db
+        .selectFrom('workflow_jobs')
+        .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+        .select(['workflow_jobs.id as id'])
+        .where('workflow_runs.repository_id', '=', created.repositoryId)
+        .where('workflow_jobs.state', '=', 'queued')
+        .execute()
+        .catch(() => [])
+
+      if (queued.length > 0)
+        break
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
     available = true
   }
   catch (error) {
