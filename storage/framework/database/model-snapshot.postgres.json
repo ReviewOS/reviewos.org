@@ -4593,6 +4593,15 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": false
+          },
+          {
+            "name": "homepage",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 255
           }
         ],
         "indexes": [
@@ -13873,10 +13882,113 @@
             "type": "index"
           }
         ]
+      },
+      {
+        "table": "repository_contributors",
+        "columns": [
+          {
+            "name": "id",
+            "type": "bigint",
+            "isPrimaryKey": true,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false
+          },
+          {
+            "name": "repository_id",
+            "type": "bigint",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "references": {
+              "table": "repositories",
+              "column": "id",
+              "onDelete": "cascade"
+            }
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 200
+          },
+          {
+            "name": "email",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": false,
+            "maxLength": 200
+          },
+          {
+            "name": "commits",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": 0
+          },
+          {
+            "name": "user_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "created_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": false,
+            "hasDefault": true,
+            "defaultValue": "UTC_TIMESTAMP"
+          },
+          {
+            "name": "updated_at",
+            "type": "datetime",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          }
+        ],
+        "indexes": [
+          {
+            "name": "repository_contributors_repo_index",
+            "columns": [
+              "repository_id",
+              "commits"
+            ],
+            "type": "index"
+          },
+          {
+            "name": "repository_contributors_repo_email_index",
+            "columns": [
+              "repository_id",
+              "email"
+            ],
+            "type": "unique"
+          },
+          {
+            "name": "repository_contributors_user_index",
+            "columns": [
+              "user_id"
+            ],
+            "type": "index"
+          }
+        ]
       }
     ]
   },
-  "hash": "86ed7fb6824c15518cd701ac7fb284eccc49813a25a4738ef2b89f61a70591eb",
+  "hash": "7842912b8ed7f956c17bb7f74dfad33255c3adf0499e70401c2d49e81992b1c1",
   "dialect": "postgres",
-  "updatedAt": "2026-08-19T18:50:41.563Z"
+  "updatedAt": "2026-08-19T19:05:28.522Z"
 }

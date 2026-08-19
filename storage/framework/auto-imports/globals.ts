@@ -51,6 +51,7 @@ declare global {
   const criticalPath: typeof autoImports.criticalPath
   const waitingOn: typeof autoImports.waitingOn
   const searchLog: typeof autoImports.searchLog
+  const poolsMaintainedBy: typeof autoImports.poolsMaintainedBy
   const testSummaryForPull: typeof autoImports.testSummaryForPull
   const testTrends: typeof autoImports.testTrends
   const intervalFor: typeof autoImports.intervalFor
@@ -58,6 +59,7 @@ declare global {
   const watchJobLog: typeof autoImports.watchJobLog
   const watchPullRequest: typeof autoImports.watchPullRequest
   const mirrorFor: typeof autoImports.mirrorFor
+  const repositoryHeaderActions: typeof autoImports.repositoryHeaderActions
   const repositoryPath: typeof autoImports.repositoryPath
   const findRepositoryByPath: typeof autoImports.findRepositoryByPath
   const repositoryForView: typeof autoImports.repositoryForView
@@ -74,6 +76,12 @@ declare global {
   const summarizeMirror: typeof autoImports.summarizeMirror
   const runSearch: typeof autoImports.runSearch
   const SEARCHABLE_SCOPES: typeof autoImports.SEARCHABLE_SCOPES
+  const standingFor: typeof autoImports.standingFor
+  const repositoryActions: typeof autoImports.repositoryActions
+  const aboutFor: typeof autoImports.aboutFor
+  const filesIn: typeof autoImports.filesIn
+  const contributorRows: typeof autoImports.contributorRows
+  const abbreviateCount: typeof autoImports.abbreviateCount
   const renderMarkdown: typeof autoImports.renderMarkdown
   const renderMarkdownHighlighted: typeof autoImports.renderMarkdownHighlighted
   const buildStack: typeof autoImports.buildStack
@@ -91,6 +99,8 @@ declare global {
   const SOURCE_PULLS_PATH: typeof autoImports.SOURCE_PULLS_PATH
   const SOURCE_CLONE_URL: typeof autoImports.SOURCE_CLONE_URL
   const UPSTREAM_URL: typeof autoImports.UPSTREAM_URL
+  const isTrue: typeof autoImports.isTrue
+  const isNotFalse: typeof autoImports.isNotFalse
   const toggleDark: typeof autoImports.toggleDark
   const isDark: typeof autoImports.isDark
   const preferredDark: typeof autoImports.preferredDark
@@ -120,6 +130,7 @@ declare global {
   const machineAccountsAmong: typeof autoImports.machineAccountsAmong
   const pullRequestDiff: typeof autoImports.pullRequestDiff
   const commitsOnBranch: typeof autoImports.commitsOnBranch
+  const SSR_DIFF_BYTE_LIMIT: typeof autoImports.SSR_DIFF_BYTE_LIMIT
   const changedPathsFor: typeof autoImports.changedPathsFor
   const commitDiff: typeof autoImports.commitDiff
   const mergeBlockers: typeof autoImports.mergeBlockers
@@ -141,6 +152,7 @@ declare global {
   const crossFileMoves: typeof autoImports.crossFileMoves
   const moveNotes: typeof autoImports.moveNotes
   const loadCoverage: typeof autoImports.loadCoverage
+  const previewsFor: typeof autoImports.previewsFor
   const linesFor: typeof autoImports.linesFor
   const mountBlobWindow: typeof autoImports.mountBlobWindow
   const describeFailure: typeof autoImports.describeFailure
@@ -186,6 +198,7 @@ declare global {
   const listTree: typeof autoImports.listTree
   const readBlob: typeof autoImports.readBlob
   const lastCommit: typeof autoImports.lastCommit
+  const commitCount: typeof autoImports.commitCount
   const branchNames: typeof autoImports.branchNames
   const tagNames: typeof autoImports.tagNames
   const commitHistory: typeof autoImports.commitHistory
@@ -219,6 +232,7 @@ declare global {
   const treeRows: typeof autoImports.treeRows
   const refLinks: typeof autoImports.refLinks
   const commitRows: typeof autoImports.commitRows
+  const headCommitRow: typeof autoImports.headCommitRow
   const signatureBadge: typeof autoImports.signatureBadge
   const issueStateLabel: typeof autoImports.issueStateLabel
   const issueStatePill: typeof autoImports.issueStatePill
