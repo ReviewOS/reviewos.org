@@ -31,7 +31,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (141/171) |
 | [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | In progress (188/189) |
 | [16 - Single-node hardening](./16-hardening-scale.md) | Bounded buffers, backpressure, process ceilings, pantry-first infra | In progress (35/36) |
-| [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Started (4/13) |
+| [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | Started (5/13) |
 | [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | In progress (12/24) |
 
 Phases 16 through 18 were written after reading Cursor's

@@ -103,4 +103,14 @@ export default {
   'ci:unblock': 'Ci',
   'ci:cancel': 'Ci',
   'ci:rerun': 'Ci',
+  /*
+   * Move this instance to another database engine, and prove the copy.
+   *
+   * Phase 17 makes MySQL the metadata database and every existing install is
+   * on Postgres, so the migration is a command rather than a page of
+   * instructions: it copies through the drivers, counts both sides, and hashes
+   * both sides, because a restore that lands 99% of the rows looks exactly
+   * like one that lands all of them.
+   */
+  'db:migrate-engine': 'DbMigrateEngine',
 } satisfies CommandRegistry

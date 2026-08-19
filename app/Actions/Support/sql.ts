@@ -133,8 +133,19 @@ export function portable(sql: string, dialect = currentDialect()): string {
  * cannot do this - it moves placeholders and quotes, and a type name is neither.
  */
 export function textCast(expression: string, dialect = currentDialect()): string {
+  /*
+   * `CHARACTER SET utf8mb4` on the cast, and it is not decoration.
+   *
+   * A bare `CAST(x AS CHAR)` takes the *connection's* character set, which is
+   * `latin1_swedish_ci` unless something set it - so comparing the result with
+   * a utf8mb4 column raises "Illegal mix of collations ... for operation '='"
+   * and the join fails outright. Naming the charset gives the expression the
+   * column's own collation, and this is exactly the case the schema's explicit
+   * `DEFAULT CHARSET=utf8mb4` was for: the two have to agree, and neither one
+   * can be left to whatever the server or the client happens to default to.
+   */
   return speaksMysql(dialect)
-    ? `CAST(${expression} AS CHAR)`
+    ? `CAST(${expression} AS CHAR CHARACTER SET utf8mb4)`
     : `CAST(${expression} AS text)`
 }
 

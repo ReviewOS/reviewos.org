@@ -134,6 +134,51 @@ export async function writeCheckpoint(
   }
 }
 
+/**
+ * Tell clients where the checkpoint is, so most of a clone comes from storage.
+ *
+ * `bundle-uri` is git's own answer to the clone storm phase 15 creates: a
+ * client that understands it fetches the bundle over plain HTTP - from a
+ * bucket, a CDN, or this instance - and then asks the server only for what has
+ * landed since. The expensive half of a clone stops touching `upload-pack` at
+ * all, and the client falls back silently if the bundle is unreachable, which
+ * is what makes this safe to advertise rather than a second thing to keep up.
+ *
+ * Written into the repository's own config, so it is git advertising it rather
+ * than this application intercepting anything.
+ */
+export async function advertiseBundle(repositoryPath: string, url: string): Promise<boolean> {
+  const settings: Array<[string, string]> = [
+    ['uploadpack.advertiseBundleURIs', 'true'],
+    ['bundle.version', '1'],
+    // `all` - the bundle carries every ref, which is what a checkpoint is.
+    // `any` would tell the client one bundle is enough on its own.
+    ['bundle.mode', 'all'],
+    ['bundle.checkpoint.uri', url],
+  ]
+
+  for (const [key, value] of settings) {
+    const written = await runGit(repositoryPath, ['config', key, value], { priority: 'background' })
+
+    if (!written.ok)
+      return false
+  }
+
+  return true
+}
+
+/**
+ * Stop advertising, for a repository whose checkpoint has gone.
+ *
+ * An advertised URI that 404s costs every cloning client a wasted request
+ * before it falls back, which is a slow clone rather than a broken one - but
+ * it is a slow clone the operator cannot see the reason for.
+ */
+export async function withdrawBundle(repositoryPath: string): Promise<void> {
+  await runGit(repositoryPath, ['config', '--unset', 'bundle.checkpoint.uri'], { priority: 'background' }).catch(() => undefined)
+  await runGit(repositoryPath, ['config', 'uploadpack.advertiseBundleURIs', 'false'], { priority: 'background' }).catch(() => undefined)
+}
+
 export interface PruneOutcome {
   removedRows: number
   removedBlobs: number

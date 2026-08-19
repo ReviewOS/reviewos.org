@@ -1,7 +1,8 @@
 import { Job } from '@stacksjs/queue'
+import process from 'node:process'
 import { log } from '@stacksjs/logging'
 import { db } from '@stacksjs/database'
-import { latestCheckpoint, pruneCheckpoints, pruneThrough, writeCheckpoint } from '../Actions/Git/checkpoint'
+import { advertiseBundle, latestCheckpoint, pruneCheckpoints, pruneThrough, writeCheckpoint } from '../Actions/Git/checkpoint'
 import { walKeepEntries, walMode } from '../../config/git-wal'
 
 /**
@@ -84,17 +85,29 @@ export default new Job({
         if (existing && existing.sequence >= through)
           continue
 
-        const path = await pathFor(repositoryId)
+        const located = await locate(repositoryId)
 
-        if (!path)
+        if (!located)
           continue
 
+        const { path, owner, name } = located
         const checkpoint = await writeCheckpoint(repositoryId, path, through)
 
         if (!checkpoint)
           continue
 
         written += 1
+
+        /*
+         * Advertise it, so a clone can take the bulk of its objects from
+         * storage rather than from `upload-pack`. Best-effort: a repository
+         * whose config could not be written still has a checkpoint, and the
+         * only cost is that clients keep cloning the ordinary way.
+         */
+        const url = bundleUrl(owner, name)
+
+        if (url)
+          await advertiseBundle(path, url).catch(() => undefined)
 
         const pruned = await pruneThrough(repositoryId, through, keep)
         prunedRows += pruned.removedRows
@@ -114,8 +127,27 @@ export default new Job({
   },
 })
 
-/** Where a repository is on this node, or null when it is not here. */
-async function pathFor(repositoryId: number): Promise<string | null> {
+/**
+ * Where clients should fetch this repository's checkpoint.
+ *
+ * Absolute, because it goes into the repository's own config and is handed to
+ * a git client that has no idea what path this process sees. Built from
+ * `APP_URL` for the same reason every other external URL here is: the
+ * instance's public name is the only one a client can reach.
+ */
+function bundleUrl(owner: string, name: string): string | null {
+  const base = String(process.env.APP_URL ?? '').trim().replace(/\/+$/, '')
+
+  if (base.length === 0)
+    return null
+
+  const origin = /^https?:\/\//.test(base) ? base : `https://${base}`
+
+  return `${origin}/${owner}/${name}/bundles/checkpoint`
+}
+
+/** Where a repository is on this node, and who owns it. */
+async function locate(repositoryId: number): Promise<{ path: string, owner: string, name: string } | null> {
   const row: any = await db
     .selectFrom('repositories')
     .select(['name', 'owner_type', 'owner_id'])
@@ -140,5 +172,5 @@ async function pathFor(repositoryId: number): Promise<string | null> {
   const { ensureLocal } = await import('../Actions/Git/storage')
   const local = await ensureLocal(String(owner.handle), String(row.name))
 
-  return local.ok ? local.path! : null
+  return local.ok ? { path: local.path!, owner: String(owner.handle), name: String(row.name) } : null
 }

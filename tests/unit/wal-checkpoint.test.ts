@@ -11,7 +11,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { checkpointKey, checkpointSequence, latestCheckpoint, prunable, writeCheckpoint } from '../../app/Actions/Git/checkpoint'
+import { advertiseBundle, checkpointKey, checkpointSequence, latestCheckpoint, prunable, withdrawBundle, writeCheckpoint } from '../../app/Actions/Git/checkpoint'
 import { LocalBlobStore, useBlobStore } from '../../app/Actions/Git/blobs'
 import { initBare, runGit } from '../../app/Actions/Git/git'
 
@@ -172,5 +172,42 @@ describe('writeCheckpoint', () => {
 
     const tip = await runGit(restored, ['rev-parse', 'refs/heads/main'])
     expect(tip.stdout.trim()).toBe(headSha)
+  })
+})
+
+describe('advertiseBundle', () => {
+  /**
+   * `bundle-uri` is git's own answer to a clone storm: a client fetches the
+   * checkpoint over plain HTTP and asks `upload-pack` only for what landed
+   * since. Written into the repository's config, so it is git advertising it
+   * rather than this application intercepting anything - which is why the
+   * assertion is against `git config` and not against our own state.
+   */
+  test('writes the config git reads when advertising', async () => {
+    const url = 'https://forge.example/acme/app/bundles/checkpoint'
+
+    expect(await advertiseBundle(bare, url)).toBe(true)
+
+    const advertised = await runGit(bare, ['config', '--get', 'uploadpack.advertiseBundleURIs'])
+    expect(advertised.stdout.trim()).toBe('true')
+
+    const uri = await runGit(bare, ['config', '--get', 'bundle.checkpoint.uri'])
+    expect(uri.stdout.trim()).toBe(url)
+
+    // `all`, not `any`: the checkpoint carries every ref but is not the whole
+    // story on its own - the client still needs what landed after it.
+    const mode = await runGit(bare, ['config', '--get', 'bundle.mode'])
+    expect(mode.stdout.trim()).toBe('all')
+  })
+
+  test('withdrawing stops the advertisement', async () => {
+    await advertiseBundle(bare, 'https://forge.example/acme/app/bundles/checkpoint')
+    await withdrawBundle(bare)
+
+    const uri = await runGit(bare, ['config', '--get', 'bundle.checkpoint.uri'])
+    expect(uri.ok).toBe(false)
+
+    const advertised = await runGit(bare, ['config', '--get', 'uploadpack.advertiseBundleURIs'])
+    expect(advertised.stdout.trim()).toBe('false')
   })
 })

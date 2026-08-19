@@ -2,12 +2,14 @@ import { Action } from '@stacksjs/actions'
 import { browseContext } from '../Browse/context'
 import {
   archiveContentType,
+  archiveCacheKey,
   archiveFilename,
   archiveFormat,
   archivePrefix,
   gitArchiveFormat,
   headerSafeName,
 } from './download'
+import { blobStore } from './blobs'
 import { runGit, spawnGitLimited } from './git'
 import { stdoutStream } from './stream'
 
@@ -48,6 +50,37 @@ export default new Action({
 
     // `heavy`: an archive is a whole-repository transfer, the same class as a
     // clone. Saturation answers 503 rather than queueing without bound.
+    /*
+     * The blob store first, and this is the CI answer rather than a nicety.
+     *
+     * A fleet building the same commit asks for the same archive over and
+     * over, and every one of those is `git archive` walking a tree and
+     * compressing it - the most expensive read this server serves, repeated
+     * for an answer that cannot change. An archive is keyed by commit and
+     * format, so it is immutable by construction and a cache of it needs no
+     * invalidation at all.
+     *
+     * A miss falls through to git, exactly as before, and the result is
+     * stored on the way out.
+     */
+    const commit = resolved.stdout.trim()
+    const cacheKey = archiveCacheKey(commit, format)
+    const store = await blobStore()
+    const cached = await store.get(cacheKey).catch(() => null)
+
+    if (cached) {
+      return new Response(cached, {
+        headers: {
+          'Content-Type': archiveContentType(format),
+          'Content-Disposition': `attachment; filename="${headerSafeName(archiveFilename(name, ref, format))}"`,
+          'X-Content-Type-Options': 'nosniff',
+          // Said out loud so an operator can see the cache working rather
+          // than infer it from a latency graph.
+          'X-Archive-Cache': 'hit',
+        },
+      })
+    }
+
     const child = await spawnGitLimited('heavy', diskPath, [
       'archive',
       `--format=${gitArchiveFormat(format)}`,
@@ -62,11 +95,24 @@ export default new Action({
       })
     }
 
+    /*
+     * Tee'd: the client gets its bytes as git produces them, and the store
+     * gets a copy for the next asker. The response is never delayed by the
+     * write - a `tee` hands both branches the same chunks, and the store's
+     * branch is consumed in the background.
+     *
+     * A failed cache write is swallowed on purpose: this download is already
+     * correct, and the next request simply misses again.
+     */
+    const [toClient, toStore] = stdoutStream(child).tee()
+
+    void store.put(cacheKey, toStore).catch(() => undefined)
+
     // Pull-based (`stdoutStream`): a rate-limited download of a large archive
     // holds process memory flat, because git only produces what the client
     // has taken. Cancel kills the child - somebody closing the tab must not
     // leave git packing a repository.
-    return new Response(stdoutStream(child), {
+    return new Response(toClient, {
       headers: {
         'Content-Type': archiveContentType(format),
         'Content-Disposition': `attachment; filename="${headerSafeName(archiveFilename(name, ref, format))}"`,

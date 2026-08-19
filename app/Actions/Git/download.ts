@@ -132,3 +132,22 @@ export function slugForFilename(value: string): string {
   // A ref called `..` would otherwise produce a filename of dots.
   return /^\.+$/.test(slug) || !slug ? 'archive' : slug.slice(0, 80)
 }
+
+/**
+ * Where a built archive is cached.
+ *
+ * Keyed on the commit and the format, which is what makes this a cache with no
+ * invalidation: an archive of a commit cannot change, because a commit cannot.
+ * A ref is deliberately *not* part of the key - two branches at the same commit
+ * are the same bytes - and the ref only ever reaches the filename.
+ */
+export function archiveCacheKey(commit: string, format: ArchiveFormat): string {
+  const clean = String(commit ?? '').trim().toLowerCase()
+
+  if (!/^[0-9a-f]{40}$/.test(clean))
+    throw new Error('An archive is cached against a full commit sha')
+
+  const suffix = format === 'zip' ? 'zip' : 'tar-gz'
+
+  return `archives/${clean.slice(0, 2)}/${clean.slice(2, 4)}/${clean}.${suffix}`
+}
