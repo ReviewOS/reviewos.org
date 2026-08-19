@@ -604,7 +604,13 @@ the run must remain inspectable and resumable without trusting runner memory.
       job" cannot become "run it anyway".
 - [ ] Each step persists its inputs, output metadata, attempt count, timestamps, timeout, retry
       policy, and error before the next step becomes eligible
-- [ ] Retry policies support limits, delay, and constant, linear, or exponential backoff
+- [x] Retry policies support limits, delay, and constant, linear, or exponential backoff
+
+`app/Actions/Workflow/retryPolicy.ts`, pure and read from the `retry:` stanza the parser already
+accepts. Jitter spreads downward only, so a matrix of twenty jobs failing against one flaky
+dependency does not retry in lockstep and does not push itself past a timeout set against the stated
+delay. The scheduler still has to call `delayFor` when it requeues - the policy is decided, the
+requeue is not yet reading it.
 - [ ] Restart a whole run or restart from one named step and attempt. Earlier successful step results
       are reused only when their inputs and workflow version still match.
 - [ ] Waiting steps can sleep until a time or wait for a typed external event, with a timeout. This
