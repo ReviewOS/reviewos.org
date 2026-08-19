@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS `repositories` (
   `owner_id` integer not null,
   `name` varchar(100) not null,
   `description` text,
+  `homepage` varchar(255),
   `visibility` ENUM('public', 'private', 'internal') default 'public',
   `default_branch` varchar(255) default 'main',
   `disk_path` varchar(512),

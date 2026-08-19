@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS `workflow_runs` (
   `event` varchar(40) not null,
   `event_ref` varchar(400),
   `head_sha` varchar(40),
+  `changed_paths` text,
   `definition_sha` varchar(40),
   `concurrency_group` varchar(500),
   `trigger_depth` integer default 0,

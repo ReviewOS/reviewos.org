@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS `workflow_cache_entries` (
   `repository_id` bigint not null,
   `scope` varchar(255) not null,
   `cache_key` varchar(64) not null,
+  `label` varchar(512),
   `digest` varchar(64) not null,
   `blob_key` varchar(255),
   `size_bytes` integer not null default 0,
