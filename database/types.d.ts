@@ -812,6 +812,27 @@ declare module '@stacksjs/database' {
       updatedAt: string | null
       failedAt: string
     }
+    forge_credentials: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      user_id: number
+      provider: "github" | "gitlab" | "gitea"
+      host: string
+      remote_login: string
+      sealed: string
+      scopes: string
+      last_used_at: string
+      last_error: string
+      createdAt: string
+      updatedAt: string | null
+      userId: number
+      remoteLogin: string
+      lastUsedAt: string
+      lastError: string
+    }
     gift_cards: {
       // columns
       id: number
@@ -2211,6 +2232,7 @@ declare module '@stacksjs/database' {
       interval_seconds: number
       enabled: boolean
       allow_local_pushes: boolean
+      write_through: boolean
       last_synced_at: string
       last_sha: string
       last_error: string
@@ -2229,6 +2251,7 @@ declare module '@stacksjs/database' {
       webhookSecret: string
       intervalSeconds: number
       allowLocalPushes: boolean
+      writeThrough: boolean
       lastSyncedAt: string
       lastSha: string
       lastError: string
@@ -3349,6 +3372,7 @@ declare module '@stacksjs/database' {
       started_at: string
       finished_at: string
       conclusion_reason: string
+      request_id: string
       redelivery_key: string
       createdAt: string
       updatedAt: string | null
@@ -3371,6 +3395,7 @@ declare module '@stacksjs/database' {
       startedAt: string
       finishedAt: string
       conclusionReason: string
+      requestId: string
       redeliveryKey: string
     }
     workflow_secrets: {

@@ -9,6 +9,7 @@ import { authorizeRepository } from '../Repo/authorize'
 import { resolveGroup } from './concurrency'
 import { checkInputs } from './inputs'
 import { dispatchKey, withRedeliveryKey } from './redelivery'
+import { requestIdOf } from '../../Api/correlation'
 import { isTrue } from '../Support/sql'
 
 /**
@@ -65,6 +66,7 @@ export default new Action({
               state: { type: 'string' },
               event: { type: 'string' },
               inputs: { type: 'object' },
+              request_id: { type: 'string', description: 'The caller\'s `X-Request-Id`, or the one minted for them. It travels to the machine that runs the job.' },
             },
           },
         },
@@ -189,6 +191,16 @@ export default new Action({
       }
     }
 
+    /*
+     * The caller's own id for this request, kept if they sent one.
+     *
+     * It goes onto the run and out to the machine in the claim, so "a program
+     * of ours called your API and something odd happened" is a question with an
+     * answer - rather than one reconstructed from timestamps on an instance
+     * where three deploy bots dispatch the same workflow every few minutes.
+     */
+    const correlation = requestIdOf(request as any)
+
     const number = await nextNumber(Number(repository.id))
 
     const run = await db
@@ -226,6 +238,7 @@ export default new Action({
          * second mechanism that has to agree with it.
          */
         ...(idempotency ? { redelivery_key: idempotency } : {}),
+        request_id: correlation,
       })
       .returning(['id'])
       .executeTakeFirst()
@@ -283,6 +296,11 @@ export default new Action({
         state: 'queued',
         event: 'workflow_dispatch',
         inputs: checked.values,
+        /**
+         * The id this run is known by, echoed so a caller that sent none can
+         * still write it down beside their own log line.
+         */
+        request_id: correlation,
       },
     }, 201)
   },

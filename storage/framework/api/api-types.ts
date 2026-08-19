@@ -15947,7 +15947,7 @@ export interface paths {
     requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "workflow"?: string; "ref"?: string; "key"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
-      "201": { content: { "application/json": { "workflow_run"?: { "number"?: number; "state"?: string; "event"?: string; "inputs"?: Record<string, unknown> } } } }
+      "201": { content: { "application/json": { "workflow_run"?: { "number"?: number; "state"?: string; "event"?: string; "inputs"?: Record<string, unknown>; "request_id"?: string } } } }
       "303": { content: never }
       "401": { content: never }
       "403": { content: never }

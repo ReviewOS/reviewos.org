@@ -5,6 +5,7 @@ import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { dispatchRepositoryDispatch } from './dispatch'
+import { requestIdOf } from '../../Api/correlation'
 
 /**
  * Start runs from outside: `on: repository_dispatch`.
@@ -93,6 +94,9 @@ export default new Action({
       eventType,
       clientPayload: payload,
       actorId: user?.id ? Number(user.id) : null,
+      // The caller's own id, so the runs this starts are findable from the
+      // program's log rather than from a timestamp.
+      requestId: requestIdOf(request as any),
     })
 
     /*

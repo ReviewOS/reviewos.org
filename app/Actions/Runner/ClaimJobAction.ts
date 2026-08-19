@@ -234,6 +234,9 @@ export default new Action({
         'workflow_runs.actor_id as actor_id',
         'workflow_runs.pull_request_id as pull_request_id',
         'workflow_runs.dispatch_inputs as dispatch_inputs',
+        // The id of the request that started this run, so the machine can print
+        // it and a caller can find their own build log from their own log line.
+        'workflow_runs.request_id as request_id',
         'repositories.name as repository',
         'repositories.visibility as visibility',
         'repositories.default_branch as default_branch',
@@ -806,6 +809,15 @@ export default new Action({
           inputs: readJson(context?.dispatch_inputs) as Record<string, unknown> | null,
           subject: subjectOf(String(context?.event_ref ?? '')),
         }),
+        /*
+         * The id of the request that started this run, when one started it.
+         *
+         * Sent so a job can print it: a build log that carries the caller's own
+         * request id is a build log they can find from their side, which is the
+         * whole point of keeping the id they sent rather than minting a fresh
+         * one here.
+         */
+        request_id: context?.request_id ? String(context.request_id) : null,
         needs: await outputsOfNeeds(claimed.runId, String(claimed.jobKey)),
         /*
          * How long this job is allowed to take, in minutes.

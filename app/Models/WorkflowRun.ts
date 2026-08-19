@@ -360,6 +360,30 @@ export default defineModel({
     },
 
     /**
+     * The caller's own id for the request that started this run.
+     *
+     * `X-Request-Id` as they sent it, or one minted here when they sent none.
+     * Kept rather than replaced, because the value is entirely on their side:
+     * they have already logged it beside their own stack trace, and an id this
+     * instance invented is one they cannot search for.
+     *
+     * It travels out to the machine in the claim, so a build log becomes
+     * searchable by the request that caused it - which is the question support
+     * actually gets, and the one that is otherwise answered by comparing
+     * timestamps on an instance where three bots dispatch the same workflow
+     * every few minutes.
+     *
+     * Untrusted, and nothing decides anything on it. A value that decided
+     * something would be a value worth forging.
+     */
+    request_id: {
+      order: 74,
+      fillable: true,
+      validation: { rule: schema.string().max(120) },
+      factory: () => null,
+    },
+
+    /**
      * What a second delivery of the same event would collide on.
      *
      * Null for the events that repeat on purpose - see

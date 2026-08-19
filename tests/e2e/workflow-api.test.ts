@@ -693,6 +693,69 @@ describe('a dispatch that must not happen twice', () => {
   })
 })
 
+describe('the id that follows a request into the work it starts', () => {
+  const path = '/api/repos/workflows/dispatch'
+
+  test('a caller\'s own `X-Request-Id` lands on the run they started', async () => {
+    if (!available)
+      return
+
+    await db
+      .updateTable('workflow_versions')
+      .set({ on_dispatch: true, dispatch_inputs: null } as any)
+      .where('id', '=', created.versionId)
+      .execute()
+
+    const mine = unique('trace-')
+
+    const { status, body } = await api(
+      `${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${created.token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-Request-Id': mine,
+        },
+      },
+    )
+
+    expect(status).toBe(201)
+    // Echoed, so a caller that sent none can still write down the one they got.
+    expect(String(body.workflow_run.request_id)).toBe(mine)
+
+    const run: any = await db
+      .selectFrom('workflow_runs')
+      .select(['request_id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', Number(body.workflow_run.number))
+      .executeTakeFirst()
+
+    /*
+     * Kept rather than replaced: the caller has already logged this id beside
+     * their own stack trace, and one this instance invented is one they cannot
+     * search for.
+     */
+    expect(String(run.request_id)).toBe(mine)
+  })
+
+  test('and a caller who sent none still gets a run that can be traced', async () => {
+    if (!available)
+      return
+
+    const { body } = await api(
+      `${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`,
+      {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${created.token}`, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+      },
+    )
+
+    expect(String(body.workflow_run.request_id)).toStartWith('req_')
+  })
+})
+
 describe('the environment a job inherits', () => {
   test('is reported with the level that defined each value', async () => {
     if (!available)

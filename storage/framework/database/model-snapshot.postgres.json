@@ -9718,6 +9718,15 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "request_id",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 120
           }
         ],
         "indexes": [
@@ -14433,7 +14442,7 @@
       }
     ]
   },
-  "hash": "86201f391ef799a58ececac7d343992cec01ce1bdac7f6ff48e04906eec0acb6",
+  "hash": "2feb93f57de18cae8d095428af2b543d677df3dd428957a0a5cbd5590e4817e4",
   "dialect": "postgres",
-  "updatedAt": "2026-08-19T21:32:36.982Z"
+  "updatedAt": "2026-08-19T22:06:11.769Z"
 }

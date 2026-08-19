@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS `workflow_runs` (
   `started_at` varchar(40),
   `finished_at` varchar(40),
   `conclusion_reason` text,
+  `request_id` varchar(120),
   `redelivery_key` varchar(64),
   `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,

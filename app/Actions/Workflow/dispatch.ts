@@ -332,6 +332,8 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
 }
 
 export interface RepositoryDispatchInput {
+  /** The caller's own id for the request, carried onto every run this starts. */
+  requestId?: string | null
   repositoryId: number
   /** What the caller called it: `deploy-staging`, `dependency-updated`. */
   eventType: string
@@ -416,6 +418,9 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
           // Handed to the job as `github.event.client_payload`, which is the
           // whole reason a caller sends one.
           dispatch_inputs: payload ? JSON.stringify({ client_payload: payload, event_type: input.eventType }) : null,
+          // The caller's own id for the request, so every run this one call
+          // started is findable from their log rather than from a timestamp.
+          request_id: input.requestId ?? null,
         }))
         .returning(['id'])
         .executeTakeFirst()

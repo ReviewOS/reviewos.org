@@ -45058,6 +45058,10 @@
                         },
                         "inputs": {
                           "type": "object"
+                        },
+                        "request_id": {
+                          "type": "string",
+                          "description": "The caller's `X-Request-Id`, or the one minted for them. It travels to the machine that runs the job."
                         }
                       }
                     }

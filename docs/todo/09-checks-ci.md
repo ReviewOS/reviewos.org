@@ -65,9 +65,15 @@ different one was handed over.** So the decision:
 - [x] Both forms normalize to the same `WorkflowRun` and step rows, so the interface, API, logs, and
       restart-from-step behave identically whichever way a workflow was written. If a screen can tell
       which authoring form produced a run, the normalization is wrong.
-- [ ] An organization-wide workflow runs as its own orchestrator with its own trust level, and the
+- [x] An organization-wide workflow runs as its own orchestrator with its own trust level, and the
       repositories it covers supply data, not code. This is the condition the old paragraph set, and
       it is the reason the orchestrator is per-run rather than per-repository.
+
+      Both halves hold now that owner-wide workflows exist. The orchestrator is a job of the run, so
+      an organization's program gets its own - per run, at the owner's trust level - rather than one
+      shared with whatever the repository is doing. And the trust level is enforced where it can be:
+      an owner-defined run is given the owner's secrets and none scoped to the repository or its
+      environments, so what the repository supplies is a checkout, changed paths and metadata.
 
 The authoring form exists: a `.ts` file in `.reviewos/workflows` whose triggers are declared in a
 front matter block. `app/Actions/Workflow/program.ts` reads that block **as text** and translates it
@@ -1060,8 +1066,24 @@ requeue is not yet reading it.
       and the run would sit until its timeout on a message that did arrive - the hardest kind of
       report to believe, because the sender saw a 200 and nothing anywhere says it was dropped.
 - [ ] The interface, CLI, webhooks, and provider integrations call the same actions as the public API
-- [ ] Every endpoint has a fine-grained token requirement, generated OpenAPI, stable errors, rate
+- [x] Every endpoint has a fine-grained token requirement, generated OpenAPI, stable errors, rate
       limits, audit events, and request ids that continue into dispatched jobs
+
+      Five of the six were already load bearing: `app/TokenScopes.ts` maps every ability to a scope
+      and a level, the OpenAPI document and `docs/api.md` are generated rather than kept in step by
+      hand, `apiError` gives one error shape with a code and a fix, `RATE_LIMIT_HEADERS` are
+      declared per endpoint, and anything that spends machines or changes state writes an audit
+      event.
+
+      The sixth is new. A caller's `X-Request-Id` is **kept** - or `X-Correlation-Id`, since both
+      are in the wild - and lands on the run, travels to the machine in the claim, and reaches the
+      job as `GITHUB_REQUEST_ID`. Kept rather than replaced because the whole value is on the
+      caller's side: they have already logged that id beside their own stack trace, and one this
+      instance invented is one they cannot search for. A caller who sends none gets one, so the run
+      is traceable from this side either way.
+
+      Untrusted, bounded, stripped of anything unprintable, and read by nothing that makes a
+      decision - a value that decided something would be a value worth forging.
 - [x] Webhook events for run and job transitions, action required, deployment, and artifact expiry
 
       **The two transitions are done; the other three have nothing to fire yet.** `run:transitioned`

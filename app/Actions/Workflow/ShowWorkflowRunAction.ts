@@ -229,6 +229,11 @@ export default new Action({
          * would offer to resume a run nobody held.
          */
         paused_at: run.paused_at ?? null,
+        /**
+         * The caller's own id for the request that started this run, when an
+         * API call started it. Null for a push, which nobody called.
+         */
+        request_id: run.request_id ?? null,
         reason: run.conclusion_reason ?? null,
         created_at: run.created_at ?? null,
 

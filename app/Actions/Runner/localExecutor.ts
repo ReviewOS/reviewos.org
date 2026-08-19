@@ -2406,6 +2406,15 @@ export function environmentFor(job: any, workspace: string): Record<string, stri
     RUN_ID: String(run.id ?? ''),
     RUN_NUMBER: String(run.number ?? ''),
     RUN_ATTEMPT: String(run.attempt ?? '1'),
+    /*
+     * The id of the API request that started this run, when one did.
+     *
+     * Empty otherwise, and empty rather than absent for the same reason
+     * `BASE_REF` is: a script that tests for it should get one answer, not two
+     * that look alike. A job that echoes this makes its own log searchable from
+     * the caller's side, which is the entire point of keeping the id they sent.
+     */
+    REQUEST_ID: String(job?.request_id ?? ''),
     ACTOR: String(run.actor ?? ''),
     TRIGGERING_ACTOR: String(run.actor ?? ''),
     SERVER_URL: String(job?.server_url ?? ''),
