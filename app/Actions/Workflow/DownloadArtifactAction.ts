@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
-import { artifactPath } from '../Artifact/storage'
+import { openArtifact } from '../Artifact/read'
 import { authorizeRepository } from '../Repo/authorize'
 
 /**
@@ -89,9 +89,9 @@ export default new Action({
     if (Number.isFinite(expires) && expires <= Date.now())
       return response.json({ error: 'This artifact has expired' }, 410)
 
-    const file = Bun.file(artifactPath(String(row.digest)))
+    const stream = await openArtifact(row)
 
-    if (!(await file.exists())) {
+    if (!stream) {
       // The row outlived its bytes, which should not happen - the sweep removes
       // the row first for exactly this reason. Said plainly rather than as a
       // 404, because "it is gone" and "we lost it" are different problems and
@@ -99,7 +99,7 @@ export default new Action({
       return response.json({ error: 'The stored copy of this artifact is missing' }, 410)
     }
 
-    return new Response(file, {
+    return new Response(stream, {
       headers: {
         'Content-Type': String(row.content_type ?? 'application/octet-stream'),
         // The name the uploader gave, quoted, and never a path: it is metadata

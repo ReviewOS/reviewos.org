@@ -187,25 +187,38 @@ How many committed entries to keep behind the newest checkpoint.
 
 Default: `postgres`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+The metadata database. `postgres` or `mysql`; both are supported, each has its
+own generated migration corpus, and `buddy setup` installs whichever one this
+names - `postgresql.org@^17.10` or `mysql.com@^9.2` - as a pantry service.
+
+Phase 17 makes MySQL the direction of travel: it is what the sharded mode in
+phase 18 is built on, and Postgres is supported for one release cycle after
+MySQL becomes the default. An existing instance moves with
+`buddy db:migrate-engine`, which copies through the drivers and verifies both
+the row counts and a checksum of the values. See docs/self-hosting.md.
+
+On MySQL, `DB_PORT` is 3306 and `DB_USERNAME` is root for a pantry-managed local
+server, which initialises with no password.
+
+Read by `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_HOST`
 
 Default: `127.0.0.1`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+Read by `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_PORT`
 
 Default: `5432`. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+Read by `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_DATABASE`
 
 Default: `reviewos`.
 
-Read by `app/Commands/Doctor.ts`.
+Read by `app/Commands/DbMigrateEngine.ts`, `app/Commands/Doctor.ts`.
 
 ### `DB_USERNAME`
 
@@ -217,13 +230,13 @@ exists and the password is ignored. This value is also load-bearing for
 automatic database creation: pantry skips `createdb` entirely when
 `DB_USERNAME` is empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+Read by `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_PASSWORD`
 
 Default: empty.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+Read by `app/Commands/DbMigrateEngine.ts`.
 
 ### `DATABASE_URL`
 
@@ -626,11 +639,16 @@ Default: `pantry-dev`.
 
 ### `BLOB_LOCAL_ROOT`
 
-Default: `storage/blobs`.
+Default: `storage`, and the line is commented out.
 
 Blob storage: workflow artifacts, LFS objects, release assets, and the push
 bundles the write-ahead log writes. Local disk is the default and is a
 supported driver forever - an instance on one box needs none of the rest.
+
+`storage` rather than a new directory on purpose: every one of those features
+already keeps its bytes under `storage/<something>`, so a key of
+`artifacts/aa/bb/<digest>` lands exactly where artifacts have always been.
+Pointing this somewhere new makes every file already on disk read as missing.
 
 Read by `app/Actions/Git/blobs.ts`.
 

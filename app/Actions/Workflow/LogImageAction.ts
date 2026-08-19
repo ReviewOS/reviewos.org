@@ -26,7 +26,7 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
-import { artifactPath } from '../Artifact/storage'
+import { readArtifactBytes } from '../Artifact/read'
 import { authorizeRepository } from '../Repo/authorize'
 
 /** What a browser may be asked to render in a log. Sniffed, never trusted. */
@@ -132,13 +132,15 @@ export default new Action({
       }, 415)
     }
 
-    const file = Bun.file(artifactPath(String(row.digest)))
+    // Read whole rather than sliced: the size ceiling above already bounds
+    // this to something worth rendering inline, and a store is not a file -
+    // asking a bucket for sixteen bytes costs a request either way.
+    const bytes = await readArtifactBytes(row)
 
-    if (!(await file.exists()))
+    if (!bytes)
       return response.json({ error: 'The stored copy of this artifact is missing' }, 410)
 
-    const head = new Uint8Array(await file.slice(0, 16).arrayBuffer())
-    const type = sniffImage(head)
+    const type = sniffImage(bytes.subarray(0, 16))
 
     if (!type) {
       /*
@@ -153,7 +155,7 @@ export default new Action({
       }, 415)
     }
 
-    return new Response(file, {
+    return new Response(bytes.buffer as ArrayBuffer, {
       headers: {
         'Content-Type': type,
         'Content-Length': String(Number(row.size_bytes) || 0),

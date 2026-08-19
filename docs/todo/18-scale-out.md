@@ -53,8 +53,17 @@ No push-path changes in this sub-phase.
       honest answer. "Both tested" is not yet true against live buckets: the driver is tested
       against a fake client (key mapping, prefixing, binary round trip, the ceiling), and AWS and
       Hetzner need credentials this machine does not have.
-- [ ] Workflow artifacts through the store: upload and download actions, `ExpireArtifactsJob`,
-      and a `blob_key` column on `WorkflowArtifact`.
+- [x] Workflow artifacts through the store: upload and download actions, `ExpireArtifactsJob`,
+      and a `blob_key` column on `WorkflowArtifact`. The four readers - a runner fetching a
+      previous job's output, a person downloading one, a set being tarred, an image rendered
+      inline in a log - go through one `openArtifact` / `readArtifactBytes` pair, so they cannot
+      disagree about the precedence between the recorded key and the derived one.
+
+      **The local store is rooted at `storage`, not `storage/blobs`**, and that is what makes this
+      a seam rather than a migration: a key of `artifacts/aa/bb/<digest>` resolves to exactly the
+      path artifacts have always used, so an instance adopts the store and finds every existing
+      file where it was. Getting this wrong was caught by an existing expiry test, and the failure
+      mode it would have shipped is every artifact on disk reading as missing on upgrade day.
 - [ ] LFS through the store: `app/Actions/Git/lfs.ts` currently hard-wires ts-git-lfs's local
       object store; adapt it over `BlobStore`, upstream a custom-store seam in ts-git-lfs if it
       lacks one.

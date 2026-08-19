@@ -92,6 +92,24 @@ export default defineModel({
       factory: () => 'a'.repeat(64),
     },
 
+    /**
+     * Where the bytes actually went in the blob store.
+     *
+     * Derivable from the digest, and recorded anyway. The derivation is stable
+     * today because artifacts are content-addressed, but a row that says where
+     * its own bytes are keeps working after the prefix changes, after a move
+     * to object storage, and for anything written by a version that derived it
+     * differently. Nullable, because every row written before this column
+     * existed has bytes at the derived key - reading falls back to the
+     * derivation rather than treating an old row as missing.
+     */
+    blob_key: {
+      order: 5,
+      fillable: true,
+      validation: { rule: schema.string().max(255) },
+      factory: () => null,
+    },
+
     size_bytes: {
       order: 5,
       fillable: true,

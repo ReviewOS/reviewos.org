@@ -1,7 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
-import { artifactPath } from '../Artifact/storage'
+import { readArtifactBytes } from '../Artifact/read'
 import { buildTar } from '../Artifact/tar'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
@@ -100,15 +100,15 @@ export default new Action({
     const entries: Array<{ name: string, bytes: Uint8Array }> = []
 
     for (const row of live) {
-      const file = Bun.file(artifactPath(String(row.digest)))
+      const bytes = await readArtifactBytes(row)
 
       // A row whose bytes are gone is skipped rather than failing the archive:
       // thirteen artifacts and one missing file is still thirteen artifacts
       // somebody wanted.
-      if (!await file.exists())
+      if (!bytes)
         continue
 
-      entries.push({ name: String(row.name), bytes: new Uint8Array(await file.arrayBuffer()) })
+      entries.push({ name: String(row.name), bytes })
     }
 
     if (entries.length === 0)

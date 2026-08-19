@@ -288,8 +288,23 @@ export class LocalBlobStore implements BlobStore {
   }
 }
 
-/** Where the local driver keeps things, unless configured otherwise. */
-export const LOCAL_BLOB_ROOT = 'storage/blobs'
+/**
+ * Where the local driver keeps things, unless configured otherwise.
+ *
+ * `storage`, not `storage/blobs`, and that is the difference between this
+ * being a seam and being a migration. Every feature that moves behind the
+ * store already keeps its bytes under `storage/<something>` - artifacts in
+ * `storage/artifacts`, LFS in `storage/lfs`, release assets in
+ * `storage/release-assets`, attachments in `storage/attachments` - so a key
+ * of `artifacts/aa/bb/<digest>` resolves to exactly the path that feature has
+ * always used.
+ *
+ * An instance therefore adopts the store and finds every existing file where
+ * it was. The alternative - a new root - would have made every artifact
+ * already on disk read as missing on the day of the upgrade, which is a
+ * migration of hundreds of gigabytes disguised as a refactor.
+ */
+export const LOCAL_BLOB_ROOT = 'storage'
 
 let configured: BlobStore | null = null
 

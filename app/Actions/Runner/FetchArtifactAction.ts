@@ -1,7 +1,8 @@
 import { Action } from '@stacksjs/actions'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
-import { artifactName, artifactPath } from '../Artifact/storage'
+import { artifactName } from '../Artifact/storage'
+import { openArtifact } from '../Artifact/read'
 import { authenticateJob } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 
@@ -88,15 +89,15 @@ export default new Action({
     if (row.expires_at && Date.parse(String(row.expires_at)) < Date.now())
       return runnerJson({ error: `The artifact ${name} has expired` }, 404)
 
-    const file = Bun.file(artifactPath(String(row.digest)))
+    const stream = await openArtifact(row)
 
-    if (!await file.exists()) {
+    if (!stream) {
       // Told apart from a wrong name on purpose: this is a disk that lost the
       // bytes, and an operator reading the log should not go looking for a typo.
       return runnerJson({ error: `The bytes for ${name} are not on this instance any more` }, 410)
     }
 
-    return new Response(file, {
+    return new Response(stream, {
       status: 200,
       headers: {
         'Content-Type': 'application/octet-stream',

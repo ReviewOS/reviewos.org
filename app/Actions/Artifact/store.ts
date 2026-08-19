@@ -14,12 +14,11 @@
  * downloaded is worse than making the job pick another name.
  */
 
-import { mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import { db } from '@stacksjs/database'
 import {
+  artifactKey,
+  artifactKeyFor,
   artifactName,
-  artifactPath,
   digestOf,
   expiresAt,
   isOrphaned,
@@ -114,6 +113,7 @@ export async function storeArtifact(input: StoreInput): Promise<StoreOutcome> {
       workflow_job_id: input.jobId ?? null,
       name,
       digest,
+      blob_key: written.key,
       size_bytes: size,
       content_type: String(input.contentType ?? '').slice(0, 150) || 'application/octet-stream',
       expires_at: retention.at,
@@ -141,18 +141,23 @@ export async function storeArtifact(input: StoreInput): Promise<StoreOutcome> {
  * correctness rule. Correctness comes from the name: two writers racing write
  * identical content to the same path.
  */
-async function writeBlob(digest: string, bytes: Uint8Array): Promise<{ ok: true } | { ok: false, reason: string }> {
+async function writeBlob(digest: string, bytes: Uint8Array): Promise<{ ok: true, key: string } | { ok: false, reason: string }> {
+  const key = artifactKey(digest)
+
   try {
-    const path = artifactPath(digest)
-    const file = Bun.file(path)
+    const { blobStore } = await import('../Git/blobs')
+    const store = await blobStore()
 
-    if (await file.exists())
-      return { ok: true }
+    // Content addressing means an existing blob is byte-identical to this one,
+    // so the check is a saving rather than a correctness rule - and `stat`
+    // asks the store rather than the filesystem, which is what lets the same
+    // saving apply when the store is a bucket.
+    if (await store.stat(key))
+      return { ok: true, key }
 
-    await mkdir(dirname(path), { recursive: true })
-    await Bun.write(path, bytes)
+    await store.put(key, bytes)
 
-    return { ok: true }
+    return { ok: true, key }
   }
   catch (error) {
     return { ok: false, reason: `The artifact could not be stored: ${error instanceof Error ? error.message : String(error)}` }
@@ -170,7 +175,9 @@ async function writeBlob(digest: string, bytes: Uint8Array): Promise<{ ok: true 
 export async function sweepExpiredArtifacts(now: Date = new Date()): Promise<{ removed: number, blobs: number }> {
   const expired = await db
     .selectFrom('workflow_artifacts')
-    .select(['id', 'digest'])
+    // `blob_key` too: the sweep deletes by the key the row recorded, falling
+    // back to the derived one for rows written before the column existed.
+    .select(['id', 'digest', 'blob_key'])
     .where('expires_at', '<', now.toISOString())
     .execute()
 
@@ -197,10 +204,12 @@ export async function sweepExpiredArtifacts(now: Date = new Date()): Promise<{ r
       continue
 
     try {
-      const path = artifactPath(String(row.digest))
+      const { blobStore } = await import('../Git/blobs')
+      const store = await blobStore()
+      const key = artifactKeyFor(row)
 
-      if (await Bun.file(path).exists()) {
-        await Bun.$`rm -f ${path}`.quiet()
+      if (await store.stat(key)) {
+        await store.delete(key)
         blobs += 1
       }
     }
