@@ -179,6 +179,25 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   to people who may not see it, and rendered through the one markdown pipeline, so the sanitising
   cannot exist in two places. Somebody who could write the file and has not gets one line telling
   them where it goes; a reader who could not does not need to know it is missing.
+- [x] A form field that looks like one, on every page that has a form
+
+  **Sign in and sign up rendered their boxes with no border, no padding and the
+  browser's default font.** `.key-input`, `.key-label`, `.key-hint` and
+  `.key-actions` were declared inside `settings/keys.stx`'s own `<style>` block,
+  and six other pages used the same class names - including the two screens
+  every account starts at. The only page where they looked like fields was the
+  one nobody reaches until they already have an account.
+
+  They are `.field-*` in the layout now, which is both where they belong and an
+  honest name: nothing about an email box is a key. `font: inherit` came with
+  the move - an input does not inherit type from the page, so every value
+  anybody typed was set in a different family from its own label - along with a
+  focus ring, and `textarea`/`select` shapes for the pages that use them.
+
+  Two small things on the auth card while it was open: the button is the width
+  of the fields above it rather than a control tucked into a corner, and the
+  hint sits under the input it belongs to rather than exactly between two
+  fields, where it read as the rule for the next one.
 - [x] One repository card, rendered by every page that shows a repository
 
   Three pages drew the same object three ways. A profile showed a name, a

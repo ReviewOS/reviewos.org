@@ -103,13 +103,13 @@ const alreadyIn = Boolean(viewer)
           <CsrfField />
           <input type="hidden" name="next" value="{{ next }}">
 
-          <label class="key-label" for="email">Email</label>
-          <input id="email" class="key-input" type="email" name="email" required autocomplete="username" autofocus>
+          <label class="field-label" for="email">Email</label>
+          <input id="email" class="field-input" type="email" name="email" required autocomplete="username" autofocus>
 
-          <label class="key-label" for="password">Password</label>
-          <input id="password" class="key-input" type="password" name="password" required autocomplete="current-password">
+          <label class="field-label" for="password">Password</label>
+          <input id="password" class="field-input" type="password" name="password" required autocomplete="current-password">
 
-          <div class="key-actions">
+          <div class="field-actions">
             <button type="submit" class="btn btn-primary">Sign in</button>
           </div>
         </form>
@@ -120,10 +120,11 @@ const alreadyIn = Boolean(viewer)
             teaches people they have no local account when they do. --}}
         <SocialSignIn :nextPath="next" />
 
-        <p class="auth-line muted">
-          No account? <a href="/register">Create one</a>.
-          Forgotten your password? <a href="/forgot-password">Reset it</a>.
-        </p>
+        {{-- One line each. Run together they read as a paragraph, and the
+            two questions they answer - "I have no account" and "I have one and
+            cannot get in" - are asked by different people. --}}
+        <p class="auth-line muted">No account? <a href="/register">Create one</a>.</p>
+        <p class="auth-line muted">Forgotten your password? <a href="/forgot-password">Reset it</a>.</p>
       @endif
     </div>
   </div>

@@ -365,16 +365,16 @@ const dayBoxes = [
 
           <div class="prefs-window">
             <label class="muted prefs-label" for="starts-at">From</label>
-            <input id="starts-at" class="key-input prefs-time" type="time" name="starts_at" value="{{ startsAt }}">
+            <input id="starts-at" class="field-input prefs-time" type="time" name="starts_at" value="{{ startsAt }}">
 
             <label class="muted prefs-label" for="ends-at">Until</label>
-            <input id="ends-at" class="key-input prefs-time" type="time" name="ends_at" value="{{ endsAt }}">
+            <input id="ends-at" class="field-input prefs-time" type="time" name="ends_at" value="{{ endsAt }}">
 
             <label class="muted prefs-label" for="timezone">Timezone</label>
-            <input id="timezone" class="key-input mono prefs-tz" type="text" name="timezone" value="{{ timezone }}" placeholder="Europe/Berlin">
+            <input id="timezone" class="field-input mono prefs-tz" type="text" name="timezone" value="{{ timezone }}" placeholder="Europe/Berlin">
           </div>
 
-          <div class="key-actions">
+          <div class="field-actions">
             <button type="submit" class="btn btn-primary">Save hours</button>
           </div>
         </form>

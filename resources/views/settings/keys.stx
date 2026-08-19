@@ -94,10 +94,10 @@ if (!viewer)
 
         <form class="key-form" method="post" action="/api/user/keys" x-show="addingSsh" x-cloak>
           <CsrfField />
-          <label class="key-label" for="ssh-title">Title</label>
-          <input id="ssh-title" class="key-input" type="text" name="title" placeholder="Work laptop" maxlength="100">
+          <label class="field-label" for="ssh-title">Title</label>
+          <input id="ssh-title" class="field-input" type="text" name="title" placeholder="Work laptop" maxlength="100">
 
-          <label class="key-label" for="ssh-key">Key</label>
+          <label class="field-label" for="ssh-key">Key</label>
           {{--
             The public half, and the placeholder says which file it is in. The
             single most common way this goes wrong is somebody pasting the
@@ -106,14 +106,14 @@ if (!viewer)
           --}}
           <textarea
             id="ssh-key"
-            class="key-input mono"
+            class="field-input mono"
             name="key"
             rows="4"
             required
             spellcheck="false"
             placeholder="ssh-ed25519 AAAA… (the contents of ~/.ssh/id_ed25519.pub)"></textarea>
 
-          <div class="key-actions">
+          <div class="field-actions">
             <button type="submit" class="btn btn-primary">Add SSH key</button>
           </div>
         </form>
@@ -167,23 +167,23 @@ if (!viewer)
 
         <form class="key-form" method="post" action="/api/user/gpg-keys" x-show="addingGpg" x-cloak>
           <CsrfField />
-          <label class="key-label" for="gpg-key">Key</label>
+          <label class="field-label" for="gpg-key">Key</label>
           <textarea
             id="gpg-key"
-            class="key-input mono"
+            class="field-input mono"
             name="key"
             rows="6"
             required
             spellcheck="false"
             placeholder="-----BEGIN PGP PUBLIC KEY BLOCK----- (gpg --armor --export &lt;key id&gt;)"></textarea>
 
-          <p class="key-hint muted">
+          <p class="field-hint muted">
             A commit is verified when its signature is good <em>and</em> the key claims the address
             the commit was authored with. A key with no address on it can never verify anything, so
             it is refused rather than stored.
           </p>
 
-          <div class="key-actions">
+          <div class="field-actions">
             <button type="submit" class="btn btn-primary">Add GPG key</button>
           </div>
         </form>
@@ -258,28 +258,6 @@ if (!viewer)
     border: 1px solid var(--line);
     border-radius: var(--r-panel, 14px);
   }
-
-  .key-label {
-    display: block;
-    font-size: 12.5px;
-    font-weight: 500;
-    margin-bottom: 6px;
-  }
-
-  .key-input {
-    display: block;
-    width: 100%;
-    padding: 8px 10px;
-    margin-bottom: 14px;
-    font-size: 13px;
-    color: var(--text);
-    background: var(--bg);
-    border: 1px solid var(--line);
-    border-radius: var(--r-control, 10px);
-  }
-
-  .key-hint { font-size: 12px; line-height: 1.5; margin-bottom: 14px; }
-  .key-actions { display: flex; justify-content: flex-end; }
 
   .keys-empty { padding: 26px; text-align: center; }
   .keys-list { overflow: hidden; }

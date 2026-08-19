@@ -839,9 +839,67 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
         four rules interact behind it and the answer is not derivable from the
         switches above without doing the interaction in your head. */
       /* Sign in, sign up, and anything else that is one card and one form. */
+      /* A form field, anywhere in the product.
+        
+        These lived in `settings/keys.stx`, inside that page's own `<style>`
+        block, and six other pages used the same class names - including
+        `login` and `register`. So the front door of the product rendered its
+        email and password boxes with no border, no padding and the browser's
+        default font, and the only page where they looked like fields was the
+        one nobody sees until they already have an account.
+
+        `font: inherit` is the rule the old copy was missing on top of that: an
+        input does not inherit type from the page, so every value people typed
+        was set in a different family from the label above it. */
+      .field-label {
+        display: block;
+        font-size: 12.5px;
+        font-weight: 500;
+        margin-bottom: 6px;
+      }
+
+      .field-input {
+        display: block;
+        width: 100%;
+        padding: 8px 10px;
+        margin-bottom: 14px;
+        font: inherit;
+        font-size: 13.5px;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--line-strong);
+        border-radius: var(--r-control);
+      }
+
+      .field-input:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+        border-color: var(--accent);
+      }
+
+      /* A textarea keeps its own height and stays resizable vertically; a
+        select needs the arrow the platform draws. */
+      textarea.field-input { min-height: 84px; resize: vertical; }
+      select.field-input { appearance: auto; }
+
+      /* Pulled up under the input it belongs to. At the field's own spacing it
+        sits exactly between two fields and reads as a caption for the next
+        one, which is how "letters, numbers and hyphens" ends up looking like
+        the rule for the name box. */
+      .field-hint { margin: -8px 0 14px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+
+      .field-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+      /* One card, one form, one thing to do: on the auth screens the button is
+        the width of the fields above it rather than a small control tucked
+        into a corner. */
+      .auth-card .field-actions { display: block; }
+      .auth-card .field-actions .btn { width: 100%; justify-content: center; }
+
       .auth-card { max-width: 420px; margin: 0 auto; padding: 28px; }
       .auth-title { margin: 0 0 14px; font-size: 20px; }
       .auth-line { margin: 14px 0 0; font-size: 14px; }
+      .auth-line + .auth-line { margin-top: 4px; }
       .auth-form { margin: 0; }
       .auth-hint { margin: 4px 0 0; font-size: 12px; }
 

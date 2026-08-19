@@ -54,8 +54,8 @@ const alreadyIn = Boolean(viewer)
         <form method="post" action="/api/auth/register" class="auth-form">
           <CsrfField />
 
-          <label class="key-label" for="handle">Handle</label>
-          <input id="handle" class="key-input mono" type="text" name="handle" required value="{{ handle }}" maxlength="39" autocomplete="username" autofocus>
+          <label class="field-label" for="handle">Handle</label>
+          <input id="handle" class="field-input mono" type="text" name="handle" required value="{{ handle }}" maxlength="39" autocomplete="username" autofocus>
           {{--
             Said before they type it rather than after they get it wrong. The
             handle is the one field here that cannot be changed without moving
@@ -63,18 +63,18 @@ const alreadyIn = Boolean(viewer)
           --}}
           <p class="auth-hint muted">Letters, numbers and hyphens. This is your URL: reviewos.org/your-handle</p>
 
-          <label class="key-label" for="name">Name</label>
-          <input id="name" class="key-input" type="text" name="name" value="{{ name }}" maxlength="100" autocomplete="name">
+          <label class="field-label" for="name">Name</label>
+          <input id="name" class="field-input" type="text" name="name" value="{{ name }}" maxlength="100" autocomplete="name">
           <p class="auth-hint muted">Optional. Your handle is used when this is empty.</p>
 
-          <label class="key-label" for="email">Email</label>
-          <input id="email" class="key-input" type="email" name="email" required value="{{ email }}" autocomplete="email">
+          <label class="field-label" for="email">Email</label>
+          <input id="email" class="field-input" type="email" name="email" required value="{{ email }}" autocomplete="email">
 
-          <label class="key-label" for="password">Password</label>
-          <input id="password" class="key-input" type="password" name="password" required minlength="10" autocomplete="new-password">
+          <label class="field-label" for="password">Password</label>
+          <input id="password" class="field-input" type="password" name="password" required minlength="10" autocomplete="new-password">
           <p class="auth-hint muted">At least 10 characters. Length is the only rule that helps.</p>
 
-          <div class="key-actions">
+          <div class="field-actions">
             <button type="submit" class="btn btn-primary">Create account</button>
           </div>
         </form>

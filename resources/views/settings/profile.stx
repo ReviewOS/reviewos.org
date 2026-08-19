@@ -74,8 +74,8 @@ const website = String(account?.website ?? '')
       <form class="key-form panel" method="post" action="/api/user/profile">
         <CsrfField />
 
-        <label class="key-label" for="handle">Handle</label>
-        <input id="handle" class="key-input mono" type="text" name="handle" value="{{ handle }}" maxlength="39" required>
+        <label class="field-label" for="handle">Handle</label>
+        <input id="handle" class="field-input mono" type="text" name="handle" value="{{ handle }}" maxlength="39" required>
         {{--
           The cost, at the point of paying it. A rename moves this page and
           every repository URL under it, and a warning in a confirmation dialog
@@ -86,19 +86,19 @@ const website = String(account?.website ?? '')
           already written down will stop working.
         </p>
 
-        <label class="key-label" for="name">Name</label>
-        <input id="name" class="key-input" type="text" name="name" value="{{ name }}" maxlength="100">
+        <label class="field-label" for="name">Name</label>
+        <input id="name" class="field-input" type="text" name="name" value="{{ name }}" maxlength="100">
 
-        <label class="key-label" for="bio">Bio</label>
-        <textarea id="bio" class="key-input" name="bio" rows="3" maxlength="300">{{ bio }}</textarea>
+        <label class="field-label" for="bio">Bio</label>
+        <textarea id="bio" class="field-input" name="bio" rows="3" maxlength="300">{{ bio }}</textarea>
 
-        <label class="key-label" for="location">Location</label>
-        <input id="location" class="key-input" type="text" name="location" value="{{ location }}" maxlength="100">
+        <label class="field-label" for="location">Location</label>
+        <input id="location" class="field-input" type="text" name="location" value="{{ location }}" maxlength="100">
 
-        <label class="key-label" for="website">Website</label>
-        <input id="website" class="key-input" type="url" name="website" value="{{ website }}" maxlength="200" placeholder="https://example.com">
+        <label class="field-label" for="website">Website</label>
+        <input id="website" class="field-input" type="url" name="website" value="{{ website }}" maxlength="200" placeholder="https://example.com">
 
-        <div class="key-actions">
+        <div class="field-actions">
           <button type="submit" class="btn btn-primary">Save</button>
         </div>
       </form>

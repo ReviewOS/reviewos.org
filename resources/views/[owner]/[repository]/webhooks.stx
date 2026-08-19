@@ -152,11 +152,11 @@ const name = String(params.repository)
           <input type="hidden" name="repository" value="{{ name }}">
           <input type="hidden" name="operation" value="create">
 
-          <label class="key-label" for="hook-url">Payload URL</label>
-          <input id="hook-url" class="key-input mono" type="url" name="url" required placeholder="https://ci.example.com/hooks/reviewos">
+          <label class="field-label" for="hook-url">Payload URL</label>
+          <input id="hook-url" class="field-input mono" type="url" name="url" required placeholder="https://ci.example.com/hooks/reviewos">
 
-          <label class="key-label" for="hook-events">Events</label>
-          <select id="hook-events" class="key-input" name="events">
+          <label class="field-label" for="hook-events">Events</label>
+          <select id="hook-events" class="field-input" name="events">
             <option value="*">Everything</option>
             @foreach (eventOptions as option)
               <option value="{{ option.event }}">{{ option.event }}</option>
@@ -168,7 +168,7 @@ const name = String(params.repository)
             you can check the endpoint before anything real depends on it.
           </p>
 
-          <div class="key-actions">
+          <div class="field-actions">
             <button type="submit" class="btn btn-primary">Add webhook</button>
           </div>
         </form>

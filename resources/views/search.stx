@@ -162,14 +162,20 @@ function tabHref(key) {
                   <p class="search-result-desc">{{ hit.description }}</p>
                 @endif
 
+                {{-- The separator belongs between two things. Written as a
+                    prefix it renders as a dangling dot on every repository
+                    with no topics on it, which is most of them. --}}
                 <p class="search-result-meta muted">
                   @if (hit.topics.length > 0)
                     @foreach (hit.topics as topic)
                       <span class="search-label">{{ topic }}</span>
                     @endforeach
+                    @if (hit.pushed_at)
+                      &middot;
+                    @endif
                   @endif
                   @if (hit.pushed_at)
-                    &middot; pushed {{ relativeTime(hit.pushed_at * 1000) }}
+                    pushed {{ relativeTime(hit.pushed_at * 1000) }}
                   @endif
                 </p>
               </div>
