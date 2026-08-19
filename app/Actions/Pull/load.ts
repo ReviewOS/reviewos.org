@@ -12,6 +12,7 @@
  */
 
 import type { DiffStreamResult } from '../Git/diffStream'
+import process from 'node:process'
 import { streamCommitDiff, streamMergeBaseDiff } from '../Git/diffStream'
 import { mergeBase, runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
@@ -25,7 +26,16 @@ import { repositoryPath } from '../Git/storage'
  * arbitrary sizes - is where the reader belongs. The page says so in a banner
  * rather than silently rendering part of a change as though it were all of it.
  */
-export const SSR_DIFF_BYTE_LIMIT = 8 * 1024 * 1024
+export const SSR_DIFF_BYTE_LIMIT = (() => {
+  // Env-tunable so the truncation *banner* can be tested against an ordinary
+  // fixture rather than an eight megabyte one. An instance can lower it too,
+  // which is a reasonable thing to want on a small box - but the default is
+  // the number the streamed path uses, and garbage falls back to it rather
+  // than to zero, because a budget of zero truncates every diff on the site.
+  const configured = Number(process.env.SSR_DIFF_BYTE_LIMIT)
+
+  return Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 8 * 1024 * 1024
+})()
 
 export interface BoundedDiff {
   /** The patch text, whole when `truncated` is false, cut at the budget otherwise. */
