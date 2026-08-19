@@ -96,7 +96,7 @@ export default defineModel({
       fillable: true,
       default: false,
       validation: { rule: schema.boolean() },
-      factory: faker => faker.datatype.boolean(),
+      factory: faker => faker.datatype.boolean(0.2),
     },
 
     resolved_by_id: {

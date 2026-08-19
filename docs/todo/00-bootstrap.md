@@ -96,17 +96,17 @@ Each one is committed and pushed in the repository named.
 - [x] **stacks** - bunpress was pinned at `^0.1.18`, where `/search-index.json` does not exist, so
       every documentation site built on this framework had a search box that took a query and
       answered nothing. `0.70.370`.
-- [ ] **stacks** - `faker.datatype.boolean(0.2)` - the bare-probability form faker-js accepts, and
-      the form the framework's own `ProductUnit` model uses - is still a type error, and it is the
-      one error `./buddy typecheck` reports here. Fixed and tagged as 0.70.372, and that release
-      cannot publish: the `Releaser` job fails building `storage/framework/core/mobile`, which
-      imports `craft-native/mobile` - a subpath the published `craft-native@0.0.55` does not export.
+- [x] **stacks** - `faker.datatype.boolean(0.2)` - the bare-probability form faker-js accepts, and
+      the form the framework's own `ProductUnit` model uses - was a type error, and the one error
+      `./buddy typecheck` reported here. It was fixed and tagged as 0.70.372, and that release could
+      not publish: the `Releaser` job failed building `storage/framework/core/mobile`, which imports
+      `craft-native/mobile` - a subpath the published `craft-native@0.0.55` did not export.
 
-      The craft side is ready and released as `v0.0.65`: the entry point is built, exported, and
-      the tag is on `origin`. It has not reached npm because **that repository's GitHub Actions have
-      not run since 1 June** - no workflow run exists for any push or tag since, including today's.
-      So the chain is one manual publish, or one repository's Actions, away from closing, and both
-      of those are somebody's decision rather than a fix.
+      **Closed by the 0.72 line, which carries the fix and publishes.** The probability form
+      typechecks against the installed framework, and `app/Models/ReviewThread.ts` uses it rather
+      than a bare `boolean()`: a factory that resolves a fifth of its threads is closer to a real
+      repository than one that resolves half, and a use in the tree is what makes a regression here
+      fail `./buddy typecheck` instead of going unnoticed until somebody writes the form again.
 
 - [x] **bun-router** - Static files were served gzipped and nothing else was. Every response a route
       produced went out whole: 253 KB of HTML on this project's landing page, `Accept-Encoding`
