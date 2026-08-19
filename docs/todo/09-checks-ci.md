@@ -897,10 +897,26 @@ requeue is not yet reading it.
       computed-value time, so every one of those borders fell back to `currentColor` and rendered at
       full text contrast. In dark mode the tab underline was drawn in near-white against a hairline
       elsewhere on the same screen. The token is `--line`; all eight now use it.
-- [ ] Pause, resume, cancel, retry from the start, and retry from a named step
+- [x] Pause, resume, cancel, retry from the start, and retry from a named step
 
-      **Cancel is done; the other four are not.** Cancelling is the one that has something to act on
-      while nothing executes, and it is the one the state machine exists for.
+      **All five.** Retrying from the start and from a named step are `scope: 'all'` and
+      `scope: 'step'` on the re-run action, above. Pause and resume are `POST
+      /repos/workflow-runs/pause`, both directions through one action because they are one decision
+      with a sign - two endpoints would be two places that have to agree about what a held run is.
+
+      A hold stops what has not started, not what is running. A runner mid-build cannot be politely
+      interrupted - that is why cancellation is cooperative - and a screen claiming the run has
+      stopped while a machine is still billing for it would be a lie in the expensive direction. The
+      claim only ever hands out work from a run in `queued` or `running`, so a held run is one no
+      machine is offered work from, and the rule stays in the one place that decides.
+
+      `paused_at` is a column beside the state because resuming has to put the run back to whatever
+      it *would* have been, which is computed from the jobs and cannot be if the pause overwrote the
+      only record that there was a pause. A run held while three jobs were running and resumed after
+      they finished is a run that has finished - a remembered "it was running" would put it back to
+      a state it left while nobody was watching.
+
+      Cancelling was the first of the five, and it is the one the state machine exists for.
 
       A run goes to `cancelling`, not straight to `cancelled`: the jobs are on machines this
       instance does not control, and saying they have stopped before they have is a screen telling

@@ -297,6 +297,20 @@ const canRerun = Boolean(run)
   && runIsFinished(String(run.state))
   && Boolean(repoAccess?.can?.('workflow:cancel'))
 
+/**
+ * Whether this run is being held, which decides what the button says.
+ *
+ * Read off `paused_at` rather than off the state: a held run's state is
+ * `paused`, but so is a run holding at a gate, and offering to "resume" one of
+ * those would be a control that does nothing.
+ */
+const runPaused = Boolean(run?.paused_at)
+
+/** Who held it, by handle, for the question asked the moment it is seen. */
+const pausedBy = run?.paused_by_id
+  ? String((await db.selectFrom('users').select(['handle']).where('id', '=', Number(run.paused_by_id)).executeTakeFirst())?.handle ?? '')
+  : ''
+
 /** Whether anything in this run has a failure to run again. */
 const hasFailures = Boolean(run) && jobRows.some((job: any) => ['failed', 'cancelled'].includes(String(job.state)))
 
@@ -491,7 +505,14 @@ const jobs = jobRows.map((job) => {
      * the instance knew the answer the whole time. Computed from the same rules
      * the dispatcher uses, so the page cannot explain a decision nobody made.
      */
-    waitingBecause: String(job.state) === 'queued'
+    /*
+     * Why a queued job has not started - unless the answer is on the run.
+     *
+     * A held run's jobs are queued rows no machine is offered, and explaining
+     * that as "no runner has these labels" would send somebody to look at a
+     * fleet that is working perfectly.
+     */
+    waitingBecause: String(job.state) === 'queued' && !runPaused
       ? explainWaiting({
           id: Number(job.id),
           state: String(job.state),
@@ -877,6 +898,21 @@ const base = `/${ownerHandle}/${repositoryName}`
             · untrusted
           @endif
         </p>
+      @endif
+
+      {{--
+        A held run, said out loud.
+
+        Its jobs sit at "queued" and no machine is offered them, which without
+        this sentence is indistinguishable from a fleet that has gone away -
+        and that is the wrong afternoon to send somebody on.
+      --}}
+      @if (runPaused)
+        <div class="panel notice">
+          This run is held{{ pausedBy ? ` by ${pausedBy}` : '' }}. Nothing new will start until somebody
+          resumes it; whatever was already on a machine is still running, because a build in progress
+          cannot be politely interrupted.
+        </div>
       @endif
 
       @if (definitionDiffers)
@@ -1305,6 +1341,25 @@ const base = `/${ownerHandle}/${repositoryName}`
             has and the API does not is how a product grows a second, undocumented
             way to change its own state.
           --}}
+          {{--
+            Holding the run, and letting it go again.
+
+            Between "let it finish" and "cancel it": what is already on a
+            machine keeps going, and everything that has not started stops.
+            The button says which direction it goes, because a single toggle
+            labelled "pause" on a held run is the control people press twice.
+          --}}
+          @if (canCancel)
+            <form method="post" action="/api/repos/workflow-runs/pause" class="run-cancel">
+              <CsrfField />
+              <input type="hidden" name="owner" value="{{ ownerHandle }}">
+              <input type="hidden" name="repo" value="{{ repositoryName }}">
+              <input type="hidden" name="number" value="{{ runNumber }}">
+              <input type="hidden" name="action" value="{{ runPaused ? 'resume' : 'pause' }}">
+              <button class="button" type="submit">{{ runPaused ? 'Resume run' : 'Hold run' }}</button>
+            </form>
+          @endif
+
           @if (canCancel)
             <form method="post" action="/api/repos/workflow-runs/cancel" class="run-cancel">
               <CsrfField />

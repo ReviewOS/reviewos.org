@@ -3173,13 +3173,15 @@ declare module '@stacksjs/database' {
       matrix_values: string
       concurrency_group: string
       outputs: string
-      kind: "command" | "wait" | "block" | "trigger"
+      kind: "command" | "wait" | "block" | "trigger" | "await"
+      wake_at: string
       settings: string
       priority: number
       group_label: string
       approved_by_id: number
       approved_at: string
       attempt: number
+      resume_from_step: number
       uploaded_by_job_id: number
       upload_depth: number
       triggered_run_id: number
@@ -3207,9 +3209,11 @@ declare module '@stacksjs/database' {
       conditionReason: string
       matrixValues: string
       concurrencyGroup: string
+      wakeAt: string
       groupLabel: string
       approvedById: number
       approvedAt: string
+      resumeFromStep: number
       uploadedByJobId: number
       uploadDepth: number
       triggeredRunId: number
@@ -3274,6 +3278,27 @@ declare module '@stacksjs/database' {
       jobKey: string
       createdById: number
     }
+    workflow_run_events: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      workflow_run_id: number
+      name: string
+      payload: string
+      idempotency_key: string
+      actor_id: number
+      source: string
+      delivered_to: number
+      repository_id: number
+      createdAt: string
+      updatedAt: string | null
+      workflowRunId: number
+      idempotencyKey: string
+      actorId: number
+      deliveredTo: number
+      repositoryId: number
+    }
     workflow_runs: {
       // columns
       id: number
@@ -3284,6 +3309,8 @@ declare module '@stacksjs/database' {
       repository_id: number
       number: number
       state: "queued" | "running" | "waiting" | "paused" | "cancelling" | "cancelled" | "failed" | "succeeded"
+      paused_at: string
+      paused_by_id: number
       event: string
       event_ref: string
       head_sha: string
@@ -3308,6 +3335,8 @@ declare module '@stacksjs/database' {
       updatedAt: string | null
       workflowVersionId: number
       repositoryId: number
+      pausedAt: string
+      pausedById: number
       eventRef: string
       headSha: string
       changedPaths: string
@@ -3389,6 +3418,8 @@ declare module '@stacksjs/database' {
       started_at: string
       finished_at: string
       outputs: string
+      error: string
+      reused_from_attempt: number
       queued_ms: number
       active_ms: number
       repository_id: number
@@ -3402,6 +3433,7 @@ declare module '@stacksjs/database' {
       exitCode: number
       startedAt: string
       finishedAt: string
+      reusedFromAttempt: number
       queuedMs: number
       activeMs: number
       repositoryId: number
@@ -3455,7 +3487,7 @@ declare module '@stacksjs/database' {
       condition: string
       matrix: string
       continue_on_error: boolean
-      kind: "command" | "wait" | "block" | "trigger"
+      kind: "command" | "wait" | "block" | "trigger" | "await"
       settings: string
       if_changed: string
       priority: number

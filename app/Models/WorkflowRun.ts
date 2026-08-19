@@ -99,6 +99,36 @@ export default defineModel({
       factory: () => 'queued',
     },
 
+    /**
+     * When somebody stopped this run handing out new work.
+     *
+     * A pause is not a cancellation and not a gate. **What is already on a
+     * machine keeps going** - a runner mid-build is not something this instance
+     * can politely interrupt, and pretending otherwise would be a screen saying
+     * work has stopped while it is still costing somebody money. What stops is
+     * everything that has not started: the claim only hands out jobs from a run
+     * that is going, and a paused one is not.
+     *
+     * A column beside the state rather than only a state, because resuming has
+     * to put the run back to whatever it *would* have been - which is computed
+     * from the jobs, and cannot be if the pause overwrote the only record that
+     * a pause happened.
+     */
+    paused_at: {
+      order: 30,
+      fillable: true,
+      validation: { rule: schema.string().max(40) },
+      factory: () => null,
+    },
+
+    /** Who paused it, for the question asked immediately afterwards. */
+    paused_by_id: {
+      order: 31,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
     /** `push`, `pull_request`, `pull_request_target`, `schedule`, `dispatch`. */
     event: {
       order: 5,

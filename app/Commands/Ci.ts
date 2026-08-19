@@ -368,6 +368,41 @@ export default function (cli: CLI) {
     })
 
   cli
+    .command('ci:hold <number>', 'Hold a run, so nothing new starts')
+    .option('--url <url>', 'Where the instance is')
+    .option('--token <token>', 'A credential that may cancel')
+    .option('--repository <owner/repo>', 'Which repository')
+    .option('--resume', 'Let a held run go again instead', { default: false })
+    .action(async (number: string, options: CiOptions & { resume?: boolean }) => {
+      const where = repository(options)
+
+      if (!where)
+        return fail('Say which repository: --repository owner/name')
+
+      const { url, token } = connection(options)
+
+      const body = await call({
+        url,
+        token,
+        method: 'POST',
+        path: '/api/repos/workflow-runs/pause',
+        body: {
+          owner: where.owner,
+          repo: where.repo,
+          number: Number(number),
+          action: options.resume ? 'resume' : 'pause',
+        },
+      })
+
+      console.log(`run #${number} is ${body.workflow_run?.state ?? 'unknown'}`)
+
+      // Said out loud, because the thing people get wrong about a hold is
+      // exactly this: it stops what has not started, not what is running.
+      if (!options.resume && body.changed)
+        console.log('what is already on a machine keeps going; nothing new will start')
+    })
+
+  cli
     .command('ci:rerun <number>', 'Run a finished run again')
     .option('--url <url>', 'Where the instance is')
     .option('--token <token>', 'A credential that may cancel')

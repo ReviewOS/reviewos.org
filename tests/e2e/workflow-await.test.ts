@@ -425,3 +425,131 @@ describe('a wait that runs out', () => {
     expect(again.slept).toBe(0)
   }, 120_000)
 })
+
+/*
+ * Holding a run, which is the control between "let it finish" and "cancel it".
+ * The property worth pinning is the one people get wrong about a pause: what is
+ * already on a machine keeps going, and what stops is everything that has not
+ * started.
+ */
+describe('a run somebody holds', () => {
+  async function hold(number: number, action: 'pause' | 'resume'): Promise<{ status: number, body: any }> {
+    const answer = await fetch(`http://127.0.0.1:${port}/api/repos/workflow-runs/pause`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${created.token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ owner: created.handle, repo: created.name, number, action }),
+    })
+
+    return { status: answer.status, body: await answer.json().catch(() => null) }
+  }
+
+  test('is one no machine is offered work from, and is not one whose jobs were thrown away', async () => {
+    if (!available)
+      return
+
+    const number = await dispatch()
+    const { status, body } = await hold(number, 'pause')
+
+    expect(status).toBe(200)
+    expect(body.workflow_run.state).toBe('paused')
+    expect(body.changed).toBe(true)
+
+    const jobs = await jobsOf(number)
+
+    /*
+     * The job is still queued. Holding the *run* rather than rewriting every
+     * job is what keeps this one state change instead of a rule spread across
+     * the graph - and it is why resuming does not have to remember anything.
+     */
+    expect(String(jobs.build.state)).toBe('queued')
+
+    // And the claim will not hand it out, because it only takes work from a run
+    // in `queued` or `running`.
+    const { claimNextJob } = await import('../../app/Actions/Runner/claim')
+
+    const claimed = await claimNextJob({
+      id: 0,
+      runnerId: 'nobody',
+      scopeType: 'instance',
+      scopeId: null,
+      labels: ['ubuntu-latest'],
+      poolId: null,
+    } as any)
+
+    expect(claimed?.runId).not.toBe(Number(jobs.build.run_id))
+  }, 120_000)
+
+  test('holding it twice is not an error, because two people press one button', async () => {
+    if (!available)
+      return
+
+    const number = await dispatch()
+
+    await hold(number, 'pause')
+
+    const again = await hold(number, 'pause')
+
+    expect(again.status).toBe(200)
+    expect(again.body.changed).toBe(false)
+    expect(again.body.workflow_run.state).toBe('paused')
+  }, 120_000)
+
+  test('and resuming recomputes the state from the jobs rather than restoring one', async () => {
+    if (!available)
+      return
+
+    const number = await dispatch()
+
+    await hold(number, 'pause')
+
+    const jobs = await jobsOf(number)
+
+    /*
+     * The case a remembered state gets wrong: the run was held while its work
+     * was outstanding, and by the time somebody resumed it the jobs had all
+     * finished. A stored "it was running" would put it back to a state it left
+     * while nobody was watching.
+     */
+    await db
+      .updateTable('workflow_jobs')
+      .set({ state: 'succeeded', finished_at: new Date().toISOString() })
+      .where('workflow_run_id', '=', Number(jobs.build.run_id))
+      .execute()
+
+    const resumed = await hold(number, 'resume')
+
+    expect(resumed.status).toBe(200)
+    expect(resumed.body.workflow_run.state).toBe('succeeded')
+
+    const run = await db
+      .selectFrom('workflow_runs')
+      .select(['paused_at', 'state'])
+      .where('id', '=', Number(jobs.build.run_id))
+      .executeTakeFirst()
+
+    expect(run.paused_at).toBeNull()
+  }, 120_000)
+
+  test('a run that has finished cannot be held, and says so rather than pretending', async () => {
+    if (!available)
+      return
+
+    const number = await dispatch()
+    const jobs = await jobsOf(number)
+
+    await db
+      .updateTable('workflow_runs')
+      .set({ state: 'succeeded', finished_at: new Date().toISOString() })
+      .where('id', '=', Number(jobs.build.run_id))
+      .execute()
+
+    const { status, body } = await hold(number, 'pause')
+
+    expect(status).toBe(409)
+    expect(String(body.error)).toContain('nothing left to hold')
+  }, 120_000)
+})

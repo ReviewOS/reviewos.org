@@ -15799,6 +15799,34 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/workflow-runs/pause": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "action"?: string } } }
+    responses: {
+      "200": { content: { "application/json": { "workflow_run"?: { "number"?: number; "state"?: string }; "changed"?: boolean } } }
+      "303": { content: never }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "409": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/workflow-runs/rerun": {
     get?: never
     put?: never

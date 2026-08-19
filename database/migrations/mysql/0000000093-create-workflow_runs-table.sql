@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS `workflow_runs` (
   `repository_id` bigint not null,
   `number` integer not null default 1,
   `state` ENUM('queued', 'running', 'waiting', 'paused', 'cancelling', 'cancelled', 'failed', 'succeeded') default 'queued',
+  `paused_at` varchar(40),
+  `paused_by_id` integer,
   `event` varchar(40) not null,
   `event_ref` varchar(400),
   `head_sha` varchar(40),

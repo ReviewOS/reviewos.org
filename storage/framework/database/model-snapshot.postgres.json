@@ -9692,6 +9692,23 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "paused_at",
+            "type": "string",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false,
+            "maxLength": 40
+          },
+          {
+            "name": "paused_by_id",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -14151,7 +14168,7 @@
       }
     ]
   },
-  "hash": "dd06e5e656e89012ad51b3fa49d44cd954a512340fe0b6822b3a6689a24a379c",
+  "hash": "7cb7dfd5f404447157818008878174af74f00b71e89fbd87ce3aade3c8422949",
   "dialect": "postgres",
-  "updatedAt": "2026-08-19T20:37:37.633Z"
+  "updatedAt": "2026-08-19T20:46:23.284Z"
 }

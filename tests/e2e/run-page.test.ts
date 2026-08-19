@@ -284,6 +284,45 @@ describe('a step whose result an earlier attempt produced', () => {
 })
 
 /*
+ * Holding a run from the screen. The sentence matters as much as the button:
+ * a held run's jobs sit at "queued" and no machine is offered them, which
+ * without an explanation is indistinguishable from a fleet that has gone away.
+ */
+describe('a run somebody held', () => {
+  test('says so, and offers to resume rather than to hold again', async () => {
+    if (!available)
+      return
+
+    await db
+      .updateTable('workflow_runs')
+      .set({ state: 'paused', paused_at: new Date().toISOString(), paused_by_id: created.ownerId })
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', created.running)
+      .execute()
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.running}`, created.ownerToken)
+
+    expect(html).toContain('This run is held')
+    expect(html).toContain(created.handle)
+    expect(html).toContain('Resume run')
+    expect(html).toContain('/api/repos/workflow-runs/pause')
+
+    await db
+      .updateTable('workflow_runs')
+      .set({ state: 'running', paused_at: null, paused_by_id: null })
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', created.running)
+      .execute()
+
+    // And back to offering the hold once it is going again.
+    const going = await page(`/${created.handle}/${created.name}/run/${created.running}`, created.ownerToken)
+
+    expect(going).toContain('Hold run')
+    expect(going).not.toContain('This run is held')
+  })
+})
+
+/*
  * A run holding still for something outside it, and the control that ends the
  * wait. Asked of the rendered page, because a template that renders nothing is
  * this codebase's most common way to ship a feature that does not exist.

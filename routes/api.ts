@@ -831,6 +831,15 @@ route.post('/repos/workflow-runs/cancel', 'Actions/Workflow/CancelWorkflowRunAct
  */
 route.post('/repos/workflow-runs/rerun', 'Actions/Workflow/RerunWorkflowRunAction')
 /*
+ * Holding a run, and letting it go again.
+ *
+ * Between "let it finish" and "cancel it", which is the control people actually
+ * want when a dependency looks wrong: cancelling to buy five minutes means
+ * re-running everything that had already passed. Both directions through one
+ * action, because they are one decision with a sign.
+ */
+route.post('/repos/workflow-runs/pause', 'Actions/Workflow/PauseWorkflowRunAction')
+/*
  * Stop one job, leaving the rest of the run alone.
  *
  * The case cancelling a whole run cannot serve: one job stuck on a quiet

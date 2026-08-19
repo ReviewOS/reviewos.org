@@ -520,7 +520,7 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
   const settled = await jobsOfRun(runId)
   const state = runStateFromJobs(graphRows(settled).map(effectiveState))
 
-  const run = await db.selectFrom('workflow_runs').select(['state']).where('id', '=', runId).executeTakeFirst()
+  const run = await db.selectFrom('workflow_runs').select(['state', 'paused_at']).where('id', '=', runId).executeTakeFirst()
   const from = String(run?.state ?? 'queued')
 
   /*
@@ -530,6 +530,19 @@ async function recordRunState(runId: number, now: Date): Promise<string> {
    * as "a runner will get to this" and is the opposite of what is true.
    */
   if (await awaitingApproval(runId))
+    return from
+
+  /*
+   * And a held run stays held, whatever its rows say.
+   *
+   * A job finishing inside a paused run would otherwise settle it back to
+   * `running` or `queued` - and the claim reads that state to decide what a
+   * machine may take, so the run would quietly start handing out work again
+   * while the screen still said it was held. Read from the row this function
+   * already fetched rather than through the pause module, which would make
+   * these two files import each other for one boolean.
+   */
+  if (run?.paused_at)
     return from
 
   // A finished run must never move again, whatever the rows now say. A late

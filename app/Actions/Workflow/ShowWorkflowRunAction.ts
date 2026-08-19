@@ -218,6 +218,14 @@ export default new Action({
         trusted: Boolean(run.trusted),
         started_at: run.started_at ?? null,
         finished_at: run.finished_at ?? null,
+        /**
+         * When somebody held this run, when somebody did.
+         *
+         * Beside the state rather than folded into it: `paused` is also what a
+         * run holding at a gate says, and a client that cannot tell those apart
+         * would offer to resume a run nobody held.
+         */
+        paused_at: run.paused_at ?? null,
         reason: run.conclusion_reason ?? null,
         created_at: run.created_at ?? null,
 

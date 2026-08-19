@@ -5707,6 +5707,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/repos/workflow-runs/pause
+   */
+  postReposWorkflowRunsPause(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "action"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "workflow_run"?: { "number"?: number; "state"?: string }; "changed"?: boolean }>> {
+    return request(config, "POST", "/api/repos/workflow-runs/pause", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/repos/workflow-runs/rerun
    */
   postReposWorkflowRunsRerun(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "scope"?: string; "job"?: string; "step"?: string } }, options?: RequestOptions): Promise<ApiResult<{ "workflow_run"?: { "number"?: number; "state"?: string; "attempt"?: number }; "jobs"?: number; "reused"?: number; "reason"?: string }>> {

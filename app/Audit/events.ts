@@ -104,6 +104,8 @@ export type AuditEventName =
   | 'workflow:run-cancelled'
   | 'workflow:job-cancelled'
   | 'workflow:run-rerun'
+  | 'workflow:run-paused'
+  | 'workflow:run-resumed'
   | 'workflow:gate-approved'
   | 'workflow:run-event'
   | 'workflow:enabled'
@@ -192,6 +194,8 @@ export const AUDIT_EVENTS: readonly AuditEventName[] = [
   'workflow:run-cancelled',
   'workflow:job-cancelled',
   'workflow:run-rerun',
+  'workflow:run-paused',
+  'workflow:run-resumed',
   'workflow:gate-approved',
   'workflow:run-event',
   'workflow:enabled',
