@@ -53,6 +53,9 @@ export default {
     // And the one about a thing going away, which is otherwise silent until
     // whoever needed the file goes looking for it.
     'artifact:expired',
+    // And what was put where: the event a deployment dashboard waits on, whose
+    // alternative is polling a history endpoint.
+    'deployment:status',
     // A rule about the tests changed its mind. Rate-limited by its own design:
     // only a transition is an event, so a monitor in alarm for a month sends
     // one message.

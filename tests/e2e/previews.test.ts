@@ -110,6 +110,7 @@ afterAll(async () => {
 
   try {
     if (created.repositoryId) {
+      await db.deleteFrom('deployment_statuses').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
       await db.deleteFrom('deployments').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
       await db.deleteFrom('pull_requests').where('repository_id', '=', created.repositoryId).execute().catch(() => {})
       await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute().catch(() => {})
@@ -275,5 +276,121 @@ describe('the history', () => {
     // first, and a program answering it needs the token as well as the person.
     expect(Number(rows[0].actor_id)).toBe(created.ownerId)
     expect(Number(rows[0].access_token_id)).toBeGreaterThan(0)
+  }, 180_000)
+})
+
+/*
+ * How a deployment got where it is, and putting an earlier one back.
+ *
+ * The deployment row carries where it got to; a column that overwrites itself
+ * keeps one fact out of four, and the one it keeps is never the one being asked
+ * about - which is always "when did it go down, and what did the job say".
+ */
+describe('a deployment\'s history', () => {
+  test('records each state it passed through, not only the last', async () => {
+    if (!available)
+      return
+
+    const made = await deployments({
+      operation: 'create',
+      environment: 'staging',
+      sha: 'f'.repeat(40),
+      state: 'in_progress',
+      url: 'https://staging.test',
+      description: 'the job started',
+    })
+
+    const id = Number(made.body.deployment.id)
+
+    await deployments({ operation: 'update', id, state: 'failed', description: 'the health check never passed' })
+    await deployments({ operation: 'update', id, state: 'active', description: 'the retry worked' })
+
+    const { body } = await deployments({ operation: 'history', id })
+
+    // Oldest first, which is the order it happened in.
+    expect(body.statuses.map((one: any) => one.state)).toEqual(['in_progress', 'failed', 'active'])
+    expect(String(body.statuses[1].description)).toContain('health check')
+  }, 180_000)
+
+  test('and a rollback is a new deployment that names what it restored', async () => {
+    if (!available)
+      return
+
+    const first = await deployments({
+      operation: 'create',
+      environment: 'production',
+      sha: '1'.repeat(40),
+      state: 'active',
+      url: 'https://one.test',
+    })
+
+    const older = Number(first.body.deployment.id)
+
+    await deployments({
+      operation: 'create',
+      environment: 'production',
+      sha: '2'.repeat(40),
+      state: 'active',
+      url: 'https://two.test',
+    })
+
+    const back = await deployments({ operation: 'rollback', id: older })
+
+    expect(back.status).toBe(200)
+    expect(Number(back.body.deployment.restored)).toBe(older)
+
+    /*
+     * A new row rather than the old one revived, because that is what happened:
+     * something was deployed today and it happens to be what was deployed
+     * before. Reviving would leave a history in which the older deployment ran
+     * for a week with a gap in the middle, which is not a thing that occurred.
+     */
+    expect(Number(back.body.deployment.id)).not.toBe(older)
+
+    const { body } = await deployments({ operation: 'history', id: Number(back.body.deployment.id) })
+    const rolled = body.statuses.find((one: any) => one.state === 'rolled_back')
+
+    expect(rolled).toBeTruthy()
+    // The version restored is a column rather than a sentence somebody wrote
+    // into a description and hoped to parse later.
+    expect(Number(rolled.restored)).toBe(older)
+
+    // And only one deployment of that environment is live, because two is a
+    // listing that cannot say what is running.
+    const live = await deployments({ operation: 'list', environment: 'production' })
+    const active = live.body.deployments.filter((one: any) => one.state === 'active')
+
+    expect(active).toHaveLength(1)
+    expect(Number(active[0].id)).toBe(Number(back.body.deployment.id))
+  }, 180_000)
+
+  test('and programs are told, with the state in `action`', async () => {
+    if (!available)
+      return
+
+    const seen: any[] = []
+    const { emitter } = await import('@stacksjs/events')
+    const listener = (payload: any): void => { seen.push(payload) }
+
+    emitter.on('deployment:status' as any, listener as any)
+
+    try {
+      await deployments({
+        operation: 'create',
+        environment: 'announced',
+        sha: '3'.repeat(40),
+        state: 'active',
+        url: 'https://announced.test',
+      })
+
+      const told = seen.find(one => String(one?.deployment?.environment) === 'announced')
+
+      expect(told).toBeTruthy()
+      expect(String(told.action)).toBe('active')
+      expect(String(told.deployment.url)).toBe('https://announced.test')
+    }
+    finally {
+      emitter.off('deployment:status' as any, listener as any)
+    }
   }, 180_000)
 })

@@ -1402,9 +1402,29 @@ failed evidence into success.
 
 ## Deployments
 
-- [ ] `app/Models/Deployment.ts` and `DeploymentStatus.ts`, environments, workflow run and commit
+- [x] `app/Models/Deployment.ts` and `DeploymentStatus.ts`, environments, workflow run and commit
       provenance, preview URL, and deployment history
-- [ ] Environment protection rules, including required reviewers, wait timers, and branch policy
+
+      One deployment model rather than one per feature: a preview for a pull request and a
+      production release are the same row with different environments, which is the point - "what is
+      on staging" and "what is on this pull request's preview" are the same question, and a product
+      answering them from two tables answers them differently within a month.
+
+      `DeploymentStatus` is how it got there, which the row cannot carry. A deployment that went
+      `in_progress` → `failed` → `in_progress` → `active` is four facts and a column keeps one of
+      them - never the one being asked about, which is always "when did it go down and what did the
+      job say". A rollback in particular is unreadable without it: what was restored, and from what,
+      is a question about two states.
+- [x] Environment protection rules, including required reviewers, wait timers, and branch policy
+
+      All three, in `app/Actions/Workflow/environments.ts`, and the distinction between them is the
+      part worth keeping: a **branch policy** refuses, while reviewers and a timer **hold**. Waiting
+      for an approval that must not be given is worse than a clear no, and a reviewer asked to
+      approve a deploy from the wrong branch will approve it.
+
+      The person who *started* the run cannot be the person who approves it, which is the rule that
+      makes required reviewers mean anything. The timer is swept every minute, because a timer that
+      needs somebody to end it is a second approval wearing a clock.
 - [x] Deployment credentials are released only to the deploy job after environment protection
       passes, never to build and test jobs
 
@@ -1414,9 +1434,28 @@ failed evidence into success.
       environment-scoped secrets exist, and `tests/unit/workflow-secrets.test.ts` holds it along
       with the two cases that would quietly undo it: a fork, and a deploy job that has not been
       approved yet.
-- [ ] Preview deployments for non-default branches with expiry and a link on the pull request
+- [x] Preview deployments for non-default branches with expiry and a link on the pull request
+
+      A preview is a deployment with a pull request on it, which is what makes expiry a fact rather
+      than a feature: the thing it belongs to closed, so it is no longer current. Nothing is
+      deleted - "what was on this URL last Tuesday" is a question somebody asks, and expressing "not
+      running any more" by removing the history answers it with silence.
+
+      Swept when a pull request closes *and* whenever a deployment is recorded, which is not belt
+      and braces: a preview recorded by a job that finished after the merge would otherwise stay
+      active forever, and a slow deploy finishing after the merge is the ordinary case.
 - [ ] Gradual deployment stages with health checks, pause, promotion, and rollback expressed as
       durable steps rather than an opaque provider operation
-- [ ] Deployment status API and webhooks use the same actions as the workflow and interface
+- [x] Deployment status API and webhooks use the same actions as the workflow and interface
+
+      One action for the lot - `list`, `create`, `update`, `deactivate`, `rollback`, `history` - and
+      the interface posts to it rather than to a route of its own, for the reason the run controls
+      do: a screen with a way to change state that the API does not have is a product growing a
+      second, undocumented door.
+
+      `deployment:status` is the webhook, named that rather than `deployment:updated` because the
+      latter is already an audit event name and two emissions sharing one would deliver
+      audit-shaped payloads to webhook receivers half the time. `action` carries the state, so one
+      subscription covers recorded through rolled back.
 - [ ] Tests: failed checks prevent deployment, approval gates survive a restart, a fork cannot read
       environment secrets, and rollback records the version restored

@@ -895,6 +895,7 @@ _Inputs are not declared on `Actions/Keys/ManageDeployKeyAction`, so they are no
 | `ref` | body | optional | string |
 | `url` | body | optional | string |
 | `state` | body | optional | string |
+| `description` | body | optional | string |
 | `pull_request` | body | optional | number |
 | `run` | body | optional | number |
 | `reason` | body | optional | string |

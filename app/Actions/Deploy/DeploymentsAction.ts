@@ -6,6 +6,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from '../Repo/authorize'
 import { expirePreviews } from './previews'
+import { announceDeployment, recordStatus } from './statuses'
 
 /**
  * Recording what was put where.
@@ -34,12 +35,14 @@ export default new Action({
   validations: {
     owner: { rule: schema.string() },
     repo: { rule: schema.string() },
-    operation: { rule: schema.enum(['list', 'create', 'update', 'deactivate']) },
+    operation: { rule: schema.enum(['list', 'create', 'update', 'deactivate', 'rollback', 'history']) },
     environment: { rule: schema.string(), required: false },
     sha: { rule: schema.string(), required: false },
     ref: { rule: schema.string(), required: false },
     url: { rule: schema.string(), required: false },
     state: { rule: schema.enum(['in_progress', 'active', 'failed', 'inactive']), required: false },
+    /** What the job wants to say about this status, in one line. */
+    description: { rule: schema.string(), required: false },
     pull_request: { rule: schema.number(), required: false },
     run: { rule: schema.number(), required: false },
     reason: { rule: schema.string(), required: false },
@@ -78,6 +81,97 @@ export default new Action({
       return response.json({ deployments: await listDeployments(repositoryId, environment, limit) })
     }
 
+    if (operation === 'history') {
+      const id = Number(request.get('id'))
+
+      if (!Number.isInteger(id) || id <= 0)
+        return response.json({ error: 'Which deployment?' }, 422)
+
+      return response.json({ statuses: await historyOf(repositoryId, id) })
+    }
+
+    /*
+     * Putting an earlier deployment back.
+     *
+     * Recorded as a *new* deployment of the old commit rather than by reviving
+     * the old row, because that is what happened: something was deployed today,
+     * and it happens to be what was deployed last Tuesday. Reviving the row
+     * would leave a history in which Tuesday's deployment ran for a week with a
+     * gap in the middle, which is not a thing that occurred.
+     *
+     * The status on it names what it restored, so "rollback records the version
+     * restored" is a column rather than a sentence somebody wrote into a
+     * description and hoped to parse later.
+     */
+    if (operation === 'rollback') {
+      const id = Number(request.get('id'))
+
+      if (!Number.isInteger(id) || id <= 0)
+        return response.json({ error: 'Which deployment should be restored?' }, 422)
+
+      const restored = await db
+        .selectFrom('deployments')
+        .select(['id', 'environment', 'head_sha', 'ref', 'url', 'workflow_run_id'])
+        .where('id', '=', id)
+        .where('repository_id', '=', repositoryId)
+        .executeTakeFirst()
+
+      if (!restored)
+        return response.json({ error: 'No such deployment' }, 404)
+
+      // Whatever is live in that environment stops being live, in the same
+      // pass: two active deployments of one environment is a listing that
+      // cannot say what is running.
+      await db
+        .updateTable('deployments')
+        .set({ state: 'inactive', reason: `rolled back to deployment ${id}`, finished_at: new Date().toISOString() })
+        .where('repository_id', '=', repositoryId)
+        .where('environment', '=', String(restored.environment))
+        .where('state', 'in', ['in_progress', 'active'])
+        .execute()
+
+      const again = await db
+        .insertInto('deployments')
+        .values({
+          repository_id: repositoryId,
+          environment: String(restored.environment),
+          head_sha: String(restored.head_sha),
+          ref: String(restored.ref ?? ''),
+          workflow_run_id: restored.workflow_run_id ?? null,
+          url: String(restored.url ?? ''),
+          state: 'active',
+          reason: `restored from deployment ${id}`,
+          created_by_id: auth.context.user?.id ?? null,
+        })
+        .returning(['id'])
+        .executeTakeFirst()
+
+      await recordStatus({
+        deploymentId: Number(again?.id ?? 0),
+        repositoryId,
+        state: 'rolled_back',
+        description: `restored from deployment ${id}`,
+        url: String(restored.url ?? ''),
+        restoredDeploymentId: id,
+        actorId: auth.context.user?.id ?? null,
+      })
+
+      await auditEvent('deployment:updated', {
+        subject: { type: 'repository', id: repositoryId },
+        actorId: auth.context.user?.id ?? null,
+        ...await auditFrom(request),
+        repositoryId,
+        detail: { deployment: Number(again?.id ?? 0), environment: String(restored.environment), state: 'rolled_back', restored: id },
+      }).catch(() => null)
+
+      await announceDeployment(repositoryId, Number(again?.id ?? 0), 'rolled_back')
+
+      return response.json({
+        deployment: { id: Number(again?.id ?? 0), environment: String(restored.environment), state: 'active', restored: id },
+        deployments: await listDeployments(repositoryId, '', 30),
+      })
+    }
+
     if (operation === 'deactivate' || operation === 'update') {
       const id = Number(request.get('id'))
 
@@ -110,6 +204,22 @@ export default new Action({
         .where('id', '=', id)
         .execute()
 
+      /*
+       * And the history of how it got there, which the column cannot carry.
+       *
+       * A deployment that went `in_progress` -> `failed` -> `in_progress` ->
+       * `active` is four facts, and a row that overwrites itself keeps one of
+       * them - the one nobody is asking about by the time they ask.
+       */
+      await recordStatus({
+        deploymentId: id,
+        repositoryId,
+        state,
+        description: String(request.get('description') ?? reason ?? ''),
+        url: request.get('url') === undefined ? null : String(request.get('url') ?? ''),
+        actorId: auth.context.user?.id ?? null,
+      })
+
       await auditEvent('deployment:updated', {
         subject: { type: 'repository', id: repositoryId },
         actorId: auth.context.user?.id ?? null,
@@ -117,6 +227,8 @@ export default new Action({
         repositoryId,
         detail: { deployment: id, environment: String(existing.environment), state, reason },
       }).catch(() => null)
+
+      await announceDeployment(repositoryId, id, state)
 
       return response.json({ deployments: await listDeployments(repositoryId, '', 30) })
     }
@@ -164,6 +276,15 @@ export default new Action({
       .returning(['id'])
       .executeTakeFirst()
 
+    await recordStatus({
+      deploymentId: Number(created?.id ?? 0),
+      repositoryId,
+      state: String(request.get('state') ?? 'in_progress'),
+      description: String(request.get('description') ?? ''),
+      url: String(request.get('url') ?? ''),
+      actorId: auth.context.user?.id ?? null,
+    })
+
     await auditEvent('deployment:recorded', {
       subject: { type: 'repository', id: repositoryId },
       actorId: auth.context.user?.id ?? null,
@@ -179,6 +300,8 @@ export default new Action({
      * that ordering is the ordinary one for a slow deploy.
      */
     await expirePreviews(repositoryId).catch(() => null)
+
+    await announceDeployment(repositoryId, Number(created?.id ?? 0), String(request.get('state') ?? 'in_progress'))
 
     return response.json({
       deployment: { id: Number(created?.id ?? 0), environment, state: String(request.get('state') ?? 'in_progress') },
@@ -211,5 +334,28 @@ async function listDeployments(repositoryId: number, environment: string, limit:
     reason: String(row.reason ?? ''),
     at: row.created_at ? String(row.created_at) : null,
     until: row.finished_at ? String(row.finished_at) : null,
+  }))
+}
+
+/** One deployment's history, oldest first, which is the order it happened in. */
+async function historyOf(repositoryId: number, deploymentId: number): Promise<Array<Record<string, unknown>>> {
+  const rows = await db
+    .selectFrom('deployment_statuses')
+    .select(['id', 'state', 'description', 'url', 'restored_deployment_id', 'actor_id', 'created_at'])
+    .where('repository_id', '=', repositoryId)
+    .where('deployment_id', '=', deploymentId)
+    .orderBy('id')
+    .limit(200)
+    .execute()
+    .catch(() => [])
+
+  return rows.map(row => ({
+    id: Number(row.id),
+    state: String(row.state),
+    description: String(row.description ?? ''),
+    url: String(row.url ?? ''),
+    /** The deployment this one put back, when it is a rollback. */
+    restored: row.restored_deployment_id ? Number(row.restored_deployment_id) : null,
+    at: row.created_at ? String(row.created_at) : null,
   }))
 }

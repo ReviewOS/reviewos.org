@@ -113,6 +113,15 @@ export default {
   'run:action_required': ['DispatchWebhooks'],
   'artifact:expired': ['DispatchWebhooks'],
   /*
+   * Something was put somewhere, or taken back off it.
+   *
+   * `deployment:status` rather than `deployment:updated`, which is already an
+   * audit event name: two emissions sharing a name would deliver audit-shaped
+   * payloads to webhook receivers half the time, and the half is whichever
+   * code path fired.
+   */
+  'deployment:status': ['DispatchWebhooks'],
+  /*
    * A rule about the tests started, or stopped, holding.
    *
    * Webhook-only for the same reason as the two above, with one addition: it

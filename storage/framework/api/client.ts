@@ -5072,7 +5072,7 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/deployments
    */
-  postReposDeployments(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "list" | "create" | "update" | "deactivate"; "environment"?: string; "sha"?: string; "ref"?: string; "url"?: string; "state"?: "in_progress" | "active" | "failed" | "inactive"; "pull_request"?: number; "run"?: number; "reason"?: string; "id"?: number; "limit"?: number } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
+  postReposDeployments(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: "list" | "create" | "update" | "deactivate" | "rollback" | "history"; "environment"?: string; "sha"?: string; "ref"?: string; "url"?: string; "state"?: "in_progress" | "active" | "failed" | "inactive"; "description"?: string; "pull_request"?: number; "run"?: number; "reason"?: string; "id"?: number; "limit"?: number } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
     return request(config, "POST", "/api/repos/deployments", input ?? {}, [], true, options)
   },
 

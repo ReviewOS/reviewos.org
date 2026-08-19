@@ -36758,7 +36758,9 @@
                       "list",
                       "create",
                       "update",
-                      "deactivate"
+                      "deactivate",
+                      "rollback",
+                      "history"
                     ]
                   },
                   "environment": {
@@ -36781,6 +36783,9 @@
                       "failed",
                       "inactive"
                     ]
+                  },
+                  "description": {
+                    "type": "string"
                   },
                   "pull_request": {
                     "type": "number"

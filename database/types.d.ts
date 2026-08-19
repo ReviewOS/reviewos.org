@@ -627,6 +627,25 @@ declare module '@stacksjs/database' {
       canWrite: boolean
       lastUsedAt: string
     }
+    deployment_statuses: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      deployment_id: number
+      state: "queued" | "in_progress" | "active" | "failed" | "inactive" | "rolled_back"
+      description: string
+      url: string
+      restored_deployment_id: number
+      actor_id: number
+      repository_id: number
+      createdAt: string
+      updatedAt: string | null
+      deploymentId: number
+      restoredDeploymentId: number
+      actorId: number
+      repositoryId: number
+    }
     deployments: {
       // columns
       id: number

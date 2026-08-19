@@ -120,6 +120,15 @@ export const WEBHOOK_EVENTS = [
    */
   'artifact:expired',
   /*
+   * Something was put somewhere, or taken back off it.
+   *
+   * The event a deployment dashboard, a chat channel and the next stage of a
+   * pipeline all wait on; without it each of them polls a history endpoint.
+   * `action` carries the state, so one subscription covers recorded through
+   * rolled back.
+   */
+  'deployment:status',
+  /*
    * The same, through the older commit-status API.
    *
    * Kept separate rather than folded into `check:reported`: the two carry
@@ -234,6 +243,26 @@ export interface WebhookPayload extends Envelope {
   suite?: SuiteDetail
   /** The artifact that has gone, on `artifact:expired`. */
   artifact?: ArtifactDetail
+  /** What was put where, on `deployment:updated`. */
+  deployment?: DeploymentDetail
+}
+
+/**
+ * A deployment, as a receiver reads it.
+ *
+ * The environment, the commit and the URL - which are the three things anybody
+ * asks about a deployment - plus the pull request and the run, so a receiver
+ * can join it to the review it came from without a second request.
+ */
+export interface DeploymentDetail {
+  id: number
+  environment: string
+  state: string
+  head_sha: string
+  ref: string
+  url: string
+  pull_request: number | null
+  run_id: number | null
 }
 
 /**
@@ -377,6 +406,8 @@ const ACTIONS: Record<string, string> = {
   // A fallback: a real payload carries `approval`, `gate` or `event`.
   'run:action_required': 'required',
   'artifact:expired': 'expired',
+  // A fallback: a real payload carries the deployment's own state.
+  'deployment:status': 'updated',
   // Also a fallback: a real monitor payload carries `alarm` or `recovered`.
   'test:monitor': 'changed',
   'test:flaky': 'flaky',
