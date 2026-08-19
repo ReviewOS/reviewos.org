@@ -113,4 +113,11 @@ export default {
    * like one that lands all of them.
    */
   'db:migrate-engine': 'DbMigrateEngine',
+  /*
+   * The Vitess keyspace layout, computed from the schema rather than written
+   * down. Vitess mode is opt-in and for large instances only, but the decision
+   * about how this schema would shard is one it has to keep being true to - and
+   * a decision in prose drifts the first time somebody adds a model.
+   */
+  'db:keyspaces': 'DbKeyspaces',
 } satisfies CommandRegistry

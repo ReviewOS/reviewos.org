@@ -1,0 +1,227 @@
+{
+  "sharded": false,
+  "tables": {
+    "access_token_permissions": {},
+    "access_tokens": {},
+    "categorizable_models": {},
+    "categorizables": {},
+    "commentable_upvotes": {},
+    "commentables": {},
+    "email_verifications": {},
+    "failed_jobs": {},
+    "gpg_keys": {},
+    "instance_keys": {},
+    "instance_settings": {},
+    "issue_comments": {},
+    "jobs": {},
+    "notification_deliveries": {},
+    "notification_event_preferences": {},
+    "notification_mutes": {},
+    "notification_preferences": {},
+    "notification_schedules": {},
+    "notification_subscriptions": {},
+    "notifications": {},
+    "oauth_access_tokens": {},
+    "oauth_clients": {},
+    "oauth_refresh_tokens": {},
+    "operations": {},
+    "org_members": {},
+    "organizations": {},
+    "owner_aliases": {},
+    "passkeys": {},
+    "password_resets": {},
+    "permissions": {},
+    "plugin_policies": {},
+    "push_subscriptions": {},
+    "queue_circuit_state": {},
+    "reactions": {},
+    "recovery_codes": {},
+    "review_comments": {},
+    "role_permissions": {},
+    "roles": {},
+    "runner_pool_maintainers": {},
+    "runner_pools": {},
+    "runner_queues": {},
+    "runner_registration_tokens": {},
+    "runners": {},
+    "ssh_keys": {},
+    "sso_identities": {},
+    "taggable_models": {},
+    "taggables": {},
+    "team_members": {},
+    "teams": {},
+    "test_executions": {},
+    "timeline_entries": {},
+    "token_usage_windows": {},
+    "two_factor_challenges": {},
+    "two_factor_pending_secrets": {},
+    "user_permissions": {},
+    "user_roles": {},
+    "users": {},
+    "webauthn_challenges": {},
+    "workflow_job_logs": {},
+    "workflow_secrets": {},
+    "workflow_step_attempts": {},
+    "workflow_steps": {},
+    "workflow_templates": {},
+    "workflow_variables": {},
+    "workflow_version_jobs": {},
+    "workflow_version_steps": {},
+    "access_token_repositories_seq": {
+      "type": "sequence"
+    },
+    "activity_events_seq": {
+      "type": "sequence"
+    },
+    "attachments_seq": {
+      "type": "sequence"
+    },
+    "audit_events_seq": {
+      "type": "sequence"
+    },
+    "check_annotations_seq": {
+      "type": "sequence"
+    },
+    "check_runs_seq": {
+      "type": "sequence"
+    },
+    "commit_statuses_seq": {
+      "type": "sequence"
+    },
+    "coverage_files_seq": {
+      "type": "sequence"
+    },
+    "deploy_keys_seq": {
+      "type": "sequence"
+    },
+    "deployments_seq": {
+      "type": "sequence"
+    },
+    "environment_reviewers_seq": {
+      "type": "sequence"
+    },
+    "environments_seq": {
+      "type": "sequence"
+    },
+    "git_wal_entries_seq": {
+      "type": "sequence"
+    },
+    "issue_assignees_seq": {
+      "type": "sequence"
+    },
+    "issue_labels_seq": {
+      "type": "sequence"
+    },
+    "issues_seq": {
+      "type": "sequence"
+    },
+    "managed_tests_seq": {
+      "type": "sequence"
+    },
+    "merge_queue_entries_seq": {
+      "type": "sequence"
+    },
+    "milestones_seq": {
+      "type": "sequence"
+    },
+    "protected_branches_seq": {
+      "type": "sequence"
+    },
+    "pull_request_reviewers_seq": {
+      "type": "sequence"
+    },
+    "pull_request_reviews_seq": {
+      "type": "sequence"
+    },
+    "pull_requests_seq": {
+      "type": "sequence"
+    },
+    "release_assets_seq": {
+      "type": "sequence"
+    },
+    "releases_seq": {
+      "type": "sequence"
+    },
+    "repo_collaborators_seq": {
+      "type": "sequence"
+    },
+    "repo_topics_seq": {
+      "type": "sequence"
+    },
+    "repositories_seq": {
+      "type": "sequence"
+    },
+    "repository_labels_seq": {
+      "type": "sequence"
+    },
+    "repository_languages_seq": {
+      "type": "sequence"
+    },
+    "repository_lfs_locks_seq": {
+      "type": "sequence"
+    },
+    "repository_mirrors_seq": {
+      "type": "sequence"
+    },
+    "review_checkpoints_seq": {
+      "type": "sequence"
+    },
+    "review_drafts_seq": {
+      "type": "sequence"
+    },
+    "review_threads_seq": {
+      "type": "sequence"
+    },
+    "reviewed_files_seq": {
+      "type": "sequence"
+    },
+    "run_metadata_seq": {
+      "type": "sequence"
+    },
+    "runner_pool_repositories_seq": {
+      "type": "sequence"
+    },
+    "stars_seq": {
+      "type": "sequence"
+    },
+    "team_repositories_seq": {
+      "type": "sequence"
+    },
+    "test_monitors_seq": {
+      "type": "sequence"
+    },
+    "test_runs_seq": {
+      "type": "sequence"
+    },
+    "test_suites_seq": {
+      "type": "sequence"
+    },
+    "watches_seq": {
+      "type": "sequence"
+    },
+    "webhook_deliveries_seq": {
+      "type": "sequence"
+    },
+    "webhooks_seq": {
+      "type": "sequence"
+    },
+    "workflow_artifacts_seq": {
+      "type": "sequence"
+    },
+    "workflow_jobs_seq": {
+      "type": "sequence"
+    },
+    "workflow_notification_rules_seq": {
+      "type": "sequence"
+    },
+    "workflow_runs_seq": {
+      "type": "sequence"
+    },
+    "workflow_versions_seq": {
+      "type": "sequence"
+    },
+    "workflows_seq": {
+      "type": "sequence"
+    }
+  }
+}

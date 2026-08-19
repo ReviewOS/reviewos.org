@@ -248,16 +248,114 @@ so the linearizer is built once, on the engine it will live on.
 
 Starts only after single-node MySQL is the default and stable.
 
-- [ ] Extend pantry upstream with a Vitess package. Pantry has `mysql.com` and `planetscale.com`
+- [x] Extend pantry upstream with a Vitess package. Pantry has `mysql.com` and `planetscale.com`
       today but no `vitess.io`, and a Vitess-mode instance should still be pantry-provisioned -
       service definitions for vtgate, vttablet, and the topology server are part of that work.
-- [ ] Keyspace and vindex definition on `repository_id`; tables without a repository owner (users,
+
+      The package exists (`vitess.io`, built from source with `CGO_ENABLED=0` so it is static and
+      cross-compiles to arm64, which the upstream release tarball does not). What was missing is the
+      other half of the box, and is now in pantry: **`vtgate`, `vttablet` and `vttopo`** as service
+      definitions, so a cluster is `pantry start` three times rather than three hand-written unit
+      files.
+
+      Three details in them are load-bearing rather than decoration. `vttopo` is etcd with
+      `--advertise-client-urls` set, because without it etcd advertises a hostname vtgate may not
+      resolve and the failure reads as "topology server unavailable" on a store that is running
+      perfectly. It gets port 2389 and a data directory of its own, so a Vitess cluster and an
+      application's own etcd on one box are not the same store - clearing one would clear the other.
+      And vtgate's health check probes its status endpoint rather than the MySQL port, because it
+      serves that page before it will accept a query.
+
+      **Not installable on darwin-arm64 yet.** The registry has only the linux-x86-64 artifact; the
+      recipe restricts nothing, so this is a build the fleet has not run rather than a limitation.
+      It is why the load test below is written and unrun.
+- [x] Keyspace and vindex definition on `repository_id`; tables without a repository owner (users,
       organizations, sessions, tokens) live in an unsharded keyspace.
+
+      **Computed from the schema, not written down.** `buddy db:keyspaces` reads the live MySQL
+      schema and emits both VSchemas plus the sequence tables into `database/vitess/`; a model added
+      next month is classified the first time anybody asks rather than whenever somebody remembers
+      to edit a JSON file. Today: **34 tables shard on `repository_id`, 66 have no repository and
+      live in `reviewos_global`.**
+
+      Three decisions are in there, and each one was a thing to get wrong:
+
+      - **`repositories` shards on its own `id`.** It has no `repository_id` and does not want one -
+        its key *is* the value everything else routes on - so it takes the same vindex over a
+        different column. Left in the unsharded keyspace, a push would cross keyspaces on the one
+        transaction the sharding key was chosen for.
+      - **`xxhash`, not `hash`.** The older vindex is defined only over 64-bit integers, and a
+        keyspace is not a thing to re-shard because a column type changed later.
+      - **Every sharded table names a sequence** in the unsharded keyspace, because a sharded
+        keyspace has no auto-increment: two shards handing out `id = 4` is not a conflict either of
+        them can see. `sequences.sql` carries the `COMMENT='vitess_sequence'` vtgate looks for, and
+        seeds with `ON DUPLICATE KEY UPDATE next_id = next_id` so re-running it on a live cluster
+        cannot hand out ids somebody already has.
+
+      `tests/unit/vitess-keyspaces.test.ts` holds all of it.
 - [ ] Verify the hot transaction shapes are single-shard: ref ledger CAS plus WAL insert (phase
       18c), review submit, check reporting, merge queue claim.
-- [ ] Sequence strategy for auto-increment ids under Vitess (sequence tables), or finish moving
+
+      **Verified, and the answer is "two of five, today".** `buddy db:keyspaces` reports it and
+      `--check` exits non-zero, so this is a fact the build can hold rather than a paragraph:
+
+      | Transaction | Single-shard |
+      |---|---|
+      | a push writes the ref ledger and the WAL | yes |
+      | the merge queue claims an entry | yes |
+      | a review is submitted | no: `pull_request_reviews`, `review_threads`, `review_drafts` |
+      | a check is reported | no: `check_annotations` |
+      | a workflow run is dispatched | no: `workflow_jobs`, `workflow_versions` |
+
+      The cause is one thing, and it is the finding of this box: **18 child tables carry no
+      `repository_id`.** A row under a pull request or a run is owned by a repository transitively,
+      and Vitess cannot infer that - a lookup vindex could, at the cost of a cross-shard read on
+      every write, which is the thing being avoided. So each of the 18 needs the column
+      denormalized from its parent, and `buddy db:keyspaces` prints the list with the parent to copy
+      it from.
+
+      That is a migration and a write-path change per table, and it is deliberately **not** done
+      here: it touches every insert in those paths, and doing it while MySQL was still red would
+      have been changing two things at once. The box stays open until the column is on all 18 and
+      the check passes.
+- [x] Sequence strategy for auto-increment ids under Vitess (sequence tables), or finish moving
       the remaining tables to the uuid trait and sidestep it.
-- [ ] vtgate connection config in `config/database.ts`, env-switched like every other driver
+
+      **Sequence tables, not uuid.** The uuid route sidesteps the problem and pays for it forever:
+      every foreign key becomes 16 bytes instead of 8, every secondary index grows with it, and an
+      InnoDB primary key that arrives in random order turns an append into a page split - on the
+      tables that grow fastest, which are exactly the sharded ones. The models already carry
+      `useUuid` for external identity, and that is the right division: a uuid is what a URL and an
+      API show, and an integer is what the storage engine orders by.
+
+      So `db:keyspaces` emits one sequence table per sharded table into the unsharded keyspace, and
+      the VSchema points each table's `id` at its sequence. vtgate reserves a block of 1000 per
+      gate, so the counter is touched once per block rather than once per insert; the cost is a gap
+      in the ids after a restart, and nothing in this schema reads an id as a count.
+- [x] vtgate connection config in `config/database.ts`, env-switched like every other driver
       choice.
+
+      `DB_CONNECTION=vitess` selects it, port 15306 by Vitess's own convention. vtgate speaks the
+      MySQL wire protocol, so the driver, the SQL and the schema are the ones single-node MySQL
+      already uses - which is the whole reason the dialect work above was worth doing on MySQL
+      rather than on Vitess.
+
+      Named as its own connection rather than pointed at through `mysql`, because
+      `dialectCapabilities` has to tell them apart: a sharded keyspace has no auto-increment and no
+      cross-shard foreign keys, and the migration generator needs to know that before it emits
+      either. The builder already treats `vitess` as MySQL-wire for everything a query does.
 - [ ] A load test proving the claim: a repo-sharded keyspace under a clone-storm write load, with
       cross-shard queries measured and named rather than discovered in production.
+
+      **Written, unrun.** `tests/e2e/vitess-load.test.ts` drives the phase-18c write shape - a ref
+      ledger row and a WAL entry per push - across 64 repositories, and reads the count of queries
+      vtgate routed to more than one shard *from vtgate's own `/debug/vars`* rather than inferring
+      it. It reports p50 and p99 and fails when the tail is fifty times the median, because a p99
+      many times the p50 is what a cross-shard write looks like from outside.
+
+      It skips when no cluster answers, and says so in the run's output rather than passing quietly:
+      a skipped test that reports success is how an unmeasured claim comes to be believed.
+
+      It cannot run here: the registry has no darwin-arm64 Vitess artifact yet (see the pantry box).
+      **The box stays open until it has run against a real cluster** - which is the whole point of
+      the box, and the reason it is the last one.

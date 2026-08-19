@@ -46,6 +46,29 @@ export default {
       prefix: '',
     },
 
+    /*
+     * Vitess, which is MySQL from a client's point of view.
+     *
+     * vtgate speaks the MySQL wire protocol, so the driver, the SQL and the
+     * schema are the ones the single-node instance already uses - what changes
+     * is the port (15306 by convention) and what a transaction may touch: a
+     * write that crosses shards is refused rather than silently distributed.
+     * `buddy db:keyspaces` is what says which those are.
+     *
+     * Named as its own connection rather than pointed at through `mysql` so
+     * `dialectCapabilities` can tell them apart: a sharded keyspace has no
+     * auto-increment and no cross-shard foreign keys, and the migration
+     * generator has to know that before it emits either.
+     */
+    vitess: {
+      name: env.DB_DATABASE || 'reviewos',
+      host: env.DB_HOST || '127.0.0.1',
+      port: env.DB_PORT || 15306,
+      username: env.DB_USERNAME || 'root',
+      password: env.DB_PASSWORD || '',
+      prefix: '',
+    },
+
     postgres: {
       name: env.DB_DATABASE || 'stacks',
       host: env.DB_HOST || '127.0.0.1',
