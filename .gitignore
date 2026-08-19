@@ -211,6 +211,7 @@ storage/framework/core/defaults/*
 # Generated protocol evidence is retained by CI, not committed.
 /.github/protocol/reports/
 /storage/lfs
+/storage/search
 /storage/typesense
 
 # Throwaway probe scripts. One got swept into a commit already.
