@@ -170,3 +170,152 @@ export async function announceRunIfMoved(repositoryId: number, runId: number, fr
     ref: run.event_ref,
   })
 }
+
+/**
+ * What a stopped run is waiting for, when it is waiting for somebody.
+ *
+ * Three kinds, because they need three different people. An **approval** is a
+ * fork's pull request nobody has vouched for; a **gate** is a `block:` job
+ * somebody with write access has to open; an **event** is an `await:` job
+ * holding for something outside this instance entirely.
+ *
+ * Deliberately not "the run is waiting", which is also true of a run behind a
+ * concurrency group and of one whose only remaining job is asleep - neither of
+ * which anybody can act on. A receiver told about those would learn to ignore
+ * the event, which is the failure mode of every alert that fires too often.
+ */
+export type ActionRequired = 'approval' | 'gate' | 'event'
+
+/** A run has stopped and needs somebody. */
+export async function announceActionRequired(
+  repositoryId: number,
+  run: RunFacts,
+  kind: ActionRequired,
+  detail?: { job?: string | null, event?: string | null },
+): Promise<void> {
+  try {
+    const named = await identify(repositoryId)
+
+    if (!named)
+      return
+
+    await notifyProgramsOnly('run:action_required', {
+      actorId: 0,
+      actorHandle: '',
+      repositoryId,
+      owner: named.owner,
+      repository: named.repository,
+      subjectType: 'repository',
+      subjectId: repositoryId,
+      title: kind === 'approval'
+        ? `Run ${run.number} needs approval before it can start`
+        : kind === 'gate'
+          ? `Run ${run.number} is waiting at a gate`
+          : `Run ${run.number} is waiting for an event`,
+      run: {
+        id: run.id,
+        number: run.number,
+        state: run.state,
+        event: run.event ? String(run.event) : null,
+        head_sha: run.headSha ? String(run.headSha) : null,
+        ref: run.ref ? String(run.ref) : null,
+        workflow: run.workflowName ? String(run.workflowName) : null,
+      },
+      // The kind travels in `action`, like every other event here: a receiver
+      // that only cares about approvals reads one field.
+      action: kind,
+      // And which job, so a chat message can name the thing rather than the run.
+      waiting: {
+        job: detail?.job ? String(detail.job) : null,
+        event: detail?.event ? String(detail.event) : null,
+      },
+    } as any)
+  }
+  catch (error) {
+    console.error('[workflow] could not announce that a run needs somebody:', error)
+  }
+}
+
+/**
+ * An artifact has passed its date and gone.
+ *
+ * Sent after the delete, like every other event here, and it is the one that is
+ * about a disappearance: a system that fetched a build output nightly keeps
+ * fetching a 404, and the first person to notice is whoever needed the file.
+ */
+export async function announceArtifactExpired(repositoryId: number, artifact: {
+  id: number
+  name: string
+  size: number
+  runId: number
+  runNumber: number
+  expiresAt?: string | null
+}): Promise<void> {
+  try {
+    const named = await identify(repositoryId)
+
+    if (!named)
+      return
+
+    await notifyProgramsOnly('artifact:expired', {
+      actorId: 0,
+      actorHandle: '',
+      repositoryId,
+      owner: named.owner,
+      repository: named.repository,
+      subjectType: 'repository',
+      subjectId: repositoryId,
+      title: `${artifact.name} has expired`,
+      action: 'expired',
+      artifact: {
+        id: artifact.id,
+        name: artifact.name,
+        size: artifact.size,
+        run_id: artifact.runId,
+        run_number: artifact.runNumber,
+        expires_at: artifact.expiresAt ? String(artifact.expiresAt) : null,
+      },
+    } as any)
+  }
+  catch (error) {
+    console.error('[workflow] could not announce an expired artifact:', error)
+  }
+}
+
+/**
+ * Look the run up and say it needs somebody.
+ *
+ * The settler and the dispatcher both know a job has stopped and neither has
+ * the run's facts in hand; reading them here keeps the announcement one call at
+ * the point where the state actually changed, which is the rule the rest of
+ * this module follows.
+ */
+export async function announceActionRequiredFor(
+  repositoryId: number,
+  runId: number,
+  kind: ActionRequired,
+  detail?: { job?: string | null, event?: string | null },
+): Promise<void> {
+  try {
+    const run = await db
+      .selectFrom('workflow_runs')
+      .select(['id', 'number', 'state', 'event', 'event_ref', 'head_sha'])
+      .where('id', '=', runId)
+      .executeTakeFirst()
+
+    if (!run)
+      return
+
+    await announceActionRequired(repositoryId, {
+      id: Number(run.id),
+      number: Number(run.number),
+      state: String(run.state),
+      event: run.event,
+      headSha: run.head_sha,
+      ref: run.event_ref,
+    }, kind, detail)
+  }
+  catch (error) {
+    console.error('[workflow] could not announce that a run needs somebody:', error)
+  }
+}

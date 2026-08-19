@@ -97,6 +97,29 @@ export const WEBHOOK_EVENTS = [
   'run:transitioned',
   'job:transitioned',
   /*
+   * A run that has stopped and is waiting for a person, or for the world.
+   *
+   * A transition already says the run is `waiting`, and that is not the same
+   * question: a run waits behind a concurrency group, behind a gate somebody
+   * has to open, behind an approval a fork's pull request needs, and behind an
+   * event that has not arrived. Only two of those are anybody's to act on, and
+   * a receiver that had to reconstruct which is which from the job rows would
+   * be doing the control plane's reasoning in somebody else's process.
+   *
+   * `action` says what kind of thing is being waited for, so a chat integration
+   * can post "this deploy needs an approval" without asking a second question.
+   */
+  'run:action_required',
+  /*
+   * An artifact that has passed its date and gone.
+   *
+   * The one webhook here that is about disappearance rather than progress, and
+   * it exists because the failure it prevents is silent: a system that fetched
+   * a build output nightly keeps fetching a 404, and the first person to notice
+   * is whoever needed the file.
+   */
+  'artifact:expired',
+  /*
    * The same, through the older commit-status API.
    *
    * Kept separate rather than folded into `check:reported`: the two carry
@@ -209,6 +232,28 @@ export interface WebhookPayload extends Envelope {
   test?: TestDetail
   /** The suite that reported, on `test:recorded`. */
   suite?: SuiteDetail
+  /** The artifact that has gone, on `artifact:expired`. */
+  artifact?: ArtifactDetail
+}
+
+/**
+ * An artifact that has expired, as a receiver reads it.
+ *
+ * Named and sized rather than linked: the file is gone by the time this is
+ * sent, and a URL that answers 404 is worse than no URL. What a receiver can do
+ * with this is decide to rebuild, or stop asking - both of which need the name
+ * and the run it came from.
+ */
+export interface ArtifactDetail {
+  id: number
+  name: string
+  /** How big it was, in bytes, so a receiver can say what it lost. */
+  size: number
+  /** The run that produced it, for asking the API what else that run made. */
+  run_id: number
+  run_number: number
+  /** When it was due to go, which is not always when it went. */
+  expires_at: string | null
 }
 
 /**
@@ -329,6 +374,9 @@ const ACTIONS: Record<string, string> = {
   // Fallbacks only: a real payload carries the state it moved to.
   'run:transitioned': 'transitioned',
   'job:transitioned': 'transitioned',
+  // A fallback: a real payload carries `approval`, `gate` or `event`.
+  'run:action_required': 'required',
+  'artifact:expired': 'expired',
   // Also a fallback: a real monitor payload carries `alarm` or `recovered`.
   'test:monitor': 'changed',
   'test:flaky': 'flaky',

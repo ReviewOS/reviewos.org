@@ -192,7 +192,11 @@ export async function sweepExpiredArtifacts(now: Date = new Date()): Promise<{ r
     .selectFrom('workflow_artifacts')
     // `blob_key` too: the sweep deletes by the key the row recorded, falling
     // back to the derived one for rows written before the column existed.
-    .select(['id', 'digest', 'blob_key'])
+    //
+    // And the facts a receiver needs, read before the delete for the obvious
+    // reason: the row is the only place they exist, and afterwards there is
+    // nothing to describe what went.
+    .select(['id', 'digest', 'blob_key', 'name', 'size_bytes', 'workflow_run_id', 'repository_id', 'expires_at'])
     .where('expires_at', '<', now.toISOString())
     .execute()
 
@@ -203,6 +207,17 @@ export async function sweepExpiredArtifacts(now: Date = new Date()): Promise<{ r
 
   for (const row of expired) {
     await db.deleteFrom('workflow_artifacts').where('id', '=', Number(row.id)).execute()
+
+    /*
+     * Said out loud, after the delete.
+     *
+     * This is the one disappearance in the product that is otherwise silent: a
+     * system that fetched a build output nightly starts fetching a 404, and the
+     * first person to find out is whoever needed the file. The retention date
+     * was on every listing, but a promise made three weeks ago is not a
+     * notification.
+     */
+    await announceExpiry(row).catch(() => null)
 
     // Content addressing means one file backs many rows, so the blob goes only
     // when the last row that pointed at it does - otherwise expiring one run's
@@ -237,4 +252,30 @@ export async function sweepExpiredArtifacts(now: Date = new Date()): Promise<{ r
   }
 
   return { removed: expired.length, blobs }
+}
+
+/** Tell the programs that were watching that an artifact has gone. */
+async function announceExpiry(row: any): Promise<void> {
+  const repositoryId = Number(row.repository_id ?? 0)
+
+  if (!repositoryId)
+    return
+
+  const run: any = await db
+    .selectFrom('workflow_runs')
+    .select(['id', 'number'])
+    .where('id', '=', Number(row.workflow_run_id ?? 0))
+    .executeTakeFirst()
+    .catch(() => null)
+
+  const { announceArtifactExpired } = await import('../Workflow/announce')
+
+  await announceArtifactExpired(repositoryId, {
+    id: Number(row.id),
+    name: String(row.name ?? ''),
+    size: Number(row.size_bytes ?? 0) || 0,
+    runId: Number(row.workflow_run_id ?? 0),
+    runNumber: Number(run?.number ?? 0) || 0,
+    expiresAt: row.expires_at ? String(row.expires_at) : null,
+  })
 }

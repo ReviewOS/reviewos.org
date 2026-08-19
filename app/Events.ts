@@ -110,7 +110,7 @@ export default {
    * expired is the only event here about a thing disappearing, which is the
    * failure that is otherwise silent until somebody needs the file.
    */
-  'run:action-required': ['DispatchWebhooks'],
+  'run:action_required': ['DispatchWebhooks'],
   'artifact:expired': ['DispatchWebhooks'],
   /*
    * A rule about the tests started, or stopped, holding.

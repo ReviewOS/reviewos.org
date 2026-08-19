@@ -832,8 +832,28 @@ requeue is not yet reading it.
       A job that finished successfully in between keeps that result: the work really did happen, and
       overwriting it would be the control plane inventing an outcome. A job asked to stop is never
       returned to the queue, either, which would have a second machine run what somebody cancelled.
-- [ ] Optimistic locking or transitions in one transaction prevent two schedulers from dispatching
+- [x] Optimistic locking or transitions in one transaction prevent two schedulers from dispatching
       the same step
+
+      Optimistic, everywhere, and the same shape each time: read the row, write it back conditioned
+      on what was read. The claim is the sharp one - `state = 'queued' AND runner_id IS NULL` for a
+      free job, and `runner_id = <the stale holder> AND lease_expires_at = <the lapsed value>` for
+      one being recovered - so two runners asking in the same instant produce one winner and one
+      update that matches nothing, and the loser moves to the next candidate rather than to an
+      error. `tests/e2e/runner-claim.test.ts` runs both halves of that race.
+
+      The settler's transitions are guarded the same way, on the state each row was read at, which
+      is what stops a report arriving mid-settle from having a staler verdict overwrite a newer one.
+      A run that has reached a conclusion is never moved again by anything.
+
+      A workflow program has the one case optimism cannot cover, and it uses a unique index instead:
+      whoever wins the insert on `(run, sequence)` owns the right to dispatch that call. Two
+      orchestrators for one run - which is what a lapsed lease produces - both try, one loses, and
+      the loser is told rather than quietly running everything twice.
+
+      No transaction spans a dispatch, deliberately. A transaction held across the work would be a
+      lock held while a machine builds something, and the failure mode of that is a control plane
+      that stops answering when a runner goes quiet.
 - [x] Recovery sweep for expired runner leases and control-plane restarts
 
       `ReclaimLapsedLeasesJob`, every minute - a sweep slower than the sixty-second lease is a job
@@ -1020,15 +1040,28 @@ requeue is not yet reading it.
       operator needs to join a slow job to a sick runner. `subject` stays the repository rather than
       growing a fourth type for a receiver to learn.
 
-      Action required, deployment and artifact expiry wait on approvals, deployments and artifacts,
-      none of which exist.
-- [ ] Tests cover every state transition, token boundaries, idempotency, stale writes, cursor
+      **Action required and artifact expiry now have something to fire, and do.** `run:action_required`
+      is deliberately not "the run is waiting": a run waits behind a concurrency group and behind a
+      sleep too, and neither is anybody's to act on - a receiver told about those learns to ignore
+      the event, which is how an alert stops being one. `action` says which of the three it is, so a
+      chat integration can post "this deploy needs an approval" without asking a second question.
+      An approval is a fork's pull request nobody has vouched for, a gate is a `block:` job somebody
+      has to open, an event is an `await:` job holding for something outside this instance.
+
+      `artifact:expired` is the only event here about a disappearance, and it exists because that
+      failure is otherwise silent: a system that fetched a build output nightly starts fetching a
+      404, and the first person to find out is whoever needed the file. It carries the name, the
+      size and the run rather than a link - the file is gone by the time it arrives, and a URL that
+      answers 404 is worse than no URL.
+
+      Deployment waits on deployments, which do not exist yet.
+- [x] Tests cover every state transition, token boundaries, idempotency, stale writes, cursor
       pagination, recovery after lease expiry, and restart from a step
 
-      **Six of the seven, and the seventh has nothing to test.** Restart from a step needs steps to
-      be restartable, which is a box further up this file that is still open; the rest are covered
-      and it is worth writing down where, because a list like this is otherwise a claim nobody can
-      check:
+      **All seven.** The seventh had nothing to test until restart-from-step existed; it does now,
+      and `workflow-restart-step.test.ts` covers the reuse, the refusal when the definition moved,
+      the result too big to keep, and what the runner is handed. It is worth writing down where each
+      of the others lives, because a list like this is otherwise a claim nobody can check:
 
       | Named case | Where |
       |---|---|
@@ -1038,6 +1071,7 @@ requeue is not yet reading it.
       | stale writes | `runner-claim.test.ts` (a report after the lease lapsed), `runner-api.test.ts` (a completion for a run that already ended) |
       | cursor pagination | `workflow-api.test.ts` - including that the last page carries no cursor rather than one returning nothing |
       | recovery after lease expiry | `runner-reclaim.test.ts`, both directions: the dead machine's work comes back, the live machine keeps its own |
+      | restart from a step | `workflow-restart-step.test.ts` - what is kept, what is refused, and what the runner is told |
 
       The state-transition file is the one worth reading. Individual cases cover the transitions
       somebody thought to write down; what they cannot cover is the shape of the table - a state

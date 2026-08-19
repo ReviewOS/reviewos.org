@@ -553,3 +553,43 @@ describe('a run somebody holds', () => {
     expect(String(body.error)).toContain('nothing left to hold')
   }, 120_000)
 })
+
+/*
+ * The webhook for a run that has stopped and needs somebody.
+ *
+ * A transition already says the run is `waiting`, and that is a different
+ * question: a run waits behind a concurrency group and behind a sleep too, and
+ * neither is anybody's to act on. A receiver told about those learns to ignore
+ * the event, which is how an alert stops being one.
+ */
+describe('telling programs that a run needs somebody', () => {
+  test('fires for a wait on an event, and says which event', async () => {
+    if (!available)
+      return
+
+    const seen: any[] = []
+    const { emitter } = await import('@stacksjs/events')
+    const listener = (payload: any): void => { seen.push(payload) }
+
+    emitter.on('run:action_required' as any, listener as any)
+
+    try {
+      const number = await dispatch()
+
+      await finishBuild(number)
+
+      const held = seen.find(one => String(one?.action) === 'event')
+
+      expect(held).toBeTruthy()
+      expect(String(held.waiting?.event)).toBe('deploy-approved')
+      expect(Number(held.run?.number)).toBe(number)
+
+      // And the sleep in the same run fires nothing: it ends by itself, so
+      // there is nobody to tell.
+      expect(seen.filter(one => String(one?.waiting?.job ?? '') === 'soak')).toEqual([])
+    }
+    finally {
+      emitter.off('run:action_required' as any, listener as any)
+    }
+  }, 120_000)
+})

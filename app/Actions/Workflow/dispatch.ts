@@ -713,6 +713,18 @@ async function createPullRequestRun(
         .where('workflow_run_id', '=', runId)
         .where('state', '=', 'queued')
         .execute()
+
+      /*
+       * And said out loud, because this is the wait that costs the most to miss.
+       *
+       * A fork's pull request that nobody approves sits with its checks pending
+       * forever, and the contributor cannot do anything about it - the person
+       * who can is somebody with write access who has no reason to be looking
+       * at that pull request yet.
+       */
+      const { announceActionRequiredFor } = await import('./announce')
+
+      await announceActionRequiredFor(input.repositoryId, runId, 'approval').catch(() => null)
     }
 
     await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))

@@ -412,6 +412,49 @@ describe('expiry', () => {
     expect(await Bun.file(artifactPath(String(uploaded.body.digest))).exists()).toBe(false)
   })
 
+  test('and says so, because a disappearance is the one thing nothing else reports', async () => {
+    if (!available)
+      return
+
+    /*
+     * The failure this closes is silent: a system that fetched a build output
+     * nightly starts fetching a 404, and the first person to find out is
+     * whoever needed the file. The retention date was on every listing, but a
+     * promise made three weeks ago is not a notification.
+     */
+    const job = await claimOne()
+    const uploaded = await upload(job.token, 'announced.txt', `unique ${Math.random()}`)
+
+    await db
+      .updateTable('workflow_artifacts')
+      .set({ expires_at: new Date(Date.now() - 60_000).toISOString() })
+      .where('id', '=', Number(uploaded.body.id))
+      .execute()
+
+    const seen: any[] = []
+    const { emitter } = await import('@stacksjs/events')
+    const listener = (payload: any): void => { seen.push(payload) }
+
+    emitter.on('artifact:expired' as any, listener as any)
+
+    try {
+      const { sweepExpiredArtifacts } = await import('../../app/Actions/Artifact/store')
+
+      await sweepExpiredArtifacts()
+
+      const gone = seen.find(one => String(one?.artifact?.name) === 'announced.txt')
+
+      expect(gone).toBeTruthy()
+      // Named and sized rather than linked: the file is already gone when this
+      // arrives, and a URL that answers 404 is worse than no URL.
+      expect(Number(gone.artifact.size)).toBeGreaterThan(0)
+      expect(Number(gone.artifact.run_number)).toBeGreaterThan(0)
+    }
+    finally {
+      emitter.off('artifact:expired' as any, listener as any)
+    }
+  })
+
   test('a blob another artifact still points at survives its own row expiring', async () => {
     if (!available)
       return

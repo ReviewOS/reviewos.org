@@ -53,6 +53,8 @@ body: a webhook endpoint that skips the check is an endpoint anybody can post to
 | `check:reported` | a check run said something about a commit; `action` is its status |
 | `run:transitioned` | a workflow run changed state; `action` is the new one |
 | `job:transitioned` | one job of a run changed state; `action` is the new one |
+| `run:action_required` | a run has stopped and needs somebody; `action` is `approval`, `gate` or `event` |
+| `artifact:expired` | an artifact passed its date and was deleted; the file is already gone when this arrives |
 | `status:reported` | the older commit-status API said something; `action` is its state |
 | `test:monitor` | a rule about the tests changed state; `action` is `alarm` or `recovered` |
 | `test:flaky` | a test crossed from steady to unreliable, once rather than every run |

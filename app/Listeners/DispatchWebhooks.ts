@@ -46,6 +46,13 @@ export default {
     // covers queued through finished.
     'run:transitioned',
     'job:transitioned',
+    // A run that is waiting for somebody, rather than merely waiting: only
+    // some waiting is anybody's to act on, and a receiver should not have to
+    // work out which from the job rows.
+    'run:action_required',
+    // And the one about a thing going away, which is otherwise silent until
+    // whoever needed the file goes looking for it.
+    'artifact:expired',
     // A rule about the tests changed its mind. Rate-limited by its own design:
     // only a transition is an event, so a monitor in alarm for a month sends
     // one message.

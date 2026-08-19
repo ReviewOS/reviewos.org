@@ -28,7 +28,8 @@ import { deliverRunNotifications } from './notifyDelivery'
 import { withRedeliveryKey } from './redelivery'
 import type { JobState } from './states'
 import { cancelOnFailingCasualties, effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
-import { isNotFalse, isTrue } from '../Support/sql'
+import { isNotFalse, isTrue, rowsChanged } from '../Support/sql'
+import { announceActionRequiredFor } from './announce'
 
 /**
  * What a job cancelled by a sibling is told, on its own row.
@@ -153,6 +154,24 @@ export async function settleRun(runId: number, now: Date = new Date()): Promise<
  * otherwise have to know about the fork policy - and the one that forgot would
  * be the one that released a stranger's code.
  */
+/**
+ * Which repository a run belongs to.
+ *
+ * Read on demand rather than threaded through the settler: this is asked only
+ * when something has actually stopped and needs announcing, which on almost
+ * every settle is never.
+ */
+async function repositoryOfRun(runId: number): Promise<number> {
+  const run = await db
+    .selectFrom('workflow_runs')
+    .select(['repository_id'])
+    .where('id', '=', runId)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  return Number(run?.repository_id ?? 0)
+}
+
 async function awaitingApproval(runId: number): Promise<boolean> {
   const run = await db
     .selectFrom('workflow_runs')
@@ -377,7 +396,7 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
         continue
       }
 
-      await db
+      const held = await db
         .updateTable('workflow_jobs')
         .set({
           state: 'paused',
@@ -389,16 +408,33 @@ async function settleOnce(runId: number, now: Date): Promise<boolean> {
         .where('state', '=', 'blocked')
         .execute()
 
+      /*
+       * Only a wait for an *event* is anybody's to act on. A sleep ends by
+       * itself, and telling a receiver about one would teach it to ignore this
+       * event - which is the failure mode of every alert that fires too often.
+       */
+      if (wanted && rowsChanged(held))
+        await announceActionRequiredFor(await repositoryOfRun(runId), runId, 'event', { job: String(job.job_id ?? ''), event: wanted })
+
       continue
     }
 
     if (job.kind === 'block') {
-      await db
+      const opened = await db
         .updateTable('workflow_jobs')
         .set({ state: 'paused', started_at: now.toISOString() })
         .where('id', '=', job.id)
         .where('state', '=', 'blocked')
         .execute()
+
+      /*
+       * A gate that has just started waiting is somebody's to open, and this is
+       * the only moment anything knows it. Announced from the guarded write
+       * rather than beside it, so a second settler that lost the race does not
+       * send a second notification about one gate.
+       */
+      if (rowsChanged(opened))
+        await announceActionRequiredFor(await repositoryOfRun(runId), runId, 'gate', { job: String(job.job_id ?? '') })
 
       continue
     }
