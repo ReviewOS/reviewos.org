@@ -46,7 +46,7 @@ convention:
   having already read it, so a repository hook there would be the code deciding
   whether to trust itself. **A non-zero exit refuses the job**, and the run says
   so.
-- **`checkout`** and **`command`** *replace* the built-in behaviour rather than
+- **`checkout`**and**`command`** *replace* the built-in behaviour rather than
   adding to it. A repository that could replace the command would not be running
   its own steps any more, and a fleet's profiler wrapper would be quietly
   removed by the first repository that did not want it.

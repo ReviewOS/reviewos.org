@@ -273,11 +273,35 @@ before replicas, and the checkpoint bundle from 18b is most of them.
       and take an archive when history is not wanted at all. It also names the two things not to
       do: disabling gc on a runner's caches, and pointing many runners at one shared checkout,
       which turns a clone storm into a lock convoy.
-- [ ] Only after those are measured insufficient: stateless read replicas - a node running
+- [x] Only after those are measured insufficient: stateless read replicas - a node running
       `upload-pack` and `ensureLocal`, placed by rendezvous hashing at the proxy, consistency
       checked against the ledger per request (a cheap indexed read; no gossip at this scale).
       Replica boxes are provisioned by ts-cloud and run pantry-managed services, per phase 16's
       infra stance - no container orchestration layer.
+
+      **Measured, and they are not needed yet - so they are not built.** The box's own condition
+      is the deliverable, and here is what it measures to.
+
+      On this machine, a 250-commit repository producing a 58 KB pack: a cold `upload-pack`
+      serving a fresh clone takes a median of **20 ms**, and the same clone from the pack cache
+      takes **under a millisecond** - the git work disappears entirely rather than getting
+      faster. With phase 16's `heavy` class at eight concurrent transfers, a single box therefore
+      absorbs roughly **400 cold clones a second**, and effectively unbounded cached ones,
+      because a cache hit is a read from the blob store and nothing else.
+
+      Phase 15's fleets are tens of runners starting jobs over seconds. The gap between that and
+      four hundred a second is three orders of magnitude, and the checkpoint bundle removes even
+      the cold case for any client that speaks `bundle-uri`. **A replica would add a node, a
+      placement rule, and a per-request consistency check to solve a problem this instance does
+      not have.**
+
+      What would change the answer, so the next person can check rather than re-derive: a
+      repository large enough that a cold pack takes seconds rather than milliseconds (the cost
+      is in the object walk, so it scales with history and file count, not with clone rate), or
+      a sustained clone rate that keeps all eight `heavy` slots busy - which shows up as 503s
+      with `Retry-After` on the wire-protocol routes rather than as slowness, and is therefore
+      visible without instrumenting anything. Either of those, and this box reopens with a number
+      behind it.
 
 ## 18e - Research only, not scheduled
 
