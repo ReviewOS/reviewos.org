@@ -61,6 +61,7 @@ export default {
   'fleet:apply': 'FleetApply',
   'mirror:add': 'MirrorAdd',
   'git:hooks': 'GitHooks',
+  'git:restore': 'GitRestore',
   'git:scan': 'GitScan',
   'git:ssh': 'GitSsh',
   'push:keys': 'PushKeys',

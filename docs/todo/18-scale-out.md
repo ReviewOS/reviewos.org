@@ -40,19 +40,32 @@ inversion is explicit config, not a silent reversal.
 
 No push-path changes in this sub-phase.
 
-- [ ] A `BlobStore` interface in `app/Actions/Git/blobs.ts`: `put` (streaming), `get` (streaming),
+- [x] A `BlobStore` interface in `app/Actions/Git/blobs.ts`: `put` (streaming), `get` (streaming),
       `stat`, `delete`, `list`. `LocalBlobStore` rooted under `storage/` is the zero-config
       default; `S3BlobStore` rides ts-cloud's object-storage client with AWS and Hetzner both
       tested. All disk access stays inside `app/Actions/Git/`, per the standing rule.
+      **Two things to know.** Key validation lives in the seam rather than per driver, because a
+      driver that forgets is a driver with a traversal bug, and every key here can be built from
+      something a request said. And S3 will not take a PUT without a length, so the S3 driver
+      collects a stream before sending it and refuses past a ceiling with a message naming
+      multipart - written down rather than hidden, because every current caller already has its
+      bytes in memory and the day one genuinely streams a multi-gigabyte object, that error is the
+      honest answer. "Both tested" is not yet true against live buckets: the driver is tested
+      against a fake client (key mapping, prefixing, binary round trip, the ceiling), and AWS and
+      Hetzner need credentials this machine does not have.
 - [ ] Workflow artifacts through the store: upload and download actions, `ExpireArtifactsJob`,
       and a `blob_key` column on `WorkflowArtifact`.
 - [ ] LFS through the store: `app/Actions/Git/lfs.ts` currently hard-wires ts-git-lfs's local
       object store; adapt it over `BlobStore`, upstream a custom-store seam in ts-git-lfs if it
       lacks one.
 - [ ] Release assets and attachments through the store.
-- [ ] The repo-store seam in `app/Actions/Git/storage.ts`, behavior-neutral for now:
+- [x] The repo-store seam in `app/Actions/Git/storage.ts`, behavior-neutral for now:
       `ensureLocal(owner, name)` as a thin wrapper over `repositoryPath()`, adopted by the git
-      routes, ssh, and `write.ts`. This is the hook 18c grows teeth on.
+      routes, ssh, and `write.ts`. This is the hook 18c grows teeth on. Async from the first
+      commit on purpose - materializing cannot be synchronous, and a seam that changes shape when
+      it grows teeth is a seam every caller has to be revisited for. It checks for `HEAD` rather
+      than the directory, because a directory holding no repository is what an interrupted clone
+      leaves behind, which phase 16 had to fix in the mirror import.
 
 ## 18b - The push WAL, sold as backup
 
@@ -63,19 +76,41 @@ scanning), and `git bundle create` against the quarantine produces a self-contai
 incremental pack. Ref deletions and pure ref moves carry no bundle: the row is the truth, the blob
 is payload.
 
-- [ ] The `git_wal` model and migration: repo, sequence, ref updates, nullable blob key, status
-      (pending, committed, void), actor, timestamps.
-- [ ] `app/Actions/Git/wal.ts`: `recordPush` (bundle from quarantine, blob put, pending row),
-      `commitPush`, `replay`, `verify` (via `git bundle verify`).
-- [ ] Ack ordering in the hook endpoints: WAL recorded before pre-receive answers, committed at
-      post-receive. Config `git.wal` in `config/git.ts`: `off`, `advisory`, `required` -
-      `advisory` for a release before `required` becomes the recommendation, because this inverts
-      the documented fail-open philosophy and existing installs get to choose when.
-- [ ] A reconciler job sweeping pending rows against actual repository refs, committing or
-      voiding.
-- [ ] `buddy git:restore <owner>/<repo> [--at <seq|time>]`: latest checkpoint bundle plus WAL
+- [x] The `git_wal` model and migration: repo, sequence, ref updates, nullable blob key, status
+      (pending, committed, void), actor, timestamps. `updates` and `reason` are `text`: three refs
+      of ref-name-plus-two-shas already overflow the default varchar, and a truncated ref
+      transaction replays into the wrong repository state.
+- [x] `app/Actions/Git/wal.ts`: `recordPush` (bundle from quarantine, blob put, pending row),
+      `commitPush`, `replay`, `verify` (via `git bundle verify`). The bundle streams from git
+      straight into the store and is never held in the process. Tested against real git: the
+      bundle verifies, restores into an empty repository, and a file that is not a bundle fails
+      verification rather than passing quietly.
+- [x] Ack ordering in the hook endpoints: WAL recorded before pre-receive answers, committed at
+      post-receive. Config in `config/git-wal.ts` (not `config/git.ts`, which is the framework's
+      commit-convention config with a type that does not describe this): `off`, `advisory`,
+      `required` - `advisory` for a release before `required` becomes the recommendation, because
+      this inverts the documented fail-open philosophy and existing installs get to choose when.
+      The recording sits inside the gate's `allow()` closure so every path that lets a push
+      through records it and none added later can forget.
+- [x] A reconciler job sweeping pending rows against actual repository refs, committing or
+      voiding. The rule is pure and tested (`walReconcile.ts`): a ref that moved on but whose
+      objects are present counts as landed, because every entry but the newest has been built on -
+      a rule demanding an exact tip match would void almost the whole log. A mixed verdict across
+      one push stays pending for a person rather than being resolved automatically.
+- [x] `buddy git:restore <owner>/<repo> [--at <seq|time>]`: latest checkpoint bundle plus WAL
       suffix replayed into a fresh bare repository. This is the backup feature and the
-      materialization proof in one command, and it ships before any multi-node work does.
+      materialization proof in one command, and it ships before any multi-node work does. It
+      never writes over an existing repository - the operator moves the result into place - and
+      `--verify` checks every bundle before using it.
+- [ ] **The live-push proof.** Everything above is tested at the unit level against real git, and
+      the gate wiring is not: no test yet drives an actual `git push` through the real hooks and
+      asserts a row with a restorable bundle came out. The harness for it is most of the way
+      there and three separate mistakes in *the test* are worth recording, because each looked
+      exactly like the feature being broken: `installHooks` takes the hooks *directory* and needs
+      `useSharedHooks` beside it, a hook secret under sixteen characters makes `hookSecret()`
+      answer null so the gate 404s at its own hook and pre-receive correctly fails open, and a
+      bare `import` of a route file does not register its POST routes - only `route.importRoutes()`
+      does, and the symptom is a 405 naming GET and HEAD on a path that plainly has a POST.
 - [ ] The checkpoint job: periodically `git repack` locally, write a full `git bundle create
       --all` checkpoint to the blob store, prune the WAL prefix per retention config. Compaction
       runs on the primary only, per the reference architecture: replicas trade bandwidth for CPU.

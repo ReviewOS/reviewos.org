@@ -42,6 +42,15 @@ export default function () {
     .job('ExpireArtifacts')
     .hourly()
 
+  // The write-ahead log's pending rows, settled against the refs on disk.
+  // Every ten minutes rather than hourly: a pending row is an entry the log
+  // cannot yet answer questions about, and the window where a restore would be
+  // wrong is exactly the window this leaves open. It only looks at rows past a
+  // grace period, so a push still in flight is never voided.
+  schedule
+    .job('ReconcileWal')
+    .everyTenMinutes()
+
   // What was held, sent as one message per thread. A sweep rather than a timer
   // armed per notification: a timer has to survive a restart and a sweep reads
   // what is actually pending, so a process that dies mid-digest loses nothing -
