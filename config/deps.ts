@@ -147,7 +147,17 @@ export const config: PantryConfig = {
      * `app` and `worker` are deliberately absent. They are declared below and
      * started on purpose - a developer's laptop should not begin serving the
      * forge because they ran setup.
+     *
+     * The `@ts-expect-error` is temporary and comes out when ts-pantry 0.11.32
+     * is installed here. The list form is what every generator reading this
+     * config already accepts; the *type* said `boolean`, which is the mismatch
+     * that made `true` the only thing anybody could write - and `true` is what
+     * silently dropped typesense. Widened upstream and released; this line is
+     * waiting on the npm publish, exactly as the `gnupg.org` line above waited
+     * on 0.11.19. Removing the comment while the error is still real would
+     * make `./buddy typecheck` fail, so it fails loudly here instead.
      */
+    // @ts-expect-error ts-pantry <= 0.11.31 types autoStart as boolean; fixed in 0.11.32
     autoStart: ['postgres', 'typesense'],
 
     /**
