@@ -80,7 +80,7 @@
     "@stacksjs/queue": "^0.72.32",
     "@stacksjs/search-engine": "^0.72.32",
     "@stacksjs/server": "^0.72.32",
-    "@stacksjs/stx": "^0.2.192",
+    "@stacksjs/stx": "^0.2.193",
     "@stacksjs/ts-ssh": "^0.1.1",
     "buddy-bot": "^0.9.27",
     "bun-query-builder": "^0.2.30",
@@ -113,9 +113,9 @@
     "@stacksjs/bun-router": "^0.0.27",
     "@stacksjs/stx": "^0.2.192",
     "@stacksjs/ts-ssh": "^0.1.0",
-    "stx-router": "^0.2.192",
-    "bun-plugin-stx": "^0.2.192",
-    "@stacksjs/components": "^0.2.192",
+    "stx-router": "^0.2.193",
+    "bun-plugin-stx": "^0.2.193",
+    "@stacksjs/components": "^0.2.193",
     "@stacksjs/ts-cloud": "^0.7.126",
     "@stacksjs/buddy": "^0.72.31"
   }
