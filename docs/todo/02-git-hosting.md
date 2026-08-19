@@ -770,3 +770,57 @@ took effect. `overrides` pins a single version.
   from `ignore` - while its validation rule listed only the three stored values,
   so the one way to clear a watch was refused with a 422 naming a value the
   endpoint's own documentation tells you to send.
+- [x] A homepage on a repository, and a contributors list that does not cost a history walk
+
+  The two things the About panel was written without, and each was deferred for
+  a different reason - one needed a column, and one needed to not be computed on
+  read.
+
+  **The homepage** is a column, a settings field, and an import: GitHub has the
+  field and `MirrorMetadataSyncJob` now carries it across, so a mirrored
+  repository arrives with it filled in. The one interesting part is that it is a
+  security decision rather than a text field. It becomes an `href` on a public
+  page, so `usableHomepage` allows `http` and `https` and nothing else - an
+  allowlist, because a denylist has to be right about every scheme a browser has
+  ever supported and only has to be wrong once - and the check runs where the
+  value is *set* rather than where it is rendered, since the render happens in
+  several places and the one somebody forgets is the one that ships. The mirror
+  import goes through the same function, so a mirror cannot be a way past a rule
+  the form enforces. A bare `stacksjs.com` is completed to `https://`; something
+  with no dot in it is refused, so a typo does not become a link to a path on
+  this site.
+
+  **The contributors list** is measured and stored, following
+  `repository_languages` exactly: a table, a job on the `search` queue, and a
+  dispatch from the push hook. `git shortlog -sne --no-merges` rather than
+  counting a log in TypeScript, because git groups in C and prints one line per
+  *person* - so the output is bounded by the number of contributors rather than
+  by the number of commits. Merges are excluded, or the list becomes a list of
+  who has merge rights rather than of who wrote the code.
+
+  A contributor **is an email address**. Git's author is a name and an address
+  chosen by whoever ran the commit, with no connection to an account here, and
+  on a mirror almost nobody has one - so a local account is attached only on an
+  exact address match, the rest are named without a link, and somebody with
+  three addresses appears three times. Every cleverer rule guesses that two
+  strangers are one person, and that guess credits somebody's work to somebody
+  else. The address itself is never rendered: it is the key the table is grouped
+  by, and a public page is a different audience from somebody who has cloned the
+  repository and can read `git log`.
+
+  Three bugs fell out of building it.
+
+  `MirrorSyncJob` never queued either measure - only `ProcessPushJob` did, and a
+  mirror does not go through it. **No mirrored repository has ever had a language
+  breakdown or a contributor list**, which on an instance like this one is most
+  of them.
+
+  `findRepositoryByPath` projects an explicit column list, so `homepage` read as
+  `undefined` on every page until it was added to it - the same failure mode the
+  merge settings had, and the comment there now has company.
+
+  And `featured.ts` called `innerJoin` with three arguments where the query
+  builder needs four. It throws at execution, the catch around it swallowed it,
+  and **no repository on the explore or featured lists has ever shown a
+  language**. The catch was there for an instance that had never run the
+  measure; it hid a bug in the query instead.

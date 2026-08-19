@@ -16,6 +16,7 @@
  */
 
 import type { TreeEntry } from '../Browse/parse'
+import { displayName } from './contributors'
 /*
  * Statically, not `await import('./releases')` inside the function.
  *
@@ -70,8 +71,21 @@ export interface AboutCount {
   icon: string
 }
 
+/** One face in the contributors row. */
+export interface AboutContributor {
+  name: string
+  href: string
+  avatarUrl: string
+  initial: string
+  title: string
+}
+
 export interface AboutPanel {
   description: string
+  /** The project's own site, checked when it was stored. Empty when there is none. */
+  homepage: string
+  /** How the link reads: the host, without the scheme or a trailing slash. */
+  homepageLabel: string
   topics: AboutTopic[]
   links: AboutLink[]
   counts: AboutCount[]
@@ -79,6 +93,9 @@ export interface AboutPanel {
   release: AboutRelease | null
   releaseCount: number
   releasesHref: string
+  contributors: AboutContributor[]
+  contributorCount: number
+  contributorsHref: string
 }
 
 /**
@@ -239,6 +256,8 @@ export interface AboutInput {
   base: string
   ref: string
   description: string
+  /** As stored, which means it has already been through `usableHomepage`. */
+  homepage?: string | null
   /** Blob names at the root, then in `.github`. Root first: root wins. */
   files: readonly AboutFile[]
   /** The `LICENSE` file's opening, when there is one to read. */
@@ -266,17 +285,23 @@ export interface AboutInput {
  * what a thrown server script renders as.
  */
 export async function aboutFor(input: AboutInput): Promise<AboutPanel> {
-  const [topics, languages, releases] = await Promise.all([
+  const [topics, languages, releases, contributors, contributorCount] = await Promise.all([
     readTopics(input.repositoryId),
     readLanguages(input.repositoryId),
     readReleases(input.repositoryId),
+    readContributors(input.repositoryId, CONTRIBUTOR_FACES),
+    countContributors(input.repositoryId),
   ])
 
   const published = releases.filter(release => String(release.status ?? '') === 'published')
   const latest = latestRelease(published as any)
 
+  const homepage = String(input.homepage ?? '')
+
   return {
     description: String(input.description ?? ''),
+    homepage,
+    homepageLabel: homepageLabel(homepage),
     topics: topicLinks(topics),
     links: healthLinks(input.files, input.base, input.ref, identifyLicense(input.licenseText)),
     /*
@@ -300,7 +325,71 @@ export async function aboutFor(input: AboutInput): Promise<AboutPanel> {
       : null,
     releaseCount: published.length,
     releasesHref: `${input.base}/releases`,
+    contributors: contributorFaces(contributors),
+    contributorCount,
+    contributorsHref: `${input.base}/contributors`,
   }
+}
+
+/** How many faces the panel shows before it stops and gives a number. */
+export const CONTRIBUTOR_FACES = 12
+
+/**
+ * How a homepage link reads.
+ *
+ * The host, without the scheme and without a trailing slash - which is how
+ * people say a site out loud, and which fits in a panel that is under three
+ * hundred pixels wide. The full URL is still what the link goes to.
+ *
+ * Falls back to the raw value if it will not parse, which cannot happen for
+ * anything `usableHomepage` stored but can for a row written before that rule
+ * existed.
+ */
+export function homepageLabel(homepage: string): string {
+  const value = String(homepage ?? '').trim()
+
+  if (!value)
+    return ''
+
+  try {
+    const url = new URL(value)
+    const path = url.pathname === '/' ? '' : url.pathname.replace(/\/$/, '')
+
+    return `${url.host}${path}`
+  }
+  catch {
+    return value
+  }
+}
+
+/**
+ * The row of faces, out of stored rows.
+ *
+ * A contributor with a local account gets their avatar and a link to their
+ * profile; everybody else gets an initial and no link. Both are shown, and that
+ * is the point: on a mirror almost nobody has an account here, and a row that
+ * only drew the people who did would credit four of the two hundred who wrote
+ * the code.
+ *
+ * The address is never rendered. It is the key the table is grouped by, and a
+ * public page is a different audience from somebody who cloned the repository.
+ */
+export function contributorFaces(
+  rows: readonly { name: unknown, handle?: unknown, avatar_url?: unknown, commits?: unknown }[],
+): AboutContributor[] {
+  return rows.map((row) => {
+    const handle = String(row.handle ?? '')
+    const name = handle || displayName(String(row.name ?? ''), String((row as any).email ?? ''))
+    const commits = Number(row.commits ?? 0)
+
+    return {
+      name,
+      href: handle ? `/${handle}` : '',
+      avatarUrl: String(row.avatar_url ?? ''),
+      initial: (name.trim()[0] ?? '?').toUpperCase(),
+      title: `${name} - ${commits} ${commits === 1 ? 'commit' : 'commits'}`,
+    }
+  })
 }
 
 async function readTopics(repositoryId: number): Promise<string[]> {
@@ -355,4 +444,49 @@ function publishedAt(release: any, relativeTime?: (when: string) => string): str
     return ''
 
   return relativeTime ? relativeTime(when) : when
+}
+
+/**
+ * The top contributors, with the account behind each one where there is one.
+ *
+ * A left join rather than a second query keyed by id: the panel needs the
+ * handle and the avatar to draw a face, and asking for them per row is twelve
+ * round trips for twelve faces.
+ */
+async function readContributors(repositoryId: number, limit: number): Promise<any[]> {
+  try {
+    return await db
+      .selectFrom('repository_contributors')
+      .leftJoin('users', 'users.id', '=', 'repository_contributors.user_id')
+      .select([
+        'repository_contributors.name as name',
+        'repository_contributors.commits as commits',
+        'users.handle as handle',
+        'users.avatar_url as avatar_url',
+      ])
+      .where('repository_contributors.repository_id', '=', repositoryId)
+      .orderBy('repository_contributors.commits', 'desc')
+      .limit(limit)
+      .execute()
+  }
+  catch {
+    // Never measured, or the table is not there on a fresh instance.
+    return []
+  }
+}
+
+/** How many there are in total, which is the number the panel names. */
+async function countContributors(repositoryId: number): Promise<number> {
+  try {
+    const row = await db
+      .selectFrom('repository_contributors')
+      .select(db.fn.count('id').as('n'))
+      .where('repository_id', '=', repositoryId)
+      .executeTakeFirst()
+
+    return Number(row?.n ?? 0)
+  }
+  catch {
+    return 0
+  }
 }

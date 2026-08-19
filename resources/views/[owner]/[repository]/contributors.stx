@@ -1,0 +1,206 @@
+<script server>
+/**
+ * Everybody who has landed a commit on this repository.
+ *
+ * Read from `repository_contributors`, which `MeasureContributorsJob` fills
+ * after a push and after a mirror sync. Nothing here walks the history:
+ * `git shortlog` over a large repository is seconds of CPU, and that is exactly
+ * the work a page cannot do - see `app/Actions/Repo/contributors.ts`.
+ *
+ * The list names people without an account here as well as people with one, and
+ * that is the point rather than an oversight: on a mirrored repository almost
+ * nobody has an account, and a list of only the people who did would credit
+ * four of the two hundred who wrote the code.
+ *
+ * What it never shows is the address. That is the key the table is grouped by,
+ * and a public page indexed by search engines is a different audience from
+ * somebody who has cloned the repository and can read `git log`.
+ */
+import { abbreviateCount, contributorRows, repositoryForView, repositoryHeaderActions } from '../../../functions/repo'
+
+// Asked for here rather than through a helper: `setResponseStatus` is a
+// context binding, in scope only inside this script. See the note in
+// `resources/components/RepoBrowser.stx`.
+const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : () => {}
+
+const ownerHandle = String(params.owner)
+const repositoryName = String(params.repository)
+
+/**
+ * The request, when there is one, without naming a binding that may not exist.
+ *
+ * stx declares `__stxServeContext` on the path that serves a request and on no
+ * other, and an *undeclared* identifier is a ReferenceError - which optional
+ * chaining does not save, because `x?.y` throws on `x` before the chain is
+ * reached. It throws inside the server script's IIFE, so it takes every other
+ * variable in this file down with it and the page renders its not-found branch
+ * as though the answer were no.
+ */
+const serveContext = __stxServeContext
+
+const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
+const repoRow: any = repoAccess?.repository ?? null
+// Star and watch, for the header. One line here rather than each screen
+// re-deriving the viewer, the counts and the labels - see
+// `app/Actions/Repo/standing.ts`.
+const repoActions = await repositoryHeaderActions(repoAccess, ownerHandle, repositoryName)
+
+if (!repoRow)
+  setStatus(404)
+
+/*
+ * The rows, with the account behind each one where there is one, in a single
+ * left join: the page needs a handle and an avatar to draw a face, and asking
+ * for those per row is a round trip per contributor.
+ *
+ * Guarded like every read on a repository screen. A throw here renders the
+ * whole page with every binding undefined, which reads as "no such repository".
+ */
+let rows: any[] = []
+
+try {
+  if (repoRow) {
+    const found = await db
+      .selectFrom('repository_contributors')
+      .leftJoin('users', 'users.id', '=', 'repository_contributors.user_id')
+      .select([
+        'repository_contributors.name as name',
+        'repository_contributors.email as email',
+        'repository_contributors.commits as commits',
+        'users.handle as handle',
+        'users.name as account_name',
+        'users.avatar_url as avatar_url',
+      ])
+      .where('repository_contributors.repository_id', '=', Number(repoRow.id))
+      .orderBy('repository_contributors.commits', 'desc')
+      .execute()
+
+    // Shaped where it can be tested, like every other list in this codebase.
+    // The map is keyed on the address the row already carries, so `contributorRows`
+    // does the joining rather than the template.
+    const accounts = new Map(
+      found
+        .filter((row: any) => row.handle)
+        .map((row: any) => [
+          String(row.email ?? '').toLowerCase(),
+          { handle: String(row.handle), name: row.account_name, avatarUrl: row.avatar_url },
+        ]),
+    )
+
+    rows = contributorRows(found, accounts, abbreviateCount)
+  }
+}
+catch {
+  rows = []
+}
+
+const total = rows.length
+const commits = rows.reduce((sum: number, row: any) => sum + Number(row.commits ?? 0), 0)
+</script>
+
+@layout('app')
+
+@section('title', `Contributors · ${params.owner}/${params.repository}`)
+@section('description', `Everybody who has landed a commit on ${params.owner}/${params.repository}.`)
+
+@section('content')
+  <div class="shell" style="padding-top: 22px; padding-bottom: 64px;">
+    @if (!repoRow)
+      <div class="panel" style="padding: 32px; text-align: center;">
+        <h1 style="font-size: 20px;">No such repository</h1>
+      </div>
+    @else
+      <RepoHeader
+        owner="{{ ownerHandle }}"
+        repository="{{ repositoryName }}"
+        visibility="{{ repoRow.visibility }}"
+        description="{{ repoRow.description ?? '' }}"
+        refName=""
+        size=""
+        sizeKb="0"
+        commits=""
+        :actions="repoActions"
+        :branches="[]"
+        :tags="[]" />
+
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+
+      @if (total === 0)
+        {{-- Said out loud rather than drawn as an empty list. An empty box and
+            a box that has not been measured yet look the same, and only one of
+            them is worth telling somebody about. --}}
+        <div class="panel" style="padding: 32px; text-align: center; margin-top: 18px;">
+          <h2 style="font-size: 17px;">Nobody has been counted yet</h2>
+          <p class="muted" style="margin-top: 6px;">
+            Contributors are measured after a push, and after a mirror syncs something new.
+          </p>
+        </div>
+      @else
+        <p class="muted repo-page-caption">
+          {{ total }} {{ total === 1 ? 'person has' : 'people have' }} landed {{ abbreviateCount(commits) }}
+          {{ commits === 1 ? 'commit' : 'commits' }}, merges aside.
+        </p>
+
+        <ul class="contributors panel">
+          @foreach (rows as person)
+            <li class="contributor">
+              @if (person.avatarUrl)
+                <img class="contributor-face" src="{{ person.avatarUrl }}" alt="" width="36" height="36" loading="lazy">
+              @else
+                <span class="contributor-face contributor-face-letter" aria-hidden="true">{{ person.initial }}</span>
+              @endif
+
+              <span class="contributor-name">
+                @if (person.href)
+                  <a href="{{ person.href }}">{{ person.name }}</a>
+                @else
+                  {{ person.name }}
+                @endif
+              </span>
+
+              {{-- Nobody with no account here is marked as a stranger. They
+                  wrote the code; whether they signed up is this instance's
+                  business rather than a fact about them. --}}
+              <span class="contributor-commits muted">
+                {{ person.commitsLabel }} {{ person.commits === 1 ? 'commit' : 'commits' }}
+              </span>
+            </li>
+          @endforeach
+        </ul>
+      @endif
+    @endif
+  </div>
+@endsection
+
+<style>
+  .contributors { margin-top: 14px; overflow: hidden; }
+
+  .contributor {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+
+  .contributor:last-child { border-bottom: 0; }
+
+  .contributor-face { flex: none; width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+
+  /* The initial rather than a gravatar. Nothing about reading a repository
+    should reach a third party for a picture of somebody who never signed up. */
+  .contributor-face-letter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface-strong, var(--surface));
+    border: 1px solid var(--line);
+  }
+
+  .contributor-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contributor-commits { flex: none; font-size: 13px; font-variant-numeric: tabular-nums; }
+</style>

@@ -94,8 +94,15 @@ export interface StandingButton {
  * Thousands are abbreviated because the number is a *size*, not a quantity
  * somebody is going to do arithmetic with: "1.2k" and "1,247" carry the same
  * information to a reader scanning a header, and only one of them fits.
+ *
+ * Named for what it does rather than `formatCount`, because `functions/review.ts`
+ * already exports a `formatCount` that groups digits instead of abbreviating -
+ * and the auto-import barrel is one namespace, so two exports of a name make it
+ * fail to compile and take every other function in `resources/functions/` down
+ * with it. That failure is silent in the worst way: the views that referenced
+ * them render their empty branch.
  */
-export function formatCount(value: number): string {
+export function abbreviateCount(value: number): string {
   const count = Math.max(0, Math.trunc(Number(value) || 0))
 
   if (count < 1000)
@@ -131,7 +138,7 @@ function trim(value: string): string {
 export function starButton(standing: RepositoryStanding): StandingButton {
   return {
     label: standing.starred ? 'Starred' : 'Star',
-    count: formatCount(standing.stars),
+    count: abbreviateCount(standing.stars),
     pressed: standing.starred,
     value: 'toggle',
     icon: standing.starred ? 'i-hugeicons-star' : 'i-hugeicons-star',
@@ -225,7 +232,7 @@ export function repositoryActions(
     // signing in from here rather than from the nav.
     signInHref: `/login?next=${encodeURIComponent(next)}`,
     star: starButton(standing),
-    watchers: formatCount(standing.watchers),
+    watchers: abbreviateCount(standing.watchers),
     watchLabel: watchLabel(standing.subscription),
     // `ignore` is watching in the sense that a row exists and not in the sense
     // the button means, so it is not tinted as something already done.

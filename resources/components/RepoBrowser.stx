@@ -244,6 +244,7 @@ const about = atRoot
       base,
       ref,
       description: String(repoRow.description ?? ''),
+      homepage: String(repoRow.homepage ?? ''),
       files: [...filesIn(entries), ...filesIn(githubListing.ok ? githubListing.entries : [], '.github')],
       licenseText: licenseBlob?.ok ? licenseBlob.text : null,
       stars: String(standing?.stars ?? 0),

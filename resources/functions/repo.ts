@@ -186,3 +186,26 @@ import { aboutFor as aboutForImpl, filesIn as filesInImpl } from '../../app/Acti
 
 export const aboutFor = aboutForImpl
 export const filesIn = filesInImpl
+
+/**
+ * Who wrote a repository, shaped for a page.
+ *
+ * `app/Actions/Repo/contributors.ts` has the reasoning: a contributor is an
+ * email address, a local account is attached only on an exact match, and the
+ * address itself is never rendered.
+ */
+import { contributorRows as contributorRowsImpl } from '../../app/Actions/Repo/contributors'
+
+export const contributorRows = contributorRowsImpl
+
+/**
+ * Counts as people read them: `1.2k`. Shared with the header's star count.
+ *
+ * Not `formatCount`: `functions/review.ts` exports one of those already, and
+ * the auto-import barrel is one namespace - a duplicate name makes it fail to
+ * compile, which takes every function in `resources/functions/` with it and
+ * renders every view that used one as its empty branch, with no error.
+ */
+import { abbreviateCount as abbreviateCountImpl } from '../../app/Actions/Repo/standing'
+
+export const abbreviateCount = abbreviateCountImpl

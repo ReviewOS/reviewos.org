@@ -201,6 +201,37 @@ async function run(payload: { mirrorId: number }): Promise<{ ok: boolean, reason
         .execute()
     }
 
+    /*
+     * What the repository is written in, and who wrote it - re-measured when a
+     * sync actually moved something.
+     *
+     * A mirror never goes through `ProcessPushJob`, which is the only thing
+     * that queued these, so **no mirrored repository has ever had a language
+     * breakdown or a contributor list**. That is most of the repositories on an
+     * instance like this one, and the symptom is an About panel with two
+     * sections missing on exactly the repositories people came to look at.
+     *
+     * Only when refs moved: a sweep that found nothing changed nothing, and
+     * re-walking the history every fifteen minutes to learn the same answer is
+     * what the `search` queue is for avoiding.
+     *
+     * Separately caught, and after the row is already updated: these are two
+     * conveniences, and neither is worth turning a successful sync into a
+     * retry.
+     */
+    if (changes.length > 0) {
+      for (const name of ['MeasureLanguagesJob', 'MeasureContributorsJob'] as const) {
+        try {
+          const job = (await import(`./${name}`)).default
+
+          await job.dispatch({ repositoryId: Number(repository.id) })
+        }
+        catch (error) {
+          console.error(`[mirror] could not queue ${name}:`, error)
+        }
+      }
+    }
+
     dispatch('mirror:synced', {
       mirrorId,
       repositoryId: repository.id,

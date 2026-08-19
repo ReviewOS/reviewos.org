@@ -181,6 +181,20 @@ async function reindex(repositoryId: number): Promise<void> {
   catch (error) {
     console.error('[push] could not queue a language measurement:', error)
   }
+
+  /*
+   * And a re-measure of who wrote it, for the same reason and with the same
+   * separate catch: a push is the only thing that changes the answer, and
+   * walking the history is precisely the work no page can do.
+   */
+  try {
+    const MeasureContributorsJob = (await import('./MeasureContributorsJob')).default
+
+    await MeasureContributorsJob.dispatch({ repositoryId })
+  }
+  catch (error) {
+    console.error('[push] could not queue a contributor measurement:', error)
+  }
 }
 
 /**

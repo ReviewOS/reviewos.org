@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import {
-  formatCount,
+  abbreviateCount,
   repositoryActions,
   starButton,
   watchLabel,
@@ -22,29 +22,29 @@ function standing(over: Record<string, unknown> = {}): any {
   return { stars: 0, starred: false, watchers: 0, subscription: null, forks: 0, ...over }
 }
 
-describe('formatCount', () => {
+describe('abbreviateCount', () => {
   it('shows a small number as itself', () => {
-    expect(formatCount(0)).toBe('0')
-    expect(formatCount(1)).toBe('1')
-    expect(formatCount(999)).toBe('999')
+    expect(abbreviateCount(0)).toBe('0')
+    expect(abbreviateCount(1)).toBe('1')
+    expect(abbreviateCount(999)).toBe('999')
   })
 
   it('abbreviates thousands, with a decimal only where it says something', () => {
-    expect(formatCount(1000)).toBe('1k')
-    expect(formatCount(1247)).toBe('1.2k')
-    expect(formatCount(9400)).toBe('9.4k')
+    expect(abbreviateCount(1000)).toBe('1k')
+    expect(abbreviateCount(1247)).toBe('1.2k')
+    expect(abbreviateCount(9400)).toBe('9.4k')
     // Above ten thousand the decimal is noise on a number nobody is checking.
-    expect(formatCount(94300)).toBe('94k')
+    expect(abbreviateCount(94300)).toBe('94k')
   })
 
   it('abbreviates millions', () => {
-    expect(formatCount(1_500_000)).toBe('1.5m')
+    expect(abbreviateCount(1_500_000)).toBe('1.5m')
   })
 
   it('never shows a negative or a fraction', () => {
-    expect(formatCount(-5)).toBe('0')
-    expect(formatCount(3.7)).toBe('3')
-    expect(formatCount(Number.NaN)).toBe('0')
+    expect(abbreviateCount(-5)).toBe('0')
+    expect(abbreviateCount(3.7)).toBe('3')
+    expect(abbreviateCount(Number.NaN)).toBe('0')
   })
 })
 

@@ -170,7 +170,17 @@ async function primaryLanguages(db: any, names: string[]): Promise<Map<string, s
   try {
     const rows = await db
       .selectFrom('repository_languages')
-      .innerJoin('repositories', 'repositories.id', 'repository_languages.repository_id')
+      /*
+       * Four arguments, and the operator is not optional.
+       *
+       * The three-argument form parses and then throws at execution -
+       * "identifier must be a non-empty string, got undefined" - which the
+       * catch below swallowed, so this returned an empty map and **no
+       * repository on the explore or featured lists has ever shown a
+       * language**. The catch is there for an instance that has never run the
+       * measure, and it hid a bug in the query instead.
+       */
+      .innerJoin('repositories', 'repositories.id', '=', 'repository_languages.repository_id')
       .select(['repositories.name as name', 'repository_languages.language as language', 'repository_languages.bytes as bytes'])
       .where('repositories.name', 'in', names)
       .orderBy('repository_languages.bytes', 'desc')
