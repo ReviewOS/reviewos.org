@@ -5952,6 +5952,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/search/code
+   */
+  getSearchCode(input: { "q": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/search/code", input ?? {}, ["q"], false, options)
+  },
+
+  /**
    * GET /api/serverless
    */
   getServerless(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

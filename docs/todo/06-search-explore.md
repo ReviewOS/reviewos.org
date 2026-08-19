@@ -141,14 +141,57 @@ Deliberately separate. This is where forges either invest heavily or ship someth
   finds by accident; a result cap, because a one-character search matches every
   line in the repository; and a two-character minimum, because searching for `e`
   is not a search.
-- [ ] Instance-wide code search only after the above, and only with a decision recorded here about
+- [x] Instance-wide code search only after the above, and only with a decision recorded here about
       the index
 
-  A gate rather than a deliverable, and it stays open because the thing it gates
-  is not built. The decision it asks for is recorded on the first box of this
-  section: a trigram index is a subsystem with its own storage, staleness and
-  failure modes, and in-repository search is useful without it. This box gets
-  ticked by somebody who builds the index, not by somebody who decides not to.
+  **Built: a trigram index that narrows, with `git grep` still deciding.**
+  `GET /api/search/code`, `buddy search:index`, and a shard rebuilt per
+  repository on push.
+
+  The decision the box asked for, and it is the one that makes the rest safe:
+  **the index never answers, it only excludes.** For each repository the shard
+  says which files *could* contain the query; the matches themselves come from
+  `git grep` against the tree at the ref, the same way in-repository search
+  already works. So a result is the code as it is now rather than as it was when
+  an indexer last ran, and the index is allowed to be wrong in exactly one
+  direction - offering a file that turns out not to match costs a grep, and
+  withholding one that does is a result nobody sees. Everything is arranged
+  against the second: a query the index cannot narrow (too short, an
+  alternation, a quantifier over a literal) searches everything rather than
+  narrowing wrongly.
+
+  **Staleness is bounded rather than assumed away.** A shard records the commit
+  it was built from; when the ref has moved, every path changed between the two
+  joins the candidate set whatever the index says, so a file written since the
+  last build is still found. When that commit is gone - a force-push, history
+  rewritten - the repository is searched in full. The index can be out of date;
+  it cannot be wrong.
+
+  **The measurements that shaped it**, taken on this repository (3,769 files):
+
+  | | |
+  |---|---|
+  | building a shard | 1.3s |
+  | shard on disk | 10 MB |
+  | narrowing a query | ~16ms |
+  | grep of the narrowed candidates | ~12ms |
+  | a term nothing holds | 0 candidates, **no git process at all** |
+
+  Two things had to change to get there, and both are the kind of bug this
+  index must not have. Reading `cat-file --batch` by slicing a *string* at
+  git's byte offsets desynchronised on the first non-ASCII character and
+  indexed 33 files of 3,949 while reporting success - a search that quietly
+  cannot find things. And decoding a whole shard to answer a question about
+  twenty trigrams cost 150ms per repository, which across a thousand of them is
+  two and a half minutes before a line is searched: every shard now opens with a
+  32KB bitmap of the trigrams it holds, so a repository that cannot match is
+  dismissed by reading the head of a file, and only the survivors are opened.
+
+  What is left for a large instance is written down rather than guessed at: the
+  posting lines are scanned rather than seeked, so opening a surviving shard is
+  linear in its size. An offset table would fix that and is a format that has to
+  be rebuilt when it is wrong - worth doing when somebody has an instance where
+  it matters, not before.
 - [x] Regex support, path filters, and language filters
 
   **Literal by default**, which matters more than it sounds: somebody searching
