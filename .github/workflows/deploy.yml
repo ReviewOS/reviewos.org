@@ -79,10 +79,16 @@ jobs:
         run: bun test tests/unit/
 
       - name: Authorise the deploy key
-        # ts-cloud reaches the server over SSH as root. The key lives in the
-        # agent for the life of the job rather than on disk, and the host key
-        # is pinned so a redirected DNS answer cannot silently receive a
-        # release.
+        # ts-cloud reaches the server over SSH as root, and it wants the key
+        # *as files*: it reads `~/.ssh/id_ed25519.pub` to register on the
+        # server and refuses to start without it. This step kept the key in an
+        # agent instead - safer on paper, and it meant every dispatch of this
+        # workflow stopped at "SSH public key not found" with the key sitting
+        # in the agent. The gated deploy in `ci.yml` has always written the
+        # files; the two paths are the same again.
+        #
+        # The host key is pinned, so a redirected DNS answer cannot silently
+        # receive a release.
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -95,10 +101,10 @@ jobs:
           fi
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          eval "$(ssh-agent -s)" >/dev/null
-          printf '%s\n' "$DEPLOY_SSH_KEY" | ssh-add - >/dev/null
-          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
-          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+          chmod 644 ~/.ssh/id_ed25519.pub
           if [ -n "${DEPLOY_HOST_KEY:-}" ]; then
             printf '%s\n' "$DEPLOY_HOST_KEY" >> ~/.ssh/known_hosts
           else
