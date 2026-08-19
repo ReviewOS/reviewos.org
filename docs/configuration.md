@@ -158,6 +158,29 @@ and reach its own public hostname from the inside.
 
 Read by `app/Actions/Git/hooks.ts`.
 
+### `GIT_WAL`
+
+Default: `advisory`, and the line is commented out.
+
+The push write-ahead log: every push recorded before it is acknowledged, with
+a bundle of its objects in blob storage. That is continuous point-in-time
+backup on one box, and `buddy git:restore` is what reads it back.
+
+off (the default), advisory, or required. `required` refuses a push that
+cannot be logged, which deliberately inverts the fail-open rule that governs
+branch protection - see config/git-wal.ts for why the two want opposite
+failure modes. Run advisory first.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `GIT_WAL_KEEP`
+
+Default: `500`, and the line is commented out.
+
+How many committed entries to keep behind the newest checkpoint.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
 ## Database
 
 ### `DB_CONNECTION`
@@ -598,6 +621,58 @@ Default: `http`.
 Default: `pantry-dev`.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+## Blob
+
+### `BLOB_LOCAL_ROOT`
+
+Default: `storage/blobs`.
+
+Blob storage: workflow artifacts, LFS objects, release assets, and the push
+bundles the write-ahead log writes. Local disk is the default and is a
+supported driver forever - an instance on one box needs none of the rest.
+
+Read by `app/Actions/Git/blobs.ts`.
+
+### `BLOB_S3_BUCKET`
+
+Default: unset.
+
+Naming a bucket is what switches the driver to object storage. There is no
+separate BLOB_DRIVER on purpose: "use s3" without a bucket is a setting that
+tells you nothing until the first upload fails.
+
+Read by `app/Actions/Git/blobs.ts`, `app/Actions/Git/blobsS3.ts`.
+
+### `BLOB_S3_PREFIX`
+
+Default: unset.
+
+Everything this instance writes goes under this prefix, so one bucket can
+hold several instances.
+
+Read by `app/Actions/Git/blobsS3.ts`.
+
+### `BLOB_S3_PROVIDER`
+
+Default: `aws`, and the line is commented out.
+
+aws, hetzner, or backblaze. Credentials come from the provider's own
+variables - HETZNER_S3_* for Hetzner, the AWS chain for AWS.
+
+Read by `app/Actions/Git/blobsS3.ts`.
+
+## Object
+
+### `OBJECT_STORAGE_PROVIDER`
+
+Default: `aws`, and the line is commented out.
+
+What ts-cloud itself calls the same setting. Read only when `BLOB_S3_PROVIDER`
+is unset, so an instance that already configures object storage for ts-cloud
+does not have to say it twice.
+
+Read by `app/Actions/Git/blobsS3.ts`.
 
 ## Exposed to the browser
 
