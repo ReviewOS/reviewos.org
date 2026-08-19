@@ -65,12 +65,27 @@ const rows = commitRows(commits, `/${ownerHandle}/${repositoryName}`, relativeTi
         <h1 style="font-size: 20px;">No such repository</h1>
       </div>
     @else
-      <header class="repo-head">
-        <h1 class="repo-title">
-          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="/{{ ownerHandle }}/{{ repositoryName }}">{{ repositoryName }}</a>
-        </h1>
-        <p class="muted" style="margin-top: 6px;">Commits on <span class="mono">{{ ref }}</span></p>
-      </header>
+      {{-- `RepoHeader`, the same identity block every other repository screen
+          draws. This page carried its own: a name and a caption, without the
+          description or the clone URL, so a repository changed shape depending
+          on which of its pages you were standing on. --}}
+      <RepoHeader
+        owner="{{ ownerHandle }}"
+        repository="{{ repositoryName }}"
+        visibility="{{ repoRow.visibility }}"
+        description="{{ repoRow.description ?? '' }}"
+        refName=""
+        size=""
+        sizeKb="0"
+        commits=""
+        :branches="[]"
+        :tags="[]" />
+
+      {{-- Tabs, which this page had none of: the commit list was the one place
+          in a repository with no way back to the rest of it. --}}
+      <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="code" />
+
+      <p class="muted repo-page-caption">Commits on <span class="mono">{{ ref }}</span></p>
 
       <CommitList :rows="rows" />
 

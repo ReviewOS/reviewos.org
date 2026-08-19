@@ -1145,6 +1145,11 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
 
       @media (max-width: 700px) { .profile-repos { grid-template-columns: 1fr; } }
 
+      /* What a repository page is showing, under its tabs: "Commits on main",
+        and whatever the next screen needs. Below the tabs rather than in the
+        header, because it describes the page rather than the repository. */
+      .repo-page-caption { margin: 14px 0 0; font-size: 13px; }
+
       /* One repository, as a card: `resources/components/RepositoryCard.stx`,
         which the profile and both explore lists render. They used to draw four
         of these between them.

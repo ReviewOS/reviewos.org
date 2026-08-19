@@ -205,6 +205,15 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   `/stacks` from `.profile/README.md`, social card, badge, headings, nested
   lists, blockquote and rule intact.
 - [x] The repository header says the same thing on every tab, and nothing it does not know
+- [x] Every repository screen draws the same header, including the one with no tabs
+
+  Six screens, five headers. Branches, tags, releases and insight each drew a
+  name and a caption of their own; the commit list drew one too **and had no
+  tabs at all**, so it was the single page inside a repository with no way back
+  to the rest of it - a reader who followed a commit link had to edit the URL.
+
+  All of them render `RepoHeader` now, with the caption moved below the tabs
+  where it belongs: "Commits on main" describes the page, not the repository.
 
   `main · 2 branches · commits · 0 B`. Two of those four are wrong. "commits"
   was a bare word in a row of counts, which reads as a number that failed to

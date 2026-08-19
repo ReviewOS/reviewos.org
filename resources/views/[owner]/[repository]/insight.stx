@@ -156,12 +156,21 @@ const base = `/${ownerHandle}/${repositoryName}`
         <h1 style="font-size: 20px;">No such repository</h1>
       </div>
     @else
-      <header class="repo-head">
-        <h1 class="repo-title">
-          <a href="/{{ ownerHandle }}">{{ ownerHandle }}</a><span class="muted">/</span><a href="{{ base }}">{{ repositoryName }}</a>
-        </h1>
-        <p class="muted" style="margin-top: 6px;">Pipelines over the last {{ days }} days</p>
-      </header>
+      {{-- `RepoHeader`, the same identity block every other repository screen
+          draws. This page carried its own: a name and a caption, without the
+          description or the clone URL, so a repository changed shape depending
+          on which of its pages you were standing on. --}}
+      <RepoHeader
+        owner="{{ ownerHandle }}"
+        repository="{{ repositoryName }}"
+        visibility="{{ repoRow.visibility }}"
+        description="{{ repoRow.description ?? '' }}"
+        refName=""
+        size=""
+        sizeKb="0"
+        commits=""
+        :branches="[]"
+        :tags="[]" />
 
       <RepoTabs owner="{{ ownerHandle }}" repository="{{ repositoryName }}" active="insight" />
 
