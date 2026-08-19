@@ -615,16 +615,47 @@ jobs:
             [ -n "$value" ] || echo "::warning::$required is not set; the deploy will not get far."
           done
 
-          # Only this project's site.
+          # Every site this project declares, which is now more than one.
           #
-          # config/cloud.ts still carries the template's stacks sites -
-          # stacksjs.com, its docs, blog and redirects - which belong to that
-          # project and not to this repository. An unscoped deploy tried to
-          # build all of them and died in the blog's build step, reaching for a
-          # vendored `storage/framework/core` a core-less app does not have.
-          #
-          # This also matches what a deploy from a laptop has always run.
-          ./buddy deploy --site reviewos "$DEPLOY_FLAG" --yes
+          # This was `--site reviewos`, and `--site` takes exactly one name:
+          # once the API became its own service, that flag was the difference
+          # between deploying it and not. The scoping was there because
+          # config/cloud.ts used to carry the template's stacks sites -
+          # stacksjs.com, its docs, blog and redirects - and an unscoped deploy
+          # died in the blog's build step reaching for a vendored
+          # `storage/framework/core` a core-less app does not have. Those sites
+          # are gone; the config declares `reviewos` and `api` and nothing else,
+          # so the scoping now only excludes half of this project.
+          ./buddy deploy "$DEPLOY_FLAG" --yes
+
+      - name: Verify the deploy answers
+        # This job had no verification at all, and `deploy.yml` - the manual
+        # path nobody uses - had the only one. So the deploy that actually runs
+        # went green on `buddy deploy` exiting 0, whatever the box was serving
+        # afterwards.
+        #
+        # Both halves, because they are different processes: `/` is the page
+        # server and `/api/health` is the API. Checking only the first is how
+        # the entire API surface answered 502 for as long as it did while every
+        # deploy reported success.
+        if: env.DEPLOY_ENVIRONMENT == 'production'
+        run: |
+          set -euo pipefail
+          check() {
+            for attempt in $(seq 1 10); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$1" || echo 000)
+              if [ "$code" = "200" ]; then
+                echo "$1 responded 200"
+                return 0
+              fi
+              echo "attempt $attempt: $1 -> $code"
+              sleep 15
+            done
+            echo "$1 did not return 200 after the deploy" >&2
+            return 1
+          }
+          check https://reviewos.org/
+          check https://reviewos.org/api/health
 
   publish-commit:
     if: github.event_name == 'pull_request'
