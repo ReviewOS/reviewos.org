@@ -271,9 +271,21 @@ describe('the workflows page', () => {
      * Checked here because this page renders a line per behavioural difference,
      * and that line joined a key to its message with one. A rule nothing tests
      * is a rule that comes back.
+     *
+     * Script and style are cut out first, and the reason is not fastidiousness:
+     * stx injects its own client runtime into every page, and one of its
+     * comments reads "Make state reactive — mutations trigger re-render via
+     * signals". So this failed on every page in the product regardless of what
+     * this one said, and it failed in CI while passing nowhere anybody looked -
+     * a copy rule that fires on a vendor comment is a copy rule people learn to
+     * ignore. The house rule is about what a person reads, and nobody reads
+     * that.
      */
     const html = await page(created.ownerToken)
-    const body = html.slice(html.indexOf('<body'))
+    const body = html
+      .slice(html.indexOf('<body'))
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
 
     expect(body.includes('—')).toBe(false)
   })
