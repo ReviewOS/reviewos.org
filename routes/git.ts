@@ -66,7 +66,7 @@ async function authorize(request: any, service: 'upload-pack' | 'receive-pack') 
   if (!path)
     return { ok: false as const, status: 404 }
 
-  return { ok: true as const, path }
+  return { ok: true as const, path, repositoryId: Number(repository.id) }
 }
 
 /**
@@ -230,7 +230,7 @@ route.post('/{owner}/{repository}/git-upload-pack', async (request: any) => {
   if (!auth.ok)
     return unauthorized(auth.status)
 
-  return streamService(request, auth.path, 'upload-pack')
+  return streamService(request, auth.path, 'upload-pack', auth.repositoryId)
 }).skipCsrf().middleware('throttle:300,1m')
 
 /** Push. */
@@ -675,14 +675,135 @@ function saturated(): Response {
   })
 }
 
-async function streamService(request: any, path: string, service: 'upload-pack' | 'receive-pack'): Promise<Response> {
+/**
+ * Answer a clone from the pack cache, or say no.
+ *
+ * Returns a response only on a hit; anything else - a request that is not a
+ * plain clone, a miss, a store that errored - answers null and the caller runs
+ * git exactly as it always did.
+ *
+ * The request body has to be read to decide, which is why this consumes it and
+ * hands the bytes back through `request.cachedBody` for the caller to replay
+ * into git on a miss. A clone request is a few hundred bytes of pkt-line; this
+ * is not the streaming body that matters.
+ */
+async function servePackFromCache(request: any, repositoryId: number): Promise<Response | null> {
+  try {
+    const raw = await readRequestBody(request)
+
+    if (!raw)
+      return null
+
+    const { packCacheKey, parseClone } = await import('../app/Actions/Git/packCache')
+    const plan = parseClone(raw)
+
+    if (!plan)
+      return null
+
+    const { blobStore } = await import('../app/Actions/Git/blobs')
+    const store = await blobStore()
+    const stream = await store.get(packCacheKey(repositoryId, plan)).catch(() => null)
+
+    if (!stream)
+      return null
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/x-git-upload-pack-result',
+        'Cache-Control': 'no-cache, max-age=0, must-revalidate',
+        // Visible, so an operator can see the cache working rather than infer
+        // it from a latency graph.
+        'X-Pack-Cache': 'hit',
+      },
+    })
+  }
+  catch {
+    // A cache that throws is a cache that is not used. Never a failed clone.
+    return null
+  }
+}
+
+/** The whole request body, once, remembered for whoever needs it next. */
+async function readRequestBody(request: any): Promise<Uint8Array | null> {
+  if (request.__reviewosBody instanceof Uint8Array)
+    return request.__reviewosBody
+
+  const body: ReadableStream | null = request.body ?? null
+
+  if (!body)
+    return null
+
+  const bytes = new Uint8Array(await new Response(body).arrayBuffer())
+  request.__reviewosBody = bytes
+
+  return bytes
+}
+
+/**
+ * Where this clone's pack would be cached, when it is one worth caching.
+ *
+ * Null for every request the parser does not recognise as a plain clone,
+ * which is the same rule the read side uses - so the two cannot disagree
+ * about what is cacheable.
+ */
+async function packCacheTarget(repositoryId: number, body: Uint8Array): Promise<{ put: (stream: ReadableStream<Uint8Array>) => Promise<unknown> } | null> {
+  try {
+    const { packCacheKey, parseClone } = await import('../app/Actions/Git/packCache')
+    const plan = parseClone(body)
+
+    if (!plan)
+      return null
+
+    const { blobStore } = await import('../app/Actions/Git/blobs')
+    const store = await blobStore()
+    const key = packCacheKey(repositoryId, plan)
+
+    return { put: (stream: ReadableStream<Uint8Array>) => store.put(key, stream) }
+  }
+  catch {
+    return null
+  }
+}
+
+async function streamService(request: any, path: string, service: 'upload-pack' | 'receive-pack', repositoryId?: number): Promise<Response> {
+  /*
+   * The pack cache, for the one shape a runner fleet produces: fifty jobs on
+   * one commit sending fifty identical clone requests, each making git walk
+   * the graph and compress a pack that is byte-for-byte the last one.
+   *
+   * Only `upload-pack`, only a request the parser fully understands as a
+   * plain clone, and never a push. Everything else - a negotiated fetch, a
+   * shallow or partial clone, anything unfamiliar - falls straight through to
+   * git, which is the behavior this file has always had.
+   */
+  if (service === 'upload-pack' && repositoryId) {
+    const cached = await servePackFromCache(request, repositoryId)
+
+    if (cached)
+      return cached
+  }
+
   const child = await spawnGitLimited('heavy', path, serviceArgs(path, service))
 
   if (!child)
     return saturated()
 
-  const body: ReadableStream | null = request.body ?? null
-  if (body) {
+  /*
+   * The body, which the cache lookup above may already have consumed.
+   *
+   * A clone request is a few hundred bytes of pkt-line, so remembering it
+   * costs nothing - and it has to be remembered, because a stream can only be
+   * read once and git still needs it on a miss. A push is never read this way:
+   * `receive-pack` skips the cache entirely, so its packfile still streams.
+   */
+  const remembered: Uint8Array | null = request.__reviewosBody ?? null
+  const body: ReadableStream | null = remembered ? null : (request.body ?? null)
+
+  if (remembered) {
+    child.stdin.write(remembered)
+    child.stdin.end()
+  }
+  else if (body) {
     const reader = body.getReader()
     const pump = async () => {
       for (;;) {
@@ -703,6 +824,32 @@ async function streamService(request: any, path: string, service: 'upload-pack' 
   }
   else {
     child.stdin.end()
+  }
+
+  /*
+   * A miss that is cacheable fills the cache on the way out.
+   *
+   * `tee` so the client is never waiting on the store: it takes the bytes as
+   * git produces them, and the cache's branch is drained in the background. A
+   * failed write means the next identical clone misses too, which is the
+   * correct cost of a cache that cannot be written.
+   */
+  if (service === 'upload-pack' && repositoryId && remembered) {
+    const stored = await packCacheTarget(repositoryId, remembered)
+
+    if (stored) {
+      const [toClient, toCache] = stdoutStream(child).tee()
+
+      void stored.put(toCache).catch(() => undefined)
+
+      return new Response(toClient, {
+        headers: {
+          'Content-Type': `application/x-git-${service}-result`,
+          'Cache-Control': 'no-cache, max-age=0, must-revalidate',
+          'X-Pack-Cache': 'miss',
+        },
+      })
+    }
   }
 
   // Pull-based (`stdoutStream`), so a slow client slows git rather than

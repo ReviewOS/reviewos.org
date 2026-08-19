@@ -315,6 +315,43 @@ describe('the git wire protocol, end to end', () => {
   }, 30_000)
 
   /**
+   * The pack cache, through a real clone.
+   *
+   * A fleet's expensive operation is fifty identical clones of one commit,
+   * each making git walk the graph and compress a pack byte-for-byte
+   * identical to the last. The second clone here should be served from the
+   * blob store - and, far more importantly, should still be a *correct*
+   * clone: the assertion is on the content, not only on the header.
+   */
+  test('a second identical clone is served from the pack cache, and is still right', async () => {
+    if (!available)
+      return
+
+    const first = join(created.temp, 'cache-one')
+    const one = await git(created.temp, '-c', 'credential.helper=', 'clone', '--quiet', cloneUrl(), first)
+    expect(one.ok, one.stderr).toBe(true)
+
+    const second = join(created.temp, 'cache-two')
+    const two = await git(created.temp, '-c', 'credential.helper=', 'clone', '--quiet', cloneUrl(), second)
+    expect(two.ok, two.stderr).toBe(true)
+
+    // The same commit, the same files. A cache that serves a pack for another
+    // repository or another shape would show up here rather than in a header.
+    const firstHead = (await git(first, 'rev-parse', 'HEAD')).stdout.trim()
+    const secondHead = (await git(second, 'rev-parse', 'HEAD')).stdout.trim()
+
+    expect(secondHead).toBe(firstHead)
+    expect((await git(second, 'ls-files')).stdout.trim()).toBe((await git(first, 'ls-files')).stdout.trim())
+
+    // And it really was cached: the store holds a pack for this repository.
+    const { blobStore } = await import('../../app/Actions/Git/blobs')
+    const store = await blobStore()
+    const packs = await store.list(`packs/${created.repositoryId}`)
+
+    expect(packs.length).toBeGreaterThan(0)
+  }, 120_000)
+
+  /**
    * Not "did the clone work" but "which repository did it clone". The bug this
    * pins served the forge's own source for every URL, and `git clone` succeeded
    * every time.

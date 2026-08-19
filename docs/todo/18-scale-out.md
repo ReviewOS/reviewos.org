@@ -207,7 +207,21 @@ before replicas, and the checkpoint bundle from 18b is most of them.
       serving it more freely than `upload-pack` would make every private repository readable by
       anybody who guessed the URL. Fronting that URL with a CDN, or pointing it straight at a
       signed bucket URL, is the next step for an instance that wants it and changes nothing here.
-- [ ] A pack cache for hot clone shapes, keyed on repository and want/have set.
+- [x] A pack cache for hot clone shapes, keyed on repository and want/have set. **Only the shape
+      that is safe to cache**: a `want`-only request with no `have`, `shallow`, `deepen` or
+      `filter` asks for "everything reachable from these tips", so its answer depends on nothing
+      but those tips. That is a fresh clone, which is exactly what a fleet produces.
+
+      Everything else falls through to git untouched, and so does anything the pkt-line parser
+      does not completely understand - the parser fails open in exactly one direction, so no
+      input can make this serve the wrong pack; the worst it can do is fail to save work. That
+      matters more here than anywhere: this is the wire protocol, where the worst bug this
+      project ever shipped lived, and a cache that returns a plausible-but-wrong pack is that
+      same bug with a new cause.
+
+      Capabilities are deliberately outside the key: they change the encoding rather than which
+      objects are sent, and keying on them would miss for every client version. The e2e test
+      clones twice and asserts the second clone's *content* rather than only the header.
 - [x] Archives served from the blob store for CI that needs a tree, not history. Keyed on commit
       and format, which makes it a cache with no invalidation: an archive of a commit cannot
       change, because a commit cannot. A ref is deliberately not part of the key - two branches
@@ -228,11 +242,50 @@ before replicas, and the checkpoint bundle from 18b is most of them.
 
 ## 18e - Research only, not scheduled
 
-- [ ] Multi-node writes: receive-pack on any node under the per-repo lock plus WAL likely works
-      with no new machinery; needs a design note before it needs code.
-- [ ] SSH on non-primary nodes.
-- [ ] Whether gossip or placement hints ever matter below ten thousand repositories. Expected
-      answer: no.
+Notes, not plans. Each of these asks whether something needs building; two of the answers are
+"probably not yet", and writing that down is the deliverable.
+
+- [x] **Multi-node writes: receive-pack on any node under the per-repo lock plus WAL likely works
+      with no new machinery.** The design note, now that the WAL exists:
+
+      The pieces are already in place. A push is refused or allowed by the gate, which is an HTTP
+      call to the control plane rather than anything local; the WAL row is allocated a sequence
+      under a unique index that a second node cannot duplicate; and the bundle goes to a blob
+      store every node can read. What a second write node adds is the ordering question the
+      per-repo lock answers, and phase 17 brings that lock (`GET_LOCK` on MySQL) for the ref
+      ledger anyway.
+
+      So the shape is: take the per-repo lock in the gate, allocate the sequence and write the
+      pending row inside it, release, let git write its objects locally, and let the reconciler
+      settle what the hook did not confirm. A node that dies mid-push leaves a pending row and
+      local objects nobody references, which is the state the reconciler already handles.
+
+      **What actually stops this today is not writes, it is reads.** A push that lands on node B
+      is invisible to node A until A materializes it, and `ensureLocal` does not have teeth until
+      18c. Multi-node writes are therefore blocked on 18c rather than on anything in this note,
+      and 18c is blocked on phase 17. Nothing here needs code before then.
+
+- [x] **SSH on non-primary nodes.** Answered by the same dependency, and one detail worth
+      recording separately: the SSH transport carries no HTTP request, so a node serving it needs
+      the actor identity from the key alone (`REVIEWOS_ACTOR_ID`, which `ssh.ts` already forwards
+      to the hook) and needs the deploy-key and user-key tables the control plane owns. Both are
+      ordinary database reads, so an SSH node is a read replica plus a hook endpoint rather than
+      a new kind of node. No new machinery, and no reason to build it before there is a second
+      node at all.
+
+- [x] **Whether gossip or placement hints ever matter below ten thousand repositories. The
+      answer is no**, and now with a number behind it. Placement by rendezvous hashing at the
+      proxy needs no coordination: every node computes the same answer from the repository name
+      and the node list, and the node list changes when an operator changes it rather than
+      continuously. Consistency is checked per request against the ref ledger, which is one
+      indexed read - at ten thousand repositories and a hundred requests a second that is noise
+      next to the git work each request is about to do.
+
+      Gossip buys agreement about *state* that no part of this design needs: the database is the
+      linearizer, and a node that disagrees with it is wrong rather than differently informed.
+      The point at which this stops being true is when the ledger read itself is the bottleneck,
+      which is a database problem with database answers (phase 17's Vitess), not a distributed
+      systems problem with a gossip answer.
 
 ## Deliberately not building
 
