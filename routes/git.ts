@@ -14,7 +14,7 @@ import { parseRefUpdates } from '../app/Actions/Git/push'
 import { isAncestor } from '../app/Actions/Mirror/fetch'
 import { gitService, parseGitUrl } from '../app/Actions/Git/storage'
 import { handleRequest as handleLfsRequest } from 'ts-git-lfs'
-import { actorFrom, DatabaseLockStore, endpointFor, storeFor } from '../app/Actions/Git/lfs'
+import { actorFrom, blobObjectStore, DatabaseLockStore, endpointFor } from '../app/Actions/Git/lfs'
 
 /**
  * The git wire protocol, at the root.
@@ -721,7 +721,10 @@ async function lfs(request: any): Promise<Response> {
     : await db.selectFrom('users').selectAll().where('id', '=', userId).executeTakeFirst()
 
   const response = await handleLfsRequest(request, {
-    objects: storeFor(parsed.owner, parsed.name),
+    // The blob store rather than a directory, so LFS follows the same driver
+    // as everything else. On a local instance the keys resolve to the paths
+    // the objects already occupy.
+    objects: blobObjectStore(parsed.owner, parsed.name),
     locks: new DatabaseLockStore(Number(repository.id)),
     endpoint: endpointFor(request, parsed.owner, parsed.name),
     authorize: () => ({ actor: actorFrom(user, mayWrite), read: mayRead, write: mayWrite }),

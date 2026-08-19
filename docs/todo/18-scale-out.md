@@ -64,9 +64,22 @@ No push-path changes in this sub-phase.
       path artifacts have always used, so an instance adopts the store and finds every existing
       file where it was. Getting this wrong was caught by an existing expiry test, and the failure
       mode it would have shipped is every artifact on disk reading as missing on upgrade day.
-- [ ] LFS through the store: `app/Actions/Git/lfs.ts` currently hard-wires ts-git-lfs's local
+- [x] LFS through the store: `app/Actions/Git/lfs.ts` currently hard-wires ts-git-lfs's local
       object store; adapt it over `BlobStore`, upstream a custom-store seam in ts-git-lfs if it
-      lacks one.
+      lacks one. **It lacked one, so it was built.** Every route in that library went through its
+      `ObjectStore` interface except the download, which opened `Bun.file(objects.pathFor(oid))`
+      itself - so a bucket-backed store satisfied every other route and 404'd on the bytes, the
+      one operation that matters. ts-git-lfs 0.1.3 types the option as `ObjectStoreLike`, makes
+      `pathFor` optional, and asks the store to stream; it ships with a test that serves objects
+      from a store holding them in a `Map` with no path anywhere.
+
+      The adapter here keeps the library's own key layout, so an instance with LFS objects
+      already on disk finds every one where it left them. Its `write` calls the library's
+      `verifyObject` before storing: an LFS object is addressed by the hash of its content, and
+      an adapter that writes whatever it is handed under whatever name it is given removes that
+      check for the whole feature. The first version did exactly that, and the existing "bytes
+      that do not hash to the id in the URL are refused" test caught it - a 200 where a 422
+      belonged.
 - [x] Release assets and attachments through the store. Both already used a two-level fan-out
       under `storage/<feature>`, so their keys are the same paths minus the root the store
       supplies - nothing on disk moves.

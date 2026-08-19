@@ -16,10 +16,127 @@
  *   that a deploy forgets is a lock somebody was relying on.
  */
 
-import type { Actor, LockRecord, LockStore } from 'ts-git-lfs'
-import { ObjectStore } from 'ts-git-lfs'
+import type { Actor, LockRecord, LockStore, ObjectStoreLike } from 'ts-git-lfs'
+import { ObjectStore, verifyObject } from 'ts-git-lfs'
+import { blobStore } from './blobs'
 import { join, resolve } from 'node:path'
 import { path as frameworkPath } from '@stacksjs/path'
+
+/**
+ * The LFS object store, on this forge's blob store.
+ *
+ * ts-git-lfs ships an `ObjectStore` rooted at a directory, and that is what
+ * this used. It could not survive the object store moving off local disk: the
+ * library's download route opened `pathFor(oid)` itself, so a bucket-backed
+ * store satisfied every other route and 404'd on the bytes. Fixed upstream in
+ * ts-git-lfs 0.1.3, which types the option as `ObjectStoreLike` and asks the
+ * store to stream - so this adapter is possible at all.
+ *
+ * The keys keep the layout the library used, one directory per repository with
+ * a two-level fan-out, so an instance that already has LFS objects on disk
+ * finds every one of them exactly where it left them.
+ */
+export function blobObjectStore(owner: string, name: string): ObjectStoreLike {
+  const prefix = `lfs/${owner.toLowerCase()}/${stripGitSuffix(name).toLowerCase()}`
+  const keyFor = (oid: string): string => `${prefix}/${oid.slice(0, 2)}/${oid.slice(2, 4)}/${oid}`
+
+  return {
+    async lookup(oid: string) {
+      const found = await (await blobStore()).stat(keyFor(oid)).catch(() => null)
+
+      return found ? { oid: oid as any, size: found.size } : null
+    },
+
+    async has(oid: string) {
+      return Boolean(await (await blobStore()).stat(keyFor(oid)).catch(() => null))
+    },
+
+    async read(oid: string) {
+      const stream = await (await blobStore()).get(keyFor(oid)).catch(() => null)
+
+      return stream ? new Uint8Array(await new Response(stream).arrayBuffer()) : null
+    },
+
+    /*
+     * Synchronous by the library's signature, and the store's `get` is not -
+     * so the stream is opened lazily inside a ReadableStream's `start`. The
+     * whole point of an object being in LFS is that it is too big to want a
+     * copy of in memory, so this must not become a `read`.
+     */
+    stream(oid: string) {
+      const key = keyFor(oid)
+
+      return new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const source = await (await blobStore()).get(key).catch(() => null)
+
+          if (!source) {
+            controller.close()
+
+            return
+          }
+
+          const reader = source.getReader()
+
+          try {
+            for (;;) {
+              const { done, value } = await reader.read()
+
+              if (done)
+                break
+
+              if (value)
+                controller.enqueue(value)
+            }
+          }
+          finally {
+            reader.releaseLock()
+            controller.close()
+          }
+        },
+      })
+    },
+
+    async write(bytes: Uint8Array, expected: { oid: string, size?: number }) {
+      /*
+       * The hash is checked here, by the library's own `verifyObject`, and
+       * that is not optional politeness: an LFS object is addressed by the
+       * hash of its content, and a store that writes whatever it is handed
+       * under whatever name it is given lets one upload replace another
+       * object's bytes. The library's own store verifies before writing; an
+       * adapter that skips it silently removes the check for the whole
+       * feature.
+       *
+       * The first version of this adapter did exactly that, and the existing
+       * "bytes that do not hash to the id in the URL are refused" test caught
+       * it - a 200 where a 422 belonged.
+       */
+      const verified = await verifyObject(bytes, expected)
+
+      if (!verified.ok)
+        return { ok: false, reason: verified.reason }
+
+      const key = keyFor(verified.oid)
+      const store = await blobStore()
+
+      // Content-addressed, so an object already there is the same bytes.
+      const already = await store.stat(key).catch(() => null)
+
+      if (already)
+        return { ok: true, oid: verified.oid, size: verified.size }
+
+      const written = await store.put(key, bytes)
+
+      return { ok: true, oid: verified.oid, size: written.size }
+    },
+
+    async remove(oid: string) {
+      await (await blobStore()).delete(keyFor(oid)).catch(() => undefined)
+
+      return true
+    },
+  }
+}
 
 /**
  * The object store for one repository.
