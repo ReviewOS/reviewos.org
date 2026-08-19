@@ -16321,6 +16321,33 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/runner/orchestrator": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: { content: { "application/json": { "sequence": number; "kind"?: string; "name"?: string } } }
+    responses: {
+      "200": { content: { "application/json": { "decision"?: string; "result"?: unknown; "entry_id"?: number; "reason"?: string; "wake_at"?: string } } }
+      "401": { content: never }
+      "404": { content: never }
+      "409": { content: never }
+      "422": { content: never }
+      "426": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/runner/register": {
     get?: never
     put?: never

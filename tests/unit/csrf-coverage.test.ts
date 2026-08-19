@@ -33,7 +33,7 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
   },
   {
     file: 'routes/api.ts',
-    count: 14,
+    count: 15,
     because: 'the MCP endpoint, the mirror webhook, the eight runner routes, and the '
       + 'three GitHub-compatible paths an action posts to. '
       + 'MCP reads its bearer itself and refuses a request without one before '
@@ -56,7 +56,10 @@ const ALLOWED: Array<{ file: string, count: number, because: string }> = [
       + 'document unable to say which run it belongs to. The eighth is the '
       + 'dependency cache save - the same machine sending the same job '
       + 'credential with a tar as its body, and a scope it does not get to '
-      + 'choose, since the instance works that out from the run row.',
+      + 'choose, since the instance works that out from the run row. The ninth '
+      + 'is the orchestrator call - a workflow program journaling its next '
+      + 'step, on the job credential that names its own run, which is the '
+      + 'whole of its scoping.',
   },
   {
     file: 'routes/actions.ts',
@@ -178,11 +181,12 @@ describe('what is not exempt', () => {
     // refuses a request without one, so there is no ambient credential for a
     // forged post to ride - and once more for the dependency cache save, whose
     // body is a tar and whose scope the instance decides rather than the
-    // sender.
+    // sender, and once more for the orchestrator call, whose only
+    // identifier is the job token it arrives with.
     const source = await Bun.file('routes/api.ts').text()
     const unsafe = (source.match(/route\.(post|put|patch|delete)\(/g) ?? []).length
 
     expect(unsafe).toBeGreaterThan(50)
-    expect(await skipCount('routes/api.ts')).toBe(14)
+    expect(await skipCount('routes/api.ts')).toBe(15)
   })
 })

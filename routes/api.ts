@@ -987,6 +987,15 @@ route.post('/runner/artifacts', 'Actions/Runner/UploadArtifactAction').skipCsrf(
  * the default branch, since a cache is a directory one run writes and another
  * executes out of.
  */
+/*
+ * What a workflow program calls when it calls `step()`.
+ *
+ * The control plane never evaluates repository code: a code-first workflow runs
+ * as a job like any other untrusted work, and its calls come back here. The job
+ * token is the scoping - it names one run, so there is no run identifier in the
+ * request to get wrong.
+ */
+route.post('/runner/orchestrator', 'Actions/Runner/OrchestratorCallAction').skipCsrf()
 route.post('/runner/caches', 'Actions/Runner/SaveCacheAction').skipCsrf()
 route.get('/runner/caches/restore', 'Actions/Runner/RestoreCacheAction')
 // What a job's steps said about the code: `::error file=...,line=...::` becomes

@@ -46235,6 +46235,86 @@
         }
       }
     },
+    "/api/runner/orchestrator": {
+      "post": {
+        "summary": "/api/runner/orchestrator",
+        "operationId": "post__api_runner_orchestrator",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "What to do with this call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "decision": {
+                      "type": "string",
+                      "description": "`dispatch` to do the work, `replay` for a recorded result, `wait` while somebody else does it, `failed` for a call that already failed, `diverged` when the program is not the one that produced this journal, `refused` when a budget is spent."
+                    },
+                    "result": {
+                      "description": "The recorded value, on a replay."
+                    },
+                    "entry_id": {
+                      "type": "integer",
+                      "description": "Pass this back when reporting what the call returned."
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "wake_at": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No job credential, or one this instance does not recognise."
+          },
+          "404": {
+            "description": "The credential names a job whose run has gone."
+          },
+          "409": {
+            "description": "The program diverged from its journal, or a budget is spent. The run is over and the reason says which."
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "426": {
+            "description": "This runner speaks a protocol version the server does not."
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sequence": {
+                    "type": "number"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sequence"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/runner/register": {
       "post": {
         "summary": "/api/runner/register",

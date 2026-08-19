@@ -77,30 +77,47 @@ repeating completed work, and can be restarted from a named step hours later. Ge
 orchestrator that is itself a killable job requires a journal, and this is the Temporal and DBOS
 pattern rather than something to invent.
 
-- [ ] Every `step()` call is journaled by the control plane with a deterministic sequence identity
+- [x] Every `step()` call is journaled by the control plane with a deterministic sequence identity
       **before** the work is dispatched, and its result recorded when it completes. The journal, not
       the orchestrator's memory, is the run.
-- [ ] On restart the orchestrator replays: calls up to the journal head return their recorded results
+- [x] On restart the orchestrator replays: calls up to the journal head return their recorded results
       immediately without re-executing, and the first uncommitted call resumes real work. A run whose
       orchestrator was killed at step 40 does not repeat steps 1 to 39.
 - [ ] Determinism rules for orchestrator code, documented and enforced rather than requested: no
       wall-clock reads, no randomness, no direct network or filesystem access. Each has an injected
       equivalent that is journaled, so a replay sees the same values it saw the first time.
-- [ ] A replay that diverges from the journal, a call arriving in a different order or with different
+- [x] A replay that diverges from the journal, a call arriving in a different order or with different
       arguments, **fails the run loudly and names the divergence**. Silent divergence is the failure
       mode of every durable-execution system, and this repository has a written history of exactly
       that shape of bug going unnoticed for months.
 - [ ] Sleeps and waits suspend the orchestrator and release its runner. A workflow waiting three days
       for an approval must not hold a lease for three days; the control plane wakes it by replay when
       the timer fires or the event arrives.
-- [ ] The orchestrator's credential is scoped to its own run: it can create steps, read its own
+- [x] The orchestrator's credential is scoped to its own run: it can create steps, read its own
       outputs, and nothing else. It is not a repository token and cannot outlive the run.
-- [ ] An orchestrator that exceeds its own wall-time, step-count, or journal-size budget is
+- [x] An orchestrator that exceeds its own wall-time, step-count, or journal-size budget is
       terminated with a stated reason, so a runaway loop in a workflow file is bounded by the control
       plane rather than by whoever notices the bill
 - [ ] Tests: kill the orchestrator mid-run and assert no completed step re-executes; a non-deterministic
       workflow detected on replay; a sleep that outlives the runner that started it; a restart from a
       named step whose inputs changed; and two orchestrators for one run, where the second is refused.
+
+The journal is built: `WorkflowJournalEntry`, `app/Actions/Workflow/journal.ts`, and
+`POST /api/runner/orchestrator`. `tests/e2e/workflow-journal.test.ts` covers three of the five test
+cases above - killed mid-run, divergence, and two orchestrators racing, where the loser waits and
+the step runs once. The remaining two need the pieces below.
+
+What is **not** built yet, so that the unticked boxes above say what they mean:
+
+- **The orchestrator job and its SDK.** The endpoint is the whole protocol a workflow program needs,
+  and nothing dispatches such a program yet. Until it does, the code-first authoring form does not
+  exist and neither does the normalization between it and the static one.
+- **Waking a suspended call.** `sleep` parks the entry and tells the runner to let go, which is the
+  half that matters for not holding a lease for three days - but no sweep re-dispatches it when the
+  time comes.
+- **Enforced determinism.** `now` and `random` are injected and journaled, so the rule is
+  *followable*. Nothing stops a program calling `Date.now()` directly; that needs the execution
+  boundary, which is the section this phase gates behind a security review.
 
 ### Step results are data
 
