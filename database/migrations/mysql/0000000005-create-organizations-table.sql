@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS `organizations` (
   `website` text,
   `billing_email` varchar(255),
   `require_two_factor` tinyint(1) default 0,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255)
 ) DEFAULT CHARSET=utf8mb4;

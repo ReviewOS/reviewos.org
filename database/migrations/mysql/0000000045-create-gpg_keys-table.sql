@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `gpg_keys` (
   `public_key` text not null,
   `emails` text,
   `expires_at` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `gpg_keys_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) DEFAULT CHARSET=utf8mb4;

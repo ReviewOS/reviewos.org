@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `repository_labels` (
   `color` varchar(6) not null default 'd4c5f9',
   `description` varchar(255),
   `is_default` tinyint(1) default 0,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `repository_labels_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

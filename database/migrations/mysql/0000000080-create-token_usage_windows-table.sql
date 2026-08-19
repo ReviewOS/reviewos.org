@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `token_usage_windows` (
   `action` varchar(40) not null,
   `window_started_at` varchar(40) not null,
   `used` integer default 0,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `token_usage_windows_access_token_id_fk` FOREIGN KEY (`access_token_id`) REFERENCES `access_tokens`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

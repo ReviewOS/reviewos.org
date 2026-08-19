@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `test_suites` (
   `repository_id` bigint not null,
   `name` varchar(100) not null,
   `slug` varchar(100) not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `test_suites_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

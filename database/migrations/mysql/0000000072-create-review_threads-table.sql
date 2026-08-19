@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS `review_threads` (
   `resolved_by_id` bigint,
   `outdated` tinyint(1) default 0,
   `external_id` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `review_threads_pull_request_id_fk` FOREIGN KEY (`pull_request_id`) REFERENCES `pull_requests`(`id`),
   CONSTRAINT `review_threads_resolved_by_id_fk` FOREIGN KEY (`resolved_by_id`) REFERENCES `users`(`id`) ON DELETE SET NULL

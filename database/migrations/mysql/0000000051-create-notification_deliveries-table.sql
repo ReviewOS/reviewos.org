@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS `notification_deliveries` (
   `metadata` varchar(255),
   `sent_at` datetime,
   `user_id` bigint,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `notification_deliveries_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
 ) DEFAULT CHARSET=utf8mb4;

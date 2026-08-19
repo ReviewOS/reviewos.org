@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS `workflow_runs` (
   `finished_at` varchar(40),
   `conclusion_reason` text,
   `redelivery_key` varchar(64),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `workflow_runs_workflow_version_id_fk` FOREIGN KEY (`workflow_version_id`) REFERENCES `workflow_versions`(`id`) ON DELETE CASCADE,

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `workflow_variables` (
   `scope_id` integer default 0,
   `key` varchar(200) not null,
   `value` text default (''),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255)
 ) DEFAULT CHARSET=utf8mb4;

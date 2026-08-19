@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS `test_monitors` (
   `changed_at` varchar(255),
   `evaluated_at` varchar(255),
   `enabled` tinyint(1) default 1,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `test_monitors_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

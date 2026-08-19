@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS `repository_lfs_locks` (
   `owner_name` varchar(120) not null,
   `ref` varchar(255),
   `locked_at` varchar(64) not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `repository_lfs_locks_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS `test_runs` (
   `skipped` integer default 0,
   `muted_failures` integer default 0,
   `duration_ms` integer default 0,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `test_runs_test_suite_id_fk` FOREIGN KEY (`test_suite_id`) REFERENCES `test_suites`(`id`) ON DELETE CASCADE

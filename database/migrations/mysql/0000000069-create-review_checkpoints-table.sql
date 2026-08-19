@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `review_checkpoints` (
   `pull_request_id` bigint not null,
   `reviewer_id` bigint not null,
   `head_sha` varchar(40) not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `review_checkpoints_pull_request_id_fk` FOREIGN KEY (`pull_request_id`) REFERENCES `pull_requests`(`id`) ON DELETE CASCADE,
   CONSTRAINT `review_checkpoints_reviewer_id_fk` FOREIGN KEY (`reviewer_id`) REFERENCES `users`(`id`) ON DELETE CASCADE

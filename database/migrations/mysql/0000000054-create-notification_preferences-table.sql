@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `notification_preferences` (
   `channel` varchar(50) not null,
   `enabled` tinyint(1) not null default 1,
   `category` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `notification_preferences_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) DEFAULT CHARSET=utf8mb4;

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS `issues` (
   `comments_count` integer default 0,
   `is_pull_request` tinyint(1) default 0,
   `external_author` varchar(120),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `issues_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE,

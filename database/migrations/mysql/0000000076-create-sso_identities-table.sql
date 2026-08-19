@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `sso_identities` (
   `email` varchar(255),
   `groups` text,
   `last_seen_at` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `sso_identities_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

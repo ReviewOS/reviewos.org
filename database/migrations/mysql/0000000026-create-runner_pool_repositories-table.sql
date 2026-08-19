@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS `runner_pool_repositories` (
   `id` bigint PRIMARY KEY auto_increment,
   `runner_pool_id` bigint not null,
   `repository_id` bigint not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `runner_pool_repositories_runner_pool_id_fk` FOREIGN KEY (`runner_pool_id`) REFERENCES `runner_pools`(`id`) ON DELETE CASCADE,
   CONSTRAINT `runner_pool_repositories_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

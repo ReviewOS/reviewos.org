@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS `workflow_version_jobs` (
   `call_secrets` text,
   `outputs` text,
   `timeout_minutes` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `workflow_version_jobs_workflow_version_id_fk` FOREIGN KEY (`workflow_version_id`) REFERENCES `workflow_versions`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

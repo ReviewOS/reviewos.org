@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `webhooks` (
   `active` tinyint(1) default 1,
   `consecutive_failures` integer default 0,
   `last_success_at` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `webhooks_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

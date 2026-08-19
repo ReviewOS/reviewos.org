@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `reactions` (
   `subject_id` integer not null,
   `user_id` bigint not null,
   `content` ENUM('+1', '-1', 'laugh', 'hooray', 'confused', 'heart', 'rocket', 'eyes') not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `reactions_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)

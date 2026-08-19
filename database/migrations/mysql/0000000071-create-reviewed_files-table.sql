@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `reviewed_files` (
   `reviewer_id` bigint not null,
   `path` text not null,
   `head_sha` varchar(40),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `reviewed_files_pull_request_id_fk` FOREIGN KEY (`pull_request_id`) REFERENCES `pull_requests`(`id`) ON DELETE CASCADE,
   CONSTRAINT `reviewed_files_reviewer_id_fk` FOREIGN KEY (`reviewer_id`) REFERENCES `users`(`id`) ON DELETE CASCADE

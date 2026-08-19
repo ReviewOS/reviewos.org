@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `owner_aliases` (
   `handle` varchar(39) not null,
   `owner_type` ENUM('user', 'organization') not null,
   `owner_id` integer not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime
 ) DEFAULT CHARSET=utf8mb4;
 CREATE UNIQUE INDEX `owner_aliases_handle_index` ON `owner_aliases` (`handle`);

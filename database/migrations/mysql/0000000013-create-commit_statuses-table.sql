@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS `commit_statuses` (
   `target_url` text,
   `description` varchar(500),
   `creator_id` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `commit_statuses_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`)
 ) DEFAULT CHARSET=utf8mb4;

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `notification_mutes` (
   `subject_type` ENUM('repository', 'organization', 'issue', 'pull_request'),
   `subject_id` integer not null,
   `expires_at` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `notification_mutes_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) DEFAULT CHARSET=utf8mb4;

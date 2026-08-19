@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS `runner_pool_maintainers` (
   `id` bigint PRIMARY KEY auto_increment,
   `runner_pool_id` bigint not null,
   `user_id` bigint not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `runner_pool_maintainers_runner_pool_id_fk` FOREIGN KEY (`runner_pool_id`) REFERENCES `runner_pools`(`id`) ON DELETE CASCADE,
   CONSTRAINT `runner_pool_maintainers_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE

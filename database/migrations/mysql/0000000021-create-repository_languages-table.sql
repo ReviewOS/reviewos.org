@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `repository_languages` (
   `language` varchar(60) not null,
   `bytes` integer not null,
   `percent` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `repository_languages_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

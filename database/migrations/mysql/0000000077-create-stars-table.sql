@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS `stars` (
   `id` bigint PRIMARY KEY auto_increment,
   `repository_id` bigint not null,
   `user_id` bigint not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `stars_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE,
   CONSTRAINT `stars_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)

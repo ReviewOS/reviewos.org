@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS `repository_mirrors` (
   `last_metadata_sync_at` varchar(255),
   `metadata_error` text,
   `metadata_failure_count` integer default 0,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `repository_mirrors_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

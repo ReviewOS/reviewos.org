@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS `audit_events` (
   `detail` text,
   `user_agent` varchar(255),
   `ip_address` varchar(45),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `audit_events_actor_id_fk` FOREIGN KEY (`actor_id`) REFERENCES `users`(`id`) ON DELETE SET NULL

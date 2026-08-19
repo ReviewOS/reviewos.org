@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `runner_pools` (
   `require_signed_steps` tinyint(1) default 0,
   `plugins` text,
   `description` text,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255)
 ) DEFAULT CHARSET=utf8mb4;

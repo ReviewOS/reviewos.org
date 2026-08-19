@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `plugin_policies` (
   `allowlist` text,
   `require_pinned` tinyint(1) default 0,
   `capabilities` text,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255)
 ) DEFAULT CHARSET=utf8mb4;

@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS `workflow_jobs` (
   `queued_at` varchar(40),
   `started_at` varchar(40),
   `finished_at` varchar(40),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `workflow_jobs_workflow_run_id_fk` FOREIGN KEY (`workflow_run_id`) REFERENCES `workflow_runs`(`id`) ON DELETE CASCADE

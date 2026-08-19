@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `access_token_permissions` (
   `access_token_id` bigint not null,
   `scope` ENUM('contents', 'issues', 'pull_requests', 'webhooks', 'administration', 'checks', 'actions', 'actions_logs', 'fleet', 'members', 'organization_administration', 'billing'),
   `level` ENUM('read', 'write', 'admin') default 'read',
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `access_token_permissions_access_token_id_fk` FOREIGN KEY (`access_token_id`) REFERENCES `access_tokens`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

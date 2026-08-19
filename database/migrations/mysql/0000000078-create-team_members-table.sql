@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `team_members` (
   `team_id` bigint not null,
   `user_id` bigint not null,
   `role` ENUM('maintainer', 'member') default 'member',
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `team_members_team_id_fk` FOREIGN KEY (`team_id`) REFERENCES `teams`(`id`) ON DELETE CASCADE,
   CONSTRAINT `team_members_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE

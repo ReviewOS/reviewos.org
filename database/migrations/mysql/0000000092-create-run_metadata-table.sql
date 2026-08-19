@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `run_metadata` (
   `value` text,
   `version` integer default 1,
   `updated_by_job_id` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `run_metadata_workflow_run_id_fk` FOREIGN KEY (`workflow_run_id`) REFERENCES `workflow_runs`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

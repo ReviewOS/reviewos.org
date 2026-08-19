@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS `workflow_versions` (
   `warnings` text,
   `schedules` text,
   `unsupported_events` text,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `workflow_versions_workflow_id_fk` FOREIGN KEY (`workflow_id`) REFERENCES `workflows`(`id`) ON DELETE CASCADE

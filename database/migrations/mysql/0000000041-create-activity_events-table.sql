@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `activity_events` (
   `organization_id` integer,
   `is_public` tinyint(1) not null default 0,
   `detail` text,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `activity_events_actor_id_fk` FOREIGN KEY (`actor_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
   CONSTRAINT `activity_events_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `instance_settings` (
   `key` varchar(60) not null,
   `value` text,
   `updated_by_id` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime
 ) DEFAULT CHARSET=utf8mb4;
 CREATE UNIQUE INDEX `instance_settings_key_unique` ON `instance_settings` (`key`);

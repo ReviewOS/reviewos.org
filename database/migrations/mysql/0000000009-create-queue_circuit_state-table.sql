@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `queue_circuit_state` (
   `window_start` varchar(32),
   `paused_at` varchar(32),
   `resume_at` varchar(32),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime
 ) DEFAULT CHARSET=utf8mb4;
 CREATE UNIQUE INDEX `queue_circuit_state_queue_index` ON `queue_circuit_state` (`queue_name`);

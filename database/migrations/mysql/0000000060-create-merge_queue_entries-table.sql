@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `merge_queue_entries` (
   `merge_sha` varchar(64) default '',
   `workflow_run_id` integer,
   `reason` text default (''),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `merge_queue_entries_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE,

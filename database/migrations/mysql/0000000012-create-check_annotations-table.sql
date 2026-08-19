@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS `check_annotations` (
   `title` varchar(255),
   `message` text not null,
   `raw_details` text,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `check_annotations_check_run_id_fk` FOREIGN KEY (`check_run_id`) REFERENCES `check_runs`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

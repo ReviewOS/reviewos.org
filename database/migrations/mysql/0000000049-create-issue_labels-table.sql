@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS `issue_labels` (
   `id` bigint PRIMARY KEY auto_increment,
   `issue_id` bigint not null,
   `label_id` bigint not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `issue_labels_issue_id_fk` FOREIGN KEY (`issue_id`) REFERENCES `issues`(`id`),
   CONSTRAINT `issue_labels_label_id_fk` FOREIGN KEY (`label_id`) REFERENCES `repository_labels`(`id`)

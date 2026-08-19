@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `instance_keys` (
   `public_jwk` text,
   `sealed_private` text,
   `retired_at` varchar(40),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime
 ) DEFAULT CHARSET=utf8mb4;
 CREATE UNIQUE INDEX `instance_keys_kid_index` ON `instance_keys` (`kid`);

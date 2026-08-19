@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `attachments` (
   `filename` varchar(255) not null,
   `content_type` varchar(100) not null,
   `byte_size` integer not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `attachments_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE,

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS `deploy_keys` (
   `fingerprint` varchar(100) not null,
   `can_write` tinyint(1) default 0,
   `last_used_at` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `deploy_keys_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

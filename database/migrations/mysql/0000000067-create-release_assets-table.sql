@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS `release_assets` (
   `size_bytes` integer default 0,
   `checksum` varchar(64),
   `download_count` integer default 0,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `release_assets_release_id_fk` FOREIGN KEY (`release_id`) REFERENCES `releases`(`id`)
 ) DEFAULT CHARSET=utf8mb4;

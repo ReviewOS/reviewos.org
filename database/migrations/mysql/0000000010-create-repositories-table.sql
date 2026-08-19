@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS `repositories` (
   `default_merge_strategy` ENUM('merge', 'squash', 'rebase') default 'merge',
   `delete_branch_on_merge` tinyint(1) default 0,
   `count_machine_approvals` tinyint(1) default 0,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `repositories_parent_id_fk` FOREIGN KEY (`parent_id`) REFERENCES `repositories`(`id`) ON DELETE SET NULL

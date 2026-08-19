@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `workflows` (
   `last_scheduled_at` varchar(255),
   `state` ENUM('active', 'disabled', 'removed') default 'active',
   `selector` text,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `workflows_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

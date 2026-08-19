@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `org_members` (
   `role` ENUM('owner', 'admin', 'member') default 'member',
   `invited_by_id` integer,
   `joined_at` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `org_members_organization_id_fk` FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON DELETE CASCADE,
   CONSTRAINT `org_members_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE

@@ -6,6 +6,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `attempts` integer,
   `available_at` integer,
   `reserved_at` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime
 ) DEFAULT CHARSET=utf8mb4;

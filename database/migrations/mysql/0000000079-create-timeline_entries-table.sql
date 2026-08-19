@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `timeline_entries` (
   `subject_text` varchar(255),
   `previous_text` varchar(255),
   `reference_number` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `timeline_entries_actor_id_fk` FOREIGN KEY (`actor_id`) REFERENCES `users`(`id`)

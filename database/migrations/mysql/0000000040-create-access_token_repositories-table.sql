@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS `access_token_repositories` (
   `id` bigint PRIMARY KEY auto_increment,
   `access_token_id` bigint not null,
   `repository_id` bigint not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `access_token_repositories_access_token_id_fk` FOREIGN KEY (`access_token_id`) REFERENCES `access_tokens`(`id`) ON DELETE CASCADE,
   CONSTRAINT `access_token_repositories_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

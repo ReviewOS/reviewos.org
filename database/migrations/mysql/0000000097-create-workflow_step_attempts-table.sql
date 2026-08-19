@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `workflow_step_attempts` (
   `error` text,
   `started_at` varchar(40),
   `finished_at` varchar(40),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `workflow_step_attempts_workflow_step_id_fk` FOREIGN KEY (`workflow_step_id`) REFERENCES `workflow_steps`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

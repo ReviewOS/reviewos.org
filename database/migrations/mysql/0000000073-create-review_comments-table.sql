@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `review_comments` (
   `edited_at` varchar(255),
   `external_id` integer,
   `external_author` varchar(120),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `review_comments_review_thread_id_fk` FOREIGN KEY (`review_thread_id`) REFERENCES `review_threads`(`id`),

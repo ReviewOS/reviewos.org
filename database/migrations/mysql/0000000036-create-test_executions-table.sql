@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS `test_executions` (
   `failure_stack` text,
   `workflow_job_id` integer,
   `tags` text,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `test_executions_test_run_id_fk` FOREIGN KEY (`test_run_id`) REFERENCES `test_runs`(`id`) ON DELETE CASCADE,

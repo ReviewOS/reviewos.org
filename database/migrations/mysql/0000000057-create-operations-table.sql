@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS `operations` (
   `result` text,
   `error` text,
   `cancel_requested_at` varchar(40),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `operations_access_token_id_fk` FOREIGN KEY (`access_token_id`) REFERENCES `access_tokens`(`id`)

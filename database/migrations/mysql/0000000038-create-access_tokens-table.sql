@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS `access_tokens` (
   `limit_pull_requests_per_hour` integer,
   `limit_comments_per_hour` integer,
   `limit_reviews_per_hour` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `access_tokens_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`),
   CONSTRAINT `access_tokens_organization_id_fk` FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON DELETE CASCADE,

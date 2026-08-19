@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS `git_wal_entries` (
   `actor_id` integer,
   `committed_at` varchar(255),
   `reason` text,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `git_wal_entries_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`)

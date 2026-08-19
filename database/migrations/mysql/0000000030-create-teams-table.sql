@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `teams` (
   `slug` varchar(100) not null,
   `description` text,
   `parent_team_id` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `teams_organization_id_fk` FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON DELETE CASCADE

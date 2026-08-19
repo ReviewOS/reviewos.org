@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS `deployments` (
   `reason` varchar(500),
   `created_by_id` integer,
   `finished_at` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `deployments_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`),

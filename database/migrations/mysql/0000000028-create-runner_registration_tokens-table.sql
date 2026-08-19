@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS `runner_registration_tokens` (
   `revoked_at` varchar(40),
   `expires_at` varchar(40),
   `created_by_id` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `runner_registration_tokens_runner_pool_id_fk` FOREIGN KEY (`runner_pool_id`) REFERENCES `runner_pools`(`id`) ON DELETE CASCADE

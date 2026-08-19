@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `failed_jobs` (
   `payload` text,
   `exception` text,
   `failed_at` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime
 ) DEFAULT CHARSET=utf8mb4;
 CREATE INDEX `failed_jobs_queue_index` ON `failed_jobs` (`queue`, `failed_at`);

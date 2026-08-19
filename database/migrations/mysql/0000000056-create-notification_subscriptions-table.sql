@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `notification_subscriptions` (
   `subject_id` integer not null,
   `reason` ENUM('review_requested', 'assigned', 'mentioned', 'team_mention', 'author', 'participating', 'watching'),
   `unsubscribed` tinyint(1) default 0,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `notification_subscriptions_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

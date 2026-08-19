@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `issue_comments` (
   `edited_by_id` integer,
   `external_author` varchar(120),
   `external_id` varchar(120),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `issue_comments_author_id_fk` FOREIGN KEY (`author_id`) REFERENCES `users`(`id`)

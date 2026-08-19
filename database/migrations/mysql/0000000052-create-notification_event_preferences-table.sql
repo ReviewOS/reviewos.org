@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `notification_event_preferences` (
   `channel` ENUM('in_app', 'email', 'push') not null,
   `delivery` ENUM('off', 'immediate', 'digest') not null default 'immediate',
   `user_id` bigint,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `notification_event_preferences_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

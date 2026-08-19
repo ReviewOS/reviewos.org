@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS `issue_assignees` (
   `id` bigint PRIMARY KEY auto_increment,
   `issue_id` bigint not null,
   `user_id` bigint not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `issue_assignees_issue_id_fk` FOREIGN KEY (`issue_id`) REFERENCES `issues`(`id`),
   CONSTRAINT `issue_assignees_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)

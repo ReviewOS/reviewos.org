@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `repo_collaborators` (
   `repository_id` bigint not null,
   `user_id` bigint not null,
   `permission` ENUM('read', 'triage', 'write', 'maintain', 'admin') default 'read',
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `repo_collaborators_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE,
   CONSTRAINT `repo_collaborators_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)

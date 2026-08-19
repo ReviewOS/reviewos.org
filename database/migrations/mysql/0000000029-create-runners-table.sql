@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS `runners` (
   `state` ENUM('active', 'disabled') default 'active',
   `version` varchar(60),
   `last_seen_at` varchar(40),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `runners_runner_queue_id_fk` FOREIGN KEY (`runner_queue_id`) REFERENCES `runner_queues`(`id`),

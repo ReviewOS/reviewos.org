@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `pull_request_reviews` (
   `submitted_at` varchar(255),
   `dismissed_reason` text,
   `external_author` varchar(120),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `pull_request_reviews_pull_request_id_fk` FOREIGN KEY (`pull_request_id`) REFERENCES `pull_requests`(`id`),
   CONSTRAINT `pull_request_reviews_reviewer_id_fk` FOREIGN KEY (`reviewer_id`) REFERENCES `users`(`id`)

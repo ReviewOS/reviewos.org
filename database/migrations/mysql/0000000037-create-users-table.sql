@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `machine_for_organization_id` integer,
   `email_verified_at` varchar(255),
   `github_username` varchar(39),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255)
 ) DEFAULT CHARSET=utf8mb4;

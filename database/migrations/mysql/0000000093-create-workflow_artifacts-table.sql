@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `workflow_artifacts` (
   `content_type` varchar(150),
   `expires_at` varchar(255),
   `runner_id` varchar(100),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `workflow_artifacts_workflow_run_id_fk` FOREIGN KEY (`workflow_run_id`) REFERENCES `workflow_runs`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

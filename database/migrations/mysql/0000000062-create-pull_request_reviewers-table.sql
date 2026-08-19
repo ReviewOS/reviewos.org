@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `pull_request_reviewers` (
   `requested_by_id` bigint,
   `from_code_owners` tinyint(1) default 0,
   `responded_at` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `pull_request_reviewers_pull_request_id_fk` FOREIGN KEY (`pull_request_id`) REFERENCES `pull_requests`(`id`),
   CONSTRAINT `pull_request_reviewers_requested_by_id_fk` FOREIGN KEY (`requested_by_id`) REFERENCES `users`(`id`) ON DELETE SET NULL

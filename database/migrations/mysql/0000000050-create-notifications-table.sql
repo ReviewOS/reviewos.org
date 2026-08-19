@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   `data` text not null,
   `read_at` datetime,
   `user_id` bigint,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `notifications_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE

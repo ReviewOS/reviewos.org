@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS `workflow_notification_rules` (
   `job_key` varchar(200) default '',
   `condition` ENUM('failure', 'success', 'recovery', 'always') default 'failure',
   `created_by_id` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `workflow_notification_rules_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`),

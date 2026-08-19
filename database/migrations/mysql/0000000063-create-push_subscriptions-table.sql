@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `push_subscriptions` (
   `user_agent` varchar(500),
   `last_seen_at` datetime,
   `user_id` bigint,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `push_subscriptions_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

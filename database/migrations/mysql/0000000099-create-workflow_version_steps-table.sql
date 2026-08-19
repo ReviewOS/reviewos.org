@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS `workflow_version_steps` (
   `timeout_minutes` integer,
   `working_directory` varchar(400),
   `condition` text,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `workflow_version_steps_workflow_version_job_id_fk` FOREIGN KEY (`workflow_version_job_id`) REFERENCES `workflow_version_jobs`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

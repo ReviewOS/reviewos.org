@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `coverage_files` (
   `path` text not null,
   `uncovered_lines` text,
   `covered_lines` text,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `coverage_files_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

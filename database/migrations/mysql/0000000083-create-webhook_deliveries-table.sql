@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS `webhook_deliveries` (
   `attempt` integer default 1,
   `error` text,
   `delivered_at` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `webhook_deliveries_webhook_id_fk` FOREIGN KEY (`webhook_id`) REFERENCES `webhooks`(`id`)

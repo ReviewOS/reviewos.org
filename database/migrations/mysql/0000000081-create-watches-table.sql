@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `watches` (
   `repository_id` bigint not null,
   `user_id` bigint not null,
   `subscription` ENUM('all', 'participating', 'ignore') default 'participating',
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `watches_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE,
   CONSTRAINT `watches_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)

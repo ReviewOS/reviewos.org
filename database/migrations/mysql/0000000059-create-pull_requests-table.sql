@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS `pull_requests` (
   `external_author` varchar(120),
   `auto_merge_strategy` ENUM('merge', 'squash', 'rebase'),
   `auto_merge_by_id` bigint,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `pull_requests_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE,

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS `review_drafts` (
   `from_line` integer not null,
   `to_line` integer not null,
   `body` text not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `review_drafts_pull_request_id_fk` FOREIGN KEY (`pull_request_id`) REFERENCES `pull_requests`(`id`) ON DELETE CASCADE,
   CONSTRAINT `review_drafts_author_id_fk` FOREIGN KEY (`author_id`) REFERENCES `users`(`id`) ON DELETE CASCADE

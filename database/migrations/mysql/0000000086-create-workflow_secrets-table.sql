@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `workflow_secrets` (
   `key` varchar(200) not null,
   `sealed` text not null,
   `updated_by_id` integer,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255)
 ) DEFAULT CHARSET=utf8mb4;

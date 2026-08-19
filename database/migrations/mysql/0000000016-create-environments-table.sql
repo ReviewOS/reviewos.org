@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `environments` (
   `wait_minutes` integer default 0,
   `branches` text default (''),
   `description` varchar(500) default '',
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `environments_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

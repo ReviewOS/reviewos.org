@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS `check_runs` (
   `output_title` varchar(255),
   `output_text` text,
   `attempt` integer default 1,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `check_runs_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

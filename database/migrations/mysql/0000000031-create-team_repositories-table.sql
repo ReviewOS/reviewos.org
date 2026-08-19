@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `team_repositories` (
   `team_id` bigint not null,
   `repository_id` bigint not null,
   `permission` ENUM('read', 'triage', 'write', 'maintain', 'admin') not null default 'read',
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `team_repositories_team_id_fk` FOREIGN KEY (`team_id`) REFERENCES `teams`(`id`) ON DELETE CASCADE,
   CONSTRAINT `team_repositories_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE

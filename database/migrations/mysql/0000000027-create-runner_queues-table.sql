@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `runner_queues` (
   `name` varchar(100) not null,
   `state` ENUM('active', 'paused') default 'active',
   `paused_reason` varchar(500),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `runner_queues_runner_pool_id_fk` FOREIGN KEY (`runner_pool_id`) REFERENCES `runner_pools`(`id`) ON DELETE CASCADE

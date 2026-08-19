@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS `repo_topics` (
   `id` bigint PRIMARY KEY auto_increment,
   `repository_id` bigint not null,
   `topic` varchar(50) not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `repo_topics_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4;

@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS `environment_reviewers` (
   `id` bigint PRIMARY KEY auto_increment,
   `environment_id` bigint not null,
   `user_id` bigint not null,
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   `uuid` varchar(255),
   CONSTRAINT `environment_reviewers_environment_id_fk` FOREIGN KEY (`environment_id`) REFERENCES `environments`(`id`) ON DELETE CASCADE,

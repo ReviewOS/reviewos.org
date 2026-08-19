@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS `notification_schedules` (
   `timezone` varchar(64) default 'UTC',
   `breaks_through` varchar(500) default '',
   `do_not_disturb_until` varchar(255),
-  `created_at` datetime not null default CURRENT_TIMESTAMP,
+  `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `notification_schedules_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
 ) DEFAULT CHARSET=utf8mb4;
