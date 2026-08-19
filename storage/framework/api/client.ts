@@ -5735,9 +5735,16 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /api/repos/workflows
+   */
+  getReposWorkflows(input?: { "owner"?: string; "repo"?: string; "state"?: string; "per_page"?: number; "cursor"?: string }, options?: RequestOptions): Promise<ApiResult<{ "workflows"?: Array<Record<string, unknown>>; "next"?: string }>> {
+    return request(config, "GET", "/api/repos/workflows", input ?? {}, ["owner", "repo", "state", "per_page", "cursor"], false, options)
+  },
+
+  /**
    * POST /api/repos/workflows/dispatch
    */
-  postReposWorkflowsDispatch(input?: { body?: { "owner"?: string; "repo"?: string; "workflow"?: string; "ref"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+  postReposWorkflowsDispatch(input?: { body?: { "owner"?: string; "repo"?: string; "workflow"?: string; "ref"?: string; "key"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
     return request(config, "POST", "/api/repos/workflows/dispatch", input ?? {}, [], true, options)
   },
 
@@ -5746,6 +5753,13 @@ export function createClient(config: ClientConfig) {
    */
   postReposWorkflowsManage(input?: { body?: { "owner"?: string; "repo"?: string; "workflow"?: string; "operation"?: "enable" | "disable"; "reason"?: string } }, options?: RequestOptions): Promise<ApiResult<unknown>> {
     return request(config, "POST", "/api/repos/workflows/manage", input ?? {}, [], true, options)
+  },
+
+  /**
+   * GET /api/repos/workflows/show
+   */
+  getReposWorkflowsShow(input?: { "owner"?: string; "repo"?: string; "workflow"?: string; "version"?: number }, options?: RequestOptions): Promise<ApiResult<{ "workflow"?: Record<string, unknown>; "versions"?: Array<Record<string, unknown>>; "version"?: Record<string, unknown> }>> {
+    return request(config, "GET", "/api/repos/workflows/show", input ?? {}, ["owner", "repo", "workflow", "version"], false, options)
   },
 
   /**

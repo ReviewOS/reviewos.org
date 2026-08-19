@@ -81,3 +81,37 @@ export function redeliveryKey(row: RedeliveryColumns): string | null {
 export function withRedeliveryKey<T extends RedeliveryColumns>(row: T): T & { redelivery_key: string | null } {
   return { ...row, redelivery_key: redeliveryKey(row) }
 }
+
+/**
+ * The key a caller supplied, as a value this column can hold.
+ *
+ * A dispatch is a repeatable event - a nightly job runs at the same ref every
+ * night, and pressing "run workflow" twice on purpose is the whole feature - so
+ * it carries no key of its own. A caller that *wants* one is saying something
+ * narrower: **this particular request must produce at most one run**, however
+ * many times the network makes them send it.
+ *
+ * Hashed into the same column and namespaced by repository, for two reasons.
+ * The column is what the unique index is on, so a second column would be a
+ * second index to keep true; and a bare key would let one repository's dispatch
+ * collide with another's, which turns somebody else's retry into a run that
+ * never happens here.
+ */
+export function dispatchKey(repositoryId: number, key: string): string | null {
+  const supplied = String(key ?? '').trim()
+
+  if (!supplied)
+    return null
+
+  const hasher = new Bun.CryptoHasher('sha256')
+
+  // Length-prefixed, like the delivery key above and for the same reason: a
+  // separator that can occur inside a value lets two different requests hash
+  // the same.
+  for (const part of ['dispatch', String(repositoryId), supplied]) {
+    hasher.update(`${part.length}:`)
+    hasher.update(part)
+  }
+
+  return hasher.digest('hex')
+}

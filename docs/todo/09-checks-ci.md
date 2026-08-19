@@ -838,12 +838,44 @@ requeue is not yet reading it.
 
 ### REST API
 
-- [ ] Canonical route families under a repository: `/workflows`, `/workflows/{workflow}/versions`,
+- [x] Canonical route families under a repository: `/workflows`, `/workflows/{workflow}/versions`,
       `/workflow-runs`, `/workflow-runs/{run}/jobs`, `/logs`, `/events`, and lifecycle actions. Route
       names use `repository` and `workflow run`, not provider-specific vocabulary.
-- [ ] List workflows, get one workflow, list versions, get one version, and return its normalized
+
+      The families are `/repos/workflows` and `/repos/workflow-runs`, with the subject in the query
+      rather than in the path - which is this API's shape everywhere, not a decision taken here, and
+      changing it for one family would leave two ways to address a repository. The vocabulary is the
+      substance of the line and it holds: **repository** and **workflow run**, no provider's word
+      for either, and lifecycle actions read as verbs on the run they act on.
+- [x] List workflows, get one workflow, list versions, get one version, and return its normalized
       graph
-- [ ] Dispatch a workflow with caller-supplied inputs and an idempotency key
+
+      `GET /repos/workflows` and `GET /repos/workflows/show`. The listing was the hole in every
+      other question this API could answer: runs were filterable by workflow with nothing to say
+      which workflows existed, so a client had to start from a run to learn the shape of a
+      repository's CI - and an empty repository had nothing to show at all. Each row carries the
+      version it would run today, because that is the question immediately after and a request per
+      row turns a page of twenty into twenty-one.
+
+      **The graph is normalized rather than the file re-served.** Handing back YAML would make every
+      client parse a format whose meaning lives here - the `needs:` a barrier inserts, the kind a
+      `reviewos:` key decides, the matrix that turns one job into four - and two parsers is how a
+      client's picture of a run stops matching the run. The triggers travel as flags for the same
+      reason: `on: [push]` and `on: { push: { branches: [main] } }` have already been decided.
+- [x] Dispatch a workflow with caller-supplied inputs and an idempotency key
+
+      The inputs were already checked against what the workflow declared. The key is new, and it
+      opts one request out of the thing a dispatch otherwise is: `workflow_dispatch` is a repeatable
+      event by design - a nightly job runs at the same ref every night, and pressing the button
+      twice on purpose is the feature - so it carries no redelivery key of its own. A caller that
+      names one is saying something narrower: *this* request, however many times the network makes
+      them send it.
+
+      It goes into the same column the redelivery index is already on, namespaced by repository. A
+      second column would be a second index to keep true, and a bare key would let one repository's
+      dispatch collide with another's - turning somebody else's retry into a run that never happens
+      here. A repeat gets the run rather than a conflict, because a client retrying a request it did
+      not hear the answer to wants the answer.
 - [x] List runs by repository, workflow, commit, pull request, status, trigger, and time using cursor
       pagination with stable ordering
 

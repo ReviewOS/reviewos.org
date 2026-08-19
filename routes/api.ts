@@ -849,6 +849,18 @@ route.post('/repos/workflow-runs/pause', 'Actions/Workflow/PauseWorkflowRunActio
 route.post('/repos/workflow-runs/cancel-job', 'Actions/Workflow/CancelWorkflowJobAction')
 // `workflow_dispatch`: the trigger with no event behind it. Write access, since
 // starting a run spends the instance's runners.
+/*
+ * The workflows a repository has, and what one of them says.
+ *
+ * The listing that was missing from every other question this API can answer:
+ * runs could be filtered by workflow with no way to find out which workflows
+ * existed. `show` carries the versions and the named version's normalized graph
+ * - the jobs, their dependencies, their kinds - rather than the file, because
+ * re-serving YAML would make every client parse a format whose meaning lives
+ * here.
+ */
+route.get('/repos/workflows', 'Actions/Workflow/ListWorkflowsAction')
+route.get('/repos/workflows/show', 'Actions/Workflow/ShowWorkflowAction')
 route.post('/repos/workflows/dispatch', 'Actions/Workflow/DispatchWorkflowAction').middleware('auth')
 /*
  * `repository_dispatch`: the trigger for something that happened somewhere

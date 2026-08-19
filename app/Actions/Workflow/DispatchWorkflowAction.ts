@@ -8,7 +8,7 @@ import { wantsHtml } from '../Auth/session'
 import { authorizeRepository } from '../Repo/authorize'
 import { resolveGroup } from './concurrency'
 import { checkInputs } from './inputs'
-import { withRedeliveryKey } from './redelivery'
+import { dispatchKey, withRedeliveryKey } from './redelivery'
 import { isTrue } from '../Support/sql'
 
 /**
@@ -40,6 +40,16 @@ export default new Action({
     repo: { rule: schema.string() },
     workflow: { rule: schema.string() },
     ref: { rule: schema.string() },
+    /**
+     * A caller-supplied key that makes this request produce at most one run.
+     *
+     * Optional, because a dispatch is a repeatable event by design: a nightly
+     * job runs at the same ref every night, and pressing the button twice on
+     * purpose is the feature. A caller that names a key is saying something
+     * narrower - *this* request, however many times the network makes them
+     * send it.
+     */
+    key: { rule: schema.string(), required: false },
   },
 
   responses: {
@@ -151,33 +161,90 @@ export default new Action({
       sha,
     })
 
+    /*
+     * The caller's key, and the run it already made.
+     *
+     * Checked before the insert as well as being enforced by the index, so a
+     * repeat gets the run rather than an error: a client retrying a request it
+     * did not hear the answer to wants the answer, not a conflict it has to
+     * write a branch for. The index is still what makes it true when two
+     * arrive together.
+     */
+    const idempotency = dispatchKey(Number(repository.id), String(request.get('key') ?? ''))
+
+    if (idempotency) {
+      const already = await db
+        .selectFrom('workflow_runs')
+        .select(['id', 'number', 'state'])
+        .where('repository_id', '=', Number(repository.id))
+        .where('redelivery_key', '=', idempotency)
+        .executeTakeFirst()
+        .catch(() => null)
+
+      if (already) {
+        return response.json({
+          workflow_run: { id: Number(already.id), number: Number(already.number), state: String(already.state) },
+          duplicate: true,
+        })
+      }
+    }
+
     const number = await nextNumber(Number(repository.id))
 
     const run = await db
       .insertInto('workflow_runs')
-      .values(withRedeliveryKey({
-        workflow_version_id: Number(version.id),
-        repository_id: Number(repository.id),
-        number,
-        state: 'queued',
-        event: 'workflow_dispatch',
-        event_ref: ref,
-        head_sha: sha,
-        definition_sha: sha,
+      .values({
+        ...withRedeliveryKey({
+          workflow_version_id: Number(version.id),
+          repository_id: Number(repository.id),
+          number,
+          state: 'queued',
+          event: 'workflow_dispatch',
+          event_ref: ref,
+          head_sha: sha,
+          definition_sha: sha,
+          /*
+           * Trusted: whoever asked has write access to this repository, and the
+           * workflow is the one the repository has registered. This is not the
+           * fork path - there is no untrusted tree involved.
+           */
+          trusted: true,
+          actor_id: auth.context.user?.id ?? null,
+          concurrency_group: group,
+          // The values that were actually used, defaults filled in - not what
+          // was typed. A person reading the run later needs to know what it ran
+          // with.
+          dispatch_inputs: Object.keys(checked.values).length > 0 ? JSON.stringify(checked.values) : null,
+        }),
         /*
-         * Trusted: whoever asked has write access to this repository, and the
-         * workflow is the one the repository has registered. This is not the
-         * fork path - there is no untrusted tree involved.
+         * And the caller's key in the column the index is on, over the null a
+         * dispatch would otherwise carry.
+         *
+         * A dispatch is repeatable on purpose, which is why it has no key of
+         * its own; a caller that supplies one is opting this request out of
+         * that, and the enforcement should be the same index rather than a
+         * second mechanism that has to agree with it.
          */
-        trusted: true,
-        actor_id: auth.context.user?.id ?? null,
-        concurrency_group: group,
-        // The values that were actually used, defaults filled in - not what was
-        // typed. A person reading the run later needs to know what it ran with.
-        dispatch_inputs: Object.keys(checked.values).length > 0 ? JSON.stringify(checked.values) : null,
-      }))
+        ...(idempotency ? { redelivery_key: idempotency } : {}),
+      })
       .returning(['id'])
       .executeTakeFirst()
+      .catch(async (error) => {
+        /*
+         * The insert lost the race for the key, which is the race it is here to
+         * lose: two retries of one request arriving together. The winner's run
+         * is the answer both of them wanted.
+         */
+        if (!idempotency)
+          throw error
+
+        return await db
+          .selectFrom('workflow_runs')
+          .select(['id'])
+          .where('repository_id', '=', Number(repository.id))
+          .where('redelivery_key', '=', idempotency)
+          .executeTakeFirst()
+      })
 
     await createJobsFor(Number(run?.id), Number(version.id))
 

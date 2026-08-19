@@ -15908,6 +15908,32 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/repos/workflows": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "state"?: string; "per_page"?: number; "cursor"?: string }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "workflows"?: Array<Record<string, unknown>>; "next"?: string } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/repos/workflows/dispatch": {
     get?: never
     put?: never
@@ -15918,7 +15944,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "workflow"?: string; "ref"?: string } } }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "workflow"?: string; "ref"?: string; "key"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "201": { content: { "application/json": { "workflow_run"?: { "number"?: number; "state"?: string; "event"?: string; "inputs"?: Record<string, unknown> } } } }
@@ -15958,6 +15984,32 @@ export interface paths {
       "500": { content: never }
     }
   }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/api/repos/workflows/show": {
+    get: {
+    parameters: {
+      query?: { "owner"?: string; "repo"?: string; "workflow"?: string; "version"?: number }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      "200": { content: { "application/json": { "workflow"?: Record<string, unknown>; "versions"?: Array<Record<string, unknown>>; "version"?: Record<string, unknown> } } }
+      "401": { content: never }
+      "403": { content: never }
+      "404": { content: never }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never

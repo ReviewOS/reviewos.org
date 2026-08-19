@@ -404,6 +404,105 @@ describe('cancelling', () => {
  * that matter are about the inputs, because that is the one place a person
  * hands values straight to a pipeline.
  */
+describe('the workflows a repository has', () => {
+  const path = '/api/repos/workflows'
+
+  const reading = (): RequestInit => ({
+    headers: { 'Authorization': `Bearer ${created.token}`, 'Accept': 'application/json' },
+  })
+
+  test('are listable, with the definition each one is running today', async () => {
+    if (!available)
+      return
+
+    /*
+     * The listing that was missing from every other question this API answers:
+     * runs could be filtered by workflow, and nothing said which workflows
+     * existed - so a client had to start from a run to learn the shape of a
+     * repository's CI, and an empty repository had nothing to show at all.
+     */
+    const { status, body } = await api(`${path}?owner=${created.handle}&repo=${created.name}`, reading())
+
+    expect(status).toBe(200)
+    expect(body.workflows.length).toBeGreaterThan(0)
+    expect(body.workflows[0].path).toBe('.github/workflows/ci.yml')
+
+    // Which definition is live is the question immediately after this one, so
+    // it travels with the row rather than costing a request per workflow.
+    expect(Number(body.workflows[0].version.id)).toBe(created.versionId)
+  })
+
+  test('and one of them carries its versions and a normalized graph', async () => {
+    if (!available)
+      return
+
+    const job: any = await db
+      .insertInto('workflow_version_jobs')
+      .values({
+        workflow_version_id: created.versionId,
+        repository_id: created.repositoryId,
+        job_id: 'build',
+        name: 'Build',
+        position: 0,
+        runs_on: 'ubuntu-latest',
+      })
+      .returning(['id'])
+      .executeTakeFirst()
+
+    await db
+      .insertInto('workflow_version_steps')
+      .values({
+        workflow_version_job_id: Number(job.id),
+        repository_id: created.repositoryId,
+        position: 0,
+        name: 'Compile',
+        command: 'make',
+      })
+      .execute()
+
+    const { status, body } = await api(
+      `${path}/show?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`,
+      reading(),
+    )
+
+    expect(status).toBe(200)
+    expect(body.workflow.path).toBe('.github/workflows/ci.yml')
+    expect(body.versions.length).toBeGreaterThan(0)
+    expect(body.versions[0].current).toBe(true)
+
+    /*
+     * The graph rather than the file. Re-serving YAML would make every client
+     * parse a format whose meaning lives here - the `needs:` a barrier inserts,
+     * the kind a `reviewos:` key decides - and two parsers is how a client's
+     * picture of a run stops matching the run.
+     */
+    const built = body.version.jobs.find((one: any) => one.key === 'build')
+
+    expect(built).toBeTruthy()
+    expect(built.kind).toBe('command')
+    expect(built.runs_on).toEqual(['ubuntu-latest'])
+    expect(built.steps[0].run).toBe('make')
+
+    // And the triggers as flags, because the parser has already decided what
+    // two spellings of `on:` both mean.
+    expect(typeof body.version.triggers.push).toBe('boolean')
+
+    await db.deleteFrom('workflow_version_jobs').where('id', '=', Number(job.id)).execute()
+  })
+
+  test('a workflow nobody has is a 404 rather than an empty answer', async () => {
+    if (!available)
+      return
+
+    const { status } = await api(
+      `${path}/show?owner=${created.handle}&repo=${created.name}&workflow=nope.yml`,
+      reading(),
+    )
+
+    expect(status).toBe(404)
+  })
+})
+
 describe('dispatching a workflow by hand', () => {
   const path = '/api/repos/workflows/dispatch'
 
@@ -542,6 +641,58 @@ describe('dispatching a workflow by hand', () => {
  * when the job says production" is the reason it is exposed at all. A reader
  * cannot do the merge from the file without doing it by hand.
  */
+describe('a dispatch that must not happen twice', () => {
+  const path = '/api/repos/workflows/dispatch'
+
+  const authorized = (): RequestInit => ({
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${created.token}`, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+  })
+
+  test('a caller-supplied key makes the retry return the first run rather than start a second', async () => {
+    if (!available)
+      return
+
+    await db
+      .updateTable('workflow_versions')
+      .set({ on_dispatch: true, dispatch_inputs: null } as any)
+      .where('id', '=', created.versionId)
+      .execute()
+
+    const key = unique('idem')
+    const query = `${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml&key=${key}`
+
+    const first = await api(query, authorized())
+    const second = await api(query, authorized())
+
+    expect(first.status).toBe(201)
+
+    /*
+     * A dispatch repeats on purpose - a nightly job runs at the same ref every
+     * night, and pressing the button twice is the feature - so it carries no
+     * key of its own. A caller that names one is saying something narrower:
+     * *this* request, however many times the network makes them send it.
+     */
+    expect(second.status).toBe(200)
+    expect(second.body.duplicate).toBe(true)
+    expect(Number(second.body.workflow_run.number)).toBe(Number(first.body.workflow_run.number))
+  })
+
+  test('and without one, two dispatches are two runs, which is the default for a reason', async () => {
+    if (!available)
+      return
+
+    const query = `${path}?owner=${created.handle}&repo=${created.name}&workflow=ci.yml`
+
+    const first = await api(query, authorized())
+    const second = await api(query, authorized())
+
+    expect(first.status).toBe(201)
+    expect(second.status).toBe(201)
+    expect(Number(second.body.workflow_run.number)).not.toBe(Number(first.body.workflow_run.number))
+  })
+})
+
 describe('the environment a job inherits', () => {
   test('is reported with the level that defined each value', async () => {
     if (!available)
