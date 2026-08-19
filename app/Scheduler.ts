@@ -51,6 +51,18 @@ export default function () {
     .job('ReconcileWal')
     .everyTenMinutes()
 
+  /*
+   * The full bundle that lets the log forget its beginning, and the prune it
+   * makes safe. Nightly, because it repacks and writes the whole repository:
+   * doing it hourly would spend a repository's worth of bandwidth to learn
+   * nothing, and the log is bounded by entries rather than by time anyway.
+   *
+   * It does nothing at all when the log is off.
+   */
+  schedule
+    .job('CheckpointRepositories')
+    .daily()
+
   // What was held, sent as one message per thread. A sweep rather than a timer
   // armed per notification: a timer has to survive a restart and a sweep reads
   // what is actually pending, so a process that dies mid-digest loses nothing -

@@ -129,9 +129,22 @@ is payload.
       that is empty, relative, walked upwards, or outside a root the test created, and the rule
       for anything written here from now on is: **delete only what you made, by the name you made
       it with, never by walking up from something else.**
-- [ ] The checkpoint job: periodically `git repack` locally, write a full `git bundle create
+- [x] The checkpoint job: periodically `git repack` locally, write a full `git bundle create
       --all` checkpoint to the blob store, prune the WAL prefix per retention config. Compaction
       runs on the primary only, per the reference architecture: replicas trade bandwidth for CPU.
+
+      The sequence lives in the key (`wal/<repo>/checkpoints/<sequence>.bundle`, zero-padded)
+      rather than in a table, because what a restore needs is "the newest checkpoint and what it
+      covers" and both are in that name - a table would be a second thing to keep in step with
+      the store, and the two disagreeing is a restore that silently starts from the wrong place.
+      `buddy git:restore` uses it, so a restore is proportional to the repository rather than to
+      its whole push history.
+
+      **The pruning rules are pure and tested separately**, because they delete backup material:
+      nothing past the checkpoint (those bundles are the only copy), nothing inside the retention
+      window, and never a `pending` entry - that one is a question the reconciler has not answered
+      yet, and deleting it turns it into a gap nobody can explain. Nightly rather than hourly, and
+      it does nothing at all when the log is off.
 
 ## 18c - Refs in the database, repositories become cattle
 

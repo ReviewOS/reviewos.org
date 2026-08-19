@@ -7,6 +7,7 @@ import process from 'node:process'
 // a buddy command does not run through the preloader that injects those.
 import { db } from '@stacksjs/database'
 import { blobStore } from '../Actions/Git/blobs'
+import { latestCheckpoint } from '../Actions/Git/checkpoint'
 import { initBare, runGit } from '../Actions/Git/git'
 import { entriesFor, replay, verifyBundle } from '../Actions/Git/wal'
 
@@ -83,6 +84,48 @@ async function restore(reference: string, options: any): Promise<void> {
   await mkdir(scratch, { recursive: true })
 
   let fetched = 0
+
+  /*
+   * The newest checkpoint first, when there is one.
+   *
+   * A checkpoint is a full bundle of the repository at a sequence, so it
+   * replaces every entry up to that point - which is what keeps a restore
+   * proportional to the repository rather than to its whole push history. The
+   * entries after it are the suffix, applied on top.
+   *
+   * A log with no checkpoint yet replays from the beginning, which is correct
+   * and is what a young repository does.
+   */
+  const checkpoint = await latestCheckpoint(repositoryId, store)
+
+  if (checkpoint) {
+    const stream = await store.get(checkpoint.key)
+
+    if (stream) {
+      const path = join(scratch, 'checkpoint.bundle')
+      await Bun.write(path, await new Response(stream).arrayBuffer())
+
+      if (options.verify) {
+        const verdict = await verifyBundle(destination, path)
+
+        if (!verdict.ok)
+          throw new Error(`the checkpoint at sequence ${checkpoint.sequence} does not verify: ${verdict.reason}`)
+      }
+
+      const restored = await runGit(destination, ['fetch', '--force', path, '+refs/*:refs/*'], {
+        timeoutMs: 30 * 60_000,
+        priority: 'background',
+      })
+
+      if (restored.ok) {
+        fetched += 1
+        console.log(`Checkpoint at sequence ${checkpoint.sequence} restored (${Math.round(checkpoint.bytes / 1024)} KB)`)
+      }
+      else {
+        console.error(`  the checkpoint could not be fetched: ${restored.stderr.trim().split('\n')[0]}`)
+      }
+    }
+  }
 
   /*
    * The objects first, all of them, before any ref moves.
