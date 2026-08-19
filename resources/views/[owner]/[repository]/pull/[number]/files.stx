@@ -182,6 +182,14 @@ const blameUrl = `/api/repos/pulls/diff/blame?${diffQuery}`
       </div>
     @else
       <header class="files-head">
+        {{-- Which repository this is, and the way back to it. The review screen
+            is the page people are sent straight to - from a queue, a
+            notification, a link in chat - and it named the repository nowhere a
+            reader could click. --}}
+        <p class="pr-where mono">
+          <a href="/{{ owner }}">{{ owner }}</a><span class="muted">/</span><a href="/{{ owner }}/{{ repositoryName }}">{{ repositoryName }}</a>
+        </p>
+
         <div class="pr-title-row">
           <h1 class="pr-title">{{ pullRequest.title }}</h1>
           <span class="pr-number mono muted">#{{ number }}</span>
@@ -343,6 +351,10 @@ mountDiffFiles()
 </script>
 
 <style>
+  .pr-where { margin-bottom: 6px; font-size: 13px; }
+  .pr-where a { text-decoration: none; }
+  .pr-where a:hover { text-decoration: underline; }
+
   .verdict-drawer { position: relative; margin-bottom: 10px; }
 
   .diff-interdiff {
