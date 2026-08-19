@@ -88,7 +88,19 @@ export default new Action({
 
     const headers = mediaHeaders(type)
 
-    return new Response(bytes, {
+    /*
+     * A `Uint8Array` view over the same bytes, not a copy.
+     *
+     * `Response` takes a `BodyInit`, which is `ArrayBufferView<ArrayBuffer>`
+     * among other things - and a Node `Buffer` is typed as a view over
+     * `ArrayBufferLike`, which also covers `SharedArrayBuffer` and is therefore
+     * not assignable. The cast is the honest half of that: a Buffer from a pipe
+     * is backed by an ordinary `ArrayBuffer`, and the offset and length keep the
+     * view inside this Buffer's slice of the pool it came from.
+     */
+    const body = new Uint8Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength)
+
+    return new Response(body, {
       headers: {
         'Content-Type': headers.contentType,
         'Content-Disposition': headers.disposition,
