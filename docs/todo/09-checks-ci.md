@@ -732,8 +732,25 @@ run is inspected.
       cannot supply one at all: there is no path by which a pull request's tree becomes a version
       row. `tests/e2e/ci-security.test.ts` pins both halves, the definition and the trust flag, and
       the claim test beside it pins what the flag buys: no secrets, and no identity token.
-- [ ] Monorepository support: changed-path matching, working directory, shared setup jobs, and more
+- [x] Monorepository support: changed-path matching, working directory, shared setup jobs, and more
       than one deployable application per repository
+
+      Four things rather than a feature, and all four are here.
+
+      **Changed-path matching** at two levels, because they answer different questions: `paths:` and
+      `paths-ignore:` decide whether a *workflow* runs at all, and `reviewos.if-changed:` decides
+      whether one *job* does. The second is the monorepository primitive - one workflow, one job per
+      package, each running only when its own directory moved - and the run records
+      `changed_paths` so a job's condition can ask what the push touched rather than re-deriving it
+      from the commit.
+
+      **Working directory** resolves workflow → job → step, so a monorepository sets it once per
+      job instead of on forty steps. **Shared setup** is `needs:` for a job every package waits on,
+      `uses:` for a workflow several repositories call, and the dependency cache underneath both.
+
+      **More than one deployable application** falls out of environments being named rather than
+      enumerated: `api-staging` and `web-staging` are two environments with their own protection
+      rules, their own secrets and their own deployment history, in one repository.
 - [x] Deduplicate trigger delivery so replaying a push webhook does not create a second run
 
       A unique index on (version, ref, head, event), not a check-then-insert: two deliveries
@@ -743,8 +760,24 @@ run is inspected.
 
       Not cosmetic. Two runs for one commit are two builds competing to report a status for it, and
       the one that lands last wins regardless of which was right.
-- [ ] Tests: branch and path filters, tag pushes, fork policy, reusable plus local workflows, an
+- [x] Tests: branch and path filters, tag pushes, fork policy, reusable plus local workflows, an
       invalid graph, and the same event delivered twice
+
+      All six, and worth writing down where, because a list like this is otherwise a claim nobody
+      can check:
+
+      | Named case | Where |
+      |---|---|
+      | branch and path filters | `workflow-triggers.test.ts` - including the negative ones, which are the half that silently does nothing when it is forgotten |
+      | tag pushes | `workflow-triggers.test.ts`: a tag does not run a workflow that filters branches, and does run one that asks for tags |
+      | fork policy | `ci-security.test.ts` - the definition comes from the base branch, the run is untrusted, and the claim hands it no secrets and no identity token |
+      | reusable plus local workflows | `workflow-call-graph.test.ts`: the called workflow's jobs land in the caller's run, under the caller's name, with `needs` resolving across the join |
+      | an invalid graph | `workflow-parse.test.ts` - a `needs:` cycle is refused with the cycle named, rather than dispatched and hung |
+      | the same event delivered twice | `workflow-dispatch.test.ts`: the second delivery creates nothing and the run count does not move |
+
+      The fork one landed this phase; the rest were written beside their features. The pattern worth
+      keeping is that each asserts the *refusal* as well as the acceptance - a filter that matches
+      everything passes every test that only checks what should run.
 
 ## Durable runs and the control API
 
