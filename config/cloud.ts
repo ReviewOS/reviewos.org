@@ -927,7 +927,19 @@ export const tsCloud: TsCloudConfig = {
     api: {
       root: '.',
       domain: env.APP_DOMAIN || 'reviewos.org',
-      start: 'bun node_modules/@stacksjs/buddy/dist/cli.js serve:api',
+      /*
+       * The port is passed as well as declared.
+       *
+       * `port` is what the reverse proxy and `assertPortsAreFree` read;
+       * `serve:api` binds `PORT` and falls back to the framework default of
+       * 3008 when it is not set. Those agree only because ts-cloud injects
+       * `PORT` per site - which it does, and which is inferred from the page
+       * server working rather than stated anywhere. If that ever changed the
+       * API would bind 3008, the proxy would keep pointing at 3073, and the
+       * result would be the same silent 502 this whole change exists to end.
+       * One flag makes it independent of the inference.
+       */
+      start: `bun node_modules/@stacksjs/buddy/dist/cli.js serve:api --port ${API_PORT}`,
       port: API_PORT,
 
       /*
