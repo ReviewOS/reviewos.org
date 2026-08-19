@@ -102,15 +102,33 @@ is payload.
       materialization proof in one command, and it ships before any multi-node work does. It
       never writes over an existing repository - the operator moves the result into place - and
       `--verify` checks every bundle before using it.
-- [ ] **The live-push proof.** Everything above is tested at the unit level against real git, and
-      the gate wiring is not: no test yet drives an actual `git push` through the real hooks and
-      asserts a row with a restorable bundle came out. The harness for it is most of the way
-      there and three separate mistakes in *the test* are worth recording, because each looked
+- [x] **The live-push proof** (`tests/e2e/git-wal-push.test.ts`): a real `git push` through the
+      real hooks, producing a row whose bundle verifies and restores into an empty repository.
+
+      **It found two bugs that every fixture test around it had missed**, and both are the shape
+      this codebase keeps naming. `git bundle create` refuses a bare sha - a bundle records
+      *references*, and at pre-receive the refs still point at their old values - so the push
+      path wrote a seventeen-byte header with no pack, reported success, and restored nothing;
+      the unit test that "covered" bundling used `--all`, proving git works rather than that
+      these arguments do. And the child's `close` listener was attached *after* its stdout was
+      consumed, which races the event: the gate hung, pre-receive timed out, the push was allowed
+      by the fail-open rule, and the log stayed empty while the push looked perfect.
+
+      Three mistakes in *the test itself* are worth recording too, because each also looked
       exactly like the feature being broken: `installHooks` takes the hooks *directory* and needs
-      `useSharedHooks` beside it, a hook secret under sixteen characters makes `hookSecret()`
-      answer null so the gate 404s at its own hook and pre-receive correctly fails open, and a
-      bare `import` of a route file does not register its POST routes - only `route.importRoutes()`
-      does, and the symptom is a 405 naming GET and HEAD on a path that plainly has a POST.
+      `useSharedHooks` beside it; a hook secret under sixteen characters makes `hookSecret()`
+      answer null, so the gate 404s at its own hook; and a bare `import` of a route file does not
+      register its POST routes - only `route.importRoutes()` does, and the symptom is a 405
+      naming GET and HEAD on a path that plainly has a POST.
+
+      **And one that was not a test failure at all.** The first version of the cleanup removed
+      `resolve(diskPath, '..')`, which on the setup-failure path - where `diskPath` is still the
+      empty string - resolves to the *parent of the working directory*. It deleted this checkout
+      and every sibling project beside it. Recovered from the remote; the uncommitted work in the
+      tree at that moment was not. Test cleanup now goes through a guard that refuses any path
+      that is empty, relative, walked upwards, or outside a root the test created, and the rule
+      for anything written here from now on is: **delete only what you made, by the name you made
+      it with, never by walking up from something else.**
 - [ ] The checkpoint job: periodically `git repack` locally, write a full `git bundle create
       --all` checkpoint to the blob store, prune the WAL prefix per retention config. Compaction
       runs on the primary only, per the reference architecture: replicas trade bandwidth for CPU.
