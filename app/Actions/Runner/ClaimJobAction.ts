@@ -296,6 +296,9 @@ export default new Action({
         // `strategy.fail-fast` and `strategy.max-parallel`, which were copied
         // onto the run and read by the graph and by nothing a workflow could see.
         'fail_fast', 'max_parallel',
+        // Where a restart-from-step told this attempt to begin. Null on every
+        // ordinary claim, which starts at the first step.
+        'resume_from_step',
       ])
       .where('id', '=', claimed.jobId)
       .executeTakeFirst()
@@ -325,6 +328,10 @@ export default new Action({
       .select([
         'position', 'name', 'command', 'uses', 'working_directory',
         'step_id', 'condition', 'inputs', 'shell', 'continue_on_error', 'env', 'timeout_minutes',
+        // What the kept steps of a restart already produced, so the steps after
+        // them can still read `steps.<id>.outputs`. A skipped step whose values
+        // did not travel is a skipped step that breaks the one after it.
+        'outputs', 'reused_from_attempt',
       ])
       .where('workflow_job_id', '=', claimed.jobId)
       .orderBy('position')
@@ -389,8 +396,33 @@ export default new Action({
       jobPermissions: definitionJob?.permissions ?? null,
     })
 
+    /*
+     * Where this attempt starts, and what it is being handed instead of the
+     * steps before it.
+     *
+     * The control plane decided this - `restartPlan` refused to skip past a
+     * step that changed or did not succeed - so the runner is told a number
+     * rather than a rule. Bounded to the step list because it is read from a
+     * row: a `resume_from_step` past the end would be a job that runs nothing
+     * and reports success, which is the worst possible way to be wrong.
+     */
+    const resumeFrom = Math.max(0, Math.min(
+      Number(jobRow?.resume_from_step ?? 0) || 0,
+      steps.length,
+    ))
+
     const runnerSteps = steps.map(step => ({
       position: Number(step.position ?? 0),
+      /*
+       * A step the restart kept, and what it produced.
+       *
+       * Sent rather than dropped from the list: the runner reports positions,
+       * and a list with holes in it would renumber every step after the skip.
+       * It carries its outputs so `steps.<id>.outputs` still answers, and its
+       * `reused` flag so the machine does not run it.
+       */
+      reused: Number(step.position ?? 0) < resumeFrom,
+      outputs: Number(step.position ?? 0) < resumeFrom ? (readJson(step.outputs) ?? {}) : null,
       name: step.name ?? null,
       /*
        * The step's own id and condition.
@@ -775,6 +807,15 @@ export default new Action({
           ? null
           : Number(jobRow.timeout_minutes),
         steps: runnerSteps,
+        /*
+         * The step this attempt begins at, counting from zero.
+         *
+         * Beside the per-step flag rather than instead of it, because they
+         * answer different questions: a runner reads the number to know where
+         * to start, and a runner that has never heard of restarts reads the
+         * flags and skips the right steps anyway.
+         */
+        resume_from: resumeFrom,
         /*
          * The signature over those steps, and whether this pool insists on one.
          *

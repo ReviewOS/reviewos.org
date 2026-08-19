@@ -11,12 +11,21 @@ import { rerunRun } from './rerun'
 /**
  * Run it again.
  *
- * Three scopes, because they answer three different questions. **The whole
+ * Four scopes, because they answer four different questions. **The whole
  * run** is "the world changed" - a dependency was fixed, a machine was
  * replaced. **The failed jobs** is the ordinary one, and it has to include the
  * jobs that were skipped *because* those failed, or the second attempt reports
  * a run still missing half its work and calls it green. **One job** is a person
- * who knows exactly which thing was flaky.
+ * who knows exactly which thing was flaky. **From one step** is that person
+ * again, having also read the log: the job failed at its ninth step and its
+ * first eight are a checkout, a toolchain and a cache restore nobody wants
+ * repeated.
+ *
+ * Only the last one skips anything, and it skips only what `reusePlan` allows:
+ * a recorded result stands when its step is unchanged, every step before it is
+ * unchanged, and it succeeded with a result to hand on. Asking to start further
+ * in than that is honoured as far as it can be and the answer says so, because
+ * silently starting eight steps earlier looks like the feature not working.
  *
  * A re-run is a new attempt of the same run rather than a new run. The commit,
  * the workflow version and the number are unchanged, and two rows would leave a
@@ -38,6 +47,7 @@ export default new Action({
     number: { rule: schema.number() },
     scope: { rule: schema.string(), required: false },
     job: { rule: schema.string(), required: false },
+    step: { rule: schema.string(), required: false },
   },
 
   responses: {
@@ -55,6 +65,8 @@ export default new Action({
             },
           },
           jobs: { type: 'integer', description: 'How many jobs are running again, including the ones that were skipped because of them.' },
+          reused: { type: 'integer', description: 'How many recorded step results this restart kept rather than running again.' },
+          reason: { type: 'string', description: 'Why the restart did not begin at the step it was asked to, when it did not. Empty when it did.' },
         },
       },
     },
@@ -85,7 +97,13 @@ export default new Action({
       return response.json({ error: 'A run number is required' }, 422)
 
     const asked = String(request.get('scope') ?? 'failed')
-    const scope: RerunScope = asked === 'all' || asked === 'job' ? asked : 'failed'
+    const scope: RerunScope = asked === 'all' || asked === 'job' || asked === 'step' ? asked : 'failed'
+
+    // A step restart is about one job's steps, so it cannot be asked without
+    // saying which job. Refused here rather than resolved to "the only job",
+    // which is a guess that stops being right the moment a workflow grows.
+    if (scope === 'step' && !String(request.get('job') ?? '').trim())
+      return response.json({ error: 'Restarting from a step needs a job: pass `job`.' }, 422)
 
     const run = await db
       .selectFrom('workflow_runs')
@@ -101,6 +119,7 @@ export default new Action({
       runId: Number(run.id),
       scope,
       jobKey: request.get('job') ? String(request.get('job')) : null,
+      step: request.get('step') ? String(request.get('step')) : null,
     })
 
     if (!outcome.ok)
@@ -115,7 +134,7 @@ export default new Action({
       actorId: auth.context.user?.id ?? null,
       ...await auditFrom(request),
       repositoryId: Number(repository.id),
-      detail: { number, scope, attempt: outcome.attempt, jobs: outcome.jobs },
+      detail: { number, scope, attempt: outcome.attempt, jobs: outcome.jobs, reused: outcome.reused ?? 0 },
     }).catch(() => null)
 
     /*
@@ -133,6 +152,8 @@ export default new Action({
     return response.json({
       workflow_run: { number, state: 'queued', attempt: outcome.attempt },
       jobs: outcome.jobs,
+      reused: outcome.reused ?? 0,
+      reason: outcome.reason ?? '',
     })
   },
 })

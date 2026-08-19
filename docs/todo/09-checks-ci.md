@@ -189,10 +189,23 @@ its result was recorded as a value.
 - [x] Wall time and active execution time are recorded separately per step, plus queue time. A step
       that took nine minutes of which eight were queueing is a different problem from one that took
       nine minutes of work, and one number cannot say which.
-- [ ] Cached and reused results are labelled as such in the interface and the API, with a link to the
+- [x] Cached and reused results are labelled as such in the interface and the API, with a link to the
       attempt that actually produced them
-- [ ] Tests: a restart reusing outputs, a restart refusing to reuse them because the workflow version
+
+      `reused_from_attempt` on the step row, set by the restart that kept the result and carried
+      forward across later ones - so a value produced on attempt one still says one after surviving
+      attempts two and three. The run screen says "kept from attempt 1" and links to that attempt's
+      log, which the log endpoint now serves: `readLog` had taken an attempt all along and nothing
+      passed one, so the only readable log was the newest. A number nobody can trace is worse than
+      no number.
+- [x] Tests: a restart reusing outputs, a restart refusing to reuse them because the workflow version
       changed, and an output too large for the value store handled explicitly rather than truncated
+
+      `tests/e2e/workflow-restart-step.test.ts`, against the real tables and the real endpoint. The
+      third case is where the column had to grow a distinction: a database has one way to say empty,
+      and "this step produced no outputs" and "this step's answer was lost" are opposite answers to
+      whether it may be skipped. The dropped value is a marker, so it survives the round trip the
+      missing value does not, and `recordedOutputs` is the one place that reads the difference.
 
 `WorkflowStep` now carries `outputs`, `queued_ms` and `active_ms`, and a runner sends all three with
 its conclusion - one report rather than a request per step, because nothing reads a step's recorded
@@ -729,8 +742,25 @@ accepts. Jitter spreads downward only, so a matrix of twenty jobs failing agains
 dependency does not retry in lockstep and does not push itself past a timeout set against the stated
 delay. The scheduler still has to call `delayFor` when it requeues - the policy is decided, the
 requeue is not yet reading it.
-- [ ] Restart a whole run or restart from one named step and attempt. Earlier successful step results
+- [x] Restart a whole run or restart from one named step and attempt. Earlier successful step results
       are reused only when their inputs and workflow version still match.
+
+      `scope: 'step'` on the re-run action, and it is the only scope that skips anything. The other
+      three start every job they touch from the top on purpose: a re-run lands on a fresh machine
+      with none of the workspace the earlier attempt left behind, so skipping a checkout there hands
+      the next step an empty directory. Only somebody naming a step is saying they know that.
+
+      How far it may skip is `reusePlan`'s answer rather than the caller's: the recorded rows are
+      compared against what the definition says, and the first step that changed, failed, or lost
+      its result is where the restart begins. A request to start further in is honoured as far as it
+      can be and the answer says why - silently starting eight steps earlier looks like the feature
+      not working. The runner is handed a number and a flag per step rather than a rule, plus the
+      kept steps' outputs, because `steps.build.outputs` is what the step being restarted reads.
+
+      Re-running also resets the step rows, which it never did: the job went back to queued and its
+      steps kept the last attempt's states, so the screen showed a queued job made of succeeded
+      steps. "One named attempt" is the half not built - the rows hold the latest attempt's results
+      and nothing older, so a restart reuses those or none.
 - [ ] Waiting steps can sleep until a time or wait for a typed external event, with a timeout. This
       is the primitive for approvals, webhooks, and other human-in-the-loop gates.
 - [x] Cancellation is cooperative first and forceful after a deadline, with the runner lease

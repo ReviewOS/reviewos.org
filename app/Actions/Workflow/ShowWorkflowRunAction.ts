@@ -129,6 +129,9 @@ export default new Action({
       .select([
         'id', 'job_id', 'name', 'position', 'state', 'needs',
         'runs_on', 'runner_id', 'queued_at', 'started_at', 'finished_at',
+        // Where this attempt was told to begin, so a client can say why the
+        // first steps of a job show a result nothing on this attempt produced.
+        'resume_from_step',
       ])
       .where('workflow_run_id', '=', Number(run.id))
       .orderBy('position')
@@ -140,7 +143,7 @@ export default new Action({
     const steps = jobs.length > 0
       ? await db
         .selectFrom('workflow_steps')
-        .select(['id', 'workflow_job_id', 'position', 'name', 'state', 'attempts', 'exit_code', 'started_at', 'finished_at'])
+        .select(['id', 'workflow_job_id', 'position', 'name', 'state', 'attempts', 'exit_code', 'started_at', 'finished_at', 'reused_from_attempt'])
         .where('workflow_job_id', 'in', jobs.map(job => Number(job.id)))
         .orderBy('position')
         .execute()
@@ -294,6 +297,13 @@ export default new Action({
           queued_at: job.queued_at ?? null,
           started_at: job.started_at ?? null,
           finished_at: job.finished_at ?? null,
+          /**
+           * The step this attempt starts at, counting from zero, or null for
+           * the beginning. Only a restart-from-step sets it.
+           */
+          resume_from_step: job.resume_from_step === null || job.resume_from_step === undefined
+            ? null
+            : Number(job.resume_from_step),
           /*
            * What this job's steps run with when they say nothing themselves.
            *
@@ -320,6 +330,17 @@ export default new Action({
             exit_code: step.exit_code ?? null,
             started_at: step.started_at ?? null,
             finished_at: step.finished_at ?? null,
+            /*
+             * The attempt that actually did this work, when it was not this
+             * one. Null on a step this attempt ran itself.
+             *
+             * Said in the API and not only on the screen, because a client
+             * comparing two attempts' timings would otherwise read a kept
+             * nine-minute result as nine minutes this attempt spent.
+             */
+            reused_from_attempt: step.reused_from_attempt === null || step.reused_from_attempt === undefined
+              ? null
+              : Number(step.reused_from_attempt),
           })),
         })),
       },

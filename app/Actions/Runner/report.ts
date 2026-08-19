@@ -23,6 +23,7 @@ import { canJobMove } from '../Workflow/states'
 import { revokeJobTokens } from '../Workflow/jobToken'
 import { softFailOutcome } from '../Workflow/stepAttributes'
 import { settleRun } from '../Workflow/settle'
+import { DROPPED_MARK } from '../Workflow/reuse'
 import type { RunnerFacts } from './protocol'
 import { mayReport, splitLabels } from './protocol'
 
@@ -107,7 +108,7 @@ export function boundedValue(value: string, limit: number): string {
   if (bytes <= limit)
     return value
 
-  return `[dropped: ${bytes} bytes, over the ${limit} this store keeps. Pass a value this size as an artifact and read it from there.]`
+  return `${DROPPED_MARK} ${bytes} bytes, over the ${limit} this store keeps. Pass a value this size as an artifact and read it from there.]`
 }
 
 /**

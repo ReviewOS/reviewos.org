@@ -28,6 +28,7 @@ export default new Action({
     repo: { rule: schema.string() },
     job: { rule: schema.number().required() },
     after: { rule: schema.number() },
+    attempt: { rule: schema.number(), required: false },
   },
 
   responses: {
@@ -39,6 +40,7 @@ export default new Action({
           chunks: { type: 'array', items: { type: 'object' } },
           cursor: { type: 'integer' },
           state: { type: 'string', description: 'The job\'s state, so a client following the output knows when to stop asking without a second request.' },
+          attempt: { type: 'integer', description: 'Which attempt this page is from. The current one unless `attempt` asked for another.' },
         },
       },
     },
@@ -61,7 +63,7 @@ export default new Action({
     const job = await db
       .selectFrom('workflow_jobs')
       .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
-      .select(['workflow_jobs.id as id', 'workflow_jobs.state as state'])
+      .select(['workflow_jobs.id as id', 'workflow_jobs.state as state', 'workflow_jobs.attempt as attempt'])
       .where('workflow_jobs.id', '=', jobId)
       .where('workflow_runs.repository_id', '=', repository.id)
       .executeTakeFirst()
@@ -69,7 +71,19 @@ export default new Action({
     if (!job)
       return response.json({ error: 'No such job' }, 404)
 
-    const page = await readLog(jobId, Number(request.get('after') ?? 0))
+    /*
+     * An earlier attempt's output, when a reader asks for one.
+     *
+     * The reason a re-run keeps its predecessor's logs is so somebody can read
+     * them, and until this parameter existed nothing could: the endpoint always
+     * answered with the newest attempt. It is also what makes a kept step
+     * result explicable - a step skipped on attempt three points at the
+     * attempt whose log shows it doing the work.
+     */
+    const asked = Number(request.get('attempt') ?? 0)
+    const attempt = Number.isInteger(asked) && asked > 0 ? asked : undefined
+
+    const page = await readLog(jobId, Number(request.get('after') ?? 0), 200, attempt)
 
     /*
      * The job's state, beside its output.
@@ -81,6 +95,6 @@ export default new Action({
      * second request per poll against an endpoint that has already read the
      * row.
      */
-    return response.json({ ...page, state: String(job.state) })
+    return response.json({ ...page, state: String(job.state), attempt: attempt ?? Number((job as any).attempt ?? 1) })
   },
 })

@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS `workflow_steps` (
   `started_at` varchar(40),
   `finished_at` varchar(40),
   `outputs` text,
+  `reused_from_attempt` integer,
   `queued_ms` integer,
   `active_ms` integer,
   `repository_id` integer,

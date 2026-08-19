@@ -597,7 +597,23 @@ const jobs = jobRows.map((job) => {
       label: runLabel(String(step.state)),
       tone: runTone(String(step.state)),
       attempts: Number(step.attempts ?? 0),
+      /*
+       * How a restart names this step, and what to say about it when the
+       * restart kept its result rather than running it.
+       *
+       * `reusedFrom` being a number on the screen is the point of the column:
+       * a green step beside a red one, both from "this attempt", is a run
+       * describing work it did not do. The link goes to the log of the attempt
+       * that did, which is the only place the result can be checked.
+       */
+      reference: step.step_id ? String(step.step_id) : String(Number(step.position) + 1),
+      reusedFrom: step.reused_from_attempt === null || step.reused_from_attempt === undefined
+        ? 0
+        : Number(step.reused_from_attempt),
     })),
+    /** Whether this job can be restarted from one of its steps: a finished command job. */
+    restartable: String(job.kind ?? 'command') === 'command'
+      && ['failed', 'cancelled', 'succeeded'].includes(String(job.state)),
   }
 })
 
@@ -1154,9 +1170,42 @@ const base = `/${ownerHandle}/${repositoryName}`
                   <li class="step">
                     <span class="run-dot run-{{ step.tone }}" aria-hidden="true"></span>
                     <span class="step-name">{{ step.name }}</span>
+                    {{--
+                      A kept result says so, and says where it came from.
+
+                      Without this the screen claims this attempt produced it,
+                      which is the one thing a restart-from-step must not let a
+                      reader believe: the whole reason to keep a result is that
+                      nothing repeated the work, and a number nobody can trace
+                      is worse than no number.
+                    --}}
+                    @if (step.reusedFrom > 0)
+                      <a
+                        class="step-reused"
+                        href="/api/repos/workflow-runs/job-log?owner={{ ownerHandle }}&repo={{ repositoryName }}&job={{ job.id }}&attempt={{ step.reusedFrom }}"
+                      >kept from attempt {{ step.reusedFrom }}</a>
+                    @endif
                     <span class="muted step-state">
                       {{ step.label }}@if (step.attempts > 1) · attempt {{ step.attempts }}@endif
                     </span>
+                    {{--
+                      And the control that puts a restart where the person is
+                      already looking: a form per step, because the question
+                      "start again from here" is asked of one row rather than
+                      chosen from a list of forty.
+                    --}}
+                    @if (canRerun && job.restartable)
+                      <form method="post" action="/api/repos/workflow-runs/rerun" class="step-restart">
+                        <CsrfField />
+                        <input type="hidden" name="owner" value="{{ ownerHandle }}">
+                        <input type="hidden" name="repo" value="{{ repositoryName }}">
+                        <input type="hidden" name="number" value="{{ runNumber }}">
+                        <input type="hidden" name="scope" value="step">
+                        <input type="hidden" name="job" value="{{ job.jobId }}">
+                        <input type="hidden" name="step" value="{{ step.reference }}">
+                        <button class="step-restart-button" type="submit" title="Run this job again from this step">Restart here</button>
+                      </form>
+                    @endif
                   </li>
                 @endforeach
               </ol>
@@ -1532,4 +1581,19 @@ const base = `/${ownerHandle}/${repositoryName}`
 
   .step-name { flex: 1; min-width: 0; }
   .step-state { font-size: 12px; }
+  .step-reused { font-size: 12px; color: var(--muted); text-decoration: none; border-bottom: 1px dotted currentColor; }
+  .step-reused:hover { color: var(--fg); }
+  .step-restart { margin: 0; }
+
+  .step-restart-button {
+    font: inherit;
+    font-size: 12px;
+    color: var(--muted);
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .step-restart-button:hover { color: var(--fg); }
 </style>

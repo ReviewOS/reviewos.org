@@ -9360,6 +9360,14 @@
             "isNullable": true,
             "hasDefault": true,
             "defaultValue": false
+          },
+          {
+            "name": "resume_from_step",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -9931,6 +9939,14 @@
           },
           {
             "name": "active_ms",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "reused_from_attempt",
             "type": "integer",
             "isPrimaryKey": false,
             "isUnique": false,
@@ -13988,7 +14004,7 @@
       }
     ]
   },
-  "hash": "7842912b8ed7f956c17bb7f74dfad33255c3adf0499e70401c2d49e81992b1c1",
+  "hash": "8ab660ac2e76a8be52c6d6142fa1de705b300e64b28ee4d1c567db502f0767f2",
   "dialect": "postgres",
-  "updatedAt": "2026-08-19T19:05:28.522Z"
+  "updatedAt": "2026-08-19T20:15:51.322Z"
 }

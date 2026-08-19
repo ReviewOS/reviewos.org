@@ -206,6 +206,26 @@ export default defineModel({
     },
 
     /**
+     * The job attempt that actually produced this result, when it was not this one.
+     *
+     * Set by a restart-from-step on every step whose recorded result it kept,
+     * and null on a step this attempt ran itself. Without it, a run screen shows
+     * a green step beside a red one from the same attempt and cannot say that
+     * the green one is nine minutes of work nothing repeated - which is the
+     * fact somebody restarting from a step wants confirmed.
+     *
+     * A number rather than a row id: it is what the log endpoint filters on, so
+     * the interface can link the kept result to the attempt whose output
+     * explains it.
+     */
+    reused_from_attempt: {
+      order: 12,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    /**
      * How long this step waited before anything ran it, in milliseconds.
      *
      * Separate from the time it spent working, and the separation is the whole

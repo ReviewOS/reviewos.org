@@ -275,6 +275,29 @@ export default defineModel({
     },
 
     /**
+     * The step this attempt starts at, counting from zero.
+     *
+     * Null on an ordinary job, which starts at the beginning. Set only by a
+     * restart-from-step, and set to a number `reusePlan` agreed to rather than
+     * to the one somebody typed: a restart may skip a step's work **only** when
+     * that step, and every step before it, is unchanged and succeeded with a
+     * recorded result. The column carries the answer rather than the request,
+     * so a runner reading it does not have to re-derive a safety decision the
+     * control plane already made.
+     *
+     * Cleared by every other kind of re-run, because "run it again" means from
+     * the top - a fresh machine has none of the workspace the skipped steps
+     * would have left behind, and only an explicit restart-from-step is a
+     * person saying they know that.
+     */
+    resume_from_step: {
+      order: 46,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
+
+    /**
      * The job that uploaded this one, when it was not in the file.
      *
      * A run's graph is what it *became*, not only what was declared: a job that

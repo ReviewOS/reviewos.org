@@ -813,6 +813,28 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       const name = String(step.name ?? step.run ?? step.uses ?? `step ${index + 1}`)
       const stepStartedAt = Date.now()
 
+      /*
+       * A step this restart is keeping the answer to.
+       *
+       * Not executed, and not reported either: its row already holds the
+       * result, and writing over it with "this attempt did nothing" is exactly
+       * the erasure the whole re-run design exists to avoid. Its outputs go
+       * into the context all the same, because the steps that follow read
+       * `steps.<id>.outputs` and cannot tell - or care - which attempt
+       * produced them.
+       */
+      if (isTrue(step.reused)) {
+        const kept = (step.outputs ?? {}) as Record<string, string>
+
+        if (step.id)
+          stepContext[String(step.id)] = { outputs: kept, outcome: 'success', conclusion: 'success' }
+
+        await send(`::group::${name}\nKept from an earlier attempt: this restart begins later in the job.\n::endgroup::\n`)
+        previousFinishedAt = Date.now()
+
+        continue
+      }
+
       if (Date.now() >= deadline) {
         /*
          * Out of time, said here rather than left to the lease.

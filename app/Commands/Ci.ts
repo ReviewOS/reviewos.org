@@ -24,6 +24,7 @@ interface CiOptions {
   number?: string
   job?: string
   scope?: string
+  step?: string
   file?: string
   ref?: string
   input?: string[]
@@ -371,8 +372,9 @@ export default function (cli: CLI) {
     .option('--url <url>', 'Where the instance is')
     .option('--token <token>', 'A credential that may cancel')
     .option('--repository <owner/repo>', 'Which repository')
-    .option('--scope <scope>', 'all, failed (the default), or job', { default: 'failed' })
-    .option('--job <job>', 'Which job, with --scope job')
+    .option('--scope <scope>', 'all, failed (the default), job, or step', { default: 'failed' })
+    .option('--job <job>', 'Which job, with --scope job or --scope step')
+    .option('--step <step>', 'Which step to start from, with --scope step: its id, its name, or its position')
     .action(async (number: string, options: CiOptions) => {
       const where = repository(options)
 
@@ -392,10 +394,19 @@ export default function (cli: CLI) {
           number: Number(number),
           scope: options.scope ?? 'failed',
           job: options.job,
+          step: options.step,
         },
       })
 
       console.log(`run #${number} is on attempt ${body.workflow_run?.attempt ?? '?'}, ${body.jobs} ${body.jobs === 1 ? 'job' : 'jobs'} running again`)
+
+      if (Number(body.reused ?? 0) > 0)
+        console.log(`${body.reused} ${body.reused === 1 ? 'step keeps its' : 'steps keep their'} recorded result`)
+
+      // Said rather than swallowed: a restart that began earlier than asked did
+      // so for a reason, and a person who is not told reads it as not working.
+      if (body.reason)
+        console.log(String(body.reason))
     })
 }
 
