@@ -9903,6 +9903,30 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "outputs",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "queued_ms",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
+          },
+          {
+            "name": "active_ms",
+            "type": "integer",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -13852,7 +13876,7 @@
       }
     ]
   },
-  "hash": "9ccf825acb8dfc14eea66ef5ae12b70980e10d4a989c56713cb95f2004b93973",
+  "hash": "86ed7fb6824c15518cd701ac7fb284eccc49813a25a4738ef2b89f61a70591eb",
   "dialect": "postgres",
-  "updatedAt": "2026-08-19T16:58:25.936Z"
+  "updatedAt": "2026-08-19T18:50:41.563Z"
 }

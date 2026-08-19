@@ -2,6 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { schema } from '@stacksjs/validation'
 import { authenticateJob } from './authenticate'
+import type { StepReport } from './report'
 import { reportJob } from './report'
 
 /**
@@ -38,6 +39,34 @@ function readOutputs(value: unknown): Record<string, string> | null {
     outputs[name] = entry === null || entry === undefined ? '' : String(entry)
 
   return outputs
+}
+
+/**
+ * The per-step results, read out of what a runner sent.
+ *
+ * Accepts a JSON string as well as an array, because a runner posting a form
+ * body has no other way to send a list - the same reason `readOutputs` does.
+ * Every field is optional except the position: a step the runner has nothing to
+ * say about should still be able to say it ran.
+ */
+function readSteps(value: unknown): StepReport[] | null {
+  const parsed = typeof value === 'string' ? tryParse(value) : value
+
+  if (!Array.isArray(parsed))
+    return null
+
+  return parsed
+    .filter(one => one && typeof one === 'object')
+    .map(one => ({
+      position: Number((one as any).position),
+      state: (one as any).state,
+      exitCode: (one as any).exit_code ?? (one as any).exitCode ?? null,
+      startedAt: (one as any).started_at ?? (one as any).startedAt ?? null,
+      finishedAt: (one as any).finished_at ?? (one as any).finishedAt ?? null,
+      queuedMs: (one as any).queued_ms ?? (one as any).queuedMs ?? null,
+      activeMs: (one as any).active_ms ?? (one as any).activeMs ?? null,
+      outputs: readOutputs((one as any).outputs),
+    })) as StepReport[]
 }
 
 function tryParse(text: string): unknown {
@@ -110,6 +139,13 @@ export default new Action({
        * runner can do is ask for a retry the file already allowed.
        */
       exitStatus: Number.isInteger(Number(request.get('exit_status'))) ? Number(request.get('exit_status')) : null,
+      /*
+       * What each step did, as values. Shaped here and bounded where the rows
+       * are written, which is the same division as the outputs above: this
+       * decides what the fields *are*, and the write decides how much of them
+       * a row will take.
+       */
+      steps: readSteps(request.get('steps')),
     })
 
     if (!outcome.ok)

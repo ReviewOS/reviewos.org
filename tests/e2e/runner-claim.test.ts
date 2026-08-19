@@ -426,3 +426,155 @@ describe('reporting', () => {
     expect(second.duplicate).toBe(true)
   })
 })
+
+/**
+ * A step row for a job, the way a generated job gets one.
+ *
+ * Ordinary jobs still read their steps from the version tables, so the rows
+ * that record results exist for uploaded and orchestrated jobs today. That is
+ * the half of the box still open, and it is written up in the roadmap - what is
+ * tested here is the recording itself, which is the same code either way.
+ */
+async function aStepRow(jobId: number, position: number, name: string): Promise<number> {
+  const row: any = await db.insertInto('workflow_steps').values({
+    workflow_job_id: jobId,
+    position,
+    name,
+    command: 'make',
+    state: 'pending',
+  }).returning(['id']).executeTakeFirst()
+
+  return Number(row.id)
+}
+
+describe('what each step did, as rows', () => {
+  /**
+   * The claim this exists for: a step's result is a value, not text somebody
+   * scrapes back out of a log. Restart-from-step can only skip a step whose
+   * result was recorded, and a log line is not a recorded result.
+   */
+  test('the outputs and the three numbers land on the step rows', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('9'.repeat(40))
+    const runner = await runnerFacts(await makeRunner())
+    const build = (await jobsOf(runId)).find(job => job.job_id === 'build')
+
+    await db.updateTable('workflow_jobs')
+      .set({ state: 'running', runner_id: String(runner.id), lease_expires_at: leaseUntil(new Date()) })
+      .where('id', '=', Number(build.id))
+      .execute()
+
+    await aStepRow(Number(build.id), 1, 'compile')
+
+    const startedAt = new Date(Date.now() - 9 * 60_000).toISOString()
+    const finishedAt = new Date().toISOString()
+
+    await reportJob(runner, {
+      jobId: Number(build.id),
+      state: 'succeeded',
+      steps: [{
+        position: 1,
+        state: 'succeeded',
+        exitCode: 0,
+        startedAt,
+        finishedAt,
+        // Nine minutes, of which eight were waiting. One number cannot say
+        // that, which is the entire reason there are three.
+        queuedMs: 8 * 60_000,
+        activeMs: 60_000,
+        outputs: { artifact: 'app.tar.gz' },
+      }],
+    })
+
+    const step: any = await db
+      .selectFrom('workflow_steps')
+      .select(['state', 'exit_code', 'queued_ms', 'active_ms', 'outputs', 'started_at', 'finished_at'])
+      .where('workflow_job_id', '=', Number(build.id))
+      .where('position', '=', 1)
+      .executeTakeFirst()
+
+    expect(String(step.state)).toBe('succeeded')
+    expect(Number(step.exit_code)).toBe(0)
+    expect(Number(step.queued_ms)).toBe(8 * 60_000)
+    expect(Number(step.active_ms)).toBe(60_000)
+    expect(JSON.parse(String(step.outputs))).toEqual({ artifact: 'app.tar.gz' })
+
+    /*
+     * Wall time is derived from the two timestamps rather than stored: a
+     * third number that is the subtraction of two others is a number that can
+     * disagree with them.
+     */
+    const wall = Date.parse(String(step.finished_at)) - Date.parse(String(step.started_at))
+
+    expect(Math.round(wall / 60_000)).toBe(9)
+  })
+
+  test('and a runner cannot write results onto another job\'s steps', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('8'.repeat(40))
+    const runner = await runnerFacts(await makeRunner())
+    const jobs = await jobsOf(runId)
+    const build = jobs.find(job => job.job_id === 'build')
+    const other = jobs.find(job => job.job_id !== 'build')
+
+    await db.updateTable('workflow_jobs')
+      .set({ state: 'running', runner_id: String(runner.id), lease_expires_at: leaseUntil(new Date()) })
+      .where('id', '=', Number(build.id))
+      .execute()
+
+    await aStepRow(Number(build.id), 1, 'compile')
+    await aStepRow(Number(other.id), 1, 'somebody else\'s step')
+
+    await reportJob(runner, {
+      jobId: Number(build.id),
+      state: 'succeeded',
+      // Position 1 of *this* job. The runner picks positions, so a position is
+      // the one thing here it could get wrong or lie about.
+      steps: [{ position: 1, state: 'succeeded', outputs: { leaked: 'yes' } }],
+    })
+
+    const strangers: any[] = await db
+      .selectFrom('workflow_steps')
+      .select(['outputs'])
+      .where('workflow_job_id', '=', Number(other.id))
+      .execute()
+
+    for (const step of strangers)
+      expect(step.outputs).toBeNull()
+  })
+
+  test('and a job that reports no steps leaves their rows alone', async () => {
+    if (!available)
+      return
+
+    const runId = await freshRun('7'.repeat(40))
+    const runner = await runnerFacts(await makeRunner())
+    const build = (await jobsOf(runId)).find(job => job.job_id === 'build')
+
+    await db.updateTable('workflow_jobs')
+      .set({ state: 'running', runner_id: String(runner.id), lease_expires_at: leaseUntil(new Date()) })
+      .where('id', '=', Number(build.id))
+      .execute()
+
+    await aStepRow(Number(build.id), 1, 'compile')
+
+    // An older runner, which has never heard of any of this. Its jobs still
+    // report and still finish; their steps simply say nothing.
+    const outcome = await reportJob(runner, { jobId: Number(build.id), state: 'succeeded' })
+
+    expect(outcome.ok).toBe(true)
+
+    const step: any = await db
+      .selectFrom('workflow_steps')
+      .select(['state'])
+      .where('workflow_job_id', '=', Number(build.id))
+      .where('position', '=', 1)
+      .executeTakeFirst()
+
+    expect(String(step.state)).toBe('pending')
+  })
+})

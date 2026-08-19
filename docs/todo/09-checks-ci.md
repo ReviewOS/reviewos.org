@@ -186,13 +186,34 @@ its result was recorded as a value.
 
 - [ ] Steps record typed inputs and outputs as rows, not as text scraped from a log. A later step
       reading an earlier step's output is reading the database.
-- [ ] Wall time and active execution time are recorded separately per step, plus queue time. A step
+- [x] Wall time and active execution time are recorded separately per step, plus queue time. A step
       that took nine minutes of which eight were queueing is a different problem from one that took
       nine minutes of work, and one number cannot say which.
 - [ ] Cached and reused results are labelled as such in the interface and the API, with a link to the
       attempt that actually produced them
 - [ ] Tests: a restart reusing outputs, a restart refusing to reuse them because the workflow version
       changed, and an output too large for the value store handled explicitly rather than truncated
+
+`WorkflowStep` now carries `outputs`, `queued_ms` and `active_ms`, and a runner sends all three with
+its conclusion - one report rather than a request per step, because nothing reads a step's recorded
+result until its job is over. Wall time is `finished_at` minus `started_at` and is deliberately
+**not** stored: a third number that is the subtraction of two others is a number that can disagree
+with them. `queued_ms` is the gap after the step before it, which for the first step is everything
+the runner did to get ready - the checkout, the cache restore, the container pull - and leaving that
+out of every number is how a job that takes nine minutes reports four. `active_ms` is timed around
+the command alone, so a step whose command took two seconds inside a forty-second iteration reads as
+the setup problem it is.
+
+Every write is guarded to the reporting job's own steps. The runner chooses the positions, and a
+position is the one thing in that payload it could get wrong or lie about.
+
+What is still open in the first box: **ordinary jobs have no `workflow_steps` rows to record onto.**
+A run's steps are read from the version tables at claim time, and only uploaded and orchestrated jobs
+get rows of their own - so the recording above takes effect for those and for nothing else yet.
+Materializing a row per step at dispatch is the remaining half, and it is a change to the claim path
+rather than an addition beside it: `ClaimJobAction` currently prefers `workflow_steps` and falls back
+to the version, and once every job has rows the fallback should go rather than linger as a second
+answer to what a job runs.
 
 ### Snapshot caching
 

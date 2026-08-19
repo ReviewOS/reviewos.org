@@ -769,8 +769,47 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     const stepContext: Record<string, { outputs: Record<string, string>, outcome: string, conclusion: string }> = {}
     let jobFailed = false
 
+    /*
+     * What each step did, collected as it goes and sent with the conclusion.
+     *
+     * Collected rather than written as it happens because nothing reads a
+     * step's recorded result until its job is over - and a request per step
+     * would be forty of them carrying a few hundred bytes each.
+     */
+    const timings: StepTiming[] = []
+
+    /*
+     * When the step before this one finished, so the gap can be attributed.
+     *
+     * Starts at the moment the steps began, which makes the first step's queue
+     * time everything the runner did to get ready - the checkout, the cache
+     * restore, the container pull. That time is real and somebody waited for
+     * it; leaving it out of every number is how a job that takes nine minutes
+     * reports four.
+     */
+    let previousFinishedAt = Date.now()
+
+    /** Write down what one step did, whatever it did. */
+    const timed = (index: number, startedAt: number, activeMs: number, state: string, exitCode: number | null) => {
+      const finished = Date.now()
+
+      timings.push({
+        position: index + 1,
+        state,
+        exit_code: exitCode,
+        started_at: new Date(startedAt).toISOString(),
+        finished_at: new Date(finished).toISOString(),
+        queued_ms: Math.max(0, startedAt - previousFinishedAt),
+        active_ms: Math.max(0, Math.round(activeMs)),
+        outputs: null,
+      })
+
+      previousFinishedAt = finished
+    }
+
     for (const [index, step] of steps.entries()) {
       const name = String(step.name ?? step.run ?? step.uses ?? `step ${index + 1}`)
+      const stepStartedAt = Date.now()
 
       if (Date.now() >= deadline) {
         /*
@@ -808,6 +847,10 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
         if (step.id) {
           stepContext[String(step.id)] = { outputs: {}, outcome: 'skipped', conclusion: 'skipped' }
+
+        // A skipped step is a step whose result is "it did not run", and a row
+        // that says nothing is indistinguishable from one nobody reported.
+        timed(index, stepStartedAt, 0, 'skipped', null)
         }
 
         continue
@@ -1006,6 +1049,8 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       if (extraPath)
         environment.PATH = `${extraPath}:${environment.PATH}`
 
+      const commandStartedAt = Date.now()
+
       const result = await runStep({
         /*
          * The expressions in a `run:` are filled in before the shell sees it.
@@ -1076,6 +1121,28 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         reader.addMask(value)
 
       await send('::endgroup::\n')
+
+      /*
+       * Timed around the command rather than around the iteration.
+       *
+       * `active_ms` is the command's own duration; everything else this
+       * iteration did - interpolating the environment, opening the group,
+       * reading the step's files afterwards - lands in the wall time, where it
+       * belongs. A step whose command took two seconds inside a forty-second
+       * iteration is a setup problem, and collapsing the two would hide it.
+       */
+      timed(
+        index,
+        stepStartedAt,
+        Date.now() - commandStartedAt,
+        result.ok ? 'succeeded' : (step.continue_on_error ? 'succeeded' : 'failed'),
+        Number.isFinite(Number(result.exitCode)) ? Number(result.exitCode) : null,
+      )
+
+      const recorded = timings[timings.length - 1]
+
+      if (recorded && Object.keys(written.outputs).length > 0)
+        recorded.outputs = written.outputs
 
       if (!result.ok) {
         if (step.continue_on_error) {
@@ -1298,7 +1365,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       await flush()
     }
 
-    await report(options.baseUrl, jobToken, state, failed ?? '', resolvedOutputs, failedStatus)
+    await report(options.baseUrl, jobToken, state, failed ?? '', resolvedOutputs, failedStatus, timings)
     say(`job ${job.id} ${state}`)
 
     return { jobId: Number(job.id), state, reason: failed ?? 'every step succeeded' }
@@ -3088,16 +3155,47 @@ async function report(
   error: string,
   outputs?: Record<string, string>,
   exitStatus?: number | null,
+  steps?: StepTiming[],
 ): Promise<void> {
   // The outputs travel with the conclusion: a job that reported values and then
   // failed to report its result would leave them attached to a job nobody can
   // tell finished.
+  //
+  // The steps travel with it for the same reason, and because nothing reads a
+  // step's recorded result until its job is over - so a call per step would be
+  // forty requests to deliver information nobody is waiting for.
   await post(baseUrl, '/api/runner/report', jobToken, {
     state,
     error,
     outputs: outputs ?? null,
     exit_status: exitStatus ?? null,
+    steps: steps && steps.length > 0 ? steps : null,
   })
+}
+
+/**
+ * What one step did, in the shape the control plane records.
+ *
+ * Three numbers rather than one, because they answer different questions.
+ * **Wall time** is `finished_at` minus `started_at` and is derived from them
+ * rather than sent. **`queued_ms`** is what this step spent waiting before
+ * anything ran it - the gap after the step before it, which for the first step
+ * is everything the runner did to get ready. **`active_ms`** is the command's
+ * own duration.
+ *
+ * A step that took nine minutes of which eight were setup is a different
+ * problem from one that took nine minutes of work, and one number cannot say
+ * which.
+ */
+interface StepTiming {
+  position: number
+  state: string
+  exit_code: number | null
+  started_at: string
+  finished_at: string
+  queued_ms: number
+  active_ms: number
+  outputs: Record<string, string> | null
 }
 
 /**

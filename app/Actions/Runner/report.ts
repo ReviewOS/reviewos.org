@@ -17,6 +17,7 @@ import { secretsOfJob } from './logs'
 import { redactSecrets } from './redact'
 import { announceJob, announceRunIfMoved } from '../Workflow/announce'
 import { resolveJobCall } from '../Workflow/orchestratedJob'
+import { rowsChanged } from '../Support/sql'
 import type { JobState } from '../Workflow/states'
 import { canJobMove } from '../Workflow/states'
 import { revokeJobTokens } from '../Workflow/jobToken'
@@ -48,6 +49,97 @@ export interface ReportInput {
    * later claim expensive.
    */
   outputs?: Record<string, string> | null
+  /**
+   * What each step did, as values rather than as text in a log.
+   *
+   * Sent with the conclusion rather than one call per step, deliberately. A
+   * job of forty steps would otherwise be forty extra requests carrying a few
+   * hundred bytes each, and the runner already has to make this one - the
+   * information is not fresher for arriving separately, because nothing reads a
+   * step's recorded result until its job is over.
+   *
+   * Untrusted, like everything a runner says.
+   */
+  steps?: StepReport[] | null
+}
+
+/** One step's outcome, as the runner saw it. */
+export interface StepReport {
+  /** Which step this was, counting from 1, matching the definition's order. */
+  position: number
+  state?: 'succeeded' | 'failed' | 'skipped' | 'cancelled'
+  exitCode?: number | null
+  startedAt?: string | null
+  finishedAt?: string | null
+  /** How long it waited before anything ran it. */
+  queuedMs?: number | null
+  /** How long it was actually executing, which wall time cannot say. */
+  activeMs?: number | null
+  outputs?: Record<string, string> | null
+}
+
+/** A runner can send a hundred thousand steps; a job has at most a few dozen. */
+const MAX_STEPS_REPORTED = 200
+
+/**
+ * Write down what each step did.
+ *
+ * Matched by position rather than by name: two steps in one job may share a
+ * name - `- run: make` twice is two unnamed steps with the same generated
+ * label - and position is what the definition already ordered them by.
+ *
+ * Every write is guarded to this job's own steps. The runner chooses the
+ * positions, and a position is the one thing here it could get wrong or lie
+ * about; without the guard, a job could write results onto another job's steps.
+ */
+async function recordSteps(jobId: number, steps: StepReport[] | null | undefined, now: Date): Promise<number> {
+  if (!Array.isArray(steps) || steps.length === 0)
+    return 0
+
+  const secrets = await secretsOfJob(jobId)
+  let written = 0
+
+  for (const step of steps.slice(0, MAX_STEPS_REPORTED)) {
+    const position = Number(step?.position)
+
+    if (!Number.isInteger(position) || position < 1)
+      continue
+
+    const values: Record<string, string> = {}
+
+    for (const [name, value] of Object.entries(step.outputs ?? {}).slice(0, 32)) {
+      if (!name)
+        continue
+
+      /*
+       * Redacted here as well as in the runner, and for the reason a job's
+       * outputs are: the runner masking its own values is the first line, and
+       * the first line is somebody else's program.
+       */
+      values[name.slice(0, 200)] = redactSecrets(String(value ?? ''), secrets).slice(0, 2000)
+    }
+
+    const result = await db
+      .updateTable('workflow_steps')
+      .set({
+        state: step.state ?? 'succeeded',
+        exit_code: Number.isFinite(Number(step.exitCode)) ? Number(step.exitCode) : null,
+        started_at: step.startedAt ? String(step.startedAt).slice(0, 40) : null,
+        finished_at: step.finishedAt ? String(step.finishedAt).slice(0, 40) : now.toISOString(),
+        queued_ms: Number.isFinite(Number(step.queuedMs)) ? Math.max(0, Math.round(Number(step.queuedMs))) : null,
+        active_ms: Number.isFinite(Number(step.activeMs)) ? Math.max(0, Math.round(Number(step.activeMs))) : null,
+        outputs: Object.keys(values).length > 0 ? JSON.stringify(values) : null,
+      })
+      .where('workflow_job_id', '=', jobId)
+      .where('position', '=', position)
+      .execute()
+      .catch(() => null)
+
+    if (rowsChanged(result))
+      written += 1
+  }
+
+  return written
 }
 
 /**
@@ -293,6 +385,15 @@ export async function reportJob(
    * timer would add a minute to every step of every code-first workflow. Does
    * nothing for a job no program asked for.
    */
+  /*
+   * The steps, before the run is settled.
+   *
+   * A run reaching a terminal state is what makes a screen render its
+   * conclusion, and step results that land after it are results the screen had
+   * already drawn without.
+   */
+  await recordSteps(Number(row.id), input.steps, now)
+
   await resolveJobCall(Number(row.id), {
     state: input.state,
     outputs: input.outputs ?? null,
