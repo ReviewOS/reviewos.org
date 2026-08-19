@@ -201,26 +201,31 @@ docs/self-hosting.md.
 `root` with no password is what a pantry-managed local server initialises
 with, so it is not a placeholder. On Postgres, `DB_PORT` is 5432 and
 `DB_USERNAME` is `postgres` for the same reason.
+`vitess` is the third option, for an instance large enough to shard: vtgate
+speaks the MySQL wire protocol on 15306, so nothing but this line and the port
+changes. It is opt-in and nobody self-hosting a forge needs it - see
+docs/todo/17-database.md for what the keyspaces look like and what a sharded
+keyspace refuses.
 
-Read by `app/Commands/DbMigrateEngine.ts`.
+Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_HOST`
 
 Default: `127.0.0.1`.
 
-Read by `app/Commands/DbMigrateEngine.ts`.
+Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_PORT`
 
 Default: `3306`. Checked at boot, so a wrong value stops the instance with a sentence rather than failing quietly later.
 
-Read by `app/Commands/DbMigrateEngine.ts`.
+Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_DATABASE`
 
 Default: `reviewos`.
 
-Read by `app/Commands/DbMigrateEngine.ts`, `app/Commands/Doctor.ts`.
+Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`, `app/Commands/Doctor.ts`.
 
 ### `DB_USERNAME`
 
@@ -235,13 +240,13 @@ On Postgres it is `postgres`, for the same kind of reason: pantry initialises
 that cluster with `initdb --auth-local=trust --auth-host=trust
 --username=postgres`, so that is the only role there is.
 
-Read by `app/Commands/DbMigrateEngine.ts`.
+Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
 
 ### `DB_PASSWORD`
 
 Default: empty.
 
-Read by `app/Commands/DbMigrateEngine.ts`.
+Read by `app/Commands/DbKeyspaces.ts`, `app/Commands/DbMigrateEngine.ts`.
 
 ### `DATABASE_URL`
 
