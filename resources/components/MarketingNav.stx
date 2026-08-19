@@ -42,7 +42,13 @@ catch {
 </script>
 
 <template>
-  <header class="nav">
+  {{-- The bar is the window's width; the row inside it is the page's.
+      
+      They used to be one element, so the sticky background - and its blur -
+      stopped at the 1180px column: scrolling put a floating band over the page
+      with the content visible either side of it, which is not a bar. --}}
+  <header class="nav-bar">
+   <div class="nav">
     <a class="nav-brand" href="/" aria-label="ReviewOS home">
       <span class="nav-mark" aria-hidden="true"></span>
       <span class="nav-name">ReviewOS</span>
@@ -95,6 +101,7 @@ catch {
         <a class="button button-solid nav-cta" href="/register">Sign up</a>
       @endif
     </div>
+   </div>
   </header>
 </template>
 

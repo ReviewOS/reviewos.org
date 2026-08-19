@@ -641,7 +641,16 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       /* The review queue. A list of links and nothing else: the page runs no
         script, and every row carries its own reason so the order never has to
         be taken on trust. */
-      .queue { max-width: 900px; margin: 0 auto; padding: 32px 0 64px; }
+      /* The queue and the inbox start where every other page starts.
+        
+        Both were a 900px column centred in the window, so the two screens the
+        navigation lists first began 30px in at a small window and 250px in at a
+        large one, while every other page - and the navigation above them - began
+        at the shell's gutter. The reading measure is worth keeping and the
+        left edge is not the place to spend it: the container is the shell now,
+        and the 900px cap moved onto the content inside it. */
+      .queue { width: 100%; max-width: 1320px; margin: 0 auto; padding: 32px 20px 64px; }
+      .queue > * { max-width: 900px; }
       .queue-head h1 { margin: 0 0 4px; font-size: 22px; }
       .queue-head p { margin: 0 0 28px; font-size: 14px; }
       .queue-section { margin-bottom: 36px; }
@@ -684,7 +693,8 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       /* The inbox. Built on the queue's row so the two read as the same
         product: a list of links, no script, every row carrying its own
         reason. */
-      .inbox { max-width: 900px; margin: 0 auto; padding: 32px 0 64px; }
+      .inbox { width: 100%; max-width: 1320px; margin: 0 auto; padding: 32px 20px 64px; }
+      .inbox > * { max-width: 900px; }
       .inbox-head h1 { margin: 0 0 4px; font-size: 22px; }
       .inbox-head p { margin: 0 0 20px; font-size: 14px; }
       .inbox-empty { margin: 0; font-size: 14px; }

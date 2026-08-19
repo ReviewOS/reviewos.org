@@ -184,19 +184,23 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       .mono { font-family: var(--mono); }
 
       /* Navigation */
-      .nav {
+      .nav-bar {
         position: sticky;
         top: 0;
         z-index: 40;
+        background: color-mix(in srgb, var(--bg) 88%, transparent);
+        backdrop-filter: blur(8px);
+      }
+
+      .nav {
         display: flex;
         align-items: center;
         gap: 28px;
         height: 72px;
+        width: 100%;
         max-width: 1180px;
         margin: 0 auto;
         padding: 0 24px;
-        background: color-mix(in srgb, var(--bg) 88%, transparent);
-        backdrop-filter: blur(8px);
       }
 
       .nav-brand {
@@ -405,7 +409,11 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
   </head>
 
   <body>
-    <header>
+    {{-- The bar spans the window and the row inside it carries the page's
+        measure, the same shape the product's own top bar uses. As one element
+        the sticky background stopped at 1180px, so scrolling put a floating
+        band over the page rather than a bar across it. --}}
+    <header class="nav-bar">
       <nav class="nav" aria-label="Main">
         <a class="nav-brand" href="/">
           <span class="nav-mark" aria-hidden="true"></span>

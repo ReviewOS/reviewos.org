@@ -284,20 +284,29 @@ const nots = [
         padding: 0 24px;
       }
 
-      /* Navigation: one line, 72px, no dropdowns. */
-      .nav {
+      /* Navigation: one line, 72px, no dropdowns.
+        
+        Two elements, and the split matters: the bar is sticky and spans the
+        window, the row inside it holds the page's measure. As one element the
+        background and its blur ended at 1180px, so scrolling put a floating
+        band across the middle of the page with content showing either side. */
+      .nav-bar {
         position: sticky;
         top: 0;
         z-index: 20;
+        background: color-mix(in srgb, var(--bg) 88%, transparent);
+        backdrop-filter: blur(8px);
+      }
+
+      .nav {
         display: flex;
         align-items: center;
         gap: 32px;
         height: 72px;
+        width: 100%;
         max-width: 1180px;
         margin: 0 auto;
         padding: 0 24px;
-        background: color-mix(in srgb, var(--bg) 88%, transparent);
-        backdrop-filter: blur(8px);
       }
 
       .nav-brand {
