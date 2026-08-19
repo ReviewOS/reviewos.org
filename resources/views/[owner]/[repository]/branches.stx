@@ -11,7 +11,7 @@
  * `app/Actions/Browse/load`, shaping is `resources/functions/browse`, and this
  * lays it out.
  */
-import { repositoryForView } from '../../../functions/repo'
+import { repositoryForView, repositoryHeaderActions } from '../../../functions/repo'
 import { branchNames, lastCommit, relativeTime, shortSha } from '../../../functions/browse'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
@@ -39,6 +39,11 @@ const serveContext = __stxServeContext
 
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null
+// Star and watch, for the header. One line here rather than each screen
+// re-deriving the viewer, the counts and the labels - see
+// `app/Actions/Repo/standing.ts`.
+const repoActions = await repositoryHeaderActions(repoAccess, ownerHandle, repositoryName)
+
 
 // A page that renders "no such repository" under a 200 tells a crawler, a
 // cache and an uptime check that the page is fine. Only the render knows.
@@ -93,6 +98,7 @@ const base = `/${ownerHandle}/${repositoryName}`
         size=""
         sizeKb="0"
         commits=""
+        :actions="repoActions"
         :branches="[]"
         :tags="[]" />
 

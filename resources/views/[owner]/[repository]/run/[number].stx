@@ -12,7 +12,7 @@
  * who cannot see the difference cannot tell a run of their code from a run of
  * their code by somebody else's workflow.
  */
-import { repositoryForView } from '../../../../functions/repo'
+import { repositoryForView, repositoryHeaderActions } from '../../../../functions/repo'
 import { relativeTime, shortSha } from '../../../../functions/browse'
 import { artifactSize, runDuration, runIsFinished, runLabel, runTone } from '../../../../functions/runs'
 import { eventsFromText, renderLog } from '../../../../functions/runs'
@@ -51,6 +51,11 @@ const viewerCookies = serveContext?.cookies ?? cookieJarFromHeader(headerBag?.co
 
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, viewerCookies)
 const repoRow: any = repoAccess?.repository ?? null
+// Star and watch, for the header. One line here rather than each screen
+// re-deriving the viewer, the counts and the labels - see
+// `app/Actions/Repo/standing.ts`.
+const repoActions = await repositoryHeaderActions(repoAccess, ownerHandle, repositoryName)
+
 
 if (!repoRow)
   setStatus(404)
@@ -759,6 +764,7 @@ const base = `/${ownerHandle}/${repositoryName}`
         size=""
         sizeKb="0"
         commits=""
+        :actions="repoActions"
         :branches="[]"
         :tags="[]" />
 

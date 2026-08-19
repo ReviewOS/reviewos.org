@@ -126,3 +126,51 @@ import { runSearch as runSearchImpl, SEARCHABLE_SCOPES as SEARCHABLE_SCOPES_IMPL
 
 export const runSearch = runSearchImpl
 export const SEARCHABLE_SCOPES = SEARCHABLE_SCOPES_IMPL
+
+/**
+ * Where a reader stands with a repository - starred, watching, and how many
+ * others - and the header controls that say so.
+ *
+ * See `app/Actions/Repo/standing.ts`: the shaping is pure and tested there,
+ * because what a button says is a rule and a rule in a template is a rule no
+ * test can reach.
+ */
+import { repositoryActions as repositoryActionsImpl, standingFor as standingForImpl } from '../../app/Actions/Repo/standing'
+
+export const standingFor = standingForImpl
+export const repositoryActions = repositoryActionsImpl
+
+/**
+ * The header controls for one repository page, from what every one of those
+ * pages already has.
+ *
+ * Twelve screens draw `RepoHeader`, and a star button that appears on the code
+ * page and vanishes on the issues page teaches a reader that the repository
+ * changed - the same failure the tab bar had before it was made one component.
+ * So this takes the `repositoryForView` result directly and each page is one
+ * line, rather than each page re-deriving the viewer, the counts and the
+ * labels and three of them getting it slightly differently.
+ *
+ * Null for a repository that did not resolve, which is how the header knows to
+ * draw nothing: a control that cannot say whether it has been pressed is worse
+ * than no control.
+ */
+export async function repositoryHeaderActions(
+  access: any,
+  owner: unknown,
+  repository: unknown,
+  path?: string,
+): Promise<any | null> {
+  const row = access?.repository ?? null
+  if (!row)
+    return null
+
+  const standing = await standingForImpl(row.id, access?.viewer?.id ?? null)
+
+  return repositoryActionsImpl(standing, {
+    owner: String(owner ?? ''),
+    repository: String(repository ?? ''),
+    path,
+    signedIn: Boolean(access?.viewer),
+  })
+}

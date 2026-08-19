@@ -16,7 +16,7 @@
  * survives a misdirected click, a stale tab, or a script pointed at the wrong
  * repository, and none of those are things a permission check can catch.
  */
-import { deployKeysFor, repositoryForView } from '../../../functions/repo'
+import { deployKeysFor, repositoryForView, repositoryHeaderActions } from '../../../functions/repo'
 import { resolveVariables, settingsFor } from '../../../functions/variables'
 import { branchNames, relativeTime } from '../../../functions/browse'
 // Asked for here rather than through a helper: `setResponseStatus` is a
@@ -45,6 +45,11 @@ const serveContext = __stxServeContext
 
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null
+// Star and watch, for the header. One line here rather than each screen
+// re-deriving the viewer, the counts and the labels - see
+// `app/Actions/Repo/standing.ts`.
+const repoActions = await repositoryHeaderActions(repoAccess, ownerHandle, repositoryName)
+
 
 // Reading the repository is not enough to see this page. Somebody who cannot
 // change anything gets the same answer a stranger gets, because a settings page
@@ -133,6 +138,7 @@ const fullName = `${ownerHandle}/${repositoryName}`
         size=""
         sizeKb="0"
         commits=""
+        :actions="repoActions"
         :branches="[]"
         :tags="[]" />
 

@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
+import { safeRedirect, wantsHtml } from '../Auth/session'
 import { currentUser } from '../Identity/lookup'
 import { authorizeRepository } from './authorize'
 
@@ -34,11 +35,23 @@ export default new Action({
     owner: { rule: schema.string().required() },
     repo: { rule: schema.string() },
     repository: { rule: schema.string() },
-    subscription: { rule: schema.enum(['all', 'participating', 'ignore']) },
+    /*
+     * `none` is in the list, and it had to be.
+     *
+     * The handler has always treated an empty or `none` subscription as "stop
+     * watching" - documented three paragraphs up as a state distinct from
+     * `ignore` - while this rule listed only the three stored values. So the
+     * one way to *clear* a watch was refused by the validator before the
+     * handler ran, and the caller got a 422 naming a value the endpoint's own
+     * documentation tells them to send. Nothing had ever sent it, because
+     * nothing had ever drawn the control.
+     */
+    subscription: { rule: schema.enum(['all', 'participating', 'ignore', 'none']) },
   },
 
   responses: {
     200: { description: 'The subscription as it now stands.' },
+    302: { description: 'A browser form was answered with a redirect back to the page it came from. Scripts get the JSON above.' },
     401: { description: 'Unauthenticated.' },
     422: { description: 'The subscription is not one of `all`, `participating` or `ignore`.' },
     404: { description: 'No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
@@ -64,6 +77,9 @@ export default new Action({
         .where('repository_id', '=', repositoryId)
         .where('user_id', '=', user.id)
         .execute()
+
+      if (wantsHtml(request))
+        return backToThePage(request, auth)
 
       return response.json({ watching: false, subscription: null })
     }
@@ -93,6 +109,26 @@ export default new Action({
         .execute()
     }
 
+    if (wantsHtml(request))
+      return backToThePage(request, auth)
+
     return response.json({ watching: raw !== 'ignore', subscription: raw })
   },
 })
+
+/**
+ * A browser gets the page back; a script gets the JSON.
+ *
+ * The watch control is a form, because this product's pages run no client-side
+ * JavaScript - the same shape as the star button beside it - and a form left to
+ * follow this response would land the reader on a page of JSON.
+ *
+ * `next` is checked rather than trusted: `safeRedirect` refuses anything that
+ * is not a path on this host, because an open redirect on an authenticated
+ * write is a real one.
+ */
+function backToThePage(request: RequestInstance, auth: { context: { repository: { name?: unknown } } }): Response {
+  const home = `/${String(request.get('owner') ?? '')}/${String(auth.context.repository.name ?? '')}`
+
+  return response.redirect(safeRedirect(request.get('next'), home))
+}

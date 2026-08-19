@@ -1,0 +1,139 @@
+{{--
+  Star and watch, in the repository header.
+
+  Both endpoints have existed since phase 1, with a table, a model and a unique
+  index behind each, and neither had a control anywhere in the interface - so
+  the only way to star a repository on this forge was to post to the API by
+  hand, and `stars_count` was a column the seeder filled and nothing else ever
+  moved.
+
+  Each is a single-button form, because this product's pages run no client-side
+  JavaScript and a form is the only control that can write without any - the
+  same shape as a reaction and a task-list checkbox. `next` carries the page
+  back, and the actions check it with `safeRedirect` rather than trusting it.
+
+  Signed out, both become a link to sign in that keeps the reader's place. The
+  count is still shown, because it is public and the number is half of what the
+  control is there to say.
+--}}
+<div class="repo-actions">
+  @if (signedIn)
+    <form class="repo-action-form" method="post" action="/api/repos/stars">
+      <CsrfField />
+      <input type="hidden" name="owner" value="{{ owner }}">
+      <input type="hidden" name="repository" value="{{ repository }}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <button
+        type="submit"
+        class="repo-action {{ star.pressed ? 'is-on' : '' }}"
+        aria-pressed="{{ star.pressed ? 'true' : 'false' }}"
+        title="{{ star.title }}"
+      >
+        <span class="{{ star.icon }}" aria-hidden="true"></span>
+        <span>{{ star.label }}</span>
+        <span class="repo-action-count">{{ star.count }}</span>
+      </button>
+    </form>
+  @else
+    <a class="repo-action" href="{{ signInHref }}" title="Sign in to star this repository">
+      <span class="{{ star.icon }}" aria-hidden="true"></span>
+      <span>Star</span>
+      <span class="repo-action-count">{{ star.count }}</span>
+    </a>
+  @endif
+
+  {{--
+    Four answers rather than a toggle, because there are four and the middle
+    one is what people actually want: tell me about threads I am in. A
+    two-state watch button makes everybody choose between silence and every
+    issue anyone opens, and what they choose is silence.
+
+    A select and a button rather than four forms: unlike reactions, these are
+    mutually exclusive, and four buttons where only one can be true reads as
+    four things to do.
+  --}}
+  @if (signedIn)
+    <form class="repo-action-form repo-watch" method="post" action="/api/repos/watches">
+      <CsrfField />
+      <input type="hidden" name="owner" value="{{ owner }}">
+      <input type="hidden" name="repository" value="{{ repository }}">
+      <input type="hidden" name="next" value="{{ next }}">
+
+      <label class="visually-hidden" for="repo-watch-choice">How much to hear about this repository</label>
+      <select id="repo-watch-choice" name="subscription" class="repo-watch-choice">
+        @foreach (choices as choice)
+          <option value="{{ choice.value }}" {{ choice.selected ? 'selected' : '' }} title="{{ choice.detail }}">{{ choice.label }}</option>
+        @endforeach
+      </select>
+
+      <button type="submit" class="repo-action repo-watch-save {{ watching ? 'is-on' : '' }}" title="{{ watchTitle }}">
+        <span class="i-hugeicons-eye" aria-hidden="true"></span>
+        <span>{{ watchLabel }}</span>
+        <span class="repo-action-count">{{ watchers }}</span>
+      </button>
+    </form>
+  @else
+    <a class="repo-action" href="{{ signInHref }}" title="Sign in to watch this repository">
+      <span class="i-hugeicons-eye" aria-hidden="true"></span>
+      <span>Watch</span>
+      <span class="repo-action-count">{{ watchers }}</span>
+    </a>
+  @endif
+</div>
+
+<style>
+  .repo-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .repo-action-form { display: inline-flex; margin: 0; }
+  .repo-watch { gap: 6px; }
+
+  .repo-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    text-decoration: none;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .repo-action:hover { border-color: var(--line-strong); }
+
+  /* The one the reader has already pressed. Tinted rather than filled: these
+    are a state and a tally, and a saturated button reads as a call to action
+    rather than as something already done - the same choice `ReactionBar`
+    makes one screen over. */
+  .repo-action.is-on {
+    color: var(--accent-text);
+    background: var(--accent-quiet);
+    border-color: var(--accent-quiet);
+  }
+
+  /* Set apart from the label so the number reads as a count rather than as
+    part of the word. */
+  .repo-action-count {
+    padding-left: 7px;
+    margin-left: 1px;
+    border-left: 1px solid var(--line);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .repo-action.is-on .repo-action-count { border-left-color: var(--accent-quiet); }
+
+  .repo-watch-choice {
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 8px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+</style>

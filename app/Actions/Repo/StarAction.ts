@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { schema } from '@stacksjs/validation'
+import { safeRedirect, wantsHtml } from '../Auth/session'
 import { currentUser } from '../Identity/lookup'
 import { authorizeRepository } from './authorize'
 import { recountStars } from './counters'
@@ -36,6 +37,7 @@ export default new Action({
 
   responses: {
     200: { description: 'The star was added or removed. `starred` says which, and `stars` is the count after it.' },
+    302: { description: 'A browser form was answered with a redirect back to the page it came from. Scripts get the JSON above.' },
     401: { description: 'Unauthenticated. A star belongs to somebody.' },
     404: { description: 'No such repository, or none this caller may see. A private repository answers this rather than 403, because a 403 confirms it exists.' },
   },
@@ -72,6 +74,24 @@ export default new Action({
     }
 
     const count = await recountStars(repositoryId)
+
+    /*
+     * A browser gets the page back; a script gets the JSON.
+     *
+     * The star button is a single-button form, because this product's pages run
+     * no client-side JavaScript and a form is the only control that can post
+     * without any - the same shape as a reaction and a task-list checkbox. A
+     * form left to follow this response would land the reader on a page of JSON.
+     *
+     * `next` is checked rather than trusted: `safeRedirect` refuses anything
+     * that is not a path on this host, because an open redirect on an
+     * authenticated POST is a real one.
+     */
+    if (wantsHtml(request)) {
+      const home = `/${String(request.get('owner') ?? '')}/${String(auth.context.repository.name ?? '')}`
+
+      return response.redirect(safeRedirect(request.get('next'), home))
+    }
 
     return response.json({ starred: !existing, stars: count ?? 0 })
   },

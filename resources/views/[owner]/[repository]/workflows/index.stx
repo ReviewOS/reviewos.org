@@ -16,7 +16,7 @@
  * The `workflow_dispatch` form is generated from the inputs the workflow
  * declared, and posts to the same public action the API and the CLI use.
  */
-import { repositoryForView } from '../../../../functions/repo'
+import { repositoryForView, repositoryHeaderActions } from '../../../../functions/repo'
 import { relativeTime } from '../../../../functions/browse'
 import { startersFor } from '../../../../functions/runs'
 import { isTrue } from '../../../../functions/truth'
@@ -30,6 +30,11 @@ const serveContext = __stxServeContext
 
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
 const repoRow = repoAccess?.repository ?? null
+// Star and watch, for the header. One line here rather than each screen
+// re-deriving the viewer, the counts and the labels - see
+// `app/Actions/Repo/standing.ts`.
+const repoActions = await repositoryHeaderActions(repoAccess, ownerHandle, repositoryName)
+
 
 if (!repoRow)
   setStatus(404)
@@ -266,6 +271,7 @@ const environments = repoRow
         size=""
         sizeKb="0"
         commits=""
+        :actions="repoActions"
         :branches="[]"
         :tags="[]" />
 

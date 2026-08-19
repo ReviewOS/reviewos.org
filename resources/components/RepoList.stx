@@ -11,7 +11,7 @@
  * what a filter means, how a page is bounded, how a state reads. Rules in a
  * template cannot be tested.
  */
-import { repositoryForView } from '../functions/repo'
+import { repositoryForView, repositoryHeaderActions } from '../functions/repo'
 import { authorIsLocal, authorLabel, countLabel, filterHref, lastPage, listFilter, pageHref, pageNumber, pageOffset, PAGE_SIZE, relativeTime, stateLabel, statePill, statesFor } from '../functions/browse'
 import { labelColor, labelTextColor } from '../functions/issues'
 
@@ -52,6 +52,11 @@ const serveContext = __stxServeContext
 
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null
+// Star and watch, for the header. One line here rather than each screen
+// re-deriving the viewer, the counts and the labels - see
+// `app/Actions/Repo/standing.ts`.
+const repoActions = await repositoryHeaderActions(repoAccess, ownerHandle, repositoryName)
+
 
 const table = kind === 'issues' ? 'issues' : 'pull_requests'
 const repositoryId = repoRow ? Number(repoRow.id) : 0
@@ -222,6 +227,7 @@ const notFound = !repoRow
         size=""
         sizeKb="0"
         commits=""
+        :actions="repoActions"
         :branches="[]"
         :tags="[]" />
 

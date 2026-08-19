@@ -15,7 +15,7 @@
  * up to a percentage is one somebody screenshots into a planning meeting.
  */
 import { insightFor } from '../../../functions/insight'
-import { repositoryForView } from '../../../functions/repo'
+import { repositoryForView, repositoryHeaderActions } from '../../../functions/repo'
 
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script.
@@ -27,6 +27,11 @@ const serveContext = __stxServeContext
 
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null
+// Star and watch, for the header. One line here rather than each screen
+// re-deriving the viewer, the counts and the labels - see
+// `app/Actions/Repo/standing.ts`.
+const repoActions = await repositoryHeaderActions(repoAccess, ownerHandle, repositoryName)
+
 
 if (!repoRow)
   setStatus(404)
@@ -169,6 +174,7 @@ const base = `/${ownerHandle}/${repositoryName}`
         size=""
         sizeKb="0"
         commits=""
+        :actions="repoActions"
         :branches="[]"
         :tags="[]" />
 

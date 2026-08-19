@@ -484,6 +484,12 @@ route.post('/repos/collaborators', 'Actions/Repo/ManageCollaboratorAction').midd
 // not, because it has three answers and the middle one is the one people want.
 route.post('/repos/stars', 'Actions/Repo/StarAction').middleware('auth')
 route.put('/repos/watches', 'Actions/Repo/WatchAction').middleware('auth')
+// The same action under POST, because a browser form cannot send PUT and the
+// watch control in the repository header is a form - this product's pages run
+// no client-side JavaScript, so a form is the only control that can write
+// without any. Not a second endpoint: one action, reachable by the one method
+// HTML has.
+route.post('/repos/watches', 'Actions/Repo/WatchAction').middleware('auth')
 
 // Reading a repository. None of these carries `auth` middleware, and that is
 // the point: a public repository is public, and `browseContext` inside each

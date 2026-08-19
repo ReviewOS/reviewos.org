@@ -14,6 +14,26 @@
     </h1>
     <span class="pill pill-{{ visibility }}">{{ visibility }}</span>
     <CloneUrlBox owner="{{ owner }}" repository="{{ repository }}" />
+
+    {{-- Star and watch, pushed to the far end. Null on a screen that has not
+        read the reader's standing yet, and then nothing is drawn - a control
+        that cannot say whether it has been pressed is worse than none. --}}
+    @if (actions)
+      <div class="repo-head-actions">
+        <RepoActions
+          :signedIn="actions.signedIn"
+          owner="{{ actions.owner }}"
+          repository="{{ actions.repository }}"
+          next="{{ actions.next }}"
+          signInHref="{{ actions.signInHref }}"
+          :star="actions.star"
+          watchers="{{ actions.watchers }}"
+          watchLabel="{{ actions.watchLabel }}"
+          :watching="actions.watching"
+          watchTitle="{{ actions.watchTitle }}"
+          :choices="actions.choices" />
+      </div>
+    @endif
   </div>
 
   @if (description)
@@ -49,7 +69,12 @@
 
 <style>
   .repo-head { padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-  .repo-title-row { display: flex; align-items: center; gap: 10px; }
+  .repo-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  /* `auto` on the left margin rather than `space-between` on the row: the
+    title, the visibility pill and the clone box stay grouped, and the controls
+    go to the far end without the gap between the first three growing. */
+  .repo-head-actions { margin-left: auto; }
   .repo-title { font-size: 20px; font-weight: 600; }
   .repo-title a { text-decoration: none; }
   .repo-title a:hover { text-decoration: underline; }

@@ -11,7 +11,7 @@
  * point of a draft: release notes get written while a release is being
  * prepared, and a half-written changelog on a public page is worse than none.
  */
-import { repositoryForView } from '../../../functions/repo'
+import { repositoryForView, repositoryHeaderActions } from '../../../functions/repo'
 import { relativeTime, shortSha } from '../../../functions/browse'
 import { latestRelease, sortReleases } from '../../../functions/releases'
 import { renderMarkdownHighlighted } from '../../../functions/markdown'
@@ -41,6 +41,11 @@ const serveContext = __stxServeContext
 
 const repoAccess = await repositoryForView(ownerHandle, repositoryName, serveContext?.cookies)
 const repoRow: any = repoAccess?.repository ?? null
+// Star and watch, for the header. One line here rather than each screen
+// re-deriving the viewer, the counts and the labels - see
+// `app/Actions/Repo/standing.ts`.
+const repoActions = await repositoryHeaderActions(repoAccess, ownerHandle, repositoryName)
+
 
 // A page that renders "no such repository" under a 200 tells a crawler, a
 // cache and an uptime check that the page is fine. Only the render knows.
@@ -130,6 +135,7 @@ function fileSize(bytes: number): string {
         size=""
         sizeKb="0"
         commits=""
+        :actions="repoActions"
         :branches="[]"
         :tags="[]" />
 

@@ -10,7 +10,7 @@
  * Server-rendered, like the review screen, so a repository with thousands of
  * files costs the browser nothing.
  */
-import { mirrorFor, repositoryForView, summarizeMirror } from '../functions/repo'
+import { mirrorFor, repositoryForView, repositoryHeaderActions, summarizeMirror } from '../functions/repo'
 import { aliasTarget, pathUnderOwner } from '../functions/aliases'
 import { breadcrumbs, childPath, commitCount, findReadme, formatSize, headCommitRow, isMarkdown, joinRefAndPath, lastCommit, listTree, readBlob, readBlobWindow, BLOB_WINDOW_LINES, refLinks, relativeTime, shortSha, sortEntries, splitRefAndPath, treeRows, branchNames, tagNames, highlightLines, languageFor, languageRulesFor, declaredLanguage } from '../functions/browse'
 import { renderMarkdownHighlighted } from '../functions/markdown'
@@ -190,6 +190,15 @@ const notFound = !repoRow
  * synced, and `mirrorHealth` decides whether that is recent enough to say so
  * plainly or to warn.
  */
+/*
+ * Star and watch, for the header.
+ *
+ * Below the ref split, so `next` carries the reader back to the file or
+ * directory they were standing on rather than to the repository root - which
+ * is what makes the button usable from three directories down.
+ */
+const repoActions = await repositoryHeaderActions(repoAccess, ownerHandle, repositoryName, requestedPath ? `tree/${joinRefAndPath(ref, requestedPath)}` : '')
+
 const mirror = repoRow ? await mirrorFor(Number(repoRow.id)) : null
 const mirrorStatus = summarizeMirror(mirror)
 const maySyncNow = Boolean(mirrorStatus) && Boolean(repoAccess?.can?.('repository:settings'))
@@ -362,6 +371,7 @@ const emptyRepository = Boolean(repoRow) && !isDirectory && !read && !requestedP
         size="{{ formatSize(Number(repoRow.size_kb ?? 0) * 1024) }}"
         sizeKb="{{ Number(repoRow.size_kb ?? 0) }}"
         commits="{{ commits === null ? '' : String(commits) }}"
+        :actions="repoActions"
         :branches="branchLinks"
         :tags="tagLinks" />
 
