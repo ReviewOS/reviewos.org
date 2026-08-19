@@ -1,6 +1,6 @@
 import { db } from '@stacksjs/database'
 import { createCommit } from '../Git/write'
-import { repositoryPath } from '../Git/storage'
+import { ensureLocal } from '../Git/storage'
 import { runGit } from '../Git/git'
 import { parseWorkflow } from './parse'
 import { syncWorkflowFile } from './sync'
@@ -143,9 +143,15 @@ export async function applyTemplate(input: {
   if (String(repository.owner_type) !== String(template.owner_type) || Number(repository.owner_id) !== Number(template.owner_id))
     return { ok: false, reason: 'That template belongs to a different owner', status: 403 }
 
-  const resolved = repositoryPath(input.ownerHandle, input.repositoryName)
+  /*
+   * `ensureLocal`, because this is about to write a commit: a repository this
+   * node has not materialized is a cache miss rather than a missing
+   * repository, and writing into a directory that was never populated would
+   * produce a commit with no history behind it.
+   */
+  const resolved = await ensureLocal(input.ownerHandle, input.repositoryName)
 
-  if (!resolved.path)
+  if (!resolved.ok || !resolved.path)
     return { ok: false, reason: 'That repository has no directory on this instance', status: 404 }
 
   const branch = String(input.branch ?? repository.default_branch ?? 'main')

@@ -88,6 +88,32 @@ No push-path changes in this sub-phase.
       written so far holds a full relative path and new ones hold a store key, so `assetKeyFrom`
       accepts both. A column meaning two things is exactly where each reader inventing its own
       guess produces a feature that works for new rows and 404s for old ones.
+- [x] **The audit that followed ticking these boxes**, written down because it found four things
+      and three of them were the same shape as phase 16's: a declaration that was never adopted.
+
+      `ensureLocal` was written, tested, given teeth in 18c - and **called by nothing on the
+      serving path**. The routes resolved paths through `diskPathFor`, so a clone of a
+      repository this node had not materialized still answered 404 and every line of
+      materialization was unreachable. `servablePathFor` now sits in front of it, and the HTTP
+      wire protocol, the SSH transport and the template writer all go through it. The rule that
+      keeps the two apart: `diskPathFor` answers where a repository *would* live and is right
+      for creating or reporting one; anything about to hand a path to git for a read or a write
+      asks the other.
+
+      **`storage/wal/`, `storage/packs/`, `storage/archives/` were not gitignored** - a push
+      bundle of somebody's repository would have been committed into this one. And while adding
+      them, `storage/lfs/` and `storage/release-assets/` turned out never to have been ignored
+      either, which predates this phase entirely.
+
+      **The pack cache broke a phase 16 test, but only on the second run.** The streaming
+      assertion - a pack arrives in pieces rather than one buffer - passed cold and failed warm,
+      because a cached pack under one 256 KB read arrives whole. Not the buffering that test
+      guards against (Bun reads a file in pieces, so a large cached pack still streams), but a
+      test that could no longer tell the two apart. It empties the cache first now and says why.
+      A warm-cache-only failure is the kind that reaches CI's second run rather than its first.
+
+      One piece of dead code went with it: an `isStale` helper nothing called, because the
+      serving path deliberately does not check staleness - that is the drift audit's job.
 - [x] The repo-store seam in `app/Actions/Git/storage.ts`, behavior-neutral for now:
       `ensureLocal(owner, name)` as a thin wrapper over `repositoryPath()`, adopted by the git
       routes, ssh, and `write.ts`. This is the hook 18c grows teeth on. Async from the first

@@ -33,7 +33,7 @@ import { dirname, resolve } from 'node:path'
 import { db } from '@stacksjs/database'
 import { fingerprintOf, generateHostKey, parsePrivateKey, parsePublicKey, serve } from '@stacksjs/ts-ssh'
 import { deployKeyFor, deployKeyMay, markDeployKeyUsed } from '../Keys/deploy'
-import { diskPathFor, findRepositoryByPath, mayUseService } from './access'
+import { findRepositoryByPath, mayUseService, servablePathFor } from './access'
 import { gitEnvironment, serviceArgs } from './git'
 import { acquireGitSlot } from './semaphore'
 import { repositoryPath } from './storage'
@@ -340,7 +340,9 @@ async function runGitCommand(command: Command, report: (error: unknown) => void)
   // column holds a path relative to the repository root, so resolving it
   // against the process's working directory names a repository that is not
   // there - and git's refusal quotes a path nobody will recognise.
-  const path = diskPathFor(parsed.owner, parsed.name)
+  // The same as the HTTP path: a repository that is not on this node yet is
+  // materialized rather than refused.
+  const path = await servablePathFor(parsed.owner, parsed.name)
   if (!path)
     return refuse(`Repository not found: ${parsed.owner}/${parsed.name}`)
 

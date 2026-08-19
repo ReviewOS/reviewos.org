@@ -28,7 +28,7 @@ import { db } from '@stacksjs/database'
 import { blobStore } from './blobs'
 import { latestCheckpoint } from './checkpoint'
 import { initBare, runGit } from './git'
-import { ledgerFor, refsOnDisk, writeLedgerToDisk } from './refs'
+import { ledgerFor, writeLedgerToDisk } from './refs'
 import { entriesFor } from './wal'
 
 export interface MaterializeOutcome {
@@ -159,24 +159,6 @@ async function fetchBundle(
   })
 
   return fetched.ok
-}
-
-/**
- * Whether this node's copy is behind what the database says.
- *
- * Cheap on purpose - one indexed read and one `for-each-ref` - because it is
- * asked before serving rather than on a schedule. Anything more expensive
- * would be a tax on every clone.
- */
-export async function isStale(repositoryId: number, repositoryPath: string): Promise<boolean> {
-  const ledger = await ledgerFor(repositoryId)
-
-  if (ledger.length === 0)
-    return false
-
-  const disk = await refsOnDisk(repositoryPath)
-
-  return ledger.some(entry => disk.get(entry.ref) !== entry.sha)
 }
 
 /** The repository row for a path, for callers that only know where it lives. */

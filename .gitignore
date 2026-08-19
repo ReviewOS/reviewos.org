@@ -92,6 +92,31 @@ storage/attachments/
 # above, and never a thing to commit.
 storage/artifacts/
 
+# The write-ahead log's bundles: one per push, plus a full checkpoint per
+# repository. This is a backup of user data on a running instance and pure
+# machine-local scratch in development, and the rows in `git_wal_entries` are
+# what make them meaningful anyway - a bundle in this repository would be a
+# packfile of somebody else's repository, committed.
+storage/wal/
+
+# Cached packfiles, keyed on the tips a clone asked for. Regenerable by
+# definition: a miss is a slower clone rather than a lost anything, and the
+# whole directory can be deleted at any time.
+storage/packs/
+
+# Generated archives, cached per commit. Regenerable in the same way, and for
+# the same reason.
+storage/archives/
+
+# LFS objects. User data, addressed by the hash of their content, and the
+# reason a repository uses LFS at all is that these are too large to belong in
+# a git repository - including this one.
+storage/lfs/
+
+# Release assets: the binaries attached to a release. User data on a running
+# instance, and often the largest single files an instance holds.
+storage/release-assets/
+
 # The shared git hooks. Generated from `app/Actions/Git/hooks.ts` on every
 # repository creation, because they carry the URL and the endpoint paths this
 # instance answers on - a committed copy would be a copy that is wrong on every

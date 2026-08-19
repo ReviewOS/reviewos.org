@@ -339,3 +339,24 @@ export function diskPathFor(owner: string, name: string): string | null {
   const resolved = repositoryPath(owner, name)
   return resolved.ok ? resolved.path! : null
 }
+
+/**
+ * The same, but ready to be served.
+ *
+ * `diskPathFor` answers where a repository *would* live and is right for
+ * anything that is about to create one, move one aside, or report a path.
+ * Anything about to hand the path to git for a **read or a write** asks here
+ * instead, because from phase 18c a repository that is not on this node is an
+ * ordinary state rather than a 404: `ensureLocal` materializes it from the
+ * checkpoint and the write-ahead log first.
+ *
+ * On a single-node instance with the log off - the default - this is
+ * `diskPathFor` plus a check that `HEAD` exists, which is what it has always
+ * effectively been.
+ */
+export async function servablePathFor(owner: string, name: string): Promise<string | null> {
+  const { ensureLocal } = await import('./storage')
+  const local = await ensureLocal(owner, name)
+
+  return local.ok ? local.path! : null
+}

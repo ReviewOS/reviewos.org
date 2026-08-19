@@ -619,6 +619,22 @@ describe('a repository large enough that streaming matters', () => {
     const body = `${(want.length + 4).toString(16).padStart(4, '0')}${want}00000009done\n`
 
     const started = performance.now()
+    /*
+     * Measured cold, deliberately.
+     *
+     * The pack cache serves an identical clone from the blob store, and a
+     * cached pack under one read's worth of bytes arrives in a single chunk -
+     * which is not the buffering this test exists to catch. Bun reads a file
+     * in 256 KB pieces, so a cached pack larger than that still streams; the
+     * distinction this asserts is about the *server* building a pack in
+     * memory, so the cache is emptied first and git is made to do the work.
+     */
+    const { blobStore } = await import('../../app/Actions/Git/blobs')
+    const packStore = await blobStore()
+
+    for (const entry of await packStore.list(`packs/${created.repositoryId}`))
+      await packStore.delete(entry.key)
+
     const response = await fetch(`${cloneUrl()}/git-upload-pack`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-git-upload-pack-request' },

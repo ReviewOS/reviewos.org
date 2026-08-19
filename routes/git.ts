@@ -1,5 +1,5 @@
 import { route } from '@stacksjs/router'
-import { diskPathFor, findRepositoryByPath, mayUseService, tokenFromBasicAuth } from '../app/Actions/Git/access'
+import { findRepositoryByPath, mayUseService, servablePathFor, tokenFromBasicAuth } from '../app/Actions/Git/access'
 import { recordTokenUse } from '../app/Actions/Tokens/authenticate'
 import { serviceArgs, spawnGitLimited } from '../app/Actions/Git/git'
 import { stdoutStream } from '../app/Actions/Git/stream'
@@ -62,7 +62,10 @@ async function authorize(request: any, service: 'upload-pack' | 'receive-pack') 
     return { ok: false as const, status: repository.visibility === 'public' ? 403 : 404 }
   }
 
-  const path = diskPathFor(parsed.owner, parsed.name)
+  // `servablePathFor`, not `diskPathFor`: a repository this node has not
+  // materialized yet is a cache miss rather than a 404, and this is the line
+  // that makes that true for every clone, fetch and push over HTTP.
+  const path = await servablePathFor(parsed.owner, parsed.name)
   if (!path)
     return { ok: false as const, status: 404 }
 
