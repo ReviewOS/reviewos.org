@@ -65,7 +65,14 @@ export interface ReportInput {
 
 /** One step's outcome, as the runner saw it. */
 export interface StepReport {
-  /** Which step this was, counting from 1, matching the definition's order. */
+  /**
+   * Which step this was, counting from 0.
+   *
+   * Zero-based because the definition is: `job.steps.entries()` is what
+   * numbered them when the workflow was stored, and the runner iterates the
+   * same list in the same order. A second convention here would mean every
+   * result landing one row away from the step that produced it.
+   */
   position: number
   state?: 'succeeded' | 'failed' | 'skipped' | 'cancelled'
   exitCode?: number | null
@@ -102,7 +109,7 @@ async function recordSteps(jobId: number, steps: StepReport[] | null | undefined
   for (const step of steps.slice(0, MAX_STEPS_REPORTED)) {
     const position = Number(step?.position)
 
-    if (!Number.isInteger(position) || position < 1)
+    if (!Number.isInteger(position) || position < 0)
       continue
 
     const values: Record<string, string> = {}

@@ -794,7 +794,9 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       const finished = Date.now()
 
       timings.push({
-        position: index + 1,
+        // The definition's own numbering, which `.entries()` made zero-based
+        // when the workflow was stored and this loop follows exactly.
+        position: index,
         state,
         exit_code: exitCode,
         started_at: new Date(startedAt).toISOString(),

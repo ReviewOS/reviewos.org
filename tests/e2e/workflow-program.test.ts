@@ -455,3 +455,52 @@ describe('a job a program asked for', () => {
     expect(isRunnable(specFrom({ uses: 'actions/checkout@v4' }))).toBe(true)
   }, 120_000)
 })
+
+describe('a dispatched job carries its steps as rows', () => {
+  /**
+   * Until dispatch copied them, a run had no step rows at all: the claim read
+   * the version tables, which works right up until somebody asks what a step
+   * *did*. There was nowhere to write the answer, so a result lived only in a
+   * log and restart-from-step could not skip a step because nothing had
+   * recorded that it succeeded.
+   */
+  test('copied from the definition, so a finished run stays readable after the file is edited', async () => {
+    if (!available)
+      return
+
+    const { syncWorkflowFile } = await import('../../app/Actions/Workflow/sync')
+    const { dispatchPush } = await import('../../app/Actions/Workflow/dispatch')
+
+    await syncWorkflowFile({
+      repositoryId: created.repositoryId,
+      ownerType: 'user',
+      ownerId: created.ownerId,
+      path: '.reviewos/workflows/steps.yml',
+      source: 'name: Steps\non:\n  push:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - name: compile\n        run: make\n      - name: package\n        run: tar czf app.tgz .\n',
+      sha: '5'.repeat(40),
+    })
+
+    await dispatchPush({
+      repositoryId: created.repositoryId,
+      event: { ref: 'refs/heads/main' },
+      headSha: unique('5').padEnd(40, '0').slice(0, 40),
+    })
+
+    const steps: any[] = await db
+      .selectFrom('workflow_steps')
+      .innerJoin('workflow_jobs', 'workflow_jobs.id', '=', 'workflow_steps.workflow_job_id')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+      .select(['workflow_steps.position as position', 'workflow_steps.name as name', 'workflow_steps.command as command', 'workflow_steps.state as state'])
+      .where('workflow_versions.source_path', '=', '.reviewos/workflows/steps.yml')
+      .orderBy('workflow_steps.position')
+      .execute()
+
+    expect(steps.map(one => one.name)).toEqual(['compile', 'package'])
+    expect(String(steps[0].command)).toBe('make')
+
+    // Pending, not succeeded: a row that exists is not a row that ran, and the
+    // whole point is that something later writes the answer here.
+    expect(String(steps[0].state)).toBe('pending')
+  }, 120_000)
+})

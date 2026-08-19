@@ -427,26 +427,6 @@ describe('reporting', () => {
   })
 })
 
-/**
- * A step row for a job, the way a generated job gets one.
- *
- * Ordinary jobs still read their steps from the version tables, so the rows
- * that record results exist for uploaded and orchestrated jobs today. That is
- * the half of the box still open, and it is written up in the roadmap - what is
- * tested here is the recording itself, which is the same code either way.
- */
-async function aStepRow(jobId: number, position: number, name: string): Promise<number> {
-  const row: any = await db.insertInto('workflow_steps').values({
-    workflow_job_id: jobId,
-    position,
-    name,
-    command: 'make',
-    state: 'pending',
-  }).returning(['id']).executeTakeFirst()
-
-  return Number(row.id)
-}
-
 describe('what each step did, as rows', () => {
   /**
    * The claim this exists for: a step's result is a value, not text somebody
@@ -466,8 +446,6 @@ describe('what each step did, as rows', () => {
       .where('id', '=', Number(build.id))
       .execute()
 
-    await aStepRow(Number(build.id), 1, 'compile')
-
     const startedAt = new Date(Date.now() - 9 * 60_000).toISOString()
     const finishedAt = new Date().toISOString()
 
@@ -475,7 +453,7 @@ describe('what each step did, as rows', () => {
       jobId: Number(build.id),
       state: 'succeeded',
       steps: [{
-        position: 1,
+        position: 0,
         state: 'succeeded',
         exitCode: 0,
         startedAt,
@@ -492,7 +470,7 @@ describe('what each step did, as rows', () => {
       .selectFrom('workflow_steps')
       .select(['state', 'exit_code', 'queued_ms', 'active_ms', 'outputs', 'started_at', 'finished_at'])
       .where('workflow_job_id', '=', Number(build.id))
-      .where('position', '=', 1)
+      .where('position', '=', 0)
       .executeTakeFirst()
 
     expect(String(step.state)).toBe('succeeded')
@@ -526,15 +504,13 @@ describe('what each step did, as rows', () => {
       .where('id', '=', Number(build.id))
       .execute()
 
-    await aStepRow(Number(build.id), 1, 'compile')
-    await aStepRow(Number(other.id), 1, 'somebody else\'s step')
 
     await reportJob(runner, {
       jobId: Number(build.id),
       state: 'succeeded',
-      // Position 1 of *this* job. The runner picks positions, so a position is
+      // Position 0 of *this* job. The runner picks positions, so a position is
       // the one thing here it could get wrong or lie about.
-      steps: [{ position: 1, state: 'succeeded', outputs: { leaked: 'yes' } }],
+      steps: [{ position: 0, state: 'succeeded', outputs: { leaked: 'yes' } }],
     })
 
     const strangers: any[] = await db
@@ -560,8 +536,6 @@ describe('what each step did, as rows', () => {
       .where('id', '=', Number(build.id))
       .execute()
 
-    await aStepRow(Number(build.id), 1, 'compile')
-
     // An older runner, which has never heard of any of this. Its jobs still
     // report and still finish; their steps simply say nothing.
     const outcome = await reportJob(runner, { jobId: Number(build.id), state: 'succeeded' })
@@ -572,7 +546,7 @@ describe('what each step did, as rows', () => {
       .selectFrom('workflow_steps')
       .select(['state'])
       .where('workflow_job_id', '=', Number(build.id))
-      .where('position', '=', 1)
+      .where('position', '=', 0)
       .executeTakeFirst()
 
     expect(String(step.state)).toBe('pending')

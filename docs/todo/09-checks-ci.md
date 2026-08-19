@@ -184,7 +184,7 @@ Cloudflare's dashboard shows per-step inputs, outputs, wall time, and CPU time, 
 makes restart-from-step meaningful rather than decorative: a step can only be skipped on restart if
 its result was recorded as a value.
 
-- [ ] Steps record typed inputs and outputs as rows, not as text scraped from a log. A later step
+- [x] Steps record typed inputs and outputs as rows, not as text scraped from a log. A later step
       reading an earlier step's output is reading the database.
 - [x] Wall time and active execution time are recorded separately per step, plus queue time. A step
       that took nine minutes of which eight were queueing is a different problem from one that took
@@ -207,13 +207,21 @@ the setup problem it is.
 Every write is guarded to the reporting job's own steps. The runner chooses the positions, and a
 position is the one thing in that payload it could get wrong or lie about.
 
-What is still open in the first box: **ordinary jobs have no `workflow_steps` rows to record onto.**
-A run's steps are read from the version tables at claim time, and only uploaded and orchestrated jobs
-get rows of their own - so the recording above takes effect for those and for nothing else yet.
-Materializing a row per step at dispatch is the remaining half, and it is a change to the claim path
-rather than an addition beside it: `ClaimJobAction` currently prefers `workflow_steps` and falls back
-to the version, and once every job has rows the fallback should go rather than linger as a second
-answer to what a job runs.
+Dispatch now copies a definition's steps onto every job it creates, which is what gives those results
+somewhere to land. Before that a run had no step rows at all - the claim read the version tables
+directly, which works right up until somebody asks what a step *did*, and then there is nowhere to
+write the answer. Copied rather than referenced, following the rule the job row already follows for
+`fail_fast` and `needs`: a finished run has to stay readable after its workflow file is edited or
+deleted.
+
+Step positions are **zero-based everywhere**, because `job.steps.entries()` is what numbered them
+when the workflow was stored. The report path briefly counted from one, which would have landed every
+result one row away from the step that produced it - caught by a test that found no row rather than
+by a test that found the wrong one, which is the luckier of the two ways to notice.
+
+`ClaimJobAction` still falls back to the version tables when a job has no rows of its own. That is a
+ramp for runs dispatched before this change, not a design, and it should go once no such run can be
+claimed - two answers to "what does this job run" is one more than there should be.
 
 ### Snapshot caching
 

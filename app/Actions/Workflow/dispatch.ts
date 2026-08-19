@@ -1082,6 +1082,10 @@ async function createJobs(
       'fail_fast', 'max_parallel', 'timeout_minutes', 'continue_on_error',
       // And what kind of job it is, which decides whether a runner ever sees it.
       'kind', 'settings', 'group_label', 'if_changed', 'priority',
+      // The definition's own id, so this job's steps can be copied onto the
+      // run. Selected here rather than looked up per job: one query for the
+      // graph and one per job for its steps is already the shape below.
+      'id',
     ])
     .where('workflow_version_id', '=', versionId)
     .orderBy('position')
@@ -1337,10 +1341,72 @@ async function createJobs(
           .returning(['id'])
           .executeTakeFirst()
 
+        await copySteps(Number(job.id), Number(created?.id), repositoryId)
+
         await supersedeJobs(runId, Number(created?.id), group, isTrue(job.job_cancel_in_progress))
       }
     }
   }
+}
+
+/**
+ * Copy a definition's steps onto the job that will run them.
+ *
+ * Until this existed, a run had no step rows at all: the claim read them
+ * straight out of the version tables, which works right up until somebody asks
+ * what a step *did*. There was nowhere to write the answer, so a step's result
+ * lived only in its log, and restart-from-step could not skip a step because
+ * nothing had recorded that it succeeded.
+ *
+ * ## Copied rather than referenced, like everything else on a run
+ *
+ * The same rule the job row already follows for `fail_fast`, `timeout_minutes`
+ * and `needs`: a finished run has to stay readable after its workflow file is
+ * edited or deleted. A run pointing at a version somebody has since rewritten
+ * is a run whose conclusion nobody can reconstruct.
+ *
+ * One insert per job rather than one per step - a job of forty steps is one
+ * round trip, and dispatch is a path that runs on every push.
+ */
+async function copySteps(versionJobId: number, jobId: number, repositoryId: number | null): Promise<void> {
+  if (!Number.isInteger(jobId) || jobId < 1)
+    return
+
+  const steps = await db
+    .selectFrom('workflow_version_steps')
+    .select([
+      'position', 'name', 'command', 'uses', 'inputs', 'env', 'shell',
+      'continue_on_error', 'timeout_minutes', 'working_directory', 'condition', 'step_id',
+    ])
+    .where('workflow_version_job_id', '=', versionJobId)
+    .orderBy('position')
+    .execute()
+    .catch(() => [])
+
+  if (steps.length === 0)
+    return
+
+  await db
+    .insertInto('workflow_steps')
+    .values(steps.map((step: any) => ({
+      workflow_job_id: jobId,
+      repository_id: repositoryId,
+      position: Number(step.position ?? 0),
+      name: step.name ?? null,
+      command: step.command ?? null,
+      uses: step.uses ?? null,
+      inputs: step.inputs ?? null,
+      env: step.env ?? null,
+      shell: step.shell ?? null,
+      continue_on_error: isTrue(step.continue_on_error),
+      timeout_minutes: step.timeout_minutes ?? null,
+      working_directory: step.working_directory ?? null,
+      condition: step.condition ?? null,
+      step_id: step.step_id ?? null,
+      state: 'pending',
+    })))
+    .execute()
+    .catch(() => null)
 }
 
 /** The file a version came from, or null when the row has gone. */

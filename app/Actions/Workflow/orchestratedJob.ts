@@ -156,7 +156,9 @@ export async function createOrchestratedJob(input: {
     .values({
       workflow_job_id: jobId,
       repository_id: input.repositoryId,
-      position: 1,
+      // Zero, like every other step row: the definition numbers steps from
+      // zero, and a job with one step is that job's step zero.
+      position: 0,
       name: String(input.name || 'job').slice(0, 200),
       command: input.spec.run ?? null,
       uses: input.spec.uses ?? null,

@@ -320,7 +320,7 @@ export default new Action({
      * runner with an empty step list, did nothing, and reported success. The
      * row's own columns are the record for exactly those jobs.
      */
-    const generated = jobRow?.uploaded_by_job_id ? await db
+    const own = await db
       .selectFrom('workflow_steps')
       .select([
         'position', 'name', 'command', 'uses', 'working_directory',
@@ -328,9 +328,18 @@ export default new Action({
       ])
       .where('workflow_job_id', '=', claimed.jobId)
       .orderBy('position')
-      .execute() : []
+      .execute()
+      .catch(() => [])
 
-    const steps: any[] = generated.length > 0 ? generated : await db
+    /*
+     * The run's own rows, and the version tables only when there are none.
+     *
+     * Dispatch copies a definition's steps onto every job now, so the fallback
+     * is for runs dispatched before it did - a ramp rather than a design. It
+     * should go once no such run can still be claimed, because two answers to
+     * "what does this job run" is one more than there should be.
+     */
+    const steps: any[] = own.length > 0 ? own : await db
       .selectFrom('workflow_version_steps')
       .innerJoin(
         'workflow_version_jobs',
