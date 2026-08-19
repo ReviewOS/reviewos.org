@@ -24,11 +24,12 @@ import { describe, expect, test } from 'bun:test'
 const ALLOWED: Array<{ file: string, count: number, because: string }> = [
   {
     file: 'routes/git.ts',
-    count: 13,
-    because: 'the git wire protocol and LFS. A git client sends Basic auth or a '
-      + 'token and holds no cookie, so there is no ambient credential here; the '
-      + 'two internal endpoints are called by hook scripts this server wrote, '
-      + 'over loopback, with a shared secret.',
+    count: 14,
+    because: 'the git wire protocol, LFS, and the checkpoint bundle a bundle-uri '
+      + 'client fetches. A git client sends Basic auth or a token and holds no '
+      + 'cookie, so there is no ambient credential here; the two internal '
+      + 'endpoints are called by hook scripts this server wrote, over loopback, '
+      + 'with a shared secret.',
   },
   {
     file: 'routes/api.ts',

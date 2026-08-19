@@ -40,7 +40,7 @@ Default: `reviewos.localhost`. Checked at boot, so a wrong value stops the insta
 Pretty HTTPS URLs are the default development experience. `./buddy dev`
 routes this hostname through rpx, which uses tlsx for local certificates.
 
-Read by `app/Actions/Auth/passkeys.ts`, `app/Actions/Auth/SsoAction.ts`, `app/Actions/Notification/vapid.ts`, `app/Jobs/SendNotificationJob.ts`, `resources/components/CloneUrlBox.stx`.
+Read by `app/Actions/Auth/passkeys.ts`, `app/Actions/Auth/SsoAction.ts`, `app/Actions/Notification/vapid.ts`, `app/Jobs/CheckpointRepositoriesJob.ts`, `app/Jobs/SendNotificationJob.ts`, `resources/components/CloneUrlBox.stx`.
 
 ### `APP_MAINTENANCE`
 

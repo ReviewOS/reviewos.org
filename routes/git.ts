@@ -169,6 +169,61 @@ route.get('/{owner}/{repository}/info/refs', async (request: any) => {
   })
 }).skipCsrf().middleware('throttle:300,1m')
 
+/**
+ * The checkpoint bundle, over plain HTTP.
+ *
+ * What `bundle.checkpoint.uri` on the repository points at. A client that
+ * speaks `bundle-uri` fetches this first and then asks `upload-pack` only for
+ * what has landed since - which moves the expensive half of a clone off the
+ * server and onto static storage, and is phase 15's clone storm answered
+ * without a replica.
+ *
+ * **Authorized exactly like a fetch**, through the same `authorize` the wire
+ * protocol uses. A checkpoint is the whole repository in one file, so serving
+ * it more freely than `upload-pack` would make every private repository
+ * readable by anybody who guessed the URL.
+ *
+ * A repository with no checkpoint answers 404, which is what a client that
+ * asked speculatively should get - and it falls back to an ordinary clone.
+ */
+route.get('/{owner}/{repository}/bundles/checkpoint', async (request: any) => {
+  const auth = await authorize(request, 'upload-pack')
+
+  if (!auth.ok)
+    return unauthorized(auth.status)
+
+  const parsed = parseGitUrl(new URL(request.url).pathname)
+  const repository = parsed ? await findRepositoryByPath(parsed.owner, parsed.name) : null
+
+  if (!repository)
+    return new Response('Not found', { status: 404 })
+
+  const { latestCheckpoint } = await import('../app/Actions/Git/checkpoint')
+  const { blobStore } = await import('../app/Actions/Git/blobs')
+
+  const store = await blobStore()
+  const checkpoint = await latestCheckpoint(Number(repository.id), store)
+
+  if (!checkpoint)
+    return new Response('No checkpoint', { status: 404 })
+
+  const stream = await store.get(checkpoint.key)
+
+  if (!stream)
+    return new Response('No checkpoint', { status: 404 })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-git-bundle',
+      'Content-Length': String(checkpoint.bytes),
+      // A checkpoint is immutable at its sequence, but the URI is stable
+      // across checkpoints - so it is revalidated rather than held.
+      'Cache-Control': 'no-cache',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  })
+}).skipCsrf().middleware('throttle:300,1m')
+
 /** Fetch and clone. */
 route.post('/{owner}/{repository}/git-upload-pack', async (request: any) => {
   const auth = await authorize(request, 'upload-pack')

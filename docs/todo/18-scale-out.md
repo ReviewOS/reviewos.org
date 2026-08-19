@@ -194,13 +194,32 @@ blob store are the truth.
 Phase 15's runner fleet is the load: clone storms against hot repositories. The cheap answers come
 before replicas, and the checkpoint bundle from 18b is most of them.
 
-- [ ] `bundle-uri` advertisement: `uploadpack.bundleURI` on the bare repository pointing at the
+- [x] `bundle-uri` advertisement: `uploadpack.bundleURI` on the bare repository pointing at the
       checkpoint bundle's blob-store URL (signed, or fronted by a CDN). The bulk of a clone comes
-      from static storage; the server only tops up.
+      from static storage; the server only tops up. Written as git's actual keys
+      (`uploadpack.advertiseBundleURIs`, `bundle.version`, `bundle.mode=all`,
+      `bundle.checkpoint.uri`) into the repository's own config by the checkpoint job, so it is
+      git advertising it rather than this application intercepting anything - and a client that
+      cannot fetch the bundle falls back to an ordinary clone on its own.
+
+      The URI points at `/{owner}/{repository}/bundles/checkpoint`, authorized through the same
+      `authorize` the wire protocol uses: a checkpoint is the whole repository in one file, so
+      serving it more freely than `upload-pack` would make every private repository readable by
+      anybody who guessed the URL. Fronting that URL with a CDN, or pointing it straight at a
+      signed bucket URL, is the next step for an instance that wants it and changes nothing here.
 - [ ] A pack cache for hot clone shapes, keyed on repository and want/have set.
-- [ ] Archives served from the blob store for CI that needs a tree, not history.
-- [ ] Runner-side guidance in phase 15's docs: reference clones and bundle bootstraps before
-      hitting the forge.
+- [x] Archives served from the blob store for CI that needs a tree, not history. Keyed on commit
+      and format, which makes it a cache with no invalidation: an archive of a commit cannot
+      change, because a commit cannot. A ref is deliberately not part of the key - two branches
+      at the same commit are the same bytes. The response is `tee`'d, so the client is never
+      waiting on the cache write, and a failed write just means the next request misses.
+- [x] Runner-side guidance in phase 15's docs: reference clones and bundle bootstraps before
+      hitting the forge. In `docs/runner-protocol.md`, in the order worth trying them - let the
+      client use the advertised checkpoint bundle (nothing needed on the runner, git 2.46+ does
+      it by default), keep a reference clone, ask for less with a shallow single-branch clone,
+      and take an archive when history is not wanted at all. It also names the two things not to
+      do: disabling gc on a runner's caches, and pointing many runners at one shared checkout,
+      which turns a clone storm into a lock convoy.
 - [ ] Only after those are measured insufficient: stateless read replicas - a node running
       `upload-pack` and `ensureLocal`, placed by rendezvous hashing at the proxy, consistency
       checked against the ledger per request (a cheap indexed read; no gossip at this scale).

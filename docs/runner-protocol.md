@@ -254,3 +254,53 @@ three weeks later, and the two want opposite retention rules.
 
 Retiring a version - raising the minimum - is a breaking change for anybody who
 has not upgraded, and it belongs in a release note rather than in a patch.
+
+## Fetching a repository, cheaply
+
+A fleet's expensive operation is not running the job: it is the clone at the
+start of it. Ten runners taking the same repository at the same moment is ten
+`upload-pack` processes computing ten nearly identical packfiles, and that is
+the most expensive thing this server does.
+
+Three things make it cheaper, in the order worth trying them.
+
+**Let the client use the checkpoint bundle.** An instance running the write-ahead
+log writes a full bundle of each repository to its blob store and advertises it
+on the repository itself, through git's own `bundle-uri` mechanism. A client
+that understands it fetches that bundle over plain HTTP - from the instance, a
+bucket, or a CDN in front of either - and then asks `upload-pack` only for what
+has landed since. Nothing is needed on the runner: git 2.46 and newer will use
+an advertised bundle by default, and silently falls back to an ordinary clone if
+it cannot fetch one. This is why `GIT_WAL` earns its keep on instances that will
+never run a second node.
+
+**Keep a reference clone on the runner.** A long-lived machine that builds the
+same repository repeatedly should not start from nothing each time:
+
+```sh
+git clone --reference /var/cache/reviewos/acme-app.git https://forge.example/acme/app
+```
+
+or, for a machine that only ever builds one project, a persistent working copy
+that fetches rather than clones. Either turns a full clone into an incremental
+one, which is the difference between minutes and seconds on a repository with
+real history.
+
+**Ask for less.** Most jobs do not need the whole history:
+
+```sh
+git clone --depth 1 --single-branch --branch main https://forge.example/acme/app
+```
+
+A shallow single-branch clone is usually a tenth of the objects. It is not free
+for the server - a shallow clone makes `upload-pack` compute a custom pack - so
+it is third rather than first, but it beats a full clone comfortably.
+
+**Archives, when history is not wanted at all.** A job that needs a tree and not
+a repository can take `/{owner}/{repository}/archive/{ref}.tar.gz`, which this
+instance caches per commit in its blob store. The second runner asking for the
+same commit is served from storage without git running at all.
+
+What not to do: disabling `gc` on the runner's caches, or pointing many runners
+at one shared filesystem checkout. The first grows unbounded; the second turns
+a clone storm into a lock convoy, which is slower than the storm.

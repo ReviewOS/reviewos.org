@@ -7744,6 +7744,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * GET /{owner}/{repository}/bundles/checkpoint
+   */
+  getOwnerRepositoryBundlesCheckpoint(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/{owner}/{repository}/bundles/checkpoint", input ?? {}, [], false, options)
+  },
+
+  /**
    * POST /{owner}/{repository}/git-receive-pack
    */
   postOwnerRepositoryGitReceivePack(input: { "owner": string; "repository": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
