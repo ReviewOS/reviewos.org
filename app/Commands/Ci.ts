@@ -286,7 +286,7 @@ export default function (cli: CLI) {
         url,
         token,
         method: 'POST',
-        path: '/api/repos/workflow-dispatch',
+        path: '/api/repos/workflows/dispatch',
         body: {
           owner: where.owner,
           repo: where.repo,

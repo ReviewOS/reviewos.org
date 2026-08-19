@@ -1065,7 +1065,21 @@ requeue is not yet reading it.
       side. An event that arrives a second before its job becomes eligible would otherwise vanish
       and the run would sit until its timeout on a message that did arrive - the hardest kind of
       report to believe, because the sender saw a 200 and nothing anywhere says it was dropped.
-- [ ] The interface, CLI, webhooks, and provider integrations call the same actions as the public API
+- [x] The interface, CLI, webhooks, and provider integrations call the same actions as the public API
+
+      True, and now pinned rather than asserted: `tests/unit/one-front-door.test.ts` walks every
+      `<form method="post">` in `resources/` and every `/api/` path in `app/Commands/`, and fails
+      when one names a route this application does not declare. Prose does not fail, and a form
+      posted at a route that does not exist renders perfectly and 404s on submit - which nobody
+      notices until somebody presses the button.
+
+      Writing it found exactly that: `ci:dispatch` had been posting to `/api/repos/workflow-dispatch`
+      while the route is `/api/repos/workflows/dispatch`, so the command had been answering 404 for
+      anybody who ran it. Fixed in the same commit.
+
+      The rule is worth the test because the second front door is always the worse one: a control
+      the interface has and the API does not has no token scope, no audit event, no rate limit and
+      no OpenAPI entry, because every one of those was built for the first.
 - [x] Every endpoint has a fine-grained token requirement, generated OpenAPI, stable errors, rate
       limits, audit events, and request ids that continue into dispatched jobs
 
