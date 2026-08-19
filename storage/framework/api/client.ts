@@ -5805,6 +5805,20 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/runner/caches
+   */
+  postRunnerCaches(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/runner/caches", {}, [], false, options)
+  },
+
+  /**
+   * GET /api/runner/caches/restore
+   */
+  getRunnerCachesRestore(options?: RequestOptions): Promise<ApiResult<unknown>> {
+    return request(config, "GET", "/api/runner/caches/restore", {}, [], false, options)
+  },
+
+  /**
    * POST /api/runner/claim
    */
   postRunnerClaim(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

@@ -977,6 +977,18 @@ route.post('/runner/heartbeat', 'Actions/Runner/HeartbeatAction').skipCsrf()
 route.post('/runner/report', 'Actions/Runner/ReportJobAction').skipCsrf()
 route.post('/runner/logs', 'Actions/Runner/AppendLogAction').skipCsrf()
 route.post('/runner/artifacts', 'Actions/Runner/UploadArtifactAction').skipCsrf()
+/*
+ * The dependency cache: a snapshot of a workspace after its install.
+ *
+ * Neither of these takes a scope. A runner asks for a key and the instance
+ * decides what that key resolves to for the run it is holding - its own
+ * branch's snapshot, or the default branch's, and never a fork's. Letting a
+ * runner choose would make a pull request the shortest path to running code on
+ * the default branch, since a cache is a directory one run writes and another
+ * executes out of.
+ */
+route.post('/runner/caches', 'Actions/Runner/SaveCacheAction').skipCsrf()
+route.get('/runner/caches/restore', 'Actions/Runner/RestoreCacheAction')
 // What a job's steps said about the code: `::error file=...,line=...::` becomes
 // a check annotation, which is what the diff renders in the gutter.
 route.post('/runner/annotations', 'Actions/Runner/AnnotateAction').skipCsrf()

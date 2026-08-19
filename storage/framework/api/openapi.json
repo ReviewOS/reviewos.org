@@ -45580,6 +45580,235 @@
         }
       }
     },
+    "/api/runner/caches": {
+      "post": {
+        "summary": "/api/runner/caches",
+        "operationId": "post__api_runner_caches",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Stored, with the scope it was actually written to - which is the run's own, whatever the runner assumed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scope": {
+                      "type": "string"
+                    },
+                    "duplicate": {
+                      "type": "boolean",
+                      "description": "True when this snapshot was already stored - at-least-once delivery means a correct runner will send it twice."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No job credential, or one this instance does not recognise."
+          },
+          "403": {
+            "description": "The runner named a scope this run may not write to."
+          },
+          "404": {
+            "description": "The credential names a job whose run has gone."
+          },
+          "413": {
+            "description": "Past the snapshot ceiling. Above it a cache costs more to move than the install it replaces."
+          },
+          "422": {
+            "description": "No body, no key, or a digest that is not a sha-256."
+          },
+          "426": {
+            "description": "This runner speaks a protocol version the server does not."
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/runner/caches/restore": {
+      "get": {
+        "summary": "/api/runner/caches/restore",
+        "operationId": "get__api_runner_caches_restore",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The archive. `X-Cache-Scope` says whose it was and `X-Cache-Exact` whether it was this run's own rather than the fallback.",
+            "headers": {
+              "X-Cache-Scope": {
+                "description": "Which scope the snapshot came from.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Exact": {
+                "description": "`true` when it came from the run's own scope rather than the default branch.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Digest": {
+                "description": "SHA-256 of the archive, so a runner can check what it unpacks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No snapshot for that key. A cold cache is not an error.",
+            "headers": {
+              "X-Cache-Scope": {
+                "description": "Which scope the snapshot came from.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Exact": {
+                "description": "`true` when it came from the run's own scope rather than the default branch.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Digest": {
+                "description": "SHA-256 of the archive, so a runner can check what it unpacks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No job credential, or one this instance does not recognise.",
+            "headers": {
+              "X-Cache-Scope": {
+                "description": "Which scope the snapshot came from.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Exact": {
+                "description": "`true` when it came from the run's own scope rather than the default branch.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Digest": {
+                "description": "SHA-256 of the archive, so a runner can check what it unpacks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The credential names a job whose run has gone.",
+            "headers": {
+              "X-Cache-Scope": {
+                "description": "Which scope the snapshot came from.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Exact": {
+                "description": "`true` when it came from the run's own scope rather than the default branch.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Digest": {
+                "description": "SHA-256 of the archive, so a runner can check what it unpacks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No key.",
+            "headers": {
+              "X-Cache-Scope": {
+                "description": "Which scope the snapshot came from.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Exact": {
+                "description": "`true` when it came from the run's own scope rather than the default branch.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Digest": {
+                "description": "SHA-256 of the archive, so a runner can check what it unpacks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "This runner speaks a protocol version the server does not.",
+            "headers": {
+              "X-Cache-Scope": {
+                "description": "Which scope the snapshot came from.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Exact": {
+                "description": "`true` when it came from the run's own scope rather than the default branch.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Digest": {
+                "description": "SHA-256 of the archive, so a runner can check what it unpacks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "headers": {
+              "X-Cache-Scope": {
+                "description": "Which scope the snapshot came from.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Exact": {
+                "description": "`true` when it came from the run's own scope rather than the default branch.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Cache-Digest": {
+                "description": "SHA-256 of the archive, so a runner can check what it unpacks.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/runner/claim": {
       "post": {
         "summary": "/api/runner/claim",

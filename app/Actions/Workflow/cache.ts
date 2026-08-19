@@ -40,6 +40,47 @@ export function snapshotBlobKey(repositoryId: number, digest: string): string {
   return `caches/${repositoryId}/${clean.slice(0, 2)}/${clean.slice(2, 4)}/${clean}`
 }
 
+/**
+ * What a job's run says about itself, read on the instance.
+ *
+ * The runner never supplies these. Every one of them is an input to a boundary
+ * decision, and a boundary that reads its inputs from the party it is
+ * protecting against is decoration.
+ */
+export async function runFactsFor(jobId: number): Promise<{ facts: RunFacts, repositoryId: number, runId: number } | null> {
+  const row: any = await db
+    .selectFrom('workflow_jobs')
+    .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+    .innerJoin('repositories', 'repositories.id', '=', 'workflow_runs.repository_id')
+    .select([
+      'workflow_runs.id as run_id',
+      'workflow_runs.event_ref as event_ref',
+      'workflow_runs.trusted as trusted',
+      'workflow_runs.pull_request_id as pull_request_id',
+      'repositories.id as repository_id',
+      'repositories.default_branch as default_branch',
+    ])
+    .where('workflow_jobs.id', '=', jobId)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!row)
+    return null
+
+  return {
+    runId: Number(row.run_id),
+    repositoryId: Number(row.repository_id),
+    facts: {
+      ref: String(row.event_ref ?? ''),
+      defaultBranch: String(row.default_branch ?? 'main'),
+      // Anything other than a true is untrusted. A column that is null because
+      // a row predates the flag is not a repository's own code by default.
+      trusted: row.trusted === true || row.trusted === 1 || row.trusted === '1',
+      pullRequestNumber: Number(row.pull_request_id) || null,
+    },
+  }
+}
+
 export interface RestoreHit {
   id: number
   /** Which scope it actually came from: the run's own, or the default branch. */

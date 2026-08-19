@@ -113,6 +113,11 @@ storage/archives/
 # a git repository - including this one.
 storage/lfs/
 
+# Dependency cache snapshots: a tar of somebody's workspace after its install.
+# Rebuildable by definition - the whole point is that losing one costs a slow
+# job rather than data - and large enough that nothing wants them committed.
+storage/caches/
+
 # Release assets: the binaries attached to a release. User data on a running
 # instance, and often the largest single files an instance holds.
 storage/release-assets/
