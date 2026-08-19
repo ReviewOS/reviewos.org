@@ -69,7 +69,7 @@
   "dependencies": {
     "@stacksjs/actions": "^0.72.29",
     "@stacksjs/api": "^0.72.29",
-    "@stacksjs/buddy": "^0.72.29",
+    "@stacksjs/buddy": "^0.72.31",
     "@stacksjs/bunpress": "^0.2.7",
     "@stacksjs/database": "^0.72.29",
     "@stacksjs/env": "^0.72.29",
@@ -115,6 +115,6 @@
     "bun-plugin-stx": "^0.2.192",
     "@stacksjs/components": "^0.2.192",
     "@stacksjs/ts-cloud": "^0.7.126",
-    "@stacksjs/buddy": "^0.72.29"
+    "@stacksjs/buddy": "^0.72.31"
   }
 }

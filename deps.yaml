@@ -5,13 +5,14 @@
 # https://stacksjs.com/docs/dependency-management
 
 dependencies:
-  typesense.org: ^30.2
   bun: ^1.3.14
   git: ^2.47.0
   gnupg.org: ^2.4.8
+  openssh.com: ^9.9.0
   git-lfs: ^3.7.1
-  postgresql.org: ^17.10
   typesense.org: ^30.2.0
+  valkey.io: ^8.1.8
+  postgresql.org: ^17.10
 
 services:
   enabled: true

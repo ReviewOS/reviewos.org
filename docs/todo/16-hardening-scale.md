@@ -229,6 +229,21 @@ infrastructure converges on that pattern, and the container path stops being the
       the project root, and the worker deliberately declares no health check - its liveness is
       queue depth, and a check that only proved the process exists would call a wedged worker
       healthy.
+- [x] **A declaration that never reached `deps.yaml` is not a declaration.** Written down because
+      three boxes above were ticked while being inert, and the review that asked "are you sure"
+      is the only reason they were caught. `config/deps.ts` is the source, but pantry reads the
+      *generated* `deps.yaml` - and that file is only rewritten by `buddy setup`, so `openssh.com`
+      and `valkey.io` sat in the config, installed nothing, and looked done. Worse, the generator
+      in `node_modules` predated the `services.define` support, so the next regeneration would
+      have silently dropped the app and worker definitions. Closed by releasing the generator
+      (`@stacksjs/buddy` 0.72.31), regenerating, and installing: both binaries are now on
+      `pantry/.bin` and verified to run, and a git child with no host `ssh` resolves the declared
+      one. Regenerating also exposed two more: a duplicate `typesense.org` key left by a pantry
+      bug already fixed upstream, and `autoStart: true` silently dropping `typesense` from the
+      list, because the config type said `boolean` while every generator reading it accepted an
+      array (widened in ts-pantry 0.11.32; the list is explicit here now). The generator is
+      idempotent - two runs are byte-identical - which is the property that makes the file
+      trustworthy.
 - [x] Production provisioning follows the same line: ts-cloud provisions the box
       (`config/cloud.ts` already targets Hetzner server mode), pantry installs every system
       dependency and runs every service. The Dockerfile's `apt-get install git ca-certificates
