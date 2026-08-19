@@ -183,6 +183,24 @@ async function reindex(repositoryId: number): Promise<void> {
   }
 
   /*
+   * And the code index, on the same queue and with the same reasoning.
+   *
+   * Failing to queue it is logged rather than raised: the index is a filter
+   * over what to search, never the answer, so a repository whose shard is
+   * missing or behind is searched more slowly rather than searched wrongly.
+   * Making a push fail because an index could not be queued would trade a
+   * correctness-free property for the one thing a forge must not get wrong.
+   */
+  try {
+    const IndexCodeJob = (await import('./IndexCodeJob')).default
+
+    await IndexCodeJob.dispatch({ repositoryId })
+  }
+  catch (error) {
+    console.error('[push] could not queue a code index build:', error)
+  }
+
+  /*
    * And a re-measure of who wrote it, for the same reason and with the same
    * separate catch: a push is the only thing that changes the answer, and
    * walking the history is precisely the work no page can do.
