@@ -11,6 +11,7 @@
 // rows, and the diffing they feed is another file's subject.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { dbTimestamp } from '../../app/Actions/Support/sql'
 
 const created = {
   reviewerId: 0,
@@ -226,7 +227,7 @@ describe('advancing last looked without a verdict', () => {
       commit_sha: NEWER,
       body: 'read it again',
       // Clearly after the checkpoint, whatever the test's own timing.
-      created_at: new Date(Date.now() + 60_000).toISOString(),
+      created_at: dbTimestamp(new Date(Date.now() + 60_000)),
     }).execute()
 
     expect(await lastSeenHead(created.pullRequestId, created.reviewerId)).toBe(NEWER)

@@ -26,6 +26,7 @@
 
 import { verifyTwoFactorCode } from '@stacksjs/auth'
 import { db } from '@stacksjs/database'
+import { dbTimestamp } from '../Support/sql'
 
 /**
  * How many codes to issue.
@@ -139,7 +140,7 @@ export async function spendRecoveryCode(userId: number, code: string): Promise<b
   try {
     const rows = await db
       .updateTable('recovery_codes')
-      .set({ used_at: new Date().toISOString() })
+      .set({ used_at: dbTimestamp() })
       .where('user_id', '=', userId)
       .where('code_hash', '=', hash)
       .whereNull('used_at')

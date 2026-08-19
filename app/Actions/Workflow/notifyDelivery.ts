@@ -13,6 +13,7 @@
 import { db } from '@stacksjs/database'
 import type { NotificationRule, RunOutcome } from './notifyRules'
 import { matchRules, notificationTitle } from './notifyRules'
+import { isNotFalse } from '../Support/sql'
 
 /** The rules a repository has, in the shape the matcher takes. */
 export async function rulesFor(repositoryId: number): Promise<NotificationRule[]> {
@@ -70,7 +71,7 @@ export async function outcomeOfRun(runId: number): Promise<{ outcome: RunOutcome
    * code - and a stranger who can open a pull request should not be able to
    * make this instance message a maintainer on demand.
    */
-  if (run.trusted === false)
+  if (!isNotFalse(run.trusted))
     return null
 
   const branch = String(run.event_ref ?? '').replace(/^refs\/heads\//, '')

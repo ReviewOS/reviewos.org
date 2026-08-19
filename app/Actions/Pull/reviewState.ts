@@ -12,6 +12,8 @@
  * bounded by the reviewer's own id.
  */
 
+import { dbTimestamp } from '../Support/sql'
+
 /** The longest draft we will store. A comment, not a document. */
 export const DRAFT_LIMIT = 65_536
 
@@ -103,7 +105,7 @@ export async function setFileViewed(
     return
   }
 
-  const now = new Date().toISOString()
+  const now = dbTimestamp()
 
   await db.upsert(
     'reviewed_files',
@@ -147,7 +149,7 @@ export async function saveDraft(pullRequestId: number, authorId: number, draft: 
 
   // One draft per reviewer per pull request, so a second one replaces the
   // first. See the model: the viewer only ever has one open.
-  const now = new Date().toISOString()
+  const now = dbTimestamp()
 
   await db.upsert(
     'review_drafts',

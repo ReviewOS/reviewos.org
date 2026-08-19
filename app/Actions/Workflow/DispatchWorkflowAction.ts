@@ -9,6 +9,7 @@ import { authorizeRepository } from '../Repo/authorize'
 import { resolveGroup } from './concurrency'
 import { checkInputs } from './inputs'
 import { withRedeliveryKey } from './redelivery'
+import { isTrue } from '../Support/sql'
 
 /**
  * Start a workflow by hand.
@@ -124,7 +125,7 @@ export default new Action({
     if (!version)
       return response.json({ error: 'This workflow has no readable version' }, 404)
 
-    if (version.on_dispatch !== true) {
+    if (!isTrue(version.on_dispatch)) {
       return response.json({
         error: 'This workflow does not accept workflow_dispatch. Add it to the workflow\'s `on:` to run it by hand.',
       }, 409)

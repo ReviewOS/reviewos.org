@@ -29,6 +29,7 @@
 
 import { configuredSocialProviders, socialProvider } from '@stacksjs/socials'
 import { db } from '@stacksjs/database'
+import { dbTimestamp } from '../Support/sql'
 
 /** A provider as the sign-in page needs to render it. */
 export interface SocialButton {
@@ -117,7 +118,7 @@ export async function provisionFromSocial(
 ): Promise<{ userId: number, created: boolean }> {
   const issuer = `social:${provider}`
   const subject = String(profile.id)
-  const now = new Date().toISOString()
+  const now = dbTimestamp()
   const email = String(profile.email ?? '').trim().toLowerCase()
 
   const existing = await db
@@ -188,7 +189,7 @@ async function createAccount(
       email: email || `${handle}@users.noreply.reviewos.org`,
       password: crypto.randomUUID(),
       avatar_url: profile.avatar ?? null,
-      created_at: new Date().toISOString(),
+      created_at: dbTimestamp(),
     })
     .returning('id')
     .executeTakeFirst()

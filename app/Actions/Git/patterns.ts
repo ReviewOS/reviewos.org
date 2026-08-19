@@ -22,6 +22,7 @@
  */
 
 import type { SecretPattern } from './secrets'
+import { isNotFalse } from '../Support/sql'
 
 /** How long a single pattern may take on a hostile line before it is dropped. */
 export const PATTERN_BUDGET_MS = 25
@@ -146,7 +147,7 @@ export async function pushProtectionSettings(): Promise<PushProtectionSettings> 
   }
 
   settings = {
-    enabled: raw.enabled !== false,
+    enabled: isNotFalse(raw.enabled),
     allowBypass: raw.allowBypass !== false,
     minimumReasonLength: Number.isFinite(raw.minimumReasonLength) ? Number(raw.minimumReasonLength) : 12,
   }

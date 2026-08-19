@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { authorizeRepository } from '../Repo/authorize'
+import { dbTimestamp } from '../Support/sql'
 
 /**
  * "I have read this round" - advancing last-looked without a verdict.
@@ -68,7 +69,7 @@ export default new Action({
      * every review would outrank verdicts submitted after it, for as many
      * hours as the server sits east of Greenwich.
      */
-    const now = new Date().toISOString()
+    const now = dbTimestamp()
 
     await db.upsert(
       'review_checkpoints',

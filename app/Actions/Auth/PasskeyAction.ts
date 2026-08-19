@@ -15,6 +15,7 @@ import {
   sameBytes,
   signatureVerifies,
 } from './passkeys'
+import { dbTimestamp } from '../Support/sql'
 
 /**
  * Registering a passkey, listing them, and removing one.
@@ -282,7 +283,7 @@ export async function verifyPasskeyAssertion(userId: number, raw: unknown): Prom
 
     await db
       .updateTable('passkeys')
-      .set({ counter, last_used_at: new Date().toISOString() })
+      .set({ counter, last_used_at: dbTimestamp() })
       .where('id', '=', stored.id)
       .execute()
 
@@ -349,7 +350,9 @@ async function storeChallenge(userId: number, challenge: Uint8Array | ArrayBuffe
     purpose,
     // Two minutes. A WebAuthn prompt is answered in seconds or abandoned, and a
     // challenge lying around is one more thing that could be replayed.
-    expires_at: new Date(Date.now() + 120_000).toISOString(),
+    // A real `datetime` column on the framework's own table, so it needs the
+    // literal both engines take rather than an ISO string.
+    expires_at: dbTimestamp(new Date(Date.now() + 120_000)),
   }).execute()
 }
 

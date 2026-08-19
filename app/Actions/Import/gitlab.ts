@@ -29,6 +29,8 @@
  * history breaks, quietly, because the numbers are still plausible.
  */
 
+import { dbTimestamp } from '../Support/sql'
+
 /** GitLab says `opened`; everything else says `open`. */
 export function issueState(state: unknown): 'open' | 'closed' {
   return String(state ?? '').toLowerCase() === 'closed' ? 'closed' : 'open'
@@ -161,7 +163,7 @@ export function asRelease(raw: any): Record<string, unknown> {
     body: String(raw?.description ?? ''),
     prerelease: Boolean(raw?.upcoming_release),
     target_commitish: String(raw?.commit?.id ?? '') || null,
-    published_at: raw?.released_at ? String(raw.released_at) : null,
+    published_at: raw?.released_at ? dbTimestamp(String(raw.released_at)) : null,
     author: author(raw),
     /*
      * GitLab's release assets are *links*, not uploaded files.

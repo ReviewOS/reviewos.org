@@ -10,6 +10,7 @@
 // week of runs.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, workflowId: 0, versionId: 0, handle: '', name: '' }
 
@@ -155,7 +156,7 @@ describe('the schedule sweep', () => {
     expect(runs[0].event_ref).toBe('refs/heads/main')
     // The repository's own definition on its own branch, and nobody typed
     // anything: there is no untrusted tree in this path.
-    expect(runs[0].trusted).toBe(true)
+    expect(isTrue(runs[0].trusted)).toBe(true)
   })
 
   test('the run carries the jobs the definition declared', async () => {

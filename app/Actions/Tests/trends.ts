@@ -1,4 +1,5 @@
 import { db } from '@stacksjs/database'
+import { isTrue } from '../Support/sql'
 
 /**
  * What a suite has been doing lately: the slowest tests, the least reliable
@@ -145,7 +146,7 @@ export async function testTrends(input: {
       name: String(row.name),
       state: String(row.state ?? 'enabled'),
       owner: row.owner ? String(row.owner) : null,
-      flaky: row.flaky === true,
+      flaky: isTrue(row.flaky),
       samples: 0,
       failures: 0,
       reliability: null,

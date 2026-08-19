@@ -4,6 +4,7 @@ import { schema } from '@stacksjs/validation'
 import { claimsFor, mintOidcToken, TOKEN_TTL_SECONDS } from '../Workflow/oidc'
 import { authenticateJob } from './authenticate'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
+import { isNotFalse } from '../Support/sql'
 
 /**
  * A short-lived token a job can present to a cloud instead of a stored key.
@@ -98,7 +99,7 @@ export default new Action({
     if (!run)
       return runnerJson({ error: 'This job has no run' }, 404)
 
-    if (run.trusted === false) {
+    if (!isNotFalse(run.trusted)) {
       return runnerJson({
         error: 'An untrusted run gets no identity token. A fork\'s pull request stays untrusted until somebody with write access approves the exact commit.',
       }, 403)

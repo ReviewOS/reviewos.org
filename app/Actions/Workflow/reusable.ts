@@ -16,6 +16,7 @@
 
 import { db } from '@stacksjs/database'
 import { checkInputs } from './inputs'
+import { isTrue } from '../Support/sql'
 
 export interface CallTarget {
   /** The workflow version whose jobs should be copied in. */
@@ -177,7 +178,7 @@ export async function resolveCall(
    * author never offered as an interface, and the first time that matters is
    * the day somebody's `deploy.yml` is called by a workflow they have not read.
    */
-  if (version.reusable !== true)
+  if (!isTrue(version.reusable))
     return { ok: false, target: null, inputs: {}, error: `the workflow at \`${path}\` does not accept \`workflow_call\`` }
 
   const declared = parseDeclared(version.call_inputs)

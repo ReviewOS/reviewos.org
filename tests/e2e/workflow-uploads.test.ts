@@ -14,6 +14,7 @@ import { reportJob } from '../../app/Actions/Runner/report'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { MAX_UPLOADS_PER_RUN, uploadSteps } from '../../app/Actions/Workflow/upload'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', runnerIds: [] as number[] }
 
@@ -338,7 +339,7 @@ sneaky:
      * it and no code that reads one. A fork's run that could upload its way to
      * trusted would be the whole fork policy undone from inside a step.
      */
-    expect(run.trusted).toBe(false)
+    expect(isTrue(run.trusted)).toBe(false)
   }, 120_000)
 
   test('a finished run takes nothing, however alive the machine still is', async () => {

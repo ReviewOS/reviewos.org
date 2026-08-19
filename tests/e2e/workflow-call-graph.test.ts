@@ -18,6 +18,7 @@ import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { jobsContext } from '../../app/Actions/Workflow/callOutputs'
 import { settleRun } from '../../app/Actions/Workflow/settle'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '' }
 
@@ -366,7 +367,7 @@ jobs:
          * the graph and by nothing a workflow could see, which is this phase's
          * recurring shape: a value stored and never readable.
          */
-        expect(body.job.strategy.fail_fast).toBe(false)
+        expect(isTrue(body.job.strategy.fail_fast)).toBe(false)
         expect(Number(body.job.strategy.max_parallel)).toBe(2)
         expect(Number(body.job.strategy.job_total)).toBe(3)
 

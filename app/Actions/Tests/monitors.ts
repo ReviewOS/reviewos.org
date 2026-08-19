@@ -1,5 +1,6 @@
 import { db } from '@stacksjs/database'
 import { notifyProgramsOnly } from '../../Notifications/emit'
+import { isTrue } from '../Support/sql'
 
 /**
  * Rules that watch a suite over time, and fire once when the answer changes.
@@ -114,7 +115,7 @@ export async function measure(monitor: MonitorRow, now: Date = new Date()): Prom
     const flaky = new Set<number>()
 
     for (const row of rows) {
-      if (row.flaky === true)
+      if (isTrue(row.flaky))
         flaky.add(Number(row.test_id))
     }
 

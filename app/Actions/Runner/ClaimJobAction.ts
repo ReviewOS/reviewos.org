@@ -12,6 +12,7 @@ import { environmentFor as pluginEnvironment, hookScriptsFor, poolPlugins, poolV
 import { effectivePolicy } from '../Plugin/policy'
 import { policyLevels } from '../Plugin/store'
 import { repositoryPath } from '../Git/storage'
+import { isNotFalse, isTrue } from '../Support/sql'
 
 /**
  * What a runner asks for when it has capacity.
@@ -398,7 +399,7 @@ export default new Action({
       // know that, so they are sent as objects.
       with: readJson(step.inputs),
       env: readJson(step.env),
-      continue_on_error: step.continue_on_error === true,
+      continue_on_error: isTrue(step.continue_on_error),
       // The narrow timeout, which the runner applies to this step alone.
       timeout_minutes: step.timeout_minutes === null || step.timeout_minutes === undefined
         ? null
@@ -634,7 +635,7 @@ export default new Action({
          * counts differently.
          */
         strategy: {
-          fail_fast: jobRow?.fail_fast !== false,
+          fail_fast: isNotFalse(jobRow?.fail_fast),
           max_parallel: jobRow?.max_parallel === null || jobRow?.max_parallel === undefined
             ? null
             : Number(jobRow.max_parallel),
@@ -726,7 +727,7 @@ export default new Action({
                 number: Number(pull.number),
                 title: String(pull.title ?? ''),
                 state: String(pull.state ?? ''),
-                draft: pull.draft === true,
+                draft: isTrue(pull.draft),
                 head_ref: String(pull.head_ref ?? ''),
                 base_ref: String(pull.base_ref ?? ''),
                 head_sha: String(pull.head_sha ?? ''),

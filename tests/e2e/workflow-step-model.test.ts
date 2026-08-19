@@ -15,6 +15,7 @@ import { reportJob } from '../../app/Actions/Runner/report'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { settleRun } from '../../app/Actions/Workflow/settle'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', runnerIds: [] as number[] }
 
@@ -763,7 +764,7 @@ jobs:
       .where('id', '=', Number(lint.id))
       .executeTakeFirst()
 
-    expect(row.continue_on_error).toBe(true)
+    expect(isTrue(row.continue_on_error)).toBe(true)
   }, 120_000)
 })
 
@@ -1078,8 +1079,8 @@ jobs:
     const byNode = new Map(rows.map((row: any) => [String(JSON.parse(String(row.matrix_values)).node), row]))
 
     // The ordinary one: runs, and its failure would fail the run.
-    expect(String(byNode.get('20').state)).toBe('queued')
-    expect(byNode.get('20').continue_on_error).toBe(false)
+    expect(isTrue(String(byNode.get('20').state)).toBe('queued')
+    expect(byNode.get('20').continue_on_error)).toBe(false)
 
     /*
      * Skipped, with the reason on the row - which is what an adjustment buys
@@ -1095,8 +1096,8 @@ jobs:
      * there means tolerating 20 and 22 as well, and a matrix that tolerates
      * everything cannot fail a build.
      */
-    expect(String(byNode.get('24').state)).toBe('queued')
-    expect(byNode.get('24').continue_on_error).toBe(true)
+    expect(isTrue(String(byNode.get('24').state)).toBe('queued')
+    expect(byNode.get('24').continue_on_error)).toBe(true)
 
     await db.deleteFrom('workflows').where('path', '=', path).execute()
   }, 120_000)

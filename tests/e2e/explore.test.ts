@@ -6,6 +6,7 @@
 // it is asserted on every list rather than once.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { dbTimestamp } from '../../app/Actions/Support/sql'
 
 /*
  * A language nobody else wrote in.
@@ -115,7 +116,7 @@ beforeAll(async () => {
         await db.insertInto('stars').values({
           repository_id: repositoryId,
           user_id: Number(starrer?.id),
-          created_at: new Date(Date.now() - 3600_000).toISOString(),
+          created_at: dbTimestamp(new Date(Date.now() - 3600_000)),
         }).execute()
       }
     }

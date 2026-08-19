@@ -3,6 +3,7 @@ import { Job } from '@stacksjs/queue'
 import { deliveryFor } from '../Actions/Notification/settings'
 import { deliveryPreference } from '../Actions/Notification/preferences'
 import { UNSUBSCRIBE_TTL } from '../Actions/Notification/unsubscribe'
+import { dbTimestamp } from '../Actions/Support/sql'
 
 /**
  * Send one notification on one interrupting channel.
@@ -308,7 +309,7 @@ async function record(
       subject: payload.title,
       body: absolute(payload.url),
       status,
-      sent_at: status === 'sent' ? new Date().toISOString() : null,
+      sent_at: status === 'sent' ? dbTimestamp() : null,
       error: detail ?? null,
     }).execute()
   }

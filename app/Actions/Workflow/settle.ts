@@ -27,6 +27,7 @@ import { deliverRunNotifications } from './notifyDelivery'
 import { withRedeliveryKey } from './redelivery'
 import type { JobState } from './states'
 import { cancelOnFailingCasualties, effectiveState, eligibleJobs, failFastCasualties, runStateFromJobs, unreachableJobs } from './states'
+import { isNotFalse, isTrue } from '../Support/sql'
 
 /**
  * What a job cancelled by a sibling is told, on its own row.
@@ -103,8 +104,8 @@ function graphRows(jobs: readonly any[]): Array<{
     job_id: String(job.job_id),
     state: String(job.state) as JobState,
     needs: job.needs ?? null,
-    continue_on_error: job.continue_on_error === true,
-    fail_fast: job.fail_fast !== false,
+    continue_on_error: isTrue(job.continue_on_error),
+    fail_fast: isNotFalse(job.fail_fast),
     // A barrier that was told to let the run past a failure. The graph reads
     // this; nothing else needs to know it came from `wait:`.
     allow_failure: settingsOf(job).continueOnFailure === true,

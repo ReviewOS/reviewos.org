@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { removeRepositoryDirectory, removeRepositoryOwnerDirectory } from '../helpers/repositoryDirectory'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', diskPath: '', temp: '' }
 
@@ -225,7 +226,7 @@ describe('pushing a workflow file', () => {
       .where('workflow_id', '=', Number(workflow.id))
       .executeTakeFirst()
 
-    expect(version.on_push).toBe(true)
+    expect(isTrue(version.on_push)).toBe(true)
     expect(version.push_branches).toBe('main')
     expect(String(version.source_sha)).toHaveLength(40)
 
@@ -406,7 +407,7 @@ describe('and the runs it starts', () => {
     expect(runs[0].event_ref).toBe('refs/heads/main')
     // A push to the repository's own branch: the code and the workflow are
     // both from the repository, and whoever pushed has write access.
-    expect(runs[0].trusted).toBe(true)
+    expect(isTrue(runs[0].trusted)).toBe(true)
   })
 
   test('with the jobs the definition describes, waiting rather than running', async () => {

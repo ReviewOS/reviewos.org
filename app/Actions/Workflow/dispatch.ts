@@ -39,6 +39,7 @@ import { pullRequestStartsRun, pushStartsRun } from './triggers'
 import { repositoryDispatchStartsRun, workflowRunStartsRun } from './triggers'
 import { forkApprovalFacts, forkApprovalVerdict } from './forkApproval'
 import { withRedeliveryKey } from './redelivery'
+import { isNotFalse, isTrue } from '../Support/sql'
 
 export interface DispatchResult {
   /** Runs created by this delivery, not runs that exist. */
@@ -272,12 +273,12 @@ export async function dispatchSubject(input: SubjectDispatchInput): Promise<Disp
 
       const runId = Number(run?.id)
       await createJobs(runId, Number(version.id), context)
-      await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
+      await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
       await holdForGroup({
         repositoryId: input.repositoryId,
         runId,
         group,
-        cancelInProgress: version.cancel_in_progress === true,
+        cancelInProgress: isTrue(version.cancel_in_progress),
         intermediate: String(version.intermediate ?? 'run'),
       })
 
@@ -386,12 +387,12 @@ export async function dispatchRepositoryDispatch(input: RepositoryDispatchInput)
       const runId = Number(run?.id)
 
       await createJobs(runId, Number(version.id), context)
-      await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
+      await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
       await holdForGroup({
         repositoryId: input.repositoryId,
         runId,
         group,
-        cancelInProgress: version.cancel_in_progress === true,
+        cancelInProgress: isTrue(version.cancel_in_progress),
         intermediate: String(version.intermediate ?? 'run'),
       })
 
@@ -530,12 +531,12 @@ export async function dispatchWorkflowRun(input: {
       const runId = Number(run?.id)
 
       await createJobs(runId, Number(version.id), context)
-      await supersede(Number(finished.repository_id), runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
+      await supersede(Number(finished.repository_id), runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
       await holdForGroup({
         repositoryId: Number(finished.repository_id),
         runId,
         group,
-        cancelInProgress: version.cancel_in_progress === true,
+        cancelInProgress: isTrue(version.cancel_in_progress),
         intermediate: String(version.intermediate ?? 'run'),
       })
 
@@ -712,12 +713,12 @@ async function createPullRequestRun(
         .execute()
     }
 
-    await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
+    await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
     await holdForGroup({
       repositoryId: input.repositoryId,
       runId,
       group,
-      cancelInProgress: version.cancel_in_progress === true,
+      cancelInProgress: isTrue(version.cancel_in_progress),
       intermediate: String(version.intermediate ?? 'run'),
     })
 
@@ -778,12 +779,12 @@ async function createRun(input: DispatchInput, version: any): Promise<number | n
 
     const runId = Number(run?.id)
     await createJobs(runId, Number(version.id), context)
-    await supersede(input.repositoryId, runId, group, version.cancel_in_progress === true, String(version.intermediate ?? 'run'))
+    await supersede(input.repositoryId, runId, group, isTrue(version.cancel_in_progress), String(version.intermediate ?? 'run'))
     await holdForGroup({
       repositoryId: input.repositoryId,
       runId,
       group,
-      cancelInProgress: version.cancel_in_progress === true,
+      cancelInProgress: isTrue(version.cancel_in_progress),
       intermediate: String(version.intermediate ?? 'run'),
     })
 
@@ -1009,7 +1010,25 @@ export async function releaseGroup(repositoryId: number, group: string | null): 
 /** Postgres says 23505 for a unique violation; drivers wrap it differently. */
 function isDuplicate(error: unknown): boolean {
   const text = error instanceof Error ? `${error.message}` : String(error)
-  return text.includes('23505') || text.toLowerCase().includes('duplicate key')
+  const code = String((error as { code?: unknown })?.code ?? '')
+  const state = String((error as { sqlState?: unknown })?.sqlState ?? '')
+
+  /*
+   * Both engines' spellings, because this is the one error that must not
+   * escape: it is what a redelivered webhook looks like, and it is *success*
+   * for this path - the guard did its job and no second run exists.
+   *
+   * Postgres says SQLSTATE 23505 and "duplicate key"; MySQL says 23000 with
+   * errno 1062 and "Duplicate entry". Matching only the first meant a duplicate
+   * push on MySQL raised out of the dispatch loop instead of counting itself.
+   */
+  return text.includes('23505')
+    || state === '23505'
+    || state === '23000'
+    || code === 'ER_DUP_ENTRY'
+    || Number((error as { errno?: unknown })?.errno) === 1062
+    || text.toLowerCase().includes('duplicate key')
+    || text.toLowerCase().includes('duplicate entry')
 }
 
 /**
@@ -1268,7 +1287,7 @@ async function createJobs(
              * has since been edited would make a finished run's conclusion
              * something nobody can reconstruct.
              */
-            fail_fast: job.fail_fast !== false,
+            fail_fast: isNotFalse(job.fail_fast),
             max_parallel: job.max_parallel ?? null,
             timeout_minutes: job.timeout_minutes ?? null,
             /*
@@ -1279,7 +1298,7 @@ async function createJobs(
            * every version - and a matrix that tolerates everything is a matrix
            * that cannot fail a build.
            */
-          continue_on_error: job.continue_on_error === true || adjusted?.softFail === true,
+          continue_on_error: isTrue(job.continue_on_error) || adjusted?.softFail === true,
             kind: job.kind ?? 'command',
             settings: plugins.ok ? plugins.settings : (job.settings ?? null),
             group_label: job.group_label ?? null,

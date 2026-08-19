@@ -4,6 +4,7 @@ import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 import { CONDITIONS, evaluateMonitors } from './monitors'
+import { isTrue } from '../Support/sql'
 
 /**
  * The rules that watch a suite: listing them, writing one, and asking for an
@@ -177,7 +178,7 @@ function shape(row: any): Record<string, unknown> {
     window_days: Number(row.window_days ?? 7),
     state: String(row.state ?? 'ok'),
     measurement: Number(row.measurement ?? 0),
-    enabled: row.enabled === true,
+    enabled: isTrue(row.enabled),
     /*
      * Both dates, because the difference is the question somebody has: a rule
      * that says everything is fine and a rule that has not run since March

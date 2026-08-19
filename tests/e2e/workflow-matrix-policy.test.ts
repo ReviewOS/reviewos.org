@@ -15,6 +15,7 @@ import { splitLabels } from '../../app/Actions/Runner/protocol'
 import { reportJob } from '../../app/Actions/Runner/report'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', runnerIds: [] as number[] }
 
@@ -221,7 +222,7 @@ describe('the policy reaches the run', () => {
 
     // Copied onto the run rather than read back from the definition, so a
     // finished run's conclusion stays explicable after the file changes.
-    expect(jobs.find(job => job.job_id === 'flaky')?.continue_on_error).toBe(true)
+    expect(isTrue(jobs.find(job => job.job_id === 'flaky')?.continue_on_error)).toBe(true)
     expect(Number(jobs.find(job => job.job_id === 'slow')?.timeout_minutes)).toBe(5)
     expect(jobs.find(job => job.job_id === 'after')?.state).toBe('blocked')
   }, 60_000)

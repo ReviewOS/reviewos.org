@@ -15,6 +15,7 @@ import { verifySignedWork } from '../../app/Actions/Runner/localExecutor'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { verifyWork } from '../../app/Actions/Workflow/stepSignature'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = {
   ownerId: 0,
@@ -266,7 +267,7 @@ describe('a pool that requires signatures', () => {
     // The requirement reaches the machine with the work, rather than being
     // configured on the machine: an operator turning it on covers every runner
     // in the pool, not the ones whose config file somebody remembered to edit.
-    expect(job.require_signed_steps).toBe(true)
+    expect(isTrue(job.require_signed_steps)).toBe(true)
 
     const verdict = await verifySignedWork(`http://127.0.0.1:${port}`, job)
 

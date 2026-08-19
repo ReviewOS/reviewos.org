@@ -17,6 +17,7 @@ import { claimNextJob } from '../../app/Actions/Runner/claim'
 import { splitLabels } from '../../app/Actions/Runner/protocol'
 import { dispatchPullRequest } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = {
   ownerId: 0,
@@ -246,7 +247,7 @@ describe('a first-time contributor\'s fork', () => {
      * as well as the row.
      */
     expect(body.run.approval_state).toBe('approved')
-    expect(body.run.trusted).toBe(false)
+    expect(isTrue(body.run.trusted)).toBe(false)
     expect(String(body.note)).toContain('untrusted')
 
     const after: any = await db

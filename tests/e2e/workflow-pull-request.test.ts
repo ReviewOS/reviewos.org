@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { removeRepositoryDirectory } from '../helpers/repositoryDirectory'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = {
   ownerId: 0,
@@ -266,7 +267,7 @@ describe('opening a pull request', () => {
 
     const [run] = await runsHere()
 
-    expect(run.trusted).toBe(true)
+    expect(isTrue(run.trusted)).toBe(true)
   })
 
   test('the same event twice makes one run, not two', async () => {
@@ -337,7 +338,7 @@ describe('a pull request from a fork', () => {
     const fromFork = runs.find((run: any) => run.event_ref === 'refs/pull/2/head')
 
     expect(fromFork).toBeDefined()
-    expect(fromFork.trusted).toBe(false)
+    expect(isTrue(fromFork.trusted)).toBe(false)
 
     await db.deleteFrom('repositories').where('id', '=', created.forkId).execute().catch(() => {})
   })

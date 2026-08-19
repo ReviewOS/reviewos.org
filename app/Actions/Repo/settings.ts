@@ -10,6 +10,7 @@
  */
 
 import { isSafeSegment } from '../Git/storage'
+import { isNotFalse } from '../Support/sql'
 
 /** Fields a settings change may touch. Absent means "leave it alone". */
 export interface SettingsPatch {
@@ -151,7 +152,7 @@ export function decideSettings(
  * which is not what anybody means by archiving.
  */
 export function allowedWhileArchived(changes: Record<string, unknown>): boolean {
-  return Object.keys(changes).every(key => key === 'is_archived') && changes.is_archived === false
+  return Object.keys(changes).every(key => key === 'is_archived') && !isNotFalse(changes.is_archived)
 }
 
 /**

@@ -32,6 +32,7 @@
 
 import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { isNotFalse } from '../Support/sql'
 
 /**
  * Every stage, in the order it happens.
@@ -159,7 +160,7 @@ export function fleetHook(runnerDirectory: string | null | undefined, stage: Fle
  * is relaxed for a sandboxed runner, this must not be relaxed with it.
  */
 export function repositoryHooksAllowed(job: any): boolean {
-  return job?.run?.trusted !== false
+  return isNotFalse(job?.run?.trusted)
 }
 
 /** An executable file for this stage, or null. */

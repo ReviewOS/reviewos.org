@@ -40,6 +40,7 @@ import { CommandReader } from './commands'
 import type { ServiceRequest } from './services'
 import { resolveServices, serviceEnvironment, waitForPort } from './services'
 import { interpolate, shouldRun } from '../Workflow/expression'
+import { isNotFalse, isTrue } from '../Support/sql'
 
 export interface LocalRunnerOptions {
   /** Where this instance is, for the runner protocol. */
@@ -284,7 +285,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
    * than dropped, so the run reaches a terminal state instead of holding a
    * pull request's checks open forever.
    */
-  if (job.run?.trusted === false) {
+  if (!isNotFalse(job.run?.trusted)) {
     const reason = 'The local runner does not execute untrusted runs. A fork\'s pull request needs an isolated runner.'
 
     say(`refusing job ${job.id}: ${reason}`)
@@ -332,7 +333,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
    * is that unverified work never reaches a shell, and a check made after the
    * `pre-bootstrap` hook has run is a check that already executed something.
    */
-  if (job.require_signed_steps === true) {
+  if (isTrue(job.require_signed_steps)) {
     const verdict = await verifySignedWork(options.baseUrl, job)
 
     if (!verdict.ok) {

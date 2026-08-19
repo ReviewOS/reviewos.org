@@ -1,6 +1,7 @@
 import { Action } from '@stacksjs/actions'
 import { currentUser } from '../Identity/lookup'
 import { vapidKeys } from './vapid'
+import { dbTimestamp } from '../Support/sql'
 
 /**
  * Register, refresh, or drop this browser's push subscription.
@@ -56,7 +57,10 @@ export default new Action({
     if (!p256dh || !auth)
       return response.json({ error: 'A subscription needs both keys' }, 422)
 
-    const now = new Date().toISOString()
+    // `last_seen_at` is one of the four columns this schema declares as a
+    // date rather than as an ISO string, so it needs the literal both engines
+    // take - see `dbTimestamp`.
+    const now = dbTimestamp()
     const userAgent = String(request.header?.('user-agent') ?? '').slice(0, 500)
 
     const existing = await db

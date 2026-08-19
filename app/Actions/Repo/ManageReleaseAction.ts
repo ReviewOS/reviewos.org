@@ -3,6 +3,7 @@ import { runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
 import { decideRelease, DRAFT, isUsableTagName, looksLikePrerelease, PUBLISHED } from './releases'
+import { dbTimestamp } from '../Support/sql'
 
 /**
  * Publish, edit or delete a release.
@@ -96,7 +97,7 @@ export default new Action({
       // Offered as a default rather than as a rule: the flag decides, and the
       // tag's own suffix is a good guess at what somebody meant by `-rc.1`.
       is_prerelease: prerelease === undefined ? looksLikePrerelease(tag) : readFlag(prerelease),
-    }, new Date().toISOString(), existing ? { status: String(existing.status ?? DRAFT), published_at: existing.published_at ?? null } : undefined)
+    }, dbTimestamp(), existing ? { status: String(existing.status ?? DRAFT), published_at: existing.published_at ?? null } : undefined)
 
     if (!decision.ok)
       return response.json({ error: decision.error }, decision.status)

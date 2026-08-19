@@ -16,6 +16,8 @@
  * one.
  */
 
+import { isNotFalse } from '../Support/sql'
+
 export type NotifyCondition = 'success' | 'failure' | 'always'
 
 export interface NotifyEntry {
@@ -111,7 +113,7 @@ export async function deliverJobNotify(input: { jobId: number, state: string }):
      * code, and a stranger who can open a pull request should not be able to
      * make this instance message a maintainer on demand.
      */
-    if (run.trusted === false)
+    if (!isNotFalse(run.trusted))
       return 0
 
     /*

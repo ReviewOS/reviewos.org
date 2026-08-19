@@ -21,6 +21,7 @@ import type { QueueFacts } from './fleet'
 import { queueAccepts } from './fleet'
 import type { JobFacts, RunnerFacts } from './protocol'
 import { leaseUntil, mayClaim, splitLabels } from './protocol'
+import { isTrue } from '../Support/sql'
 
 /**
  * A credential good for one job.
@@ -524,7 +525,7 @@ export async function queueOf(runnerId: number): Promise<QueueFacts | null> {
     state: String(row.state),
     poolId: Number(row.pool_id),
     poolName: String(row.pool_name),
-    requireSignedSteps: row.require_signed_steps === true || row.require_signed_steps === 1,
+    requireSignedSteps: isTrue(row.require_signed_steps) || row.require_signed_steps === 1,
     pausedReason: row.paused_reason ? String(row.paused_reason) : null,
     repositoryIds: permitted.map(entry => Number(entry.repository_id)),
   }

@@ -18,6 +18,7 @@ import { db } from '@stacksjs/database'
 import { redactSecrets } from './redact'
 import type { LogEvent } from './logevents'
 import { eventsAsText } from './logevents'
+import { isNotFalse } from '../Support/sql'
 
 /**
  * How much output one job may keep.
@@ -185,10 +186,20 @@ export async function appendLog(input: AppendInput): Promise<AppendOutcome> {
   }
 }
 
-/** Postgres says 23505 for a unique violation; drivers wrap it differently. */
+/** A unique violation, in either engine's spelling. */
 function isDuplicate(error: unknown): boolean {
   const text = error instanceof Error ? `${error.message}` : String(error)
-  return text.includes('23505') || text.toLowerCase().includes('duplicate key')
+  const state = String((error as { sqlState?: unknown })?.sqlState ?? '')
+
+  // Both engines: Postgres says 23505 and "duplicate key", MySQL says 23000
+  // with errno 1062 and "Duplicate entry". A chunk arriving twice is the
+  // expected case here, so the wrong spelling makes a retry look like a fault.
+  return text.includes('23505')
+    || state === '23505'
+    || state === '23000'
+    || Number((error as { errno?: unknown })?.errno) === 1062
+    || text.toLowerCase().includes('duplicate key')
+    || text.toLowerCase().includes('duplicate entry')
 }
 
 export interface LogPage {
@@ -242,7 +253,7 @@ async function secretsOfJob(jobId: number): Promise<string[]> {
 
     const delivered = await secretsForJob({
       repositoryId: Number(row.repository_id),
-      trusted: row.trusted !== false,
+      trusted: isNotFalse(row.trusted),
       environment: typeof settings.environment === 'string' ? settings.environment : null,
       approved: Boolean(row.approved_at),
       only: Array.isArray(settings.secrets) ? settings.secrets.map(String) : null,

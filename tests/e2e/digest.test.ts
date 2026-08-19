@@ -22,6 +22,7 @@
 // there is not one.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { dbTimestamp } from '../../app/Actions/Support/sql'
 
 const created = { openId: 0, shutId: 0 }
 
@@ -33,7 +34,7 @@ function unique(prefix: string): string {
 
 /** A held delivery, as SendNotificationJob would have written it. */
 async function hold(userId: number, title: string, url: string, minutesAgo = 0): Promise<void> {
-  const at = new Date(Date.now() - minutesAgo * 60_000).toISOString()
+  const at = dbTimestamp(new Date(Date.now() - minutesAgo * 60_000))
 
   await (globalThis as any).db.insertInto('notification_deliveries').values({
     user_id: userId,

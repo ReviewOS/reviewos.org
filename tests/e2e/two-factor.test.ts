@@ -10,6 +10,7 @@
 // same secret - so this exercises the real verification rather than a stub.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = {
   handle: '',
@@ -185,7 +186,7 @@ describe('enrolling', () => {
     if (!available)
       return
 
-    expect((await twoFactor({ operation: 'status' })).body?.enabled).toBe(false)
+    expect(isTrue((await twoFactor({ operation: 'status' })).body?.enabled)).toBe(false)
 
     const begun = await twoFactor({ operation: 'begin' })
 
@@ -200,7 +201,7 @@ describe('enrolling', () => {
      * off - so somebody who photographs the QR code and never scans it, or
      * whose device clock is wrong, has not locked themselves out.
      */
-    expect((await twoFactor({ operation: 'status' })).body?.enabled).toBe(false)
+    expect(isTrue((await twoFactor({ operation: 'status' })).body?.enabled)).toBe(false)
   }, 30_000)
 
   test('refuses a wrong code and leaves it off', async () => {
@@ -209,8 +210,8 @@ describe('enrolling', () => {
 
     const answer = await twoFactor({ operation: 'enable', code: '000000' })
 
-    expect(answer.status).toBe(422)
-    expect((await twoFactor({ operation: 'status' })).body?.enabled).toBe(false)
+    expect(isTrue(answer.status).toBe(422)
+    expect((await twoFactor({ operation: 'status' })).body?.enabled)).toBe(false)
   }, 30_000)
 
   test('turns on with a real code, and hands over the recovery codes once', async () => {
@@ -220,7 +221,7 @@ describe('enrolling', () => {
     const answer = await twoFactor({ operation: 'enable', code: await currentCode(created.secret) })
 
     expect(answer.status).toBe(200)
-    expect(answer.body?.enabled).toBe(true)
+    expect(isTrue(answer.body?.enabled)).toBe(true)
 
     created.recoveryCodes = answer.body?.recovery_codes ?? []
 
@@ -230,7 +231,7 @@ describe('enrolling', () => {
     expect(created.recoveryCodes[0]).toMatch(/^[a-z2-9]{5}-[a-z2-9]{5}$/)
 
     const status = await twoFactor({ operation: 'status' })
-    expect(status.body?.enabled).toBe(true)
+    expect(isTrue(status.body?.enabled)).toBe(true)
     expect(status.body?.recovery_codes_remaining).toBe(10)
   }, 30_000)
 
@@ -366,7 +367,7 @@ describe('turning it off', () => {
      * Requiring the factor to remove the factor is the point of having it.
      */
     expect((await twoFactor({ operation: 'disable' })).status).toBe(422)
-    expect((await twoFactor({ operation: 'status' })).body?.enabled).toBe(true)
+    expect(isTrue((await twoFactor({ operation: 'status' })).body?.enabled)).toBe(true)
   }, 30_000)
 
   test('and takes the recovery codes with it', async () => {
@@ -376,7 +377,7 @@ describe('turning it off', () => {
     const answer = await twoFactor({ operation: 'disable', code: await currentCode(created.secret) })
 
     expect(answer.status).toBe(200)
-    expect(answer.body?.enabled).toBe(false)
+    expect(isTrue(answer.body?.enabled)).toBe(false)
 
     // Left live, a printed set would still bypass a factor turned back on later
     // with a different device.

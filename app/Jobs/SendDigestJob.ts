@@ -1,6 +1,7 @@
 import { Job } from '@stacksjs/queue'
 import { batchNotifications } from '../Actions/Notification/recipients'
 import { deliveryFor } from '../Actions/Notification/settings'
+import { dbTimestamp } from '../Actions/Support/sql'
 
 /**
  * Send what was held, as one message per thread.
@@ -131,7 +132,7 @@ export default new Job({
 
       await db
         .updateTable('notification_deliveries')
-        .set({ status: 'sent', sent_at: new Date().toISOString() })
+        .set({ status: 'sent', sent_at: dbTimestamp() })
         .where('id', 'in', rows.map(row => Number(row.id)))
         .execute()
 

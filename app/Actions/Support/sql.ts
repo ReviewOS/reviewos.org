@@ -120,6 +120,66 @@ export function portable(sql: string, dialect = currentDialect()): string {
 }
 
 /**
+ * A column that means yes or no, read the same way on either engine.
+ *
+ * MySQL has no boolean type: `BOOLEAN` is a spelling of `TINYINT(1)`, so a
+ * column Postgres hands back as `true` arrives as `1`. Every `x === true` on a
+ * row therefore changes meaning when the engine changes - and it changes it
+ * *silently*, into the branch nobody tested. It surfaced here as a workflow
+ * that accepts `workflow_dispatch` answering 409, "this workflow does not
+ * accept workflow_dispatch", because `!isTrue(version.on_dispatch)` was true of
+ * the number 1.
+ *
+ * `1`, `'1'`, `'t'` and `'true'` are all yes, because a driver, a JSON body and
+ * a form each spell it their own way and this is read at the boundary between
+ * them.
+ */
+export function isTrue(value: unknown): boolean {
+  if (typeof value === 'boolean')
+    return value
+
+  if (typeof value === 'number')
+    return value !== 0
+
+  if (typeof value === 'string')
+    return value === '1' || value.toLowerCase() === 'true' || value.toLowerCase() === 't'
+
+  return false
+}
+
+/** The other half, for the `!== false` shape: null and undefined are not "no". */
+export function isNotFalse(value: unknown): boolean {
+  return value === null || value === undefined ? true : isTrue(value)
+}
+
+/**
+ * A moment, in the one literal shape both engines accept.
+ *
+ * `new Date().toISOString()` is `2026-08-19T04:37:11.396Z`, and MySQL refuses
+ * it for a `DATETIME` column - "Incorrect datetime value" - because the `T`,
+ * the fraction and the `Z` are none of them part of a datetime literal. The
+ * write fails outright, which at least is loud; what is not loud is that the
+ * code producing it looks perfectly correct, and does work on Postgres.
+ *
+ * `YYYY-MM-DD HH:MM:SS` is accepted by both, so there is no branch here: one
+ * spelling, always. Naive UTC, because that is the convention every timestamp
+ * column in this schema follows and because a `DATETIME` stores no zone.
+ *
+ * Most timestamps here are `varchar(40)` holding an ISO string, and those are
+ * strings - they are unaffected, and passing one through this would change what
+ * is stored. This is for the columns the schema declares as a date, which
+ * `tests/unit/sql-portability.test.ts` lists.
+ */
+export function dbTimestamp(value: Date | string = new Date()): string {
+  const date = value instanceof Date ? value : new Date(value)
+
+  if (Number.isNaN(date.getTime()))
+    return String(value)
+
+  return date.toISOString().replace('T', ' ').replace(/\.\d+Z$/, '')
+}
+
+/**
  * An expression as text, in a cast both engines accept.
  *
  * `CAST(x AS varchar)` is Postgres. MySQL has no `varchar` cast type and stops

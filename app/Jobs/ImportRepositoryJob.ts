@@ -15,6 +15,7 @@ import { GitHubClient } from '../Actions/Mirror/github-client'
 import { issueRow, pullNumberOf, pullRow, reviewCommentRow, threadRow } from '../Actions/Mirror/metadata'
 import { recountComments, recountOpenIssues } from '../Actions/Repo/counters'
 import { db } from '@stacksjs/database'
+import { dbTimestamp } from '../Actions/Support/sql'
 
 /**
  * Bring a GitHub repository here, with its history and its conversations.
@@ -743,7 +744,7 @@ async function importReleases(progress: ImportProgress, context: StageContext): 
       notes: rewriteReferences(String((raw as any).body ?? ''), imported),
       is_prerelease: Boolean((raw as any).prerelease),
       target_sha: String((raw as any).target_commitish ?? '') || null,
-      published_at: (raw as any).published_at ? String((raw as any).published_at) : null,
+      published_at: (raw as any).published_at ? dbTimestamp(String((raw as any).published_at)) : null,
       user_id: linked.get(login) ?? null,
       // `releases.author` is a plain string on this table, so an unmapped
       // author is recorded there rather than lost - the same rule as everywhere

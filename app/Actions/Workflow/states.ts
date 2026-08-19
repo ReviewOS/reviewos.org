@@ -13,6 +13,8 @@
  * are silent: the row simply says something else than it did.
  */
 
+import { isNotFalse, isTrue } from '../Support/sql'
+
 export type RunState =
   | 'queued' | 'running' | 'waiting' | 'paused'
   | 'cancelling' | 'cancelled' | 'failed' | 'succeeded'
@@ -195,7 +197,7 @@ export interface GraphJob {
  * can show the failure while the graph carries on.
  */
 export function effectiveState(job: { state: JobState, continue_on_error?: boolean | null }): JobState {
-  return job.state === 'failed' && job.continue_on_error === true ? 'succeeded' : job.state
+  return job.state === 'failed' && isTrue(job.continue_on_error) ? 'succeeded' : job.state
 }
 
 /** The `needs:` column, which is newline-separated because YAML lists are. */
@@ -331,7 +333,7 @@ export function cancelOnFailingCasualties<T extends GraphJob>(jobs: readonly T[]
   const cancel: T[] = []
   const stop: T[] = []
 
-  const sunk = jobs.some(job => job.state === 'failed' && job.continue_on_error !== true)
+  const sunk = jobs.some(job => job.state === 'failed' && !isTrue(job.continue_on_error))
 
   if (!sunk)
     return { cancel, stop }
@@ -380,11 +382,11 @@ export function failFastCasualties<T extends GraphJob>(jobs: readonly T[]): { ca
 
     // Unrecorded means Actions' default, not "off": a row written before this
     // column existed should behave the way the file said.
-    if (members.some(member => member.fail_fast === false))
+    if (members.some(member => !isNotFalse(member.fail_fast)))
       continue
 
     // A failure the workflow said to allow is not a failure to fail fast on.
-    if (!members.some(member => member.state === 'failed' && member.continue_on_error !== true))
+    if (!members.some(member => member.state === 'failed' && !isTrue(member.continue_on_error)))
       continue
 
     for (const member of members) {

@@ -19,6 +19,7 @@
 // there is not one.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { dbTimestamp } from '../../app/Actions/Support/sql'
 
 const created = { userId: 0, quietId: 0 }
 
@@ -54,7 +55,7 @@ async function register(userId: number, status: number): Promise<string> {
     public_key: subscriberKeys.p256dh,
     auth_secret: subscriberKeys.auth,
     user_agent: 'Mozilla/5.0 (Macintosh) Chrome/120',
-    last_seen_at: new Date().toISOString(),
+    last_seen_at: dbTimestamp(),
   }).execute()
 
   return endpoint

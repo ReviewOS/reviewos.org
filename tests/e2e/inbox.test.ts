@@ -14,6 +14,7 @@
 // there is not one.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { dbTimestamp } from '../../app/Actions/Support/sql'
 
 const created = { readerId: 0, otherId: 0 }
 
@@ -57,7 +58,7 @@ beforeAll(async () => {
     await give(created.readerId, { url: '/acme/api/pull/1', repository: 'acme/api', reason: 'review_requested', number: 1 })
     await give(created.readerId, { url: '/acme/api/pull/2', repository: 'acme/api', reason: 'watching', number: 2 })
     await give(created.readerId, { url: '/acme/web/issue/3', repository: 'acme/web', reason: 'mentioned', number: 3 })
-    await give(created.readerId, { url: '/acme/web/issue/4', repository: 'acme/web', reason: 'watching', number: 4 }, new Date().toISOString())
+    await give(created.readerId, { url: '/acme/web/issue/4', repository: 'acme/web', reason: 'watching', number: 4 }, dbTimestamp())
 
     // Somebody else's inbox, so every query below has something to leak.
     await give(created.otherId, { url: '/secret/repo/pull/9', repository: 'secret/repo', reason: 'author', number: 9 })
@@ -168,7 +169,7 @@ describe('marking read', () => {
 
     await db
       .updateTable('notifications')
-      .set({ read_at: new Date().toISOString() })
+      .set({ read_at: dbTimestamp() })
       .where('user_id', '=', created.readerId)
       .whereNull('read_at')
       .where('id', 'in', web)
@@ -199,7 +200,7 @@ describe('marking read', () => {
     // the ids are handed over.
     await db
       .updateTable('notifications')
-      .set({ read_at: new Date().toISOString() })
+      .set({ read_at: dbTimestamp() })
       .where('user_id', '=', created.readerId)
       .where('id', 'in', theirs.map((row: any) => Number(row.id)))
       .execute()

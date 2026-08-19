@@ -1,5 +1,6 @@
 import { Action } from '@stacksjs/actions'
 import { currentUser } from '../Identity/lookup'
+import { dbTimestamp } from '../Support/sql'
 
 /**
  * Mark notifications read: one, several, or the whole filtered view.
@@ -31,7 +32,9 @@ export default new Action({
     if (!user)
       return response.json({ error: 'Unauthenticated' }, 401)
 
-    const now = new Date().toISOString()
+    // `read_at` is a real datetime column; see `dbTimestamp` for why an ISO
+    // string is not a datetime literal.
+    const now = dbTimestamp()
     const all = readFlag(request.get('mark_all'))
     const ids = readIds(request.get('ids') ?? request.get('id'))
 

@@ -28,6 +28,7 @@
 
 import { db } from '@stacksjs/database'
 import { notifyProgramsOnly } from '../../Notifications/emit'
+import { isTrue } from '../Support/sql'
 
 export interface IngestInput {
   repositoryId: number
@@ -305,12 +306,12 @@ export async function detectFlakes(testIds: readonly number[], announce?: { repo
          * would make every run in the window look like the first one to hit it
          * - which is exactly the question the impact number asks.
          */
-        ...(test && test.flaky !== true ? { flaky_since: new Date().toISOString() } : {}),
+        ...(test && !isTrue(test.flaky) ? { flaky_since: new Date().toISOString() } : {}),
       })
       .where('id', '=', testId)
       .execute()
 
-    if (test && test.flaky !== true) {
+    if (test && !isTrue(test.flaky)) {
       newly.push(`${String(test.scope ?? '')}${test.scope ? ' › ' : ''}${String(test.name)}`)
 
       /*

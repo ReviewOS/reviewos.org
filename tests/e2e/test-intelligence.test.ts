@@ -8,6 +8,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { ingestTestRun } from '../../app/Actions/Tests/ingest'
 import { parseJunit } from '../../app/Actions/Tests/junit'
+import { dbTimestamp, isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', token: '' }
 
@@ -259,7 +260,7 @@ describe('flake detection', () => {
 
     // One failure is a failure, not a flake. A tool that called it flaky here
     // would be telling somebody to ignore a broken test.
-    expect(tests.sometimes!.flaky).toBe(false)
+    expect(isTrue(tests.sometimes!.flaky)).toBe(false)
 
     const rerun = await ingest({
       key: 'flake-2',
@@ -269,7 +270,7 @@ describe('flake detection', () => {
 
     tests = await testsIn('unit')
 
-    expect(tests.sometimes!.flaky).toBe(true)
+    expect(isTrue(tests.sometimes!.flaky)).toBe(true)
     expect(String(tests.sometimes!.flaky_reason)).toContain('same commit')
     // Named in the answer, so the collector's log says what this run found
     // rather than what was already known.
@@ -291,7 +292,7 @@ describe('flake detection', () => {
       executions: [{ scope: 'src/r.ts', name: 'eventually', result: 'passed', retries: 2 }],
     })
 
-    expect((await testsIn('unit')).eventually!.flaky).toBe(true)
+    expect(isTrue((await testsIn('unit')).eventually!.flaky)).toBe(true)
     expect(String((await testsIn('unit')).eventually!.flaky_reason)).toContain('retry')
   }, 120_000)
 
@@ -311,7 +312,7 @@ describe('flake detection', () => {
       executions: [{ scope: 'src/s.ts', name: 'steady', result: 'passed' }],
     })
 
-    expect((await testsIn('unit')).steady!.flaky).toBe(false)
+    expect(isTrue((await testsIn('unit')).steady!.flaky)).toBe(false)
   }, 120_000)
 })
 
@@ -586,7 +587,7 @@ describe('retention', () => {
 
     // Dated back past any plausible policy, which is the only way to make an
     // "older than the window" test that does not depend on the window.
-    const old = new Date(Date.now() - 400 * 86_400_000).toISOString()
+    const old = dbTimestamp(new Date(Date.now() - 400 * 86_400_000))
 
     await db.updateTable('test_runs').set({ created_at: old } as any).where('test_suite_id', '=', Number(suite.id)).execute()
 

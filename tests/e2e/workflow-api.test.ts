@@ -6,6 +6,7 @@
 // than 403 - a 403 confirms it exists, which is the one thing it must not say.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '', versionId: 0, token: '' }
 
@@ -517,7 +518,7 @@ describe('dispatching a workflow by hand', () => {
     expect(JSON.parse(String(run.dispatch_inputs))).toEqual({ 'environment': 'production', 'dry-run': 'false' })
     // Whoever asked has write access and the workflow is the repository's own:
     // there is no untrusted tree in this path.
-    expect(run.trusted).toBe(true)
+    expect(isTrue(run.trusted)).toBe(true)
   })
 
   test('a required input with nothing to fall back on is refused', async () => {
@@ -719,7 +720,7 @@ describe('an issue or a release starting a run', () => {
     expect(String(run.event_ref)).toContain('issues/7/opened')
     // The repository's own workflow on its own default branch: nothing about
     // an issue is a tree, so there is no untrusted commit in this path.
-    expect(run.trusted).toBe(true)
+    expect(isTrue(run.trusted)).toBe(true)
   })
 
   test('an activity type the workflow did not name starts nothing', async () => {

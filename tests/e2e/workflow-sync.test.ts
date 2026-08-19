@@ -8,6 +8,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { digestOf, syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '' }
 
@@ -146,8 +147,8 @@ describe('storing a workflow', () => {
       .where('id', '=', result.versionId)
       .executeTakeFirst()
 
-    expect(version.on_push).toBe(true)
-    expect(version.on_pull_request).toBe(false)
+    expect(isTrue(version.on_push)).toBe(true)
+    expect(isTrue(version.on_pull_request)).toBe(false)
     expect(version.push_branches).toBe('main')
     expect(version.push_paths).toBe('src/**')
   })

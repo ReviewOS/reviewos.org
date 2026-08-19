@@ -3,6 +3,7 @@ import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
+import { isTrue } from '../Support/sql'
 
 /**
  * Muting, skipping, owning, and looking at a test's history.
@@ -110,7 +111,7 @@ export default new Action({
           name: String(row.name),
           state: String(row.state),
           owner: row.owner ? String(row.owner) : null,
-          flaky: row.flaky === true,
+          flaky: isTrue(row.flaky),
           flaky_reason: row.flaky_reason ? String(row.flaky_reason) : null,
           muted_at: row.muted_at ? String(row.muted_at) : null,
           muted_reason: row.muted_reason ? String(row.muted_reason) : null,

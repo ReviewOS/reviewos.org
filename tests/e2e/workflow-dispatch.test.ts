@@ -8,6 +8,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { dispatchPush } from '../../app/Actions/Workflow/dispatch'
 import { syncWorkflowFile } from '../../app/Actions/Workflow/sync'
+import { isTrue } from '../../app/Actions/Support/sql'
 
 const created = { ownerId: 0, repositoryId: 0, handle: '', name: '' }
 
@@ -135,7 +136,7 @@ describe('a push that matches', () => {
     expect(run.event).toBe('push')
     expect(run.event_ref).toBe('refs/heads/main')
     expect(run.head_sha).toBe(HEAD)
-    expect(run.trusted).toBe(true)
+    expect(isTrue(run.trusted)).toBe(true)
     expect(Number(run.number)).toBe(1)
   })
 
