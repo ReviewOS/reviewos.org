@@ -161,11 +161,23 @@ const tags = allTags.slice(0, 30)
 // before interpolation, so wrapping `{!! readme.text !!}` in it markdown-renders
 // the literal token and then drops the file's text into the page untouched -
 // which for a mirrored repository means whatever HTML its README contains.
+/*
+ * `ref` and `directory` are what make a README's own images appear.
+ *
+ * Relative references in repository text are relative to *the file*, and a
+ * browser left to resolve them resolves them against this page's URL - so
+ * `./docs/arch.png` in the README at the root asks for `/{owner}/docs/arch.png`,
+ * which belongs to nobody. Every image in every mirrored README was broken this
+ * way. See `app/Actions/Markdown/urls.ts`.
+ *
+ * The README's directory is the one being listed; a markdown file's is the
+ * directory it is in, which is its path with the filename taken off.
+ */
 const readmeHtml = readme?.ok && readme.text !== null && !readme.binary
-  ? await renderMarkdownHighlighted(readme.text, { owner: ownerHandle, repository: repositoryName })
+  ? await renderMarkdownHighlighted(readme.text, { owner: ownerHandle, repository: repositoryName, ref, directory: requestedPath })
   : ''
 const blobMarkdownHtml = (blob?.ok && blob.text !== null && !blob.binary && !blob.tooLarge && isMarkdown(requestedPath))
-  ? await renderMarkdownHighlighted(blob.text, { owner: ownerHandle, repository: repositoryName })
+  ? await renderMarkdownHighlighted(blob.text, { owner: ownerHandle, repository: repositoryName, ref, directory: requestedPath.split('/').slice(0, -1).join('/') })
   : ''
 
 const notFound = !repoRow

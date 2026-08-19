@@ -328,7 +328,7 @@ const DIRECTIONS = new Set(['ltr', 'rtl', 'auto'])
  * accepts arbitrary input, and it is only reachable for `alt` and `title`,
  * where arbitrary input is the point.
  */
-function attribute(name: string, rule: AttributeRule, value: string | null): string | null {
+function attribute(name: string, rule: AttributeRule, value: string | null, resolved?: string): string | null {
   if (rule === 'boolean')
     return name
 
@@ -352,8 +352,11 @@ function attribute(name: string, rule: AttributeRule, value: string | null): str
 
     case 'url': {
       // The same check markdown links get, entity decoding and all. There is
-      // one answer to "may this be an href" in this pipeline and this is it.
-      const url = safeUrl(value)
+      // one answer to "may this be an href" in this pipeline and this is it -
+      // and it runs on the *resolved* reference, so a relative one is checked
+      // as the URL that will actually be emitted rather than as what was
+      // written.
+      const url = safeUrl(resolved ?? value)
 
       return url ? `${name}="${escapeAttribute(url)}"` : null
     }
@@ -382,7 +385,20 @@ export type BuiltTag =
   | { kind: 'elide' }
   | { kind: 'reject' }
 
-export function buildOpenTag(name: string, attributes: Array<[string, string | null]>): BuiltTag {
+/**
+ * Where a relative reference in this document points.
+ *
+ * Optional, and absent everywhere the text did not come out of a repository.
+ * `media` is an image and `link` is somewhere to go, and they resolve to
+ * different places - see `./urls.ts`.
+ */
+export type ReferenceResolver = (raw: string, kind: 'media' | 'link') => string
+
+export function buildOpenTag(
+  name: string,
+  attributes: Array<[string, string | null]>,
+  resolve?: ReferenceResolver,
+): BuiltTag {
   const rule = ALLOWED_TAGS[name]
   if (!rule)
     return { kind: 'reject' }
@@ -396,7 +412,13 @@ export function buildOpenTag(name: string, attributes: Array<[string, string | n
     if (!attributeRule || seen.has(attributeName))
       continue
 
-    const built = attribute(attributeName, attributeRule, value)
+    // An `<img src>` is a picture to fetch and an `<a href>` is a place to go,
+    // and on this forge those are two different URLs for the same file.
+    const resolved = resolve && attributeRule === 'url' && value !== null
+      ? resolve(value, name === 'img' ? 'media' : 'link')
+      : undefined
+
+    const built = attribute(attributeName, attributeRule, value, resolved)
     if (built) {
       seen.add(attributeName)
       parts.push(built)
@@ -415,7 +437,9 @@ export function buildOpenTag(name: string, attributes: Array<[string, string | n
   // value, not on the attribute being present.
   if (name === 'a') {
     const href = attributes.find(([attributeName]) => attributeName === 'href')?.[1]
-    const url = href ? safeUrl(href) : null
+    // Resolved first: a relative link becomes a path on this site, and marking
+    // it `nofollow noopener` would be marking our own pages as somebody else's.
+    const url = href ? safeUrl(resolve ? resolve(href, 'link') : href) : null
     if (url && isExternal(url))
       parts.push('rel="nofollow noopener noreferrer"')
   }
@@ -458,7 +482,7 @@ export interface HtmlWriter {
   close: () => string
 }
 
-export function createHtmlWriter(): HtmlWriter {
+export function createHtmlWriter(resolve?: ReferenceResolver): HtmlWriter {
   /** Open elements, innermost last. `elided` ones emit no closer. */
   const open: Array<{ name: string, elided: boolean }> = []
 
@@ -487,7 +511,7 @@ export function createHtmlWriter(): HtmlWriter {
         }
 
         if (token.kind === 'open') {
-          const built = buildOpenTag(token.name, token.attributes)
+          const built = buildOpenTag(token.name, token.attributes, resolve)
 
           if (built.kind === 'reject') {
             out += escapeText(sourceOf(token))

@@ -552,6 +552,13 @@ route.post('/repos/topics', 'Actions/Repo/UpdateTopicsAction').middleware('auth'
 route.get('/repos/raw', 'Actions/Git/RawFileAction')
 route.get('/repos/archive', 'Actions/Git/ArchiveAction')
 
+// The one exception, and it is narrow on purpose: an image, recognised by its
+// bytes rather than by its name, off a closed list, under a CSP that makes the
+// response inert. It exists because `nosniff` on raw is what stops a pushed
+// `index.html` being a page here - and is also what stops a README's own
+// diagrams from rendering. See app/Actions/Git/media.ts.
+route.get('/repos/media', 'Actions/Git/MediaAction')
+
 // Issues. Both issues and pull requests live in one numbering sequence, so
 // `#12` means one thing in a repository, and a comment endpoint serves both.
 // Listing is the one that is readable without an account, because a public

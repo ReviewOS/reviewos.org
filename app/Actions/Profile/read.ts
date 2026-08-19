@@ -310,7 +310,16 @@ export async function profileReadme(handle: string, isOrganization: boolean, coo
       // text into the page untouched - and this file is written by whoever owns
       // the handle. `renderMarkdownHighlighted` is where the sanitising lives.
       return {
-        html: await renderMarkdownHighlighted(blob.text, { owner, repository }),
+        // `ref` and `directory` are what let a profile README show its own
+        // images: a relative reference is relative to the file, and a browser
+        // resolves it against the profile's URL instead. See
+        // `app/Actions/Markdown/urls.ts`.
+        html: await renderMarkdownHighlighted(blob.text, {
+          owner,
+          repository,
+          ref,
+          directory: path.split('/').slice(0, -1).join('/'),
+        }),
         repository,
         path,
       }

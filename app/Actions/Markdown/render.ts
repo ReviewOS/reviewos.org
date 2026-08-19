@@ -25,11 +25,29 @@ import { highlightLines } from '../Browse/highlight'
 import { scanEmoji } from './emoji'
 import { createHtmlWriter } from './html'
 import { scanCommitReferences, scanIssueReferences, scanUserReferences } from './references'
+import { resolveRepositoryReference } from './urls'
 
 export interface MarkdownContext {
   /** Repository the text belongs to. Without it, `#12` stays plain text. */
   owner?: string | null
   repository?: string | null
+  /**
+   * The ref this text was read at, for text that came out of the repository.
+   *
+   * Set it and relative links and images resolve against the repository - a
+   * README saying `![diagram](./docs/arch.png)` means a file beside itself, and
+   * a browser left to resolve that against `/{owner}/{repository}` asks a
+   * different owner for it. Leave it unset and nothing is rewritten, which is
+   * the right answer for an issue body: that text was typed into a box, not
+   * read out of a tree, so it has no directory to be relative to.
+   */
+  ref?: string | null
+  /**
+   * The directory the document sits in, `''` at the root. `docs/README.md`
+   * makes this `docs`, so `./arch.png` resolves beside the file rather than
+   * beside the repository.
+   */
+  directory?: string | null
   /**
    * Collector for fenced code blocks, set by `renderMarkdownHighlighted`.
    *
@@ -408,7 +426,29 @@ export function renderMarkdown(source: string, context: MarkdownContext = {}): s
    * (`maskCommentText` in `no-unused-vars`), which this app is not yet
    * resolving from.
    */
-  const markup = createHtmlWriter()
+  /*
+   * Where a relative reference in this text points, or null when it points
+   * nowhere in particular. See `./urls.ts`: a README's `./docs/arch.png` is
+   * relative to the file, and a browser resolving it against the page asks for
+   * a path in a different owner's namespace. Null for text that was typed into
+   * a box rather than read out of a tree, which leaves every URL as written.
+   */
+  const references = context.owner && context.repository && context.ref
+    ? {
+        owner: String(context.owner),
+        repository: String(context.repository),
+        ref: String(context.ref),
+        directory: String(context.directory ?? ''),
+      }
+    : null
+
+  const located = (raw: string, kind: 'media' | 'link'): string =>
+    resolveRepositoryReference(raw, kind, references)
+
+  // The writer builds raw HTML tags, and a README's images are as often
+  // `<img src="…">` inside a centred `<p>` as they are markdown - so the same
+  // rule has to reach both, or half of them stay broken.
+  const markup = createHtmlWriter(located)
 
   /** Text as written, escaped. For code, and for anything going in an attribute. */
   const plain = (children: string): string => resolve(children, escapeText)
@@ -511,11 +551,11 @@ export function renderMarkdown(source: string, context: MarkdownContext = {}): s
     // Link text is not linkified: a `#12` inside a link would otherwise become
     // an anchor nested in an anchor, which is not valid HTML and renders as a
     // mess. Shortcodes are fine, because a character is not an element.
-    link: (children, meta) => link(withMailto(meta.href), labelled(children), meta.title),
+    link: (children, meta) => link(located(withMailto(meta.href), 'link'), labelled(children), meta.title),
     image: (children, meta) => {
       // The alt text arrives as the image's children, not in the metadata.
       const alt = raw(children)
-      const url = safeUrl(meta.src)
+      const url = safeUrl(located(meta.src, 'media'))
       if (!url)
         return escapeText(alt)
 
