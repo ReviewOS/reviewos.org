@@ -17,7 +17,7 @@
  * reading past what came before it, which is a pipe read and no allocation.
  */
 
-import { isSafeRevision, runGit, spawnGit } from '../Git/git'
+import { isSafeRevision, runGit, spawnGitLimited } from '../Git/git'
 
 /**
  * How many lines a window holds.
@@ -138,7 +138,13 @@ export async function readBlobWindow(
     count: Math.min(Math.max(1, Math.floor(request.count ?? BLOB_WINDOW_LINES)), BLOB_WINDOW_LINES),
   }
 
-  const child = spawnGit(repositoryPath, ['cat-file', 'blob', `${ref}:${path}`])
+  // Under the process ceiling like every other git spawn. A reader paging
+  // through a large file is `interactive`: brief, and somebody is waiting.
+  const child = await spawnGitLimited('interactive', repositoryPath, ['cat-file', 'blob', `${ref}:${path}`])
+
+  if (!child)
+    return { ...empty, error: 'The server is busy. Try again shortly.' }
+
   const kept: string[] = []
 
   /*

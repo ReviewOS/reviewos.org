@@ -1,7 +1,25 @@
 import { route } from '@stacksjs/router'
 import { isMirrored, parseActionUrl } from '../app/Actions/Actions/store'
-import { serviceArgs, spawnGit } from '../app/Actions/Git/git'
+import { serviceArgs, spawnGitLimited } from '../app/Actions/Git/git'
+import { stdoutStream } from '../app/Actions/Git/stream'
 import { actionPath } from '../app/Actions/Actions/store'
+
+/**
+ * The transfer classes are full and stayed full for the acquire timeout.
+ *
+ * The same refusal the repository wire protocol gives, and it matters more
+ * here than there: this is the endpoint a whole runner fleet fetches from at
+ * the start of every job, so it is the most likely thing on the instance to
+ * be asked for a hundred simultaneous `upload-pack`s. A 503 with `Retry-After`
+ * makes a runner wait; queueing without bound makes the box fall over with
+ * everybody's requests attached.
+ */
+function saturated(): Response {
+  return new Response('The server is at its concurrent transfer limit. Try again shortly.\n', {
+    status: 503,
+    headers: { 'Retry-After': '30' },
+  })
+}
 
 /**
  * The mirrored actions, served over the ordinary git protocol.
@@ -67,18 +85,31 @@ route.get('/actions/{host}/{owner}/{repository}/info/refs', async (request: any)
   if (!mirror)
     return new Response('No such mirrored action', { status: 404 })
 
-  const child = spawnGit(mirror.path, serviceArgs(mirror.path, 'upload-pack', { advertiseRefs: true }))
+  // `heavy`, exactly as the repository routes: an advertisement is cheap but
+  // it is the front half of a transfer, and counting it is what keeps a fleet
+  // from opening more of them than the box can finish.
+  const child = await spawnGitLimited('heavy', mirror.path, serviceArgs(mirror.path, 'upload-pack', { advertiseRefs: true }))
+
+  if (!child)
+    return saturated()
+
+  const preamble = new TextEncoder().encode(`${packetLine('# service=git-upload-pack\n')}0000`)
+  const advertisement = stdoutStream(child).getReader()
 
   const stream = new ReadableStream({
     start(controller) {
-      controller.enqueue(new TextEncoder().encode(packetLine('# service=git-upload-pack\n')))
-      controller.enqueue(new TextEncoder().encode('0000'))
-      child.stdout.on('data', (chunk: any) => controller.enqueue(new Uint8Array(chunk)))
-      child.stdout.on('end', () => controller.close())
-      child.on('error', () => controller.close())
+      controller.enqueue(preamble)
     },
-    cancel() {
-      child.kill('SIGKILL')
+    async pull(controller) {
+      const { done, value } = await advertisement.read()
+
+      if (done)
+        controller.close()
+      else
+        controller.enqueue(value)
+    },
+    cancel(reason) {
+      void advertisement.cancel(reason)
     },
   })
 
@@ -100,7 +131,10 @@ route.post('/actions/{host}/{owner}/{repository}/git-upload-pack', async (reques
   if (!mirror)
     return new Response('No such mirrored action', { status: 404 })
 
-  const child = spawnGit(mirror.path, serviceArgs(mirror.path, 'upload-pack', { advertiseRefs: false }))
+  const child = await spawnGitLimited('heavy', mirror.path, serviceArgs(mirror.path, 'upload-pack', { advertiseRefs: false }))
+
+  if (!child)
+    return saturated()
 
   // Streamed both ways. A packfile is larger than anything worth holding in
   // memory, and buffering it passes every test written against a small
@@ -117,7 +151,11 @@ route.post('/actions/{host}/{owner}/{repository}/git-upload-pack', async (reques
         if (done)
           break
 
-        child.stdin.write(Buffer.from(value))
+        // Awaited when git pushes back, the same as the repository routes:
+        // ignoring the return value buffers the difference between how fast
+        // the request arrives and how fast git reads it.
+        if (!child.stdin.write(Buffer.from(value)))
+          await new Promise<void>(resolveDrain => child.stdin.once('drain', resolveDrain))
       }
 
       child.stdin.end()
@@ -127,18 +165,9 @@ route.post('/actions/{host}/{owner}/{repository}/git-upload-pack', async (reques
     child.stdin.end()
   }
 
-  const stream = new ReadableStream({
-    start(controller) {
-      child.stdout.on('data', (chunk: any) => controller.enqueue(new Uint8Array(chunk)))
-      child.stdout.on('end', () => controller.close())
-      child.on('error', () => controller.close())
-    },
-    cancel() {
-      child.kill('SIGKILL')
-    },
-  })
-
-  return new Response(stream, {
+  // Pull-based, so a slow runner slows git rather than filling this process
+  // with a packfile the network has not taken yet.
+  return new Response(stdoutStream(child), {
     headers: {
       'Content-Type': 'application/x-git-upload-pack-result',
       'Cache-Control': 'no-cache',

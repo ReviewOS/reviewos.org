@@ -125,6 +125,14 @@ operating condition, and `upload-pack` is the most expensive thing this server r
 - [x] Tests: limits honored per class, FIFO order, release on rejection, and a saturated
       wire-protocol request answering 503 (`tests/unit/git-semaphore.test.ts`, and the 503
       through the real route in `tests/e2e/git-http.test.ts`).
+- [x] **The spawns this milestone did not name.** Written down because the list above was
+      wrong by two, and only a `grep` for every `spawnGit` afterwards found them.
+      `routes/actions.ts` serves `upload-pack` for the mirrored-actions cache - which a whole
+      runner fleet fetches from at the start of every job, so it is the *most* likely endpoint
+      on the instance to see a clone storm, and it had no slot, no pull-based stream and no
+      `drain` await. `app/Actions/Browse/blobWindow.ts` spawned `cat-file blob` outside the
+      ceiling too. Both are in now, with a 503 test on the actions route. The lesson for the
+      next milestone that names call sites: enumerate them with a search, not from memory.
 
 ## M4 - Backpressure on every stream
 

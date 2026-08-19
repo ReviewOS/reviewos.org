@@ -281,6 +281,38 @@ describe('serving the mirror back', () => {
     expect(await Bun.file(join(String(result.path), 'action.yml')).text()).toContain('Setup')
   }, 120_000)
 
+  /**
+   * The process ceiling reaches this route too, which is the one that most
+   * needs it: a fleet fetches actions here at the start of every job, so it is
+   * the likeliest thing on the instance to be asked for a hundred
+   * simultaneous `upload-pack`s. It was outside the ceiling until phase 16's
+   * own review went looking for spawns the milestone had not named.
+   */
+  test('a saturated heavy class refuses with 503 rather than queueing', async () => {
+    if (!available)
+      return
+
+    const { gitSemaphore } = await import('../../app/Actions/Git/semaphore')
+    const semaphore = gitSemaphore('heavy')
+
+    const held = await Promise.all(
+      Array.from({ length: semaphore.limit }, () => semaphore.acquire()),
+    )
+
+    try {
+      const answer = await fetch(
+        `${baseUrl}/actions/actions.example/acme/setup.git/info/refs?service=git-upload-pack`,
+      )
+
+      expect(answer.status).toBe(503)
+      expect(Number(answer.headers.get('retry-after'))).toBeGreaterThan(0)
+    }
+    finally {
+      for (const release of held)
+        release?.()
+    }
+  }, 60_000)
+
   test('an action nobody mirrored is a 404 rather than an empty answer', async () => {
     if (!available)
       return
