@@ -1,4 +1,15 @@
 import type { Events } from '@stacksjs/types'
+import { AUDIT_EVENTS } from './Audit/events'
+
+/**
+ * Every audited event, pointed at the one listener that writes the log.
+ *
+ * `Object.fromEntries` loses the key literals, so the type is asserted back:
+ * the keys are `AuditEventName`, which is exactly what `AUDIT_EVENTS` holds.
+ */
+const RECORDED_IN_THE_AUDIT_LOG = Object.fromEntries(
+  AUDIT_EVENTS.map(name => [name, ['RecordAudit']]),
+) as Record<(typeof AUDIT_EVENTS)[number], string[]>
 
 /**
  * **Events Configuration**
@@ -92,6 +103,16 @@ export default {
   'run:transitioned': ['DispatchWebhooks'],
   'job:transitioned': ['DispatchWebhooks'],
   /*
+   * And the two that are not progress.
+   *
+   * A run that needs somebody is a different question from a run that is
+   * waiting - most waiting is nobody's to act on - and an artifact that has
+   * expired is the only event here about a thing disappearing, which is the
+   * failure that is otherwise silent until somebody needs the file.
+   */
+  'run:action-required': ['DispatchWebhooks'],
+  'artifact:expired': ['DispatchWebhooks'],
+  /*
    * A rule about the tests started, or stopped, holding.
    *
    * Webhook-only for the same reason as the two above, with one addition: it
@@ -121,6 +142,11 @@ export default {
   'comment:created': ['Notify', 'DispatchWebhooks', 'RecordActivity', 'DispatchSubjectRuns'],
   'release:published': ['Notify', 'DispatchWebhooks', 'RecordActivity', 'DispatchSubjectRuns'],
 
+  // Dispatched by `ProcessPushJob` and, until now, listened to by nobody.
+  // `SyncWorkflows` keeps the workflow definitions current from the default
+  // branch - the trusted ref - and starts nothing.
+  'push:received': ['SyncWorkflows'],
+
   /*
    * The security events, and none of the above.
    *
@@ -132,89 +158,19 @@ export default {
    * feed that listed role changes would report who trusts whom to anybody who
    * scrolls.
    *
-   * `RecordAudit` declares its own `listensTo` from `app/Audit/events.ts`,
-   * which is the list that matters and the one a test checks. These lines exist
-   * because this file is where somebody looks to find out what is wired to
-   * what, and a family of twenty events that appears nowhere in it reads as a
-   * family that is not wired at all. Registration is deduplicated by (event,
-   * listener), so saying it twice does not write the row twice.
+   * Spread from the catalogue rather than listed. They were listed once, all
+   * seventy-three of them, and the list did what a second copy of a list always
+   * does: `workflow:run-paused`, `run-resumed` and `run-event` were added to
+   * `app/Audit/events.ts` and not here, so the family read as wired in part -
+   * an action nobody could see afterwards. A test caught it, which is the point
+   * of the test, but the fix belongs where the duplication was: this file now
+   * derives the registration, so a new audit event is wired by being in the
+   * catalogue and the test is a backstop rather than the only thing standing
+   * between an auditable action and silence.
+   *
+   * Registration is deduplicated by (event, listener) and `RecordAudit`
+   * declares its own `listensTo` from the same list, so the two agree by
+   * construction.
    */
-  'member:invited': ['RecordAudit'],
-  'member:joined': ['RecordAudit'],
-  'member:role-changed': ['RecordAudit'],
-  'member:removed': ['RecordAudit'],
-  'collaborator:changed': ['RecordAudit'],
-  'collaborator:removed': ['RecordAudit'],
-  'team:access-changed': ['RecordAudit'],
-  'token:created': ['RecordAudit'],
-  'token:first-used': ['RecordAudit'],
-  'token:revoked': ['RecordAudit'],
-  'key:added': ['RecordAudit'],
-  'key:removed': ['RecordAudit'],
-  'session:revoked': ['RecordAudit'],
-  'sso:signed-in': ['RecordAudit'],
-  'sso:provisioned': ['RecordAudit'],
-  'sso:deprovisioned': ['RecordAudit'],
-  'passkey:registered': ['RecordAudit'],
-  'passkey:removed': ['RecordAudit'],
-  'two-factor:enabled': ['RecordAudit'],
-  'two-factor:disabled': ['RecordAudit'],
-  'two-factor:recovery-codes-reissued': ['RecordAudit'],
-  'branch:protection-changed': ['RecordAudit'],
-  'branch:protection-removed': ['RecordAudit'],
-  'push:protection-bypassed': ['RecordAudit'],
-  // Dispatched by `ProcessPushJob` and, until now, listened to by nobody.
-  // `SyncWorkflows` keeps the workflow definitions current from the default
-  // branch - the trusted ref - and starts nothing.
-  'push:received': ['SyncWorkflows'],
-  'repository:visibility-changed': ['RecordAudit'],
-  'repository:transferred': ['RecordAudit'],
-  'repository:deleted': ['RecordAudit'],
-  'organization:deleted': ['RecordAudit'],
-  'instance:setting-changed': ['RecordAudit'],
-  'admin:granted': ['RecordAudit'],
-  'admin:revoked': ['RecordAudit'],
-  'admin:job-retried': ['RecordAudit'],
-  // The fleet: boundary changes that are invisible after the fact.
-  'fleet:secret-written': ['RecordAudit'],
-  'fleet:secret-removed': ['RecordAudit'],
-  'fleet:pool-created': ['RecordAudit'],
-  'workflow:fork-run-approved': ['RecordAudit'],
-  'workflow:fork-run-refused': ['RecordAudit'],
-  'workflow:run-dispatched': ['RecordAudit'],
-  'workflow:run-cancelled': ['RecordAudit'],
-  'workflow:run-paused': ['RecordAudit'],
-  'workflow:run-resumed': ['RecordAudit'],
-  'workflow:run-event': ['RecordAudit'],
-  'workflow:job-cancelled': ['RecordAudit'],
-  'workflow:run-rerun': ['RecordAudit'],
-  'workflow:gate-approved': ['RecordAudit'],
-  'workflow:enabled': ['RecordAudit'],
-  'workflow:disabled': ['RecordAudit'],
-  'workflow:secret-written': ['RecordAudit'],
-  'workflow:secret-removed': ['RecordAudit'],
-  'workflow:variable-written': ['RecordAudit'],
-  'workflow:variable-removed': ['RecordAudit'],
-  'workflow:environment-configured': ['RecordAudit'],
-  'workflow:environment-removed': ['RecordAudit'],
-  'deployment:recorded': ['RecordAudit'],
-  'deployment:updated': ['RecordAudit'],
-  'fleet:signatures-required': ['RecordAudit'],
-  'fleet:plugin-attached': ['RecordAudit'],
-  'fleet:plugin-detached': ['RecordAudit'],
-  'fleet:plugin-policy-set': ['RecordAudit'],
-  'fleet:queue-created': ['RecordAudit'],
-  'fleet:queue-paused': ['RecordAudit'],
-  'fleet:queue-resumed': ['RecordAudit'],
-  'fleet:repository-assigned': ['RecordAudit'],
-  'fleet:repository-unassigned': ['RecordAudit'],
-  'fleet:runner-assigned': ['RecordAudit'],
-  'fleet:runner-created': ['RecordAudit'],
-  'fleet:runner-registered': ['RecordAudit'],
-  'fleet:token-created': ['RecordAudit'],
-  'fleet:token-revoked': ['RecordAudit'],
-  'fleet:maintainer-added': ['RecordAudit'],
-  'fleet:maintainer-removed': ['RecordAudit'],
-  'fleet:runner-stopped': ['RecordAudit'],
-  'audit:exported': ['RecordAudit'],
+  ...RECORDED_IN_THE_AUDIT_LOG,
 } satisfies Events
