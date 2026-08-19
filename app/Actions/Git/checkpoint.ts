@@ -25,7 +25,11 @@
 
 import type { BlobStore } from './blobs'
 import { blobStore } from './blobs'
-import { runGit, spawnGitLimited } from './git'
+import { runGit } from './git'
+import { randomUUID } from 'node:crypto'
+import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { db } from '@stacksjs/database'
 
 /** How long a full bundle of a large repository may take. */
@@ -103,60 +107,49 @@ export async function writeCheckpoint(
   }
 
   /*
-   * Everything the write needs, resolved *before* git is spawned.
+   * git writes the bundle to a file, not to a pipe.
    *
-   * The bundle is a pipe, and a pipe whose reader attaches after the child has
-   * closed hands back nothing: git exits 0, the store records zero bytes, and
-   * `writeCheckpoint` reports no checkpoint for a repository that has plenty to
-   * bundle. Fifty milliseconds between the spawn and the read is enough to lose
-   * it, which is why this failed on a loaded CI runner and never on a laptop -
-   * and why the await that used to sit here, `await blobStore()`, was the whole
-   * bug. Nothing may be awaited between the spawn below and the `put` that
-   * follows it.
+   * The pipe is what made this unreliable. Bun drops a child's buffered stdout
+   * once the child exits with nobody reading it, so every gap between the spawn
+   * and the first read is a chance to lose the whole bundle - and there is
+   * always a gap. Resolving the store was one; the blob directory's first
+   * `mkdir`, inside `put` and before it touches the stream, is another. That is
+   * why this failed on CI on the first checkpoint of a run and never on the
+   * second, and never at all on a laptop where those calls are quick.
+   *
+   * A file has no such window. It costs a temporary the size of the bundle,
+   * which the store is about to hold anyway, and `git bundle create` is happier
+   * writing something seekable than a pipe.
    */
   const key = checkpointKey(repositoryId, sequence)
   const store = await blobStore()
-
-  const child = await spawnGitLimited('background', repositoryPath, ['bundle', 'create', '--quiet', '-', '--all'])
-
-  /*
-   * Every way this function fails answers `null`, and for a long time it
-   * answered it silently - so "no checkpoint was written" arrived with no way
-   * to tell a saturated box from a broken repository. That matters more here
-   * than in most places: a checkpoint is what makes pruning safe, and pruning
-   * that goes ahead believing in a checkpoint nobody wrote deletes the only
-   * copy of those pushes.
-   *
-   * It also cost an afternoon on CI, where this returned null on a runner and
-   * passed on every machine anybody could reach.
-   */
-  if (!child) {
-    console.warn(`[checkpoint] repository ${repositoryId}: no background git slot within the acquire timeout; no checkpoint at sequence ${sequence}`)
-
-    return null
-  }
-
-  const timer = setTimeout(() => child.kill('SIGKILL'), CHECKPOINT_TIMEOUT_MS)
-  // Before the stream is read: attaching after races the exit, which is the
-  // bug `wal.ts` carries a paragraph about.
-  const exited = new Promise<number>(resolve => child.on('close', value => resolve(value ?? -1)))
-
-  // The read starts here, on the line after the spawn, for the reason above.
-  const writing = store.put(key, child.stdout as AsyncIterable<Uint8Array>)
+  const scratch = join(tmpdir(), `reviewos-checkpoint-${repositoryId}-${sequence}-${randomUUID()}.bundle`)
 
   try {
-    const written = await writing
-    const code = await exited
+    const result = await runGit(repositoryPath, ['bundle', 'create', scratch, '--all'], {
+      timeoutMs: CHECKPOINT_TIMEOUT_MS,
+      priority: 'background',
+    })
 
-    if (code !== 0 || written.size <= BUNDLE_HEADER_BYTES) {
-      console.warn(code !== 0
-        ? `[checkpoint] repository ${repositoryId}: git bundle exited ${code}; no checkpoint at sequence ${sequence}`
-        : `[checkpoint] repository ${repositoryId}: git wrote ${written.size} bytes, a header and no pack; no checkpoint at sequence ${sequence}`)
-
-      await store.delete(key).catch(() => undefined)
+    if (!result.ok) {
+      // An empty repository lands here legitimately: git refuses to write a
+      // bundle with nothing in it. So do the real failures, which is why the
+      // reason is logged rather than swallowed.
+      console.warn(`[checkpoint] repository ${repositoryId}: git bundle failed at sequence ${sequence}: ${result.stderr.trim() || `exit ${result.code}`}`)
 
       return null
     }
+
+    const file = Bun.file(scratch)
+    const size = file.size
+
+    if (size <= BUNDLE_HEADER_BYTES) {
+      console.warn(`[checkpoint] repository ${repositoryId}: git wrote ${size} bytes, a header and no pack; no checkpoint at sequence ${sequence}`)
+
+      return null
+    }
+
+    const written = await store.put(key, file.stream())
 
     return { key, sequence, bytes: written.size }
   }
@@ -166,7 +159,7 @@ export async function writeCheckpoint(
     return null
   }
   finally {
-    clearTimeout(timer)
+    await rm(scratch, { force: true }).catch(() => undefined)
   }
 }
 
