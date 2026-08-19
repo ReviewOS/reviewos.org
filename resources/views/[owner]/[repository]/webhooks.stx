@@ -135,7 +135,24 @@ const name = String(params.repository)
         <h1 style="font-size: 20px;">Not found</h1>
       </div>
     @else
-      <header class="keys-head">
+      {{-- The repository this belongs to, and the way back to it. This page
+          named it nowhere: the heading said "Webhooks" and the reader had to
+          know from the URL which repository's webhooks they were looking at. --}}
+      <RepoHeader
+        owner="{{ params.owner }}"
+        repository="{{ params.repository }}"
+        visibility="{{ access.repository.visibility }}"
+        description="{{ access.repository.description ?? '' }}"
+        refName=""
+        size=""
+        sizeKb="0"
+        commits=""
+        :branches="[]"
+        :tags="[]" />
+
+      <RepoTabs owner="{{ params.owner }}" repository="{{ params.repository }}" active="code" />
+
+      <header class="keys-head webhooks-head">
         <h1 class="keys-title">Webhooks</h1>
         <p class="muted">
           Where this repository's activity is sent. Every delivery is recorded, including the ones

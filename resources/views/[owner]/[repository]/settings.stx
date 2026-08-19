@@ -555,7 +555,12 @@ const fullName = `${ownerHandle}/${repositoryName}`
 
   .check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 
-  .card { padding: 18px 20px; margin-top: 16px; }
+  /* A reading width, like the account settings have. Every card on this page
+     is a column of short fields - a name, a branch, a checkbox and its
+     sentence - and at the shell's full width the label ends up a long way from
+     the box it names, with the value floating alone in the middle of a metre
+     of panel. */
+  .card { max-width: 760px; padding: 18px 20px; margin-top: 16px; }
   .card-title { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
 
   .notice {

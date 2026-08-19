@@ -245,6 +245,15 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   those two pages read no git at all, and three git processes for a line nobody
   came for is a slow page for chrome. The header renders what it was given.
 - [x] The settings screens have padding, and a width somebody can read
+- [x] A repository's own settings, and its webhooks, read like the rest of it
+
+  The webhooks page named its repository nowhere. The heading said "Webhooks"
+  and a reader had to know from the URL whose they were looking at, with no way
+  back - the last repository screen still missing its header and tabs.
+
+  The repository settings page had the third parallel form vocabulary in this
+  codebase (`.card`, `.field`, `.input`, all page-scoped) and, more visibly, a
+  name box a metre wide. Both settings pages are a reading column now.
 
   The same fault as the fields themselves, one layer up: `.keys-head`,
   `.keys-title`, `.keys-section`, `.keys-heading` and `.key-form` were declared
