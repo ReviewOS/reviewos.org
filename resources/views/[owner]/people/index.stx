@@ -11,8 +11,8 @@
  * actions behind them check again. Both, because hiding a button is a courtesy
  * and the check is the rule.
  */
-import { cookieJarFromHeader, organizationRoleOf, peopleIn, viewerFromCookies } from '../../functions/identity'
-import { relativeTime } from '../../functions/browse'
+import { cookieJarFromHeader, organizationRoleOf, peopleIn, viewerFromCookies } from '../../../functions/identity'
+import { relativeTime } from '../../../functions/browse'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
 // `resources/components/RepoBrowser.stx`.

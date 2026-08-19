@@ -240,7 +240,12 @@ const initial = (displayName.trim() || handle).charAt(0).toUpperCase()
 // Somebody who could write the profile page and has not. Shown to them only:
 // a reader who cannot edit it does not need to know the file is missing.
 const mayWriteProfile = isSelf || mayManage
-const readmePath = `/${handle}/${handle}`
+// The repository this forge asks for, which is the first one `profileReadme`
+// reads. It used to name the handle's own repository, and kept saying so after
+// the convention moved - so the one line telling somebody how to write their
+// profile page sent them to the wrong repository.
+const profileRepository = `${handle}/.profile`
+const profileRepositoryPath = `/${handle}/.profile`
 </script>
 
 @layout('app')
@@ -374,8 +379,8 @@ const readmePath = `/${handle}/${handle}`
                 on it - a reader who cannot write the file does not need to know
                 it is missing. --}}
             <p class="profile-hint muted">
-              Write this page: put a <code>profile/README.md</code> in
-              <a href="{{ readmePath }}">{{ handle }}/{{ handle }}</a> and it renders here.
+              Write this page: put a <code>README.md</code> in a repository called
+              <a href="{{ profileRepositoryPath }}">{{ profileRepository }}</a> and it renders here.
             </p>
           @endif
 

@@ -422,3 +422,37 @@ async function handleOf(userId: number): Promise<string> {
 
   return String(row?.handle ?? '')
 }
+
+describe('the routes a literal segment owns', () => {
+  /*
+   * `/{owner}/people` and `/{owner}/tokens` compete with `/{owner}/{repository}`,
+   * and for as long as those views were `people.stx` and `tokens.stx` beside a
+   * `[repository]/` directory, the live server gave the repository view: every
+   * link to an organization's people - the tab on its profile, its own "Manage
+   * people" button - answered "No such repository". They are `people/index.stx`
+   * and `tokens/index.stx` now, which both routers resolve the same way.
+   *
+   * This suite could not see the bug: it drives `@stacksjs/bun-router`, and the
+   * site is served by `bun-plugin-stx`. What it can hold is the shape that made
+   * the two agree.
+   */
+  test('the people page is a directory index, so both routers resolve it', async () => {
+    if (!available)
+      return
+
+    const { existsSync } = await import('node:fs')
+
+    expect(existsSync('resources/views/[owner]/people/index.stx')).toBe(true)
+    expect(existsSync('resources/views/[owner]/people.stx')).toBe(false)
+  })
+
+  test('and so is the organization token page', async () => {
+    if (!available)
+      return
+
+    const { existsSync } = await import('node:fs')
+
+    expect(existsSync('resources/views/[owner]/tokens/index.stx')).toBe(true)
+    expect(existsSync('resources/views/[owner]/tokens.stx')).toBe(false)
+  })
+})

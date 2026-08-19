@@ -179,6 +179,28 @@ under `app/Models/`; `./buddy publish:model User` copies it across as a starting
   to people who may not see it, and rendered through the one markdown pipeline, so the sanitising
   cannot exist in two places. Somebody who could write the file and has not gets one line telling
   them where it goes; a reader who could not does not need to know it is missing.
+- [x] `/{owner}/people` and `/{owner}/tokens` reach their own pages
+
+  Both were shadowed by `/{owner}/{repository}`. `people.stx` and `tokens.stx`
+  sat beside a `[repository]/` directory, and the server that actually runs this
+  site - `bun-plugin-stx` - gave the repository view, so every link to an
+  organization's people answered **"No such repository. Nothing is hosted at
+  acme/people."** That includes the People tab on an organization's own profile
+  and its own "Manage people" button, both of which this session added links
+  for, pointing at a page nobody could open.
+
+  They are `people/index.stx` and `tokens/index.stx` now, which both routers
+  resolve the same way.
+
+  **The suite could not see it.** `tests/e2e/organizations.test.ts` drives
+  `@stacksjs/bun-router`, which resolved the old shape correctly, while the site
+  is served by `bun-plugin-stx`. Two routers, one of them tested, the other one
+  live. The tests now pin the file shape that makes them agree, which is the
+  only part of this a test in that suite can hold onto.
+
+  The profile hint moved with the convention while this was open: it still told
+  people to write `profile/README.md` in `{handle}/{handle}` after the page
+  started reading `{handle}/.profile`.
 - [x] `{handle}/.profile` is where a profile page is written
 
   A forge's own convention, spelled without anybody else's brand on it: one

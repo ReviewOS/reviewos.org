@@ -16,9 +16,9 @@
  * Reading is `app/Actions/Tokens/organization.ts`; revoking goes through the
  * same endpoint an owner uses on their own token.
  */
-import { cookieJarFromHeader, organizationRoleOf, viewerFromCookies } from '../../functions/identity'
-import { tokensReaching } from '../../../app/Actions/Tokens/organization'
-import { relativeTime } from '../../functions/browse'
+import { cookieJarFromHeader, organizationRoleOf, viewerFromCookies } from '../../../functions/identity'
+import { tokensReaching } from '../../../../app/Actions/Tokens/organization'
+import { relativeTime } from '../../../functions/browse'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
 // `resources/components/RepoBrowser.stx`.
