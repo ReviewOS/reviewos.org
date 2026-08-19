@@ -66,7 +66,7 @@ async function claim(): Promise<any> {
 async function steps(): Promise<any[]> {
   return db
     .selectFrom('workflow_steps')
-    .select(['position', 'name', 'step_id', 'state', 'outputs', 'reused_from_attempt', 'exit_code'])
+    .select(['position', 'name', 'step_id', 'state', 'outputs', 'reused_from_attempt', 'exit_code', 'attempts', 'error'])
     .where('workflow_job_id', '=', created.jobId)
     .orderBy('position')
     .execute()
@@ -530,6 +530,110 @@ describe('what the machine is handed', () => {
      */
     expect(job.steps[2].outputs.artifact).toBe('app.tar.gz')
     expect(job.steps[3].outputs).toBeNull()
+  }, 120_000)
+})
+
+describe('a step result that has to survive the machine', () => {
+  test('lands on the heartbeat, before the job is over', async () => {
+    if (!available)
+      return
+
+    await seedFinishedRun()
+    await api({ scope: 'all' })
+
+    const job = await claim()
+
+    expect(job).not.toBeNull()
+
+    /*
+     * The case the conclusion cannot cover: a runner that dies at step nine
+     * has reported nothing at all, so the rows would say the job never started
+     * and a restart would have nothing to keep. The heartbeat is the request
+     * the runner has to make anyway, so the results ride it.
+     */
+    const answer = await fetch(`http://127.0.0.1:${port}/api/runner/heartbeat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${String(job.token)}`,
+        'X-Runner-Protocol': '1',
+      },
+      body: JSON.stringify({
+        steps: [
+          { position: 0, state: 'succeeded', exit_code: 0, queued_ms: 10, active_ms: 900 },
+          { position: 1, state: 'failed', exit_code: 7, attempt: 2, error: 'toolchain exited 7' },
+        ],
+      }),
+    })
+
+    const body: any = await answer.json()
+
+    expect(answer.status).toBe(200)
+    expect(body.steps_recorded).toBe(2)
+    expect(String(body.lease_expires_at ?? '')).not.toBe('')
+
+    const rows = await steps()
+
+    expect(String(rows[0].state)).toBe('succeeded')
+    expect(String(rows[1].state)).toBe('failed')
+    expect(Number(rows[1].exit_code)).toBe(7)
+    // Stated by the runner rather than counted here, so a report arriving twice
+    // records the same number twice.
+    expect(Number(rows[1].attempts)).toBe(2)
+    expect(String(rows[1].error)).toContain('exited 7')
+
+    // And the steps that have not run keep saying so.
+    expect(rows.slice(2).map(row => String(row.state))).toEqual(['pending', 'pending'])
+  }, 120_000)
+
+  test('and a try at a step is a row, so flakiness has something to count', async () => {
+    if (!available)
+      return
+
+    const attempts: any[] = await db
+      .selectFrom('workflow_step_attempts')
+      .innerJoin('workflow_steps', 'workflow_steps.id', '=', 'workflow_step_attempts.workflow_step_id')
+      .select(['workflow_step_attempts.attempt as attempt', 'workflow_step_attempts.state as state', 'workflow_steps.position as position'])
+      .where('workflow_steps.workflow_job_id', '=', created.jobId)
+      .orderBy('workflow_steps.position')
+      .execute()
+
+    expect(attempts.map(row => Number(row.position))).toEqual([0, 1])
+    expect(attempts.map(row => Number(row.attempt))).toEqual([1, 2])
+    expect(attempts.map(row => String(row.state))).toEqual(['succeeded', 'failed'])
+  }, 120_000)
+
+  test('and the same report arriving twice records the same row, not a second try', async () => {
+    if (!available)
+      return
+
+    /*
+     * Delivery is at-least-once, so a runner that did not hear the answer says
+     * it again. Every field is stated rather than accumulated, which is what
+     * makes the repeat harmless - a counter this end would climb every time the
+     * network hiccupped.
+     */
+    const job = await db
+      .selectFrom('workflow_jobs')
+      .select(['job_token_hash'])
+      .where('id', '=', created.jobId)
+      .executeTakeFirst()
+
+    expect(job).not.toBeNull()
+
+    const { recordSteps } = await import('../../app/Actions/Runner/report')
+
+    await recordSteps(created.jobId, [{ position: 1, state: 'failed', exitCode: 7, attempt: 2 }], new Date())
+
+    const attempts: any[] = await db
+      .selectFrom('workflow_step_attempts')
+      .innerJoin('workflow_steps', 'workflow_steps.id', '=', 'workflow_step_attempts.workflow_step_id')
+      .select(['workflow_step_attempts.id as id'])
+      .where('workflow_steps.workflow_job_id', '=', created.jobId)
+      .where('workflow_steps.position', '=', 1)
+      .execute()
+
+    expect(attempts.length).toBe(1)
   }, 120_000)
 })
 

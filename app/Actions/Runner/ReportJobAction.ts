@@ -2,8 +2,7 @@ import { Action } from '@stacksjs/actions'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { schema } from '@stacksjs/validation'
 import { authenticateJob } from './authenticate'
-import type { StepReport } from './report'
-import { reportJob } from './report'
+import { readOutputs, readStepReports, reportJob } from './report'
 
 /**
  * What a runner says when a job is done.
@@ -26,58 +25,6 @@ import { reportJob } from './report'
  * so "a credential used against the wrong job" stops being a case to defend
  * against and becomes one that cannot be expressed.
  */
-/** The outputs a runner reported, as a map of strings or nothing. */
-function readOutputs(value: unknown): Record<string, string> | null {
-  const parsed = typeof value === 'string' ? tryParse(value) : value
-
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
-    return null
-
-  const outputs: Record<string, string> = {}
-
-  for (const [name, entry] of Object.entries(parsed as Record<string, unknown>))
-    outputs[name] = entry === null || entry === undefined ? '' : String(entry)
-
-  return outputs
-}
-
-/**
- * The per-step results, read out of what a runner sent.
- *
- * Accepts a JSON string as well as an array, because a runner posting a form
- * body has no other way to send a list - the same reason `readOutputs` does.
- * Every field is optional except the position: a step the runner has nothing to
- * say about should still be able to say it ran.
- */
-function readSteps(value: unknown): StepReport[] | null {
-  const parsed = typeof value === 'string' ? tryParse(value) : value
-
-  if (!Array.isArray(parsed))
-    return null
-
-  return parsed
-    .filter(one => one && typeof one === 'object')
-    .map(one => ({
-      position: Number((one as any).position),
-      state: (one as any).state,
-      exitCode: (one as any).exit_code ?? (one as any).exitCode ?? null,
-      startedAt: (one as any).started_at ?? (one as any).startedAt ?? null,
-      finishedAt: (one as any).finished_at ?? (one as any).finishedAt ?? null,
-      queuedMs: (one as any).queued_ms ?? (one as any).queuedMs ?? null,
-      activeMs: (one as any).active_ms ?? (one as any).activeMs ?? null,
-      outputs: readOutputs((one as any).outputs),
-    })) as StepReport[]
-}
-
-function tryParse(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  }
-  catch {
-    return null
-  }
-}
-
 export default new Action({
   name: 'ReportJob',
   description: 'Record the result of a job a runner holds',
@@ -145,7 +92,7 @@ export default new Action({
        * decides what the fields *are*, and the write decides how much of them
        * a row will take.
        */
-      steps: readSteps(request.get('steps')),
+      steps: readStepReports(request.get('steps')),
     })
 
     if (!outcome.ok)

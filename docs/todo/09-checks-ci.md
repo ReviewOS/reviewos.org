@@ -733,8 +733,25 @@ the run must remain inspectable and resumable without trusting runner memory.
       finishes is one holding a pull request's checks open with nothing to show. A dependency that
       is not in the run at all counts as failed rather than as satisfied, so "the graph is missing a
       job" cannot become "run it anyway".
-- [ ] Each step persists its inputs, output metadata, attempt count, timestamps, timeout, retry
+- [x] Each step persists its inputs, output metadata, attempt count, timestamps, timeout, retry
       policy, and error before the next step becomes eligible
+
+      "Before the next step" is the part that was missing, and restart-from-step is what made it
+      matter: results travelled only with the conclusion, so **a runner that died at step nine had
+      reported nothing at all** - the rows said the job never began, and a restart had nothing to
+      keep. They ride the heartbeat now, which is a request the runner has to make anyway.
+
+      Which it was not making. Nothing on the local runner ever renewed a lease, so a job whose
+      first step was a ten-minute build lapsed at sixty seconds, was swept back into the queue, and
+      ran a second time on another machine while the first was still working. The timer that fixes
+      that is the same one that carries the results.
+
+      The attempt count is stated by the runner rather than counted here, which is what makes a
+      repeat harmless: delivery is at-least-once, so a column this end incremented would climb every
+      time an answer was lost. Each try is also a `workflow_step_attempts` row, keyed on the attempt
+      number so the repeat updates rather than doubles - that table is where phase 15 measures
+      flakiness from, and it held only job-level errors before this. The step's `error` is beside
+      its exit status: a number says a command refused and a sentence says which one.
 - [x] Retry policies support limits, delay, and constant, linear, or exponential backoff
 
 `app/Actions/Workflow/retryPolicy.ts`, pure and read from the `retry:` stanza the parser already

@@ -206,6 +206,23 @@ export default defineModel({
     },
 
     /**
+     * Why this step failed, when it did.
+     *
+     * Beside the exit status rather than instead of it: a number says a command
+     * refused and a sentence says which command and what it was reaching for,
+     * and a screen with only the first sends somebody into a log to find the
+     * second. Bounded and untrusted, like everything a runner says - the log
+     * lives elsewhere behind its own limits, and this is the one line a run
+     * screen can show without opening it.
+     */
+    error: {
+      order: 13,
+      fillable: true,
+      validation: { rule: schema.string().max(2000) },
+      factory: () => null,
+    },
+
+    /**
      * The job attempt that actually produced this result, when it was not this one.
      *
      * Set by a restart-from-step on every step whose recorded result it kept,

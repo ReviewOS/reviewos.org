@@ -48,6 +48,7 @@ import type { ServiceRequest } from './services'
 import { resolveServices, serviceEnvironment, waitForPort } from './services'
 import { interpolate, shouldRun } from '../Workflow/expression'
 import { isNotFalse, isTrue } from '../Support/sql'
+import { LEASE_SECONDS } from './protocol'
 
 export interface LocalRunnerOptions {
   /** Where this instance is, for the runner protocol. */
@@ -437,6 +438,16 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       await append(options.baseUrl, jobToken, sequence++, `${result.line}\n`, stream)
   }
 
+  /**
+   * The timer that says "still here" while a step runs.
+   *
+   * Declared out here so the way out can stop it, whichever way out is taken:
+   * a heartbeat landing after the conclusion is a machine claiming a job it has
+   * finished with, and a timer nobody cleared is a runner still holding a
+   * process open after its work ended.
+   */
+  let pulse: ReturnType<typeof setInterval> | null = null
+
   try {
     await send(`Running job ${job.key} of run ${job.run?.number} on this host.\n`)
     await send(`::group::Workspace\n${workspace}\n::endgroup::\n`)
@@ -790,7 +801,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
     let previousFinishedAt = Date.now()
 
     /** Write down what one step did, whatever it did. */
-    const timed = (index: number, startedAt: number, activeMs: number, state: string, exitCode: number | null) => {
+    const timed = (index: number, startedAt: number, activeMs: number, state: string, exitCode: number | null, error: string | null = null) => {
       const finished = Date.now()
 
       timings.push({
@@ -804,10 +815,50 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
         queued_ms: Math.max(0, startedAt - previousFinishedAt),
         active_ms: Math.max(0, Math.round(activeMs)),
         outputs: null,
+        // One, until a step can retry itself. Stated all the same, because the
+        // control plane records what it is told rather than counting reports.
+        attempt: 1,
+        error,
       })
 
       previousFinishedAt = finished
     }
+
+    /*
+     * How many of those results the control plane has.
+     *
+     * A step's result used to travel only with the conclusion, which is a
+     * result a crash loses - and "the runner died at step nine" is precisely
+     * the case restart-from-step is for. So each one goes up as it lands, on
+     * the heartbeat that was being sent anyway, and the conclusion carries
+     * whatever is left.
+     */
+    let sentThrough = 0
+
+    /** Hand up whatever has finished since the last time, and renew the lease. */
+    const handUpResults = async (): Promise<void> => {
+      const pending = timings.slice(sentThrough)
+      const answer = await beat(options.baseUrl, jobToken, pending).catch(() => ({ held: false, recorded: 0 }))
+
+      /*
+       * Only counted as sent when the answer came back. A lost answer means
+       * sending them again, which the control plane is built to accept: every
+       * field is stated rather than accumulated, so a second write of the same
+       * result is the same row.
+       */
+      if (answer.held)
+        sentThrough = timings.length
+    }
+
+    /*
+     * And a heartbeat on a timer, for the step that takes longer than a lease.
+     *
+     * Without one, a job whose first step is a ten-minute build had its lease
+     * lapse at sixty seconds, was swept back into the queue, and ran a second
+     * time on another machine - while the first was still working. The runner
+     * never said it was alive because nothing ever asked it to.
+     */
+    pulse = setInterval(() => { void handUpResults() }, Math.max(5000, (LEASE_SECONDS / 3) * 1000))
 
     for (const [index, step] of steps.entries()) {
       const name = String(step.name ?? step.run ?? step.uses ?? `step ${index + 1}`)
@@ -874,8 +925,10 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
         // A skipped step is a step whose result is "it did not run", and a row
         // that says nothing is indistinguishable from one nobody reported.
-        timed(index, stepStartedAt, 0, 'skipped', null)
+        timed(index, stepStartedAt, 0, 'skipped', null, decision.reason)
         }
+
+        await handUpResults()
 
         continue
       }
@@ -1168,6 +1221,19 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       if (recorded && Object.keys(written.outputs).length > 0)
         recorded.outputs = written.outputs
 
+      if (recorded && !result.ok)
+        recorded.error = `${name} exited ${result.exitCode}`
+
+      /*
+       * Up it goes, before the next step starts.
+       *
+       * This is what "durable" means for a step: the row says what happened the
+       * moment it happened, so a machine that dies during step nine leaves a
+       * run somebody can restart at step nine rather than one that looks as
+       * though it never began.
+       */
+      await handUpResults()
+
       if (!result.ok) {
         if (step.continue_on_error) {
           await send(`${name} exited ${result.exitCode}, and the step says the job continues\n`, 'stderr')
@@ -1389,7 +1455,22 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
       await flush()
     }
 
-    await report(options.baseUrl, jobToken, state, failed ?? '', resolvedOutputs, failedStatus, timings)
+    /*
+     * Stop saying "still here" before saying "done".
+     *
+     * A heartbeat that lands after the conclusion is a machine claiming a job
+     * it has finished with, and the control plane cleared the lease when it
+     * recorded the result.
+     */
+    stopPulse()
+
+    /*
+     * Whatever the heartbeats did not carry, which on a job that ran normally
+     * is the last step and nothing else. Sent again rather than assumed
+     * delivered when an answer was lost: every field a step reports is stated
+     * rather than accumulated, so the second write of a result is the same row.
+     */
+    await report(options.baseUrl, jobToken, state, failed ?? '', resolvedOutputs, failedStatus, timings.slice(sentThrough))
     say(`job ${job.id} ${state}`)
 
     return { jobId: Number(job.id), state, reason: failed ?? 'every step succeeded' }
@@ -1404,14 +1485,27 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
      */
     const reason = error instanceof Error ? error.message : String(error)
 
+    stopPulse()
+
     await report(options.baseUrl, jobToken, 'failed', reason).catch(() => {})
     say(`job ${job.id} failed: ${reason}`)
 
     return { jobId: Number(job.id), state: 'failed', reason }
   }
   finally {
+    stopPulse()
+
     if (!options.workspaceRoot)
       rmSync(workspace, { recursive: true, force: true })
+  }
+
+  /** Stop the heartbeat timer, whichever way this job ended. */
+  function stopPulse(): void {
+    if (pulse === null)
+      return
+
+    clearInterval(pulse)
+    pulse = null
   }
 }
 
@@ -3172,6 +3266,29 @@ async function append(baseUrl: string, jobToken: string, sequence: number, conte
   }
 }
 
+/**
+ * "Still here", and what has finished since the last time this was said.
+ *
+ * Two jobs in one request because they are the same request: the lease has to
+ * be renewed on a timer anyway, and a step result that waits for the job to end
+ * is a step result a crash loses - which is exactly the case restart-from-step
+ * exists for.
+ *
+ * A refusal is information rather than an error to swallow: the job is no
+ * longer this runner's, and anything it does afterwards will be refused too.
+ * The caller is told, so it can stop.
+ */
+async function beat(baseUrl: string, jobToken: string, steps: StepTiming[]): Promise<{ held: boolean, recorded: number }> {
+  const answer = await post(baseUrl, '/api/runner/heartbeat', jobToken, {
+    steps: steps.length > 0 ? steps : null,
+  })
+
+  return {
+    held: answer.ok,
+    recorded: Number(answer.body?.steps_recorded ?? 0) || 0,
+  }
+}
+
 async function report(
   baseUrl: string,
   jobToken: string,
@@ -3220,6 +3337,16 @@ interface StepTiming {
   queued_ms: number
   active_ms: number
   outputs: Record<string, string> | null
+  /**
+   * How many times this runner ran the step, counting from one.
+   *
+   * Stated rather than left to the control plane to count, so the same result
+   * arriving twice - which at-least-once delivery guarantees will happen -
+   * records the same number rather than climbing.
+   */
+  attempt: number
+  /** Why it failed, when it did. */
+  error: string | null
 }
 
 /**

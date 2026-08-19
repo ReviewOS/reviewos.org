@@ -9952,6 +9952,14 @@
             "isUnique": false,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "error",
+            "type": "text",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": false
           }
         ],
         "indexes": [
@@ -14004,7 +14012,7 @@
       }
     ]
   },
-  "hash": "8ab660ac2e76a8be52c6d6142fa1de705b300e64b28ee4d1c567db502f0767f2",
+  "hash": "00147808fbcf77d17b81b7175e60685a187142234b5afb023a2bb027d90d09c5",
   "dialect": "postgres",
-  "updatedAt": "2026-08-19T20:15:51.322Z"
+  "updatedAt": "2026-08-19T20:28:04.715Z"
 }

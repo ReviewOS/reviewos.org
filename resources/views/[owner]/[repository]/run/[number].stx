@@ -597,6 +597,8 @@ const jobs = jobRows.map((job) => {
       label: runLabel(String(step.state)),
       tone: runTone(String(step.state)),
       attempts: Number(step.attempts ?? 0),
+      /** Why it failed, in the one line a run screen can show without opening the log. */
+      error: step.error ? String(step.error) : '',
       /*
        * How a restart names this step, and what to say about it when the
        * restart kept its result rather than running it.
@@ -1189,6 +1191,14 @@ const base = `/${ownerHandle}/${repositoryName}`
                       {{ step.label }}@if (step.attempts > 1) · attempt {{ step.attempts }}@endif
                     </span>
                     {{--
+                      And why, when there is a why. A step that says "failed"
+                      and nothing else is a screen that sends everybody into
+                      the log for one line.
+                    --}}
+                    @if (step.error)
+                      <span class="step-error">{{ step.error }}</span>
+                    @endif
+                    {{--
                       And the control that puts a restart where the person is
                       already looking: a form per step, because the question
                       "start again from here" is asked of one row rather than
@@ -1581,6 +1591,7 @@ const base = `/${ownerHandle}/${repositoryName}`
 
   .step-name { flex: 1; min-width: 0; }
   .step-state { font-size: 12px; }
+  .step-error { font-size: 12px; color: var(--bad); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .step-reused { font-size: 12px; color: var(--muted); text-decoration: none; border-bottom: 1px dotted currentColor; }
   .step-reused:hover { color: var(--fg); }
   .step-restart { margin: 0; }

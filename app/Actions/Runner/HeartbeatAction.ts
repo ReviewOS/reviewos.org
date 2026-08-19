@@ -1,10 +1,12 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { authenticateJob } from './authenticate'
 import { heartbeat } from './claim'
+import { readStepReports, recordSteps } from './report'
 
 /**
- * "I am still here, and still working on this."
+ * "I am still here, still working on this, and here is what has finished."
  *
  * The renewal that makes short leases workable. A long lease means a job held
  * by a machine that fell over is stuck for as long as the lease; a short one
@@ -21,13 +23,46 @@ import { heartbeat } from './claim'
  * taken from the caller. A token matching no job is a 401: the credential is
  * gone, which is a different thing from holding one for work somebody took
  * away.
+ *
+ * ## Why the step results travel here
+ *
+ * They used to travel only with the conclusion, on the grounds that nothing
+ * reads a step's recorded result until its job is over. That stopped being true
+ * the moment a restart could begin at step nine: **a runner that dies at step
+ * nine has reported nothing at all**, so the rows say the job never started and
+ * a restart has nothing to keep. A step's result has to be durable when it
+ * happens, not when the job ends.
+ *
+ * This is the request that was already being made on a timer, so the results
+ * ride it rather than paying for a channel of their own. Recorded under the
+ * same guard as the conclusion's - the token names the job, and every write is
+ * bounded to that job's own steps.
  */
 export default new Action({
   name: 'RunnerHeartbeat',
   description: 'Extend the lease on a job a runner holds',
   method: 'POST',
 
+  validations: {
+    /**
+     * What has finished since the last one of these, in the shape the
+     * conclusion sends. Optional: a heartbeat with nothing to say is still a
+     * heartbeat, which is what it was for before this.
+     */
+    steps: { rule: schema.array(), required: false },
+  },
+
   responses: {
+    200: {
+      description: 'The renewed lease, and how many step results this call recorded.',
+      schema: {
+        type: 'object',
+        properties: {
+          lease_expires_at: { type: 'string' },
+          steps_recorded: { type: 'integer' },
+        },
+      },
+    },
     426: {
       description: 'This runner speaks a protocol version the server does not. The body says which end is behind; every answer carries X-Runner-Protocol-Supported.',
     },
@@ -68,6 +103,16 @@ export default new Action({
       }, 409)
     }
 
-    return runnerJson({ lease_expires_at: expires })
+    /*
+     * Recorded only after the lease renewed, and that order is the point: a
+     * runner whose job was taken away must not write results onto rows the
+     * machine that has it now is using.
+     */
+    // Read through the same reader the conclusion uses, so `exit_code` means
+    // the same thing on both - a field named twice is a field that drifts.
+    const sent = readStepReports(request.get('steps'))
+    const recorded = sent ? await recordSteps(held.jobId, sent, new Date()) : 0
+
+    return runnerJson({ lease_expires_at: expires, steps_recorded: recorded })
   },
 })

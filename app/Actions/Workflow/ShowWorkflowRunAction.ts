@@ -143,7 +143,7 @@ export default new Action({
     const steps = jobs.length > 0
       ? await db
         .selectFrom('workflow_steps')
-        .select(['id', 'workflow_job_id', 'position', 'name', 'state', 'attempts', 'exit_code', 'started_at', 'finished_at', 'reused_from_attempt'])
+        .select(['id', 'workflow_job_id', 'position', 'name', 'state', 'attempts', 'exit_code', 'started_at', 'finished_at', 'reused_from_attempt', 'error'])
         .where('workflow_job_id', 'in', jobs.map(job => Number(job.id)))
         .orderBy('position')
         .execute()
@@ -330,6 +330,12 @@ export default new Action({
             exit_code: step.exit_code ?? null,
             started_at: step.started_at ?? null,
             finished_at: step.finished_at ?? null,
+            /**
+             * Why it failed, when it did. A number says a command refused and
+             * a sentence says which one - a client with only the first sends
+             * somebody into a log to find the second.
+             */
+            error: step.error ?? null,
             /*
              * The attempt that actually did this work, when it was not this
              * one. Null on a step this attempt ran itself.

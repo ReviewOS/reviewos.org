@@ -228,6 +228,62 @@ describe('the run screen', () => {
 })
 
 /*
+ * A restart from a step is only useful if the screen says what it did, and this
+ * is asked of the rendered page for the reason at the top of this file: the
+ * failure mode of a template is a region that quietly renders nothing.
+ */
+describe('a step whose result an earlier attempt produced', () => {
+  test('says so, links to that attempt, and offers a restart from any step', async () => {
+    if (!available)
+      return
+
+    const job: any = await db
+      .selectFrom('workflow_jobs')
+      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+      .select(['workflow_jobs.id as id'])
+      .where('workflow_runs.repository_id', '=', created.repositoryId)
+      .where('workflow_runs.number', '=', created.finished)
+      .executeTakeFirst()
+
+    await db
+      .updateTable('workflow_steps')
+      .set({ reused_from_attempt: 1, error: null })
+      .where('workflow_job_id', '=', Number(job.id))
+      .execute()
+
+    await db
+      .insertInto('workflow_steps')
+      .values({
+        workflow_job_id: Number(job.id),
+        position: 1,
+        name: 'Test',
+        step_id: 'test',
+        state: 'failed',
+        attempts: 2,
+        exit_code: 7,
+        error: 'Test exited 7',
+      })
+      .execute()
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`, created.ownerToken)
+
+    // The kept result, and where it came from. A number nobody can trace is
+    // worse than no number.
+    expect(html).toContain('kept from attempt 1')
+    expect(html).toContain('attempt=1')
+
+    // Why the other one failed, in the one line a screen can show without
+    // opening the log.
+    expect(html).toContain('Test exited 7')
+
+    // And the control, beside the step it is about rather than in a list of
+    // forty somewhere else.
+    expect(html).toContain('Restart here')
+    expect(html).toContain('value="step"')
+  })
+})
+
+/*
  * A step summary is the one part of a run written *for a reader* - the table of
  * what was built, the three numbers somebody wanted - and it was being kept on
  * the check and shown nowhere. A run page with ten thousand lines of output and

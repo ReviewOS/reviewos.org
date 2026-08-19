@@ -53,11 +53,12 @@ export interface ReportInput {
   /**
    * What each step did, as values rather than as text in a log.
    *
-   * Sent with the conclusion rather than one call per step, deliberately. A
-   * job of forty steps would otherwise be forty extra requests carrying a few
-   * hundred bytes each, and the runner already has to make this one - the
-   * information is not fresher for arriving separately, because nothing reads a
-   * step's recorded result until its job is over.
+   * Whatever the heartbeat has not already carried. A step's result used to
+   * travel only here, on the grounds that nothing reads it until the job is
+   * over - which was true until a restart could begin at step nine, and a
+   * runner that dies at step nine has reported nothing at all. So the results
+   * ride the heartbeat as they happen and this carries the remainder, which on
+   * a job that finished normally is the last step and nothing else.
    *
    * Untrusted, like everything a runner says.
    */
@@ -84,6 +85,78 @@ export interface StepReport {
   /** How long it was actually executing, which wall time cannot say. */
   activeMs?: number | null
   outputs?: Record<string, string> | null
+  /**
+   * How many times the runner ran this step, counting from one.
+   *
+   * Sent rather than counted here, and that is what makes recording a step
+   * twice harmless: delivery is at-least-once, so the same result arrives
+   * again whenever an answer is lost on the way back, and a column this end
+   * incremented would climb every time the network hiccupped. A number the
+   * runner states is the same number however often it is stated.
+   */
+  attempt?: number | null
+  /** Why it failed, when it did. Untrusted text, like everything a runner sends. */
+  error?: string | null
+}
+
+/**
+ * The outputs a runner reported, as a map of strings or nothing.
+ *
+ * Here rather than in the endpoint because two endpoints now take a runner's
+ * word for what happened - the conclusion and the heartbeat - and two copies of
+ * "what a runner is allowed to have meant" is one more than there should be.
+ */
+export function readOutputs(value: unknown): Record<string, string> | null {
+  const parsed = typeof value === 'string' ? tryParse(value) : value
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    return null
+
+  const outputs: Record<string, string> = {}
+
+  for (const [name, entry] of Object.entries(parsed as Record<string, unknown>))
+    outputs[name] = entry === null || entry === undefined ? '' : String(entry)
+
+  return outputs
+}
+
+/**
+ * The per-step results, read out of what a runner sent.
+ *
+ * Accepts a JSON string as well as an array, because a runner posting a form
+ * body has no other way to send a list - the same reason `readOutputs` does.
+ * Every field is optional except the position: a step the runner has nothing to
+ * say about should still be able to say it ran.
+ */
+export function readStepReports(value: unknown): StepReport[] | null {
+  const parsed = typeof value === 'string' ? tryParse(value) : value
+
+  if (!Array.isArray(parsed))
+    return null
+
+  return parsed
+    .filter(one => one && typeof one === 'object')
+    .map(one => ({
+      position: Number((one as any).position),
+      state: (one as any).state,
+      exitCode: (one as any).exit_code ?? (one as any).exitCode ?? null,
+      startedAt: (one as any).started_at ?? (one as any).startedAt ?? null,
+      finishedAt: (one as any).finished_at ?? (one as any).finishedAt ?? null,
+      queuedMs: (one as any).queued_ms ?? (one as any).queuedMs ?? null,
+      activeMs: (one as any).active_ms ?? (one as any).activeMs ?? null,
+      outputs: readOutputs((one as any).outputs),
+      attempt: (one as any).attempt ?? null,
+      error: (one as any).error ?? null,
+    })) as StepReport[]
+}
+
+function tryParse(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  }
+  catch {
+    return null
+  }
 }
 
 /** A runner can send a hundred thousand steps; a job has at most a few dozen. */
@@ -122,7 +195,7 @@ export function boundedValue(value: string, limit: number): string {
  * positions, and a position is the one thing here it could get wrong or lie
  * about; without the guard, a job could write results onto another job's steps.
  */
-async function recordSteps(jobId: number, steps: StepReport[] | null | undefined, now: Date): Promise<number> {
+export async function recordSteps(jobId: number, steps: StepReport[] | null | undefined, now: Date): Promise<number> {
   if (!Array.isArray(steps) || steps.length === 0)
     return 0
 
@@ -149,6 +222,8 @@ async function recordSteps(jobId: number, steps: StepReport[] | null | undefined
       values[name.slice(0, 200)] = boundedValue(redactSecrets(String(value ?? ''), secrets), 2000)
     }
 
+    const attempt = Number.isFinite(Number(step.attempt)) && Number(step.attempt) > 0 ? Math.round(Number(step.attempt)) : 1
+
     const result = await db
       .updateTable('workflow_steps')
       .set({
@@ -159,17 +234,95 @@ async function recordSteps(jobId: number, steps: StepReport[] | null | undefined
         queued_ms: Number.isFinite(Number(step.queuedMs)) ? Math.max(0, Math.round(Number(step.queuedMs))) : null,
         active_ms: Number.isFinite(Number(step.activeMs)) ? Math.max(0, Math.round(Number(step.activeMs))) : null,
         outputs: Object.keys(values).length > 0 ? JSON.stringify(values) : null,
+        // Stated by the runner rather than incremented here, so the same
+        // report arriving twice records the same number twice.
+        attempts: attempt,
+        error: step.error ? boundedValue(redactSecrets(String(step.error), secrets), 2000).slice(0, 2000) : null,
       })
       .where('workflow_job_id', '=', jobId)
       .where('position', '=', position)
       .execute()
       .catch(() => null)
 
-    if (rowsChanged(result))
+    if (rowsChanged(result)) {
       written += 1
+      await recordStepAttempt(jobId, position, attempt, step, now)
+    }
   }
 
   return written
+}
+
+/**
+ * A row per try at one step, beside the counter on the step itself.
+ *
+ * The counter answers "did this retry" on a screen without a query per step;
+ * these answer "how did each try go", which is where flakiness is measured
+ * from - and a step that overwrote its own history has nothing to measure.
+ *
+ * Written only when the step row moved, and only once per attempt number: the
+ * same report arriving twice is the protocol working as promised, not a second
+ * try.
+ */
+async function recordStepAttempt(
+  jobId: number,
+  position: number,
+  attempt: number,
+  step: StepReport,
+  now: Date,
+): Promise<void> {
+  const row: any = await db
+    .selectFrom('workflow_steps')
+    .select(['id', 'repository_id'])
+    .where('workflow_job_id', '=', jobId)
+    .where('position', '=', position)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!row?.id)
+    return
+
+  const already = await db
+    .selectFrom('workflow_step_attempts')
+    .select(['id'])
+    .where('workflow_step_id', '=', Number(row.id))
+    .where('attempt', '=', attempt)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  const state = ['succeeded', 'failed', 'cancelled'].includes(String(step.state ?? 'succeeded'))
+    ? String(step.state ?? 'succeeded')
+    : 'succeeded'
+
+  const values = {
+    state,
+    exit_code: Number.isFinite(Number(step.exitCode)) ? Number(step.exitCode) : null,
+    error: step.error ? String(step.error).slice(0, 2000) : null,
+    started_at: step.startedAt ? String(step.startedAt).slice(0, 40) : null,
+    finished_at: step.finishedAt ? String(step.finishedAt).slice(0, 40) : now.toISOString(),
+  }
+
+  if (already?.id) {
+    await db
+      .updateTable('workflow_step_attempts')
+      .set(values)
+      .where('id', '=', Number(already.id))
+      .execute()
+      .catch(() => null)
+
+    return
+  }
+
+  await db
+    .insertInto('workflow_step_attempts')
+    .values({
+      workflow_step_id: Number(row.id),
+      repository_id: row.repository_id ?? null,
+      attempt,
+      ...values,
+    })
+    .execute()
+    .catch(() => null)
 }
 
 /**
