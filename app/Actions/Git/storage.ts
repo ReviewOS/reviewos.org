@@ -81,6 +81,58 @@ export function repositoryPath(owner: string, name: string, root = REPOSITORY_RO
 }
 
 /**
+ * The repository on local disk, ready to be served.
+ *
+ * Today this is `repositoryPath` with a check that the directory is really
+ * there, and that is the entire point: it is a seam, adopted now while it is
+ * behavior-neutral so that adopting it is not also the change that could break
+ * something.
+ *
+ * **What it becomes** (phase 18c, which waits on phase 17's MySQL): disk stops
+ * being the truth and becomes a cache. A repository that is missing on this
+ * node, or whose refs have drifted from the database ledger, is materialized
+ * from its checkpoint bundle plus the WAL suffix before it is served. Every
+ * caller that goes through here gets that for free; every caller that kept
+ * calling `repositoryPath` directly would serve a stale repository and look
+ * like it worked, which is the failure this codebase has been bitten by often
+ * enough to name in its own roadmap.
+ *
+ * So the rule is: **anything that is about to hand a path to git asks here.**
+ * `repositoryPath` stays for the callers that want to know where a repository
+ * *would* live - creating one, moving one aside, reporting a path.
+ *
+ * Async from the first commit, deliberately. Materializing cannot be
+ * synchronous, and a seam that changes shape when it grows teeth is a seam
+ * every caller has to be revisited for.
+ */
+export interface LocalRepository {
+  ok: boolean
+  /** Absolute path to the bare repository, when it is there. */
+  path?: string
+  relative?: string
+  /** Why not, for the caller to turn into a 404 or a refusal. */
+  reason?: PathRejection | 'missing'
+}
+
+export async function ensureLocal(owner: string, name: string, root = REPOSITORY_ROOT): Promise<LocalRepository> {
+  const resolved = repositoryPath(owner, name, root)
+
+  if (!resolved.ok)
+    return { ok: false, reason: resolved.reason }
+
+  // `HEAD` rather than the directory: a directory that exists but holds no
+  // repository is the shape an interrupted clone leaves behind, and phase 16
+  // had to fix exactly that in the mirror import. git's own marker is the
+  // honest test.
+  const marker = Bun.file(join(resolved.path!, 'HEAD'))
+
+  if (!(await marker.exists()))
+    return { ok: false, reason: 'missing', relative: resolved.relative }
+
+  return { ok: true, path: resolved.path, relative: resolved.relative }
+}
+
+/**
  * The `{owner}/{name}` pair in a git wire-protocol URL.
  *
  * git asks for `/{owner}/{name}.git/info/refs`, and clients vary on whether
