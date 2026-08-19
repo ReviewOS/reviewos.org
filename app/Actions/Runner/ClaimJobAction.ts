@@ -3,6 +3,7 @@ import { protocolOf, refuseProtocol, runnerJson } from './gate'
 import { changedPathsFromColumn } from '../Workflow/dispatch'
 import { mintJobToken } from '../Workflow/jobToken'
 import { secretsForJobDetailed } from '../Workflow/secrets'
+import { isOwnerDefined } from '../Workflow/ownerWorkflows'
 import { variablesFor } from '../Workflow/variables'
 import { db } from '@stacksjs/database'
 import { authenticateRunner } from './authenticate'
@@ -581,6 +582,18 @@ export default new Action({
        * by the same pass that masks every other secret.
        */
       extra: minted ? { GITHUB_TOKEN: minted.token, REVIEWOS_JOB_TOKEN: minted.token } : {},
+      /*
+       * And whether the definition came from the owner rather than from this
+       * repository, which decides whether repository-scoped secrets apply at
+       * all.
+       *
+       * Asked here because this is the last point where both facts are known,
+       * the same reason the environment gate is asked here: an organization's
+       * licence check runs *over* a repository's data and must not be given
+       * anything that repository controls, or a repository admin could shadow
+       * an organization secret by name.
+       */
+      ownerDefined: await isOwnerDefined(claimed.runId),
     })
 
     return runnerJson({

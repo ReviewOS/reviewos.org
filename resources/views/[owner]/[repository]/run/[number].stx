@@ -254,10 +254,21 @@ const version: any = run
 const workflow: any = version
   ? await db
       .selectFrom('workflows')
-      .select(['id', 'name', 'path'])
+      // `repository_id` too, because null means the definition is the owner's.
+      .select(['id', 'name', 'path', 'repository_id'])
       .where('id', '=', Number(version.workflow_id))
       .executeTakeFirst()
   : null
+
+/**
+ * Whether the workflow that ran belongs to the owner rather than to this
+ * repository.
+ *
+ * Worth a sentence on the screen, because everything else about this run looks
+ * like a run of a file in this repository and there is no such file. Somebody
+ * looking for it would go and read `.github/workflows` and find nothing.
+ */
+const ownerDefined = Boolean(workflow) && (workflow.repository_id === null || workflow.repository_id === undefined)
 
 /**
  * Whether this reader may stop this run.
@@ -912,6 +923,23 @@ const base = `/${ownerHandle}/${repositoryName}`
           This run is held{{ pausedBy ? ` by ${pausedBy}` : '' }}. Nothing new will start until somebody
           resumes it; whatever was already on a machine is still running, because a build in progress
           cannot be politely interrupted.
+        </div>
+      @endif
+
+      {{--
+        A workflow the owner carries, said out loud.
+
+        Without this the run looks like a run of a file in this repository, and
+        there is no such file - so the first thing anybody does is go and look
+        for it. It also explains a credential the repository never configured:
+        an owner-wide workflow is given the owner's secrets and none of this
+        repository's.
+      --}}
+      @if (ownerDefined)
+        <div class="panel notice">
+          This workflow belongs to <strong>{{ ownerHandle }}</strong> rather than to this repository, so
+          there is no file for it here. It runs over this repository's code with the owner's secrets,
+          and none of this repository's.
         </div>
       @endif
 

@@ -323,6 +323,50 @@ describe('a run somebody held', () => {
 })
 
 /*
+ * A run of a workflow that lives on the owner, said out loud on the screen -
+ * because everything else about it looks like a run of a file in this
+ * repository, and there is no such file to go and read.
+ */
+describe('a run of the owner\'s own workflow', () => {
+  test('says the definition is not this repository\'s', async () => {
+    if (!available)
+      return
+
+    const version: any = await db
+      .selectFrom('workflow_runs')
+      .select(['workflow_version_id'])
+      .where('repository_id', '=', created.repositoryId)
+      .where('number', '=', created.finished)
+      .executeTakeFirst()
+
+    const workflow: any = await db
+      .selectFrom('workflow_versions')
+      .select(['workflow_id'])
+      .where('id', '=', Number(version.workflow_version_id))
+      .executeTakeFirst()
+
+    // The one fact that makes it an owner-wide run: the workflow row carries no
+    // repository at all.
+    await db
+      .updateTable('workflows')
+      .set({ repository_id: null })
+      .where('id', '=', Number(workflow.workflow_id))
+      .execute()
+
+    const html = await page(`/${created.handle}/${created.name}/run/${created.finished}`, created.ownerToken)
+
+    expect(html).toContain('belongs to')
+    expect(html).toContain('none of this repository')
+
+    await db
+      .updateTable('workflows')
+      .set({ repository_id: created.repositoryId })
+      .where('id', '=', Number(workflow.workflow_id))
+      .execute()
+  })
+})
+
+/*
  * A run holding still for something outside it, and the control that ends the
  * wait. Asked of the rendered page, because a template that renders nothing is
  * this codebase's most common way to ship a feature that does not exist.

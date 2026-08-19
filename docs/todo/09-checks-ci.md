@@ -658,16 +658,53 @@ run is inspected.
       The end-to-end test polls rather than asserting immediately, because `dispatch` is
       fire-and-forget and must be: a push is answered when the refs move, not when everything
       downstream has finished thinking about it.
-- [ ] Owner-managed reusable workflows can target many repositories, while a repository may also
+- [x] Owner-managed reusable workflows can target many repositories, while a repository may also
       define its own workflows. Both are visible in the resulting run.
-- [ ] A workflow can be **owned entirely by the organization and carried by no repository at all**,
+
+      Both kinds go through one list in `currentVersions`, so the trigger filters, the dispatch, the
+      run rows and the restart treat them identically - a push to a covered repository that also has
+      its own file produces two runs, side by side in the same list, and nothing downstream knows
+      which is which. A second code path would have been a second place for the trigger rules to be
+      subtly wrong.
+- [x] A workflow can be **owned entirely by the organization and carried by no repository at all**,
       matching every repository under an owner or a selector over them. Cloudflare gets this by
       omitting `repoName` from an event binding; the value is that a security scan or a licence check
       lands on two hundred repositories without two hundred commits, and cannot be removed by editing
       a file in one of them.
-- [ ] Such a workflow declares what it needs from each repository it covers (checkout, changed paths,
+
+      `workflows.repository_id` is null and `selector` says who it covers. The selector syntax is
+      the one this codebase already uses for branches - comma or newline separated patterns, `*` for
+      any run of characters, a leading `!` to exclude - because a second pattern language is a
+      second thing to be wrong about. `visibility:private` is the one term that is not a name, since
+      "every private repository" is the second thing anybody asks for and naming them defeats the
+      point.
+
+      A selector is stored as written, so a repository created tomorrow is covered by the same rule
+      rather than by a list somebody expanded once. An archived repository is covered by nothing -
+      not a rule about selectors but a rule about archives, since a nightly scan that keeps starting
+      runs on a finished repository is a promise broken by a feature that was not thinking about it.
+
+      This is what `ownerTemplates.ts` cannot do and should not: a template writes a commit, and a
+      commit is a thing the repository can revert.
+- [x] Such a workflow declares what it needs from each repository it covers (checkout, changed paths,
       metadata) and gets nothing else. It runs at the owner's trust level over the repository's data,
       never at the repository's trust level, which is what makes it safe to give it a secret.
+
+      **The trust inversion, enforced where the secrets are chosen.** An owner-defined run is given
+      owner, instance and pool secrets and *none* scoped to the repository or to one of its
+      environments. Without that rule a repository admin could declare a secret with the
+      organization's key name and read whatever the licence scan was handed - which would make
+      giving one a credential the opposite of safe.
+
+      What it gets instead is the data: a checkout, the changed paths, the run metadata, and a job
+      token that defaults to `contents: read` like every other workflow that declares nothing. An
+      owner-wide workflow *may* ask for more, and that is the owner's call over repositories the
+      owner administers; the direction that had to be closed is the repository granting itself
+      something.
+
+      The run screen says so, because everything else about such a run looks like a run of a file in
+      this repository and there is no such file - so the first thing anybody does is go looking for
+      it.
 - [x] A typed event API can start a run directly, so a workflow is reachable from a webhook, another
       run, a scheduler, or an external system without a synthetic push
 

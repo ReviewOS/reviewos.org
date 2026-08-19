@@ -201,7 +201,10 @@ export default new Action({
     const workflow: any = version
       ? await db
         .selectFrom('workflows')
-        .select(['id', 'name', 'path'])
+        // `repository_id` too: null means the definition is the owner's rather
+        // than this repository's, which changes what the run was given and is
+        // the first thing somebody reading it should be told.
+        .select(['id', 'name', 'path', 'repository_id'])
         .where('id', '=', Number(version.workflow_id))
         .executeTakeFirst()
       : null
@@ -230,7 +233,21 @@ export default new Action({
         created_at: run.created_at ?? null,
 
         workflow: workflow
-          ? { id: Number(workflow.id), name: String(workflow.name), path: workflow.path ?? null }
+          ? {
+              id: Number(workflow.id),
+              name: String(workflow.name),
+              path: workflow.path ?? null,
+              /**
+               * Whether this definition belongs to the owner rather than to the
+               * repository.
+               *
+               * An owner-wide workflow runs over this repository's data at the
+               * owner's trust level, and is given the owner's secrets and none
+               * of this repository's. A reader who cannot see that cannot tell
+               * why a run has a credential their repository never configured.
+               */
+              owner_defined: workflow.repository_id === null || workflow.repository_id === undefined,
+            }
           : null,
 
         // The version, so a reader can tell which definition this ran and

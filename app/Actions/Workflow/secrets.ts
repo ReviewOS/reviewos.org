@@ -276,11 +276,38 @@ export async function secretsForJobDetailed(input: {
   poolId?: number | null
   only?: readonly string[] | null
   extra?: Record<string, string>
+  /**
+   * Whether this run's definition came from the owner rather than the
+   * repository, which changes what it may be given.
+   */
+  ownerDefined?: boolean
 }): Promise<{ values: Record<string, string>, problems: Array<{ key: string, reason: string }> }> {
   const environmentId = input.environment ? await environmentIdOf(input.repositoryId, input.environment) : null
 
+  const rows = await rowsFor(input.repositoryId, input.poolId ?? null)
+
+  /*
+   * An organization's own workflow gets the organization's secrets, and not
+   * this repository's.
+   *
+   * The trust inversion that makes owner-wide workflows safe to give a
+   * credential. An ordinary run takes its definition from the repository, so
+   * repository-scoped secrets are the repository trusting itself. This one
+   * takes its definition from the owner and runs *over* the repository's data -
+   * and if it also took repository-scoped secrets, a repository admin could
+   * declare a secret with the organization's key name and read whatever the
+   * licence scan was given.
+   *
+   * Environment secrets go with them, for the same reason and one more: an
+   * environment is configured in the repository, so an owner-wide workflow
+   * naming one would be reaching for a credential the repository controls.
+   */
+  const applicable = input.ownerDefined
+    ? rows.filter(row => row.scope !== 'repository' && row.scope !== 'environment')
+    : rows
+
   const chosen = selectSecrets({
-    rows: await rowsFor(input.repositoryId, input.poolId ?? null),
+    rows: applicable,
     trusted: input.trusted,
     environment: input.environment,
     environmentId,

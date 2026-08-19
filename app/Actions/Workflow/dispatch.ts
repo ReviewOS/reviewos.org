@@ -40,6 +40,7 @@ import { pullRequestStartsRun, pushStartsRun } from './triggers'
 import { repositoryDispatchStartsRun, workflowRunStartsRun } from './triggers'
 import { forkApprovalFacts, forkApprovalVerdict } from './forkApproval'
 import { withRedeliveryKey } from './redelivery'
+import { ownerVersionsFor } from './ownerWorkflows'
 import { isNotFalse, isTrue } from '../Support/sql'
 
 export interface DispatchResult {
@@ -51,14 +52,18 @@ export interface DispatchResult {
   skipped: Array<{ versionId: number, reason: string }>
 }
 
-/** The latest version of each active workflow in a repository. */
-async function currentVersions(repositoryId: number): Promise<any[]> {
-  return db
-    .selectFrom('workflow_versions')
-    // Four arguments, with the operator: the three-argument form this query
-    // builder does not have fails at runtime rather than at typecheck.
-    .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
-    .select([
+/**
+ * Every column the trigger rules read off a version.
+ *
+ * Named once because two queries answer "which versions could this event
+ * start" - the repository's own and the owner's that cover it - and a column
+ * present in one list and missing from the other is a filter that silently does
+ * nothing for half the workflows on the instance. That is the failure this
+ * phase keeps producing, and a shared list is the cheapest way not to produce
+ * it again.
+ */
+const VERSION_COLUMNS = [
+
       'workflow_versions.id as id',
       'workflow_versions.workflow_id as workflow_id',
       'workflow_versions.on_push as on_push',
@@ -99,7 +104,37 @@ async function currentVersions(repositoryId: number): Promise<any[]> {
       'workflow_versions.push_tags as push_tags',
       'workflow_versions.push_paths as push_paths',
       'workflow_versions.source_sha as source_sha',
-    ])
+] as const
+
+/** The latest version of each active workflow that could run in a repository. */
+async function currentVersions(repositoryId: number): Promise<any[]> {
+  /*
+   * The repository's own, and the owner's that cover it.
+   *
+   * Both, in one list, because everything downstream must treat them the same:
+   * the trigger filters, the dispatch, the run rows, the restart. An
+   * organization's licence check is a workflow that happens to live somewhere
+   * else, and a second code path for it would be a second place for the trigger
+   * rules to be subtly wrong.
+   *
+   * The owner's go last, so a repository's own workflow with the same name is
+   * the one `newestPerWorkflow` keeps first - they are different workflow rows
+   * either way, so both run; the order only decides what a reader sees first.
+   */
+  const own = await ownVersions(repositoryId)
+  const owners = await ownerVersionsFor(repositoryId, VERSION_COLUMNS)
+
+  return [...own, ...owners]
+}
+
+/** The versions of the workflows this repository carries itself. */
+async function ownVersions(repositoryId: number): Promise<any[]> {
+  return db
+    .selectFrom('workflow_versions')
+    // Four arguments, with the operator: the three-argument form this query
+    // builder does not have fails at runtime rather than at typecheck.
+    .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    .select(VERSION_COLUMNS as any)
     .where('workflows.repository_id', '=', repositoryId)
     .where('workflows.state', '=', 'active')
     // Newest first, then one per workflow below: a workflow edited twice in one
