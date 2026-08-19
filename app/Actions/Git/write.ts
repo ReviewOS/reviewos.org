@@ -158,6 +158,21 @@ export async function createCommit(repositoryPath: string, input: CommitInput): 
     if (!update.ok)
       return { ok: false, error: `Could not move the branch: ${update.stderr.trim()}` }
 
+    /*
+     * The ledger follows, through the same compare-and-swap a push uses.
+     *
+     * A server-side write - a merge, a squash, a revert, an edit - moves a ref
+     * without ever going through the pre-receive gate, so nothing else would
+     * tell the ledger about it. Left out, every merge would register as drift
+     * and, worse, a node materializing from the ledger would rebuild the
+     * repository as it was before the merge.
+     *
+     * Best-effort and after the fact: git has already moved the ref under its
+     * own guard, so this cannot be the thing that decides whether the write
+     * happened. A failure here is drift the audit will report.
+     */
+    await recordServerWrite(repositoryPath, `refs/heads/${input.branch}`, expected ?? null, sha)
+
     return { ok: true, sha }
   }
   finally {
@@ -216,5 +231,37 @@ export function authorEnvironment(author: CommitAuthor): Record<string, string> 
     GIT_COMMITTER_NAME: author.name,
     GIT_COMMITTER_EMAIL: author.email,
     GIT_COMMITTER_DATE: date,
+  }
+}
+
+
+/**
+ * Tell the ledger about a ref this server moved itself.
+ *
+ * Resolved from the path rather than passed in, because every caller of
+ * `createCommit` has a repository path and most have no repository id - and
+ * threading one through six call sites to satisfy an index is how an index
+ * ends up half-populated.
+ */
+async function recordServerWrite(repositoryPath: string, ref: string, before: string | null, after: string): Promise<void> {
+  try {
+    const { repositoryIdFrom } = await import('./storage')
+    const repositoryId = await repositoryIdFrom(repositoryPath)
+
+    if (!repositoryId)
+      return
+
+    const { applyToLedger, ZERO_SHA } = await import('./refs')
+    const { nextSequence } = await import('./wal')
+
+    // A sequence of its own, so the ledger records *when* relative to pushes.
+    // A server write that shared a push's sequence would make the log's
+    // ordering a lie.
+    const sequence = await nextSequence(repositoryId)
+
+    await applyToLedger(repositoryId, [{ ref, before: before ?? ZERO_SHA, after }], sequence)
+  }
+  catch {
+    // Drift the audit will find, rather than a merge that failed.
   }
 }

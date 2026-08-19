@@ -126,10 +126,51 @@ export async function ensureLocal(owner: string, name: string, root = REPOSITORY
   // honest test.
   const marker = Bun.file(join(resolved.path!, 'HEAD'))
 
-  if (!(await marker.exists()))
-    return { ok: false, reason: 'missing', relative: resolved.relative }
+  if (await marker.exists())
+    return { ok: true, path: resolved.path, relative: resolved.relative }
 
-  return { ok: true, path: resolved.path, relative: resolved.relative }
+  /*
+   * Not here. On a single-node instance that is simply a missing repository
+   * and always has been; with the ledger, it may instead be a repository this
+   * node has never materialized - so ask, once, before answering no.
+   *
+   * Deliberately narrow: only the *absent* case materializes on the serving
+   * path. A present-but-stale repository is topped up by the drift audit
+   * rather than inside somebody's clone, because a clone that silently waits
+   * on a multi-gigabyte fetch is worse than one that serves refs a few
+   * seconds old.
+   */
+  const materialized = await materializeIfPossible(owner, name, resolved.path!)
+
+  if (materialized)
+    return { ok: true, path: resolved.path, relative: resolved.relative }
+
+  return { ok: false, reason: 'missing', relative: resolved.relative }
+}
+
+/**
+ * Try to build a repository this node does not have, from the database.
+ *
+ * Loaded lazily and failing quietly: `storage.ts` is imported by every git
+ * route and must not drag the blob store, the log and the ledger into all of
+ * them - and an instance with no write-ahead log has nothing to materialize
+ * from, which is not an error, it is the default configuration.
+ */
+async function materializeIfPossible(owner: string, name: string, path: string): Promise<boolean> {
+  try {
+    const { materialize, repositoryIdFor } = await import('./materialize')
+    const repositoryId = await repositoryIdFor(owner, name)
+
+    if (!repositoryId)
+      return false
+
+    const outcome = await materialize(repositoryId, path)
+
+    return outcome.ok
+  }
+  catch {
+    return false
+  }
 }
 
 /**
@@ -186,4 +227,30 @@ export function gitService(pathname: string, query: URLSearchParams): 'upload-pa
 /** Whether a service only reads. Decides which permission the request needs. */
 export function isReadOnlyService(service: 'upload-pack' | 'receive-pack'): boolean {
   return service === 'upload-pack'
+}
+
+
+/**
+ * The repository row a path belongs to, or null.
+ *
+ * The inverse of `repositoryPath`, and it lives here for the same reason that
+ * one does: this module is the only place that knows the layout, so it is the
+ * only place that can safely read a layout backwards.
+ */
+export async function repositoryIdFrom(repositoryPath: string, root = REPOSITORY_ROOT): Promise<number | null> {
+  const absoluteRoot = resolve(root)
+  const absolute = resolve(repositoryPath)
+
+  if (!absolute.startsWith(`${absoluteRoot}/`))
+    return null
+
+  const relative = absolute.slice(absoluteRoot.length + 1)
+  const [owner, directory] = relative.split('/')
+
+  if (!owner || !directory)
+    return null
+
+  const { repositoryIdFor } = await import('./materialize')
+
+  return await repositoryIdFor(owner, directory.replace(/\.git$/, ''))
 }

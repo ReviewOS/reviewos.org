@@ -32,7 +32,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [15 - Pipelines](./15-pipelines.md) | Actions compatibility, step model, runner fleet, test intelligence | In progress (188/189) |
 | [16 - Single-node hardening](./16-hardening-scale.md) | Bounded buffers, backpressure, process ceilings, pantry-first infra | In progress (35/36) |
 | [17 - Database scale-out](./17-database.md) | Postgres to MySQL, Vitess for sharded instances | MySQL done, Vitess designed (11/13) |
-| [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | In progress (19/24) |
+| [18 - Storage scale-out](./18-scale-out.md) | Push WAL, blob store, ref ledger, repos as cache | In progress (23/24) |
 
 Phases 16 through 18 were written after reading Cursor's
 [Git at any scale](https://cursor.com/blog/git-at-any-scale) and auditing this codebase against it.

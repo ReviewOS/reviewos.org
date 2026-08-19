@@ -177,18 +177,57 @@ is payload.
 
 ## 18c - Refs in the database, repositories become cattle
 
-Waits for phase 17's single-node MySQL. After this sub-phase, disk is a cache and the database plus
-blob store are the truth.
+Written to wait for phase 17's single-node MySQL, and built without it - because what it actually
+needed turned out to be available on both engines. The dependency was on a per-repo `GET_LOCK`
+for all-or-nothing across the refs of one push; what the ledger needs to be *correct* is a
+compare-and-swap, and a conditional `UPDATE ... WHERE sha = :before` is atomic on its own
+everywhere. Phase 17's lock upgrades this from per-ref CAS to per-push atomicity when it lands,
+and nothing here changes for it.
 
-- [ ] The `git_refs` ledger, updated by CAS in the same transaction as the WAL row, under the
-      per-repo lock. `update-ref` on disk follows the ledger, never leads it.
-- [ ] `ensureLocal` grows teeth: a missing or ledger-divergent repository is materialized from
-      checkpoint plus WAL suffix before serving.
-- [ ] A drift-audit job sampling repositories, `for-each-ref` against the ledger, alerting on
-      divergence rather than silently repairing it.
-- [ ] Server-side writes (`app/Actions/Git/write.ts`, merges, reverts) go through the same CAS
-      path as pushes.
+The linearization point is the one the write-ahead log already had: the unique
+`(repository_id, sequence)`. Whoever wins that insert owns the right to apply its ref
+transaction. **No Postgres advisory locks anywhere**, per phase 17's design, and no multi-statement
+transaction either - this codebase's query builder exposes none.
 
+After this sub-phase, disk is a cache and the database plus blob store are the truth.
+
+- [x] The `git_refs` ledger, updated by CAS in the same transaction as the WAL row, under the
+      per-repo lock. `update-ref` on disk follows the ledger, never leads it. Applied in the gate,
+      immediately after the sequence is won, so the log and the ledger move together. A conflict
+      is reported and never forced: a ref that moved underneath means git will refuse the push a
+      moment later for the same reason. The ledger never *blocks* a push, because the WAL row is
+      the truth and an index that could veto the thing it indexes is an index with too much
+      authority.
+
+      `sequence` on each row is the entry that last moved it, which answers materialization's
+      real question - what does this node still need - without reading the log at all. Rows
+      seeded from disk land at sequence zero, deliberately visible: it means the ledger was
+      believed rather than derived.
+- [x] `ensureLocal` grows teeth: a missing or ledger-divergent repository is materialized from
+      checkpoint plus WAL suffix before serving. Deliberately narrow on the serving path - only
+      the *absent* case materializes inside a request, because a clone that silently waits on a
+      multi-gigabyte fetch is worse than one that serves refs a few seconds old. A
+      present-but-stale repository is the drift audit's business.
+
+      Materializing never destroys: it creates what is absent and tops up what is behind, and
+      removes nothing. The refs come from the ledger rather than from the bundles, because a
+      bundle carries whatever names its objects travelled under - including the
+      `refs/reviewos-wal/*` the log parks tips beneath - and where a ref *belongs* is the
+      ledger's answer.
+- [x] A drift-audit job sampling repositories, `for-each-ref` against the ledger, alerting on
+      divergence rather than silently repairing it. **Reporting rather than repairing is the
+      design**: every cause of drift worth knowing about is a bug, and a job that quietly
+      reconciled would erase the evidence and let it recur. Sampled on a rotation keyed to the
+      hour, so systemic drift is found quickly and a single stale repository eventually - an
+      exhaustive `for-each-ref` across ten thousand repositories is an hour of git to answer a
+      question that is almost always "no". A repository with no ledger rows is not drift, it
+      predates the table, and is seeded once from disk.
+- [x] Server-side writes (`app/Actions/Git/write.ts`, merges, reverts) go through the same CAS
+      path as pushes. They never touch the pre-receive gate, so without this every merge would
+      register as drift - and worse, a node materializing from the ledger would rebuild the
+      repository as it was *before* the merge. Best-effort and after git's own guarded
+      `update-ref`, so the ledger can never be the reason a merge fails; a failure here is drift
+      the audit reports.
 ## 18d - The read path, sized for CI
 
 Phase 15's runner fleet is the load: clone storms against hot repositories. The cheap answers come

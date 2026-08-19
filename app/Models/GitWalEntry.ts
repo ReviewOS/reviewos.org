@@ -43,6 +43,18 @@ export default defineModel({
   primaryKey: 'id',
   autoIncrement: true,
 
+  /*
+   * Cascade with the repository. A log entry describing pushes to something
+   * that no longer exists cannot be replayed into anything, and the delete
+   * path relies on the foreign keys rather than listing tables by hand.
+   *
+   * The *bundles* in the blob store are a separate question, and they are left
+   * for the checkpoint sweep rather than deleted here: a repository deletion is
+   * recoverable for thirty days by design, and taking its bundles at the moment
+   * the row goes would make the row the only thing recoverable.
+   */
+  belongsTo: [{ model: 'Repository', onDelete: 'cascade' }],
+
   indexes: [
     /*
      * The ordering, and the uniqueness that makes it real. Two rows claiming

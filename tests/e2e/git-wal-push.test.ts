@@ -171,6 +171,7 @@ afterAll(async () => {
 
     if (created.repositoryId) {
       await db.deleteFrom('git_wal_entries').where('repository_id', '=', created.repositoryId).execute().catch(() => undefined)
+      await db.deleteFrom('git_refs').where('repository_id', '=', created.repositoryId).execute().catch(() => undefined)
       await db.deleteFrom('repositories').where('id', '=', created.repositoryId).execute()
     }
 
@@ -262,6 +263,61 @@ describe('a push with the log on', () => {
 
     expect(refs.stdout).not.toContain('refs/reviewos-wal/')
   }, 60_000)
+
+  test('moves the ref ledger, which is what makes disk a cache', async () => {
+    if (!available)
+      return
+
+    const work = join(created.temp, 'work')
+    const head = (await git(work, 'rev-parse', 'HEAD')).out
+
+    // The gate applied the ref transaction to the ledger inside the same
+    // request that recorded the log entry.
+    const { ledgerFor } = await import('../../app/Actions/Git/refs')
+    const ledger = await ledgerFor(created.repositoryId)
+
+    const main = ledger.find(entry => entry.ref === 'refs/heads/main')
+
+    expect(main?.sha).toBe(head)
+    // Recorded against the log entry that moved it, which is what tells a
+    // materializing node what it still needs.
+    expect(main?.sequence).toBeGreaterThan(0)
+  }, 60_000)
+
+  test('rebuilds the whole repository from the database and the store', async () => {
+    if (!available)
+      return
+
+    const work = join(created.temp, 'work')
+    const head = (await git(work, 'rev-parse', 'HEAD')).out
+
+    /*
+     * The claim phase 18c is actually making: this node can be handed nothing
+     * but the ledger and the blob store and produce the repository. Proved by
+     * materializing into a path that has never held one.
+     */
+    const { materialize } = await import('../../app/Actions/Git/materialize')
+    const elsewhere = join(created.temp, 'materialized.git')
+
+    const outcome = await materialize(created.repositoryId, elsewhere)
+
+    expect(outcome.ok, outcome.reason ?? '').toBe(true)
+    expect(outcome.created).toBe(true)
+    expect(outcome.bundlesFetched).toBeGreaterThan(0)
+
+    const { runGit } = await import('../../app/Actions/Git/git')
+
+    // The refs are where the ledger says, and the objects behind them arrived.
+    const tip = await runGit(elsewhere, ['rev-parse', 'refs/heads/main'])
+    expect(tip.stdout.trim()).toBe(head)
+
+    const commit = await runGit(elsewhere, ['cat-file', '-e', `${head}^{commit}`])
+    expect(commit.ok).toBe(true)
+
+    // And it is a repository git will serve, not just a directory of objects.
+    const listed = await runGit(elsewhere, ['ls-tree', '--name-only', 'refs/heads/main'])
+    expect(listed.stdout).toContain('README.md')
+  }, 180_000)
 
   test('a second push is sequence 2 and carries its own bundle', async () => {
     if (!available)

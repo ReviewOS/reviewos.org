@@ -626,8 +626,31 @@ async function recordWal(
       excludeRefs,
     })
 
-    if (entry)
+    if (entry) {
+      /*
+       * The ledger follows the log, in that order and inside the same gate.
+       *
+       * The sequence has been won, so this is not a race for the right to
+       * write - it is the compare half of compare-and-swap, checking that the
+       * refs still hold what this push was accepted against. A conflict here
+       * means somebody else moved the ref between the gate and now, and git
+       * will refuse the push for the same reason a moment later.
+       *
+       * Never fatal to the push on its own: the WAL row is the truth, and a
+       * ledger that fell behind is what the drift audit exists to find. A
+       * ledger that *blocked* a push would make an index more authoritative
+       * than the thing it indexes.
+       */
+      try {
+        const { applyToLedger } = await import('../app/Actions/Git/refs')
+        await applyToLedger(target.repositoryId, updates, entry.sequence)
+      }
+      catch (error) {
+        console.error('[wal] the ledger could not be updated:', error)
+      }
+
       return 'recorded'
+    }
 
     console.error('[wal] the push produced no log entry')
   }

@@ -63,6 +63,20 @@ export default function () {
     .job('CheckpointRepositories')
     .daily()
 
+  /*
+   * What this node holds against what the database says. Hourly and sampled:
+   * a `for-each-ref` per repository across an instance with thousands of them
+   * is an hour of git to answer a question that is almost always "no", and a
+   * rotating sample finds systemic drift quickly.
+   *
+   * It reports rather than repairs. Silently reconciling would erase the
+   * evidence of whatever caused the drift, and every cause worth knowing about
+   * is a bug.
+   */
+  schedule
+    .job('AuditRefDrift')
+    .hourly()
+
   // What was held, sent as one message per thread. A sweep rather than a timer
   // armed per notification: a timer has to survive a restart and a sweep reads
   // what is actually pending, so a process that dies mid-digest loses nothing -
