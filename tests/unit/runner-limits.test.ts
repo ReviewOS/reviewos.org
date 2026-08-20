@@ -55,7 +55,18 @@ describe('the prelude', () => {
   test('sets the soft and hard limit together', () => {
     // Setting only the soft limit would let a step raise it back with one line,
     // which is a ceiling that asks to be respected rather than one that holds.
-    expect(limitPrelude(limitsFrom({}))).toContain('-S -H')
+    //
+    // A bare `ulimit -f N` is how both are set: every shell reads a missing
+    // -S/-H as "both". This asserted `-S -H` instead, which says the same thing
+    // in bash and zsh and is silently ignored by dash - `/bin/sh` on Ubuntu, so
+    // on the box and on every Linux runner. The two tests further down, which
+    // run a step that tries to exceed its ceiling, are what noticed: they were
+    // green on macOS and red on Linux for as long as this said `-S -H`.
+    const prelude = limitPrelude(limitsFrom({}))
+
+    expect(prelude).not.toContain('-S')
+    expect(prelude).not.toContain('-H')
+    expect(prelude).toMatch(/^ulimit -[vuft] \d+/m)
   })
 
   test('and is empty when nothing is limited', () => {

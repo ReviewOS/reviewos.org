@@ -1467,8 +1467,10 @@ gate, in order.
 - [ ] CPU, memory, process, disk, output, and wall-time limits enforced outside the job
 
       **Output and wall time are done; CPU, file size and processes are available; memory and disk
-      are not.** `app/Actions/Runner/limits.ts` puts `ulimit -S -H` in front of a step's command -
-      soft and hard together, so a step cannot raise what it was given - and
+      are not.** `app/Actions/Runner/limits.ts` puts a bare `ulimit` in front of a step's command -
+      no -S or -H, which is how every shell sets soft and hard at once, so a step cannot raise what
+      it was given. It said `-S -H`, which means the same in bash and is silently ignored by dash,
+      so every ceiling was inert on Linux and enforced on a Mac - and
       `tests/unit/runner-limits.test.ts` runs a real shell to prove the file-size ceiling bites and
       cannot be raised, rather than asserting on the string.
 

@@ -88,9 +88,10 @@ configured; `RUNNER_TEMP` and `RUNNER_TOOL_CACHE` inside that workspace rather t
 so one job cannot read what the last left; a wall-clock timeout the runner enforces and the control
 plane backstops; a per-job log ceiling enforced on the way in.
 
-**Since this was written**, a step's command is preceded by `ulimit -S -H` for address space, file
-size, processes and CPU seconds (`app/Actions/Runner/limits.ts`), soft and hard together so a step
-cannot raise what it was given. Read that as *housekeeping, not a boundary*: it stops the loop that
+**Since this was written**, a step's command is preceded by a bare `ulimit` for address space, file
+size, processes and CPU seconds (`app/Actions/Runner/limits.ts`) - no -S or -H, which is how every
+shell sets soft and hard at once, so a step cannot raise what it was given. It read `-S -H` until
+dash, which is `/bin/sh` on the box, was found to accept that and set nothing at all. Read that as *housekeeping, not a boundary*: it stops the loop that
 writes a forty-gigabyte file, and it does nothing whatsoever about an attacker. Two of the four are
 off by default because they count something wider than one step - `RLIMIT_NPROC` is per user, and
 CPU seconds are not wall time.

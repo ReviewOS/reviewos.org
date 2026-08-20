@@ -93,8 +93,25 @@ function positive(value: string | undefined, fallback: number): number {
  * operator who turned everything off - a prelude of nothing but `true` would be
  * a diff in every log for no reason.
  *
- * `-H` is not passed separately: `ulimit -S -H` in one call sets both, and
- * setting only the soft limit would let a step raise it back with one line.
+ * **Neither `-S` nor `-H` is passed, and that is the whole point.** A `ulimit`
+ * with no flag sets both the soft and the hard limit, which is what stops a
+ * step raising its own ceiling back. Saying `-S -H` in one call means the same
+ * thing in bash and zsh - and on dash, which is `/bin/sh` on Ubuntu and so on
+ * every Linux runner and on the box, it is **accepted and does nothing**:
+ *
+ *     $ /bin/sh -c 'ulimit -S -H -f 1024; ulimit -f'
+ *     unlimited
+ *
+ * No error, no diagnostic, and `2>/dev/null || true` below would have hidden
+ * one anyway. Every ceiling in this file was inert on Linux and enforced on a
+ * developer's Mac, which is the wrong way round. `tests/unit/runner-limits.test.ts`
+ * runs a step that tries to exceed its limit rather than asserting the string,
+ * and that is what caught it.
+ *
+ * Setting them one at a time does not work either: the hard limit cannot be
+ * lowered past a soft limit that is still `unlimited`, so `ulimit -H -f 1024`
+ * on a fresh shell is `error setting limit (Invalid argument)`. Both at once,
+ * in the one form every shell agrees on.
  */
 export function limitPrelude(limits: StepLimits): string {
   const lines: string[] = []
@@ -102,16 +119,16 @@ export function limitPrelude(limits: StepLimits): string {
   // Blocks of 1024 bytes for `-f`, kilobytes for `-v`: both are historical and
   // both are what every shell means by those flags.
   if (limits.memoryMb > 0)
-    lines.push(`ulimit -S -H -v ${limits.memoryMb * 1024} 2>/dev/null || true`)
+    lines.push(`ulimit -v ${limits.memoryMb * 1024} 2>/dev/null || true`)
 
   if (limits.processes > 0)
-    lines.push(`ulimit -S -H -u ${limits.processes} 2>/dev/null || true`)
+    lines.push(`ulimit -u ${limits.processes} 2>/dev/null || true`)
 
   if (limits.fileSizeMb > 0)
-    lines.push(`ulimit -S -H -f ${limits.fileSizeMb * 1024} 2>/dev/null || true`)
+    lines.push(`ulimit -f ${limits.fileSizeMb * 1024} 2>/dev/null || true`)
 
   if (limits.cpuSeconds > 0)
-    lines.push(`ulimit -S -H -t ${limits.cpuSeconds} 2>/dev/null || true`)
+    lines.push(`ulimit -t ${limits.cpuSeconds} 2>/dev/null || true`)
 
   return lines.length > 0 ? `${lines.join('\n')}\n` : ''
 }
