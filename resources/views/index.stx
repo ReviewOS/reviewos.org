@@ -166,6 +166,10 @@ const nots = [
     <link rel="icon" href="/favicon.ico" sizes="32x32">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
+    <!-- The lockup, for anywhere that embeds the brand rather than renders the
+         nav: a README on another forge, a slide, a press page. Declared here so
+         there is one canonical URL for it rather than a copy per consumer. -->
+    <link rel="preload" as="image" type="image/svg+xml" href="/wordmark.svg" fetchpriority="low">
 
 
     <meta property="og:type" content="website">
