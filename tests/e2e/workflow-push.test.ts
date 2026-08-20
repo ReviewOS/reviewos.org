@@ -103,6 +103,62 @@ async function waitFor<T>(read: () => Promise<T>, until: (value: T) => boolean, 
   return value
 }
 
+/**
+ * The rows one workflow file produced **in this suite's own repository**.
+ *
+ * The scoping is the point. Every execution of this file creates a *new*
+ * repository with a unique handle and writes the same
+ * `.reviewos/workflows/skipper.yml` into it - so a query that finds runs by
+ * joining to `workflows` and matching the path alone also matches every copy
+ * left behind by an earlier execution. A test asserting `toHaveLength(2)` after
+ * two pushes was handed four rows, of which `[0]` and `[1]` belonged to last
+ * time, and read a state from a run it had never started.
+ *
+ * `afterAll` deletes the repository and the rows cascade, so a run whose
+ * teardown completes leaves nothing. Two things stop it completing: a killed
+ * run - a CI timeout, an interrupted local run - never reaches it at all, and
+ * the delete itself fails now and again, because the last push's listener is
+ * still fire-and-forget and can be writing under it. Either way the fixtures
+ * stay, and every run after that one is measuring the wreckage.
+ *
+ * That is why this looked like a race: the failure moved between tests in this
+ * block, appeared only where the suite had been run before, and got worse the
+ * more it was retried.
+ *
+ * A suite whose correctness depends on every previous run having exited cleanly
+ * is not isolated, whatever its teardown says. `workflowsHere` above has always
+ * been scoped; these had not.
+ *
+ * Written once, as three helpers, rather than as a predicate repeated at each
+ * query: the one that gets written without it is the one somebody finds.
+ */
+function runsOf(path: string): any {
+  return db
+    .selectFrom('workflow_runs')
+    .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+    .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    .where('workflows.path', '=', path)
+    .where('workflows.repository_id', '=', created.repositoryId)
+}
+
+function jobsOf(path: string): any {
+  return db
+    .selectFrom('workflow_jobs')
+    .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
+    .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
+    .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    .where('workflows.path', '=', path)
+    .where('workflows.repository_id', '=', created.repositoryId)
+}
+
+function versionsOf(path: string): any {
+  return db
+    .selectFrom('workflow_versions')
+    .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    .where('workflows.path', '=', path)
+    .where('workflows.repository_id', '=', created.repositoryId)
+}
+
 const CI = `name: CI
 on:
   push:
@@ -179,7 +235,22 @@ afterAll(async () => {
     if (created.ownerId)
       await db.deleteFrom('users').where('id', '=', created.ownerId).execute()
   }
-  catch { /* the files still go, below */ }
+  catch (error) {
+    /*
+     * Said out loud, rather than swallowed.
+     *
+     * This teardown does not always succeed - a listener from the last push is
+     * still fire-and-forget, so a row can arrive under a delete that has
+     * already decided what to remove. When it fails the fixtures stay in the
+     * database, and the next execution of this file runs against them.
+     *
+     * The queries above no longer care, which is the actual fix. But a leak
+     * that says nothing is one that gets found by a different test failing
+     * later for a reason it cannot explain, so the message is here even though
+     * nothing is going to act on it.
+     */
+    console.warn(`[workflow-push] fixtures left behind: ${error instanceof Error ? error.message : String(error)}`)
+  }
 
   if (created.diskPath) {
     removeRepositoryDirectory(created.diskPath)
@@ -561,12 +632,8 @@ jobs:
     // The run belonging to *this* workflow, rather than the last one written:
     // the repository has more than one workflow by now.
     const findRun = async () => {
-      const rows: any[] = await db
-        .selectFrom('workflow_runs')
-        .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
-        .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+      const rows: any[] = await runsOf('.reviewos/workflows/matrix.yml')
         .select(['workflow_runs.id as id'])
-        .where('workflows.path', '=', '.reviewos/workflows/matrix.yml')
         .orderBy('workflow_runs.id', 'desc')
         .execute()
 
@@ -626,12 +693,8 @@ jobs:
       - run: bun run deploy
 `)
 
-    const runsFor = async (): Promise<any[]> => db
-      .selectFrom('workflow_runs')
-      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
-      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    const runsFor = async (): Promise<any[]> => runsOf('.reviewos/workflows/deploy.yml')
       .select(['workflow_runs.id as id', 'workflow_runs.state as state', 'workflow_runs.concurrency_group as concurrency_group'])
-      .where('workflows.path', '=', '.reviewos/workflows/deploy.yml')
       .orderBy('workflow_runs.id')
       .execute()
 
@@ -643,7 +706,24 @@ jobs:
     expect(first[0].concurrency_group).toBe('deploy-refs/heads/main')
 
     await push('deploy/two.txt', 'two\n')
-    const both = await waitFor(runsFor, (rows: any[]) => rows.length >= 2)
+
+    /*
+     * Waited on the *cancellation*, not on the row count.
+     *
+     * The second run's row appears first and the supersede is applied to the
+     * first run a moment later, so a wait that stops at `length >= 2` reads the
+     * state in between and sees the run it is about to cancel still queued.
+     * That is the whole of the intermittency these tests used to show, and it
+     * is not a race in the product: the push is answered when the refs move,
+     * and settling is deliberately asynchronous.
+     *
+     * Still fails if it never happens - `waitFor` returns at its deadline
+     * whatever the state, and the assertions below are the ones that judge it.
+     */
+    const both = await waitFor(
+      runsFor,
+      (rows: any[]) => rows.length >= 2 && String(rows[0].state) === 'cancelling',
+    )
 
     expect(both).toHaveLength(2)
     expect(both[0].state).toBe('cancelling')
@@ -680,12 +760,8 @@ jobs:
       - run: make
 `)
 
-    const runsFor = async (): Promise<any[]> => db
-      .selectFrom('workflow_runs')
-      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
-      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    const runsFor = async (): Promise<any[]> => runsOf('.reviewos/workflows/skipper.yml')
       .select(['workflow_runs.id as id', 'workflow_runs.state as state', 'workflow_runs.conclusion_reason as reason'])
-      .where('workflows.path', '=', '.reviewos/workflows/skipper.yml')
       .orderBy('workflow_runs.id')
       .execute()
 
@@ -693,7 +769,13 @@ jobs:
     await waitFor(runsFor, (rows: any[]) => rows.length >= 1)
 
     await push('skip/two.txt', 'two\n')
-    const both = await waitFor(runsFor, (rows: any[]) => rows.length >= 2)
+
+    // On the cancellation rather than the count - see the note in the
+    // `cancel-in-progress` test above.
+    const both = await waitFor(
+      runsFor,
+      (rows: any[]) => rows.length >= 2 && String(rows[0].state) === 'cancelled',
+    )
 
     expect(both).toHaveLength(2)
 
@@ -742,16 +824,12 @@ jobs:
       - run: ./ship
 `)
 
-    const runsFor = async (): Promise<any[]> => db
-      .selectFrom('workflow_runs')
-      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
-      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    const runsFor = async (): Promise<any[]> => runsOf('.reviewos/workflows/serial.yml')
       .select([
         'workflow_runs.id as id',
         'workflow_runs.state as state',
         'workflow_runs.conclusion_reason as conclusion_reason',
       ])
-      .where('workflows.path', '=', '.reviewos/workflows/serial.yml')
       .orderBy('workflow_runs.id')
       .execute()
 
@@ -759,7 +837,13 @@ jobs:
     await waitFor(runsFor, (rows: any[]) => rows.length >= 1)
 
     await push('serial/two.txt', 'two\n')
-    const both = await waitFor(runsFor, (rows: any[]) => rows.length >= 2)
+
+    // On the hold rather than the count: the second run is inserted queued and
+    // moved to `waiting` when the group is consulted.
+    const both = await waitFor(
+      runsFor,
+      (rows: any[]) => rows.length >= 2 && String(rows[1].state) === 'waiting',
+    )
 
     expect(both[0].state).toBe('queued')
     // Held, and saying why: "queued" with nothing happening is the most
@@ -799,12 +883,8 @@ jobs:
     // The default, and the reason cancelling is opt-in: throwing away a run
     // somebody is watching because a colleague pushed is worse than paying for
     // two runners.
-    const runsFor = async (): Promise<any[]> => db
-      .selectFrom('workflow_runs')
-      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
-      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    const runsFor = async (): Promise<any[]> => runsOf('.reviewos/workflows/matrix.yml')
       .select(['workflow_runs.state as state', 'workflow_runs.concurrency_group as concurrency_group'])
-      .where('workflows.path', '=', '.reviewos/workflows/matrix.yml')
       .orderBy('workflow_runs.id')
       .execute()
 
@@ -845,18 +925,13 @@ jobs:
       - run: ./deploy
 `)
 
-    const jobsFor = async (): Promise<any[]> => db
-      .selectFrom('workflow_jobs')
-      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
-      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
-      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    const jobsFor = async (): Promise<any[]> => jobsOf('.reviewos/workflows/ship.yml')
       .select([
         'workflow_jobs.id as id',
         'workflow_jobs.job_id as job_id',
         'workflow_jobs.state as state',
         'workflow_jobs.concurrency_group as concurrency_group',
       ])
-      .where('workflows.path', '=', '.reviewos/workflows/ship.yml')
       .orderBy('workflow_jobs.id')
       .execute()
 
@@ -869,7 +944,15 @@ jobs:
     expect(first.find((job: any) => job.job_id === 'test').concurrency_group).toBeNull()
 
     await push('ship/two.txt', 'two\n')
-    const both = await waitFor(jobsFor, (rows: any[]) => rows.length >= 4)
+
+    // On the supersede rather than the count, for the reason the workflow-level
+    // test above gives: the replacing job's row lands before the replaced job's
+    // state changes.
+    const both = await waitFor(
+      jobsFor,
+      (rows: any[]) => rows.length >= 4
+        && rows.filter((job: any) => job.job_id === 'deploy').some((job: any) => String(job.state) === 'cancelling'),
+    )
 
     const deploys = both.filter((job: any) => job.job_id === 'deploy')
     const tests = both.filter((job: any) => job.job_id === 'test')
@@ -915,18 +998,13 @@ jobs:
 
     await push('conditional/go.txt', 'go\n')
 
-    const jobsFor = async (): Promise<any[]> => db
-      .selectFrom('workflow_jobs')
-      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
-      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
-      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    const jobsFor = async (): Promise<any[]> => jobsOf('.reviewos/workflows/conditional.yml')
       .select([
         'workflow_jobs.job_id as job_id',
         'workflow_jobs.state as state',
         'workflow_jobs.condition as condition',
         'workflow_jobs.condition_reason as condition_reason',
       ])
-      .where('workflows.path', '=', '.reviewos/workflows/conditional.yml')
       .orderBy('workflow_jobs.id')
       .execute()
 
@@ -993,18 +1071,13 @@ jobs:
 
     await push('release/go.txt', 'go\n')
 
-    const jobsFor = async (): Promise<any[]> => db
-      .selectFrom('workflow_jobs')
-      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
-      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
-      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    const jobsFor = async (): Promise<any[]> => jobsOf('.reviewos/workflows/release.yml')
       .select([
         'workflow_jobs.job_id as job_id',
         'workflow_jobs.name as name',
         'workflow_jobs.state as state',
         'workflow_jobs.condition_reason as condition_reason',
       ])
-      .where('workflows.path', '=', '.reviewos/workflows/release.yml')
       .orderBy('workflow_jobs.id')
       .execute()
 
@@ -1057,13 +1130,8 @@ jobs:
 
     await push('broken/go.txt', 'go\n')
 
-    const jobsFor = async (): Promise<any[]> => db
-      .selectFrom('workflow_jobs')
-      .innerJoin('workflow_runs', 'workflow_runs.id', '=', 'workflow_jobs.workflow_run_id')
-      .innerJoin('workflow_versions', 'workflow_versions.id', '=', 'workflow_runs.workflow_version_id')
-      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    const jobsFor = async (): Promise<any[]> => jobsOf('.reviewos/workflows/broken-call.yml')
       .select(['workflow_jobs.state as state', 'workflow_jobs.condition_reason as condition_reason'])
-      .where('workflows.path', '=', '.reviewos/workflows/broken-call.yml')
       .execute()
 
     const jobs = await waitFor(jobsFor, (rows: any[]) => rows.length >= 1)
@@ -1104,11 +1172,8 @@ jobs:
         continue-on-error: true
 `)
 
-    const versionFor = async (): Promise<any> => db
-      .selectFrom('workflow_versions')
-      .innerJoin('workflows', 'workflows.id', '=', 'workflow_versions.workflow_id')
+    const versionFor = async (): Promise<any> => versionsOf('.reviewos/workflows/different.yml')
       .select(['workflow_versions.warnings as warnings'])
-      .where('workflows.path', '=', '.reviewos/workflows/different.yml')
       .orderBy('workflow_versions.id', 'desc')
       .executeTakeFirst()
 
