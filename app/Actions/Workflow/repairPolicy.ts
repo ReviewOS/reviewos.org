@@ -100,6 +100,13 @@ export type RepairRefusal =
   | 'attempts-spent'
   | 'time-spent'
   | 'cost-spent'
+  /*
+   * Not one of `mayAttemptRepair`'s: the fleet decides this one, at the moment
+   * the repair would start rather than when it was allowed. It lives in the
+   * same vocabulary because this type is the list of reasons a repair did not
+   * happen, and somebody reading an attempt row wants one list, not two.
+   */
+  | 'fleet-busy'
   | 'forbidden-path'
   | 'weakens-a-required-check'
   | 'self-approval'

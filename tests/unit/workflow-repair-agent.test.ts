@@ -31,6 +31,8 @@ import {
 } from '../../app/Actions/Workflow/repairAgent'
 import { REPAIR_GRANTS, repairTokenName } from '../../app/Actions/Workflow/repairCredential'
 import { repairApprovalRefusal, sumSpend } from '../../app/Actions/Workflow/repairAttempts'
+import { emptyRepairLoad, withinRepairQuota } from '../../app/Actions/Workflow/repairQuota'
+import { repairMaxRunning, repairMaxRunningPerOwner, repairMaxRunningPerRepository } from '../../config/ci-repair'
 
 let root: string
 let bare: string
@@ -446,5 +448,113 @@ describe('who may approve a repair', () => {
      */
     expect(mayApproveRepair({ proposedBy: 9, approvingAs: 9 }).refusal).toBe('self-approval')
     expect(mayApproveRepair({ proposedBy: 9, approvingAs: 4 }).ok).toBe(true)
+  })
+})
+
+describe('how many repairs may run at once', () => {
+  const here = { repositoryId: 1, ownerId: 9 }
+
+  /** A load, as counts per repository and per owner. */
+  function load(byRepository: Record<number, number>, byOwner: Record<number, number> = {}) {
+    return {
+      byRepository: new Map(Object.entries(byRepository).map(([id, held]) => [Number(id), held])),
+      byOwner: new Map(Object.entries(byOwner).map(([id, held]) => [Number(id), held])),
+      total: Object.values(byRepository).reduce((sum, held) => sum + held, 0),
+    }
+  }
+
+  /** Run with these ceilings set, and put the environment back afterwards. */
+  function withCeilings(values: Record<string, string>, run: () => void) {
+    const before = Object.fromEntries(Object.keys(values).map(key => [key, process.env[key]]))
+
+    Object.assign(process.env, values)
+
+    try {
+      run()
+    }
+    finally {
+      for (const [key, value] of Object.entries(before)) {
+        if (value === undefined)
+          delete process.env[key]
+        else
+          process.env[key] = value
+      }
+    }
+  }
+
+  test('the ceilings are on by default, unlike the fleet\'s', () => {
+    /*
+     * The deliberate departure from `ci-quotas.ts`. A machine ceiling that idles
+     * a runner wastes capacity somebody already paid for, so it is off until an
+     * operator asks for it. A repair ceiling protects an external rate limit
+     * shared with everybody on the instance, and a bill - so the unbounded
+     * reading is the one nobody should get by accident.
+     */
+    expect(repairMaxRunning({})).toBeGreaterThan(0)
+    expect(repairMaxRunningPerRepository({})).toBeGreaterThan(0)
+    expect(repairMaxRunningPerOwner({})).toBeGreaterThan(0)
+  })
+
+  test('an idle instance lets a repair straight through', () => {
+    withCeilings({ CI_REPAIR_MAX_RUNNING: '4', CI_REPAIR_MAX_RUNNING_PER_REPOSITORY: '2', CI_REPAIR_MAX_RUNNING_PER_OWNER: '3' }, () => {
+      expect(withinRepairQuota(emptyRepairLoad(), here)).toBe(true)
+    })
+  })
+
+  test('one repository cannot hold more than its share', () => {
+    withCeilings({ CI_REPAIR_MAX_RUNNING: '0', CI_REPAIR_MAX_RUNNING_PER_REPOSITORY: '2', CI_REPAIR_MAX_RUNNING_PER_OWNER: '0' }, () => {
+      expect(withinRepairQuota(load({ 1: 1 }), here)).toBe(true)
+      expect(withinRepairQuota(load({ 1: 2 }), here)).toBe(false)
+
+      // Somebody else's repository is unaffected, which is the entire purpose.
+      expect(withinRepairQuota(load({ 1: 2 }), { repositoryId: 7, ownerId: 3 })).toBe(true)
+    })
+  })
+
+  test('and the instance ceiling binds even when no single repository is over', () => {
+    /*
+     * The ceiling the fleet has no use for, and the one that matters most here.
+     * A model's rate limit is refused for everybody at once, so four
+     * repositories running one repair each is exactly the case a per-repository
+     * limit cannot see.
+     */
+    withCeilings({ CI_REPAIR_MAX_RUNNING: '4', CI_REPAIR_MAX_RUNNING_PER_REPOSITORY: '2', CI_REPAIR_MAX_RUNNING_PER_OWNER: '0' }, () => {
+      expect(withinRepairQuota(load({ 2: 1, 3: 1, 4: 1 }), here)).toBe(true)
+      expect(withinRepairQuota(load({ 2: 1, 3: 1, 4: 1, 5: 1 }), here)).toBe(false)
+    })
+  })
+
+  test('and an owner is bounded across every repository they have', () => {
+    /*
+     * The limit that matters on an instance hosting several organizations: a
+     * per-repository ceiling does nothing against an owner with forty of them,
+     * which is the shape a monorepository split becomes.
+     */
+    withCeilings({ CI_REPAIR_MAX_RUNNING: '0', CI_REPAIR_MAX_RUNNING_PER_REPOSITORY: '0', CI_REPAIR_MAX_RUNNING_PER_OWNER: '3' }, () => {
+      expect(withinRepairQuota(load({ 1: 1 }, { 9: 2 }), here)).toBe(true)
+      expect(withinRepairQuota(load({ 1: 1 }, { 9: 3 }), here)).toBe(false)
+      expect(withinRepairQuota(load({ 1: 1 }, { 9: 3 }), { repositoryId: 1, ownerId: 4 })).toBe(true)
+    })
+  })
+
+  test('and an operator can still turn every ceiling off with a zero', () => {
+    // Zero means no limit, the same spelling `ci-quotas.ts` uses - so an
+    // operator learns it once rather than per file.
+    withCeilings({ CI_REPAIR_MAX_RUNNING: '0', CI_REPAIR_MAX_RUNNING_PER_REPOSITORY: '0', CI_REPAIR_MAX_RUNNING_PER_OWNER: '0' }, () => {
+      expect(withinRepairQuota(load({ 1: 500 }, { 9: 500 }), here)).toBe(true)
+    })
+  })
+
+  test('and a ceiling that is not a number keeps the default rather than becoming one of nothing', () => {
+    /*
+     * The safe direction, and it is the *opposite* of `ci-quotas.ts`. There a
+     * typo falls back to no limit, because a misread ceiling that blocked every
+     * job would take CI offline. Here it falls back to the default, because the
+     * unbounded reading is the one that spends money - so a typo should cost a
+     * slower repair queue, never an unmetered one.
+     */
+    expect(repairMaxRunning({ CI_REPAIR_MAX_RUNNING: 'four' })).toBe(repairMaxRunning({}))
+    expect(repairMaxRunning({ CI_REPAIR_MAX_RUNNING: '-4' })).toBe(repairMaxRunning({}))
+    expect(repairMaxRunning({ CI_REPAIR_MAX_RUNNING: '12' })).toBe(12)
   })
 })

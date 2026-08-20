@@ -41,6 +41,18 @@ export interface CiRepairConfig {
   logLines: number
   /** The most files one repair may change. */
   maxFiles: number
+  /** The most repairs running at once across the instance. Zero for no limit. */
+  maxRunning: number
+  /** The same for one repository. */
+  maxRunningPerRepository: number
+  /** And for one owner, across every repository they have. */
+  maxRunningPerOwner: number
+  /** How long a started repair may be counted as running before it is presumed dead. */
+  staleMinutes: number
+  /** How long a repair waits before asking for capacity again. */
+  waitSeconds: number
+  /** How many times it may ask before giving the attempt back. */
+  maxWaits: number
 }
 
 /**
@@ -108,6 +120,92 @@ export function repairMaxFiles(env: Record<string, string | undefined> = process
   return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 50) : 10
 }
 
+/**
+ * **How many repairs may run at once**
+ *
+ * `config/ci-quotas.ts` bounds how much of the *fleet* one repository may hold,
+ * and these are the same idea for repair. They are not the same numbers, and
+ * more importantly they are not off by default, which is a deliberate departure
+ * worth explaining.
+ *
+ * A machine ceiling is off by default because machines are this instance's own
+ * hardware: if a ceiling holds a job back while a runner sits idle, capacity
+ * somebody already paid for is wasted, and on a single-team instance the limit
+ * only ever gets in the way.
+ *
+ * A repair does not take a machine. It takes a call to somebody else's API,
+ * which has a rate limit, and it takes money. The failure mode with no ceiling
+ * is not a slow queue - it is a monorepository whose push fans out into eighty
+ * failing jobs, eighty simultaneous model calls, a rate limit that then refuses
+ * everybody's repairs including the ones that mattered, and an invoice nobody
+ * agreed to. That is worth a conservative default that an operator raises,
+ * rather than an unbounded one they discover.
+ *
+ * Being over a ceiling is a **wait, not a refusal**, exactly as it is for a job
+ * that finds the fleet full: nothing about being over a limit says the work is
+ * wrong, only that it is not this repair's turn yet.
+ */
+
+/** Across the whole instance, which is the one the model's rate limit cares about. */
+export function repairMaxRunning(env: Record<string, string | undefined> = process.env): number {
+  return ceiling(env.CI_REPAIR_MAX_RUNNING, 4)
+}
+
+/**
+ * And per repository, which is what stops one busy repository holding all of it.
+ *
+ * Two by default, which is one run's worth at the default `max_attempts`: a
+ * repository can have both of a run's attempts in flight and no more.
+ */
+export function repairMaxRunningPerRepository(env: Record<string, string | undefined> = process.env): number {
+  return ceiling(env.CI_REPAIR_MAX_RUNNING_PER_REPOSITORY, 2)
+}
+
+/** And per owner, for the instance hosting several organizations. */
+export function repairMaxRunningPerOwner(env: Record<string, string | undefined> = process.env): number {
+  return ceiling(env.CI_REPAIR_MAX_RUNNING_PER_OWNER, 3)
+}
+
+/**
+ * How long a started repair counts against the ceilings.
+ *
+ * A repair whose process died leaves a row that says it is running, and without
+ * a horizon that row holds a slot forever - one crash at a time, until repair
+ * stops happening at all and nothing says why. An hour is far longer than any
+ * repair should take and short enough that a dead one is forgotten the same
+ * morning.
+ */
+export function repairStaleMinutes(env: Record<string, string | undefined> = process.env): number {
+  return ceiling(env.CI_REPAIR_STALE_MINUTES, 60) || 60
+}
+
+/** How long it waits before asking for capacity again. */
+export function repairWaitSeconds(env: Record<string, string | undefined> = process.env): number {
+  return ceiling(env.CI_REPAIR_WAIT_SECONDS, 30) || 30
+}
+
+/**
+ * How many times it may ask before giving the attempt back.
+ *
+ * Bounded because an unbounded wait is a queue nobody can see the end of. At
+ * the defaults this is ten minutes, after which the attempt is handed back as a
+ * refusal rather than a failure - it never ran, so it has spent nothing and
+ * should not consume one of the run's tries.
+ */
+export function repairMaxWaits(env: Record<string, string | undefined> = process.env): number {
+  return ceiling(env.CI_REPAIR_MAX_WAITS, 20) || 20
+}
+
+/** A ceiling from the environment, or the default. Zero means no limit. */
+function ceiling(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || String(raw).trim() === '')
+    return fallback
+
+  const value = Number(raw)
+
+  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback
+}
+
 /** Whether this instance can perform a repair at all. */
 export function configured(env: Record<string, string | undefined> = process.env): boolean {
   return repairApiKey(env).length > 0
@@ -120,4 +218,10 @@ export default {
   maxTokens: repairMaxTokens(),
   logLines: repairLogLines(),
   maxFiles: repairMaxFiles(),
+  maxRunning: repairMaxRunning(),
+  maxRunningPerRepository: repairMaxRunningPerRepository(),
+  maxRunningPerOwner: repairMaxRunningPerOwner(),
+  staleMinutes: repairStaleMinutes(),
+  waitSeconds: repairWaitSeconds(),
+  maxWaits: repairMaxWaits(),
 } satisfies CiRepairConfig

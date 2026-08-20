@@ -808,6 +808,65 @@ reviewer who has to read it is who this protects.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+### `CI_REPAIR_MAX_RUNNING`
+
+Default: `4`, and the line is commented out.
+
+How many repairs may run at once - per repository, per owner, and across the
+instance. On by default, which is the deliberate difference from the machine
+ceilings above: a machine ceiling that idles a runner wastes capacity somebody
+already paid for, while a repair holds a call to somebody else's API. Past its
+rate limit those calls are refused for everybody, including the repairs that
+mattered, and each one costs money. The failure mode with no ceiling is a
+monorepository whose push fans out into eighty failing jobs and eighty
+simultaneous model calls.
+
+Zero means no limit, the same spelling the fleet ceilings use. A value that is
+not a number keeps the default here rather than falling back to unlimited -
+the opposite direction from `CI_MAX_RUNNING_PER_REPOSITORY`, because a typo
+should cost a slower repair queue rather than an unmetered one.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_REPAIR_MAX_RUNNING_PER_REPOSITORY`
+
+Default: `2`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_REPAIR_MAX_RUNNING_PER_OWNER`
+
+Default: `3`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_REPAIR_WAIT_SECONDS`
+
+Default: `30`, and the line is commented out.
+
+Being over a ceiling is a wait rather than a refusal: the repair goes back on
+the queue and asks again. These bound how long it does that before giving the
+attempt back - as a refusal, so a run is not charged for capacity the instance
+did not have. The defaults are ten minutes of asking.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_REPAIR_MAX_WAITS`
+
+Default: `20`, and the line is commented out.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
+### `CI_REPAIR_STALE_MINUTES`
+
+Default: `60`, and the line is commented out.
+
+How long a started repair counts against those ceilings before it is presumed
+dead. Without a horizon, a repair whose process died holds a slot for ever -
+one crash at a time, until repair quietly stops happening and nothing says why.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
 ### `CI_STEP_MEMORY_MB`
 
 Default: `4096`, and the line is commented out.

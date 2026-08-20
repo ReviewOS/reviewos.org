@@ -1781,24 +1781,60 @@ failed evidence into success.
       The log is bounded and taken from the **tail**, which is where a failure's cause is. It is also
       the part of the context an attacker writes: a log is whatever the repository's own test suite
       printed, and on a fork's pull request that is a stranger's code choosing what the agent reads.
-- [ ] Repair runs in the same isolation boundary and quotas as any other untrusted job
+- [x] Repair runs in the same isolation boundary and quotas as any other untrusted job
 
-      **Partly, and the honest version of the claim is narrower than this line.** `RepairJob` runs on
-      the ordinary queue, not inside the runner sandbox.
+      **The quotas are real; the isolation claim is narrower than this line, and deliberately so.**
 
-      The reason is that the sandbox is not what protects anybody here: the job never executes the
-      repository's code. It reads blobs, calls a model, and writes a commit through git plumbing.
-      What is untrusted is the **content** - the log the model reads, and the diff it returns - and
-      both are contained on the output side, by a gate that refuses the whole diff on one forbidden
-      path, rather than on the process.
+      `RepairJob` runs on the ordinary queue rather than inside the runner sandbox, because the
+      sandbox is not what protects anybody here: the job never executes the repository's code. It
+      reads blobs, calls a model, and writes a commit through git plumbing. What is untrusted is the
+      **content** - the log the model reads, and the diff it returns - and both are contained on the
+      output side, by a gate that refuses the whole diff on one forbidden path, rather than on the
+      process.
 
-      The part this line really wants is true by construction: whether a repair actually *works* is
-      never decided by the repair. It is decided by an ordinary workflow run against the proposed
-      branch, on a runner, under the same quotas as anything else, because a branch is a branch and
-      nothing about this one is special-cased.
+      The part about isolation that this line really wants is true by construction: whether a repair
+      actually *works* is never decided by the repair. It is decided by an ordinary workflow run
+      against the proposed branch, on a runner, under the same quotas as anything else, because a
+      branch is a branch and nothing about this one is special-cased.
 
-      What is still missing is fleet quotas - a repair does not currently count against
-      `CI_MAX_RUNNING_PER_REPOSITORY`, because it does not occupy a machine.
+      **Quotas now exist for the resource a repair actually holds.** `app/Actions/Workflow/repairQuota.ts`
+      is `Runner/quota.ts` for repair, and deliberately the same shape - a load read in one query, a
+      pure predicate over it, ceilings per repository and per owner - so somebody who has read one
+      recognises the other.
+
+      Where they part company is what is being rationed. A workflow job holds a runner, which is this
+      instance's own hardware; a ceiling that idles one wastes capacity somebody already paid for,
+      which is why the fleet ceiling is off by default. A repair holds a call to somebody else's API.
+      Past its rate limit those calls are not queued, they are refused - for everybody, including the
+      repairs that mattered - and each one costs money. So there is a third ceiling the fleet has no
+      use for, an instance-wide one, and all three are **on by default**. The failure mode being
+      prevented is a monorepository whose push fans out into eighty failing jobs and eighty
+      simultaneous model calls.
+
+      A typo in a repair ceiling keeps the default rather than falling back to unlimited, which is
+      the opposite direction from `CI_MAX_RUNNING_PER_REPOSITORY`. There, a misread ceiling that
+      blocked every job would take CI offline, so no-limit is the safe reading. Here the unbounded
+      reading is the one that spends money, so a typo should cost a slower repair queue instead.
+
+      **Over a ceiling is a wait, not a refusal**, which is the same thing `Runner/quota.ts` means by
+      "a refusal here is a skip, not a failure": nothing about a full fleet says the work is wrong.
+      The repair goes back on the queue and asks again, and only after asking for longer than an
+      operator would want does it hand the attempt back - as a *refusal* rather than a failure, so
+      the run's budget is not charged for capacity the instance did not have.
+
+      That needed `repair_attempts.started_at`, and the reason is worth keeping. An attempt row
+      exists from the moment the policy allows it, which is before it has capacity to run. Had
+      "running" meant "state is `attempted`", every waiting repair would have counted against the
+      ceiling keeping it waiting, and past the limit nothing would ever have started again. The same
+      column is the staleness clock: a repair whose process died leaves a row still claiming to run,
+      and without a horizon it holds a slot for ever - one crash at a time, until repair quietly
+      stops happening and nothing says why.
+
+      Like the fleet ceiling, it is approximate at the edges. Two repairs starting in the same
+      instant can both read a load with room in it and both start, putting the count one over. That
+      is the same race `Runner/quota.ts` accepts, for the same reason - the alternative is a lock on
+      a hot path - and the ceiling's job is to bound the steady state rather than guarantee an
+      instantaneous maximum.
 - [x] The original run remains failed; a successful repair creates a new branch and commit, then
       reports that proposed fix as structured output
 

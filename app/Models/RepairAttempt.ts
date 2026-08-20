@@ -208,5 +208,26 @@ export default defineModel({
       validation: { rule: schema.number() },
       factory: () => null,
     },
+
+    /**
+     * When this attempt actually began, as opposed to when it was allowed.
+     *
+     * The distinction is what makes the fleet ceiling work rather than deadlock.
+     * An attempt is written the moment the policy permits it, and it may then
+     * sit waiting for capacity - so if "running" meant "state is `attempted`",
+     * every waiting repair would count against the ceiling that is keeping it
+     * waiting, and past the limit nothing would ever start again.
+     *
+     * Null means queued. Set means running, until the row leaves `attempted`.
+     * It is also the staleness clock: a repair whose process died leaves a row
+     * that claims to be running, and a timestamp is what lets the count forget
+     * it instead of losing a slot permanently.
+     */
+    started_at: {
+      order: 15,
+      fillable: true,
+      validation: { rule: schema.string().max(64) },
+      factory: () => null,
+    },
   },
 })

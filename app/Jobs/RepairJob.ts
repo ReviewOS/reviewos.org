@@ -4,7 +4,8 @@ import { repairPolicyFor } from '../Actions/Workflow/repairPolicy'
 import { finishAttempt } from '../Actions/Workflow/repairAttempts'
 import { mintRepairCredential, revokeRepairCredential } from '../Actions/Workflow/repairCredential'
 import { proposeRepair, repairBranch } from '../Actions/Workflow/repairAgent'
-import { configured } from '../../config/ci-repair'
+import { ownerOf, repairLoad, startAttempt, withinRepairQuota } from '../Actions/Workflow/repairQuota'
+import { configured, repairMaxWaits, repairWaitSeconds } from '../../config/ci-repair'
 
 /**
  * Perform one repair attempt, off the request path.
@@ -34,6 +35,18 @@ import { configured } from '../../config/ci-repair'
  * in the same sandbox and under the same quotas as anything else - because a
  * branch is a branch, and nothing about this one is special-cased.
  *
+ * ## And the quotas, which are real ones
+ *
+ * `repairQuota.ts` is `Runner/quota.ts` for the resource this actually holds.
+ * Not a machine - a call to somebody else's API, with a rate limit that refuses
+ * everybody at once when it is hit, and a bill. Ceilings per repository, per
+ * owner, and across the instance, all on by default, checked here at the moment
+ * the repair would start rather than when it was queued.
+ *
+ * Over the ceiling is a wait, not a refusal, and only a repair that has waited
+ * longer than an operator would want gives its attempt back - as a refusal, so
+ * the run is not charged for capacity the instance did not have.
+ *
  * `tries: 1`, deliberately. A repair that failed halfway has spent an attempt
  * from a budget somebody is billed for, and a queue that silently tried again
  * would make `max_attempts` a number that means something other than what it
@@ -52,6 +65,8 @@ export default new Job({
     runId: number
     jobId: number
     step: string
+    /** How many times this repair has already been told the fleet is full. */
+    waits?: number
   }) {
     const attemptId = Number(payload?.attemptId ?? 0)
     const repositoryId = Number(payload?.repositoryId ?? 0)
@@ -93,6 +108,58 @@ export default new Job({
 
       return { skipped: 'repair was turned off' }
     }
+
+    /*
+     * The fleet ceiling, checked here rather than at dispatch.
+     *
+     * `Runner/quota.ts` gives the reason and it holds for repair too: how many
+     * are running is only true at the moment something asks, and a decision
+     * taken when the work was queued is a decision about a fleet that has since
+     * changed.
+     *
+     * Over the ceiling is a **wait**, not a refusal. Nothing about a full fleet
+     * says this repair is wrong, so it goes back on the queue and asks again -
+     * and because the attempt row is not stamped as started, a waiting repair
+     * does not count against the ceiling that is keeping it waiting.
+     */
+    const waits = Math.max(0, Number(payload?.waits ?? 0))
+    const load = await repairLoad()
+
+    if (!withinRepairQuota(load, { repositoryId, ownerId: await ownerOf(repositoryId) })) {
+      if (waits >= repairMaxWaits()) {
+        /*
+         * Given back as a **refusal**, not a failure, and the distinction is the
+         * run's budget. This repair never ran: it spent no minutes, no tokens
+         * and no money, and `spentOn` does not count refusals as attempts - so
+         * the next failure on this run still has its tries. Recording it as a
+         * failure would charge a repository for capacity the instance did not
+         * have.
+         */
+        await finishAttempt(attemptId, {
+          state: 'refused',
+          refusal: 'fleet-busy',
+          reason: `This instance was already running its limit of repairs for ${Math.round(repairMaxWaits() * repairWaitSeconds() / 60)} minutes, so this one was given up rather than queued indefinitely.`,
+        })
+
+        return { skipped: 'the fleet stayed full' }
+      }
+
+      const { default: RepairJob } = await import('./RepairJob')
+
+      await RepairJob.dispatchAfter(repairWaitSeconds(), { ...payload, waits: waits + 1 })
+
+      return { waiting: true, waits: waits + 1 }
+    }
+
+    /*
+     * Take the slot before anything is spent.
+     *
+     * Guarded on the row still being unstarted, so a duplicate delivery of this
+     * job takes one slot rather than two - and finds, on the second, that there
+     * is nothing left to do.
+     */
+    if (!await startAttempt(attemptId))
+      return { skipped: 'this attempt is already running or already finished' }
 
     const run: any = await db
       .selectFrom('workflow_runs')
