@@ -933,6 +933,29 @@ first - the one above, both halves - because a migration that fails halfway is
 the case where having one matters, and it is the only case where the answer is
 "restore" rather than "fix and re-run".
 
+### MySQL over TCP
+
+MySQL 8.4 authenticates with `caching_sha2_password`. On the *first* connection
+from a client the server has not cached, the password has to be encrypted with
+the server's RSA public key - and fetching that key over an unencrypted
+connection is something a client is right to refuse, because anybody in the path
+can answer with their own. The refusal reads:
+
+```
+The server requested RSA public key retrieval to complete authentication,
+which is not allowed over an insecure connection.
+```
+
+**Give the connection TLS.** MySQL generates a certificate on first start, so
+the server end usually needs nothing; the client has to be told to use it. A
+unix socket is the other answer - the kernel is the channel, so there is nothing
+to intercept - and it is the better one when the database is on the same box,
+which for most instances it is.
+
+An empty password also removes the exchange, because there is nothing to
+encrypt. That is a reasonable thing for a throwaway container in CI and is not a
+thing to do with a database that holds anybody's repositories.
+
 ## Changing the database engine
 
 An instance runs on MySQL or on Postgres, chosen by `DB_CONNECTION`, and moving

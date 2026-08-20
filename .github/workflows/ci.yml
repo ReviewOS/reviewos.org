@@ -150,10 +150,26 @@ jobs:
       mysql:
         image: mysql:8.4
         env:
-          MYSQL_ROOT_PASSWORD: root
+          # No root password, and that is about the authentication handshake
+          # rather than about convenience.
+          #
+          # MySQL 8.4 authenticates with `caching_sha2_password`, which on a
+          # *first* connection over plain TCP has to fetch the server's RSA
+          # public key to encrypt the password with. Bun's MySQL client refuses
+          # that exchange on an unencrypted connection - correctly, since it is
+          # trivially interceptable - so every job began failing at `Migrate`
+          # with "The server requested RSA public key retrieval to complete
+          # authentication". Nothing in this repository changed; the `mysql:8.4`
+          # tag moved.
+          #
+          # An empty password removes the exchange: there is nothing to encrypt,
+          # so the handshake completes without a key. That is safe here for the
+          # same reason `postgres/postgres` below is: a container on the
+          # runner's loopback that exists for six minutes. It is not advice for
+          # a real server - see "MySQL over TCP" in docs/self-hosting.md, which
+          # is about TLS.
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
           MYSQL_DATABASE: reviewos
-          MYSQL_USER: user
-          MYSQL_PASSWORD: password
         ports:
           - 3306:3306
         # Without a health check the job races the server's first boot, which
@@ -161,7 +177,7 @@ jobs:
         # connection refused from the application rather than as a service that
         # was not up.
         options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
@@ -250,7 +266,7 @@ jobs:
           DB_PORT: ${{ matrix.dialect == 'mysql' && '3306' || '5432' }}
           DB_DATABASE: reviewos
           DB_USERNAME: ${{ matrix.dialect == 'mysql' && 'root' || 'postgres' }}
-          DB_PASSWORD: ${{ matrix.dialect == 'mysql' && 'root' || 'postgres' }}
+          DB_PASSWORD: ${{ matrix.dialect == 'postgres' && 'postgres' || '' }}
         run: |
           if [ "${{ matrix.dialect }}" = mysql ]; then
             export DB_MIGRATIONS_PATH="$PWD/database/migrations/mysql"
@@ -267,14 +283,14 @@ jobs:
           DB_PORT: ${{ matrix.dialect == 'mysql' && '3306' || '5432' }}
           DB_DATABASE: reviewos
           DB_USERNAME: ${{ matrix.dialect == 'mysql' && 'root' || 'postgres' }}
-          DB_PASSWORD: ${{ matrix.dialect == 'mysql' && 'root' || 'postgres' }}
+          DB_PASSWORD: ${{ matrix.dialect == 'postgres' && 'postgres' || '' }}
           # Where the engine-migration suite finds the *other* engine. It copies
           # Postgres to MySQL and verifies the copy, so it needs both whichever
           # dialect this job is running as.
           DB_MYSQL_HOST: 127.0.0.1
           DB_MYSQL_PORT: '3306'
           DB_MYSQL_USERNAME: root
-          DB_MYSQL_PASSWORD: root
+          DB_MYSQL_PASSWORD: ''
           # The hook posts back to the application, and the endpoint does not
           # exist without a secret. Any value will do; it never leaves the
           # runner.
