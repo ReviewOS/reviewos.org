@@ -2119,6 +2119,32 @@ declare module '@stacksjs/database' {
       isPrerelease: boolean
       publishedAt: string
     }
+    repair_attempts: {
+      // columns
+      id: number
+      created_at: string
+      updated_at: string | null
+      repository_id: number
+      workflow_run_id: number
+      workflow_job_id: number
+      step: string
+      state: "attempted" | "proposed" | "refused" | "failed"
+      refusal: string
+      reason: string
+      branch: string
+      commit_sha: string
+      proposed_by: number
+      minutes: number
+      cost: number
+      tokens: number
+      createdAt: string
+      updatedAt: string | null
+      repositoryId: number
+      workflowRunId: number
+      workflowJobId: number
+      commitSha: string
+      proposedBy: number
+    }
     repair_settings: {
       // columns
       id: number

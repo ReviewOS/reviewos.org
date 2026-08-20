@@ -23,6 +23,7 @@ import { canJobMove } from '../Workflow/states'
 import { revokeJobTokens } from '../Workflow/jobToken'
 import { softFailOutcome } from '../Workflow/stepAttributes'
 import { settleRun } from '../Workflow/settle'
+import { considerRepair } from '../Workflow/repairHook'
 import { DROPPED_MARK } from '../Workflow/reuse'
 import type { RunnerFacts } from './protocol'
 import { mayReport, splitLabels } from './protocol'
@@ -616,6 +617,28 @@ export async function reportJob(
   })
 
   await announceRunIfMoved(facts.repositoryId, Number(row.run_id), before, runState)
+
+  /*
+   * And last, the opt-in repair hook.
+   *
+   * After the conclusion is durable and the graph has settled, for two reasons.
+   * The run has to be *failed* before anything is asked to repair it - a hook
+   * that ran earlier would be repairing a job that the retry path above might
+   * still put back in the queue - and the announcements are what a screen is
+   * waiting on, so nothing a repair does should delay them.
+   *
+   * It never throws and it never touches this run. `considerRepair` swallows its
+   * own errors on purpose: a runner's report is the only record that this job
+   * happened, and losing it to a feature nobody turned on would be a poor trade.
+   */
+  if (input.state === 'failed') {
+    await considerRepair({
+      jobId: facts.id,
+      runId: Number(row.run_id),
+      repositoryId: facts.repositoryId,
+      tolerated: tolerated.tolerated,
+    })
+  }
 
   return { ok: true, reason: 'recorded', duplicate: false, runState }
 }
