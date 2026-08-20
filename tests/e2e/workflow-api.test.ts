@@ -461,6 +461,55 @@ describe('what this repository\'s CI has been doing', () => {
     expect(body.cache.hit_rate).toBeNull()
   })
 
+  test('and naming no repository asks about the owner', async () => {
+    if (!available)
+      return
+
+    const { status, body } = await api(`${path}?owner=${created.handle}`, reading())
+
+    expect(status).toBe(200)
+    // The rollup covers this owner's repositories - at least the one this
+    // fixture made - and says how many it is of, because one endpoint now
+    // varies in what it counted.
+    expect(Number(body.repositories)).toBeGreaterThan(0)
+    expect(Number(body.runs.total)).toBeGreaterThan(0)
+  })
+
+  test('and a rollup counts only what the caller may read', async () => {
+    if (!available)
+      return
+
+    /*
+     * An aggregate is a disclosure: "forty-two runs, 61% passing" over
+     * repositories somebody cannot see tells them those repositories exist,
+     * roughly how busy they are, and whether they are healthy.
+     */
+    await db.updateTable('repositories').set({ visibility: 'private' } as any).where('id', '=', created.repositoryId).execute()
+
+    const stranger = await api(`${path}?owner=${created.handle}`)
+
+    expect(stranger.status).toBe(200)
+    expect(Number(stranger.body.repositories)).toBe(0)
+    // The same shape as an owner with nothing, so which response arrived says
+    // nothing either.
+    expect(stranger.body.runs.success_rate).toBeNull()
+
+    await db.updateTable('repositories').set({ visibility: 'public' } as any).where('id', '=', created.repositoryId).execute()
+  })
+
+  test('and an owner nobody has answers about nothing rather than 404', async () => {
+    if (!available)
+      return
+
+    // A 404 for "no such owner" and a 200 for "an owner with nothing you can
+    // see" would be two answers a caller can tell apart, and telling them
+    // apart is how somebody enumerates private organizations.
+    const { status, body } = await api(`${path}?owner=nobody-${created.handle}`, reading())
+
+    expect(status).toBe(200)
+    expect(Number(body.repositories)).toBe(0)
+  })
+
   test('and a stranger cannot read them', async () => {
     if (!available)
       return

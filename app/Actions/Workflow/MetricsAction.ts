@@ -3,9 +3,10 @@ import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
+import { authorizeOwnerRepositories } from '../Repo/authorizeOwner'
 
 /**
- * What this repository's CI has actually been doing.
+ * What a repository's CI has actually been doing - or an owner's.
  *
  * Every number here can be worked out by reading runs one at a time, which is
  * why nobody does it: "is CI getting slower" is a question about a hundred runs
@@ -33,15 +34,27 @@ import { authorizeRepository } from '../Repo/authorize'
  * instance runs: a repository that was broken for a week in March never
  * recovers its average. The default is thirty days, and the window travels in
  * the response so a client cannot show a number without saying what it is of.
+ *
+ * ## Naming no repository asks about the owner
+ *
+ * The same numbers over every repository under an owner **that this caller may
+ * read**, filtered before anything is counted. An aggregate is a disclosure:
+ * "forty-two runs, 61% passing" over repositories somebody cannot see tells
+ * them those repositories exist, roughly how busy they are, and whether they
+ * are healthy.
  */
 export default new Action({
   name: 'WorkflowMetrics',
-  description: 'Aggregate CI numbers for a repository, optionally for one workflow',
+  description: 'Aggregate CI numbers for a repository or an owner, optionally for one workflow',
   method: 'GET',
 
   validations: {
     owner: { rule: schema.string() },
-    repo: { rule: schema.string() },
+    /**
+     * One repository, or every one under the owner that the caller may read
+     * when it is absent.
+     */
+    repo: { rule: schema.string(), required: false },
     /** One workflow, by id. Every workflow in the repository when absent. */
     workflow: { rule: schema.number(), required: false },
     /** How many days back to look. Thirty by default, ninety at most. */
@@ -68,12 +81,35 @@ export default new Action({
   responseHeaders: RATE_LIMIT_HEADERS,
 
   async handle(request: RequestInstance) {
-    const auth = await authorizeRepository(request, 'workflow:read')
+    /*
+     * One repository, or the owner's - and the second is authorized by the same
+     * predicates as the first, applied per row.
+     *
+     * An aggregate is a disclosure: "forty-two runs, 61% passing" over
+     * repositories somebody cannot see tells them those repositories exist,
+     * roughly how busy they are, and whether they are healthy. So the set is
+     * filtered before anything is counted.
+     */
+    const named = String(request.get('repo') ?? request.get('repository') ?? '').trim()
 
-    if (!auth.ok)
-      return response.json({ error: auth.error }, auth.status)
+    let repositoryIds: number[] = []
 
-    const repositoryId = Number(auth.context.repository.id)
+    if (named) {
+      const auth = await authorizeRepository(request, 'workflow:read')
+
+      if (!auth.ok)
+        return response.json({ error: auth.error }, auth.status)
+
+      repositoryIds = [Number(auth.context.repository.id)]
+    }
+    else {
+      const scope = await authorizeOwnerRepositories(request, 'workflow:read')
+
+      if (!scope.ok)
+        return response.json({ error: scope.error }, scope.status ?? 403)
+
+      repositoryIds = scope.repositoryIds
+    }
 
     const asked = Number(request.get('days'))
     const days = Number.isFinite(asked) && asked > 0 ? Math.min(Math.floor(asked), 90) : 30
@@ -101,10 +137,18 @@ export default new Action({
     if (versionIds && versionIds.length === 0)
       return response.json(empty(days, since))
 
+    /*
+     * An owner who has nothing this caller may see gets an answer about
+     * nothing rather than an error - the same shape as an empty repository, so
+     * nothing is inferable from which response arrived.
+     */
+    if (repositoryIds.length === 0)
+      return response.json(empty(days, since))
+
     let runQuery = db
       .selectFrom('workflow_runs')
       .select(['id', 'state', 'attempt', 'started_at', 'finished_at', 'created_at'])
-      .where('repository_id', '=', repositoryId)
+      .where('repository_id', 'in', repositoryIds)
       .where('created_at', '>=', since)
 
     if (versionIds)
@@ -161,6 +205,8 @@ export default new Action({
 
     return response.json({
       window: { days, since },
+      /** How many repositories these numbers are of, which one endpoint now varies. */
+      repositories: repositoryIds.length,
 
       runs: {
         total: runs.length,
@@ -215,6 +261,7 @@ export default new Action({
 function empty(days: number, since: string): Record<string, unknown> {
   return {
     window: { days, since },
+    repositories: 0,
     runs: { total: 0, finished: 0, succeeded: 0, success_rate: null, duration_ms: null },
     jobs: { total: 0, retries: 0, queue_ms: null, duration_ms: null, utilization: null },
     steps: [],

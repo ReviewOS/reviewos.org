@@ -1641,13 +1641,25 @@ was needed ships the bug.
       points at nothing.
 - [x] Logs and step output can mark fields sensitive, and the API returns redaction metadata rather
       than silently omitting data
-- [ ] Aggregate metrics for success rate, failure by step, queue time, duration, retry count, cache
+- [x] Aggregate metrics for success rate, failure by step, queue time, duration, retry count, cache
       effectiveness, and runner utilization, filterable by owner, repository, and workflow
 
-      **All seven numbers, filterable by repository, by workflow and by window. The owner-level
-      rollup is what is left**, and it needs an authorization this codebase does not have yet:
-      everything here answers to `authorizeRepository`, and "every repository under this owner"
-      needs an owner-scoped check that does not exist.
+      All seven numbers, filterable by repository, by workflow, by window - and now by owner, which
+      was the one that needed an authorization this codebase did not have.
+
+      It has one now, and the important thing about it is that **it restates no rules**:
+      `authorizeOwnerRepositories` resolves the caller once and then puts every repository under the
+      owner through the same `canOnRepository`, the same token reach and the same grant check a
+      single-repository request goes through. A repository it returns is one `authorizeRepository`
+      would have allowed; one it drops would have answered 404. Two implementations of a visibility
+      boundary is the boundary leaking, and here the leak would be somebody's private repository
+      appearing inside an aggregate.
+
+      Because an aggregate **is** a disclosure: "forty-two runs, 61% passing" over repositories a
+      caller cannot see tells them those repositories exist, roughly how busy they are, and whether
+      they are healthy. So the set is filtered before anything is counted, and an owner with nothing
+      visible answers about nothing rather than 404 - two distinguishable answers is how somebody
+      enumerates private organizations.
 
       `GET /repos/workflow-metrics`. Success rate is over *finished* runs, because a run still going
       is not a run that failed and counting it as one makes a busy afternoon look like an outage.
