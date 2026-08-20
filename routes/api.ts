@@ -373,6 +373,16 @@ route.post('/user/passkeys', 'Actions/Auth/PasskeyAction').middleware('auth')
  */
 route.post('/user/forge-credentials', 'Actions/Mirror/ForgeCredentialAction').middleware('auth').middleware('throttle:20,5m')
 
+/*
+ * An AT Protocol identity on your own account.
+ *
+ * The whole of the federation surface, and its smallness is phase 10's decision
+ * rather than an unfinished state: identity portability, no content federation,
+ * so there is no inbox here to defend and nothing that replicates. Throttled
+ * because linking resolves against a directory and a domain.
+ */
+route.post('/user/atproto', 'Actions/Atproto/AtprotoLinkAction').middleware('auth').middleware('throttle:20,5m')
+
 route.post('/user/keys', 'Actions/Keys/AddSshKeyAction').middleware('auth')
 route.delete('/user/keys', 'Actions/Keys/DeleteSshKeyAction').middleware('auth')
 route.post('/user/gpg-keys', 'Actions/Keys/AddGpgKeyAction').middleware('auth')

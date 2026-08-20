@@ -17796,6 +17796,29 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/api/user/atproto": {
+    get?: never
+    put?: never
+    post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: { content: { "application/json": { "operation"?: "link" | "list" | "unlink"; "identifier"?: string } } }
+    responses: {
+      "200": { content: { "application/json": Record<string, unknown> } }
+      "422": { content: never }
+      "500": { content: never }
+    }
+  }
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/api/user/forge-credentials": {
     get?: never
     put?: never

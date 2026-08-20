@@ -6400,6 +6400,13 @@ export function createClient(config: ClientConfig) {
   },
 
   /**
+   * POST /api/user/atproto
+   */
+  postUserAtproto(input?: { body?: { "operation"?: "link" | "list" | "unlink"; "identifier"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/atproto", input ?? {}, [], true, options)
+  },
+
+  /**
    * POST /api/user/forge-credentials
    */
   postUserForgeCredentials(input?: { body?: { "operation"?: "connect" | "list" | "disconnect"; "host"?: string; "provider"?: "github" | "gitlab" | "gitea"; "token"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {

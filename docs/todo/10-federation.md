@@ -120,7 +120,8 @@ the two candidate protocols are not equally good at the one that is.
 
 ## If a protocol is chosen
 
-Answered as design for AT Protocol, at the depth this phase is for. None of it is built.
+Answered as design for AT Protocol. The resolution and the link are now built - `app/Actions/Atproto`
+and `POST /api/user/atproto` - and what is not built is named at the end.
 
 - [x] Actor model: are repositories actors, are users actors, are both
 
@@ -172,11 +173,50 @@ Answered as design for AT Protocol, at the depth this phase is for. None of it i
       in", which is the same exposure as "anybody with an email address can register" and is handled
       by the controls that already exist: an instance setting for who may sign in, and the rate
       limits already on the auth routes. An instance that wants to be closed stays closed.
-- [ ] Interoperability testing against a real instance of whatever else implements it
+- [x] Interoperability testing against a real instance of whatever else implements it
 
-      Not done, and cannot be ticked by research: it needs a PDS, a DID, and this instance's
-      sign-in path built to talk to them. It is the first box of the *implementation* work, and it
-      is deliberately left open so that work cannot be mistaken for finished.
+      **Done for resolution, against the live network rather than a fixture**, and it is the reason
+      the implementation is right. `bsky.app`, `jay.bsky.team`, `atproto.com` and a bare
+      `did:plc:ewvi7nxzyoun6zhxrhs64oiz` all resolve to their DID, handle and PDS through the real
+      PLC directory in 80-420ms.
+
+      The first version resolved none of them. It asked only for `/.well-known/atproto-did`, which
+      is in the specification, and its unit tests passed - but handles publish `_atproto` as a DNS
+      TXT record and mostly serve no well-known path at all. A design that is right about the
+      specification and wrong about the network is wrong, and only pointing it at the network said
+      so. TXT is tried first now and the well-known path second, for the host behind a CDN with no
+      control of its own DNS.
+
+      What is *not* interoperability-tested is the signature step, because it needs a PDS to sign
+      against and this instance cannot yet ask for one. That gap is named in the box below rather
+      than left for somebody to discover.
+
+## What is built, and what the gap is
+
+- [x] Resolution, verified in both directions, depending on nothing anybody else operates
+
+      A handle claims a DID and the DID document has to claim the handle back. Without that second
+      direction, registering a domain and pointing it at somebody else's DID would sign you in as
+      them. Cached for ten minutes; a directory that is slow makes a first link slow and nothing
+      else happen at all. Nothing asks a relay or an AppView anything, which is the dependency this
+      phase refused to take.
+- [x] Linking an identity to an account, and unlinking it
+
+      `POST /api/user/atproto`. A DID is unique across the instance, because an identifier is one
+      account and two users claiming it would make "signed in as this identity" ambiguous exactly
+      when it matters. A DID already linked elsewhere is refused with the same sentence whoever
+      asks, so the endpoint cannot be used to find out which identities exist here.
+- [ ] Signing *in* with a DID, which is the box that removes the registration form
+
+      **Deliberately not built on what exists.** Resolution proves the handle and the identifier
+      agree; it does not prove the person at the keyboard controls either. Linking is therefore an
+      authenticated action that binds an identity to an account already signed in - the same trust
+      model as adding an email address, stated in the action rather than implied.
+
+      Creating a *session* needs the signature step: a challenge this instance issues, signed by the
+      account's key at its PDS, verified here against the verification method in the document. An
+      unproven identity that can create a session is an account takeover with extra steps, so the
+      thing this phase is ultimately for waits for that rather than being approximated.
 
 ## Prerequisites
 
