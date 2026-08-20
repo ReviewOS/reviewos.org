@@ -1527,8 +1527,23 @@ was needed ships the bug.
       Every rate is null rather than zero when nothing has happened: a repository that does not use
       the cache has no hit rate, and 0% reads as one that is broken. And the window travels in the
       answer, so a client cannot show a number without saying what it is of.
-- [ ] Local validation and a fake-runner test harness use the same parser and transition rules as
+- [x] Local validation and a fake-runner test harness use the same parser and transition rules as
       production
+
+      `buddy workflow:build` and the CLI's validate command run the same parser the server runs -
+      not a description of it - which is what makes a local error the error the push will give.
+
+      The harness is `tests/helpers/fakeRunner.ts`, and the point is what it does **not** do: it has
+      no state machine. It calls `claimNextJob` and `reportJob`, the two functions the runner
+      endpoints wrap, so every transition it produces is the one production produces. A harness that
+      decided for itself what a failed job does to a run would agree with the real thing right up
+      until the real thing changed, and then it would be a test suite defending the old behaviour.
+
+      It stops when nothing is claimable, which is a state rather than an ending: a run holding at a
+      gate has no claimable job and is not finished, and a test asserts that difference instead of
+      timing out. `workflow-pipeline.test.ts` is what it bought - a fan-out, a barrier, a gate and a
+      fail-fast in one graph, which is four features tested individually elsewhere and never tested
+      meeting each other.
 - [x] CLI commands to validate a workflow, dispatch it, follow logs, inspect a run, cancel it, and
       retry from a step, as clients of the public API
 
