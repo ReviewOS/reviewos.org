@@ -765,6 +765,45 @@ is pushing, and is the whole difference when four teams push at once. Set
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+### `CI_STEP_MEMORY_MB`
+
+Default: `4096`, and the line is commented out.
+
+Ceilings a step cannot raise, applied before its first instruction.
+
+Not isolation - a step still runs as ordinary processes on the host, and the
+sandbox that would change that is gated by docs/ci-security-review.md. What
+these stop is the ordinary accident: a loop that writes a forty-gigabyte
+file, a build that spins a core forever. Generous on purpose, because a limit
+that trips on ordinary work is one an operator removes.
+
+Read by `app/Actions/Runner/limits.ts`.
+
+### `CI_STEP_FILE_SIZE_MB`
+
+Default: `4096`, and the line is commented out.
+
+Read by `app/Actions/Runner/limits.ts`.
+
+### `CI_STEP_PROCESSES`
+
+Default: `512`, and the line is commented out.
+
+Off by default and worth understanding before setting: both count something
+wider than one step. RLIMIT_NPROC is per *user*, so on a machine where the
+runner shares a user with anything else a generous number is already spent -
+set it only on a machine dedicated to the runner. CPU seconds are not wall
+time: a build using eight cores for two minutes has spent sixteen CPU minutes
+without being slow.
+
+Read by `app/Actions/Runner/limits.ts`.
+
+### `CI_STEP_CPU_SECONDS`
+
+Default: `3600`, and the line is commented out.
+
+Read by `app/Actions/Runner/limits.ts`.
+
 ## Screenshots
 
 ### `SCREENSHOT_URL`

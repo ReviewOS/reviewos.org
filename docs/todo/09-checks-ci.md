@@ -1465,6 +1465,27 @@ gate, in order.
 - [ ] Network policy with a safe default and explicit egress controls. A sandbox with unrestricted
       access to instance-local services is not isolated.
 - [ ] CPU, memory, process, disk, output, and wall-time limits enforced outside the job
+
+      **Output and wall time are done; CPU, file size and processes are available; memory and disk
+      are not.** `app/Actions/Runner/limits.ts` puts `ulimit -S -H` in front of a step's command -
+      soft and hard together, so a step cannot raise what it was given - and
+      `tests/unit/runner-limits.test.ts` runs a real shell to prove the file-size ceiling bites and
+      cannot be raised, rather than asserting on the string.
+
+      Read it as housekeeping rather than a boundary. It stops the loop that writes a
+      forty-gigabyte file and does nothing about an attacker, which is why this box stays open: the
+      line says *enforced outside the job*, and `ulimit` is enforced by the kernel against a process
+      the job's own user owns.
+
+      Two of the four are off by default because they count something wider than one step.
+      `RLIMIT_NPROC` is per **user**: turning it on by default made `/bin/sh: fork: Resource
+      temporarily unavailable` the second line of every build on the development machine, which is
+      the kind of thing only running it teaches. CPU seconds are not wall time - eight cores for two
+      minutes is sixteen CPU minutes and not slow.
+
+      What is still missing is the part that needs Linux: a memory ceiling that holds (macOS accepts
+      `-v` and ignores it), a disk quota rather than a per-file size, and all of it enforced by
+      cgroups against a job rather than by a shell against a process.
 - [x] Secrets encrypted at rest, scoped per environment and job, injected only after authorization,
       redacted from logs and structured outputs, and never exposed to untrusted fork workflows
 

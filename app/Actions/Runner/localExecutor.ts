@@ -49,6 +49,7 @@ import { resolveServices, serviceEnvironment, waitForPort } from './services'
 import { interpolate, shouldRun } from '../Workflow/expression'
 import { isNotFalse, isTrue } from '../Support/sql'
 import { LEASE_SECONDS } from './protocol'
+import { limitedArgv, limitedCommand, limitsFrom } from './limits'
 
 export interface LocalRunnerOptions {
   /** Where this instance is, for the runner protocol. */
@@ -3176,7 +3177,25 @@ async function runStep(input: {
   timeoutMs?: number
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
 }): Promise<StepResult> {
-  const child = Bun.spawn(input.argv ? [...input.argv] : ['/bin/sh', '-c', String(input.command ?? '')], {
+  /*
+   * The ceilings, applied before the step's first instruction.
+   *
+   * Not isolation - a step still runs as ordinary processes on this host, which
+   * is what the security review gates. What this stops is the ordinary
+   * accident: a test that forks until the box stops answering, a loop that
+   * writes a forty-gigabyte file. Those are not attacks and they are what
+   * actually happens.
+   *
+   * Inherited by everything the step spawns, which is the property that
+   * matters - the fork bomb is never the first process.
+   */
+  const limits = limitsFrom()
+
+  const argv = input.argv
+    ? limitedArgv(input.argv, limits)
+    : ['/bin/sh', '-c', limitedCommand(String(input.command ?? ''), limits)]
+
+  const child = Bun.spawn(argv, {
     cwd: input.cwd,
     env: input.environment,
     stdout: 'pipe',

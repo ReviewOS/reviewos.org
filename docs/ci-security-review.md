@@ -88,9 +88,17 @@ configured; `RUNNER_TEMP` and `RUNNER_TOOL_CACHE` inside that workspace rather t
 so one job cannot read what the last left; a wall-clock timeout the runner enforces and the control
 plane backstops; a per-job log ceiling enforced on the way in.
 
+**Since this was written**, a step's command is preceded by `ulimit -S -H` for address space, file
+size, processes and CPU seconds (`app/Actions/Runner/limits.ts`), soft and hard together so a step
+cannot raise what it was given. Read that as *housekeeping, not a boundary*: it stops the loop that
+writes a forty-gigabyte file, and it does nothing whatsoever about an attacker. Two of the four are
+off by default because they count something wider than one step - `RLIMIT_NPROC` is per user, and
+CPU seconds are not wall time.
+
 **What does not exist**, and must not be read as existing:
 
-- No process, memory, CPU, or disk limit. A step may fork bombs, fill the disk, or exhaust memory.
+- No memory limit that holds on macOS: `-v` is accepted there and ignored. No disk *quota* - the
+  file-size ceiling bounds one file, not a step that writes a million small ones.
 - No network policy of any kind. A step can reach the control plane's database if it is reachable
   from that host, its Redis, its repository storage, its loopback interface, and any cloud metadata
   endpoint the machine has.
