@@ -840,6 +840,22 @@ export const tsCloud: TsCloudConfig = {
          * refuses to start.
          */
         'bun node_modules/@stacksjs/buddy/dist/cli.js mirror:apply mirrors.yml',
+        /*
+         * This instance's own profile page, from `profile/README.md`.
+         *
+         * `/reviewos` was blank because the repository behind it did not
+         * exist, and creating it was a thing somebody had to remember - the
+         * same shape as the mirror nobody added. The content is a file in this
+         * repository now, reviewed with everything else, and the deploy writes
+         * it.
+         *
+         * **Only into a repository with no commits in it.** Once there is a
+         * ref this does nothing, forever: a step that rewrote the page on
+         * every release would quietly undo an edit somebody made through the
+         * interface, which is worse than the blank page it fixes. An owner
+         * this instance does not have is skipped rather than fatal.
+         */
+        'bun node_modules/@stacksjs/buddy/dist/cli.js profile:seed --owner reviewos --file profile/README.md',
         // The documentation site, built into `dist/docs` where
         // `resources/views/docs/` reads it.
         //

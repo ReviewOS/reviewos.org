@@ -123,6 +123,21 @@ describe('the deploy applies it', () => {
     expect(apply).toBeGreaterThan(migrate)
   })
 
+  test('and writes this instance\'s own profile page from a file that exists', () => {
+    // `/reviewos` was blank because nobody had created the repository behind
+    // it. The content is a file here now; the step that writes it names both,
+    // and both have to be real or the page stays blank with nothing saying so.
+    const steps: string[] = (tsCloud as any)?.sites?.reviewos?.preStart ?? []
+    const step = steps.find(row => row.includes('profile:seed')) ?? ''
+
+    expect(step).toContain('--owner reviewos')
+
+    const file = /--file\s+(\S+)/.exec(step)?.[1]
+
+    expect(file).toBeTruthy()
+    expect(existsSync(join(ROOT, file!))).toBe(true)
+  })
+
   test('naming a CLI and a file this repository actually ships', () => {
     // The failure this mirrors is in `cloud-queues.test.ts`: seven workers
     // whose ExecStart named a vendored core this layout does not have, crash

@@ -61,6 +61,7 @@ export default {
   'fleet:apply': 'FleetApply',
   'mirror:add': 'MirrorAdd',
   'mirror:apply': 'MirrorApply',
+  'profile:seed': 'ProfileSeed',
   'git:hooks': 'GitHooks',
   'git:restore': 'GitRestore',
   'git:scan': 'GitScan',
