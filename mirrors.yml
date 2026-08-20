@@ -26,8 +26,8 @@ mirrors:
   - remote: stacksjs/.github
     owner: stacks
 
-  # This project's own mirror, for the same reason: `/reviewos` is a profile
-  # page on the instance the project runs, and it should not be the one profile
-  # on it that is blank.
-  - remote: ReviewOS/.github
-    owner: reviewos
+  # `ReviewOS/.github` is deliberately absent: there is no such repository
+  # upstream, and a declared mirror of a repository that does not exist is a
+  # sweep that fails every fifteen minutes until it disables itself. This
+  # project's own profile page is written here rather than mirrored - the forge
+  # reads `reviewos/.profile` first, which is the name it asks for.
