@@ -1175,9 +1175,33 @@ whole before the loop comes back round.
       rather than from a note taken earlier - which is the mistake that cost a day on the diff
       viewer. 944 library tests pass, so the colours are unchanged.
 
-      **CSS is better and still not good**: 8.8 against `FastTokenizer`'s 120. The pattern loop was
-      one cost in that path and evidently not the only one, and the box that chases the rest is the
-      per-line cache below. Released in `ts-syntax-highlighter@acb52a5`.
+      Released in `ts-syntax-highlighter@acb52a5`.
+
+      **Then profiled again, because 8.8 against `FastTokenizer`'s 120 was not an answer.** A
+      megabyte of CSS, timed per pattern: 33ms of the 45ms in the pattern loop was inside
+      `#selectors`, which ran 40,000 times to produce 10,000 matches - the other 30,000 walking a
+      sixty-branch alternation of HTML tag names only to fail.
+
+      Two causes, and the second is why fixing the first alone did nothing. A `\b(one|two)\b`
+      pattern is a set membership test written as a regular expression and the engine cannot know
+      it, so those compile to a `Set` checked against an identifier read with the character table.
+      And **the repository was never compiled**: an `include` looked its rule up in the raw grammar
+      and matched the children directly, so none of them carried a word set or a precompiled
+      expression. Compiling it at construction is what put both optimisations in the path that
+      actually runs.
+
+      | language | at the start of this work | now |
+      |---|---|---|
+      | css | 5.1 MB/s | **14.2 MB/s** |
+      | rust | 5.7 MB/s | **14.3 MB/s** |
+      | python | 18.5 MB/s | **33.9 MB/s** |
+      | typescript | 61.3 MB/s | 60.1 MB/s |
+      | javascript | 50.0 MB/s | 47.8 MB/s |
+
+      TypeScript and JavaScript are flat, and that is the honest reading: they were never paying the
+      cost, because their bytes are identifiers and whitespace that the character fast paths catch
+      before the pattern loop. Every gain here is in the grammars that fall through to it.
+      `ts-syntax-highlighter@3392151`.
 - [ ] Line results are cached by (line text, language, incoming scope stack). A diff repeats context
       lines between hunks and between the two sides of a split view constantly.
 
