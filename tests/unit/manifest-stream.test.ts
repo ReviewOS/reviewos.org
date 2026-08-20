@@ -201,3 +201,82 @@ describe('describeFailure', () => {
     expect(message).toContain('502')
   })
 })
+
+describe('the batch clock, on a diff git is slow to compute', () => {
+  /** A response whose first record arrives only after `delayMs`. */
+  function slowToStart(files: number, delayMs: number): Response {
+    const encoder = new TextEncoder()
+
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        // Nothing at all until git has finished: this is the shape of an
+        // 80,000-file compare, where the first record is seconds away.
+        await new Promise(resolve => setTimeout(resolve, delayMs))
+
+        for (let index = 0; index < files; index++)
+          controller.enqueue(encoder.encode(`{"t":"file","i":${index},"path":"file-${index}.ts"}\n`))
+
+        controller.enqueue(encoder.encode(`{"t":"end","files":${files},"additions":0,"deletions":0}\n`))
+        controller.close()
+      },
+    })
+
+    return new Response(body, { status: 200 })
+  }
+
+  test('the first batch is a screenful, not the single file the old clock produced', async () => {
+    /*
+     * The regression this pins. `lastFlush` used to be stamped when the request
+     * was made, so on a diff whose first record is seconds away the batch
+     * window had already elapsed before anything arrived - and the first flush
+     * carried one file. The first screen was a single file with the rest
+     * arriving underneath it, which is the failure the ceiling exists to
+     * prevent.
+     */
+    const original = globalThis.fetch
+    globalThis.fetch = (async () => slowToStart(60, 700)) as typeof fetch
+
+    const batches: number[] = []
+
+    try {
+      await streamDiffManifest('/manifest', {
+        firstBatchSize: 25,
+        onFiles(files) {
+          batches.push(files.length)
+        },
+      })
+    }
+    finally {
+      globalThis.fetch = original
+    }
+
+    expect(batches.length).toBeGreaterThan(0)
+    // The first batch fills to its size rather than going out with whatever had
+    // arrived the instant the stream opened.
+    expect(batches[0]).toBe(25)
+    expect(batches.reduce((total, size) => total + size, 0)).toBe(60)
+  })
+
+  test('a small diff is unaffected, because its first record arrives inside the window', async () => {
+    // The case that never showed the bug, and the one a fix here could break:
+    // twelve files that arrive at once still go out as one batch.
+    const original = globalThis.fetch
+    globalThis.fetch = (async () => slowToStart(12, 0)) as typeof fetch
+
+    const batches: number[] = []
+
+    try {
+      await streamDiffManifest('/manifest', {
+        firstBatchSize: 25,
+        onFiles(files) {
+          batches.push(files.length)
+        },
+      })
+    }
+    finally {
+      globalThis.fetch = original
+    }
+
+    expect(batches).toEqual([12])
+  })
+})

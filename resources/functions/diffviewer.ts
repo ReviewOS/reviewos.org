@@ -1558,7 +1558,27 @@ export async function streamDiffManifest(
   const firstSize = options.firstBatchSize ?? FIRST_BATCH_MIN
   let batch: DiffFileEntry[] = []
   let published = 0
-  let lastFlush = performance.now()
+
+  /*
+   * The batch clock starts at the first record, not at the request.
+   *
+   * It used to start here, which is before the server has said anything, and on
+   * a diff that git takes seconds to compute that quietly inverted the whole
+   * cadence: by the time the first record arrived, the batch window had long
+   * since elapsed, so the first flush went out carrying **one file**. The first
+   * screen - the one this ceiling exists to fill - was a single file, and the
+   * rest arrived underneath it while the reader watched, which is precisely the
+   * failure the comment on `FIRST_BATCH_MS` describes.
+   *
+   * Measured on Linux `v6.0...v7.0`, where git needs 7.5 seconds before the
+   * first record exists. A twelve-file pull request never showed it, because
+   * there the first record arrives inside the window and the old code and this
+   * one behave identically.
+   *
+   * Null until then, so "no records yet" is a state rather than a timestamp
+   * that happens to be old.
+   */
+  let lastFlush: number | null = null
   let sinceYield = performance.now()
 
   const flush = () => {
@@ -1569,6 +1589,7 @@ export async function streamDiffManifest(
     published++
     batch = []
     lastFlush = performance.now()
+
   }
 
   /** The batch this one is: the first is bigger and waits longer. */
@@ -1585,6 +1606,10 @@ export async function streamDiffManifest(
     }
 
     if (record.t === 'file') {
+      // The first record starts the clock, so the window is measured from when
+      // the server began answering rather than from when it was asked.
+      lastFlush ??= performance.now()
+
       batch.push(toFileEntry(record))
 
       const { size, ms } = limits()
