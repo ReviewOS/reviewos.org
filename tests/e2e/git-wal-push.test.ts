@@ -50,6 +50,24 @@ function removeTestDirectory(path: string, allowedRoots: readonly string[]): voi
 // Before any app module reads them. The log is off by default, and the store
 // writes wherever it is pointed.
 process.env.GIT_WAL = 'advisory'
+
+/*
+ * The blob root this file points the store at, and the value it has to put
+ * back.
+ *
+ * `bun test` runs every file in one process, so an environment variable set
+ * here is set for every file that runs afterwards - and `blobStore()` caches
+ * the store it builds the first time anybody asks. Together that meant the
+ * artifact suite uploaded its blobs into this test's temporary directory,
+ * asserted on `storage/artifacts/...` where nothing had been written, and
+ * failed with "a blob another artifact still points at survives its own row
+ * expiring" - a sweep bug that was not a sweep bug. Then this file's cleanup
+ * deleted the directory those artifacts were in.
+ *
+ * It passed when either file was run alone, which is why it survived: the two
+ * only meet in a full run, and the full run is CI.
+ */
+const previousBlobRoot = process.env.BLOB_LOCAL_ROOT
 process.env.BLOB_LOCAL_ROOT = mkdtempSync(join(tmpdir(), 'reviewos-wal-blobs-'))
 // At least sixteen characters, or `hookSecret()` answers null, the gate 404s
 // at its own hook, and pre-receive correctly allows the push - leaving a
@@ -184,6 +202,23 @@ afterAll(async () => {
 
   removeTestDirectory(created.temp, [tmpdir()])
   removeTestDirectory(String(process.env.BLOB_LOCAL_ROOT ?? ''), [tmpdir()])
+
+  /*
+   * Put the store back before the next file runs.
+   *
+   * Both halves are needed. Restoring the variable alone leaves the cached
+   * store pointing at the directory just deleted, and dropping the cache alone
+   * leaves it rebuilt from this file's root. `useBlobStore(null)` makes the
+   * next `blobStore()` build a fresh one from the restored environment.
+   */
+  if (previousBlobRoot === undefined)
+    delete process.env.BLOB_LOCAL_ROOT
+  else
+    process.env.BLOB_LOCAL_ROOT = previousBlobRoot
+
+  const { useBlobStore } = await import('../../app/Actions/Git/blobs')
+
+  useBlobStore(null)
   // Only this test's owner directory, only under the repository root, and only
   // when the handle it was built from is actually set.
   if (created.handle)

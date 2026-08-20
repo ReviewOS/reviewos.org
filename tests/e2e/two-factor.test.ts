@@ -210,8 +210,8 @@ describe('enrolling', () => {
 
     const answer = await twoFactor({ operation: 'enable', code: '000000' })
 
-    expect(isTrue(answer.status).toBe(422)
-    expect((await twoFactor({ operation: 'status' })).body?.enabled)).toBe(false)
+    expect(answer.status).toBe(422)
+    expect(isTrue((await twoFactor({ operation: 'status' })).body?.enabled)).toBe(false)
   }, 30_000)
 
   test('turns on with a real code, and hands over the recovery codes once', async () => {
