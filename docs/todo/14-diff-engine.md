@@ -76,10 +76,36 @@ Numbers, so the work can be checked rather than argued about:
       than awaiting the whole response. Six seconds is how long 2.6MB of rendered HTML takes to
       finish, not how long the first row takes to appear.
 
-      Which puts the remaining cost in the viewer's **per-file publishing work** - the tree entry,
-      the height estimate, the DOM - and not in git, the manifest, the tokenizer, the network or the
-      row endpoint. Each of those has now been measured and excluded, which is the useful half of
-      this: the next person starts with one suspect instead of six.
+      And profiling the viewer removed the last suspect too. A long-task census over fifteen seconds
+      of a kernel-diff page load:
+
+      | | |
+      |---|---|
+      | document TTFB | 141ms |
+      | DOM complete | 171ms |
+      | main thread busy | **0ms of 15,271ms** |
+      | long tasks | **none** |
+      | first `diff/rows` request starts | **14,056ms** |
+
+      The viewer is not slow. It is **idle**, and the idleness is the finding: nothing is on the main
+      thread because there is nothing yet to publish. The sequence is git spending 7.5s computing an
+      80,610-file diff before the first manifest record exists, the first batch then filling, and
+      only then a row request that itself takes 6.3s. Nothing can render before roughly twenty
+      seconds, and every one of those seconds is spent waiting rather than working.
+
+      So the fix is not optimisation anywhere - six candidates have now been measured and every one
+      of them is fast at what it does. It is **what the page does while it waits**, which is
+      currently nothing: the first-batch ceiling counts from the request rather than from the first
+      record, so a diff whose first record takes 7.5s to appear also waits out a batch window that
+      was sized for one that answers immediately. Starting that clock at the first record, and
+      asking for a smaller first row batch, are the two changes worth measuring next - and they are
+      changes to *when* work starts, not to how fast it runs.
+
+      Four diagnoses, each replacing the last, and the shape of the error was the same every time:
+      the symptom was slowness, and slowness reads as something being slow. It was not. Each answer
+      came from measuring one layer and finding it innocent, and the only reason the fourth is worth
+      believing more than the first three is that it is the one where the measurement said *nothing
+      is running* rather than *this is running slowly*.
 
       Three diagnoses in one sitting, each replacing the last, and the pattern is worth writing down
       as much as the finding: the symptom was "the page fills slowly", the first two answers were
