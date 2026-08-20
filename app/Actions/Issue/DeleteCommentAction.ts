@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { recountComments } from '../Repo/counters'
 
@@ -17,6 +18,15 @@ export default new Action({
   name: 'DeleteComment',
   description: 'Delete a comment on an issue or pull request',
   method: 'DELETE',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    comment_id: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')

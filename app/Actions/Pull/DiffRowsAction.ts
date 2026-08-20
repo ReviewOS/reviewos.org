@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { diskPathFor } from '../Git/access'
 import { streamMergeBaseDiff } from '../Git/diffStream'
 import { authorizeRepository } from '../Repo/authorize'
@@ -72,6 +73,20 @@ export default new Action({
   name: 'DiffRows',
   description: 'Stream rendered diff rows for named files',
   method: 'GET',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    number: { rule: schema.number() },
+    from: { rule: schema.string() },
+    highlight: { rule: schema.string() },
+    layout: { rule: schema.string() },
+    open: { rule: schema.string() },
+    to: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')

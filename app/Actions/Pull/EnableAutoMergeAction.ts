@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { allowedStrategies, defaultStrategy, isMergeStrategy } from './merge'
 import { attemptAutoMerge } from './autoMerge'
@@ -23,6 +24,16 @@ export default new Action({
   name: 'EnableAutoMerge',
   description: 'Merge automatically once requirements are met',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    number: { rule: schema.number() },
+    strategy: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:merge')

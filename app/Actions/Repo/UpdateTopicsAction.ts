@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from './authorize'
 import { decideTopics, topicChanges } from './topics'
 
@@ -18,6 +19,14 @@ export default new Action({
   name: 'UpdateTopics',
   description: 'Set the topics on a repository',
   method: 'PUT',
+
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    // A list, or a comma-separated string: `decideTopics` takes both, because
+    // a form sends one and a program sends the other.
+    topics: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')

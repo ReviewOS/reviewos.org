@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { notifyProgramsOnly } from '../../Notifications/emit'
 import { runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
@@ -29,6 +30,16 @@ export default new Action({
   name: 'UpdatePullRequestState',
   description: 'Close, reopen, or change the draft state of a pull request',
   method: 'PUT',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    number: { rule: schema.number() },
+    state: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')

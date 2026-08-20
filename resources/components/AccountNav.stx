@@ -157,4 +157,12 @@ const onRegister = here.startsWith('/register')
   @media (max-width: 640px) {
     .account-signin { display: none; }
   }
+
+  /* The face without the name, on a phone. The handle is 12 characters of a
+    bar that has 375 of them, and it was being printed over the item beside
+    it; the initial still answers "which account is this". */
+  @media (max-width: 600px) {
+    .account-handle { display: none; }
+    .account-you { padding: 0 4px; }
+  }
 </style>

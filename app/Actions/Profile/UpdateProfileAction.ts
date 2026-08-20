@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { checkHandle, normalizeHandle } from '../Identity/handles'
 
@@ -24,6 +25,14 @@ export default new Action({
   name: 'UpdateProfile',
   description: 'Update the signed-in user\'s profile',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    handle: { rule: schema.string() },
+    website: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)

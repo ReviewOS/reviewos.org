@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { canInOrganization } from '../../Permissions'
@@ -24,6 +25,22 @@ export default new Action({
   name: 'CreateRepository',
   description: 'Create a repository for a user or an organization',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    default_branch: { rule: schema.string() },
+    description: { rule: schema.string() },
+    gitignore: { rule: schema.string() },
+    host: { rule: schema.string() },
+    license: { rule: schema.string() },
+    license_holder: { rule: schema.string() },
+    name: { rule: schema.string() },
+    readme: { rule: schema.string() },
+    visibility: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)

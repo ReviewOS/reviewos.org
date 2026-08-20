@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { diskPathFor } from '../Git/access'
 import { mergeBase } from '../Git/git'
 import { authorizeRepository } from '../Repo/authorize'
@@ -17,6 +18,17 @@ export default new Action({
   name: 'BlameLine',
   description: 'Why one context line of a diff is here',
   method: 'GET',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    number: { rule: schema.number() },
+    line: { rule: schema.number() },
+    path: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')

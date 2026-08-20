@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { dismissReview, mayDismissReview } from './review-requests'
 
@@ -19,6 +20,17 @@ export default new Action({
   name: 'DismissReview',
   description: 'Dismiss a submitted review with a reason',
   method: 'PUT',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    number: { rule: schema.number() },
+    reason: { rule: schema.string() },
+    review_id: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:read')

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { Buffer } from 'node:buffer'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import process from 'node:process'
@@ -27,6 +28,15 @@ export default new Action({
   name: 'Sso',
   description: 'Sign in through an OpenID Connect provider',
   method: 'GET',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    code: { rule: schema.string() },
+    next: { rule: schema.string() },
+    state: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const config = ssoConfig()

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { canInOrganization } from '../../Permissions'
 import { currentUser, handleAvailable, organizationRoleOf } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
@@ -24,6 +25,14 @@ export default new Action({
   name: 'UpdateOrganization',
   description: 'Update an organization profile',
   method: 'PUT',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    handle: { rule: schema.string() },
+    organization_id: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { currentUser } from '../Identity/lookup'
@@ -20,6 +21,13 @@ export default new Action({
   // because an HTML form can only send GET or POST and every write in this
   // application goes through a form with a CSRF field.
   method: 'DELETE',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    id: { rule: schema.number() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)

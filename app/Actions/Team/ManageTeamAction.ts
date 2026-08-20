@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { canInOrganization } from '../../Permissions'
 import { currentUser, organizationRoleOf } from '../Identity/lookup'
 
@@ -26,6 +27,19 @@ export default new Action({
   name: 'ManageTeam',
   description: 'Create, update, or delete a team',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    description: { rule: schema.string() },
+    name: { rule: schema.string() },
+    operation: { rule: schema.string() },
+    organization_id: { rule: schema.string() },
+    parent_team_id: { rule: schema.string() },
+    slug: { rule: schema.string() },
+    team_id: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const actor = await currentUser(request)

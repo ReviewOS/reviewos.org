@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { browseContext, browsePath } from './context'
 import { blameFile, MAX_BLAME_LINES } from './load'
 
@@ -13,6 +14,17 @@ export default new Action({
   name: 'BrowseBlame',
   description: 'Blame a file at a ref',
   method: 'GET',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    limit: { rule: schema.number() },
+    path: { rule: schema.string() },
+    ref: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const browse = await browseContext(request)

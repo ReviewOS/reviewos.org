@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { recountOpenIssues } from '../Repo/counters'
 import { deleteWhereIn, updateWhereIn } from '../Support/rows'
@@ -20,6 +21,18 @@ export default new Action({
   name: 'BulkUpdateIssues',
   description: 'Apply one change to several issues',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    label: { rule: schema.string() },
+    milestone_id: { rule: schema.number() },
+    numbers: { rule: schema.string() },
+    operation: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const operation = String(request.get('operation') ?? '')

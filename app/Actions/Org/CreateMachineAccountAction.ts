@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { makeHash } from '@stacksjs/security'
 import { canInOrganization } from '../../Permissions'
 import { currentUser, handleAvailable, organizationRoleOf } from '../Identity/lookup'
@@ -36,6 +37,15 @@ export default new Action({
   name: 'CreateMachineAccount',
   description: 'Create an organization-owned account that only holds tokens',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    handle: { rule: schema.string() },
+    name: { rule: schema.string() },
+    organization_id: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)

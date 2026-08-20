@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { milestoneFields } from './labelSet'
 
@@ -17,6 +18,19 @@ export default new Action({
   name: 'ManageMilestone',
   description: 'Create, update, close or delete a milestone',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    description: { rule: schema.string() },
+    due_on: { rule: schema.string() },
+    id: { rule: schema.number() },
+    operation: { rule: schema.string() },
+    title: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'milestone:manage')

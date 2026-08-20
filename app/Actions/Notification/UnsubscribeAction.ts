@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { parseScope } from './unsubscribe'
 
 /**
@@ -30,6 +31,13 @@ export default new Action({
   name: 'Unsubscribe',
   description: 'Unsubscribe from one thread, from an emailed link',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    token: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     // Off the path, so one URL serves both the page and the one-click POST.

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { formatDays, localTimeIn, parseDays } from './clock'
 import { decisionText, deliveryDecision } from './delivery'
@@ -15,6 +16,18 @@ export default new Action({
   name: 'UpdateNotificationSchedule',
   description: 'Set the hours and days notifications may interrupt you',
   method: 'PUT',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    breaks_through: { rule: schema.string() },
+    days: { rule: schema.number() },
+    do_not_disturb_until: { rule: schema.string() },
+    ends_at: { rule: schema.string() },
+    starts_at: { rule: schema.string() },
+    timezone: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)

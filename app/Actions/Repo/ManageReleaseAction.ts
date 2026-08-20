@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { authorizeRepository } from './authorize'
@@ -24,6 +25,20 @@ export default new Action({
   name: 'ManageRelease',
   description: 'Publish, edit or delete a release',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    body: { rule: schema.string() },
+    is_draft: { rule: schema.string() },
+    is_prerelease: { rule: schema.string() },
+    name: { rule: schema.string() },
+    operation: { rule: schema.string() },
+    tag_name: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const operation = String(request.get('operation') ?? 'create').trim().toLowerCase()

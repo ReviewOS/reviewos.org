@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { isSearchableScope, runSearch } from './run'
 
@@ -13,6 +14,18 @@ export default new Action({
   name: 'Search',
   description: 'Search repositories, issues, pull requests and people',
   method: 'GET',
+
+  // Declared so the document can publish them. Read with `request.get?.()` and
+  // a fallback to `request.query`, because this endpoint is reached both from
+  // the site's own search box and from a program, and the two arrive
+  // differently - which is exactly the kind of thing a caller cannot guess and
+  // the document should say.
+  validations: {
+    q: { rule: schema.string() },
+    scope: { rule: schema.enum(['repositories', 'issues', 'pulls', 'users', 'code']) },
+    page: { rule: schema.number() },
+    per_page: { rule: schema.number() },
+  },
 
   async handle(request: RequestInstance) {
     const viewer = await currentUser(request)

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { loadInbox } from './read'
 
@@ -19,6 +20,15 @@ export default new Action({
   name: 'ListNotifications',
   description: 'The signed-in user\'s notification inbox',
   method: 'GET',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    reason: { rule: schema.string() },
+    repository: { rule: schema.string() },
+    unread: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)

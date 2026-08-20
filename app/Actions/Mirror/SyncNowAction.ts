@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { accepted, startOperation } from '../Api/start'
 import { authorizeRepository } from '../Repo/authorize'
 
@@ -27,6 +28,14 @@ export default new Action({
   name: 'MirrorSyncNow',
   description: 'Sync a mirrored repository immediately',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')

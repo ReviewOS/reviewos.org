@@ -66,7 +66,7 @@ const signedIn = Boolean(viewer)
   <div class="shell topbar-inner">
     <a class="brand" href="/" aria-label="ReviewOS home">
       <span class="brand-mark" aria-hidden="true"></span>
-      ReviewOS
+      <span class="brand-word">ReviewOS</span>
     </a>
 
     <nav class="topbar-nav" aria-label="Main">
@@ -221,6 +221,26 @@ const signedIn = Boolean(viewer)
     .topbar-link[href='/explore'], .topbar-link[href='/discover'], .topbar-link[href='/docs'] { display: none; }
   }
 
+  /* Narrower still, which is a phone. What is left - the brand, the two
+    destinations a signed-in reader works from, and who they are - has to fit
+    in 375px, so the gaps close and the padding comes in. Nothing else is
+    dropped: Reviews and Inbox are the product, and a bar that hides them has
+    stopped being a navigation bar. */
+  @media (max-width: 600px) {
+    .topbar-inner { gap: 10px; }
+    .topbar-nav { gap: 0; }
+    .topbar-link { padding: 6px 7px; }
+    .topbar-right { gap: 4px; }
+
+    /* The mark without the word. Nothing in this row can shrink - every item
+      is `nowrap` - so when the total exceeded 375px the items overlapped
+      rather than wrapping, and the unread badge was printed inside the New
+      button. The eighty pixels the wordmark occupies are the eighty this
+      needs, and a mark that is a link home is the one thing on a bar that
+      does not need a label. */
+    .brand-word { display: none; }
+  }
+
   /* The feature menu, for a reader who has not signed in. */
   .mega { position: relative; display: inline-flex; }
 
@@ -266,6 +286,23 @@ const signedIn = Boolean(viewer)
 
   @media (max-width: 900px) {
     .mega-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  /* On a phone the catalogue is one column, and the panel scrolls inside
+    itself rather than growing past the bottom of the screen. Two columns at
+    375px wrapped "Issues that link up" over three lines, and a panel taller
+    than the viewport put its own close control - the summary - above the
+    scroll, so the only way out was the back button. */
+  @media (max-width: 600px) {
+    .mega-panel {
+      left: -46px;
+      width: calc(100vw - 24px);
+      max-height: calc(100vh - 76px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .mega-grid { grid-template-columns: 1fr; gap: 10px; }
   }
 
   .mega-group-title {

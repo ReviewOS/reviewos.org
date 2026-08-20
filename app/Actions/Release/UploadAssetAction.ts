@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { authorizeRepository } from '../Repo/authorize'
@@ -20,6 +21,15 @@ export default new Action({
   name: 'UploadReleaseAsset',
   description: 'Attach a file to a release',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    tag_name: { rule: schema.string() },
+  },
 
   async handle(request: any) {
     const auth = await authorizeRepository(request, 'repository:settings')

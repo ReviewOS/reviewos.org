@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from '../Repo/authorize'
@@ -19,6 +20,19 @@ export default new Action({
   name: 'ManageDeployKey',
   description: 'Add or remove a deploy key on a repository',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    can_write: { rule: schema.string() },
+    id: { rule: schema.number() },
+    key: { rule: schema.string() },
+    operation: { rule: schema.string() },
+    title: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import process from 'node:process'
@@ -25,6 +26,17 @@ export default new Action({
   name: 'LoginAction',
   description: 'Sign in and start a session',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    code: { rule: schema.string() },
+    email: { rule: schema.string() },
+    next: { rule: schema.string() },
+    passkey: { rule: schema.string() },
+    password: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const email = String(request.get('email') ?? '').trim().toLowerCase()

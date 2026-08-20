@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 import { dbTimestamp } from '../Support/sql'
 
@@ -25,6 +26,15 @@ export default new Action({
   name: 'AdvanceLastLook',
   description: 'Mark a pull request as read up to its current head',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    number: { rule: schema.number() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:review')

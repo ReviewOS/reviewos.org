@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { canInOrganization } from '../../Permissions'
 import { auditFrom } from '../Git/audit'
@@ -28,6 +29,14 @@ export default new Action({
   name: 'DeleteOrganization',
   description: 'Delete an organization that owns nothing',
   method: 'DELETE',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    confirm: { rule: schema.string() },
+    organization_id: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)

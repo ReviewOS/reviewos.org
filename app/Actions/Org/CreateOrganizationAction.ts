@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { handleAvailable } from '../Identity/lookup'
 import { normalizeHandle } from '../Identity/handles'
 import { currentUser } from '../Identity/lookup'
@@ -15,6 +16,16 @@ export default new Action({
   name: 'CreateOrganization',
   description: 'Create an organization owned by the caller',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    billing_email: { rule: schema.string() },
+    description: { rule: schema.string() },
+    handle: { rule: schema.string() },
+    name: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { checkHealth } from '../../Ops/health'
 
 /**
@@ -27,6 +28,13 @@ export default new Action({
   name: 'Health',
   description: 'Whether the database, the queue and repository storage are working',
   method: 'GET',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    quick: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     /*

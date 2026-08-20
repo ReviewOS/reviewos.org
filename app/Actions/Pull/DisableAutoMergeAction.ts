@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { authorizeRepository } from '../Repo/authorize'
 
 /**
@@ -14,6 +15,15 @@ export default new Action({
   // POST rather than DELETE: the disarm button is a plain HTML form, and a
   // form speaks two verbs. The router carries no method override.
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    number: { rule: schema.number() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'pull:merge')

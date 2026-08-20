@@ -707,7 +707,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "code"?: string; "email"?: string; "next"?: string; "passkey"?: string; "password"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -753,7 +753,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "email"?: string; "operation"?: string; "password"?: string; "token"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -776,7 +776,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "email"?: string; "handle"?: string; "name"?: string; "next"?: string; "password"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -792,7 +792,7 @@ export interface paths {
   "/api/auth/sso": {
     get: {
     parameters: {
-      query?: never
+      query?: { "code"?: string; "next"?: string; "state"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -815,7 +815,7 @@ export interface paths {
   "/api/auth/verify": {
     get: {
     parameters: {
-      query?: never
+      query?: { "id"?: number; "token"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -845,7 +845,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "id"?: number; "token"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -9555,7 +9555,7 @@ export interface paths {
   "/api/feed": {
     get: {
     parameters: {
-      query?: never
+      query?: { "before"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -9777,7 +9777,7 @@ export interface paths {
   "/api/health": {
     get: {
     parameters: {
-      query?: never
+      query?: { "quick"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -10621,7 +10621,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11371,7 +11371,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "handle"?: string; "organization_id"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11385,7 +11385,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "billing_email"?: string; "description"?: string; "handle"?: string; "name"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11394,7 +11394,7 @@ export interface paths {
   }
     delete: {
     parameters: {
-      query?: never
+      query?: { "confirm"?: string; "organization_id"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -11421,7 +11421,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "confirm"?: string; "organization_id"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11444,7 +11444,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "handle"?: string; "name"?: string; "organization_id"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11467,7 +11467,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "handle"?: string; "organization_id"?: string; "role"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11476,7 +11476,7 @@ export interface paths {
   }
     delete: {
     parameters: {
-      query?: never
+      query?: { "organization_id"?: string; "user_id"?: number }
       header?: never
       path?: never
       cookie?: never
@@ -11503,7 +11503,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "operation"?: string; "organization_id"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11526,7 +11526,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "organization_id"?: string; "user_id"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11548,7 +11548,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "organization_id"?: string; "role"?: string; "user_id"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11562,7 +11562,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "organization_id"?: string; "role"?: string; "user_id"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11585,7 +11585,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "description"?: string; "name"?: string; "operation"?: string; "organization_id"?: string; "parent_team_id"?: string; "slug"?: string; "team_id"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11608,7 +11608,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "operation"?: string; "role"?: string; "team_id"?: string; "user_id"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -11624,7 +11624,7 @@ export interface paths {
   "/api/orgs/tokens": {
     get: {
     parameters: {
-      query?: never
+      query?: { "organization_id"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -11654,7 +11654,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "handle"?: string; "organization_id"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -13307,7 +13307,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "allow_merge_commit"?: string; "allow_rebase_merge"?: string; "allow_squash_merge"?: string; "default_branch"?: string; "default_merge_strategy"?: string; "delete_branch_on_merge"?: string; "description"?: string; "homepage"?: string; "is_archived"?: string; "is_template"?: string; "name"?: string; "visibility"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -13321,7 +13321,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "default_branch"?: string; "description"?: string; "gitignore"?: string; "host"?: string; "license"?: string; "license_holder"?: string; "name"?: string; "readme"?: string; "visibility"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -13353,7 +13353,7 @@ export interface paths {
   "/api/repos/archive": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "format"?: string; "ref"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -13383,7 +13383,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -13423,7 +13423,7 @@ export interface paths {
   "/api/repos/blame": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "limit"?: number; "path"?: string; "ref"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -13446,7 +13446,7 @@ export interface paths {
   "/api/repos/blob": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "path"?: string; "ref"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -13469,7 +13469,7 @@ export interface paths {
   "/api/repos/blob/rows": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "count"?: number; "from"?: string; "path"?: string; "ref"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -13492,7 +13492,7 @@ export interface paths {
   "/api/repos/branches": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "ref"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -13564,7 +13564,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "handle"?: string; "operation"?: string; "permission"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -13580,7 +13580,7 @@ export interface paths {
   "/api/repos/commit": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "ref"?: string; "sha"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -13603,7 +13603,7 @@ export interface paths {
   "/api/repos/commits": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "before"?: string; "limit"?: number; "path"?: string; "ref"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -13626,7 +13626,7 @@ export interface paths {
   "/api/repos/compare": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "base"?: string; "head"?: string; "ref"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -13710,7 +13710,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "can_write"?: string; "id"?: number; "key"?: string; "operation"?: string; "title"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -13852,7 +13852,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "body"?: string; "title"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -13918,7 +13918,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "label"?: string; "milestone_id"?: number; "numbers"?: string; "operation"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -13940,7 +13940,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "body"?: string; "comment_id"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -13967,7 +13967,7 @@ export interface paths {
   }
     delete: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "comment_id"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -14045,7 +14045,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "milestone"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14069,7 +14069,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "comment_id"?: string; "content"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14091,7 +14091,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "reason"?: string; "state"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14114,7 +14114,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "checked"?: string; "comment_id"?: string; "expected"?: string; "index"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14138,7 +14138,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "color"?: string; "description"?: string; "id"?: number; "name"?: string; "operation"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14187,7 +14187,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "description"?: string; "due_on"?: string; "id"?: number; "operation"?: string; "title"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14210,7 +14210,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "allow_deletion"?: string; "allow_force_push"?: string; "dismiss_stale_reviews"?: string; "operation"?: string; "pattern"?: string; "require_conversation_resolution"?: string; "require_human_approval_for_agents"?: string; "require_linear_history"?: string; "required_approvals"?: string; "required_checks"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14245,7 +14245,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14286,7 +14286,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "strategy"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14309,7 +14309,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14348,7 +14348,7 @@ export interface paths {
   "/api/repos/pulls/diff/blame": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "number"?: number; "line"?: number; "path"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -14371,7 +14371,7 @@ export interface paths {
   "/api/repos/pulls/diff/conflicts": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "number"?: number }
       header?: never
       path?: never
       cookie?: never
@@ -14394,7 +14394,7 @@ export interface paths {
   "/api/repos/pulls/diff/context": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "number"?: number; "from"?: string; "layout"?: string; "offset"?: string; "path"?: string; "to"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -14417,7 +14417,7 @@ export interface paths {
   "/api/repos/pulls/diff/interdiff": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "number"?: number; "path"?: string; "since"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -14440,7 +14440,7 @@ export interface paths {
   "/api/repos/pulls/diff/manifest": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "number"?: number; "highlight"?: string; "layout"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -14463,7 +14463,7 @@ export interface paths {
   "/api/repos/pulls/diff/rows": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "number"?: number; "from"?: string; "highlight"?: string; "layout"?: string; "open"?: string; "to"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -14516,7 +14516,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14539,7 +14539,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14589,7 +14589,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "strategy"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14612,7 +14612,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "force"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14635,7 +14635,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14678,7 +14678,7 @@ export interface paths {
   "/api/repos/pulls/review-state": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "number"?: number }
       header?: never
       path?: never
       cookie?: never
@@ -14707,7 +14707,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14724,7 +14724,7 @@ export interface paths {
   "/api/repos/pulls/review-state/since": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "number"?: number; "since"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -14747,7 +14747,7 @@ export interface paths {
   "/api/repos/pulls/review-state/stale": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "number"?: number }
       header?: never
       path?: never
       cookie?: never
@@ -14776,7 +14776,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "path"?: string; "viewed"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14822,7 +14822,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "reason"?: string; "review_id"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14891,7 +14891,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "number"?: number; "state"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14908,7 +14908,7 @@ export interface paths {
   "/api/repos/pulls/suggested-reviewers": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "number"?: number }
       header?: never
       path?: never
       cookie?: never
@@ -14937,7 +14937,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "resolved"?: string; "thread_id"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -14954,7 +14954,7 @@ export interface paths {
   "/api/repos/raw": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "inline"?: string; "path"?: string; "ref"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -14977,7 +14977,7 @@ export interface paths {
   "/api/repos/releases": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "ref"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -14997,7 +14997,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "body"?: string; "is_draft"?: string; "is_prerelease"?: string; "name"?: string; "operation"?: string; "tag_name"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -15013,7 +15013,7 @@ export interface paths {
   "/api/repos/releases/assets": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "name"?: string; "ref"?: string; "tag_name"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -15033,7 +15033,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "tag_name"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -15105,7 +15105,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "allow_merge_commit"?: string; "allow_rebase_merge"?: string; "allow_squash_merge"?: string; "default_branch"?: string; "default_merge_strategy"?: string; "delete_branch_on_merge"?: string; "description"?: string; "homepage"?: string; "is_archived"?: string; "is_template"?: string; "name"?: string; "visibility"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -15147,7 +15147,7 @@ export interface paths {
   "/api/repos/tags": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "ref"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -15177,7 +15177,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: string; "permission"?: string; "team_id"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -15329,7 +15329,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "topics"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -15343,7 +15343,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "topics"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -15385,7 +15385,7 @@ export interface paths {
   "/api/repos/tree": {
     get: {
     parameters: {
-      query?: never
+      query?: { "owner"?: string; "repo"?: string; "path"?: string; "ref"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -15510,7 +15510,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "delivery_id"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -16703,7 +16703,7 @@ export interface paths {
   "/api/search": {
     get: {
     parameters: {
-      query?: never
+      query?: { "q"?: string; "scope"?: "repositories" | "issues" | "pulls" | "users" | "code"; "page"?: number; "per_page"?: number }
       header?: never
       path?: never
       cookie?: never
@@ -17898,7 +17898,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "key"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -17907,7 +17907,7 @@ export interface paths {
   }
     delete: {
     parameters: {
-      query?: never
+      query?: { "id"?: number }
       header?: never
       path?: never
       cookie?: never
@@ -17934,7 +17934,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "id"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -17957,7 +17957,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "key"?: string; "title"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -17966,7 +17966,7 @@ export interface paths {
   }
     delete: {
     parameters: {
-      query?: never
+      query?: { "id"?: number }
       header?: never
       path?: never
       cookie?: never
@@ -17993,7 +17993,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "id"?: number } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -18009,7 +18009,7 @@ export interface paths {
   "/api/user/notifications": {
     get: {
     parameters: {
-      query?: never
+      query?: { "reason"?: string; "repository"?: string; "unread"?: string }
       header?: never
       path?: never
       cookie?: never
@@ -18039,7 +18039,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "duration"?: string; "muted"?: string; "subject_id"?: string; "subject_type"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -18062,7 +18062,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "channel"?: string; "delivery"?: string; "event"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -18085,7 +18085,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "auth"?: string; "endpoint"?: string; "operation"?: string; "p256dh"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -18131,7 +18131,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "id"?: number; "ids"?: string; "mark_all"?: string; "reason"?: string; "repository"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -18153,7 +18153,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "breaks_through"?: string; "days"?: number; "do_not_disturb_until"?: string; "ends_at"?: string; "starts_at"?: string; "timezone"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -18200,7 +18200,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "handle"?: string; "website"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -20882,7 +20882,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "code"?: string; "email"?: string; "next"?: string; "passkey"?: string; "password"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -21733,7 +21733,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "email"?: string; "handle"?: string; "name"?: string; "next"?: string; "password"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }
@@ -21871,7 +21871,7 @@ export interface paths {
       path: { "token": string }
       cookie?: never
     }
-    requestBody?: never
+    requestBody?: { content: { "application/json": { "token"?: string } } }
     responses: {
       "200": { content: { "application/json": Record<string, unknown> } }
       "422": { content: never }

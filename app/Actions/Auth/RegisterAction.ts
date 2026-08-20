@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { setting } from '../../Ops/settings'
 import { checkHandle, normalizeHandle } from '../Identity/handles'
 import { isSecureRequest, safeRedirect, sessionCookie, sessionCookieName, wantsHtml } from './session'
@@ -24,6 +25,17 @@ export default new Action({
   name: 'RegisterAction',
   description: 'Create an account and start a session',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    email: { rule: schema.string() },
+    handle: { rule: schema.string() },
+    name: { rule: schema.string() },
+    next: { rule: schema.string() },
+    password: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const handle = normalizeHandle(String(request.get('handle') ?? ''))

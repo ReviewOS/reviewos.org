@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { authorizeRepository } from './authorize'
@@ -29,6 +30,24 @@ export default new Action({
   name: 'ManageProtectedBranch',
   description: 'Create, change, or remove a protected branch rule',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    allow_deletion: { rule: schema.string() },
+    allow_force_push: { rule: schema.string() },
+    dismiss_stale_reviews: { rule: schema.string() },
+    operation: { rule: schema.string() },
+    pattern: { rule: schema.string() },
+    require_conversation_resolution: { rule: schema.string() },
+    require_human_approval_for_agents: { rule: schema.string() },
+    require_linear_history: { rule: schema.string() },
+    required_approvals: { rule: schema.string() },
+    required_checks: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'branch:protect')

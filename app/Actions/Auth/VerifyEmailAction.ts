@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { sendVerificationEmail, verifyEmail } from '@stacksjs/auth'
 import { currentUser } from '../Identity/lookup'
 import { wantsHtml } from './session'
@@ -25,6 +26,14 @@ export default new Action({
   name: 'VerifyEmail',
   description: 'Verify an email address, or send the link again',
   method: 'GET',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    id: { rule: schema.number() },
+    token: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     if (String(request.method ?? 'GET').toUpperCase() === 'POST')

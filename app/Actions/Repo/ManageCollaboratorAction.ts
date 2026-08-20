@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { REPOSITORY_LEVELS, type RepositoryPermission } from '../../Permissions'
 import { auditFrom } from '../Git/audit'
@@ -27,6 +28,17 @@ export default new Action({
   name: 'ManageCollaborator',
   description: 'Grant, change, or revoke a person\'s direct access to a repository',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    handle: { rule: schema.string() },
+    operation: { rule: schema.string() },
+    permission: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'collaborator:manage')

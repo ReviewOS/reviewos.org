@@ -1,5 +1,6 @@
 import type { Channel } from './delivery'
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { defaultDelivery, isDelivery, PREFERENCE_CHANNELS, PREFERENCE_EVENTS } from './preferences'
 
@@ -25,6 +26,15 @@ export default new Action({
   name: 'UpdateNotificationPreference',
   description: 'Set the delivery for one event on one channel',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    channel: { rule: schema.string() },
+    delivery: { rule: schema.string() },
+    event: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)

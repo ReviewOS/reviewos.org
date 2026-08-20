@@ -15,7 +15,7 @@ curl -H "Authorization: Bearer $TOKEN" "$SERVER/api/repos/workflow-runs?owner=yo
 A token carries scopes, and a repository the token cannot reach answers **404** rather than
 403 - saying "forbidden" would confirm that a private repository exists.
 
-103 of the 212 operations below declare their inputs on the action, and this page
+200 of the 212 operations below declare their inputs on the action, and this page
 lists them. The rest validate inside the handler, so the page names the action instead of
 guessing - that number going up is the work, and a test holds it from going down.
 
@@ -73,7 +73,13 @@ _Generated from OpenAPI 1.0.0._
 
 ### `POST /api/auth/login`
 
-_Inputs are not declared on `Actions/Auth/LoginAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `code` | body | optional | string |
+| `email` | body | optional | string |
+| `next` | body | optional | string |
+| `passkey` | body | optional | string |
+| `password` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -93,7 +99,12 @@ _Inputs are not declared on `Actions/Auth/LogoutAction`, so they are not listed 
 
 ### `POST /api/auth/password/reset`
 
-_Inputs are not declared on `Actions/Auth/PasswordResetAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `email` | body | optional | string |
+| `operation` | body | optional | string |
+| `password` | body | optional | string |
+| `token` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -103,7 +114,13 @@ _Inputs are not declared on `Actions/Auth/PasswordResetAction`, so they are not 
 
 ### `POST /api/auth/register`
 
-_Inputs are not declared on `Actions/Auth/RegisterAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `email` | body | optional | string |
+| `handle` | body | optional | string |
+| `name` | body | optional | string |
+| `next` | body | optional | string |
+| `password` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -113,7 +130,11 @@ _Inputs are not declared on `Actions/Auth/RegisterAction`, so they are not liste
 
 ### `GET /api/auth/sso`
 
-_Inputs are not declared on `Actions/Auth/SsoAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `code` | query | optional | string |
+| `next` | query | optional | string |
+| `state` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -123,7 +144,10 @@ _Inputs are not declared on `Actions/Auth/SsoAction`, so they are not listed her
 
 ### `GET /api/auth/verify`
 
-_Inputs are not declared on `Actions/Auth/VerifyEmailAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `id` | query | optional | number |
+| `token` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -133,7 +157,10 @@ _Inputs are not declared on `Actions/Auth/VerifyEmailAction`, so they are not li
 
 ### `POST /api/auth/verify/resend`
 
-_Inputs are not declared on `Actions/Auth/VerifyEmailAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `id` | body | optional | number |
+| `token` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -217,7 +244,9 @@ _Inputs are not declared on `Actions/Auth/VerifyEmailAction`, so they are not li
 
 ### `GET /api/feed`
 
-_Inputs are not declared on `Actions/Feed/DashboardFeedAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `before` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -303,7 +332,9 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 
 ### `GET /api/health`
 
-_Inputs are not declared on `Actions/Ops/HealthAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `quick` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -421,7 +452,10 @@ _Inputs are not declared on `Actions/Ops/MetricsAction`, so they are not listed 
 
 ### `POST /api/mirrors/sync`
 
-_Inputs are not declared on `Actions/Mirror/SyncNowAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -496,7 +530,10 @@ _Inputs are not declared on `Actions/Api/OpenApiAction`, so they are not listed 
 
 ### `DELETE /api/orgs`
 
-_Inputs are not declared on `Actions/Org/DeleteOrganizationAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `confirm` | query | optional | string |
+| `organization_id` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -506,7 +543,12 @@ _Inputs are not declared on `Actions/Org/DeleteOrganizationAction`, so they are 
 
 ### `POST /api/orgs`
 
-_Inputs are not declared on `Actions/Org/CreateOrganizationAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `billing_email` | body | optional | string |
+| `description` | body | optional | string |
+| `handle` | body | optional | string |
+| `name` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -516,7 +558,10 @@ _Inputs are not declared on `Actions/Org/CreateOrganizationAction`, so they are 
 
 ### `PUT /api/orgs`
 
-_Inputs are not declared on `Actions/Org/UpdateOrganizationAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `handle` | body | optional | string |
+| `organization_id` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -526,7 +571,10 @@ _Inputs are not declared on `Actions/Org/UpdateOrganizationAction`, so they are 
 
 ### `POST /api/orgs/delete`
 
-_Inputs are not declared on `Actions/Org/DeleteOrganizationAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `confirm` | body | optional | string |
+| `organization_id` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -536,7 +584,11 @@ _Inputs are not declared on `Actions/Org/DeleteOrganizationAction`, so they are 
 
 ### `POST /api/orgs/machine-accounts`
 
-_Inputs are not declared on `Actions/Org/CreateMachineAccountAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `handle` | body | optional | string |
+| `name` | body | optional | string |
+| `organization_id` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -546,7 +598,10 @@ _Inputs are not declared on `Actions/Org/CreateMachineAccountAction`, so they ar
 
 ### `DELETE /api/orgs/members`
 
-_Inputs are not declared on `Actions/Org/RemoveMemberAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `organization_id` | query | optional | string |
+| `user_id` | query | optional | number |
 
 | Status | Means |
 |---|---|
@@ -556,7 +611,11 @@ _Inputs are not declared on `Actions/Org/RemoveMemberAction`, so they are not li
 
 ### `POST /api/orgs/members`
 
-_Inputs are not declared on `Actions/Org/InviteMemberAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `handle` | body | optional | string |
+| `organization_id` | body | optional | string |
+| `role` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -566,7 +625,10 @@ _Inputs are not declared on `Actions/Org/InviteMemberAction`, so they are not li
 
 ### `POST /api/orgs/members/accept`
 
-_Inputs are not declared on `Actions/Org/AcceptInviteAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `operation` | body | optional | string |
+| `organization_id` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -576,7 +638,10 @@ _Inputs are not declared on `Actions/Org/AcceptInviteAction`, so they are not li
 
 ### `POST /api/orgs/members/remove`
 
-_Inputs are not declared on `Actions/Org/RemoveMemberAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `organization_id` | body | optional | string |
+| `user_id` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -586,7 +651,11 @@ _Inputs are not declared on `Actions/Org/RemoveMemberAction`, so they are not li
 
 ### `POST /api/orgs/members/role`
 
-_Inputs are not declared on `Actions/Org/ChangeMemberRoleAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `organization_id` | body | optional | string |
+| `role` | body | optional | string |
+| `user_id` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -596,7 +665,11 @@ _Inputs are not declared on `Actions/Org/ChangeMemberRoleAction`, so they are no
 
 ### `PUT /api/orgs/members/role`
 
-_Inputs are not declared on `Actions/Org/ChangeMemberRoleAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `organization_id` | body | optional | string |
+| `role` | body | optional | string |
+| `user_id` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -606,7 +679,15 @@ _Inputs are not declared on `Actions/Org/ChangeMemberRoleAction`, so they are no
 
 ### `POST /api/orgs/teams`
 
-_Inputs are not declared on `Actions/Team/ManageTeamAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `description` | body | optional | string |
+| `name` | body | optional | string |
+| `operation` | body | optional | string |
+| `organization_id` | body | optional | string |
+| `parent_team_id` | body | optional | string |
+| `slug` | body | optional | string |
+| `team_id` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -616,7 +697,12 @@ _Inputs are not declared on `Actions/Team/ManageTeamAction`, so they are not lis
 
 ### `POST /api/orgs/teams/members`
 
-_Inputs are not declared on `Actions/Team/ManageTeamMemberAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `operation` | body | optional | string |
+| `role` | body | optional | string |
+| `team_id` | body | optional | string |
+| `user_id` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -626,7 +712,9 @@ _Inputs are not declared on `Actions/Team/ManageTeamMemberAction`, so they are n
 
 ### `GET /api/orgs/tokens`
 
-_Inputs are not declared on `Actions/Tokens/ListOrganizationTokensAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `organization_id` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -636,7 +724,10 @@ _Inputs are not declared on `Actions/Tokens/ListOrganizationTokensAction`, so th
 
 ### `POST /api/orgs/update`
 
-_Inputs are not declared on `Actions/Org/UpdateOrganizationAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `handle` | body | optional | string |
+| `organization_id` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -684,7 +775,18 @@ _Inputs are not declared on `Actions/Org/UpdateOrganizationAction`, so they are 
 
 ### `POST /api/repos`
 
-_Inputs are not declared on `Actions/Repo/CreateRepositoryAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `default_branch` | body | optional | string |
+| `description` | body | optional | string |
+| `gitignore` | body | optional | string |
+| `host` | body | optional | string |
+| `license` | body | optional | string |
+| `license_holder` | body | optional | string |
+| `name` | body | optional | string |
+| `readme` | body | optional | string |
+| `visibility` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -694,7 +796,22 @@ _Inputs are not declared on `Actions/Repo/CreateRepositoryAction`, so they are n
 
 ### `PUT /api/repos`
 
-_Inputs are not declared on `Actions/Repo/UpdateSettingsAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `allow_merge_commit` | body | optional | string |
+| `allow_rebase_merge` | body | optional | string |
+| `allow_squash_merge` | body | optional | string |
+| `default_branch` | body | optional | string |
+| `default_merge_strategy` | body | optional | string |
+| `delete_branch_on_merge` | body | optional | string |
+| `description` | body | optional | string |
+| `homepage` | body | optional | string |
+| `is_archived` | body | optional | string |
+| `is_template` | body | optional | string |
+| `name` | body | optional | string |
+| `visibility` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -704,7 +821,12 @@ _Inputs are not declared on `Actions/Repo/UpdateSettingsAction`, so they are not
 
 ### `GET /api/repos/archive`
 
-_Inputs are not declared on `Actions/Git/ArchiveAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `format` | query | optional | string |
+| `ref` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -714,7 +836,10 @@ _Inputs are not declared on `Actions/Git/ArchiveAction`, so they are not listed 
 
 ### `POST /api/repos/attachments`
 
-_Inputs are not declared on `Actions/Attachment/UploadAttachmentAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -741,7 +866,13 @@ _Inputs are not declared on `Actions/Attachment/UploadAttachmentAction`, so they
 
 ### `GET /api/repos/blame`
 
-_Inputs are not declared on `Actions/Browse/BlameAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `limit` | query | optional | number |
+| `path` | query | optional | string |
+| `ref` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -751,7 +882,12 @@ _Inputs are not declared on `Actions/Browse/BlameAction`, so they are not listed
 
 ### `GET /api/repos/blob`
 
-_Inputs are not declared on `Actions/Browse/BlobAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `path` | query | optional | string |
+| `ref` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -761,7 +897,14 @@ _Inputs are not declared on `Actions/Browse/BlobAction`, so they are not listed 
 
 ### `GET /api/repos/blob/rows`
 
-_Inputs are not declared on `Actions/Browse/BlobRowsAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `count` | query | optional | number |
+| `from` | query | optional | string |
+| `path` | query | optional | string |
+| `ref` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -771,7 +914,11 @@ _Inputs are not declared on `Actions/Browse/BlobRowsAction`, so they are not lis
 
 ### `GET /api/repos/branches`
 
-_Inputs are not declared on `Actions/Browse/BranchesAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `ref` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -821,7 +968,13 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 
 ### `POST /api/repos/collaborators`
 
-_Inputs are not declared on `Actions/Repo/ManageCollaboratorAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `handle` | body | optional | string |
+| `operation` | body | optional | string |
+| `permission` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -831,7 +984,12 @@ _Inputs are not declared on `Actions/Repo/ManageCollaboratorAction`, so they are
 
 ### `GET /api/repos/commit`
 
-_Inputs are not declared on `Actions/Browse/CommitAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `ref` | query | optional | string |
+| `sha` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -841,7 +999,14 @@ _Inputs are not declared on `Actions/Browse/CommitAction`, so they are not liste
 
 ### `GET /api/repos/commits`
 
-_Inputs are not declared on `Actions/Browse/CommitsAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `before` | query | optional | string |
+| `limit` | query | optional | number |
+| `path` | query | optional | string |
+| `ref` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -851,7 +1016,13 @@ _Inputs are not declared on `Actions/Browse/CommitsAction`, so they are not list
 
 ### `GET /api/repos/compare`
 
-_Inputs are not declared on `Actions/Browse/CompareAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `base` | query | optional | string |
+| `head` | query | optional | string |
+| `ref` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -900,7 +1071,15 @@ _Inputs are not declared on `Actions/Browse/CompareAction`, so they are not list
 
 ### `POST /api/repos/deploy-keys`
 
-_Inputs are not declared on `Actions/Keys/ManageDeployKeyAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `can_write` | body | optional | string |
+| `id` | body | optional | number |
+| `key` | body | optional | string |
+| `operation` | body | optional | string |
+| `title` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1052,7 +1231,13 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 
 ### `PUT /api/repos/issues`
 
-_Inputs are not declared on `Actions/Issue/UpdateIssueAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
+| `body` | body | optional | string |
+| `title` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1081,7 +1266,14 @@ _Inputs are not declared on `Actions/Issue/UpdateIssueAction`, so they are not l
 
 ### `POST /api/repos/issues/bulk`
 
-_Inputs are not declared on `Actions/Issue/BulkUpdateIssuesAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `label` | body | optional | string |
+| `milestone_id` | body | optional | number |
+| `numbers` | body | optional | string |
+| `operation` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1091,7 +1283,11 @@ _Inputs are not declared on `Actions/Issue/BulkUpdateIssuesAction`, so they are 
 
 ### `DELETE /api/repos/issues/comments`
 
-_Inputs are not declared on `Actions/Issue/DeleteCommentAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `comment_id` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1121,7 +1317,12 @@ _Inputs are not declared on `Actions/Issue/DeleteCommentAction`, so they are not
 
 ### `PUT /api/repos/issues/comments`
 
-_Inputs are not declared on `Actions/Issue/UpdateCommentAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `body` | body | optional | string |
+| `comment_id` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1169,7 +1370,12 @@ _Inputs are not declared on `Actions/Issue/UpdateCommentAction`, so they are not
 
 ### `PUT /api/repos/issues/milestone`
 
-_Inputs are not declared on `Actions/Issue/MilestoneIssueAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
+| `milestone` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1179,7 +1385,13 @@ _Inputs are not declared on `Actions/Issue/MilestoneIssueAction`, so they are no
 
 ### `POST /api/repos/issues/reactions`
 
-_Inputs are not declared on `Actions/Issue/ReactAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
+| `comment_id` | body | optional | string |
+| `content` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1189,7 +1401,13 @@ _Inputs are not declared on `Actions/Issue/ReactAction`, so they are not listed 
 
 ### `PUT /api/repos/issues/state`
 
-_Inputs are not declared on `Actions/Issue/UpdateIssueStateAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
+| `reason` | body | optional | string |
+| `state` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1199,7 +1417,15 @@ _Inputs are not declared on `Actions/Issue/UpdateIssueStateAction`, so they are 
 
 ### `PUT /api/repos/issues/tasks`
 
-_Inputs are not declared on `Actions/Issue/ToggleTaskAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
+| `checked` | body | optional | string |
+| `comment_id` | body | optional | string |
+| `expected` | body | optional | string |
+| `index` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1209,7 +1435,15 @@ _Inputs are not declared on `Actions/Issue/ToggleTaskAction`, so they are not li
 
 ### `POST /api/repos/labels`
 
-_Inputs are not declared on `Actions/Issue/ManageLabelAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `color` | body | optional | string |
+| `description` | body | optional | string |
+| `id` | body | optional | number |
+| `name` | body | optional | string |
+| `operation` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1238,7 +1472,15 @@ _Inputs are not declared on `Actions/Issue/ManageLabelAction`, so they are not l
 
 ### `POST /api/repos/milestones`
 
-_Inputs are not declared on `Actions/Issue/ManageMilestoneAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `description` | body | optional | string |
+| `due_on` | body | optional | string |
+| `id` | body | optional | number |
+| `operation` | body | optional | string |
+| `title` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1248,7 +1490,20 @@ _Inputs are not declared on `Actions/Issue/ManageMilestoneAction`, so they are n
 
 ### `POST /api/repos/protected-branches`
 
-_Inputs are not declared on `Actions/Repo/ManageProtectedBranchAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `allow_deletion` | body | optional | string |
+| `allow_force_push` | body | optional | string |
+| `dismiss_stale_reviews` | body | optional | string |
+| `operation` | body | optional | string |
+| `pattern` | body | optional | string |
+| `require_conversation_resolution` | body | optional | string |
+| `require_human_approval_for_agents` | body | optional | string |
+| `require_linear_history` | body | optional | string |
+| `required_approvals` | body | optional | string |
+| `required_checks` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1300,7 +1555,11 @@ _Inputs are not declared on `Actions/Repo/ManageProtectedBranchAction`, so they 
 
 ### `PUT /api/repos/pulls`
 
-_Inputs are not declared on `Actions/Pull/UpdatePullRequestAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -1310,7 +1569,12 @@ _Inputs are not declared on `Actions/Pull/UpdatePullRequestAction`, so they are 
 
 ### `POST /api/repos/pulls/auto-merge`
 
-_Inputs are not declared on `Actions/Pull/EnableAutoMergeAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
+| `strategy` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1320,7 +1584,11 @@ _Inputs are not declared on `Actions/Pull/EnableAutoMergeAction`, so they are no
 
 ### `POST /api/repos/pulls/auto-merge/disarm`
 
-_Inputs are not declared on `Actions/Pull/DisableAutoMergeAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -1350,7 +1618,13 @@ _Inputs are not declared on `Actions/Pull/DisableAutoMergeAction`, so they are n
 
 ### `GET /api/repos/pulls/diff/blame`
 
-_Inputs are not declared on `Actions/Pull/BlameLineAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `number` | query | optional | number |
+| `line` | query | optional | number |
+| `path` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1360,7 +1634,11 @@ _Inputs are not declared on `Actions/Pull/BlameLineAction`, so they are not list
 
 ### `GET /api/repos/pulls/diff/conflicts`
 
-_Inputs are not declared on `Actions/Pull/DiffConflictsAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `number` | query | optional | number |
 
 | Status | Means |
 |---|---|
@@ -1370,7 +1648,16 @@ _Inputs are not declared on `Actions/Pull/DiffConflictsAction`, so they are not 
 
 ### `GET /api/repos/pulls/diff/context`
 
-_Inputs are not declared on `Actions/Pull/DiffContextAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `number` | query | optional | number |
+| `from` | query | optional | string |
+| `layout` | query | optional | string |
+| `offset` | query | optional | string |
+| `path` | query | optional | string |
+| `to` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1380,7 +1667,13 @@ _Inputs are not declared on `Actions/Pull/DiffContextAction`, so they are not li
 
 ### `GET /api/repos/pulls/diff/interdiff`
 
-_Inputs are not declared on `Actions/Pull/DiffInterdiffAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `number` | query | optional | number |
+| `path` | query | optional | string |
+| `since` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1390,7 +1683,13 @@ _Inputs are not declared on `Actions/Pull/DiffInterdiffAction`, so they are not 
 
 ### `GET /api/repos/pulls/diff/manifest`
 
-_Inputs are not declared on `Actions/Pull/DiffManifestAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `number` | query | optional | number |
+| `highlight` | query | optional | string |
+| `layout` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1400,7 +1699,16 @@ _Inputs are not declared on `Actions/Pull/DiffManifestAction`, so they are not l
 
 ### `GET /api/repos/pulls/diff/rows`
 
-_Inputs are not declared on `Actions/Pull/DiffRowsAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `number` | query | optional | number |
+| `from` | query | optional | string |
+| `highlight` | query | optional | string |
+| `layout` | query | optional | string |
+| `open` | query | optional | string |
+| `to` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1427,7 +1735,11 @@ _Inputs are not declared on `Actions/Pull/DiffRowsAction`, so they are not liste
 
 ### `POST /api/repos/pulls/last-look`
 
-_Inputs are not declared on `Actions/Pull/AdvanceLastLookAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -1437,7 +1749,11 @@ _Inputs are not declared on `Actions/Pull/AdvanceLastLookAction`, so they are no
 
 ### `POST /api/repos/pulls/live`
 
-_Inputs are not declared on `Actions/Pull/LiveStateAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -1469,7 +1785,12 @@ _Inputs are not declared on `Actions/Pull/LiveStateAction`, so they are not list
 
 ### `POST /api/repos/pulls/merge-stack`
 
-_Inputs are not declared on `Actions/Pull/MergeStackAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
+| `strategy` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1479,7 +1800,12 @@ _Inputs are not declared on `Actions/Pull/MergeStackAction`, so they are not lis
 
 ### `POST /api/repos/pulls/mergeability`
 
-_Inputs are not declared on `Actions/Pull/RefreshMergeabilityAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
+| `force` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1489,7 +1815,11 @@ _Inputs are not declared on `Actions/Pull/RefreshMergeabilityAction`, so they ar
 
 ### `POST /api/repos/pulls/restore-branch`
 
-_Inputs are not declared on `Actions/Pull/RestoreHeadBranchAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -1520,7 +1850,11 @@ _Inputs are not declared on `Actions/Pull/RestoreHeadBranchAction`, so they are 
 
 ### `GET /api/repos/pulls/review-state`
 
-_Inputs are not declared on `Actions/Pull/ReviewStateAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `number` | query | optional | number |
 
 | Status | Means |
 |---|---|
@@ -1530,7 +1864,11 @@ _Inputs are not declared on `Actions/Pull/ReviewStateAction`, so they are not li
 
 ### `PUT /api/repos/pulls/review-state/draft`
 
-_Inputs are not declared on `Actions/Pull/SaveReviewDraftAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -1540,7 +1878,12 @@ _Inputs are not declared on `Actions/Pull/SaveReviewDraftAction`, so they are no
 
 ### `GET /api/repos/pulls/review-state/since`
 
-_Inputs are not declared on `Actions/Pull/SinceLastLookAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `number` | query | optional | number |
+| `since` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1550,7 +1893,11 @@ _Inputs are not declared on `Actions/Pull/SinceLastLookAction`, so they are not 
 
 ### `GET /api/repos/pulls/review-state/stale`
 
-_Inputs are not declared on `Actions/Pull/StaleTicksAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `number` | query | optional | number |
 
 | Status | Means |
 |---|---|
@@ -1560,7 +1907,13 @@ _Inputs are not declared on `Actions/Pull/StaleTicksAction`, so they are not lis
 
 ### `PUT /api/repos/pulls/review-state/viewed`
 
-_Inputs are not declared on `Actions/Pull/MarkFileViewedAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
+| `path` | body | optional | string |
+| `viewed` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1587,7 +1940,13 @@ _Inputs are not declared on `Actions/Pull/MarkFileViewedAction`, so they are not
 
 ### `PUT /api/repos/pulls/reviews/dismiss`
 
-_Inputs are not declared on `Actions/Pull/DismissReviewAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
+| `reason` | body | optional | string |
+| `review_id` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1626,7 +1985,12 @@ _Inputs are not declared on `Actions/Pull/DismissReviewAction`, so they are not 
 
 ### `PUT /api/repos/pulls/state`
 
-_Inputs are not declared on `Actions/Pull/UpdatePullRequestStateAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `number` | body | optional | number |
+| `state` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1636,7 +2000,11 @@ _Inputs are not declared on `Actions/Pull/UpdatePullRequestStateAction`, so they
 
 ### `GET /api/repos/pulls/suggested-reviewers`
 
-_Inputs are not declared on `Actions/Pull/SuggestReviewersAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `number` | query | optional | number |
 
 | Status | Means |
 |---|---|
@@ -1646,7 +2014,12 @@ _Inputs are not declared on `Actions/Pull/SuggestReviewersAction`, so they are n
 
 ### `PUT /api/repos/pulls/threads`
 
-_Inputs are not declared on `Actions/Pull/ResolveThreadAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `resolved` | body | optional | string |
+| `thread_id` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1656,7 +2029,13 @@ _Inputs are not declared on `Actions/Pull/ResolveThreadAction`, so they are not 
 
 ### `GET /api/repos/raw`
 
-_Inputs are not declared on `Actions/Git/RawFileAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `inline` | query | optional | string |
+| `path` | query | optional | string |
+| `ref` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1666,7 +2045,11 @@ _Inputs are not declared on `Actions/Git/RawFileAction`, so they are not listed 
 
 ### `GET /api/repos/releases`
 
-_Inputs are not declared on `Actions/Repo/ListReleasesAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `ref` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1676,7 +2059,16 @@ _Inputs are not declared on `Actions/Repo/ListReleasesAction`, so they are not l
 
 ### `POST /api/repos/releases`
 
-_Inputs are not declared on `Actions/Repo/ManageReleaseAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `body` | body | optional | string |
+| `is_draft` | body | optional | string |
+| `is_prerelease` | body | optional | string |
+| `name` | body | optional | string |
+| `operation` | body | optional | string |
+| `tag_name` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1686,7 +2078,13 @@ _Inputs are not declared on `Actions/Repo/ManageReleaseAction`, so they are not 
 
 ### `GET /api/repos/releases/assets`
 
-_Inputs are not declared on `Actions/Release/DownloadAssetAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `name` | query | optional | string |
+| `ref` | query | optional | string |
+| `tag_name` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1696,7 +2094,11 @@ _Inputs are not declared on `Actions/Release/DownloadAssetAction`, so they are n
 
 ### `POST /api/repos/releases/assets`
 
-_Inputs are not declared on `Actions/Release/UploadAssetAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `tag_name` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1745,7 +2147,22 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 
 ### `POST /api/repos/settings`
 
-_Inputs are not declared on `Actions/Repo/UpdateSettingsAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `allow_merge_commit` | body | optional | string |
+| `allow_rebase_merge` | body | optional | string |
+| `allow_squash_merge` | body | optional | string |
+| `default_branch` | body | optional | string |
+| `default_merge_strategy` | body | optional | string |
+| `delete_branch_on_merge` | body | optional | string |
+| `description` | body | optional | string |
+| `homepage` | body | optional | string |
+| `is_archived` | body | optional | string |
+| `is_template` | body | optional | string |
+| `name` | body | optional | string |
+| `visibility` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1772,7 +2189,11 @@ _Inputs are not declared on `Actions/Repo/UpdateSettingsAction`, so they are not
 
 ### `GET /api/repos/tags`
 
-_Inputs are not declared on `Actions/Browse/TagsAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `ref` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1782,7 +2203,13 @@ _Inputs are not declared on `Actions/Browse/TagsAction`, so they are not listed 
 
 ### `POST /api/repos/teams`
 
-_Inputs are not declared on `Actions/Team/GrantRepositoryAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `operation` | body | optional | string |
+| `permission` | body | optional | string |
+| `team_id` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1913,7 +2340,11 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 
 ### `POST /api/repos/topics`
 
-_Inputs are not declared on `Actions/Repo/UpdateTopicsAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `topics` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1923,7 +2354,11 @@ _Inputs are not declared on `Actions/Repo/UpdateTopicsAction`, so they are not l
 
 ### `PUT /api/repos/topics`
 
-_Inputs are not declared on `Actions/Repo/UpdateTopicsAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `topics` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -1952,7 +2387,12 @@ _Inputs are not declared on `Actions/Repo/UpdateTopicsAction`, so they are not l
 
 ### `GET /api/repos/tree`
 
-_Inputs are not declared on `Actions/Browse/TreeAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | query | optional | string |
+| `repo` | query | optional | string |
+| `path` | query | optional | string |
+| `ref` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -2046,7 +2486,11 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 
 ### `POST /api/repos/webhooks/redeliver`
 
-_Inputs are not declared on `Actions/Webhook/RedeliverAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `owner` | body | optional | string |
+| `repo` | body | optional | string |
+| `delivery_id` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -2815,7 +3259,12 @@ Response headers: `X-Runner-Protocol-Supported`.
 
 ### `GET /api/search`
 
-_Inputs are not declared on `Actions/Search/SearchAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `q` | query | optional | string |
+| `scope` | query | optional | string |
+| `page` | query | optional | number |
+| `per_page` | query | optional | number |
 
 | Status | Means |
 |---|---|
@@ -2877,7 +3326,9 @@ _Inputs are not declared on `Actions/Identity/WhoAmIAction`, so they are not lis
 
 ### `DELETE /api/user/gpg-keys`
 
-_Inputs are not declared on `Actions/Keys/DeleteGpgKeyAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `id` | query | optional | number |
 
 | Status | Means |
 |---|---|
@@ -2887,7 +3338,9 @@ _Inputs are not declared on `Actions/Keys/DeleteGpgKeyAction`, so they are not l
 
 ### `POST /api/user/gpg-keys`
 
-_Inputs are not declared on `Actions/Keys/AddGpgKeyAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `key` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -2897,7 +3350,9 @@ _Inputs are not declared on `Actions/Keys/AddGpgKeyAction`, so they are not list
 
 ### `POST /api/user/gpg-keys/delete`
 
-_Inputs are not declared on `Actions/Keys/DeleteGpgKeyAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `id` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -2907,7 +3362,9 @@ _Inputs are not declared on `Actions/Keys/DeleteGpgKeyAction`, so they are not l
 
 ### `DELETE /api/user/keys`
 
-_Inputs are not declared on `Actions/Keys/DeleteSshKeyAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `id` | query | optional | number |
 
 | Status | Means |
 |---|---|
@@ -2917,7 +3374,10 @@ _Inputs are not declared on `Actions/Keys/DeleteSshKeyAction`, so they are not l
 
 ### `POST /api/user/keys`
 
-_Inputs are not declared on `Actions/Keys/AddSshKeyAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `key` | body | optional | string |
+| `title` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -2927,7 +3387,9 @@ _Inputs are not declared on `Actions/Keys/AddSshKeyAction`, so they are not list
 
 ### `POST /api/user/keys/delete`
 
-_Inputs are not declared on `Actions/Keys/DeleteSshKeyAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `id` | body | optional | number |
 
 | Status | Means |
 |---|---|
@@ -2937,7 +3399,11 @@ _Inputs are not declared on `Actions/Keys/DeleteSshKeyAction`, so they are not l
 
 ### `GET /api/user/notifications`
 
-_Inputs are not declared on `Actions/Notification/ListNotificationsAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `reason` | query | optional | string |
+| `repository` | query | optional | string |
+| `unread` | query | optional | string |
 
 | Status | Means |
 |---|---|
@@ -2947,7 +3413,12 @@ _Inputs are not declared on `Actions/Notification/ListNotificationsAction`, so t
 
 ### `POST /api/user/notifications/mutes`
 
-_Inputs are not declared on `Actions/Notification/MuteAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `duration` | body | optional | string |
+| `muted` | body | optional | string |
+| `subject_id` | body | optional | string |
+| `subject_type` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -2957,7 +3428,11 @@ _Inputs are not declared on `Actions/Notification/MuteAction`, so they are not l
 
 ### `POST /api/user/notifications/preferences`
 
-_Inputs are not declared on `Actions/Notification/UpdatePreferenceAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `channel` | body | optional | string |
+| `delivery` | body | optional | string |
+| `event` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -2967,7 +3442,12 @@ _Inputs are not declared on `Actions/Notification/UpdatePreferenceAction`, so th
 
 ### `POST /api/user/notifications/push`
 
-_Inputs are not declared on `Actions/Notification/PushSubscribeAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `auth` | body | optional | string |
+| `endpoint` | body | optional | string |
+| `operation` | body | optional | string |
+| `p256dh` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -2987,7 +3467,13 @@ _Inputs are not declared on `Actions/Notification/PushTestAction`, so they are n
 
 ### `POST /api/user/notifications/read`
 
-_Inputs are not declared on `Actions/Notification/MarkReadAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `id` | body | optional | number |
+| `ids` | body | optional | string |
+| `mark_all` | body | optional | string |
+| `reason` | body | optional | string |
+| `repository` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -2997,7 +3483,14 @@ _Inputs are not declared on `Actions/Notification/MarkReadAction`, so they are n
 
 ### `PUT /api/user/notifications/schedule`
 
-_Inputs are not declared on `Actions/Notification/UpdateScheduleAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `breaks_through` | body | optional | string |
+| `days` | body | optional | number |
+| `do_not_disturb_until` | body | optional | string |
+| `ends_at` | body | optional | string |
+| `starts_at` | body | optional | string |
+| `timezone` | body | optional | string |
 
 | Status | Means |
 |---|---|
@@ -3021,7 +3514,10 @@ _Inputs are not declared on `Actions/Notification/UpdateScheduleAction`, so they
 
 ### `POST /api/user/profile`
 
-_Inputs are not declared on `Actions/Profile/UpdateProfileAction`, so they are not listed here._
+| Name | In | Required | Type |
+|---|---|---|---|
+| `handle` | body | optional | string |
+| `website` | body | optional | string |
 
 | Status | Means |
 |---|---|

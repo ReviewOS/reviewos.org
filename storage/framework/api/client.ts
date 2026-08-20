@@ -312,8 +312,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/auth/login
    */
-  postAuthLogin(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/auth/login", {}, [], false, options)
+  postAuthLogin(input?: { body?: { "code"?: string; "email"?: string; "next"?: string; "passkey"?: string; "password"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/auth/login", input ?? {}, [], true, options)
   },
 
   /**
@@ -326,36 +326,36 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/auth/password/reset
    */
-  postAuthPasswordReset(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/auth/password/reset", {}, [], false, options)
+  postAuthPasswordReset(input?: { body?: { "email"?: string; "operation"?: string; "password"?: string; "token"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/auth/password/reset", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/auth/register
    */
-  postAuthRegister(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/auth/register", {}, [], false, options)
+  postAuthRegister(input?: { body?: { "email"?: string; "handle"?: string; "name"?: string; "next"?: string; "password"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/auth/register", input ?? {}, [], true, options)
   },
 
   /**
    * GET /api/auth/sso
    */
-  getAuthSso(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/auth/sso", {}, [], false, options)
+  getAuthSso(input?: { "code"?: string; "next"?: string; "state"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/auth/sso", input ?? {}, ["code", "next", "state"], false, options)
   },
 
   /**
    * GET /api/auth/verify
    */
-  getAuthVerify(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/auth/verify", {}, [], false, options)
+  getAuthVerify(input?: { "id"?: number; "token"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/auth/verify", input ?? {}, ["id", "token"], false, options)
   },
 
   /**
    * POST /api/auth/verify/resend
    */
-  postAuthVerifyResend(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/auth/verify/resend", {}, [], false, options)
+  postAuthVerifyResend(input?: { body?: { "id"?: number; "token"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/auth/verify/resend", input ?? {}, [], true, options)
   },
 
   /**
@@ -3567,8 +3567,8 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/feed
    */
-  getFeed(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/feed", {}, [], false, options)
+  getFeed(input?: { "before"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/feed", input ?? {}, ["before"], false, options)
   },
 
   /**
@@ -3644,8 +3644,8 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/health
    */
-  getHealth(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/health", {}, [], false, options)
+  getHealth(input?: { "quick"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/health", input ?? {}, ["quick"], false, options)
   },
 
   /**
@@ -3959,8 +3959,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/mirrors/sync
    */
-  postMirrorsSync(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/mirrors/sync", {}, [], false, options)
+  postMirrorsSync(input?: { body?: { "owner"?: string; "repo"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/mirrors/sync", input ?? {}, [], true, options)
   },
 
   /**
@@ -4218,106 +4218,106 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/orgs
    */
-  putOrgs(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/orgs", {}, [], false, options)
+  putOrgs(input?: { body?: { "handle"?: string; "organization_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/orgs", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs
    */
-  postOrgs(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/orgs", {}, [], false, options)
+  postOrgs(input?: { body?: { "billing_email"?: string; "description"?: string; "handle"?: string; "name"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/orgs", input ?? {}, [], true, options)
   },
 
   /**
    * DELETE /api/orgs
    */
-  deleteOrgs(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "DELETE", "/api/orgs", {}, [], false, options)
+  deleteOrgs(input?: { "confirm"?: string; "organization_id"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/orgs", input ?? {}, ["confirm", "organization_id"], false, options)
   },
 
   /**
    * POST /api/orgs/delete
    */
-  postOrgsDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/orgs/delete", {}, [], false, options)
+  postOrgsDelete(input?: { body?: { "confirm"?: string; "organization_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/orgs/delete", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/machine-accounts
    */
-  postOrgsMachineAccounts(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/orgs/machine-accounts", {}, [], false, options)
+  postOrgsMachineAccounts(input?: { body?: { "handle"?: string; "name"?: string; "organization_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/orgs/machine-accounts", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/members
    */
-  postOrgsMembers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/orgs/members", {}, [], false, options)
+  postOrgsMembers(input?: { body?: { "handle"?: string; "organization_id"?: string; "role"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/orgs/members", input ?? {}, [], true, options)
   },
 
   /**
    * DELETE /api/orgs/members
    */
-  deleteOrgsMembers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "DELETE", "/api/orgs/members", {}, [], false, options)
+  deleteOrgsMembers(input?: { "organization_id"?: string; "user_id"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/orgs/members", input ?? {}, ["organization_id", "user_id"], false, options)
   },
 
   /**
    * POST /api/orgs/members/accept
    */
-  postOrgsMembersAccept(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/orgs/members/accept", {}, [], false, options)
+  postOrgsMembersAccept(input?: { body?: { "operation"?: string; "organization_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/orgs/members/accept", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/members/remove
    */
-  postOrgsMembersRemove(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/orgs/members/remove", {}, [], false, options)
+  postOrgsMembersRemove(input?: { body?: { "organization_id"?: string; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/orgs/members/remove", input ?? {}, [], true, options)
   },
 
   /**
    * PUT /api/orgs/members/role
    */
-  putOrgsMembersRole(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/orgs/members/role", {}, [], false, options)
+  putOrgsMembersRole(input?: { body?: { "organization_id"?: string; "role"?: string; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/orgs/members/role", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/members/role
    */
-  postOrgsMembersRole(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/orgs/members/role", {}, [], false, options)
+  postOrgsMembersRole(input?: { body?: { "organization_id"?: string; "role"?: string; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/orgs/members/role", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/teams
    */
-  postOrgsTeams(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/orgs/teams", {}, [], false, options)
+  postOrgsTeams(input?: { body?: { "description"?: string; "name"?: string; "operation"?: string; "organization_id"?: string; "parent_team_id"?: string; "slug"?: string; "team_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/orgs/teams", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/orgs/teams/members
    */
-  postOrgsTeamsMembers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/orgs/teams/members", {}, [], false, options)
+  postOrgsTeamsMembers(input?: { body?: { "operation"?: string; "role"?: string; "team_id"?: string; "user_id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/orgs/teams/members", input ?? {}, [], true, options)
   },
 
   /**
    * GET /api/orgs/tokens
    */
-  getOrgsTokens(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/orgs/tokens", {}, [], false, options)
+  getOrgsTokens(input?: { "organization_id"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/orgs/tokens", input ?? {}, ["organization_id"], false, options)
   },
 
   /**
    * POST /api/orgs/update
    */
-  postOrgsUpdate(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/orgs/update", {}, [], false, options)
+  postOrgsUpdate(input?: { body?: { "handle"?: string; "organization_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/orgs/update", input ?? {}, [], true, options)
   },
 
   /**
@@ -4953,15 +4953,15 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos
    */
-  putRepos(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos", {}, [], false, options)
+  putRepos(input?: { body?: { "owner"?: string; "repo"?: string; "allow_merge_commit"?: string; "allow_rebase_merge"?: string; "allow_squash_merge"?: string; "default_branch"?: string; "default_merge_strategy"?: string; "delete_branch_on_merge"?: string; "description"?: string; "homepage"?: string; "is_archived"?: string; "is_template"?: string; "name"?: string; "visibility"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/repos
    */
-  postRepos(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos", {}, [], false, options)
+  postRepos(input?: { body?: { "owner"?: string; "default_branch"?: string; "description"?: string; "gitignore"?: string; "host"?: string; "license"?: string; "license_holder"?: string; "name"?: string; "readme"?: string; "visibility"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos", input ?? {}, [], true, options)
   },
 
   /**
@@ -4974,15 +4974,15 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/archive
    */
-  getReposArchive(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/archive", {}, [], false, options)
+  getReposArchive(input?: { "owner"?: string; "repo"?: string; "format"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/archive", input ?? {}, ["owner", "repo", "format", "ref"], false, options)
   },
 
   /**
    * POST /api/repos/attachments
    */
-  postReposAttachments(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/attachments", {}, [], false, options)
+  postReposAttachments(input?: { body?: { "owner"?: string; "repo"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/attachments", input ?? {}, [], true, options)
   },
 
   /**
@@ -4995,29 +4995,29 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/blame
    */
-  getReposBlame(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/blame", {}, [], false, options)
+  getReposBlame(input?: { "owner"?: string; "repo"?: string; "limit"?: number; "path"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/blame", input ?? {}, ["owner", "repo", "limit", "path", "ref"], false, options)
   },
 
   /**
    * GET /api/repos/blob
    */
-  getReposBlob(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/blob", {}, [], false, options)
+  getReposBlob(input?: { "owner"?: string; "repo"?: string; "path"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/blob", input ?? {}, ["owner", "repo", "path", "ref"], false, options)
   },
 
   /**
    * GET /api/repos/blob/rows
    */
-  getReposBlobRows(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/blob/rows", {}, [], false, options)
+  getReposBlobRows(input?: { "owner"?: string; "repo"?: string; "count"?: number; "from"?: string; "path"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/blob/rows", input ?? {}, ["owner", "repo", "count", "from", "path", "ref"], false, options)
   },
 
   /**
    * GET /api/repos/branches
    */
-  getReposBranches(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/branches", {}, [], false, options)
+  getReposBranches(input?: { "owner"?: string; "repo"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/branches", input ?? {}, ["owner", "repo", "ref"], false, options)
   },
 
   /**
@@ -5037,29 +5037,29 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/collaborators
    */
-  postReposCollaborators(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/collaborators", {}, [], false, options)
+  postReposCollaborators(input?: { body?: { "owner"?: string; "repo"?: string; "handle"?: string; "operation"?: string; "permission"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/collaborators", input ?? {}, [], true, options)
   },
 
   /**
    * GET /api/repos/commit
    */
-  getReposCommit(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/commit", {}, [], false, options)
+  getReposCommit(input?: { "owner"?: string; "repo"?: string; "ref"?: string; "sha"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/commit", input ?? {}, ["owner", "repo", "ref", "sha"], false, options)
   },
 
   /**
    * GET /api/repos/commits
    */
-  getReposCommits(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/commits", {}, [], false, options)
+  getReposCommits(input?: { "owner"?: string; "repo"?: string; "before"?: string; "limit"?: number; "path"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/commits", input ?? {}, ["owner", "repo", "before", "limit", "path", "ref"], false, options)
   },
 
   /**
    * GET /api/repos/compare
    */
-  getReposCompare(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/compare", {}, [], false, options)
+  getReposCompare(input?: { "owner"?: string; "repo"?: string; "base"?: string; "head"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/compare", input ?? {}, ["owner", "repo", "base", "head", "ref"], false, options)
   },
 
   /**
@@ -5079,8 +5079,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/deploy-keys
    */
-  postReposDeployKeys(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/deploy-keys", {}, [], false, options)
+  postReposDeployKeys(input?: { body?: { "owner"?: string; "repo"?: string; "can_write"?: string; "id"?: number; "key"?: string; "operation"?: string; "title"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/deploy-keys", input ?? {}, [], true, options)
   },
 
   /**
@@ -5121,8 +5121,8 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/issues
    */
-  putReposIssues(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/issues", {}, [], false, options)
+  putReposIssues(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "body"?: string; "title"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/issues", input ?? {}, [], true, options)
   },
 
   /**
@@ -5142,15 +5142,15 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/issues/bulk
    */
-  postReposIssuesBulk(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/issues/bulk", {}, [], false, options)
+  postReposIssuesBulk(input?: { body?: { "owner"?: string; "repo"?: string; "label"?: string; "milestone_id"?: number; "numbers"?: string; "operation"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/issues/bulk", input ?? {}, [], true, options)
   },
 
   /**
    * PUT /api/repos/issues/comments
    */
-  putReposIssuesComments(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/issues/comments", {}, [], false, options)
+  putReposIssuesComments(input?: { body?: { "owner"?: string; "repo"?: string; "body"?: string; "comment_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/issues/comments", input ?? {}, [], true, options)
   },
 
   /**
@@ -5163,8 +5163,8 @@ export function createClient(config: ClientConfig) {
   /**
    * DELETE /api/repos/issues/comments
    */
-  deleteReposIssuesComments(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "DELETE", "/api/repos/issues/comments", {}, [], false, options)
+  deleteReposIssuesComments(input?: { "owner"?: string; "repo"?: string; "comment_id"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/repos/issues/comments", input ?? {}, ["owner", "repo", "comment_id"], false, options)
   },
 
   /**
@@ -5184,36 +5184,36 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/issues/milestone
    */
-  putReposIssuesMilestone(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/issues/milestone", {}, [], false, options)
+  putReposIssuesMilestone(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "milestone"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/issues/milestone", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/repos/issues/reactions
    */
-  postReposIssuesReactions(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/issues/reactions", {}, [], false, options)
+  postReposIssuesReactions(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "comment_id"?: string; "content"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/issues/reactions", input ?? {}, [], true, options)
   },
 
   /**
    * PUT /api/repos/issues/state
    */
-  putReposIssuesState(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/issues/state", {}, [], false, options)
+  putReposIssuesState(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "reason"?: string; "state"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/issues/state", input ?? {}, [], true, options)
   },
 
   /**
    * PUT /api/repos/issues/tasks
    */
-  putReposIssuesTasks(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/issues/tasks", {}, [], false, options)
+  putReposIssuesTasks(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "checked"?: string; "comment_id"?: string; "expected"?: string; "index"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/issues/tasks", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/repos/labels
    */
-  postReposLabels(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/labels", {}, [], false, options)
+  postReposLabels(input?: { body?: { "owner"?: string; "repo"?: string; "color"?: string; "description"?: string; "id"?: number; "name"?: string; "operation"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/labels", input ?? {}, [], true, options)
   },
 
   /**
@@ -5226,15 +5226,15 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/milestones
    */
-  postReposMilestones(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/milestones", {}, [], false, options)
+  postReposMilestones(input?: { body?: { "owner"?: string; "repo"?: string; "description"?: string; "due_on"?: string; "id"?: number; "operation"?: string; "title"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/milestones", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/repos/protected-branches
    */
-  postReposProtectedBranches(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/protected-branches", {}, [], false, options)
+  postReposProtectedBranches(input?: { body?: { "owner"?: string; "repo"?: string; "allow_deletion"?: string; "allow_force_push"?: string; "dismiss_stale_reviews"?: string; "operation"?: string; "pattern"?: string; "require_conversation_resolution"?: string; "require_human_approval_for_agents"?: string; "require_linear_history"?: string; "required_approvals"?: string; "required_checks"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/protected-branches", input ?? {}, [], true, options)
   },
 
   /**
@@ -5247,8 +5247,8 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/pulls
    */
-  putReposPulls(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/pulls", {}, [], false, options)
+  putReposPulls(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/pulls", input ?? {}, [], true, options)
   },
 
   /**
@@ -5261,15 +5261,15 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/pulls/auto-merge
    */
-  postReposPullsAutoMerge(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/pulls/auto-merge", {}, [], false, options)
+  postReposPullsAutoMerge(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "strategy"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/pulls/auto-merge", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/repos/pulls/auto-merge/disarm
    */
-  postReposPullsAutoMergeDisarm(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/pulls/auto-merge/disarm", {}, [], false, options)
+  postReposPullsAutoMergeDisarm(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/pulls/auto-merge/disarm", input ?? {}, [], true, options)
   },
 
   /**
@@ -5282,43 +5282,43 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/pulls/diff/blame
    */
-  getReposPullsDiffBlame(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/pulls/diff/blame", {}, [], false, options)
+  getReposPullsDiffBlame(input?: { "owner"?: string; "repo"?: string; "number"?: number; "line"?: number; "path"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/diff/blame", input ?? {}, ["owner", "repo", "number", "line", "path"], false, options)
   },
 
   /**
    * GET /api/repos/pulls/diff/conflicts
    */
-  getReposPullsDiffConflicts(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/pulls/diff/conflicts", {}, [], false, options)
+  getReposPullsDiffConflicts(input?: { "owner"?: string; "repo"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/diff/conflicts", input ?? {}, ["owner", "repo", "number"], false, options)
   },
 
   /**
    * GET /api/repos/pulls/diff/context
    */
-  getReposPullsDiffContext(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/pulls/diff/context", {}, [], false, options)
+  getReposPullsDiffContext(input?: { "owner"?: string; "repo"?: string; "number"?: number; "from"?: string; "layout"?: string; "offset"?: string; "path"?: string; "to"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/diff/context", input ?? {}, ["owner", "repo", "number", "from", "layout", "offset", "path", "to"], false, options)
   },
 
   /**
    * GET /api/repos/pulls/diff/interdiff
    */
-  getReposPullsDiffInterdiff(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/pulls/diff/interdiff", {}, [], false, options)
+  getReposPullsDiffInterdiff(input?: { "owner"?: string; "repo"?: string; "number"?: number; "path"?: string; "since"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/diff/interdiff", input ?? {}, ["owner", "repo", "number", "path", "since"], false, options)
   },
 
   /**
    * GET /api/repos/pulls/diff/manifest
    */
-  getReposPullsDiffManifest(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/pulls/diff/manifest", {}, [], false, options)
+  getReposPullsDiffManifest(input?: { "owner"?: string; "repo"?: string; "number"?: number; "highlight"?: string; "layout"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/diff/manifest", input ?? {}, ["owner", "repo", "number", "highlight", "layout"], false, options)
   },
 
   /**
    * GET /api/repos/pulls/diff/rows
    */
-  getReposPullsDiffRows(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/pulls/diff/rows", {}, [], false, options)
+  getReposPullsDiffRows(input?: { "owner"?: string; "repo"?: string; "number"?: number; "from"?: string; "highlight"?: string; "layout"?: string; "open"?: string; "to"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/diff/rows", input ?? {}, ["owner", "repo", "number", "from", "highlight", "layout", "open", "to"], false, options)
   },
 
   /**
@@ -5331,15 +5331,15 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/pulls/last-look
    */
-  postReposPullsLastLook(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/pulls/last-look", {}, [], false, options)
+  postReposPullsLastLook(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/pulls/last-look", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/repos/pulls/live
    */
-  postReposPullsLive(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/pulls/live", {}, [], false, options)
+  postReposPullsLive(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/pulls/live", input ?? {}, [], true, options)
   },
 
   /**
@@ -5352,22 +5352,22 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/pulls/merge-stack
    */
-  postReposPullsMergeStack(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/pulls/merge-stack", {}, [], false, options)
+  postReposPullsMergeStack(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "strategy"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/pulls/merge-stack", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/repos/pulls/mergeability
    */
-  postReposPullsMergeability(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/pulls/mergeability", {}, [], false, options)
+  postReposPullsMergeability(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "force"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/pulls/mergeability", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/repos/pulls/restore-branch
    */
-  postReposPullsRestoreBranch(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/pulls/restore-branch", {}, [], false, options)
+  postReposPullsRestoreBranch(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/pulls/restore-branch", input ?? {}, [], true, options)
   },
 
   /**
@@ -5380,36 +5380,36 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/pulls/review-state
    */
-  getReposPullsReviewState(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/pulls/review-state", {}, [], false, options)
+  getReposPullsReviewState(input?: { "owner"?: string; "repo"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/review-state", input ?? {}, ["owner", "repo", "number"], false, options)
   },
 
   /**
    * PUT /api/repos/pulls/review-state/draft
    */
-  putReposPullsReviewStateDraft(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/pulls/review-state/draft", {}, [], false, options)
+  putReposPullsReviewStateDraft(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/pulls/review-state/draft", input ?? {}, [], true, options)
   },
 
   /**
    * GET /api/repos/pulls/review-state/since
    */
-  getReposPullsReviewStateSince(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/pulls/review-state/since", {}, [], false, options)
+  getReposPullsReviewStateSince(input?: { "owner"?: string; "repo"?: string; "number"?: number; "since"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/review-state/since", input ?? {}, ["owner", "repo", "number", "since"], false, options)
   },
 
   /**
    * GET /api/repos/pulls/review-state/stale
    */
-  getReposPullsReviewStateStale(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/pulls/review-state/stale", {}, [], false, options)
+  getReposPullsReviewStateStale(input?: { "owner"?: string; "repo"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/review-state/stale", input ?? {}, ["owner", "repo", "number"], false, options)
   },
 
   /**
    * PUT /api/repos/pulls/review-state/viewed
    */
-  putReposPullsReviewStateViewed(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/pulls/review-state/viewed", {}, [], false, options)
+  putReposPullsReviewStateViewed(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "path"?: string; "viewed"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/pulls/review-state/viewed", input ?? {}, [], true, options)
   },
 
   /**
@@ -5422,8 +5422,8 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/pulls/reviews/dismiss
    */
-  putReposPullsReviewsDismiss(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/pulls/reviews/dismiss", {}, [], false, options)
+  putReposPullsReviewsDismiss(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "reason"?: string; "review_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/pulls/reviews/dismiss", input ?? {}, [], true, options)
   },
 
   /**
@@ -5443,57 +5443,57 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/pulls/state
    */
-  putReposPullsState(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/pulls/state", {}, [], false, options)
+  putReposPullsState(input?: { body?: { "owner"?: string; "repo"?: string; "number"?: number; "state"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/pulls/state", input ?? {}, [], true, options)
   },
 
   /**
    * GET /api/repos/pulls/suggested-reviewers
    */
-  getReposPullsSuggestedReviewers(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/pulls/suggested-reviewers", {}, [], false, options)
+  getReposPullsSuggestedReviewers(input?: { "owner"?: string; "repo"?: string; "number"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/pulls/suggested-reviewers", input ?? {}, ["owner", "repo", "number"], false, options)
   },
 
   /**
    * PUT /api/repos/pulls/threads
    */
-  putReposPullsThreads(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/pulls/threads", {}, [], false, options)
+  putReposPullsThreads(input?: { body?: { "owner"?: string; "repo"?: string; "resolved"?: string; "thread_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/pulls/threads", input ?? {}, [], true, options)
   },
 
   /**
    * GET /api/repos/raw
    */
-  getReposRaw(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/raw", {}, [], false, options)
+  getReposRaw(input?: { "owner"?: string; "repo"?: string; "inline"?: string; "path"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/raw", input ?? {}, ["owner", "repo", "inline", "path", "ref"], false, options)
   },
 
   /**
    * GET /api/repos/releases
    */
-  getReposReleases(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/releases", {}, [], false, options)
+  getReposReleases(input?: { "owner"?: string; "repo"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/releases", input ?? {}, ["owner", "repo", "ref"], false, options)
   },
 
   /**
    * POST /api/repos/releases
    */
-  postReposReleases(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/releases", {}, [], false, options)
+  postReposReleases(input?: { body?: { "owner"?: string; "repo"?: string; "body"?: string; "is_draft"?: string; "is_prerelease"?: string; "name"?: string; "operation"?: string; "tag_name"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/releases", input ?? {}, [], true, options)
   },
 
   /**
    * GET /api/repos/releases/assets
    */
-  getReposReleasesAssets(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/releases/assets", {}, [], false, options)
+  getReposReleasesAssets(input?: { "owner"?: string; "repo"?: string; "name"?: string; "ref"?: string; "tag_name"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/releases/assets", input ?? {}, ["owner", "repo", "name", "ref", "tag_name"], false, options)
   },
 
   /**
    * POST /api/repos/releases/assets
    */
-  postReposReleasesAssets(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/releases/assets", {}, [], false, options)
+  postReposReleasesAssets(input?: { body?: { "owner"?: string; "repo"?: string; "tag_name"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/releases/assets", input ?? {}, [], true, options)
   },
 
   /**
@@ -5513,8 +5513,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/settings
    */
-  postReposSettings(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/settings", {}, [], false, options)
+  postReposSettings(input?: { body?: { "owner"?: string; "repo"?: string; "allow_merge_commit"?: string; "allow_rebase_merge"?: string; "allow_squash_merge"?: string; "default_branch"?: string; "default_merge_strategy"?: string; "delete_branch_on_merge"?: string; "description"?: string; "homepage"?: string; "is_archived"?: string; "is_template"?: string; "name"?: string; "visibility"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/settings", input ?? {}, [], true, options)
   },
 
   /**
@@ -5527,15 +5527,15 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/tags
    */
-  getReposTags(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/tags", {}, [], false, options)
+  getReposTags(input?: { "owner"?: string; "repo"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/tags", input ?? {}, ["owner", "repo", "ref"], false, options)
   },
 
   /**
    * POST /api/repos/teams
    */
-  postReposTeams(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/teams", {}, [], false, options)
+  postReposTeams(input?: { body?: { "owner"?: string; "repo"?: string; "operation"?: string; "permission"?: string; "team_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/teams", input ?? {}, [], true, options)
   },
 
   /**
@@ -5576,15 +5576,15 @@ export function createClient(config: ClientConfig) {
   /**
    * PUT /api/repos/topics
    */
-  putReposTopics(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/repos/topics", {}, [], false, options)
+  putReposTopics(input?: { body?: { "owner"?: string; "repo"?: string; "topics"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/repos/topics", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/repos/topics
    */
-  postReposTopics(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/topics", {}, [], false, options)
+  postReposTopics(input?: { body?: { "owner"?: string; "repo"?: string; "topics"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/topics", input ?? {}, [], true, options)
   },
 
   /**
@@ -5597,8 +5597,8 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/repos/tree
    */
-  getReposTree(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/repos/tree", {}, [], false, options)
+  getReposTree(input?: { "owner"?: string; "repo"?: string; "path"?: string; "ref"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/repos/tree", input ?? {}, ["owner", "repo", "path", "ref"], false, options)
   },
 
   /**
@@ -5632,8 +5632,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/repos/webhooks/redeliver
    */
-  postReposWebhooksRedeliver(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/repos/webhooks/redeliver", {}, [], false, options)
+  postReposWebhooksRedeliver(input?: { body?: { "owner"?: string; "repo"?: string; "delivery_id"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/repos/webhooks/redeliver", input ?? {}, [], true, options)
   },
 
   /**
@@ -5968,8 +5968,8 @@ export function createClient(config: ClientConfig) {
   /**
    * GET /api/search
    */
-  getSearch(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/search", {}, [], false, options)
+  getSearch(input?: { "q"?: string; "scope"?: "repositories" | "issues" | "pulls" | "users" | "code"; "page"?: number; "per_page"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/search", input ?? {}, ["q", "scope", "page", "per_page"], false, options)
   },
 
   /**
@@ -6430,71 +6430,71 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/user/gpg-keys
    */
-  postUserGpgKeys(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/gpg-keys", {}, [], false, options)
+  postUserGpgKeys(input?: { body?: { "key"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/gpg-keys", input ?? {}, [], true, options)
   },
 
   /**
    * DELETE /api/user/gpg-keys
    */
-  deleteUserGpgKeys(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "DELETE", "/api/user/gpg-keys", {}, [], false, options)
+  deleteUserGpgKeys(input?: { "id"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/user/gpg-keys", input ?? {}, ["id"], false, options)
   },
 
   /**
    * POST /api/user/gpg-keys/delete
    */
-  postUserGpgKeysDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/gpg-keys/delete", {}, [], false, options)
+  postUserGpgKeysDelete(input?: { body?: { "id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/gpg-keys/delete", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/user/keys
    */
-  postUserKeys(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/keys", {}, [], false, options)
+  postUserKeys(input?: { body?: { "key"?: string; "title"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/keys", input ?? {}, [], true, options)
   },
 
   /**
    * DELETE /api/user/keys
    */
-  deleteUserKeys(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "DELETE", "/api/user/keys", {}, [], false, options)
+  deleteUserKeys(input?: { "id"?: number }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "DELETE", "/api/user/keys", input ?? {}, ["id"], false, options)
   },
 
   /**
    * POST /api/user/keys/delete
    */
-  postUserKeysDelete(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/keys/delete", {}, [], false, options)
+  postUserKeysDelete(input?: { body?: { "id"?: number } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/keys/delete", input ?? {}, [], true, options)
   },
 
   /**
    * GET /api/user/notifications
    */
-  getUserNotifications(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "GET", "/api/user/notifications", {}, [], false, options)
+  getUserNotifications(input?: { "reason"?: string; "repository"?: string; "unread"?: string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "GET", "/api/user/notifications", input ?? {}, ["reason", "repository", "unread"], false, options)
   },
 
   /**
    * POST /api/user/notifications/mutes
    */
-  postUserNotificationsMutes(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/notifications/mutes", {}, [], false, options)
+  postUserNotificationsMutes(input?: { body?: { "duration"?: string; "muted"?: string; "subject_id"?: string; "subject_type"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/notifications/mutes", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/user/notifications/preferences
    */
-  postUserNotificationsPreferences(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/notifications/preferences", {}, [], false, options)
+  postUserNotificationsPreferences(input?: { body?: { "channel"?: string; "delivery"?: string; "event"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/notifications/preferences", input ?? {}, [], true, options)
   },
 
   /**
    * POST /api/user/notifications/push
    */
-  postUserNotificationsPush(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/notifications/push", {}, [], false, options)
+  postUserNotificationsPush(input?: { body?: { "auth"?: string; "endpoint"?: string; "operation"?: string; "p256dh"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/notifications/push", input ?? {}, [], true, options)
   },
 
   /**
@@ -6507,15 +6507,15 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/user/notifications/read
    */
-  postUserNotificationsRead(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/notifications/read", {}, [], false, options)
+  postUserNotificationsRead(input?: { body?: { "id"?: number; "ids"?: string; "mark_all"?: string; "reason"?: string; "repository"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/notifications/read", input ?? {}, [], true, options)
   },
 
   /**
    * PUT /api/user/notifications/schedule
    */
-  putUserNotificationsSchedule(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "PUT", "/api/user/notifications/schedule", {}, [], false, options)
+  putUserNotificationsSchedule(input?: { body?: { "breaks_through"?: string; "days"?: number; "do_not_disturb_until"?: string; "ends_at"?: string; "starts_at"?: string; "timezone"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "PUT", "/api/user/notifications/schedule", input ?? {}, [], true, options)
   },
 
   /**
@@ -6528,8 +6528,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /api/user/profile
    */
-  postUserProfile(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/api/user/profile", {}, [], false, options)
+  postUserProfile(input?: { body?: { "handle"?: string; "website"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/api/user/profile", input ?? {}, [], true, options)
   },
 
   /**
@@ -7438,8 +7438,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /login
    */
-  postLogin(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/login", {}, [], false, options)
+  postLogin(input?: { body?: { "code"?: string; "email"?: string; "next"?: string; "passkey"?: string; "password"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/login", input ?? {}, [], true, options)
   },
 
   /**
@@ -7697,8 +7697,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /register
    */
-  postRegister(options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/register", {}, [], false, options)
+  postRegister(input?: { body?: { "email"?: string; "handle"?: string; "name"?: string; "next"?: string; "password"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/register", input ?? {}, [], true, options)
   },
 
   /**
@@ -7739,8 +7739,8 @@ export function createClient(config: ClientConfig) {
   /**
    * POST /unsubscribe/{token}
    */
-  postUnsubscribeToken(input: { "token": string }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
-    return request(config, "POST", "/unsubscribe/{token}", input ?? {}, [], false, options)
+  postUnsubscribeToken(input: { "token": string; body?: { "token"?: string } }, options?: RequestOptions): Promise<ApiResult<Record<string, unknown>>> {
+    return request(config, "POST", "/unsubscribe/{token}", input ?? {}, [], true, options)
   },
 
   /**

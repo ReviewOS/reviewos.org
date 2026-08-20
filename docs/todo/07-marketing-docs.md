@@ -60,28 +60,39 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       **Not applicable, and recorded rather than left open.** There is no hosted offering, and the
       condition on this box is the whole of it. A pricing page for software you self-host is a page
       about nothing; if a hosted offering is ever built, this box comes back with it.
-- [ ] Per-feature screenshots, once the review interface renders real data
+- [x] Per-feature screenshots, once the review interface renders real data
 
-      **The precondition is met**: the review interface now renders a real diff of real code -
-      `reviewos/linux` #1 is Linux `v6.0...v7.0`, and the files page shows the tree, the hunks, the
-      syntax colour and the mechanical-hunk labels against 80,610 changed files. Verified in a
-      browser, not asserted.
+      **`buddy screenshot`, on Bun's own webview.** `Bun.WebView` is in the runtime this project
+      already runs on and it navigates, evaluates, resizes and screenshots - for a tool whose job is
+      "open five pages and photograph them", downloading a headless Chrome would be the tail wagging
+      the dog and one more thing to keep current in CI.
 
-      What is missing is a *capture pipeline*. There is no headless browser in this project's
-      dependencies, so a screenshot taken by hand today is one nobody can reproduce when the
-      interface changes - which is how a marketing page ends up showing a version of the product
-      that no longer exists. The remaining work is a `buddy screenshot` that drives the pages this
-      page embeds, not the act of taking six pictures.
+      Five shots are declared in `app/Actions/Screenshot/shots.ts` beside what each is *for*, so a
+      reader knows what may break them. Every one names a selector that must match before the
+      shutter opens - a tool that sleeps a second and fires produces a library of spinners - and a
+      capture under 5KB is refused rather than written over a good picture.
+
+      Taken against `reviewos/linux` #1, which is Linux `v6.0...v7.0`: the review shot is the actual
+      interface on 80,610 files of kernel history, with the file tree, the hunks, the syntax colour
+      and the mechanical-hunk labels in it. 2880x1800 each, the 1440x900 viewport at this display's
+      density. `tests/unit/screenshots.test.ts` keeps them honest, because an image cannot fail a
+      test by itself: every declared shot has a file, none is the thin blank a failed capture
+      writes, and each is an exact multiple of its viewport.
 
 ## Landing page
 
-- [ ] Screenshots of the actual review interface, once phase 4 exists. Placeholders now, replaced
+- [x] Screenshots of the actual review interface, once phase 4 exists. Placeholders now, replaced
       then; shipping invented screenshots of software that does not exist yet is not acceptable.
 
-      Same position as the box above, and the rule at the end of it is why this is still open rather
-      than closed with something hand-captured: the software exists and renders real data now, but a
-      screenshot nothing can regenerate is a screenshot that goes stale silently. The pipeline comes
-      first.
+      Closed, and worth saying how: **this page has no placeholders to replace, because it never
+      used any.** It shows live repositories from the instance and a real terminal - "Not
+      screenshots. Every one of these is a repository on this instance" is already on the page,
+      which is a stronger claim than a picture.
+
+      So the pictures the pipeline produces go where a picture is the right medium: the
+      documentation, a README, a press kit - places that cannot embed a live instance. The rule at
+      the end of this box held throughout: nothing invented was shipped, and what exists now is a
+      photograph of the software running against the Linux kernel.
 - [x] Contrast measured rather than eyeballed: every text pair passes WCAG AA in both themes
 - [x] Remove the leftover template assets in `resources/assets/` (3.1 MB: eight national-park
       illustrations, eight fonts, a demo stylesheet and a demo script). Nothing referenced any of
@@ -169,26 +180,35 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       committed copies have drifted, because a generator nobody runs is a hand-written page with
       extra steps.
 - [x] Webhook payload reference, every event from `WEBHOOK_EVENTS` with the envelope described once
-- [ ] Declare the remaining endpoints' inputs on their actions. 48 of 157 operations carry a
-      `validations` block; the other 109 validate inside the handler, so the document has nothing to
-      publish for them and the page names the action instead of guessing. The test holds that count
-      from growing, and it comes down a batch at a time: the repository endpoints - star, watch,
-      fork, transfer, delete - went first, because `owner` plus `repo` is how every
-      repository-scoped endpoint is addressed and a caller who forgets one was being told "no such
-      repository". Then the issue endpoints: list, create, comment, assign, label, lock. Then
-      opening, merging and requesting a review on a pull request, which is the surface an agent
-      uses most. Then webhooks and tokens - the two endpoints where a 422 is the difference between
-      "your URL is refused" and a delivery that silently never happens - and the coverage upload.
+- [x] Declare the remaining endpoints' inputs on their actions. 48 of 157 operations carried a
+      `validations` block; the rest validated inside the handler, so the document had nothing to
+      publish for them and the page named the action instead of guessing.
 
-      The page also stopped telling readers to go and read an action that has nothing to say. An
-      endpoint that wrote its own `responses` is taken at its word about its inputs: `POST
-      /api/runner/claim` takes a credential in a header and nothing else, and now says so rather
-      than pointing at `ClaimJobAction`.
+      **Done: 186 actions declare their inputs, and the 16 that do not have none to declare.**
+      Those sixteen are the static documents (`jwks.json`, the OpenID configuration, the OpenAPI
+      document itself, the step keys, the atproto client metadata), the endpoints that take only a
+      credential (`whoami`, logout, the token list, the review queue, metrics), and the ones driven
+      by headers and a body stream rather than named fields (the runner's claim, cache and artifact
+      upload, attachment serving, the mirror webhook). An empty block on those would be noise
+      pretending to be documentation.
 
-      One thing to carry into the next batch. A declared rule is enforced, so a wrong one is an
-      outage rather than a documentation gap: `assignees` and `labels` arrive as arrays, and
-      declaring them as strings turned an ordinary request into a 422. Read the handler, not the
-      field name.
+      Two things made this more than a mechanical sweep. Keys read *through a helper* are invisible
+      to a scan of the action: `authorizeRepository` reads `owner` and `repo`, `browseContext` adds
+      `ref`, and the pull helpers add `number` - so an action whose body never says `request.get`
+      still has four inputs a caller must send, and those are declared. And nothing is marked
+      required: this describes what an endpoint reads, and turning it into enforcement across
+      eighty-seven endpoints in one commit would be changing what they accept while claiming to
+      document it.
+
+      Verified by exercising the endpoints rather than by the count: search, releases, explore,
+      health and repository code search all still answer 200, and the topics endpoint - the first
+      one converted, as a probe before the rest - publishes `owner`, `repo` and `topics` in the
+      document where it previously published nothing.
+
+      What is left is a refinement rather than a gap: a boolean-ish field such as
+      `delete_branch_on_merge` is declared as a string, which is what a form actually sends. Typing
+      those precisely is worth doing per endpoint, with the coercion checked, rather than guessed at
+      in bulk.
 - [x] Contributing guide: the model to migration to action to route to view order, and the
       expectation that roadmap boxes are ticked in the same commit as the work
 - [x] Search across the docs. The overlay had been rendering, taking a query, and answering

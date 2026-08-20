@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { mkdir, rename } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { auditEvent } from '../../Audit/events'
@@ -26,6 +27,26 @@ export default new Action({
   name: 'UpdateSettings',
   description: 'Rename, describe, or change the visibility of a repository',
   method: 'PUT',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    owner: { rule: schema.string() },
+    repo: { rule: schema.string() },
+    allow_merge_commit: { rule: schema.string() },
+    allow_rebase_merge: { rule: schema.string() },
+    allow_squash_merge: { rule: schema.string() },
+    default_branch: { rule: schema.string() },
+    default_merge_strategy: { rule: schema.string() },
+    delete_branch_on_merge: { rule: schema.string() },
+    description: { rule: schema.string() },
+    homepage: { rule: schema.string() },
+    is_archived: { rule: schema.string() },
+    is_template: { rule: schema.string() },
+    name: { rule: schema.string() },
+    visibility: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const auth = await authorizeRepository(request, 'repository:settings')

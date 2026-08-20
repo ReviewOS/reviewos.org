@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { dbTimestamp } from '../Support/sql'
 
@@ -26,6 +27,17 @@ export default new Action({
   name: 'MarkNotificationsRead',
   description: 'Mark notifications as read',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    id: { rule: schema.number() },
+    ids: { rule: schema.string() },
+    mark_all: { rule: schema.string() },
+    reason: { rule: schema.string() },
+    repository: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)

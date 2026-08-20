@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { auditEvent } from '../../Audit/events'
 import { canInOrganization, wouldOrphanOrganization, type OrganizationRole } from '../../Permissions'
 import { auditFrom } from '../Git/audit'
@@ -15,6 +16,15 @@ export default new Action({
   name: 'ChangeMemberRole',
   description: 'Change an organization member role',
   method: 'PUT',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    organization_id: { rule: schema.string() },
+    role: { rule: schema.string() },
+    user_id: { rule: schema.number() },
+  },
 
   async handle(request: RequestInstance) {
     const actor = await currentUser(request)

@@ -1,4 +1,5 @@
 import { Action } from '@stacksjs/actions'
+import { schema } from '@stacksjs/validation'
 import { currentUser } from '../Identity/lookup'
 import { vapidKeys } from './vapid'
 import { dbTimestamp } from '../Support/sql'
@@ -24,6 +25,16 @@ export default new Action({
   name: 'PushSubscribe',
   description: 'Register or remove this browser for push notifications',
   method: 'POST',
+
+  // Declared so the document can publish them: every key is one the handler
+  // reads, and none is required, because this describes the inputs rather than
+  // changing what the endpoint accepts.
+  validations: {
+    auth: { rule: schema.string() },
+    endpoint: { rule: schema.string() },
+    operation: { rule: schema.string() },
+    p256dh: { rule: schema.string() },
+  },
 
   async handle(request: RequestInstance) {
     const user = await currentUser(request)
