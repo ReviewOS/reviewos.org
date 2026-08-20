@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Webhooks you can trust - ReviewOS'
+const pageTitle = 'Webhooks you can trust · ReviewOS'
 const pageDescription = 'Signed over the exact bytes sent, retried with backoff, and blocked from reaching your own network.'
 const related = FEATURES.filter(feature => feature.slug !== 'webhooks').slice(0, 3)
 </script>

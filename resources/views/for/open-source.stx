@@ -1,7 +1,7 @@
 <script server>
 import { USE_CASES } from '../../functions/marketing'
 
-const pageTitle = 'For open source maintainers - ReviewOS'
+const pageTitle = 'For open source maintainers · ReviewOS'
 const pageDescription = 'Drive-by contributions, long-running forks, and a review queue you can actually keep up with.'
 const related = USE_CASES.filter(item => item.slug !== 'open-source').slice(0, 3)
 </script>

@@ -1,7 +1,7 @@
 <script server>
 import { COMPARISONS } from '../../functions/marketing'
 
-const pageTitle = 'Comparisons - ReviewOS'
+const pageTitle = 'Comparisons · ReviewOS'
 const pageDescription = 'How ReviewOS compares to GitHub, GitLab, and Forgejo, written to be fair rather than flattering.'
 </script>
 

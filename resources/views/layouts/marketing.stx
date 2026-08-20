@@ -180,6 +180,15 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       }
 
       a { color: inherit; }
+      /*
+       * A link that looks like one. The same rule the application layout
+       * carries, and for the same reason: `color: inherit` above is right for
+       * the anchors that are a whole card or nav item, and this codebase gives
+       * those a class. An anchor with no class is one inside a sentence, and
+       * every one of them was rendering in the body colour with no underline.
+       */
+      a:not([class]) { color: var(--accent-text); }
+      a:not([class]):hover { text-decoration: underline; }
       h1, h2, h3 { margin: 0; letter-spacing: -0.025em; line-height: 1.12; font-weight: 600; }
       p { margin: 0; }
       ul { margin: 0; padding: 0; list-style: none; }
@@ -398,8 +407,16 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
 
       .card { padding: 20px; text-decoration: none; display: block; }
       .card:hover { border-color: var(--line-strong); }
-      .card-title { font-size: 17px; font-weight: 600; }
-      .card-text { margin-top: 7px; font-size: 14.5px; color: var(--muted); }
+      /* Both `display: block`, because both are spans.
+        
+        Without it the title and the description ran together as one
+        paragraph - `Agentic review Coding agents as first-class authors` -
+        and the `margin-top` below did nothing, an inline box having no
+        vertical margin. It looked correct on the cards whose title happened
+        to fill the line, which is why it survived: the features index showed
+        two cards right and two wrong, side by side. */
+      .card-title { display: block; font-size: 17px; font-weight: 600; }
+      .card-text { display: block; margin-top: 7px; font-size: 14.5px; color: var(--muted); }
 
       .footer { margin-top: 80px; padding: 40px 0 56px; border-top: 1px solid var(--line); }
       .footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 26px; }

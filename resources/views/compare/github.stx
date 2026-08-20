@@ -1,7 +1,7 @@
 <script server>
 import { COMPARISONS } from '../../functions/marketing'
 
-const pageTitle = 'ReviewOS and GitHub - ReviewOS'
+const pageTitle = 'ReviewOS and GitHub · ReviewOS'
 const pageDescription = 'An honest comparison: what you give up by leaving the default, and what you gain.'
 const related = COMPARISONS.filter(item => item.slug !== 'github').slice(0, 3)
 </script>

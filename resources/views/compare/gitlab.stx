@@ -1,7 +1,7 @@
 <script server>
 import { COMPARISONS } from '../../functions/marketing'
 
-const pageTitle = 'ReviewOS and GitLab - ReviewOS'
+const pageTitle = 'ReviewOS and GitLab · ReviewOS'
 const pageDescription = 'A whole DevOps platform, against a forge that does one thing and expects you to bring the rest.'
 const related = COMPARISONS.filter(item => item.slug !== 'gitlab').slice(0, 3)
 </script>

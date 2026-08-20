@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Merge strategies and rules - ReviewOS'
+const pageTitle = 'Merge strategies and rules · ReviewOS'
 const pageDescription = 'Merge, squash, or rebase, gated by approvals, review threads, and checks, with every blocker reported at once.'
 const related = FEATURES.filter(feature => feature.slug !== 'merge-strategies').slice(0, 3)
 </script>

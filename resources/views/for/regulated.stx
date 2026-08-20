@@ -1,7 +1,7 @@
 <script server>
 import { USE_CASES } from '../../functions/marketing'
 
-const pageTitle = 'For regulated and audited work - ReviewOS'
+const pageTitle = 'For regulated and audited work · ReviewOS'
 const pageDescription = 'Who approved what, against which commit, kept as a record rather than inferred after the fact.'
 const related = USE_CASES.filter(item => item.slug !== 'regulated').slice(0, 3)
 </script>

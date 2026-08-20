@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Issues that link up - ReviewOS'
+const pageTitle = 'Issues that link up · ReviewOS'
 const pageDescription = 'One number sequence shared with pull requests, closing keywords, and references that resolve where they should.'
 const related = FEATURES.filter(feature => feature.slug !== 'issues').slice(0, 3)
 </script>

@@ -1,7 +1,7 @@
 <script server>
 import { COMPARISONS } from '../../functions/marketing'
 
-const pageTitle = 'ReviewOS and Forgejo - ReviewOS'
+const pageTitle = 'ReviewOS and Forgejo · ReviewOS'
 const pageDescription = 'Two self-hosted, open source forges with different centres of gravity.'
 const related = COMPARISONS.filter(item => item.slug !== 'forgejo').slice(0, 3)
 </script>

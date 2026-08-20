@@ -1,7 +1,7 @@
 <script server>
 import { USE_CASES } from '../../functions/marketing'
 
-const pageTitle = 'Use cases - ReviewOS'
+const pageTitle = 'Use cases · ReviewOS'
 const pageDescription = 'Who ReviewOS is built for, and the specific problem it solves for each of them.'
 </script>
 

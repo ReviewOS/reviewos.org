@@ -1,7 +1,7 @@
 <script server>
 import { USE_CASES } from '../../functions/marketing'
 
-const pageTitle = 'For large refactors and migrations - ReviewOS'
+const pageTitle = 'For large refactors and migrations · ReviewOS'
 const pageDescription = 'Hundred-file diffs and dependent stacks, reviewed a piece at a time instead of rubber stamped.'
 const related = USE_CASES.filter(item => item.slug !== 'large-changes').slice(0, 3)
 </script>

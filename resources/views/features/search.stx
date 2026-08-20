@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Search that reads like a query - ReviewOS'
+const pageTitle = 'Search that reads like a query · ReviewOS'
 const pageDescription = 'Qualifiers, quoting, and negation, parsed with a real tokenizer rather than a regex.'
 const related = FEATURES.filter(feature => feature.slug !== 'search').slice(0, 3)
 </script>

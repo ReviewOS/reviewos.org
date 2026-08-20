@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Agentic review - ReviewOS'
+const pageTitle = 'Agentic review · ReviewOS'
 const pageDescription = 'Coding agents as first-class authors and reviewers, with the review trail that makes their output safe to merge.'
 const related = FEATURES.filter(feature => feature.slug !== 'agentic-review').slice(0, 3)
 </script>

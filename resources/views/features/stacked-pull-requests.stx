@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Stacked pull requests - ReviewOS'
+const pageTitle = 'Stacked pull requests · ReviewOS'
 const pageDescription = 'Dependent changes that merge in order, each diffing against its parent, retargeting themselves when the bottom lands.'
 const related = FEATURES.filter(feature => feature.slug !== 'stacked-pull-requests').slice(0, 3)
 </script>

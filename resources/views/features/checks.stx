@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Checks from your own CI - ReviewOS'
+const pageTitle = 'Checks from your own CI · ReviewOS'
 const pageDescription = 'A status API your existing pipeline reports into, with required checks enforced at merge.'
 const related = FEATURES.filter(feature => feature.slug !== 'checks').slice(0, 3)
 </script>

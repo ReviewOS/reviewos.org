@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Diffs that stay fast - ReviewOS'
+const pageTitle = 'Diffs that stay fast · ReviewOS'
 const pageDescription = 'Server-rendered diffs computed against the merge base, readable at a hundred files.'
 const related = FEATURES.filter(feature => feature.slug !== 'fast-diffs').slice(0, 3)
 </script>

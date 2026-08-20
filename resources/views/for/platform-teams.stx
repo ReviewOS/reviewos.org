@@ -1,7 +1,7 @@
 <script server>
 import { USE_CASES } from '../../functions/marketing'
 
-const pageTitle = 'For platform and infrastructure teams - ReviewOS'
+const pageTitle = 'For platform and infrastructure teams · ReviewOS'
 const pageDescription = 'A forge you operate yourself, with an operational surface small enough to reason about.'
 const related = USE_CASES.filter(item => item.slug !== 'platform-teams').slice(0, 3)
 </script>

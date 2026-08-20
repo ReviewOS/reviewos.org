@@ -1,7 +1,7 @@
 <script server>
 import { FEATURE_GROUPS, featuresIn } from '../../functions/marketing'
 
-const pageTitle = 'Features - ReviewOS'
+const pageTitle = 'Features · ReviewOS'
 const pageDescription = 'Everything ReviewOS does, grouped by what it is for: review, repositories, automation, and operations.'
 </script>
 

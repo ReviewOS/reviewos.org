@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Durable review threads - ReviewOS'
+const pageTitle = 'Durable review threads · ReviewOS'
 const pageDescription = 'Review comments that follow the line through a rebase instead of vanishing with the commit they were written against.'
 const related = FEATURES.filter(feature => feature.slug !== 'review-threads').slice(0, 3)
 </script>

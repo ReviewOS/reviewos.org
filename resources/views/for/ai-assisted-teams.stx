@@ -1,7 +1,7 @@
 <script server>
 import { USE_CASES } from '../../functions/marketing'
 
-const pageTitle = 'For teams shipping agent-written code - ReviewOS'
+const pageTitle = 'For teams shipping agent-written code · ReviewOS'
 const pageDescription = 'When most diffs are machine-authored, review stops being a formality and becomes the only remaining control.'
 const related = USE_CASES.filter(item => item.slug !== 'ai-assisted-teams').slice(0, 3)
 </script>

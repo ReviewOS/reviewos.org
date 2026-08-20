@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Notifications worth reading - ReviewOS'
+const pageTitle = 'Notifications worth reading · ReviewOS'
 const pageDescription = 'Every message says why it reached you, nobody is told about their own action, and a burst arrives as one.'
 const related = FEATURES.filter(feature => feature.slug !== 'notifications').slice(0, 3)
 </script>

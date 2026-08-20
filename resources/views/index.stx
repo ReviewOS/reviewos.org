@@ -275,6 +275,15 @@ const nots = [
       }
 
       a { color: inherit; }
+      /*
+       * A link that looks like one. The same rule the application layout
+       * carries, and for the same reason: `color: inherit` above is right for
+       * the anchors that are a whole card or nav item, and this codebase gives
+       * those a class. An anchor with no class is one inside a sentence, and
+       * every one of them was rendering in the body colour with no underline.
+       */
+      a:not([class]) { color: var(--accent-text); }
+      a:not([class]):hover { text-decoration: underline; }
 
       h1, h2, h3 {
         margin: 0;

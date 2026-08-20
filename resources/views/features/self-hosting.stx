@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Self-hosting without a cluster - ReviewOS'
+const pageTitle = 'Self-hosting without a cluster · ReviewOS'
 const pageDescription = 'One Postgres and one process. Scale the parts that need it, later.'
 const related = FEATURES.filter(feature => feature.slug !== 'self-hosting').slice(0, 3)
 </script>

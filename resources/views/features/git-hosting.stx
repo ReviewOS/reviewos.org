@@ -1,7 +1,7 @@
 <script server>
 import { FEATURES } from '../../functions/marketing'
 
-const pageTitle = 'Plain git hosting - ReviewOS'
+const pageTitle = 'Plain git hosting · ReviewOS'
 const pageDescription = 'Ordinary bare repositories on your disk, served over the git smart HTTP protocol by the git binary itself.'
 const related = FEATURES.filter(feature => feature.slug !== 'git-hosting').slice(0, 3)
 </script>
