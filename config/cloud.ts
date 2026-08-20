@@ -964,6 +964,32 @@ export const tsCloud: TsCloudConfig = {
          * so a project cannot ship half of the pair again.
          */
         PORT_API: String(API_PORT),
+
+        /*
+         * The queue, and the variable whose absence made the worker ornamental.
+         *
+         * The framework's fallback is `sync`, which runs every job **inline in
+         * whatever process dispatched it** - and the release .env carried no
+         * `QUEUE_DRIVER` at all, so that is what this instance had been doing.
+         * Not visibly broken: the scheduler did its own work in its own
+         * process, and a push did the push pipeline inside the post-receive
+         * request. But it means the `jobs` table was never written, the worker
+         * daemon beside this had nothing to drain however healthy it looked,
+         * and a slow webhook receiver held somebody's `git push` open.
+         *
+         * `docs/self-hosting.md` has said to set this since the queue existed,
+         * and the deployed instance was the one place nothing did. It is
+         * declared here rather than left to `.env.example` because this file is
+         * what actually writes the release's environment.
+         *
+         * Needs the `jobs` table to have the types the framework writes -
+         * `payload text`, `reserved_at integer`. This box's table predated the
+         * current migration and had `varchar(255)` and `date`, which is a
+         * reservation sweep that fails on every pass and a queue that can never
+         * hand a job to anybody. `0000000297-alter-jobs-columns.sql` is that
+         * repair, and it runs in preStart before this takes effect.
+         */
+        QUEUE_DRIVER: 'database',
       },
     },
 
@@ -1045,6 +1071,11 @@ export const tsCloud: TsCloudConfig = {
         DB_PASSWORD: env.DB_PASSWORD || '',
         APP_KEY: env.APP_KEY || '',
         GITHUB_TOKEN: String(env.GITHUB_TOKEN ?? ''),
+        // The same queue as the page server's, for the same reason. This
+        // process dispatches too - a webhook received here, a run cancelled
+        // through the API - and on `sync` it would do that work inside the
+        // request rather than handing it to the worker.
+        QUEUE_DRIVER: 'database',
       },
     },
   },

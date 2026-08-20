@@ -584,7 +584,22 @@ jobs:
           PORKBUN_API_KEY: ${{ secrets.PORKBUN_API_KEY }}
           PORKBUN_SECRET_KEY: ${{ secrets.PORKBUN_SECRET_KEY }}
           DOTENV_PRIVATE_KEY_PRODUCTION: ${{ secrets.DOTENV_PRIVATE_KEY_PRODUCTION }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A real credential, not the workflow's own.
+          #
+          # This said `secrets.GITHUB_TOKEN`, which is the Actions
+          # *installation* token: it starts `ghs_`, it is scoped to this
+          # repository, and **GitHub revokes it the moment the job ends**.
+          # The deploy wrote it into the release .env, the mirrors read it
+          # hours later, and every metadata sync came back `GitHub returned
+          # 401` - so no mirrored repository ever got a description, a topic
+          # or an issue, while the code fetched perfectly.
+          #
+          # MIRROR_GITHUB_TOKEN is a PAT with public read (or a GitHub App
+          # installation token minted at deploy time). Absent, the mirrors
+          # run unauthenticated at sixty requests an hour, which imports a
+          # small instance slowly and is strictly better than a token that is
+          # dead on arrival.
+          GITHUB_TOKEN: ${{ secrets.MIRROR_GITHUB_TOKEN }}
           COPYFILE_DISABLE: '1'
         run: |
           set -euo pipefail

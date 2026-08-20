@@ -191,6 +191,41 @@ async function databaseClock(): Promise<Check> {
  */
 async function queue(): Promise<Check> {
   return await timed('queue', async () => {
+    /*
+     * Can a job be *reserved*, which is a different question from whether the
+     * table is there.
+     *
+     * `jobs` is created by a `CREATE TABLE IF NOT EXISTS`, so an instance whose
+     * table predates the current definition keeps the older column types
+     * forever. This one did: `reserved_at` was a `date` against a framework
+     * that writes a unix timestamp, and `payload` a `varchar(255)` against a
+     * JSON envelope. The effect is total and silent - every reservation sweep
+     * dies with `operator does not exist: date <= integer`, no worker can ever
+     * take a job, and the depth this check reports keeps climbing with no
+     * explanation attached to it.
+     *
+     * Probed by doing the comparison rather than by reading the catalogue,
+     * because the catalogue is a different query on every engine and the
+     * comparison is the thing that has to work.
+     */
+    try {
+      await db
+        .selectFrom('jobs')
+        .select('id')
+        .where('reserved_at', '<=', Math.floor(Date.now() / 1000) as any)
+        .limit(1)
+        .execute()
+    }
+    catch (error) {
+      return {
+        status: 'degraded' as const,
+        detail: 'the jobs table cannot compare `reserved_at` to a timestamp, so no worker can '
+          + 'reserve anything - its columns predate the current schema. Repair with '
+          + '`ALTER TABLE jobs ALTER COLUMN payload TYPE text` and '
+          + '`ALTER TABLE jobs ALTER COLUMN reserved_at TYPE integer USING NULL` '
+          + `(${error instanceof Error ? error.message : String(error)})`,
+      }
+    }
 
     const pending = await db
       .selectFrom('jobs')

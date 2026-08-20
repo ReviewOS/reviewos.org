@@ -25,7 +25,7 @@ grows, so a phase getting *longer* while it is worked on is normal and honest.
 | [08 - Migration](./08-migration.md) | Importing from GitHub and other forges | Done (16/16) |
 | [09 - Checks and CI](./09-checks-ci.md) | Checks, durable execution, runner providers, deployments | Started (105/120) |
 | [10 - Federation](./10-federation.md) | AT Protocol identity: resolution, linking and OAuth sign-in | Complete (17/17) |
-| [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Done (52/52) |
+| [11 - Self-hosting and operations](./11-self-hosting-deploy.md) | Deployment, backups, upgrades, ops | Done (55/55) |
 | [12 - The API and agents](./12-api-and-agents.md) | API parity, machine accounts, MCP, the CLI | Complete (30/30) |
 | [13 - Mirroring](./13-mirroring.md) | Mirror GitHub repositories, keep pushing upstream | Complete (45/45) |
 | [14 - The diff engine](./14-diff-engine.md) | Streaming, virtualization, worker highlighting, the perf bar | In progress (142/171) |

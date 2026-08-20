@@ -1194,3 +1194,49 @@ to their own timezone gets every timestamp wrong by it.
   not a dispatch, because the instance that needs it most is the one whose
   worker is still broken, and because an operator running a backfill is watching
   it.
+- [x] The queue driver was never set on the box, so the worker had nothing to drain
+
+  Found while verifying the worker: a job dispatched on the box **printed its
+  own output**. The release `.env` carried twelve lines and no `QUEUE_DRIVER`,
+  so the framework's fallback of `sync` was in force and every dispatch ran
+  inline in whichever process made it. Not visibly broken - the scheduler did
+  its work in its own process, and a push did the push pipeline inside the
+  post-receive request - but the `jobs` table was never written, so the worker
+  unit beside it was ornamental however healthy it looked, and a slow webhook
+  receiver held somebody's `git push` open.
+
+  `docs/self-hosting.md` has said to set this since the queue existed. The
+  deployed instance was the one place nothing did, because the release env is
+  written from `config/cloud.ts` rather than from `.env.example`.
+- [x] The jobs table on the box predated its own schema
+
+  `payload varchar(255)` and `reserved_at date`, against a framework that writes
+  a JSON envelope and a unix timestamp. `0000000003-create-jobs-table.sql` is a
+  `CREATE TABLE IF NOT EXISTS`, so the table this box made years ago was never
+  brought forward. Every reservation sweep died with `operator does not exist:
+  date <= integer`; no worker could have taken a job even with the driver set.
+
+  Repaired in place with two `ALTER`s. **Not** with a migration:
+  `tests/unit/migrations-from-models.test.ts` forbids hand-written files in
+  `database/migrations/`, and it is right - the corpus is regenerated from the
+  models and a hand-written repair is one the next regeneration deletes. The
+  durable part is a check: `/api/health` now probes the comparison rather than
+  trusting the table, and prints the two statements that fix it.
+- [x] The mirrors authenticated with a token that was already revoked
+
+  Every metadata sync came back `GitHub returned 401`, which is why not one of
+  the 151 repositories had a description and no issue was ever imported, while
+  the code fetched perfectly.
+
+  Both workflows exported `secrets.GITHUB_TOKEN` into the deploy, and that is
+  the Actions *installation* token: it starts `ghs_`, it is scoped to the
+  workflow's own repository, and **GitHub revokes it when the job ends**. The
+  deploy wrote it into the release `.env`, where the mirrors read it hours or
+  days later. A dead credential rather than a missing one, which is worse: a
+  missing one falls back to unauthenticated and imports a small instance slowly.
+
+  Now `secrets.MIRROR_GITHUB_TOKEN`. **This needs a repository secret that does
+  not exist yet** - a PAT with public read, or a GitHub App installation token
+  minted at deploy time. Until it is added the mirrors run unauthenticated,
+  which is sixty requests an hour and enough for descriptions on a handful of
+  repositories.

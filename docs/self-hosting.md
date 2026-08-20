@@ -403,6 +403,29 @@ doubles, but a deployment that relies on the lock is a deployment where the host
 that cannot reach the database runs everything twice. Run one, supervised, like
 the worker.
 
+### An older jobs table cannot be worked
+
+`jobs` is created by a `CREATE TABLE IF NOT EXISTS`, so an instance whose table
+predates the current definition keeps whatever types it was made with. This one
+did, and both were fatal in a way nothing reports: `reserved_at` as a `date`
+against a framework that writes a unix timestamp, and `payload` as a
+`varchar(255)` against a JSON envelope. No worker can reserve anything - every
+sweep dies with `operator does not exist: date <= integer` - and the queue depth
+climbs with no explanation attached.
+
+`/api/health` and `buddy instance:check` now probe the comparison rather than
+trusting the table, and the repair they print is:
+
+```sql
+ALTER TABLE jobs ALTER COLUMN payload TYPE text;
+ALTER TABLE jobs ALTER COLUMN reserved_at TYPE integer USING NULL;
+```
+
+Not a migration, deliberately: `database/migrations/` is regenerated from the
+models and a hand-written file there is one the next regeneration deletes. This
+is a repair for a database whose history is older than its schema, which is an
+operator's job rather than the generator's.
+
 ### Every queue, worked by something
 
 `buddy queue:work` takes `--queue`. **Without one it works every queue it finds**
@@ -1146,7 +1169,19 @@ export MIRROR_TOKEN_ACME_FILE=/run/secrets/acme-mirror
 ```
 
 A mirror with no reference uses `GITHUB_TOKEN`, which is what a single-owner
-instance mirroring its own repositories has. A public repository needs neither.
+instance mirroring its own repositories has. A public repository needs neither
+for the code - but it does for its *metadata*, because the API that carries a
+description, its topics and its issues is rate-limited to sixty requests an hour
+without one.
+
+**It has to be a credential that outlives the deploy.** This instance shipped
+`secrets.GITHUB_TOKEN` from its own workflow, which is the Actions installation
+token: it starts `ghs_`, and GitHub revokes it the moment the job finishes. The
+release then held a token that had already been destroyed, so every metadata
+sync answered `GitHub returned 401` while the code fetched perfectly - a forge
+full of mirrored repositories, none of which had a description or a single
+imported issue. Use a PAT, or mint a GitHub App installation token at deploy
+time; `metadata_error` on the mirror row is where the 401 shows up.
 
 The token reaches git in the remote URL rather than a config file, because a
 config file is in every backup - and the error messages git prints are redacted
