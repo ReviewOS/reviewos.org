@@ -22,6 +22,7 @@ import { renderMarkdownHighlighted } from '../../../../functions/markdown'
 import { labelColor, labelTextColor, loadTemplates, resolveRepository } from '../../../../functions/issues'
 import { listTree, readBlob } from '../../../../functions/browse'
 import { repositoryPath } from '../../../../functions/repo'
+import { viewerFromCookies } from '../../../../functions/identity'
 // Asked for here rather than through a helper: `setResponseStatus` is a
 // context binding, in scope only inside this script. See the note in
 // `resources/components/RepoBrowser.stx`.
@@ -29,6 +30,11 @@ const setStatus = typeof setResponseStatus === 'function' ? setResponseStatus : 
 
 const ownerHandle = String(params.owner)
 const repositoryName = String(params.repository)
+
+// Both spellings of the request, because each is undeclared on the other
+// rendering path and an undeclared identifier is a ReferenceError that takes
+// every variable below it down with it.
+const serveContext = typeof __stxServeContext === 'undefined' ? undefined : __stxServeContext
 
 /**
  * The query string.
@@ -45,6 +51,17 @@ const search: Record<string, string> = useRoute().query ?? {}
 // resolved row needs its own name: assigning to `repository` loses the row and
 // every query below it silently reads as empty.
 const repositoryRow: any = await resolveRepository(ownerHandle, repositoryName)
+
+/*
+ * Who is reading.
+ *
+ * `/api/repos/issues` needs an account, and this page did not ask - so a
+ * signed-out visitor was given a title, a body, an attachment picker and an
+ * Open issue button, and found out that reporting the bug needed an account by
+ * writing the report and losing it to a 401.
+ */
+const viewer = await viewerFromCookies(serveContext?.cookies)
+const here = `/${ownerHandle}/${repositoryName}/issues/new`
 
 // A page that renders "no such repository" under a 200 tells a crawler, a
 // cache and an uptime check that the page is fine. Only the render knows.
@@ -140,7 +157,21 @@ const base = `/${ownerHandle}/${repositoryName}`
         <a class="new-back" href="{{ base }}/issues">Back to issues</a>
       </header>
 
-      @if (choosing)
+      @if (!viewer)
+        {{-- The form needs an account, so this says so before somebody writes
+            a bug report into a box that will refuse it. `next` brings them
+            back here rather than to a dashboard. --}}
+        <div class="panel new-signin">
+          <p class="new-signin-line">
+            <a href="/login?next={{ encodeURIComponent(here) }}">Sign in</a> to open an issue on
+            <span class="mono">{{ ownerHandle }}/{{ repositoryName }}</span>.
+          </p>
+          <p class="muted new-signin-note">
+            No account on this instance? <a href="/register">Create one</a>. Reading is open to
+            everybody; writing needs somebody to write as.
+          </p>
+        </div>
+      @elseif (choosing)
         {{-- A chooser only earns its page load when there is a real choice. One
             template is *the* template, so the form opens with it filled in
             instead of asking a question with one answer. --}}
@@ -271,6 +302,10 @@ const base = `/${ownerHandle}/${repositoryName}`
 
 <style>
   .chooser { list-style: none; }
+  .new-signin { padding: 22px 24px; max-width: 640px; }
+  .new-signin-line { font-size: 15px; }
+  .new-signin-note { margin-top: 8px; font-size: 13.5px; }
+
   .chooser-row {
     display: flex;
     align-items: center;

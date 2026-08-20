@@ -176,6 +176,11 @@ const entryRows: any[] = issue
 const viewer = await viewerFromCookies(serveContext?.cookies)
 const viewerId = viewer ? Number(viewer.id) : null
 
+// Where to come back to after signing in, for the prompt that replaces the
+// comment box. A path on this host only - see `AccountNav.stx` for why an
+// absolute one is an open redirect.
+const here = String(serveContext?.path ?? `/${ownerHandle}/${repositoryName}/issue/${issue?.number ?? ''}`)
+
 // Reactions, in two queries for the whole page rather than one per comment. An
 // issue with three hundred comments is exactly where the per-comment version
 // would be felt, and it is the same issue somebody most wants to read.
@@ -361,6 +366,13 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
             <p class="issue-locked muted">
               This conversation is locked. Only people maintaining the repository can comment.
             </p>
+          @elseif (!viewer)
+            {{-- Signed out. The box was rendered anyway, so the way to find
+                out that a comment needs an account was to write one and watch
+                the endpoint refuse it. --}}
+            <p class="issue-locked muted">
+              <a href="/login?next={{ encodeURIComponent(here) }}">Sign in</a> to comment on this issue.
+            </p>
           @else
             {{-- `multipart/form-data`, because a file picked next to the box is
                 stored when the comment is submitted: the page runs no
@@ -450,17 +462,6 @@ const statePill = issue ? issueStatePill(String(issue.state), issue.state_reason
   .issue-locked { padding: 14px 2px; font-size: 13.5px; }
 
   .issue-reply { padding: 14px 16px; }
-  .reply-input {
-    width: 100%;
-    padding: 9px 11px;
-    border: 1px solid var(--line-strong);
-    border-radius: var(--r-control);
-    background: var(--bg);
-    color: var(--text);
-    font: inherit;
-    font-size: 14px;
-    resize: vertical;
-  }
 
   .reply-actions {
     display: flex;
