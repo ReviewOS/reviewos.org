@@ -246,12 +246,29 @@ const mayWriteProfile = isSelf || mayManage
 // profile page sent them to the wrong repository.
 const profileRepository = `${handle}/.profile`
 const profileRepositoryPath = `/${handle}/.profile`
+
+/*
+ * The tab title, computed here rather than inside `@section`.
+ *
+ * A template literal in the directive's argument did not survive parsing: the
+ * page served `<title>ReviewOS</title>` for every profile on the instance,
+ * which is the layout's fallback. Every other page in the product passes a
+ * variable, and the two that did not - this one - were the two that were
+ * wrong.
+ *
+ * The product name is on the end for the same reason it is everywhere else: a
+ * tab reading `Stacks (stacks)` among thirty tabs does not say where it is.
+ */
+const pageTitle = found ? `${displayName} (${handle}) · ReviewOS` : 'Not found · ReviewOS'
+const pageDescription = found
+  ? `${displayName} on ReviewOS: repositories, activity, and what they have been reviewing.`
+  : 'No account with that handle exists on this instance.'
 </script>
 
 @layout('app')
 
-@section('title', found ? `${displayName} (${handle})` : 'Not found')
-@section('description', found ? `${displayName} on ReviewOS: repositories, activity, and what they have been reviewing.` : 'No account with that handle exists on this instance.')
+@section('title', pageTitle)
+@section('description', pageDescription)
 
 @section('content')
   <div class="page">
