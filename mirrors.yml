@@ -1,0 +1,33 @@
+# The mirrors this instance should have.
+#
+# Applied on every deploy by `buddy mirror:apply mirrors.yml`, from the
+# pre-start step in `config/cloud.ts`. Additive: a mirror on the instance and
+# not in this file is reported and left alone, so a partial file can never take
+# a repository off the box. See `app/Actions/Mirror/declare.ts`.
+#
+#   buddy mirror:apply mirrors.yml --plan   # what would change, touching nothing
+#   buddy mirror:apply mirrors.yml
+#
+# `remote` is the upstream as GitHub spells it. `owner` is the organization or
+# user here. `name` defaults to the upstream's, and is only worth writing when
+# the two differ.
+#
+# The hundred and fourteen mirrors added by hand before this file existed are
+# not listed - `--plan` prints them under "not in this file" for whoever wants
+# to finish the job.
+mirrors:
+  # The organization's profile page, which is the file GitHub renders at
+  # github.com/stacksjs and this forge renders at reviewos.org/stacks. It is
+  # the one repository nobody thought to add by hand, and its absence read as
+  # an organization that had never written a profile.
+  #
+  # Code only. `profile/README.md` is the whole repository; there are no issues
+  # to import and asking for them costs an API call a sweep.
+  - remote: stacksjs/.github
+    owner: stacks
+
+  # This project's own mirror, for the same reason: `/reviewos` is a profile
+  # page on the instance the project runs, and it should not be the one profile
+  # on it that is blank.
+  - remote: ReviewOS/.github
+    owner: reviewos

@@ -60,6 +60,7 @@ export default {
   'workflow:build': 'WorkflowBuild',
   'fleet:apply': 'FleetApply',
   'mirror:add': 'MirrorAdd',
+  'mirror:apply': 'MirrorApply',
   'git:hooks': 'GitHooks',
   'git:restore': 'GitRestore',
   'git:scan': 'GitScan',

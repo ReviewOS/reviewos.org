@@ -143,6 +143,27 @@ the handle, which is where it keeps a person's.
 ./buddy mirror:add --remote yourorg/.github --owner yourorg
 ```
 
+A mirror added that way is a mirror only the person who typed it knows about, which is how this
+instance came to be missing exactly one repository - the profile - while carrying a hundred and
+fourteen others. So the set an instance is supposed to have can be a file instead, applied on every
+deploy:
+
+```bash
+./buddy mirror:apply mirrors.yml --plan   # what would change, touching nothing
+./buddy mirror:apply mirrors.yml
+```
+
+```yaml
+mirrors:
+  - remote: yourorg/.github
+    owner: yourorg
+```
+
+It is additive: a mirror on the instance and not in the file is counted and left alone, so a partial
+file can never take a repository off the box, and a line naming an owner that does not exist yet is
+skipped rather than fatal. This repository applies its own `mirrors.yml` from the deploy's pre-start
+step in `config/cloud.ts`.
+
 All of them are read through the same permission check as any other file, so a private repository is
 not a way to publish a page to people who may not see it.
 

@@ -21,7 +21,7 @@ import { repositoryPath } from '../Actions/Git/storage'
  * changes.
  */
 
-interface MirrorOptions {
+export interface MirrorOptions {
   remote?: string
   owner?: string
   name?: string
@@ -71,7 +71,15 @@ export function parseRemote(raw: string): { owner: string, name: string } | null
   return { owner, name }
 }
 
-async function addMirror(options: MirrorOptions): Promise<void> {
+/**
+ * Register one mirror, or update the one already there.
+ *
+ * Exported because `mirror:apply` converges a declared file through this
+ * function rather than through inserts of its own: two code paths writing the
+ * same rows is how a mirror created one way ends up without the webhook secret
+ * the other way generates.
+ */
+export async function addMirror(options: MirrorOptions): Promise<void> {
   const remote = parseRemote(options.remote ?? '')
   if (!remote)
     throw new Error('--remote must be owner/name, for example stacksjs/stacks')

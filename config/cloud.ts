@@ -819,6 +819,27 @@ export const tsCloud: TsCloudConfig = {
         // one renders its empty state - which looks like a working site with
         // nothing in it rather than a broken one.
         'bun node_modules/@stacksjs/buddy/dist/cli.js migrate',
+        /*
+         * The mirrors this instance is supposed to have, from `mirrors.yml`.
+         *
+         * Every mirror on this box was added by hand, one `mirror:add` at a
+         * time, and the record of which ones lived in whoever ran them. That
+         * is how `stacksjs/.github` came to be the one repository nobody
+         * thought to add - and its absence was invisible, because an
+         * organization page with no profile repository renders exactly like an
+         * organization that never wrote a profile.
+         *
+         * Additive: a mirror here and not in the file is counted and left
+         * alone, so this can never take a repository off the box. Run after
+         * `migrate` because it writes rows, and before the process starts so a
+         * release is never serving a page whose repository the same release
+         * was about to create.
+         *
+         * A declared owner that does not exist here yet is skipped rather than
+         * fatal - one line of the file being early is not a release that
+         * refuses to start.
+         */
+        'bun node_modules/@stacksjs/buddy/dist/cli.js mirror:apply mirrors.yml',
         // The documentation site, built into `dist/docs` where
         // `resources/views/docs/` reads it.
         //
