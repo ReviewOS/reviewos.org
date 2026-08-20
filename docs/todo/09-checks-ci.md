@@ -1785,12 +1785,40 @@ failed evidence into success.
 
       **The quotas are real; the isolation claim is narrower than this line, and deliberately so.**
 
-      `RepairJob` runs on the ordinary queue rather than inside the runner sandbox, because the
-      sandbox is not what protects anybody here: the job never executes the repository's code. It
-      reads blobs, calls a model, and writes a commit through git plumbing. What is untrusted is the
-      **content** - the log the model reads, and the diff it returns - and both are contained on the
-      output side, by a gate that refuses the whole diff on one forbidden path, rather than on the
-      process.
+      `RepairJob` runs on the ordinary queue rather than inside the runner sandbox. **There is no
+      runner sandbox** - `docs/ci-security-review.md` says so in as many words, and the boundary
+      decision above says it is deliberate: on the documented one-host deployment a container shares
+      a kernel with the process holding every private repository, so ReviewOS does not execute
+      repository code by default and its default deployment never will. Dispatching repair to a
+      runner would move this instance's own code onto an operator's host, carry a branch-scoped
+      credential there, gain nothing, and let this box be ticked - which is precisely the risk that
+      review names as the one that gets somebody hurt.
+
+      The sandbox is also not what would protect anybody here, because the job never executes the
+      repository's code. It reads blobs, calls a model, and writes a commit through git plumbing.
+      What is untrusted is the **content** - the log the model reads, and the diff it returns - and
+      both are contained on the output side, by a gate that refuses the whole diff on one forbidden
+      path, rather than on the process.
+
+      **What was actually wrong has been fixed.** The model call used to happen *inside the control
+      plane*: the process holding a database handle to every private repository, the instance key,
+      and the deploy credentials. The output gate stops a crafted log getting a bad diff committed,
+      and it does nothing about a bug in the SDK, a transitive dependency, or the parsing - all of
+      which ran somewhere they could read everything.
+
+      So the call moved into a child process (`repairModel.ts`, `repairModelChild.ts`). It is handed
+      a prompt on stdin and an environment built from an **allowlist** - the model key, and the proxy
+      and certificate variables without which a self-hosted instance cannot reach an API at all. No
+      `APP_KEY`, no database credentials, no object storage keys. An allowlist rather than a
+      denylist, because a denylist makes every secret added to this application later into one
+      somebody has to remember to exclude, and that failure is silent and permanent.
+
+      The parent still performs every filesystem read. The child names a path and is sent the
+      contents; it is never told where a repository is and it opens nothing.
+
+      **This is not a sandbox and must not be read as one.** Same user, same host, same network. What
+      it removes is the ambient authority that was lying in scope - the difference between a
+      dependency bug being a bad afternoon and being a disclosure.
 
       The part about isolation that this line really wants is true by construction: whether a repair
       actually *works* is never decided by the repair. It is decided by an ordinary workflow run

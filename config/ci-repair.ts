@@ -53,6 +53,8 @@ export interface CiRepairConfig {
   waitSeconds: number
   /** How many times it may ask before giving the attempt back. */
   maxWaits: number
+  /** How long one model call may take before it is killed. */
+  callSeconds: number
 }
 
 /**
@@ -196,6 +198,18 @@ export function repairMaxWaits(env: Record<string, string | undefined> = process
   return ceiling(env.CI_REPAIR_MAX_WAITS, 20) || 20
 }
 
+/**
+ * How long one model call may take before the process running it is killed.
+ *
+ * Generous, because adaptive thinking on a hard failure is genuinely slow, and
+ * bounded because a call that never returns holds an attempt open - and that
+ * attempt is holding a slot against the fleet ceiling. A ceiling whose entries
+ * can never leave is not a ceiling.
+ */
+export function repairCallSeconds(env: Record<string, string | undefined> = process.env): number {
+  return ceiling(env.CI_REPAIR_CALL_SECONDS, 300) || 300
+}
+
 /** A ceiling from the environment, or the default. Zero means no limit. */
 function ceiling(raw: string | undefined, fallback: number): number {
   if (raw === undefined || String(raw).trim() === '')
@@ -224,4 +238,5 @@ export default {
   staleMinutes: repairStaleMinutes(),
   waitSeconds: repairWaitSeconds(),
   maxWaits: repairMaxWaits(),
+  callSeconds: repairCallSeconds(),
 } satisfies CiRepairConfig

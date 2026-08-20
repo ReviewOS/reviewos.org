@@ -32,6 +32,7 @@ import {
 import { REPAIR_GRANTS, repairTokenName } from '../../app/Actions/Workflow/repairCredential'
 import { repairApprovalRefusal, sumSpend } from '../../app/Actions/Workflow/repairAttempts'
 import { emptyRepairLoad, withinRepairQuota } from '../../app/Actions/Workflow/repairQuota'
+import { callModelInChild, childEnvironment, readReply } from '../../app/Actions/Workflow/repairModel'
 import { repairMaxRunning, repairMaxRunningPerOwner, repairMaxRunningPerRepository } from '../../config/ci-repair'
 
 let root: string
@@ -557,4 +558,141 @@ describe('how many repairs may run at once', () => {
     expect(repairMaxRunning({ CI_REPAIR_MAX_RUNNING: '-4' })).toBe(repairMaxRunning({}))
     expect(repairMaxRunning({ CI_REPAIR_MAX_RUNNING: '12' })).toBe(12)
   })
+})
+
+describe('the process the model call runs in', () => {
+  test('is handed the key, and the things a self-hosted instance cannot reach an API without', () => {
+    /*
+     * The proxy and certificate variables are not a security compromise: an
+     * instance behind a corporate proxy has a model call that cannot be made
+     * without them, and refusing to pass them would be a product that does not
+     * work where it is deployed rather than a product that is safe.
+     */
+    const passed = childEnvironment({
+      ANTHROPIC_API_KEY: 'sk-test',
+      HTTPS_PROXY: 'http://proxy.internal:8080',
+      NODE_EXTRA_CA_CERTS: '/etc/ssl/corp.pem',
+    })
+
+    expect(passed.ANTHROPIC_API_KEY).toBe('sk-test')
+    expect(passed.HTTPS_PROXY).toBe('http://proxy.internal:8080')
+    expect(passed.NODE_EXTRA_CA_CERTS).toBe('/etc/ssl/corp.pem')
+  })
+
+  test('and nothing else at all, whatever the control plane is holding', () => {
+    /*
+     * The line this whole boundary exists for. What runs over there is the
+     * handling of content a stranger wrote, and until it moved it ran in the
+     * process holding all of this.
+     */
+    const passed = childEnvironment({
+      ANTHROPIC_API_KEY: 'sk-test',
+      APP_KEY: 'the instance key that signs everything',
+      DB_PASSWORD: 'the database with every private repository in it',
+      DB_HOST: 'db.internal',
+      AWS_SECRET_ACCESS_KEY: 'the object store',
+      GITHUB_TOKEN: 'a mirror credential',
+      STRIPE_SECRET_KEY: 'billing',
+    })
+
+    for (const secret of ['APP_KEY', 'DB_PASSWORD', 'DB_HOST', 'AWS_SECRET_ACCESS_KEY', 'GITHUB_TOKEN', 'STRIPE_SECRET_KEY'])
+      expect(passed[secret]).toBeUndefined()
+
+    // And it is an allowlist, so a secret added to this application next year is
+    // absent by default rather than by somebody remembering to exclude it.
+    expect(Object.keys(passed).sort()).toEqual(['ANTHROPIC_API_KEY', 'PATH'])
+  })
+
+  test('with a fixed PATH rather than an inherited one', () => {
+    // The child execs nothing. An inherited `PATH` is a list of directories
+    // somebody's shell profile put there, carried into a process that has no
+    // use for any of them.
+    const passed = childEnvironment({ ANTHROPIC_API_KEY: 'k', PATH: '/opt/homebrew/bin:/Users/someone/.local/bin' })
+
+    expect(passed.PATH).toBe('/usr/bin:/bin')
+  })
+
+  test('and an empty variable is treated as absent rather than passed as empty', () => {
+    const passed = childEnvironment({ ANTHROPIC_API_KEY: 'k', HTTPS_PROXY: '' })
+
+    expect('HTTPS_PROXY' in passed).toBe(false)
+  })
+})
+
+describe('what the child answers', () => {
+  test('one line of JSON is the reply', () => {
+    expect(readReply('{"ok":true,"output":{"paths":["a.ts"]},"tokens":12}')).toEqual({
+      ok: true,
+      output: { paths: ['a.ts'] },
+      tokens: 12,
+    })
+  })
+
+  test('and a dependency that printed a warning first does not break the repair', () => {
+    /*
+     * The last non-empty line, not the whole of stdout. A transitive dependency
+     * printing a deprecation notice would otherwise turn every repair into a
+     * parse failure, and tracking that down from "the model could not be
+     * reached" is an afternoon nobody should spend.
+     */
+    const noisy = '(node:12) [DEP0040] DeprecationWarning: punycode\n{"ok":true,"output":null,"tokens":3}\n'
+
+    expect(readReply(noisy).ok).toBe(true)
+  })
+
+  test('and anything that is not a reply is reported as one rather than thrown', () => {
+    // This sits on a path that has already spent an attempt from a repository's
+    // budget, so the useful thing to do with a failure is write it down.
+    expect(readReply('').ok).toBe(false)
+    expect(readReply('Killed').ok).toBe(false)
+    expect(readReply('{"unexpected":true}').ok).toBe(false)
+  })
+})
+
+describe('the boundary, against the real process', () => {
+  test('spawns, answers, and returns without a key or a network', async () => {
+    /*
+     * The one test here that is not driving a seam. It spawns the actual child,
+     * with the actual stripped environment, and reads the actual reply - which
+     * is the only way to know the script resolves, the pipes are wired, and the
+     * JSON round-trips.
+     *
+     * No key is needed precisely because the child refuses without one, and that
+     * refusal travels the whole path this is checking.
+     */
+    const key = process.env.ANTHROPIC_API_KEY
+
+    delete process.env.ANTHROPIC_API_KEY
+
+    const started = Date.now()
+
+    try {
+      const reply = await callModelInChild({
+        model: 'claude-opus-5',
+        effort: 'low',
+        maxTokens: 1024,
+        system: 'test',
+        prompt: 'test',
+        schema: { type: 'object', properties: { a: { type: 'string' } }, required: ['a'], additionalProperties: false },
+      })
+
+      expect(reply.ok).toBe(false)
+      expect(!reply.ok && reply.error).toContain('no model credentials')
+
+      /*
+       * And it comes back promptly, which is the regression this pins.
+       *
+       * `Promise.race` leaves the losing promise pending, so the call's timeout
+       * timer used to stay armed after the answer arrived - holding the event
+       * loop open for the whole five-minute ceiling after a call that took a
+       * second. Everything worked; the process just would not exit. This
+       * assertion is cheap and it is the only thing that would have noticed.
+       */
+      expect(Date.now() - started).toBeLessThan(30_000)
+    }
+    finally {
+      if (key !== undefined)
+        process.env.ANTHROPIC_API_KEY = key
+    }
+  }, 60_000)
 })

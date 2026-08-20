@@ -867,6 +867,18 @@ one crash at a time, until repair quietly stops happening and nothing says why.
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+### `CI_REPAIR_CALL_SECONDS`
+
+Default: `300`, and the line is commented out.
+
+How long one model call may take before the process running it is killed.
+Generous, because adaptive thinking on a hard failure is genuinely slow, and
+bounded because a call that never returns holds an attempt open - and that
+attempt is holding a slot against the ceilings above. A ceiling whose entries
+can never leave is not a ceiling.
+
+*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+
 ### `CI_STEP_MEMORY_MB`
 
 Default: `4096`, and the line is commented out.
@@ -924,7 +936,7 @@ Whoever pays for the tokens picks the model, which is why it is named here
 rather than per repository. What a repository controls is how much may be
 spent on it, and that is already `max_attempts` and `max_cost`.
 
-*No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
+Read by `app/Actions/Workflow/repairModelChild.ts`.
 
 ## Screenshots
 
