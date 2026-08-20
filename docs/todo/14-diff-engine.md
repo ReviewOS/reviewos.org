@@ -54,17 +54,24 @@ Numbers, so the work can be checked rather than argued about:
       file tree, hunks, syntax colour, the mechanical-hunk labels - against 80,610 files of real
       kernel history. Heap sits at 13MB while it does.
 
-      What stops this box being ticked is a number the corpus made visible for the first time: the
-      **client ingests the manifest far slower than the server produces it**. The server streams
-      32,984 files in ninety seconds; the page had 63 files after twelve seconds and 226 after two
-      minutes - roughly a hundred files a minute, which for 80,610 of them is not an afternoon.
+      What stops this box being ticked is a number the corpus made visible, and it took two attempts
+      to name correctly. The first reading was "the client ingests more slowly than the server
+      produces". Measuring the requests rather than the symptom says otherwise: in twenty seconds
+      the page made **two** requests, and one of them was a single `diff/rows` call that took
+      **6,475ms to return 331KB** - forty files' worth of rendered rows.
 
-      That is the publishing cadence doing what it was built to do - a clock and a work budget, so
-      the main thread stays responsive - and it is now clear the budget is tuned for a large pull
-      request rather than for a kernel release. The engine is not truncating and it is not lying:
-      the count climbs and the label says how many have arrived. But "scrolls smoothly to the end"
-      cannot be claimed when reaching the end would take hours, so this stays open with the
-      bottleneck named: **client ingest, not the server, and not the network.**
+      So the bottleneck is **the row rendering on the server**, at roughly 160ms per file. Forty
+      files per six and a half seconds is the hundred-files-a-minute that was observed, and for
+      80,610 files it is hours. The manifest is not the problem - it streams 32,984 files in ninety
+      seconds - and neither is the client's parsing budget, which never gets the chance to be busy.
+
+      That is a different fix from the one the earlier note implied. The row endpoint highlights on
+      the server, the kernel has files far larger than anything this was tuned against, and the
+      candidates are a smaller batch so the first rows land sooner, the existing tokenization
+      ceiling applied by size rather than only by character count, and rendering the batch in
+      parallel instead of in series. None of them are guesses worth committing without measuring
+      each - which is the next session's work, and it now starts from a number and a named endpoint
+      rather than from a feeling.
 - [x] First diff line painted before the patch has finished downloading, on every diff, at every size
 
       **Measured on `v6.0...v7.0` of Linux**, which is 80,610 files, 12,753,613 insertions and
