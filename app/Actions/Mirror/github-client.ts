@@ -279,6 +279,39 @@ export class GitHubClient {
   }
 
   /**
+   * Who this token acts as, and what it says it can do.
+   *
+   * Used when a credential is connected, so a token that does not work is
+   * refused while somebody is looking at the form rather than discovered when
+   * their review fails to travel. The scopes come from a response header rather
+   * than the body - a fine-grained token sends none, which is why an empty list
+   * means "unknown" everywhere this is read.
+   */
+  async viewer(): Promise<{ ok: true, login: string, scopes: string[] } | { ok: false, message: string }> {
+    try {
+      const answer = await this.fetchImpl(`${this.baseUrl}/user`, { headers: this.headers() })
+
+      if (!answer.ok)
+        return { ok: false, message: `${answer.status} ${(await answer.text().catch(() => '')).slice(0, 120)}` }
+
+      const body = await answer.json() as { login?: unknown }
+      const login = String(body?.login ?? '').trim()
+
+      if (!login)
+        return { ok: false, message: 'the response named no account' }
+
+      return {
+        ok: true,
+        login: login.slice(0, 120),
+        scopes: String(answer.headers.get('x-oauth-scopes') ?? '').split(/[\s,]+/).filter(Boolean),
+      }
+    }
+    catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  /**
    * Post a review on a pull request.
    *
    * The one write this client does, and it carries whichever token it was

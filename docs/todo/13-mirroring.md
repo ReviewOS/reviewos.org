@@ -101,6 +101,14 @@ there?
       user, using their own credential, and the resulting GitHub state syncs back as the source of
       truth
 
+      `POST /api/user/forge-credentials` is where somebody hands over their own token, and there is
+      deliberately no admin form of it: a credential that acts as a person is given by that person
+      or the attribution it protects is a fiction. The token is spent once against the host it names
+      to read back who it belongs to, so a token that does not work is refused while somebody is
+      looking at the form rather than discovered when their review fails to travel - and the API
+      base is derived from the host rather than taken from the request, because a caller who could
+      name that URL could have this instance post a token to a server of their choosing.
+
       Off by default, per mirror: `repository_mirrors.write_through`. A copy that writes to its
       source without being asked is a surprise nobody wants to find out about from a notification,
       so turning it on is a decision somebody makes for a repository where the reviews are meant to

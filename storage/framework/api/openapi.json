@@ -52826,6 +52826,67 @@
         }
       }
     },
+    "/api/user/forge-credentials": {
+      "post": {
+        "summary": "/api/user/forge-credentials",
+        "operationId": "post__api_user_forge_credentials",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "connect",
+                      "list",
+                      "disconnect"
+                    ]
+                  },
+                  "host": {
+                    "type": "string",
+                    "maxLength": 255
+                  },
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "github",
+                      "gitlab",
+                      "gitea"
+                    ]
+                  },
+                  "token": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/user/gpg-keys": {
       "delete": {
         "summary": "/api/user/gpg-keys",

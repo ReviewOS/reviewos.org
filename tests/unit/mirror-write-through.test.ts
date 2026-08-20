@@ -159,3 +159,41 @@ describe('posting, against a fixture forge', () => {
     expect(result).toMatchObject({ status: 422, message: 'Can not approve your own pull request' })
   })
 })
+
+describe('connecting a credential', () => {
+  test('the API base is derived from the host, never taken from the request', async () => {
+    // The endpoint calls the forge to verify a token before storing it. If the
+    // caller could name that URL, they could have this instance post their
+    // token - or anybody's - to a server of their choosing, which is a
+    // credential exfiltration primitive dressed as a convenience.
+    const source = await Bun.file(new URL('../../app/Actions/Mirror/ForgeCredentialAction.ts', import.meta.url)).text()
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+
+    expect(code).toContain('const baseUrl = host === ')
+    expect(code).not.toContain("request.get('baseUrl')")
+    expect(code).not.toContain("request.get('url')")
+    // And the host itself is constrained, so it cannot carry a path or a port
+    // that would move where the request lands.
+    expect(code).toContain('/^[a-z0-9.-]+$/.test(host)')
+  })
+
+  test('no path stores a credential for somebody else', async () => {
+    const source = await Bun.file(new URL('../../app/Actions/Mirror/ForgeCredentialAction.ts', import.meta.url)).text()
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+
+    // Every statement keys on the signed-in user. An admin path to add one for
+    // a person would defeat the attribution the whole feature exists for.
+    expect(code).not.toContain("request.get('user_id')")
+    expect(code).not.toContain("request.get('userId')")
+    expect((code.match(/user_id/g) ?? []).length).toBeGreaterThan(2)
+  })
+
+  test('the token is never in a response', async () => {
+    const source = await Bun.file(new URL('../../app/Actions/Mirror/ForgeCredentialAction.ts', import.meta.url)).text()
+
+    // `sealed` is selected nowhere in the list, and the connect answer returns
+    // the login rather than what was sent.
+    expect(source).not.toMatch(/select\(\[[^\]]*'sealed'/)
+    expect(source).not.toContain('token,\n      })')
+  })
+})

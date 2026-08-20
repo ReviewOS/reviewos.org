@@ -363,6 +363,16 @@ route.get('/auth/sso', 'Actions/Auth/SsoAction')
  */
 route.post('/user/passkeys', 'Actions/Auth/PasskeyAction').middleware('auth')
 
+/*
+ * Your own credential for an upstream forge, which is what makes write-through
+ * review possible without a shared account posting on anybody's behalf.
+ *
+ * There is no admin form of this on purpose: a credential that acts as a person
+ * is handed over by that person or the attribution it protects is a fiction.
+ * Throttled because connecting calls out to the forge to verify the token.
+ */
+route.post('/user/forge-credentials', 'Actions/Mirror/ForgeCredentialAction').middleware('auth').middleware('throttle:20,5m')
+
 route.post('/user/keys', 'Actions/Keys/AddSshKeyAction').middleware('auth')
 route.delete('/user/keys', 'Actions/Keys/DeleteSshKeyAction').middleware('auth')
 route.post('/user/gpg-keys', 'Actions/Keys/AddGpgKeyAction').middleware('auth')
@@ -527,8 +537,14 @@ route.get('/repos/search', 'Actions/Browse/SearchCodeAction')
  * decided before anything is searched: a repository the caller cannot read is
  * never searched, so it cannot contribute a match and its existence cannot be
  * inferred from one.
+ *
+ * Throttled, and it is the only *read* on this file that is. One request here
+ * can start a git process per repository that survives the index, which makes
+ * it the cheapest way to ask this instance to do a lot of work - and unlike a
+ * clone, it needs no repository, no push and no size. Twenty a minute is
+ * generous for somebody searching and useless for somebody grinding the box.
  */
-route.get('/search/code', 'Actions/CodeIndex/SearchCodeInstanceAction')
+route.get('/search/code', 'Actions/CodeIndex/SearchCodeInstanceAction').middleware('throttle:20,1m')
 
 /*
  * What is happening on this instance: trending, recently active, and the
