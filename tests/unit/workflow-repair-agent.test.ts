@@ -17,17 +17,20 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { initBare, runGit } from '../../app/Actions/Git/git'
 import { branchSha, createCommit } from '../../app/Actions/Git/write'
-import { defaultRepairPolicy } from '../../app/Actions/Workflow/repairPolicy'
+import { defaultRepairPolicy, mayApproveRepair } from '../../app/Actions/Workflow/repairPolicy'
 import {
+  baseBranchFor,
   commitProposal,
+  repairBody,
   repairBranch,
   repairMessage,
   repairPrompt,
+  repairTitle,
   selectPrompt,
   weakensRequiredCheck,
 } from '../../app/Actions/Workflow/repairAgent'
 import { REPAIR_GRANTS, repairTokenName } from '../../app/Actions/Workflow/repairCredential'
-import { sumSpend } from '../../app/Actions/Workflow/repairAttempts'
+import { repairApprovalRefusal, sumSpend } from '../../app/Actions/Workflow/repairAttempts'
 
 let root: string
 let bare: string
@@ -363,5 +366,85 @@ describe('what a run has already spent', () => {
 
   test('a run nothing has touched has spent nothing', () => {
     expect(sumSpend([])).toEqual({ attempts: 0, minutesSpent: 0, costSpent: 0, tokensSpent: 0 })
+  })
+})
+
+describe('the pull request a repair opens', () => {
+  const facts = { place: '/tmp/x.git', owner: 'acme', name: 'demo', defaultBranch: 'main' }
+
+  test('goes onto the branch that failed, not the default one', async () => {
+    // A push to `release` that broke should be repaired on `release`. Proposing
+    // it against `main` would turn a fix into a second, competing change.
+    expect(await baseBranchFor(facts as any, { event_ref: 'refs/heads/release' })).toBe('release')
+  })
+
+  test('and reads through the event suffix the other event types carry', async () => {
+    // `event_ref` is `<ref>#<event>/<subject>/<activity>` for anything that is
+    // not a plain push, so the fragment goes before the prefix does.
+    expect(await baseBranchFor(facts as any, { event_ref: 'refs/heads/main#issues/12/opened' })).toBe('main')
+  })
+
+  test('falling back to the default branch for a ref that is not a branch', async () => {
+    /*
+     * A tag has nowhere to merge to. The default branch is the only answer that
+     * is always a real place, and guessing a branch from a tag name would
+     * propose a repair onto something that may not exist.
+     */
+    expect(await baseBranchFor(facts as any, { event_ref: 'refs/tags/v1.2.0' })).toBe('main')
+    expect(await baseBranchFor(facts as any, {})).toBe('main')
+  })
+
+  test('is titled after the summary, or after the step when there was none', () => {
+    expect(repairTitle('test', 'Raise the total to three\nand some detail')).toBe('Raise the total to three')
+    expect(repairTitle('e2e', '')).toBe('Repair the `e2e` step')
+  })
+
+  test('and says the three things its reader needs before the diff', () => {
+    const body = repairBody(
+      { attemptId: 1, repositoryId: 2, runId: 7, jobId: 3, step: 'test', policy: on, actorId: 9 },
+      'Raise the total to three.',
+      ['src/thing.ts'],
+    )
+
+    /*
+     * Written for somebody who finds this open on a Monday having not seen the
+     * failure: a machine wrote it, the run is still failed, and nobody has read
+     * it. Those are the first lines rather than a footnote under the diff.
+     */
+    expect(body).toContain('written by an automated repair')
+    expect(body).toContain('nobody has reviewed it')
+    expect(body).toContain('still failed')
+
+    // And what it touched, so the diff has something to be checked against.
+    expect(body).toContain('`src/thing.ts`')
+
+    // The summary is the agent describing its own work, and the body says so.
+    expect(body).toContain('Read the diff rather than the summary')
+  })
+})
+
+describe('who may approve a repair', () => {
+  test('an ordinary pull request is not asked about at all', async () => {
+    /*
+     * The branch prefix is matched before the table is read, so a repository
+     * that has never used repair pays nothing on every review submission. This
+     * also means the call is safe with no database behind it.
+     */
+    expect(await repairApprovalRefusal({
+      repositoryId: 1,
+      headBranch: 'feature/ordinary-work',
+      approvingAs: 9,
+    })).toBeNull()
+  })
+
+  test('and the rule it applies refuses the proposer, whoever opened the pull request', () => {
+    /*
+     * Not the author check `SubmitReviewAction` already has. That asks who
+     * opened it; this asks who the repair acted as, and the two come apart the
+     * moment a repair is attributed to a machine account while a person remains
+     * the one whose run produced it. An approval is a second person.
+     */
+    expect(mayApproveRepair({ proposedBy: 9, approvingAs: 9 }).refusal).toBe('self-approval')
+    expect(mayApproveRepair({ proposedBy: 9, approvingAs: 4 }).ok).toBe(true)
   })
 })

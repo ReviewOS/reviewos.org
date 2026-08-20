@@ -1814,16 +1814,42 @@ failed evidence into success.
 
       Structured output in the literal sense: the model answers a JSON schema, and the commit message
       says a machine wrote it and that nothing has been reviewed.
-- [ ] A pull request or explicit human approval is required before the repair reaches a protected
+- [x] A pull request or explicit human approval is required before the repair reaches a protected
       branch. The agent cannot approve its own change.
 
-      **The second sentence is done; the first is half done.** `mayApproveRepair` refuses
-      self-approval with no policy switch to turn it off, `repair_attempts.proposed_by` is what an
-      approver is compared against, and the repair's credential carries no `pull_requests` scope, so
-      it could not carry out an approval even if the rule were removed.
+      A successful repair now opens the pull request itself, **as a draft**. A draft is what an
+      automated proposal nobody has read actually is, and it is also the one state an auto-merge rule
+      somebody enabled months ago for a different reason cannot sweep up. A pull request that could
+      be merged by automation on its way past would satisfy the letter of this line and none of it.
 
-      A repair reaches nothing on its own: it writes a branch and stops. What is missing is the
-      convenience half - opening the pull request for it - so today somebody opens it by hand.
+      It goes onto **the branch that failed**, not the default branch - resolved from the run's pull
+      request when it had one, then its `event_ref`, then the default branch for a ref that is not a
+      branch at all. A repair for a pull request proposed against `main` would turn a fix into a
+      second, competing change, and the reviewer would have to work out which of the two they were
+      looking at.
+
+      The description is written for somebody who finds it open on a Monday having not seen the
+      failure. The three things they need come before the diff rather than under it: a machine wrote
+      this, the run it came from is still failed, and nobody has reviewed it. It also tells them to
+      read the diff rather than the summary, because the summary is the agent describing its own work.
+
+      **`mayApproveRepair` is now actually called.** It was a tested pure function that nothing
+      invoked, which is a rule in the same sense a comment is - `SubmitReviewAction` consults it on
+      every approval and every request for changes. That is not the author check it already had with
+      extra steps: the existing one asks who *opened* the pull request, this one asks who the repair
+      *acted as*, and the two come apart the moment a repair is attributed to a machine account while
+      a person remains the one whose run produced it. The branch prefix is matched before the table
+      is read, so a repository that has never used repair pays nothing for the rule.
+
+      Defence in depth behind it: the repair's credential carries no `pull_requests` scope, so it
+      could not carry out an approval even if the rule were removed, and there is no policy switch to
+      remove it with - a rule an operator can disable is one that gets disabled during the incident
+      it exists for.
+
+      Opening it shares `app/Actions/Pull/open.ts` with the endpoint rather than reimplementing it.
+      Two implementations of "what it means to open a pull request" is how the two end up disagreeing
+      about stacking, or code owners, or which duplicate is refused - and the one nobody looks at is
+      the one that goes wrong.
 - [x] Attempt, token, time, and cost budgets stop repair loops. Each action is attributable in the
       audit log.
 

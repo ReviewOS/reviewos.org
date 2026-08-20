@@ -2137,6 +2137,7 @@ declare module '@stacksjs/database' {
       minutes: number
       cost: number
       tokens: number
+      pull_request_id: number
       createdAt: string
       updatedAt: string | null
       repositoryId: number
@@ -2144,6 +2145,7 @@ declare module '@stacksjs/database' {
       workflowJobId: number
       commitSha: string
       proposedBy: number
+      pullRequestId: number
     }
     repair_settings: {
       // columns

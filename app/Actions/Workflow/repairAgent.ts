@@ -50,6 +50,7 @@ import { runGit } from '../Git/git'
 import { repositoryPath } from '../Git/storage'
 import { auditEvent } from '../../Audit/events'
 import { mayProposeRepair, type RepairPolicy, type RepairVerdict } from './repairPolicy'
+import { REPAIR_BRANCH_PREFIX } from './repairAttempts'
 import { configured, repairApiKey, repairEffort, repairLogLines, repairMaxFiles, repairMaxTokens, repairModel } from '../../../config/ci-repair'
 
 /** What the model is shown, and the one capability it is given. */
@@ -92,7 +93,7 @@ export interface RepairModel {
 }
 
 export type RepairOutcome =
-  | { ok: true, branch: string, sha: string, summary: string, paths: string[], tokens: number, cost: number }
+  | { ok: true, branch: string, sha: string, summary: string, paths: string[], tokens: number, cost: number, pullRequest?: { id: number, number: number } | null, pullRequestError?: string }
   | { ok: false, refusal?: RepairVerdict['refusal'], reason: string, tokens?: number, cost?: number }
 
 export interface RepairInput {
@@ -115,14 +116,16 @@ export interface RepairInput {
 export async function proposeRepair(input: RepairInput, model?: RepairModel): Promise<RepairOutcome> {
   const agent = model ?? anthropicRepairModel()
 
-  const place = await placeOf(input.repositoryId)
+  const facts = await factsOf(input.repositoryId)
 
-  if (!place)
+  if (!facts)
     return { ok: false, reason: 'the repository is not on this node' }
+
+  const place = facts.place
 
   const run: any = await db
     .selectFrom('workflow_runs')
-    .select(['head_sha', 'workflow_version_id'])
+    .select(['head_sha', 'workflow_version_id', 'event_ref', 'pull_request_id'])
     .where('id', '=', input.runId)
     .executeTakeFirst()
     .catch(() => null)
@@ -170,6 +173,23 @@ export async function proposeRepair(input: RepairInput, model?: RepairModel): Pr
 
   const { branch, sha: written, paths, tokens, cost } = gated
 
+  /*
+   * And now offer it to people, which is the whole point of a proposal.
+   *
+   * After the commit rather than instead of it: the branch is the artefact, and
+   * a pull request that could not be opened - a duplicate, a base that has since
+   * been deleted - must not throw away work that already landed. So this is
+   * reported alongside the branch rather than replacing the outcome.
+   */
+  const offered = await openRepairPullRequest({
+    facts,
+    branch,
+    base: await baseBranchFor(facts, run),
+    input,
+    summary: proposal.summary,
+    paths,
+  })
+
   await auditEvent('workflow:repair-proposed', {
     subject: { type: 'repository', id: input.repositoryId },
     actorId: input.actorId,
@@ -183,10 +203,156 @@ export async function proposeRepair(input: RepairInput, model?: RepairModel): Pr
       commit: written,
       paths,
       tokens,
+      pull_request: offered.ok ? offered.number : null,
     },
   }).catch(() => null)
 
-  return { ok: true, branch, sha: written, summary: proposal.summary, paths, tokens, cost }
+  return {
+    ok: true,
+    branch,
+    sha: written,
+    summary: proposal.summary,
+    paths,
+    tokens,
+    cost,
+    pullRequest: offered.ok ? { id: offered.id, number: offered.number } : null,
+    pullRequestError: offered.ok ? undefined : offered.error,
+  }
+}
+
+/**
+ * The branch a repair proposes *onto*.
+ *
+ * The one the failure happened on, not the default branch. A repair for a pull
+ * request's run belongs on that pull request's branch - proposing it against
+ * `main` instead would make a second, competing change out of a fix for the
+ * first, and the reviewer would have to work out which of the two they are
+ * looking at.
+ *
+ * `event_ref` carries a `#event/subject/activity` suffix for the events that
+ * are not a plain push, so the fragment goes before the prefix does. Anything
+ * that is not a branch - a tag, a pull request ref - falls back to the default
+ * branch, which is the only answer that is always a real place to merge to.
+ */
+export async function baseBranchFor(facts: RepositoryFacts, run: any): Promise<string> {
+  const pullRequestId = Number(run?.pull_request_id ?? 0)
+
+  if (pullRequestId) {
+    const pull: any = await db
+      .selectFrom('pull_requests')
+      .select(['head_branch'])
+      .where('id', '=', pullRequestId)
+      .executeTakeFirst()
+      .catch(() => null)
+
+    const branch = String(pull?.head_branch ?? '').trim()
+
+    if (branch)
+      return branch
+  }
+
+  const ref = String(run?.event_ref ?? '').split('#')[0] ?? ''
+
+  if (ref.startsWith('refs/heads/')) {
+    const branch = ref.slice('refs/heads/'.length).trim()
+
+    if (branch)
+      return branch
+  }
+
+  return facts.defaultBranch
+}
+
+/**
+ * Offer the repair as a pull request.
+ *
+ * **Opened as a draft, deliberately.** A draft is exactly what an automated
+ * proposal nobody has read is, and it is also the state that cannot be merged
+ * by an auto-merge rule somebody enabled months ago for a different reason. The
+ * roadmap's requirement is that a human decides before this reaches a protected
+ * branch; a pull request that could be swept up by automation on its way past
+ * would satisfy the letter of that and none of it.
+ *
+ * It is opened **as the run's actor**, which is the same account the repair
+ * acted as and the same one `repair_attempts.proposed_by` records. That is what
+ * makes `mayApproveRepair` able to refuse them approving it: an approval is a
+ * second person, and the account that proposed this is the first.
+ *
+ * Never throws. The branch already exists by the time this runs, and reporting
+ * a failure for work that succeeded is the one outcome that helps nobody.
+ */
+export async function openRepairPullRequest(options: {
+  facts: RepositoryFacts
+  branch: string
+  base: string
+  input: RepairInput
+  summary: string
+  paths: readonly string[]
+}): Promise<{ ok: true, id: number, number: number } | { ok: false, error: string }> {
+  if (!options.input.actorId)
+    return { ok: false, error: 'the repair has no actor to open a pull request as' }
+
+  try {
+    const { openPullRequest } = await import('../Pull/open')
+
+    const opened = await openPullRequest({
+      diskPath: options.facts.place,
+      repositoryId: options.input.repositoryId,
+      owner: options.facts.owner,
+      repository: options.facts.name,
+      title: repairTitle(options.input.step, options.summary),
+      body: repairBody(options.input, options.summary, options.paths),
+      head: options.branch,
+      base: options.base,
+      authorId: options.input.actorId,
+      draft: true,
+    })
+
+    return opened.ok
+      ? { ok: true, id: opened.id, number: opened.number }
+      : { ok: false, error: opened.error }
+  }
+  catch (error) {
+    return { ok: false, error: String((error as Error)?.message ?? error).slice(0, 200) }
+  }
+}
+
+/** The title, which is the summary's first line or the step it repaired. */
+export function repairTitle(step: string, summary: string): string {
+  const first = (String(summary ?? '').split('\n')[0] ?? '').trim()
+
+  return (first || `Repair the \`${step}\` step`).slice(0, 200)
+}
+
+/**
+ * The description.
+ *
+ * Written for the person who finds this open on a Monday having not seen the
+ * failure. The three things they need before anything else are that a machine
+ * wrote it, that the run it came from is still failed, and that no part of this
+ * has been reviewed - so those are the first three lines rather than a footnote
+ * under the diff.
+ */
+export function repairBody(input: RepairInput, summary: string, paths: readonly string[]): string {
+  return [
+    '> **This pull request was written by an automated repair, and nobody has reviewed it.**',
+    `> The run it came from is still failed, and stays failed. It is a proposal about \`${input.step}\`, not a fix that has been checked.`,
+    '',
+    '## What it says it does',
+    '',
+    String(summary ?? '').trim() || '_The agent gave no summary._',
+    '',
+    '## What it changed',
+    '',
+    ...paths.map(path => `- \`${path}\``),
+    '',
+    '## Before approving',
+    '',
+    'Read the diff rather than the summary above - the summary is the agent describing its own work.',
+    'The agent was not allowed to change tests, snapshots, lockfiles, workflow files, or anything else this repository forbids a repair from touching, so a green pipeline here is evidence rather than something it arranged.',
+    '',
+    `Run \`${input.runId}\`, job \`${input.jobId}\`, repair attempt \`${input.attemptId}\`.`,
+  ].join('\n')
 }
 
 /**
@@ -197,7 +363,7 @@ export async function proposeRepair(input: RepairInput, model?: RepairModel): Pr
  * overwrite the first, including the case where the first was the good one.
  */
 export function repairBranch(runId: number, attemptId: number): string {
-  return `reviewos/repair/run-${runId}-attempt-${attemptId}`
+  return `${REPAIR_BRANCH_PREFIX}run-${runId}-attempt-${attemptId}`
 }
 
 /**
@@ -567,11 +733,25 @@ export function repairPrompt(context: RepairContext, files: Record<string, strin
  * Reading the failing commit.
  * ------------------------------------------------------------------------ */
 
-/** Where this repository lives on this node, or null when it does not. */
-async function placeOf(repositoryId: number): Promise<string | null> {
+/** What this repository is, and where it lives on this node. */
+export interface RepositoryFacts {
+  place: string
+  owner: string
+  name: string
+  defaultBranch: string
+}
+
+/**
+ * The repository, or null when it is not on this node.
+ *
+ * More than the path, because opening a pull request needs the owner's handle
+ * and the default branch too - and two lookups of the same row is two chances
+ * to disagree about which repository this is.
+ */
+async function factsOf(repositoryId: number): Promise<RepositoryFacts | null> {
   const row: any = await db
     .selectFrom('repositories')
-    .select(['name', 'owner_type', 'owner_id'])
+    .select(['name', 'owner_type', 'owner_id', 'default_branch'])
     .where('id', '=', repositoryId)
     .executeTakeFirst()
     .catch(() => null)
@@ -593,7 +773,15 @@ async function placeOf(repositoryId: number): Promise<string | null> {
 
   const resolved = repositoryPath(String(owner.handle), String(row.name))
 
-  return resolved.ok && resolved.path ? resolved.path : null
+  if (!resolved.ok || !resolved.path)
+    return null
+
+  return {
+    place: resolved.path,
+    owner: String(owner.handle),
+    name: String(row.name),
+    defaultBranch: String(row.default_branch ?? 'main'),
+  }
 }
 
 /** Every path at a commit. */

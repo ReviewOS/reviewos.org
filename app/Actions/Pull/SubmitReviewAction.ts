@@ -86,7 +86,7 @@ export default new Action({
     const pullRequest = await db
       .selectFrom('pull_requests')
       // `title` among them: the notification below reads it.
-      .select(['id', 'author_id', 'head_sha', 'state', 'title'])
+      .select(['id', 'author_id', 'head_sha', 'state', 'title', 'head_branch'])
       .where('repository_id', '=', repository.id)
       .where('number', '=', number)
       .executeTakeFirst()
@@ -101,6 +101,32 @@ export default new Action({
     // Commenting on it does not, so only the two deciding states are refused.
     if (Number(pullRequest.author_id) === user.id && state !== 'commented')
       return response.json({ error: 'You cannot approve or request changes on your own pull request' }, 422)
+
+    /*
+     * And the same rule for an automated repair, keyed on who proposed it.
+     *
+     * Not the check above with extra steps. That one asks who *opened* the pull
+     * request; this asks who the repair acted as, and the two come apart the
+     * moment a repair is attributed to a machine account while a person remains
+     * the one whose run produced it. `mayApproveRepair` has no policy switch to
+     * turn it off, because a rule an operator can disable is one that gets
+     * disabled during the incident it exists for.
+     *
+     * Costs nothing on an ordinary pull request: the branch prefix is matched
+     * before the table is read.
+     */
+    if (state !== 'commented') {
+      const { repairApprovalRefusal } = await import('../Workflow/repairAttempts')
+
+      const refused = await repairApprovalRefusal({
+        repositoryId: Number(repository.id),
+        headBranch: String(pullRequest.head_branch ?? ''),
+        approvingAs: user.id,
+      })
+
+      if (refused)
+        return response.json({ error: refused }, 422)
+    }
 
     const body = String(request.get('body') ?? '').trim()
 

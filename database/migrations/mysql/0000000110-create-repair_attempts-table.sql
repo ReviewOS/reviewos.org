@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS `repair_attempts` (
   `minutes` integer default 0,
   `cost` integer default 0,
   `tokens` integer default 0,
+  `pull_request_id` integer,
   `created_at` datetime not null default (UTC_TIMESTAMP),
   `updated_at` datetime,
   CONSTRAINT `repair_attempts_repository_id_fk` FOREIGN KEY (`repository_id`) REFERENCES `repositories`(`id`) ON DELETE CASCADE,

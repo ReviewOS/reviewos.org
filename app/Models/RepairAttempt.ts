@@ -187,5 +187,26 @@ export default defineModel({
       validation: { rule: schema.number() },
       factory: () => 0,
     },
+
+    /**
+     * The pull request this repair opened, when it got that far.
+     *
+     * A plain number rather than a declared relation, like `workflow_job_id`
+     * above and for the same reason: a cascade would take the attempt history
+     * with the pull request, and what a repair did stays true after somebody
+     * deletes the conversation about it.
+     *
+     * The branch name would nearly serve as the link - it encodes the run and
+     * the attempt, and both sides store it - but nearly is the problem. A
+     * branch can be deleted and a column cannot, and "which pull request did
+     * this repair open" is a question asked most often about repairs somebody
+     * has already tidied up after.
+     */
+    pull_request_id: {
+      order: 14,
+      fillable: true,
+      validation: { rule: schema.number() },
+      factory: () => null,
+    },
   },
 })

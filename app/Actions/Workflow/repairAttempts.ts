@@ -20,6 +20,17 @@
  */
 
 import { db } from '@stacksjs/database'
+import { mayApproveRepair } from './repairPolicy'
+
+/**
+ * The prefix every repair branch carries.
+ *
+ * Defined here rather than in the agent because the *reader* is the one that
+ * needs it to be reliable: a review submission decides whether to look this
+ * branch up at all by matching it, and a prefix the writer changed without
+ * telling the reader would silently switch the self-approval rule off.
+ */
+export const REPAIR_BRANCH_PREFIX = 'reviewos/repair/'
 
 /** What one run has used, in the units `mayAttemptRepair` asks for. */
 export interface RepairSpend {
@@ -150,6 +161,7 @@ export async function finishAttempt(id: number, outcome: {
   reason?: string | null
   branch?: string | null
   commitSha?: string | null
+  pullRequestId?: number | null
   minutes?: number
   cost?: number
   tokens?: number
@@ -162,6 +174,7 @@ export async function finishAttempt(id: number, outcome: {
       reason: outcome.reason ? String(outcome.reason).slice(0, 2000) : null,
       branch: outcome.branch ? String(outcome.branch).slice(0, 255) : null,
       commit_sha: outcome.commitSha ? String(outcome.commitSha).slice(0, 64) : null,
+      pull_request_id: outcome.pullRequestId ?? null,
       minutes: whole(outcome.minutes),
       cost: whole(outcome.cost),
       tokens: whole(outcome.tokens),
@@ -177,4 +190,45 @@ function whole(value: unknown): number {
   const raw = Number(value)
 
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 0
+}
+
+/**
+ * Why this person may not approve this pull request, when it is a repair's.
+ *
+ * Null when there is nothing to say, which is the answer for every pull request
+ * a human opened - and the reason the branch prefix is checked before the table
+ * is: this runs on every review submission, and a repository that has never used
+ * repair should not pay a query for it.
+ *
+ * The rule is `mayApproveRepair`, which refuses the proposer with no policy
+ * switch to turn it off. `SubmitReviewAction` already refuses an *author*
+ * approving their own pull request, and this is not that: it is keyed on who the
+ * repair acted as, which stays right if a repair is ever attributed to a machine
+ * account while a person remains the one who proposed it.
+ */
+export async function repairApprovalRefusal(input: {
+  repositoryId: number
+  headBranch: string
+  approvingAs: number
+}): Promise<string | null> {
+  if (!String(input.headBranch ?? '').startsWith(REPAIR_BRANCH_PREFIX))
+    return null
+
+  const row: any = await db
+    .selectFrom('repair_attempts')
+    .select(['proposed_by'])
+    .where('repository_id', '=', input.repositoryId)
+    .where('branch', '=', input.headBranch)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  if (!row)
+    return null
+
+  const verdict = mayApproveRepair({
+    proposedBy: row.proposed_by === null || row.proposed_by === undefined ? null : Number(row.proposed_by),
+    approvingAs: input.approvingAs,
+  })
+
+  return verdict.ok ? null : (verdict.reason ?? 'You cannot approve this repair.')
 }

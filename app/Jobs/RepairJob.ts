@@ -153,9 +153,20 @@ export default new Job({
 
       await finishAttempt(attemptId, {
         state: 'proposed',
-        reason: outcome.summary,
+        /*
+         * The summary, and the pull request's failure when there was one.
+         *
+         * A branch that landed without a pull request is still a proposal - the
+         * commit is the artefact - but it is one nobody will be shown, so the
+         * reason it was not offered belongs where somebody reading the attempt
+         * will find it rather than only in a log line.
+         */
+        reason: outcome.pullRequestError
+          ? `${outcome.summary}\n\nNo pull request was opened: ${outcome.pullRequestError}`
+          : outcome.summary,
         branch: outcome.branch,
         commitSha: outcome.sha,
+        pullRequestId: outcome.pullRequest?.id ?? null,
         minutes,
         tokens: outcome.tokens,
         cost: outcome.cost,
@@ -167,7 +178,13 @@ export default new Job({
        * the failure the whole policy exists to prevent, and the way to be sure
        * of that is for this file to have no such statement in it.
        */
-      return { proposed: true, branch: outcome.branch, commit: outcome.sha, paths: outcome.paths }
+      return {
+        proposed: true,
+        branch: outcome.branch,
+        commit: outcome.sha,
+        paths: outcome.paths,
+        pullRequest: outcome.pullRequest?.number ?? null,
+      }
     }
     catch (error) {
       await finishAttempt(attemptId, {
