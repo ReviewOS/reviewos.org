@@ -144,9 +144,14 @@ function tabHref(key) {
                   @endif
                 </p>
 
-                @if (hit.labels.length > 0)
+                {{-- `?? []` because the loop is evaluated for a repository
+                    hit too, which has no labels at all: stx warned on every
+                    repository search that `hit.labels is not iterable`, into a
+                    log nobody reads. The `@if` above it is not the guard it
+                    looks like. --}}
+                @if ((hit.labels ?? []).length > 0)
                   <p class="search-labels">
-                    @foreach (hit.labels as label)
+                    @foreach (hit.labels ?? [] as label)
                       <span class="search-label">{{ label }}</span>
                     @endforeach
                   </p>

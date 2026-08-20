@@ -258,6 +258,25 @@ const meta = pageMeta({ path: String(serveContext?.path ?? ambientContext?.path 
       }
 
       a { color: inherit; }
+
+      /*
+       * A link that looks like one.
+       *
+       * `color: inherit` above is deliberate and right for the many anchors
+       * that are a whole row, card or tab - colouring those would light up
+       * half the product. It was wrong for the other kind, and this codebase
+       * happens to distinguish them already: an anchor with no class is an
+       * anchor inside a sentence. There are seventy of them, and every one was
+       * rendering in the surrounding grey with no underline. "Sign in to see
+       * what is waiting on you" on an empty review queue was a dead end for
+       * anybody who did not think to click the words.
+       *
+       * Colour and, on hover, an underline. Not underlined at rest because
+       * these run several to a paragraph in the pull request pages, and the
+       * contrast between the accent and the body text carries it.
+       */
+      a:not([class]) { color: var(--accent-text); }
+      a:not([class]):hover { text-decoration: underline; }
       h1, h2, h3 { margin: 0; letter-spacing: -0.02em; line-height: 1.2; font-weight: 600; }
       p { margin: 0; }
       ul { margin: 0; padding: 0; list-style: none; }

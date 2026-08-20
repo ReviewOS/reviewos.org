@@ -47,9 +47,14 @@ const queue = viewer
   ? await reviewQueue(viewer.id, now)
   : { waitingOnYou: [], waitingOnOthers: [] }
 
-const title = viewer
+const heading = viewer
   ? (queue.waitingOnYou.length > 0 ? `${queue.waitingOnYou.length} waiting on you` : 'Nothing waiting on you')
   : 'Reviews'
+
+// The count first, because that is what the tab is for, and the product name
+// after it, because a tab reading `3 waiting on you` among thirty tabs does
+// not say what it is three of.
+const title = `${heading} · ReviewOS`
 
 /** Rows shaped for the template, so the template holds no logic. */
 function rowsFor(entries) {
@@ -84,7 +89,7 @@ const theirs = rowsFor(queue.waitingOnOthers)
 
     @if (!viewer)
       <p class="muted queue-empty">
-        <a href="/login">Sign in</a> to see what is waiting on you.
+        <a href="/login?next=/reviews">Sign in</a> to see what is waiting on you.
       </p>
     @else
       <section class="queue-section" aria-labelledby="waiting-on-you">

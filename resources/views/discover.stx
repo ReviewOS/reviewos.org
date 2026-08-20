@@ -141,7 +141,10 @@ function repositoryHref(entry) {
     text-decoration: none;
   }
 
-  .discover-section-head a:hover { color: var(--text); }
+  /* Quiet, but not a caption: without an underline on hover these two read
+    as labels beside the headings rather than as the way through to the full
+    list. */
+  .discover-section-head a:hover { color: var(--text); text-decoration: underline; }
 
   .discover-feed { padding: 5px 18px; }
   .discover-feed .feed-row { padding: 13px 0; }

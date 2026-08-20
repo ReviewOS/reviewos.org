@@ -103,7 +103,7 @@ const unreadClass = unreadOnly ? 'inbox-chip is-on' : 'inbox-chip'
 const clearHref = '/notifications'
 const filtered = Boolean(filterReason || filterRepository || unreadOnly)
 
-const title = inbox.unread > 0 ? `${inbox.unread} unread` : 'Inbox'
+const title = `${inbox.unread > 0 ? `${inbox.unread} unread` : 'Inbox'} · ReviewOS`
 
 // What "mark all read" would actually do, said out loud. It cannot be undone,
 // and a button whose scope the reader has to infer from which chips are lit is
@@ -133,7 +133,7 @@ const emptyLine = filtered
 
     @if (!viewer)
       <p class="inbox-empty muted">
-        <a href="/login">Sign in</a> to see your notifications.
+        <a href="/login?next=/notifications">Sign in</a> to see your notifications.
       </p>
     @else
       <div class="inbox-filters">
