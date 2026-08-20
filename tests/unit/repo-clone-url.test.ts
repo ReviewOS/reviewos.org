@@ -52,9 +52,24 @@ describe('originFor', () => {
       .toBe('http://code.example.com')
   })
 
+  /**
+   * The deployed instance, exactly: the gateway rewrites `Host` to the upstream
+   * it forwards to, so the request carries no trace of the public name and
+   * there is nothing to prefer over configuration.
+   */
+  it('uses configuration when the request carries only the loopback', () => {
+    expect(originFor({ url: 'http://localhost:3072/stacks/wildloop', host: 'localhost:3072' }, 'reviewos.org'))
+      .toBe('https://reviewos.org')
+  })
+
   it('and leaves a developer on the port they are actually using', () => {
     // Both halves loopback: nothing is in front, so the URL is the answer.
     expect(originFor({ url: 'http://localhost:3100/anna/checkout', host: 'localhost:3100' }))
+      .toBe('http://localhost:3100')
+
+    // `reviewos.localhost` is this project's own development URL and resolves
+    // to the loopback, so it does not outrank the port somebody is reading on.
+    expect(originFor({ url: 'http://localhost:3100/anna/checkout', host: 'localhost:3100' }, 'reviewos.localhost'))
       .toBe('http://localhost:3100')
   })
 

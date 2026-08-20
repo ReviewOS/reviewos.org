@@ -56,6 +56,26 @@ export function originFor(request: RequestOrigin | null | undefined, configured?
   if (host && !isLoopbackHost(host) && (!fromUrl || isLoopbackHost(new URL(fromUrl).host)))
     return `${configuredSchemeFor(host, configured)}//${host}`
 
+  /*
+   * Both halves loopback, and configuration knows a public name: use it.
+   *
+   * This is the deployed instance exactly. The gateway rewrites `Host` to the
+   * upstream it is forwarding to, so the page process sees
+   * `http://localhost:3072/` in the URL *and* `localhost:3072` in the header -
+   * the request carries no trace of `reviewos.org` at all. Preferring the
+   * request over configuration is the right rule and it has nothing to prefer
+   * here, so the clone box handed every visitor a URL pointing at their own
+   * machine.
+   *
+   * Only when configuration names something that is not itself loopback: a
+   * developer whose `APP_URL` is `reviewos.localhost` and who is reading over
+   * `http://localhost:3100` should be given the port they are actually using.
+   */
+  const fromConfigured = parseOrigin(configured) ?? parseOrigin(`https://${(configured ?? '').trim()}`)
+
+  if (fromConfigured && !isLoopbackHost(new URL(fromConfigured).host))
+    return fromConfigured
+
   if (fromUrl)
     return fromUrl
 
@@ -70,7 +90,14 @@ export function originFor(request: RequestOrigin | null | undefined, configured?
 function isLoopbackHost(host: string): boolean {
   const name = String(host ?? '').split(':')[0]?.toLowerCase() ?? ''
 
-  return name === 'localhost' || name === '127.0.0.1' || name === '::1' || name === '[::1]' || name === '0.0.0.0'
+  // `.localhost` included, because RFC 6761 reserves the whole tree for the
+  // loopback and this project's own development URL is `reviewos.localhost`.
+  return name === 'localhost'
+    || name.endsWith('.localhost')
+    || name === '127.0.0.1'
+    || name === '::1'
+    || name === '[::1]'
+    || name === '0.0.0.0'
 }
 
 /**
