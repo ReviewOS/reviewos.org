@@ -1092,6 +1092,7 @@ const statePill = pullRequest
             owner="{{ owner }}"
             repository="{{ repositoryName }}"
             number="{{ number }}"
+            pullState="{{ pullRequest.state }}"
             blockersJson="{{ JSON.stringify(blockers) }}"
             conflictsJson="{{ JSON.stringify(mergeability.conflictingPaths) }}"
             autoStrategy="{{ autoMergeArmed ?? '' }}"

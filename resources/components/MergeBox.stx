@@ -10,6 +10,18 @@ const conflictList = typeof conflictsJson === 'string' ? JSON.parse(conflictsJso
 const armedStrategy = String(autoStrategy ?? '')
 const armedByHandle = String(autoArmedBy ?? '')
 const canMerge = String(mayMerge ?? '') === '1'
+
+/*
+ * Settled, or still being decided.
+ *
+ * A merged pull request has exactly one blocker - "This pull request has
+ * already been merged" - which is the right answer for the endpoint and the
+ * wrong panel for the page: it was rendered under a red "This cannot be merged
+ * yet." beside a disabled merge button, on a page whose header already said
+ * Merged. Three statements, one of them contradicting the other two.
+ */
+const settled = String(pullState ?? '') === 'merged' || String(pullState ?? '') === 'closed'
+const merged = String(pullState ?? '') === 'merged'
 </script>
 
 {{--
@@ -23,7 +35,17 @@ const canMerge = String(mayMerge ?? '') === '1'
 <section class="merge-box panel">
   <h2 class="side-heading">Merge</h2>
 
-  @if (blockerList.length === 0)
+  @if (settled)
+    {{-- Nothing to decide, so nothing to offer. What happened, and no button
+        that cannot do anything. --}}
+    <p class="merge-state {{ merged ? 'ok' : '' }}">
+      @if (merged)
+        This pull request was merged.
+      @else
+        This pull request was closed without merging.
+      @endif
+    </p>
+  @elseif (blockerList.length === 0)
     <p class="merge-state ok">Everything checks out.</p>
     <form method="post" action="/api/repos/pulls/merge">
       <CsrfField />

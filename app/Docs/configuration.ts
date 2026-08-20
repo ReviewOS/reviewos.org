@@ -86,6 +86,7 @@ const GROUP_TITLES: Record<string, string> = {
   QUEUE: 'The queue',
   REDIS: 'Redis',
   REVIEWOS: 'ReviewOS',
+  SCREENSHOT: 'Screenshots',
   SEARCH: 'Search',
   SHUTDOWN: 'Stopping',
   SQS: 'SQS',

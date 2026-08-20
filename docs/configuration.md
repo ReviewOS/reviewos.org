@@ -765,6 +765,18 @@ is pushing, and is the whole difference when four teams push at once. Set
 
 *No reader in `app/`, `routes/` or `resources/`: this one is the framework's.*
 
+## Screenshots
+
+### `SCREENSHOT_URL`
+
+Default: `https://reviewos.org`, and the line is commented out.
+
+Where `buddy screenshot` points its browser. Defaults to `APP_URL`, which is
+right on the machine the instance runs on and wrong from a laptop taking
+pictures of staging - that is the whole reason it is separate.
+
+Read by `app/Actions/Screenshot/capture.ts`.
+
 ## Exposed to the browser
 
 ### `FRONTEND_APP_ENV`
@@ -1192,14 +1204,6 @@ writing objects into somebody else's directory.
 - `HOME`
 - `LANG`
 - `PATH`
-
-## Read but not declared
-
-These are read by the application and absent from `.env.example`, which means the only way to
-find them is to read the source. That is the same as undocumented, so the list is here rather
-than nowhere - and the fix is a line in `.env.example`, not a line here.
-
-- `SCREENSHOT_URL`, read by `app/Actions/Screenshot/capture.ts`
 
 ## Set where the work runs, not on the instance
 
