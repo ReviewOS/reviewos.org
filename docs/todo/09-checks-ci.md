@@ -1371,7 +1371,24 @@ should not make its public workflow API describe one vendor's sandbox.
       it - and a pool refusing a repository is deliberately excluded even though it is just as
       permanent, since that is an operator's decision about their own fleet and one they may reverse
       before lunch.
-- [ ] A provider cannot read another provider's job payloads, logs, caches, artifacts, or secrets
+- [x] A provider cannot read another provider's job payloads, logs, caches, artifacts, or secrets
+
+      **The boundary is the job credential, not the provider**, and that is the design rather than a
+      shortcut: two providers' jobs are two jobs, and a rule about providers would be a second
+      isolation model that has to agree with the first. A runner is handed a token at claim that
+      names one job, and every endpoint it can reach resolves the job from that token rather than
+      from anything the caller says - so "a credential used against the wrong job" is not a case to
+      defend against, it is a case that cannot be expressed.
+
+      Each of the five is pinned where it lives. **Payloads**: a claim hands out a job and takes its
+      lease in one guarded write, so two runners asking together produce one winner
+      (`runner-claim.test.ts`). **Logs**: appends are guarded to the token's own job, and reads go
+      through the repository's permission rather than the runner's. **Caches**: the scope is worked
+      out on the instance from the run, never sent - `runner-caches.test.ts` is a file of things a
+      runner cannot talk the instance into. **Artifacts**: a job of a different run gets a 404, and
+      the test takes care to prove the two runs actually differ rather than passing by luck.
+      **Secrets**: chosen at the claim from the run's trust and the job's gate, with a fork getting
+      nothing at all.
 - [x] External CI adapters can translate an existing provider's run into ReviewOS check runs without
       pretending ReviewOS executed it
 
