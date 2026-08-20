@@ -192,6 +192,31 @@ describe('the storage that outlives a release', () => {
   })
 })
 
+/**
+ * A ceiling that is reached, not only approached.
+ *
+ * `MemoryHigh` is soft: the kernel reclaims the cgroup and the process stays
+ * "active (running)" while it answers nothing. `Restart=always` is on the unit
+ * and never fires, because a throttled process does not exit. The site was
+ * down twice that way, for hours, with systemd reporting it healthy.
+ */
+describe('the page process has somewhere to fall over', () => {
+  const site = (tsCloud as any)?.sites?.reviewos ?? {}
+
+  test('is killed at a hard ceiling rather than throttled forever', () => {
+    expect(site.memoryMax).toBeTruthy()
+  })
+
+  test('and starts reclaiming before it gets there', () => {
+    // A `memoryHigh` at or above `memoryMax` is a soft limit that never
+    // applies: the kill happens first and the garbage collector is never given
+    // the pressure that might have avoided it.
+    const bytes = (value: string) => Number(String(value).replace(/[^0-9.]/g, '')) * (/G/i.test(String(value)) ? 1024 : 1)
+
+    expect(bytes(site.memoryHigh)).toBeLessThan(bytes(site.memoryMax))
+  })
+})
+
 describe('the address the box answers at', () => {
   const sites = (tsCloud as any)?.sites ?? {}
 

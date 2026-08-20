@@ -780,6 +780,33 @@ export const tsCloud: TsCloudConfig = {
       domain: env.APP_DOMAIN || 'reviewos.org',
       start: 'bun node_modules/@stacksjs/buddy/dist/serve-entry.js',
       port: 3072,
+
+      /*
+       * A ceiling the process is killed at, not only throttled at.
+       *
+       * This page process grows under traffic - about 130KB retained per
+       * request on a quiet machine, and faster here, where a public instance
+       * with a hundred and fifteen repositories is walked by crawlers. It
+       * starts at 230MB and reaches two gigabytes in roughly an hour.
+       *
+       * `MemoryHigh` alone is a soft limit: the kernel reclaims the cgroup
+       * rather than killing it, so the process stays "active (running)" and
+       * stops answering - twelve seconds and an empty reply, for hours, while
+       * `systemctl status` reports it healthy and `Restart=always` never
+       * fires because nothing ever exits. The site was down twice that way
+       * before anybody could see why.
+       *
+       * So: reclaim early at 1.5G, and kill at 2G. systemd restarts five
+       * seconds later and the site is back in the half minute it takes to
+       * compile the views. A blip on a timer beats a hang nobody notices.
+       *
+       * This is a floor under the symptom and not a fix for the growth. The
+       * suspect is the utility-CSS engine loaded on the first render - eight
+       * unbounded caches (`classCache`, `selectorCache`, `noMatchCache` and
+       * five more) in an app whose templates use one utility class in total.
+       */
+      memoryHigh: '1500M',
+      memoryMax: '2G',
       // The published package ships `dist` and not `src`, so the entry is used
       // as built rather than rebuilt here. The template's build step assumes a
       // vendored `storage/framework/core`, which a core-less app - the default
