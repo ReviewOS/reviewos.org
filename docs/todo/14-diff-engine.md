@@ -93,13 +93,28 @@ Numbers, so the work can be checked rather than argued about:
       only then a row request that itself takes 6.3s. Nothing can render before roughly twenty
       seconds, and every one of those seconds is spent waiting rather than working.
 
-      So the fix is not optimisation anywhere - six candidates have now been measured and every one
-      of them is fast at what it does. It is **what the page does while it waits**, which is
-      currently nothing: the first-batch ceiling counts from the request rather than from the first
-      record, so a diff whose first record takes 7.5s to appear also waits out a batch window that
-      was sized for one that answers immediately. Starting that clock at the first record, and
-      asking for a smaller first row batch, are the two changes worth measuring next - and they are
-      changes to *when* work starts, not to how fast it runs.
+      **The scheduling bug is real, and it is the opposite of what that sentence guessed.** The
+      batch clock was stamped when the request was made, so on a diff whose first record is 7.5
+      seconds away the window had *already elapsed* - and the first flush went out carrying **one
+      file** rather than waiting out a window it had missed. The first screen, which this ceiling
+      exists to fill, was a single file with the rest arriving underneath it: exactly the failure
+      the comment on `FIRST_BATCH_MS` warns about.
+
+      Fixed: the clock starts at the first record. `tests/unit/manifest-stream.test.ts` pins both
+      halves - a diff whose first record is 700ms away now publishes a full 25-file first batch, and
+      a twelve-file pull request still publishes once with twelve. The test was checked against the
+      old code and fails there, which is the only reason to believe it.
+
+      **What the browser says, and what it does not.** With the fix, the kernel diff reaches
+      "19,520 of 19,820 files" in about thirty seconds and the small 180-file pull request renders
+      completely and immediately. A control run with the fix reverted reached a similar file count
+      in a similar time - so the browser numbers do **not** cleanly isolate this change, and the
+      earlier "226 files in two minutes" figure came from a run whose conditions (a cold git object
+      cache) could not be reproduced afterwards. The unit test isolates the defect; the page
+      measurements say the page is healthy on both diffs, and no more than that.
+
+      Saying so matters more than the tidier version would: the change is right on its own evidence,
+      and claiming the browser proved it would be claiming a measurement that was not made.
 
       Four diagnoses, each replacing the last, and the shape of the error was the same every time:
       the symptom was slowness, and slowness reads as something being slow. It was not. Each answer
