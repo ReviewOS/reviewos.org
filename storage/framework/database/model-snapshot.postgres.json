@@ -12048,6 +12048,15 @@
             "isUnique": true,
             "isNullable": true,
             "hasDefault": false
+          },
+          {
+            "name": "require_checks",
+            "type": "boolean",
+            "isPrimaryKey": false,
+            "isUnique": false,
+            "isNullable": true,
+            "hasDefault": true,
+            "defaultValue": false
           }
         ],
         "indexes": [
@@ -14569,7 +14578,7 @@
       }
     ]
   },
-  "hash": "71c20e207d11f75a8faa7ea557505cbea873541c077c6dada61bc7444a8ffc6d",
+  "hash": "cb8ba3f1f05e781638ccc990dadb18f5ced03fcba75f56d646dd3da06158e2a0",
   "dialect": "postgres",
-  "updatedAt": "2026-08-20T00:29:55.779Z"
+  "updatedAt": "2026-08-20T01:10:04.889Z"
 }

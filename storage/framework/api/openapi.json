@@ -37203,6 +37203,9 @@
                   "wait_minutes": {
                     "type": "number"
                   },
+                  "require_checks": {
+                    "type": "boolean"
+                  },
                   "branches": {
                     "type": "string"
                   },

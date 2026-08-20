@@ -4,6 +4,7 @@ import { auditEvent } from '../../Audit/events'
 import { auditFrom } from '../Git/audit'
 import { db } from '@stacksjs/database'
 import { schema } from '@stacksjs/validation'
+import { isTrue } from '../Support/sql'
 import { RATE_LIMIT_HEADERS, REPOSITORY_ERRORS } from '../../Api/documented'
 import { authorizeRepository } from '../Repo/authorize'
 
@@ -31,6 +32,8 @@ export default new Action({
     operation: { rule: schema.enum(['list', 'create', 'update', 'delete', 'add-reviewer', 'remove-reviewer']) },
     name: { rule: schema.string() },
     wait_minutes: { rule: schema.number() },
+    /** Whether a deploy here waits for the commit's required checks. */
+    require_checks: { rule: schema.boolean(), required: false },
     branches: { rule: schema.string() },
     description: { rule: schema.string() },
     reviewer: { rule: schema.string() },
@@ -93,6 +96,7 @@ export default new Action({
           repository_id: repositoryId,
           name: name.slice(0, 120),
           wait_minutes: Math.max(0, Math.min(43_200, Number(request.get('wait_minutes')) || 0)),
+          require_checks: isTrue(request.get('require_checks')),
           branches: cleanBranches(request.get('branches')),
           description: String(request.get('description') ?? '').slice(0, 500),
         })
@@ -199,6 +203,9 @@ export default new Action({
     if (request.get('wait_minutes') !== undefined && Number.isFinite(Number(request.get('wait_minutes'))))
       changes.wait_minutes = Math.max(0, Math.min(43_200, Number(request.get('wait_minutes'))))
 
+    if (request.get('require_checks') !== undefined)
+      changes.require_checks = isTrue(request.get('require_checks'))
+
     if (request.get('branches') !== undefined)
       changes.branches = cleanBranches(request.get('branches'))
 
@@ -248,6 +255,8 @@ async function shape(environment: EnvironmentRow | undefined): Promise<Record<st
   return {
     name: String(environment?.name ?? ''),
     wait_minutes: Number(environment?.wait_minutes ?? 0),
+    /** Whether a deploy here waits for the commit's required checks. */
+    require_checks: isTrue(environment?.require_checks),
     branches: String(environment?.branches ?? '').split(',').map(one => one.trim()).filter(Boolean),
     description: String(environment?.description ?? ''),
     reviewers: reviewers.map(one => String(one.handle)),

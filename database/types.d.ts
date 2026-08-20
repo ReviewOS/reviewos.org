@@ -122,6 +122,22 @@ declare module '@stacksjs/database' {
       createdAt: string
       updatedAt: string | null
     }
+    atproto_identities: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      user_id: number
+      did: string
+      handle: string
+      pds: string
+      last_verified_at: string
+      createdAt: string
+      updatedAt: string | null
+      userId: number
+      lastVerifiedAt: string
+    }
     attachments: {
       // columns
       id: number
@@ -778,11 +794,13 @@ declare module '@stacksjs/database' {
       name: string
       wait_minutes: number
       branches: string
+      require_checks: boolean
       description: string
       createdAt: string
       updatedAt: string | null
       repositoryId: number
       waitMinutes: number
+      requireChecks: boolean
     }
     errors: {
       // columns

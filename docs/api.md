@@ -942,6 +942,7 @@ Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Res
 | `operation` | body | optional | string |
 | `name` | body | optional | string |
 | `wait_minutes` | body | optional | number |
+| `require_checks` | body | optional | boolean |
 | `branches` | body | optional | string |
 | `description` | body | optional | string |
 | `reviewer` | body | optional | string |

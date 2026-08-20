@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS `environments` (
   `repository_id` bigint not null,
   `name` varchar(120) not null,
   `wait_minutes` integer default 0,
+  `require_checks` boolean default false,
   `branches` text default (''),
   `description` varchar(500) default '',
   `created_at` datetime not null default (UTC_TIMESTAMP),

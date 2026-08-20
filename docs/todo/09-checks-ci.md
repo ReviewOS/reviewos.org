@@ -1573,8 +1573,28 @@ A very large push is cut to `MAX_CHANGED_PATHS`, and `github.changed_files_trunc
 condition that quietly answers "that path did not change" out of a cut list is the failure this is
 designed against - a step that runs when it need not have costs a minute, and one skipped when it
 was needed ships the bug.
-- [ ] Preview deployment on non-default branches and deployment after all required checks pass,
+- [x] Preview deployment on non-default branches and deployment after all required checks pass,
       through the deployment model below
+
+      Previews were built with the deployment model: one row with a pull request on it, expiring
+      when the thing it belongs to closes, linked from the pull request. What was missing was the
+      other half of the sentence, and it is the rule everybody assumes already exists - **production
+      does not receive a commit whose tests have not passed.**
+
+      `require_checks` on the environment. A check still running **holds** the deploy; one that has
+      already failed **refuses** it, because waiting for a verdict that has arrived is a job nobody
+      can unstick and a screen saying "waiting" on a commit that failed an hour ago will be
+      believed.
+
+      Which checks count is the branch's own list, read from its protection rule rather than
+      configured again on the environment: a deploy held by a stricter reading than the merge would
+      be a rule nobody could discover. And it is asked **before** the reviewers are - asking
+      somebody to approve a deploy and then telling them the tests failed is how an approval becomes
+      a rubber stamp.
+
+      Off by default, because an environment is often a preview, and a preview that waits for the
+      whole suite is one nobody sees until the suite is green - which is exactly when they stop
+      needing it.
 - [x] Run view shows the dependency graph, current branch of execution, retries, cache hits, wall
       time, active execution time, queue time, and the workflow version
 

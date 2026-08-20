@@ -13740,7 +13740,7 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: "list" | "create" | "update" | "delete" | "add-reviewer" | "remove-reviewer"; "name"?: string; "wait_minutes"?: number; "branches"?: string; "description"?: string; "reviewer"?: string } } }
+    requestBody?: { content: { "application/json": { "owner"?: string; "repo"?: string; "operation"?: "list" | "create" | "update" | "delete" | "add-reviewer" | "remove-reviewer"; "name"?: string; "wait_minutes"?: number; "require_checks"?: boolean; "branches"?: string; "description"?: string; "reviewer"?: string } } }
     responses: {
       "200": { content: never }
       "401": { content: never }

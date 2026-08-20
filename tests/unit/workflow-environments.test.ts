@@ -13,7 +13,7 @@ import { parseWorkflow } from '../../app/Actions/Workflow/parse'
 const NOW = new Date('2026-03-01T12:00:00.000Z')
 
 function rules(over: Partial<Parameters<typeof decideGate>[0]['rules'] & object> = {}): any {
-  return { id: 1, name: 'production', waitMinutes: 0, reviewers: [], branches: [], ...over }
+  return { id: 1, name: 'production', waitMinutes: 0, reviewers: [], branches: [], requireChecks: false, ...over }
 }
 
 describe('reading the key', () => {
@@ -180,5 +180,103 @@ describe('who may open the gate', () => {
     // The endpoint already required `workflow:approve` to get here. A wait
     // timer with no reviewer list is a pause, not a permission.
     expect(mayApprove(rules(), 7, 7).ok).toBe(true)
+  })
+})
+
+/*
+ * The rule people assume already exists: production does not receive a commit
+ * whose tests have not passed.
+ *
+ * Off by default, because an environment is often a preview - and a preview
+ * that waits for the whole suite is one nobody sees until the suite is green,
+ * which is exactly when they no longer need it.
+ */
+describe('an environment that waits for the commit\'s checks', () => {
+  test('lets a passing commit through', () => {
+    expect(decideGate({
+      rules: rules({ requireChecks: true }),
+      ref: 'refs/heads/main',
+      readyAt: NOW,
+      now: NOW,
+      approved: false,
+      checks: 'passing',
+    }).verdict).toBe('run')
+  })
+
+  test('holds one whose checks are still running', () => {
+    const decision = decideGate({
+      rules: rules({ requireChecks: true }),
+      ref: 'refs/heads/main',
+      readyAt: NOW,
+      now: NOW,
+      approved: false,
+      checks: 'pending',
+    })
+
+    expect(decision.verdict).toBe('hold')
+    // No clock and nobody named: what ends this hold is a check reporting,
+    // which is neither a timer running out nor a person pressing a button.
+    expect((decision as any).until).toBeNull()
+    expect((decision as any).needsReviewer).toBe(false)
+  })
+
+  test('and refuses one whose check already failed', () => {
+    /*
+     * Refused rather than held, because waiting for a verdict that has already
+     * arrived is a job nobody can unstick - and a deploy sitting at "waiting"
+     * on a commit that failed an hour ago is a screen that will be believed.
+     */
+    const decision = decideGate({
+      rules: rules({ requireChecks: true }),
+      ref: 'refs/heads/main',
+      readyAt: NOW,
+      now: NOW,
+      approved: false,
+      checks: 'failing',
+    })
+
+    expect(decision.verdict).toBe('refuse')
+    expect(String(decision.reason)).toContain('failed')
+  })
+
+  test('before it asks anybody to approve, which is the ordering that matters', () => {
+    /*
+     * Asking a person to approve a deploy and *then* telling them the tests
+     * failed is how an approval becomes a rubber stamp: they have already
+     * decided by the time the fact arrives.
+     */
+    const decision = decideGate({
+      rules: rules({ requireChecks: true, reviewers: [7] }),
+      ref: 'refs/heads/main',
+      readyAt: NOW,
+      now: NOW,
+      approved: false,
+      checks: 'failing',
+    })
+
+    expect(decision.verdict).toBe('refuse')
+  })
+
+  test('and an environment that did not ask is not held by it', () => {
+    expect(decideGate({
+      rules: rules({ requireChecks: false }),
+      ref: 'refs/heads/main',
+      readyAt: NOW,
+      now: NOW,
+      approved: false,
+      checks: 'failing',
+    }).verdict).toBe('run')
+  })
+
+  test('nor is one whose caller never looked', () => {
+    // Absent means nobody asked, treated as passing: a gate that held every
+    // deploy because a caller forgot a value is a rule nobody could turn off.
+    expect(decideGate({
+      rules: rules({ requireChecks: true }),
+      ref: 'refs/heads/main',
+      readyAt: NOW,
+      now: NOW,
+      approved: false,
+    }).verdict).toBe('run')
   })
 })

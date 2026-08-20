@@ -23,6 +23,7 @@ import { decideGate, environmentRules } from './environments'
 import { createJobsForRun, dispatchWorkflowRun, releaseGroup } from './dispatch'
 import { callMarkerOf, resolveCallOutputs } from './callOutputs'
 import { alreadySent, waitPlan, waitSettingsOf } from './awaits'
+import type { ChecksState } from './environments'
 import { deliverJobNotify } from './notify'
 import { deliverRunNotifications } from './notifyDelivery'
 import { withRedeliveryKey } from './redelivery'
@@ -515,7 +516,7 @@ export async function gateFor(runId: number, job: any, now: Date): Promise<GateD
 
   const run = await db
     .selectFrom('workflow_runs')
-    .select(['repository_id', 'event_ref'])
+    .select(['repository_id', 'event_ref', 'head_sha'])
     .where('id', '=', runId)
     .executeTakeFirst()
     .catch(() => null)
@@ -542,6 +543,17 @@ export async function gateFor(runId: number, job: any, now: Date): Promise<GateD
     readyAt: Number.isFinite(readyAt.getTime()) ? readyAt : now,
     now,
     approved: Boolean(job.approved_at),
+    /*
+     * Asked only when the environment says to.
+     *
+     * Reading a commit's checks is two queries and a rollup, and almost no
+     * deploy is gated on them - so the environment's own rule decides whether
+     * the question is worth asking rather than the answer being computed and
+     * thrown away.
+     */
+    checks: rules?.requireChecks
+      ? await checksStateOf(Number(run.repository_id), String(run.head_sha ?? ''), String(run.event_ref ?? ''))
+      : undefined,
   })
 }
 
@@ -865,4 +877,67 @@ export async function settleAwaitingTriggers(runId: number, state: string, now: 
 
     await settleRun(Number(job.workflow_run_id), now)
   }
+}
+
+/**
+ * Where a commit's required checks have got to.
+ *
+ * Three values rather than a boolean, because the difference between them is
+ * what a gate does next: still running is something to wait for, and already
+ * failed is something to refuse. Computed with the same functions the pull
+ * request's own panel uses, so a deploy held for a failing check and a merge
+ * blocked by one are held by the same verdict rather than by two rules that
+ * agree until they do not.
+ */
+async function checksStateOf(repositoryId: number, headSha: string, ref: string): Promise<ChecksState> {
+  if (!headSha)
+    return 'passing'
+
+  /*
+   * Which checks are required is a *branch* rule, read from the protection for
+   * the branch this run is on. An environment asking for checks where the
+   * branch requires none is asking about an empty set, and the answer is
+   * passing - the same answer the merge rules give, because a deploy held by a
+   * stricter reading than the merge would be a rule nobody could discover.
+   */
+  const branch = ref.startsWith('refs/heads/') ? ref.slice('refs/heads/'.length) : ref
+
+  const protection = await db
+    .selectFrom('protected_branches')
+    .select(['required_checks'])
+    .where('repository_id', '=', repositoryId)
+    .where('pattern', '=', branch)
+    .executeTakeFirst()
+    .catch(() => null)
+
+  let required: string[] = []
+
+  try {
+    const parsed = JSON.parse(String(protection?.required_checks ?? '[]'))
+
+    required = Array.isArray(parsed) ? parsed.map(String) : []
+  }
+  catch {
+    required = []
+  }
+
+  if (required.length === 0)
+    return 'passing'
+
+  const { checksPanel } = await import('../Checks/panel')
+
+  const panel = await checksPanel({ repositoryId, headSha, required }).catch(() => null)
+
+  if (!panel)
+    return 'passing'
+
+  if (panel.required.satisfied)
+    return 'passing'
+
+  /*
+   * Failing beats pending. A commit with one check failed and another still
+   * running is not something to wait for - the verdict that matters has
+   * arrived, and holding would be a deploy nobody can unstick.
+   */
+  return panel.required.failing.length > 0 ? 'failing' : 'pending'
 }

@@ -1,4 +1,5 @@
 import { db } from '@stacksjs/database'
+import { isTrue } from '../Support/sql'
 
 /**
  * Deployment environments, and the rules that hold a job at one.
@@ -36,7 +37,19 @@ export interface EnvironmentRules {
    * any branch, which is what an environment with no policy means.
    */
   branches: string[]
+  /** Whether a deploy here waits for the commit's required checks. */
+  requireChecks: boolean
 }
+
+/**
+ * Where the commit's required checks have got to.
+ *
+ * Three values rather than a boolean, because "not passing" hides the
+ * difference that decides what to do: a check still running is something to
+ * wait for, and one that has already failed is something to refuse. Waiting for
+ * a verdict that has arrived is a job nobody can unstick.
+ */
+export type ChecksState = 'passing' | 'pending' | 'failing'
 
 export type GateDecision =
   /** Nothing holds this job: run it. */
@@ -61,6 +74,14 @@ export function decideGate(input: {
   now: Date
   /** Already approved by somebody, so only the timer can still hold it. */
   approved: boolean
+  /**
+   * Where the commit's required checks have got to, when the caller looked.
+   *
+   * Absent means nobody asked, which is treated as passing rather than as
+   * pending: a gate that held every deploy because a caller forgot to supply a
+   * value would be a rule nobody could turn off.
+   */
+  checks?: ChecksState
 }): GateDecision {
   if (!input.rules)
     return { verdict: 'run' }
@@ -71,6 +92,33 @@ export function decideGate(input: {
     return {
       verdict: 'refuse',
       reason: `\`${branch}\` may not deploy to ${input.rules.name}. Allowed: ${input.rules.branches.join(', ')}.`,
+    }
+  }
+
+  /*
+   * The commit's own verdict, before anybody is asked to approve it.
+   *
+   * Ordered here deliberately: refusing a deploy of a failing commit is not a
+   * decision a reviewer should be offered, and holding one whose tests are
+   * still running is not a decision anybody can usefully make yet. Asking a
+   * person to approve a deploy and *then* telling them the tests failed is how
+   * an approval becomes a rubber stamp.
+   */
+  if (input.rules.requireChecks && input.checks && input.checks !== 'passing') {
+    if (input.checks === 'failing') {
+      return {
+        verdict: 'refuse',
+        reason: `A required check on this commit failed, and ${input.rules.name} deploys only what passed.`,
+      }
+    }
+
+    return {
+      verdict: 'hold',
+      reason: `Waiting for this commit's required checks before deploying to ${input.rules.name}.`,
+      // No clock and nobody named: what ends this hold is a check reporting,
+      // which is neither a timer running out nor a person pressing a button.
+      until: null,
+      needsReviewer: false,
     }
   }
 
@@ -137,7 +185,7 @@ export async function environmentRules(repositoryId: number, name: string): Prom
 
   const row = await db
     .selectFrom('environments')
-    .select(['id', 'name', 'wait_minutes', 'branches'])
+    .select(['id', 'name', 'wait_minutes', 'branches', 'require_checks'])
     .where('repository_id', '=', repositoryId)
     .where('name', '=', clean)
     .executeTakeFirst()
@@ -164,6 +212,7 @@ export async function environmentRules(repositoryId: number, name: string): Prom
     id: Number(row.id),
     name: String(row.name),
     waitMinutes: Number(row.wait_minutes ?? 0) || 0,
+    requireChecks: isTrue(row.require_checks),
     reviewers: reviewers.map(one => Number(one.user_id)).filter(Boolean),
     branches: String(row.branches ?? '')
       .split(',')

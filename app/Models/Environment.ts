@@ -76,6 +76,27 @@ export default defineModel({
     },
 
     /** A sentence for the people who arrive at the approval and wonder what this is. */
+    /**
+     * Whether a deploy here waits for the commit's required checks.
+     *
+     * Off by default, because an environment is often a preview and a preview
+     * that waits for the whole suite is a preview nobody sees until the suite
+     * is green - which is exactly when they no longer need it.
+     *
+     * On, it is the rule people assume already exists: production does not
+     * receive a commit whose tests have not passed. A *failed* required check
+     * refuses the deploy rather than holding it, because waiting for a verdict
+     * that has already arrived is a job nobody can unstick; a check still
+     * running holds, which is what waiting is for.
+     */
+    require_checks: {
+      order: 6,
+      fillable: true,
+      default: false,
+      validation: { rule: schema.boolean() },
+      factory: () => false,
+    },
+
     description: {
       order: 5,
       fillable: true,

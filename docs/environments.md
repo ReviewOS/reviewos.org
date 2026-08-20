@@ -12,7 +12,8 @@ repository, not in the file:
 curl -sX POST https://reviewos.example/api/repos/environments \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"owner":"acme","repo":"widgets","operation":"create",
-       "name":"production","wait_minutes":10,"branches":"main,release/*"}'
+       "name":"production","wait_minutes":10,"branches":"main,release/*",
+       "require_checks":true}'
 
 curl -sX POST https://reviewos.example/api/repos/environments \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
@@ -25,7 +26,7 @@ they can remove on the afternoon they are in a hurry, so writing one takes
 `repository:settings` while naming an environment in a workflow takes only
 push access.
 
-## The three rules
+## The four rules
 
 **Required reviewers.** Named people, and **the person who started the run
 cannot be the one who approves it** - even when they are on the list. A required
@@ -44,6 +45,21 @@ run's start either, since a long build would eat it.
 outside the list is **refused**, not held. Waiting for an approval that must not
 be given is worse than a clear no, and a reviewer repeatedly asked to approve
 deploys from the wrong branch will eventually approve one.
+
+**Required checks.** `require_checks: true` - the rule people assume already
+exists: production does not receive a commit whose tests have not passed. A
+check still running **holds** the deploy; one that has already failed **refuses**
+it, because waiting for a verdict that has arrived is a job nobody can unstick.
+
+Which checks count is the branch's own list, from its protection rule rather
+than from the environment - a deploy held by a stricter reading than the merge
+would be a rule nobody could discover. A branch that requires none passes, and
+the setting is off by default because an environment is often a preview, and a
+preview that waits for the whole suite is one nobody sees until the suite is
+green.
+
+It is asked **before** the reviewers are. Asking somebody to approve a deploy and
+then telling them the tests failed is how an approval becomes a rubber stamp.
 
 ## What a held job looks like
 
@@ -85,7 +101,5 @@ job either while it waits for a reviewer.
 
 ## What is not built yet
 
-- **Deployment records** - what went where, when, and the URL it landed on.
-  `environment:` accepts Actions' `{ name, url }` form and keeps the name; the
-  url is read and discarded.
-- **Preview environments** with expiry and a link on the pull request.
+- **Gradual stages** - health checks, promotion between stages, and rollback
+  expressed as durable steps rather than one opaque provider operation.
