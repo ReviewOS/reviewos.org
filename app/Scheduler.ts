@@ -134,6 +134,18 @@ export default function () {
     .everyMinute()
 
   /*
+   * Work nothing could ever take, every ten minutes.
+   *
+   * A job asking for a label no runner carries is not waiting, it is stuck -
+   * and a run holding a pull request's checks open on it is the expensive half.
+   * Ten minutes rather than one because the sweep only considers jobs that have
+   * already waited an hour: asking six times an hour gets the same answer.
+   */
+  schedule
+    .job('FailImpossibleJobs')
+    .everyTenMinutes()
+
+  /*
    * Workflow waits whose sleep or timeout is due, every minute.
    *
    * The same reason the orchestrator sweep exists, one layer down: a job

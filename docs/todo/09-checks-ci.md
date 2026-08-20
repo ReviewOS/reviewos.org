@@ -1351,8 +1351,26 @@ should not make its public workflow API describe one vendor's sandbox.
       `runs-on` matching needs **every** label rather than any: `[self-hosted, macos]` means both,
       and matching on any is how a macOS build lands on a Linux box and fails confusingly instead of
       waiting for the machine that could have run it.
-- [ ] Provider capabilities are discoverable, so the scheduler can reject an impossible job instead
+- [x] Provider capabilities are discoverable, so the scheduler can reject an impossible job instead
       of leaving it queued forever
+
+      Discoverable was the easy half and was already done: a runner registers its labels, its scope
+      and its tags, and `explainWaiting` turns those into the sentence on the run screen. The half
+      that was missing is that **nothing acted on it**. A job asking for `macos-14` on a fleet that
+      has never had one sat queued indefinitely, holding a pull request's checks open on work that
+      was not going to happen.
+
+      The sweep fails those, with the same sentence the screen shows and the fix beside it. It rests
+      on one distinction: **a capability nobody has is not a fleet that is busy.** Machines being
+      occupied, switched off, or in a drained queue is a wait, and failing it would be the instance
+      giving up on work it can do. A label no runner carries, a scope none reaches, or a tag query
+      nothing reported is permanent.
+
+      An hour of grace, because "nothing answers to this label" is also what a correct instance
+      looks like in the minute between a workflow landing and an operator registering the runner for
+      it - and a pool refusing a repository is deliberately excluded even though it is just as
+      permanent, since that is an operator's decision about their own fleet and one they may reverse
+      before lunch.
 - [ ] A provider cannot read another provider's job payloads, logs, caches, artifacts, or secrets
 - [ ] External CI adapters can translate an existing provider's run into ReviewOS check runs without
       pretending ReviewOS executed it
