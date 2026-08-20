@@ -72,14 +72,19 @@ host, login, last used, last error - and never `sealed`. A credential that canno
 treated as absent rather than as an error, so a rotated instance key degrades to "reconnect your
 account" instead of a stack trace with a ciphertext in it.
 
-## Noted, not fixed
+## Noted, then fixed
 
-**Secret resolution loads every row before filtering.** `app/Actions/Workflow/secrets.ts` reads all
-of `workflow_secrets` and then decides which apply to the job in TypeScript. Nothing is decrypted
-before the filter and no secret crosses a scope today, so this is not a disclosure - but the blast
-radius of a mistake in that predicate is every secret on the instance rather than one scope's, and
-the query should carry the scope. Worth doing before an instance is large enough for the read to
-matter anyway.
+**Secret resolution loaded every row before filtering.** `app/Actions/Workflow/secrets.ts` read all
+of `workflow_secrets` and decided which applied to the job in TypeScript. Nothing was decrypted
+before the filter and no secret crossed a scope, so it was not a disclosure - but the blast radius of
+a mistake in that predicate was every secret on the instance rather than one scope's, and a boundary
+that depends on a later `continue` is one refactor away from not existing.
+
+Now one indexed read per scope - instance, repository, owner, the repository's environments, and the
+pool when a job has landed on one - rather than one clause with an expression builder, because this
+query builder has no `eb`. Five small reads against `(scope_type, scope_id)` are cheaper than the
+scan they replace, and a scope with no ids is not queried at all rather than becoming an `IN ()`
+that is a syntax error on one engine and matches nothing on the other.
 
 **The index is a filter, and a stale one is a slow search.** Deliberate, and recorded here so it is
 not mistaken for an oversight: a shard can be out of date without being wrong, because the paths

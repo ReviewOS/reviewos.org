@@ -403,11 +403,47 @@ async function rowsFor(repositoryId: number, poolId: number | null = null): Prom
 
   const environmentIds = new Set(environments.map(one => Number(one.id)))
 
-  const rows = await db
-    .selectFrom('workflow_secrets')
-    .select(['scope_type', 'scope_id', 'key', 'sealed', 'updated_at'])
-    .execute()
-    .catch(() => [])
+  /*
+   * Scoped in the query, not after it.
+   *
+   * This read used to fetch every secret on the instance and decide in
+   * TypeScript which ones applied. Nothing was decrypted before the filter and
+   * no secret ever crossed a scope, so it was not a disclosure - but the blast
+   * radius of a mistake in that predicate was every secret the instance holds
+   * rather than one scope's, and a boundary that depends on a later `continue`
+   * is a boundary one refactor away from not existing.
+   *
+   * One indexed read per scope rather than one clause with an expression
+   * builder: this builder has no `eb`, and five small queries against
+   * `(scope_type, scope_id)` are cheaper than the table scan they replace
+   * anyway. A scope with no ids - a repository with no environments - is not
+   * queried at all, which avoids an `IN ()` that is a syntax error on one
+   * engine and matches nothing on another.
+   */
+  const wanted: Array<{ type: SecretScope, ids: number[] }> = [
+    { type: 'repository' as SecretScope, ids: [repositoryId] },
+    { type: 'owner' as SecretScope, ids: [Number(repository.owner_id)] },
+    { type: 'environment' as SecretScope, ids: [...environmentIds] },
+    ...(poolId !== null ? [{ type: 'pool' as SecretScope, ids: [Number(poolId)] }] : []),
+  ].filter(one => one.ids.length > 0 && one.ids.every(id => Number.isInteger(id) && id > 0))
+
+  const reads = [
+    db
+      .selectFrom('workflow_secrets')
+      .select(['scope_type', 'scope_id', 'key', 'sealed', 'updated_at'])
+      .where('scope_type', '=', 'instance')
+      .execute()
+      .catch(() => []),
+    ...wanted.map(one => db
+      .selectFrom('workflow_secrets')
+      .select(['scope_type', 'scope_id', 'key', 'sealed', 'updated_at'])
+      .where('scope_type', '=', one.type)
+      .where('scope_id', 'in', one.ids)
+      .execute()
+      .catch(() => [])),
+  ]
+
+  const rows = (await Promise.all(reads)).flat()
 
   const found: Array<SecretRow & { updatedAt: string | null }> = []
 
