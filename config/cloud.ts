@@ -1072,9 +1072,27 @@ export const tsCloud: TsCloudConfig = {
        */
       preStart: [
         'bun install',
-        'mkdir -p "$(cd ../.. && pwd)/shared/storage/repos"',
-        'rm -rf storage/repos',
-        'ln -sfn "$(cd ../.. && pwd)/shared/storage/repos" storage/repos',
+        /*
+         * The repositories the *other* site keeps, not a second empty copy.
+         *
+         * `shared/` belongs to a site, and these two are separate sites, so
+         * `../../shared/storage/repos` resolved to `api/shared/...` here and
+         * `reviewos/shared/...` over there. This process therefore linked an
+         * empty directory of its own and every endpoint that reads a bare
+         * repository off disk - the git wire protocol, raw files, archives,
+         * LFS - answered as though every repository on the instance were
+         * empty. `/api/repos/raw` said "No such file at that ref" for a README
+         * the page server was rendering at the same moment.
+         *
+         * So the link looks for a sibling site whose shared storage actually
+         * holds something, rather than naming one: the page site is called
+         * `reviewos` today and that is a fact about this configuration, not
+         * about the layout. Finding nothing it keeps its own directory, which
+         * is what it had - the probe cannot make anything worse, and the
+         * `test -d` below still refuses to start a release whose storage does
+         * not resolve at all.
+         */
+        'repos=""; for candidate in ../../../*/shared/storage/repos; do [ -d "$candidate" ] || continue; [ -n "$(ls -A "$candidate" 2>/dev/null)" ] || continue; repos="$(cd "$candidate" && pwd)"; break; done; [ -n "$repos" ] || { repos="$(cd ../.. && pwd)/shared/storage/repos"; mkdir -p "$repos"; }; echo "repositories: $repos"; rm -rf storage/repos; ln -sfn "$repos" storage/repos',
         'test -d storage/repos/ || { echo "storage/repos does not resolve" >&2; exit 1; }',
       ],
 
