@@ -1510,8 +1510,26 @@ gate, in order.
 
       Rotating `APP_KEY` makes every secret undecryptable and they have to be set again. There is
       no re-encrypt command, which the documentation says rather than implying otherwise.
-- [ ] Dependency cache keyed by declared inputs, runtime, architecture, and lockfile digest. Cache
+- [x] Dependency cache keyed by declared inputs, runtime, architecture, and lockfile digest. Cache
       restore permissions prevent a fork or lower-trust branch from poisoning a protected branch.
+
+      Both halves were built and the box was never ticked. `cacheKey.ts` derives the key from the
+      lockfile digests, the runtime, the architecture and the image, with `extra` for what an author
+      knows that none of those can - so a lockfile change invalidates it without anyone maintaining a
+      key expression, which is the bug every keyed-cache system has reported forever.
+
+      `cacheScope.ts` is the permission half: a run writes only its own scope and reads its own then
+      the default branch's. A fork restores the default branch's cache, because reading is safe and
+      it is how a pull request gets a fast install; what it cannot do is put bytes anywhere a
+      protected branch later executes.
+
+      **The adversarial test it was missing now exists.** `tests/unit/cache-poisoning.test.ts` writes
+      an entry into the scope a fork run actually gets and then asks for it as the default branch, as
+      another branch, as a second pull request from the same fork, and through the `restore-keys`
+      prefix fallback - which is the quieter way in, because a scope check applied to the exact
+      lookup and not to the fallback would be a hole shaped exactly like that. It also asserts the
+      row is there first, since every other assertion is "this returns nothing" and would pass
+      against a row that was never written.
 - [x] Artifacts are content-addressed, size-limited, checksummed, access-controlled, and expired by
       policy. Artifacts and dependency caches are distinct resources.
 
@@ -1618,6 +1636,35 @@ gate, in order.
       exists to check.
 - [ ] Adversarial tests: fork secret theft, cache poisoning, symlink escape, oversized logs and
       artifacts, process escape, internal-network access, job credential replay, and cancellation
+
+      **Six of the eight, and the two that are left are the execution plane.** The scorecard in
+      `docs/ci-security-review.md` is kept in step with this line.
+
+      Closed since it was written: **cache poisoning**, which was "partly - no adversarial test" and
+      now has `tests/unit/cache-poisoning.test.ts`; and **symlink escape**, which was "not met -
+      extraction is the runner's, unguarded and untested" and was exactly that.
+
+      The extraction guard is `app/Actions/Runner/archiveSafety.ts`. An archive is inspected before a
+      byte is written, and refused whole if any entry names a path outside the workspace or is a link
+      pointing out of it. Refused here rather than left to `tar`, because "tar" is two programs whose
+      defences differ by version and flag - and this codebase has been bitten by that shape once
+      already, when `ulimit -S -H` meant what it looked like in bash and set nothing at all in dash.
+
+      Reading the index without parsing columns is the trick worth keeping: `-tzf` gives the paths,
+      spelled identically by both tars, and `-tvzf` gives the type and a link's target in columns
+      they lay out differently. Both walk the archive in the same order, so they are zipped by index
+      and nothing has to know where a column starts.
+
+      `tests/unit/runner-archive-safety.test.ts` builds the attacks as real tarballs and unpacks them
+      at a real directory, because a test over the pure rules passes just as happily against a guard
+      that is never called. The `../` case is built with this repository's own tar writer, since the
+      system tar refuses to create one - which is the point, as the attacker is not using it either.
+      The first test is that an ordinary snapshot with symlinked `node_modules/.bin` binaries still
+      unpacks: a guard that refuses everything passes every other test here and breaks every cache.
+
+      Still open: **a job cannot reach the database, Redis, repository storage or loopback**, and **a
+      job cannot reach the cloud metadata endpoint**. Both need a network policy, which needs the
+      execution plane, which is gated above.
 
 ## Workflow developer experience
 

@@ -38,6 +38,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import process from 'node:process'
 import { join } from 'node:path'
 import { lockfileDigest, LOCKFILE_NAMES, snapshotKey } from '../Workflow/cacheKey'
+import { firstUnsafe } from './archiveSafety'
 
 /** Directories that never belong in a snapshot, whatever else is in the workspace. */
 export const NEVER_SNAPSHOT = ['.git', '.reviewos-runner'] as const
@@ -152,6 +153,24 @@ export async function packSnapshot(workspace: string, into: string): Promise<Sna
  * own tools.
  */
 export async function unpackSnapshot(archive: string, workspace: string): Promise<{ ok: boolean, reason?: string }> {
+  /*
+   * Inspected before a byte is written.
+   *
+   * An archive is a thing a previous run produced, and unpacking one is where a
+   * run stops deciding what lands on its disk. `../` escapes the workspace and
+   * a symlink pointing outside escapes it more quietly - `link -> /etc` and
+   * then `link/passwd`, which is two ordinary-looking entries.
+   *
+   * Refused here rather than left to tar, because "tar" is two programs whose
+   * defences differ by version and flag. This codebase has been bitten by that
+   * shape once already: `ulimit -S -H` meant what it looked like in bash and
+   * set nothing at all in dash.
+   */
+  const unsafe = await inspectSnapshot(archive)
+
+  if (unsafe)
+    return { ok: false, reason: `the snapshot was refused: ${unsafe.reason}` }
+
   const unpacked = Bun.spawn(['tar', '-xzpf', archive, '-C', workspace], { stdout: 'pipe', stderr: 'pipe' })
 
   const failure = await new Response(unpacked.stderr).text()
@@ -161,6 +180,37 @@ export async function unpackSnapshot(archive: string, workspace: string): Promis
     return { ok: false, reason: `tar exited ${status}: ${failure.slice(0, 400)}` }
 
   return { ok: true }
+}
+
+/**
+ * Read the archive's index twice and ask whether it may be unpacked.
+ *
+ * Twice because the two listings answer different halves and neither answers
+ * both portably: `-tzf` gives the paths, one per line, spelled identically by
+ * every tar; `-tvzf` gives the type and a link's target, in columns the two
+ * tars lay out differently. Zipped by index in `archiveSafety.ts`, so nothing
+ * has to know where a column starts.
+ *
+ * Cheap: both read the index rather than the contents, so a gigabyte of
+ * `node_modules` is not decompressed to find out whether it is allowed to be.
+ *
+ * A tar that cannot list the archive at all refuses it. An archive this runner
+ * cannot read is one it certainly should not unpack.
+ */
+export async function inspectSnapshot(archive: string): Promise<{ path: string, reason: string } | null> {
+  const names = Bun.spawn(['tar', '-tzf', archive], { stdout: 'pipe', stderr: 'pipe' })
+  const namesText = await new Response(names.stdout).text()
+
+  if (await names.exited !== 0)
+    return { path: '', reason: 'its index could not be read' }
+
+  const verbose = Bun.spawn(['tar', '-tvzf', archive], { stdout: 'pipe', stderr: 'pipe' })
+  const verboseText = await new Response(verbose.stdout).text()
+
+  if (await verbose.exited !== 0)
+    return { path: '', reason: 'its index could not be read' }
+
+  return firstUnsafe(namesText, verboseText)
 }
 
 /**

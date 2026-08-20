@@ -88,7 +88,14 @@ configured; `RUNNER_TEMP` and `RUNNER_TOOL_CACHE` inside that workspace rather t
 so one job cannot read what the last left; a wall-clock timeout the runner enforces and the control
 plane backstops; a per-job log ceiling enforced on the way in.
 
-**Since this was written**, a step's command is preceded by a bare `ulimit` for address space, file
+**Since this was written**, archive extraction is guarded: a cache snapshot is inspected before it
+is unpacked and refused whole if any entry names a path outside the workspace or links out of it
+(`app/Actions/Runner/archiveSafety.ts`). That closes the `../`-and-symlink row in the scorecard
+below. It is not isolation and does not belong in the list of things that do not exist - it is one
+untrusted input being checked before it is used, on a host that is otherwise exactly as open as the
+rest of this section says.
+
+A step's command is also preceded by a bare `ulimit` for address space, file
 size, processes and CPU seconds (`app/Actions/Runner/limits.ts`) - no -S or -H, which is how every
 shell sets soft and hard at once, so a step cannot raise what it was given. It read `-S -H` until
 dash, which is `/bin/sh` on the box, was found to accept that and set nothing at all. Read that as *housekeeping, not a boundary*: it stops the loop that
@@ -229,14 +236,21 @@ The threat model lists eight adversarial tests as the sign-off. Their status tod
 | A fork cannot read a secret, or replace the base branch's workflow | **Met.** `ci-security.test.ts`, both halves. |
 | A job cannot reach the database, Redis, repository storage, or loopback | **Not met.** No network policy exists. |
 | A job cannot reach the cloud metadata endpoint | **Not met.** Same. |
-| A lower-trust branch cannot write a cache a protected branch restores | **Partly.** Scope is instance-side and tested; no adversarial test. |
-| An archive with `../` or a symlink does not write outside its destination | **Not met.** Extraction is the runner's, unguarded and untested. |
+| A lower-trust branch cannot write a cache a protected branch restores | **Met.** `cache-poisoning.test.ts` writes an entry into a fork's real scope and fails to restore it as the default branch, another branch, a second pull request from the same fork, and through the `restore-keys` prefix fallback. |
+| An archive with `../` or a symlink does not write outside its destination | **Met.** `archiveSafety.ts` inspects the index and refuses the archive whole before extracting; `runner-archive-safety.test.ts` builds both attacks as real tarballs, including a `../` entry crafted with this repository's own tar writer because the system tar will not create one. |
 | A ten-gigabyte log is truncated by policy, not by disk exhaustion | **Met.** Ceiling on the way in, now configurable. |
 | A replayed job token, and a step result from a cancelled run, are refused | **Met.** `runner-api.test.ts`, `runner-claim.test.ts`. |
 | A runner that dies mid-job leaves a recoverable run | **Met.** `runner-reclaim.test.ts`, and step results now land on the heartbeat rather than only at the conclusion. |
 
-Four met, one partial, three not. **All three that are not met are the execution plane**, which is
-the ordering the threat model set: the control plane's boxes were the ones this work could close.
+Six met, two not. **Both that are not met are the execution plane** - a network policy is the only
+thing that answers either, and there is no execution plane to put one in. That is the ordering the
+threat model set: the control plane's boxes were the ones this work could close.
+
+The two that moved were closed after this document first scored them. The cache gate had the rules
+and no adversarial test, which is a distinction worth keeping - a pure test of `canRestore` passes
+just as happily against a `findRestorable` that forgot to call it. The archive gate had neither: the
+runner ran `tar -xzpf` and trusted what a previous run had packed, and the guard now refuses the
+archive itself rather than relying on which tar is installed.
 
 ## What a reviewer should not take my word for
 
