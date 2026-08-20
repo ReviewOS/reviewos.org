@@ -206,18 +206,51 @@ and `POST /api/user/atproto` - and what is not built is named at the end.
       account and two users claiming it would make "signed in as this identity" ambiguous exactly
       when it matters. A DID already linked elsewhere is refused with the same sentence whoever
       asks, so the endpoint cannot be used to find out which identities exist here.
-- [ ] Signing *in* with a DID, which is the box that removes the registration form
+- [x] Signing *in* with a DID, which is the box that removes the registration form
 
-      **Deliberately not built on what exists.** Resolution proves the handle and the identifier
-      agree; it does not prove the person at the keyboard controls either. Linking is therefore an
-      authenticated action that binds an identity to an account already signed in - the same trust
-      model as adding an email address, stated in the action rather than implied.
+      **Built, as OAuth, which is what the protocol actually uses.** The earlier note here said a
+      session needs "a challenge signed by the account's key at its PDS" - right instinct, wrong
+      mechanism. That key signs repository commits, and no endpoint will sign an arbitrary nonce for
+      a third party. The proof that somebody controls an identity is an authorization at their own
+      server, and `app/Actions/Atproto/oauth.ts` is that flow.
 
-      Creating a *session* needs the signature step: a challenge this instance issues, signed by the
-      account's key at its PDS, verified here against the verification method in the document. An
-      unproven identity that can create a session is an account takeover with extra steps, so the
-      thing this phase is ultimately for waits for that rather than being approximated.
+      Four mechanisms, each closing one hole:
 
+      | | |
+      |---|---|
+      | discovery from the identity | a caller cannot name the server that vouches for them |
+      | PKCE, S256 | an intercepted code is useless without a verifier that never left this process |
+      | DPoP, ES256, nonce replayed | an intercepted token is useless without the key it is bound to |
+      | `sub` checked against the identity the flow began as | an authorization server cannot answer with somebody else |
+
+      The last one is the one an implementation can omit and still appear to work, so it has its own
+      test, as does the DPoP proof actually verifying against the key it publishes.
+
+      The pending row holds the verifier and the DPoP key **server-side**: a key in a cookie is a key
+      the browser has, and a token bound to it is bound to nothing. It is single-use, consumed before
+      the exchange, so a callback URL replayed out of a log or a referrer finds nothing.
+
+      **Signing in requires an identity somebody already linked.** Creating an account for an unknown
+      DID would be an open registration endpoint wearing a protocol as a disguise, on instances whose
+      operators deliberately closed registration - so an unknown identity is told to link it from an
+      account instead. The drive-by contributor still meets one registration, once, on the instance
+      they choose; what they no longer meet is a *password* per forge.
+- [x] Interoperability, against the live network rather than a fixture
+
+      `bsky.app` resolves to its DID, handle and PDS, and that PDS to `bsky.social`'s PAR,
+      authorization and token endpoints. Both bugs that mattered came from running it rather than
+      testing it:
+
+      - the first version resolved handles by `/.well-known/atproto-did` alone, which is in the
+        specification and resolved **none** of `bsky.app`, `jay.bsky.team` or `atproto.com`, because
+        handles publish `_atproto` as a DNS TXT record. TXT first now;
+      - `APP_URL` is a bare host in this deployment, and every URL here was built by passing it to
+        `new URL`, which throws on one. A missing scheme is filled in - http for localhost, https
+        for anything else, because a sign-in redirect over http is a session handed to the path.
+
+      What is still untested end to end is a human completing an authorization, which needs somebody
+      to sign in at a real PDS with a real account. The machinery either side of that redirect is
+      tested; the redirect itself waits for a person.
 ## Prerequisites
 
 - [x] Phases 1 through 5 done. Federating a model that is still changing shape means changing it on
