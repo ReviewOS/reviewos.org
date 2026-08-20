@@ -93,6 +93,8 @@ export async function superviseJob(input: {
   spec: MachineSpec
   steps: readonly JobStep[]
   host: SupervisorHost
+  /** A checkout on the host to hand the guest as its working directory. */
+  sourcePath?: string
   /** Live output, as the console produces it. */
   onOutput?: (text: string) => Promise<void>
   /** Injectable for tests; defaults to the real clock. */
@@ -109,7 +111,7 @@ export async function superviseJob(input: {
      * The steps and the nonce go on it; the agent unlinks the nonce before the
      * first step runs.
      */
-    const made = await makeOverlay(input.host, overlay, input.spec.diskMib, input.steps, nonce)
+    const made = await makeOverlay(input.host, overlay, input.spec.diskMib, input.steps, nonce, input.sourcePath)
 
     if (!made.ok)
       return { ok: false, steps: [], reason: made.output.slice(0, 400), noise: '' }
@@ -251,11 +253,29 @@ export async function makeOverlay(
   sizeMib: number,
   steps: readonly JobStep[],
   nonce: string,
+  /** A checkout on the host, copied in as the guest's working directory. */
+  sourcePath?: string,
 ): Promise<{ ok: boolean, output: string }> {
   const files: string[] = [
     `mkdir -p "$M/steps" "$M/workspace"`,
     `printf '%s' ${shellQuote(nonce)} > "$M/nonce"`,
   ]
+
+  /*
+   * The source, copied rather than mounted, and copied by the *host*.
+   *
+   * This is the property worth stating plainly: the guest is handed a working
+   * tree as bytes and never given the credential that produced it, nor a route
+   * to the instance it came from. The host clones - it has the token and the
+   * network - and what crosses is a directory.
+   *
+   * `.` inside the directory rather than the directory itself, so the tree lands
+   * *as* the workspace instead of one level down inside it. And `-a` because the
+   * executable bit on a checked-in script is the difference between a build that
+   * runs and one that says "permission denied" for no visible reason.
+   */
+  if (sourcePath)
+    files.push(`cp -a ${shellQuote(sourcePath)}/. "$M/workspace/"`)
 
   steps.forEach((step, index) => {
     files.push(`printf '%s' ${shellQuote(step.run)} > "$M/steps/${index}.sh"`)

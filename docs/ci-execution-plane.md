@@ -250,21 +250,40 @@ metadata endpoint blocked by a policy built from the runner's own environment.
 protocol around it, and none of that exists for a guest. Skipping them would report success for work
 nobody did.
 
-## What is still not verified, and the one thing blocking the boxes
+## The source
 
-- **No source reaches the guest.** The steps do; a checkout does not. This is the single reason the
-  roadmap's boxes stay open rather than being ticked here: a mode that cannot give a job its
-  repository cannot run anybody's CI, so ticking "ephemeral workspace, immutable base image,
-  read-only source checkout" for it would be describing a product nobody can use. The payload disk is
-  where the source goes, and it is the next thing to build.
-- **Secrets are not designed into this at all.** On the host path a job's secrets reach a step through
-  its environment. What that becomes when the step runs in another machine is open, and the payload
-  disk is the obvious answer and probably the wrong one - it is a disk the guest can read whenever it
-  likes, which is a poor home for a deploy key.
-- **No image build pipeline.** The image used in testing was assembled by hand. What it must contain -
-  an agent at `/sbin/reviewos-agent`, a `/work` mount point - is written here and enforced nowhere.
-- **Ceilings were accepted, not exercised.** Firecracker took `vcpu_count` and `mem_size_mib`; no test
-  confirms a guest which forks endlessly dies inside its own memory rather than the host's.
-- **aarch64 only.** The x86 path most operators would run is untested.
-- **Nothing about the hypervisor's own surface.** A microVM moves the escape from a kernel bug to a
-  hypervisor bug; it does not remove it.
+The host checks out; the guest is handed a working tree. That ordering is the security property, not
+a convenience: the host has the clone credential and a route to the instance, and the guest has
+neither and must keep having neither - the egress policy refuses the instance's own addresses, so a
+guest could not clone even if somebody handed it a token.
+
+So `microvmRun.ts` checks out into a staging directory and the tree crosses on the payload disk as
+bytes. The credential does not cross with it. `checkoutCode` keeps it in an askpass helper written to
+the staging directory's *parent* - existing care, for exactly this reason, and copying the staging
+directory copies the tree and nothing else. The staging copy is removed whatever happened, because a
+runner that kept them would fill its disk with other people's source, which is a disclosure between
+jobs as well as an outage.
+
+`checkoutCode` moved from `localExecutor.ts` to `checkout.ts`, beside `checkoutPlan`, with its command
+runner injected. Two reasons, and the second was the one that forced it: a depth, sparse paths,
+submodules and LFS have to mean the same thing in both modes or the two drift within a month - and
+importing the host executor pulled its entire world into a path whose whole point is that none of it
+applies.
+
+## What is still not verified
+
+- **The source path has not booted.** It is written, typechecked and unit-tested - the packing script,
+  the staging cleanup, the "no checkout asked for" case - but no machine has started with a
+  repository on its payload disk. The host this was verified on ran out of disk before that run, and
+  a claim that it works is not one to make from a passing unit test. Everything above it in this
+  document was verified against real Firecracker; this section was not.
+- **Secrets are not designed into this.** On the host path a job's secrets reach a step through its
+  environment. What that becomes in another machine is open, and the payload disk is the obvious
+  answer and probably the wrong one: it is a disk the guest reads whenever it likes, which is a poor
+  home for a deploy key.
+- **No image build pipeline.** What an image must contain - an agent at `/sbin/reviewos-agent`, a
+  `/work` mount point - is written here and enforced nowhere.
+- **Ceilings were accepted, not exercised.** No test confirms a guest which forks endlessly dies
+  inside its own memory rather than the host's.
+- **aarch64 only**, and **nothing about the hypervisor's own surface** - a microVM moves the escape
+  from a kernel bug to a hypervisor bug rather than removing it.

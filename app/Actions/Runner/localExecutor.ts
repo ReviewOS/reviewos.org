@@ -50,6 +50,7 @@ import { interpolate, shouldRun } from '../Workflow/expression'
 import { isNotFalse, isTrue } from '../Support/sql'
 import { LEASE_SECONDS } from './protocol'
 import { limitedArgv, limitedCommand, limitsFrom } from './limits'
+import { checkoutCode as runCheckout } from './checkout'
 import { executionMode } from '../../../config/ci-execution'
 
 export interface LocalRunnerOptions {
@@ -314,6 +315,17 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
     const outcome = await runJobInMachine({
       job,
+      /*
+       * Where the source comes from, which only the runner knows: the job says
+       * which commit, and this says which machine is asking and as whom. The
+       * checkout happens here on the host - the guest is handed a working tree
+       * and never the credential that produced it.
+       */
+      source: {
+        reposRoot: options.reposRoot ?? 'storage/repos',
+        baseUrl: options.baseUrl,
+        cloneToken: options.cloneToken,
+      },
       onOutput: async (text, stream) => {
         await append(options.baseUrl, jobToken, sequence, text, stream)
         sequence += 1
@@ -580,7 +592,7 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
 
           return { ok: outcome.ok, reason: outcome.ok ? 'checked out by a runner hook' : outcome.reason }
         })()
-      : await checkoutCode({
+      : await runCheckout({
           reposRoot: options.reposRoot ?? 'storage/repos',
           fullName: String(job.repository_full_name ?? ''),
           sha: String(job.run?.head_sha ?? ''),
@@ -594,6 +606,14 @@ export async function runOnce(options: LocalRunnerOptions): Promise<JobOutcome |
           // What the job asked for: a depth, sparse paths, submodules, LFS, or
           // no checkout at all.
           options: (job.checkout ?? undefined) as CheckoutOptions | undefined,
+          /*
+           * The host path runs the clone through `runStep`, so it inherits the
+           * same ceilings, timeout and output handling every other command on
+           * this runner gets. The microVM path injects a plainer runner, because
+           * none of that machinery applies to a staging directory it is about to
+           * copy and delete.
+           */
+          run: runStep,
           /*
            * A hook may have written here already - the `environment` stage runs
            * before the checkout precisely so a fleet can set things up - and
@@ -2546,108 +2566,6 @@ function runnerArch(): string {
  * to - and a step that runs `git gc` or writes into `.git` would then be
  * writing into the instance's own copy.
  */
-async function checkoutCode(input: {
-  reposRoot: string
-  fullName: string
-  sha: string
-  workspace: string
-  baseUrl?: string
-  cloneToken?: string
-  /** What the workflow asked for, when it asked. */
-  options?: CheckoutOptions
-  /** False when a hook has already written into the workspace. */
-  empty?: boolean
-  onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
-}): Promise<{ ok: boolean, reason: string }> {
-  if (!input.fullName || !input.sha)
-    return { ok: false, reason: 'this job does not say which commit to check out' }
-
-  /*
-   * Absolute, always. The clone runs with the workspace as its working
-   * directory, so a relative repository root resolves against the workspace
-   * rather than against the instance - and the failure reads as "no repository
-   * on this host", which sends somebody looking in the wrong place.
-   */
-  const bare = resolve(input.reposRoot, `${input.fullName}.git`)
-  const onHost = existsSync(bare)
-
-  /*
-   * Two sources, and which one is used is a fact about *where this runner is*
-   * rather than a setting.
-   *
-   * On the instance's own machine the bare repository is right there:
-   * `--no-hardlinks` so a step running `git gc` cannot write into the objects
-   * everybody pushes to, no network, and no credential. On any other machine
-   * there is nothing on disk, so it clones over the instance's ordinary git
-   * endpoint - the same URL a person would.
-   */
-  const source = onHost ? bare : `${String(input.baseUrl ?? '').replace(/\/$/, '')}/${input.fullName}.git`
-
-  if (!onHost && !input.baseUrl)
-    return { ok: false, reason: `no repository on this host at ${bare}, and nowhere to clone it from` }
-
-  const plan = checkoutPlan({ source, sha: input.sha, onHost, empty: input.empty, options: input.options })
-
-  if (plan.commands.length === 0) {
-    // A job that asked for no code at all - one that calls an API, or unblocks
-    // something. Said out loud, because an empty workspace with no explanation
-    // is the first thing somebody blames when a step cannot find a file.
-    await input.onOutput(`::group::Checkout\nskipped: the workflow asked for no checkout\n::endgroup::\n`, 'stdout')
-
-    return { ok: true, reason: 'no checkout was asked for' }
-  }
-
-  await input.onOutput(`::group::Checkout\n${input.fullName} at ${input.sha.slice(0, 8)} (${plan.summary})\n`, 'stdout')
-
-  const clone = await runStep({
-    // Joined with `&&`: each step of a checkout depends on the one before it,
-    // and a sparse-checkout that failed followed by a fetch that succeeded is a
-    // build against the wrong tree with a green checkout above it.
-    command: plan.commands.join(' && '),
-    cwd: input.workspace,
-    environment: {
-      PATH: process.env.PATH ?? '/usr/bin:/bin',
-      HOME: input.workspace,
-      GIT_TERMINAL_PROMPT: '0',
-      /*
-       * The credential, when there is one, through an askpass helper rather
-       * than in the URL: a token in a remote URL is written into
-       * `.git/config`, which is inside the workspace a step can read.
-       */
-      ...(input.cloneToken && !onHost
-        ? {
-            GIT_ASKPASS: askpassFor(input.workspace, input.cloneToken),
-            GIT_CONFIG_PARAMETERS: `'credential.helper='`,
-          }
-        : {}),
-    },
-    onOutput: input.onOutput,
-  })
-
-  await input.onOutput('::endgroup::\n', 'stdout')
-
-  return clone.ok
-    ? { ok: true, reason: 'checked out' }
-    : { ok: false, reason: `the checkout failed (git exited ${clone.exitCode})` }
-}
-
-/**
- * A one-line askpass script holding the clone credential.
- *
- * Outside the workspace, mode 0700, and removed with the workspace's parent
- * when the job ends. The alternative - `https://token@host/...` - writes the
- * credential into `.git/config` *inside the checkout*, where the repository's
- * own steps can read it.
- */
-function askpassFor(workspace: string, token: string): string {
-  const path = join(workspace, '..', `.reviewos-askpass-${process.pid}`)
-
-  writeFileSync(path, `#!/bin/sh\ncase "$1" in\n  Username*) echo "x-access-token" ;;\n  *) echo ${JSON.stringify(token)} ;;\nesac\n`)
-  chmodSync(path, 0o700)
-
-  return path
-}
-
 /**
  * Run a `uses:` step.
  *

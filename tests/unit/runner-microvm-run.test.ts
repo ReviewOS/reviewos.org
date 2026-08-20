@@ -207,3 +207,70 @@ describe('what the host concludes', () => {
     })
   })
 })
+
+describe('how the source reaches the guest', () => {
+  /** The script `makeOverlay` would run, without running it. */
+  async function overlayScript(sourcePath?: string) {
+    const { makeOverlay } = await import('../../app/Actions/Runner/microvmSupervisor')
+
+    let script = ''
+
+    await makeOverlay(
+      {
+        firecracker: '/x', scratch: '/s', hostAddress: '172.20.0.1', guestAddress: '172.20.0.2',
+        privileged: async (argv) => { script = String(argv[2] ?? ''); return { ok: true, output: '' } },
+      },
+      '/s/job-1.ext4',
+      64,
+      [{ run: 'echo hi' }],
+      'n'.repeat(32),
+      sourcePath,
+    )
+
+    return script
+  }
+
+  test('is copied in by the host, as bytes', async () => {
+    /*
+     * The security property, not a convenience. The host has the clone
+     * credential and a route to the instance; the guest has neither and must
+     * keep having neither - the egress policy refuses the instance's own
+     * addresses, so a guest could not clone even if it were handed a token.
+     */
+    expect(await overlayScript('/s/checkout-1')).toContain(`cp -a '/s/checkout-1'/. "$M/workspace/"`)
+  })
+
+  test('and lands as the workspace rather than one level inside it', async () => {
+    /*
+     * `/.` rather than the directory itself. Without it the tree arrives at
+     * `/work/workspace/checkout-1`, every step's relative path is wrong, and the
+     * failure reads as "my files are missing" rather than as a copy written one
+     * level off.
+     */
+    const script = await overlayScript('/s/checkout-1')
+
+    expect(script).toContain('/. "$M/workspace/"')
+    expect(script).not.toContain(`cp -a '/s/checkout-1' "$M/workspace/"`)
+  })
+
+  test('preserving modes, because the executable bit is the build', async () => {
+    // A checked-in script that arrives without its executable bit is a step that
+    // says "permission denied" for no visible reason.
+    expect(await overlayScript('/s/checkout-1')).toContain('cp -a')
+  })
+
+  test('and a job that asked for no checkout gets no workspace copy at all', async () => {
+    const script = await overlayScript(undefined)
+
+    expect(script).not.toContain('cp -a')
+    // The directory still exists, so the agent's `cd` succeeds either way.
+    expect(script).toContain('"$M/workspace"')
+  })
+
+  test('and the payload disk still carries the steps and the nonce', async () => {
+    const script = await overlayScript('/s/checkout-1')
+
+    expect(script).toContain('"$M/steps/0.sh"')
+    expect(script).toContain('"$M/nonce"')
+  })
+})

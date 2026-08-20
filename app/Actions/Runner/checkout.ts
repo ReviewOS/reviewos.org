@@ -12,6 +12,9 @@
  * where nobody can call it means the quoting is tested by running builds.
  */
 
+import { chmodSync, existsSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+
 /** What a workflow asked for. Every field optional; the defaults are today's behaviour. */
 export interface CheckoutOptions {
   /** Don't check anything out. For a job that only calls an API. */
@@ -174,4 +177,134 @@ function sparseCommands(paths: readonly string[]): string[] {
     'git sparse-checkout init --cone',
     `git sparse-checkout set ${paths.map(shellQuote).join(' ')}`,
   ]
+}
+
+/**
+ * Check a commit out into a directory.
+ *
+ * Exported because the microVM path needs the same answer to "what does a
+ * checkout mean here" - the depth, the sparse paths, the submodules, and the
+ * two sources - and a second implementation of that would drift from this one
+ * within a month.
+ *
+ * The credential never reaches the directory this writes into: it goes through
+ * an askpass helper written to the workspace's *parent*, which is what makes it
+ * safe to hand the workspace itself to somewhere less trusted.
+ */
+export async function checkoutCode(input: {
+  reposRoot: string
+  fullName: string
+  sha: string
+  workspace: string
+  baseUrl?: string
+  cloneToken?: string
+  /** What the workflow asked for, when it asked. */
+  options?: CheckoutOptions
+  /** False when a hook has already written into the workspace. */
+  empty?: boolean
+  onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
+  /**
+   * How to run the clone.
+   *
+   * Injected rather than imported, which is what lets the microVM path use this
+   * without pulling in the host executor and everything it assumes. The host
+   * passes its own `runStep`, so a clone there inherits the same ceilings and
+   * timeout as any other command; the microVM path passes something plainer,
+   * because none of that applies to a staging directory it is about to copy and
+   * delete.
+   */
+  run: (options: {
+    command: string
+    cwd: string
+    environment: Record<string, string>
+    onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
+  }) => Promise<{ ok: boolean, exitCode: number }>
+}): Promise<{ ok: boolean, reason: string }> {
+  if (!input.fullName || !input.sha)
+    return { ok: false, reason: 'this job does not say which commit to check out' }
+
+  /*
+   * Absolute, always. The clone runs with the workspace as its working
+   * directory, so a relative repository root resolves against the workspace
+   * rather than against the instance - and the failure reads as "no repository
+   * on this host", which sends somebody looking in the wrong place.
+   */
+  const bare = resolve(input.reposRoot, `${input.fullName}.git`)
+  const onHost = existsSync(bare)
+
+  /*
+   * Two sources, and which one is used is a fact about *where this runner is*
+   * rather than a setting.
+   *
+   * On the instance's own machine the bare repository is right there:
+   * `--no-hardlinks` so a step running `git gc` cannot write into the objects
+   * everybody pushes to, no network, and no credential. On any other machine
+   * there is nothing on disk, so it clones over the instance's ordinary git
+   * endpoint - the same URL a person would.
+   */
+  const source = onHost ? bare : `${String(input.baseUrl ?? '').replace(/\/$/, '')}/${input.fullName}.git`
+
+  if (!onHost && !input.baseUrl)
+    return { ok: false, reason: `no repository on this host at ${bare}, and nowhere to clone it from` }
+
+  const plan = checkoutPlan({ source, sha: input.sha, onHost, empty: input.empty, options: input.options })
+
+  if (plan.commands.length === 0) {
+    // A job that asked for no code at all - one that calls an API, or unblocks
+    // something. Said out loud, because an empty workspace with no explanation
+    // is the first thing somebody blames when a step cannot find a file.
+    await input.onOutput(`::group::Checkout\nskipped: the workflow asked for no checkout\n::endgroup::\n`, 'stdout')
+
+    return { ok: true, reason: 'no checkout was asked for' }
+  }
+
+  await input.onOutput(`::group::Checkout\n${input.fullName} at ${input.sha.slice(0, 8)} (${plan.summary})\n`, 'stdout')
+
+  const clone = await input.run({
+    // Joined with `&&`: each step of a checkout depends on the one before it,
+    // and a sparse-checkout that failed followed by a fetch that succeeded is a
+    // build against the wrong tree with a green checkout above it.
+    command: plan.commands.join(' && '),
+    cwd: input.workspace,
+    environment: {
+      PATH: process.env.PATH ?? '/usr/bin:/bin',
+      HOME: input.workspace,
+      GIT_TERMINAL_PROMPT: '0',
+      /*
+       * The credential, when there is one, through an askpass helper rather
+       * than in the URL: a token in a remote URL is written into
+       * `.git/config`, which is inside the workspace a step can read.
+       */
+      ...(input.cloneToken && !onHost
+        ? {
+            GIT_ASKPASS: askpassFor(input.workspace, input.cloneToken),
+            GIT_CONFIG_PARAMETERS: `'credential.helper='`,
+          }
+        : {}),
+    },
+    onOutput: input.onOutput,
+  })
+
+  await input.onOutput('::endgroup::\n', 'stdout')
+
+  return clone.ok
+    ? { ok: true, reason: 'checked out' }
+    : { ok: false, reason: `the checkout failed (git exited ${clone.exitCode})` }
+}
+
+/**
+ * A one-line askpass script holding the clone credential.
+ *
+ * Outside the workspace, mode 0700, and removed with the workspace's parent
+ * when the job ends. The alternative - `https://token@host/...` - writes the
+ * credential into `.git/config` *inside the checkout*, where the repository's
+ * own steps can read it.
+ */
+function askpassFor(workspace: string, token: string): string {
+  const path = join(workspace, '..', `.reviewos-askpass-${process.pid}`)
+
+  writeFileSync(path, `#!/bin/sh\ncase "$1" in\n  Username*) echo "x-access-token" ;;\n  *) echo ${JSON.stringify(token)} ;;\nesac\n`)
+  chmodSync(path, 0o700)
+
+  return path
 }

@@ -27,6 +27,8 @@
  * does not have.
  */
 
+import { mkdir, rm } from 'node:fs/promises'
+import { checkoutCode } from './checkout'
 import { machineSpec } from './microvm'
 import type { EgressPolicy, EgressRule } from './networkPolicy'
 import { buildEgressPolicy } from './networkPolicy'
@@ -47,6 +49,13 @@ import {
   microvmRefusal,
   scratchDirectory,
 } from '../../../config/ci-execution'
+
+/** What the runner knows that the job does not: where to clone from, and as whom. */
+export interface CheckoutSource {
+  reposRoot: string
+  baseUrl: string
+  cloneToken?: string
+}
 
 export interface MicrovmRunOutcome {
   state: 'succeeded' | 'failed'
@@ -143,6 +152,8 @@ export function wallSecondsFor(job: any): number {
  */
 export async function runJobInMachine(input: {
   job: any
+  /** Where the source comes from. Absent means the job runs without one. */
+  source?: CheckoutSource
   /** Called with console output as it arrives, for the live log. */
   onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
   /** Overridable, so a test can see what would be run without a hypervisor. */
@@ -189,12 +200,45 @@ export async function runJobInMachine(input: {
     privileged: runPrivileged,
   }
 
-  const outcome = await (input.supervise ?? superviseJob)({
-    spec,
-    steps: steps.steps,
-    host,
-    onOutput: async text => input.onOutput(text, 'stdout'),
-  })
+  /*
+   * The checkout happens **on the host**, and that is the security property
+   * rather than a convenience.
+   *
+   * The host has the clone credential and a route to the instance; the guest has
+   * neither and must keep having neither - the egress policy refuses the
+   * instance's own addresses, so a guest could not clone even if it were handed
+   * a token. So the host checks out into a staging directory and the working
+   * tree crosses as bytes on the payload disk.
+   *
+   * The credential does not cross with it: `checkoutCode` keeps it in an askpass
+   * helper written to the staging directory's *parent*, so copying the staging
+   * directory copies the tree and nothing else.
+   */
+  const staging = `${scratch}/checkout-${jobId}`
+  let sourcePath: string | undefined
+
+  if (input.source) {
+    const prepared = await prepareCheckout({
+      staging,
+      job: input.job,
+      source: input.source,
+      onOutput: input.onOutput,
+    })
+
+    if (!prepared.ok)
+      return { state: 'failed', reason: prepared.reason, exitStatus: null }
+
+    sourcePath = prepared.checkedOut ? staging : undefined
+  }
+
+  try {
+    const outcome = await (input.supervise ?? superviseJob)({
+      spec,
+      steps: steps.steps,
+      host,
+      sourcePath,
+      onOutput: async text => input.onOutput(text, 'stdout'),
+    })
 
   /*
    * The guest's report says what the steps came to; whether the *job* succeeded
@@ -202,18 +246,68 @@ export async function runJobInMachine(input: {
    * the agent saying it finished failed, whatever its last step reported - that
    * is the shape a job takes when the clock kills it.
    */
-  const failing = outcome.steps.find(step => step.exitCode !== 0)
+    const failing = outcome.steps.find(step => step.exitCode !== 0)
 
-  if (outcome.ok)
-    return { state: 'succeeded', reason: '', exitStatus: 0 }
+    if (outcome.ok)
+      return { state: 'succeeded', reason: '', exitStatus: 0 }
 
-  return {
-    state: 'failed',
-    reason: failing
-      ? `Step ${failing.index + 1} exited ${failing.exitCode}.`
-      : (outcome.reason || 'The machine did not report a result.'),
-    exitStatus: failing ? failing.exitCode : null,
+    return {
+      state: 'failed',
+      reason: failing
+        ? `Step ${failing.index + 1} exited ${failing.exitCode}.`
+        : (outcome.reason || 'The machine did not report a result.'),
+      exitStatus: failing ? failing.exitCode : null,
+    }
   }
+  finally {
+    /*
+     * The staging checkout goes whatever happened. It is a full copy of somebody's
+     * repository on a machine that runs one job after another, and a runner that
+     * kept them would fill its disk with other people's source - which is both a
+     * disclosure between jobs and an outage.
+     */
+    await rm(staging, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+/**
+ * Check the job's commit out into a staging directory.
+ *
+ * Reuses `checkoutCode`, so a depth, sparse paths, submodules and LFS mean the
+ * same thing here as on the host path. A second implementation of "what a
+ * checkout is" would drift from that one within a month, and the drift would be
+ * invisible until a workflow behaved differently in the two modes.
+ */
+async function prepareCheckout(input: {
+  staging: string
+  job: any
+  source: CheckoutSource
+  onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
+}): Promise<{ ok: true, checkedOut: boolean } | { ok: false, reason: string }> {
+  await mkdir(input.staging, { recursive: true }).catch(() => {})
+
+  const done = await checkoutCode({
+    reposRoot: input.source.reposRoot,
+    fullName: String(input.job?.repository_full_name ?? ''),
+    sha: String(input.job?.run?.head_sha ?? ''),
+    workspace: input.staging,
+    baseUrl: input.source.baseUrl,
+    cloneToken: input.source.cloneToken,
+    options: (input.job?.checkout ?? undefined),
+    onOutput: input.onOutput,
+    run: runGitCommand,
+  })
+
+  if (!done.ok)
+    return { ok: false, reason: done.reason }
+
+  /*
+   * A job that asked for no checkout gets no workspace rather than an empty one.
+   * The distinction reaches the guest: `cd /work/workspace` succeeds either way,
+   * and a step looking for a file it expected is better served by "there is no
+   * source here" than by an empty directory it has to diagnose.
+   */
+  return { ok: true, checkedOut: done.reason !== 'no checkout was asked for' }
 }
 
 /**
@@ -238,4 +332,37 @@ async function runPrivileged(argv: readonly string[], stdin?: string): Promise<{
   const err = await new Response(child.stderr).text()
 
   return { ok: (await child.exited) === 0, output: `${out}${err}` }
+}
+
+/**
+ * Run the clone.
+ *
+ * Plainer than the host path's `runStep`, deliberately. That one applies the
+ * step ceilings, the step timeout and the log grouping, all of which exist for
+ * *a workflow's* commands - and this is the runner cloning into a staging
+ * directory it is about to copy and delete. Borrowing the ceilings would mean a
+ * checkout that trips a limit written for somebody's test suite.
+ */
+async function runGitCommand(options: {
+  command: string
+  cwd: string
+  environment: Record<string, string>
+  onOutput: (text: string, stream: 'stdout' | 'stderr') => Promise<void>
+}): Promise<{ ok: boolean, exitCode: number }> {
+  const child = Bun.spawn(['/bin/sh', '-c', options.command], {
+    cwd: options.cwd,
+    env: options.environment,
+    stdout: 'pipe',
+    stderr: 'pipe',
+    stdin: 'ignore',
+  })
+
+  const decoder = new TextDecoder()
+
+  for await (const chunk of child.stdout as any)
+    await options.onOutput(decoder.decode(chunk, { stream: true }), 'stdout').catch(() => {})
+
+  const code = await child.exited
+
+  return { ok: code === 0, exitCode: code }
 }
