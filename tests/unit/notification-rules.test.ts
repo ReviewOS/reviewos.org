@@ -118,6 +118,76 @@ describe('one person, one notification', () => {
     expect(matched[0]!.jobKey).toBe('publish')
   })
 
+  /*
+   * The case that was wrong, and the shape it takes in real life: somebody has
+   * a targeted rule for the thing they own and a blanket one because they like
+   * to keep an eye on the repository. Both match. Only one of them answers the
+   * question the reason line exists to answer.
+   */
+  test('a rule naming a workflow beats a blanket one, whichever came first', () => {
+    const targeted = rule({ workflow: 'deploy.yml', branch: 'main', condition: 'failure' })
+    const blanket = rule({ workflow: '*', branch: '*', condition: 'always' })
+
+    for (const order of [[targeted, blanket], [blanket, targeted]]) {
+      const matched = matchRules(order, outcome({ state: 'failed' }))
+
+      expect(matched).toHaveLength(1)
+      expect(matched[0]!.rule.workflow).toBe('deploy.yml')
+    }
+  })
+
+  test('naming a branch beats not naming one', () => {
+    const matched = matchRules([
+      rule({ workflow: '*', branch: '*', condition: 'always' }),
+      rule({ workflow: '*', branch: 'main', condition: 'always' }),
+    ], outcome())
+
+    expect(matched[0]!.rule.branch).toBe('main')
+  })
+
+  /*
+   * `always` fires on every outcome, so a rule that names one is about
+   * something. Ranked below the workflow and the branch, which is the order
+   * people describe their own rules in.
+   */
+  test('naming a condition beats always, and loses to naming a workflow', () => {
+    expect(matchRules([
+      rule({ workflow: '*', branch: '*', condition: 'always' }),
+      rule({ workflow: '*', branch: '*', condition: 'failure' }),
+    ], outcome({ state: 'failed' }))[0]!.rule.condition).toBe('failure')
+
+    expect(matchRules([
+      rule({ workflow: '*', branch: '*', condition: 'failure' }),
+      rule({ workflow: 'deploy.yml', branch: '*', condition: 'always' }),
+    ], outcome({ state: 'failed' }))[0]!.rule.workflow).toBe('deploy.yml')
+  })
+
+  /**
+   * The rule the whole weighting exists to protect: naming a job outranks every
+   * combination of the other three, so the most specific run-wide rule still
+   * loses to a job.
+   */
+  test('naming a job still beats the narrowest run-wide rule there is', () => {
+    const matched = matchRules([
+      rule({ workflow: 'deploy.yml', branch: 'main', condition: 'failure' }),
+      rule({ jobKey: 'publish', workflow: '*', branch: '*', condition: 'always' }),
+    ], outcome({ state: 'failed' }))
+
+    expect(matched[0]!.jobKey).toBe('publish')
+  })
+
+  /**
+   * Two rules of the same shape say the same thing, so the first stands. This
+   * is what stops the sentence depending on which row came back first -
+   * `rulesFor` orders by id for the same reason.
+   */
+  test('equally narrow rules leave the first one standing', () => {
+    const first = rule({ id: 1, workflow: 'deploy.yml', branch: 'main', condition: 'failure' })
+    const second = rule({ id: 2, workflow: 'deploy.yml', branch: 'main', condition: 'failure' })
+
+    expect(matchRules([first, second], outcome({ state: 'failed' }))[0]!.rule.id).toBe(1)
+  })
+
   test('but two people both hear', () => {
     const matched = matchRules([rule({ userId: 1 }), rule({ userId: 2 })], outcome())
 

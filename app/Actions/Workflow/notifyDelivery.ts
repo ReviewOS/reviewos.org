@@ -21,6 +21,11 @@ export async function rulesFor(repositoryId: number): Promise<NotificationRule[]
     .selectFrom('workflow_notification_rules')
     .select(['id', 'user_id', 'workflow', 'branch', 'job_key', 'condition'])
     .where('repository_id', '=', repositoryId)
+    // Ordered, because `matchRules` breaks a tie between two equally narrow
+    // rules by keeping the first. Without this the tie is broken by whatever
+    // order the database felt like returning, so the sentence in somebody's
+    // notification could differ between two deliveries of the same run.
+    .orderBy('id')
     .execute()
     .catch(() => [])
 

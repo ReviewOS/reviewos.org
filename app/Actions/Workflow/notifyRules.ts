@@ -106,6 +106,14 @@ export interface NotificationMatch {
  * muting the whole repository. The narrowest match wins - a rule naming a job
  * beats one naming the run - because the person who wrote the narrower rule
  * said what they cared about.
+ *
+ * Narrowness is measured across every dimension, not just the job. It used to
+ * be only the job: among two run-wide rules the later one in the list simply
+ * overwrote the earlier, so somebody holding both "tell me when deploy.yml
+ * fails on main" and a blanket "tell me about everything" was told the reason
+ * was the blanket rule. Both are true and only one is useful - "you asked to
+ * hear about every run of any workflow on any branch" is not an answer to why
+ * this alert arrived now, and the reason line exists to answer exactly that.
  */
 export function matchRules(rules: readonly NotificationRule[], outcome: RunOutcome): NotificationMatch[] {
   const best = new Map<number, NotificationMatch>()
@@ -120,25 +128,57 @@ export function matchRules(rules: readonly NotificationRule[], outcome: RunOutco
     if (!workflowMatches || !globMatches(rule.branch, outcome.branch))
       continue
 
+    let match: NotificationMatch
+
     if (rule.jobKey) {
       const job = outcome.jobs.find(one => one.key === rule.jobKey)
 
       if (!job || !conditionHolds(rule.condition, job.state, job.previousState))
         continue
 
-      best.set(rule.userId, { rule, jobKey: job.key, state: job.state })
-      continue
+      match = { rule, jobKey: job.key, state: job.state }
+    }
+    else {
+      if (!conditionHolds(rule.condition, outcome.state, outcome.previousState))
+        continue
+
+      match = { rule, jobKey: '', state: outcome.state }
     }
 
-    if (!conditionHolds(rule.condition, outcome.state, outcome.previousState))
-      continue
+    const held = best.get(rule.userId)
 
-    // A run-wide match does not displace a job-specific one already found.
-    if (!best.get(rule.userId)?.jobKey)
-      best.set(rule.userId, { rule, jobKey: '', state: outcome.state })
+    // Strictly greater, so equally narrow rules leave the first one standing
+    // rather than the last. Two rules that are the same shape say the same
+    // thing, and picking between them by list order would make the sentence
+    // depend on which row the database happened to return first.
+    if (!held || specificity(rule) > specificity(held.rule))
+      best.set(rule.userId, match)
   }
 
   return [...best.values()]
+}
+
+/**
+ * How narrow a rule is, as one number.
+ *
+ * The weights are ordered rather than arbitrary: naming a job is the narrowest
+ * thing a rule can do and outranks any combination of the other three, which is
+ * what keeps the documented "a rule naming a job beats one naming the run" true
+ * - the most a run-wide rule can score is 7.
+ *
+ * `*` is the only spelling of "everything" this measures. A rule saying
+ * `deploy*` is broader than one saying `deploy.yml` and scores the same, and
+ * that is deliberate: the distinction people actually hold in their heads is
+ * between naming a thing and naming no thing, and a scoring function that tried
+ * to rank two globs against each other would be inventing a preference nobody
+ * expressed.
+ */
+function specificity(rule: NotificationRule): number {
+  return (rule.jobKey ? 8 : 0)
+    + (rule.workflow === '*' ? 0 : 4)
+    + (rule.branch === '*' ? 0 : 2)
+    // `always` fires on every outcome; anything else is a rule about one.
+    + (rule.condition === 'always' ? 0 : 1)
 }
 
 /** The sentence a notification carries, which is the whole of what most people read. */
