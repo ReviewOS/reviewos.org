@@ -291,21 +291,38 @@ describe('pushing a workflow file', () => {
 
     const [workflow] = await workflowsHere()
 
-    const version: any = await db
-      .selectFrom('workflow_versions')
-      .select(['id', 'on_push', 'push_branches', 'source_sha'])
-      .where('workflow_id', '=', Number(workflow.id))
-      .executeTakeFirst()
+    /*
+     * Waited for, like everything else the listener writes.
+     *
+     * The workflow row, its version, and the version's jobs are three inserts
+     * from one fire-and-forget handler, and the test above only waits for the
+     * first of them. Reading the other two straight afterwards is a coin flip:
+     * usually they are there, and when they are not the failure says the file
+     * described no jobs - which sends somebody to the parser rather than to
+     * this line.
+     */
+    const version: any = await waitFor(
+      () => db
+        .selectFrom('workflow_versions')
+        .select(['id', 'on_push', 'push_branches', 'source_sha'])
+        .where('workflow_id', '=', Number(workflow.id))
+        .orderBy('id')
+        .executeTakeFirst(),
+      (row: any) => Boolean(row?.id),
+    )
 
     expect(isTrue(version.on_push)).toBe(true)
     expect(version.push_branches).toBe('main')
     expect(String(version.source_sha)).toHaveLength(40)
 
-    const jobs: any[] = await db
-      .selectFrom('workflow_version_jobs')
-      .select(['job_id'])
-      .where('workflow_version_id', '=', Number(version.id))
-      .execute()
+    const jobs: any[] = await waitFor(
+      () => db
+        .selectFrom('workflow_version_jobs')
+        .select(['job_id'])
+        .where('workflow_version_id', '=', Number(version.id))
+        .execute(),
+      (rows: any[]) => rows.length > 0,
+    )
 
     expect(jobs.map(job => job.job_id)).toEqual(['test'])
   })
@@ -1008,7 +1025,19 @@ jobs:
       .orderBy('workflow_jobs.id')
       .execute()
 
-    const jobs = await waitFor(jobsFor, (rows: any[]) => rows.length >= 3)
+    /*
+     * Waited on the jobs by name, not on how many there are.
+     *
+     * The three are inserted as the definition is expanded, so a wait that
+     * stops at `length >= 3` can be handed three rows that are not these three
+     * and then look up an id that is not there yet. `byId.get(...)` returns
+     * undefined and the failure reads as a job that was never created.
+     */
+    const wanted = ['always', 'only-tags', 'only-main']
+    const jobs = await waitFor(
+      jobsFor,
+      (rows: any[]) => wanted.every(id => rows.some((job: any) => job.job_id === id)),
+    )
 
     const byId = new Map(jobs.map((job: any) => [job.job_id, job]))
 
@@ -1081,7 +1110,14 @@ jobs:
       .orderBy('workflow_jobs.id')
       .execute()
 
-    const jobs = await waitFor(jobsFor, (rows: any[]) => rows.length >= 3)
+    // On the names rather than the count: a called workflow's jobs are copied
+    // in as the call is expanded, so three rows is not the same as these three.
+    const expected = ['announce', 'build/compile', 'build/package']
+    const jobs = await waitFor(
+      jobsFor,
+      (rows: any[]) => expected.every(id => rows.some((job: any) => job.job_id === id)),
+    )
+
     const ids = jobs.map((job: any) => job.job_id)
 
     // The caller's own job, and the called workflow's two under its name.
@@ -1134,7 +1170,12 @@ jobs:
       .select(['workflow_jobs.state as state', 'workflow_jobs.condition_reason as condition_reason'])
       .execute()
 
-    const jobs = await waitFor(jobsFor, (rows: any[]) => rows.length >= 1)
+    // On the skip rather than the row: the job is inserted and then decided,
+    // so a wait for one row can read it in between.
+    const jobs = await waitFor(
+      jobsFor,
+      (rows: any[]) => rows.length >= 1 && String(rows[0].state) === 'skipped',
+    )
 
     expect(jobs[0].state).toBe('skipped')
     // `ci.yml` is a real workflow that never offered itself as an interface,
