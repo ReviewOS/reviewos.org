@@ -451,9 +451,42 @@ Two things fell out of running these that are worth keeping:
   milliseconds of drift is six percent of it, and the first version called two identical URLs
   "slower" on exactly that.
 
-- [ ] Run it in CI on a machine quiet enough for the floor to be lower than a laptop's
-- [ ] A corpus larger than this repository can provide. `stacks` at 5,722 files is a tenth of the
-      Linux compare DiffsHub uses as its demo.
+- [x] Run it in CI on a machine quiet enough for the floor to be lower than a laptop's
+
+      **`.github/workflows/bench.yml`, weekly and on demand rather than per push** - the corpus is a
+      bare clone of eleven million objects, so running it on every commit would spend more CI on
+      cloning than the numbers are worth. The clone is cached, keyed by the corpus manifest, so a
+      change to the shas invalidates it rather than timing a diff that is not there.
+
+      The premise of the box turned out to be half wrong, and the workflow says so: a shared runner's
+      floor is **higher and noisier** than this laptop's, not lower. What makes its numbers usable is
+      not quiet - it is comparing warm against warm, which cancels most of what the neighbours are
+      doing. A cold number from a shared runner mostly measures a disk somebody else is also using.
+
+      The manifest is verified against git before anything is timed, because numbers measured against
+      a diff nobody described are worse than no numbers.
+- [x] A corpus larger than this repository can provide. `stacks` at 5,722 files is a tenth of the
+      size the bar is written against.
+
+      **Four ranges in `torvalds/linux`, pinned by sha, in `app/Actions/Bench/corpus.ts`** - a
+      manifest rather than committed bytes, so anybody with a clone rebuilds the identical diff and
+      nobody commits six gigabytes to get one. Tags are resolved to shas deliberately: `v6.17~75` is
+      a moving target the moment history is rewritten, and a benchmark whose input changed underneath
+      it reports a regression that never happened.
+
+      | entry | changed lines | cold | warm |
+      |---|---|---|---|
+      | small | 166 | 144ms | 57ms |
+      | medium | 6,284 | 1,349ms | 365ms |
+      | large | 41,277 | 2,384ms | 1,179ms |
+      | kernel | 18,383,530 | 22,012ms | 17,565ms |
+
+      **Every number is reported with its cache state, and that is the whole design.** Git's object
+      cache is worth two and a half times on the small range - larger than most changes to this
+      codebase will be - so a run that does not say which state it was taken in can prove anything.
+      One that did exactly that produced the "226 files in two minutes" baseline that sent three
+      diagnoses after a bottleneck which was never there. The harness now takes both numbers every
+      time so the mistake cannot be repeated by accident.
 
 ## Transport: move the patch before it is complete
 
