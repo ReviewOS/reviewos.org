@@ -20,6 +20,7 @@ import {
   overlaps,
   parseCidr,
   parseIPv4,
+  nftRuleset,
   permitsAddress,
   refusalForDestination,
 } from '../../app/Actions/Runner/networkPolicy'
@@ -192,5 +193,85 @@ describe('the address arithmetic underneath', () => {
     expect(overlaps('0.0.0.0/0', '169.254.169.254')).toBe(true)
     expect(overlaps('169.254.169.254', '0.0.0.0/0')).toBe(true)
     expect(overlaps('10.0.0.0/8', '192.168.0.0/16')).toBe(false)
+  })
+})
+
+describe('the ruleset the policy becomes', () => {
+  const policy = allowing('198.51.100.10')
+
+  function ruleset() {
+    return nftRuleset({
+      table: 'reviewos_job41',
+      guestAddress: '172.20.0.2',
+      tapDevice: 'rvos41',
+      policy,
+      instanceAddresses: ['172.20.0.1'],
+    })
+  }
+
+  test('filters the host\'s own address space as well as what it forwards', () => {
+    /*
+     * The gap phase B found by running it. A packet addressed to the runner
+     * *itself* is seen by nftables' `input` hook and never reaches `forward` - so
+     * a forward-only ruleset left every service on the supervising host
+     * reachable from the guest. With the chain present, a guest that could read
+     * `SUPERVISOR-X` from the host before could not after.
+     */
+    expect(ruleset()).toContain('hook input')
+    expect(ruleset()).toContain('hook forward')
+  })
+
+  test('and denies the guest by interface, because input cannot default to drop', () => {
+    /*
+     * That chain carries the runner's SSH and its link to the control plane.
+     * Defaulting it to drop would take the runner off the network, so the guest
+     * is refused by the tap it arrives on instead.
+     */
+    expect(ruleset()).toContain('type filter hook input priority 0; policy accept;')
+    expect(ruleset()).toContain('iifname "rvos41" drop')
+  })
+
+  test('while what it forwards fails closed', () => {
+    // A packet matching nothing is refused, so a mistake anywhere below is a
+    // guest closed in rather than opened up.
+    expect(ruleset()).toContain('type filter hook forward priority 0; policy drop;')
+  })
+
+  test('with every refusal ahead of every acceptance', () => {
+    /*
+     * Order is the whole correctness argument: an allowlist entry must not be
+     * able to reach a destination the policy refuses absolutely. Asserted by
+     * position rather than by reading, because this is the line that would rot
+     * silently.
+     */
+    const forward = ruleset().split('chain forward')[1] ?? ''
+
+    // Within the chain that can accept: every `drop` line before the first rule
+    // that accepts anything. `policy accept` on the input chain is not an
+    // acceptance of traffic, which is why this reads one chain rather than the
+    // whole document.
+    const lines = forward.split('\n').map(one => one.trim()).filter(Boolean)
+    const lastDrop = lines.findLastIndex(one => one.endsWith('drop'))
+    const firstAccept = lines.findIndex(one => one.endsWith('accept'))
+
+    expect(lastDrop).toBeGreaterThan(-1)
+    expect(firstAccept).toBeGreaterThan(lastDrop)
+    expect(lines.some(one => one.includes('169.254.0.0/16') && one.endsWith('drop'))).toBe(true)
+  })
+
+  test('and a hostname never becomes a rule, because a name is not an address', () => {
+    /*
+     * Names are resolved host-side and enforced on what they resolved to. A name
+     * compiled into a packet filter would be resolved once, at load, and a
+     * rebinding answer afterwards would be enforced against the wrong address.
+     */
+    const named = (buildEgressPolicy([{ host: 'registry.example', ports: [443] }]) as any).policy
+    const text = nftRuleset({ table: 't', guestAddress: '172.20.0.2', tapDevice: 'rvos41', policy: named })
+
+    expect(text).not.toContain('registry.example')
+  })
+
+  test('and it is applied atomically, so a half-written policy is not a state', () => {
+    expect(ruleset().startsWith('flush ruleset')).toBe(true)
   })
 })

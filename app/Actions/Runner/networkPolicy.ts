@@ -321,3 +321,119 @@ export function overlaps(left: string, right: string): boolean {
 
   return ((longer.network & mask) >>> 0) === shorter.network
 }
+
+/* ---------------------------------------------------------------------------
+ * The policy, as packet filter rules.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * The nftables ruleset that enforces a policy for one guest.
+ *
+ * The decision above is what may be reached; this is the only thing that makes
+ * it true of packets. It is a pure function for the same reason the machine spec
+ * is: a ruleset is a long document where a wrong line silently permits
+ * everything, and `nft` will accept an ordering that means the opposite of what
+ * was intended without complaining.
+ *
+ * ## Order is the whole correctness argument
+ *
+ * 1. **The base policy is `drop`.** A rule that fails to match ends in a drop
+ *    rather than an accept, so a mistake anywhere below closes the guest in
+ *    rather than opening it up.
+ * 2. **The absolute refusals come first**, before anything that can accept. An
+ *    allowlist entry cannot reach them, which is what makes "no allowlist may
+ *    name the metadata endpoint" true of packets rather than only of
+ *    configuration - including when the entry arrived as a resolved address.
+ * 3. **Established traffic next**, so replies to a permitted connection return
+ *    without a second rule opening the reverse direction.
+ * 4. **Then the allowlist**, which can only ever add to what survived step 2.
+ *
+ * ## Two chains, because two hooks
+ *
+ * A packet the host *routes onward* is seen by `forward`. A packet addressed to
+ * the host **itself** is seen by `input` and never reaches `forward` at all - so
+ * a forward-only ruleset leaves every service on the runner host reachable from
+ * the guest, which is the exact thing "loopback is every service running on the
+ * runner host itself" is about.
+ *
+ * That gap was found by running it. The `forward` chain was written first, the
+ * rules read correctly, and a guest could still open a socket to the supervisor
+ * that was meant to be containing it.
+ *
+ * `input` cannot take a `drop` policy - that chain governs the host's own
+ * traffic, and defaulting it to drop would take the runner's SSH and its link to
+ * the control plane with it. So the guest is denied by interface instead: every
+ * rule is anchored to the tap, and the last one refuses the rest.
+ *
+ * Written as one atomic `flush`-and-define so a partially applied ruleset is not
+ * a state the guest can be running in.
+ */
+export function nftRuleset(input: {
+  /** A table name unique to this machine, so two guests cannot edit each other's. */
+  table: string
+  /** The guest's address, which every forwarded rule is anchored to. */
+  guestAddress: string
+  /** The host-side tap, which is what the input chain is anchored to. */
+  tapDevice: string
+  policy: EgressPolicy
+  instanceAddresses?: readonly string[]
+}): string {
+  const guest = String(input.guestAddress ?? '').trim()
+  const table = String(input.table ?? '').replace(/[^a-z0-9_]/gi, '').slice(0, 40) || 'reviewos'
+
+  const forbidden = [
+    ...NEVER_REACHABLE.map(one => one.cidr),
+    ...(input.policy.privateAllowed ? [] : PRIVATE_RANGES.map(one => one.cidr)),
+    ...(input.instanceAddresses ?? []).map(one => String(one).trim()).filter(Boolean),
+  ]
+
+  const tap = String(input.tapDevice ?? '').replace(/[^a-z0-9_-]/gi, '').slice(0, 15)
+
+  const lines: string[] = [
+    `table inet ${table} {`,
+    /*
+     * The host's own address space first. `policy accept`, because this chain
+     * carries the runner's SSH and its link to the control plane - and the guest
+     * is refused by interface rather than by making the host unreachable.
+     */
+    '  chain input {',
+    '    type filter hook input priority 0; policy accept;',
+  ]
+
+  for (const cidr of forbidden)
+    lines.push(`    iifname "${tap}" ip daddr ${cidr} drop`)
+
+  // And the host itself, whatever address it answered on. A guest has no
+  // business talking to the process supervising it.
+  lines.push(`    iifname "${tap}" drop`)
+
+  lines.push(
+    '  }',
+    '  chain forward {',
+    // Base policy drop: a packet matching nothing is refused, so every mistake
+    // below fails closed.
+    '    type filter hook forward priority 0; policy drop;',
+  )
+
+  for (const cidr of forbidden)
+    lines.push(`    ip saddr ${guest} ip daddr ${cidr} drop`)
+
+  lines.push('    ct state established,related accept')
+
+  if (input.policy.mode === 'allowlist') {
+    for (const rule of input.policy.rules) {
+      // Only addresses and blocks become rules. A hostname is resolved by the
+      // host's resolver and enforced on the address it answered with, because a
+      // name enforced as a name is a rebinding hole.
+      if (parseCidr(rule.host) === null)
+        continue
+
+      for (const port of rule.ports ?? DEFAULT_PORTS)
+        lines.push(`    ip saddr ${guest} ip daddr ${rule.host} tcp dport ${port} accept`)
+    }
+  }
+
+  lines.push('  }', '}')
+
+  return `flush ruleset\n${lines.join('\n')}\n`
+}

@@ -51,6 +51,8 @@ export interface MachineSpec {
 
 export interface KernelSpec {
   path: string
+  /** The program the kernel hands control to, which is the guest agent. */
+  init: string
   /**
    * The boot arguments.
    *
@@ -86,7 +88,19 @@ export interface MachineRequest {
   memoryMib?: number
   diskMib?: number
   wallSeconds?: number
+  /** The guest's init. Defaults to the agent's path inside the image. */
+  init?: string
 }
+
+/**
+ * Where the guest agent lives inside the image.
+ *
+ * A path rather than a discovery step: the image is built by the operator and
+ * pinned by digest, so what is at this path is a thing they decided. A guest
+ * that had to be searched for its own agent would be a guest whose image could
+ * change what runs by moving a file.
+ */
+export const DEFAULT_INIT = '/sbin/reviewos-agent'
 
 /** The defaults, which are deliberately modest: a job that needs more says so. */
 export const DEFAULT_VCPUS = 2
@@ -111,7 +125,8 @@ export function machineSpec(request: MachineRequest): MachineSpec {
     wallSeconds: clamp(request.wallSeconds, DEFAULT_WALL_SECONDS, 60, 21600),
     kernel: {
       path: request.kernelPath,
-      bootArgs: bootArgs(),
+      init: request.init ?? DEFAULT_INIT,
+      bootArgs: bootArgs(request.init),
     },
     drives: [
       /*
@@ -145,9 +160,26 @@ export function machineSpec(request: MachineRequest): MachineSpec {
  * shutdown, so a job cannot reboot itself into a second run inside one machine.
  * `random.trust_cpu=on` is the difference between a boot that takes a second and
  * one that blocks on entropy for a minute.
+ *
+ * ## What is deliberately *not* here
+ *
+ * `root=`, `ro` and `pci=off`. Firecracker appends those itself from the drive
+ * list - it knows which drive is the root device and whether it is read-only, so
+ * saying it again produced a command line with `ro` and `pci=off` on it twice.
+ * Harmless, and a sign that whoever wrote it was guessing.
+ *
+ * This function *was* guessing, and phase B is what found it. It carried
+ * `noapic`, `i8042.noaux` and `i8042.nomux`, which are x86 options that mean
+ * nothing on the aarch64 machine it was tested on, and it omitted `init=`
+ * entirely - so a machine built from it booted a kernel that mounted the right
+ * root and then ran the image's default init instead of the agent, silently.
+ * That is precisely the failure the file's own header warns about: not a boot
+ * that fails, a machine that works and is wrong.
  */
-export function bootArgs(): string {
-  return 'ro console=ttyS0 noapic reboot=k panic=-1 pci=off random.trust_cpu=on i8042.noaux i8042.nomux'
+export function bootArgs(init: string = DEFAULT_INIT): string {
+  const path = String(init ?? '').trim() || DEFAULT_INIT
+
+  return `console=ttyS0 reboot=k panic=-1 random.trust_cpu=on init=${path}`
 }
 
 /** The host-side device name for a job, bounded to what Linux accepts. */

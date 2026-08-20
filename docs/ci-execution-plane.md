@@ -149,16 +149,50 @@ write the code, before a public runner executes one command. Phase B's absence i
 that; the review of the control plane is available now and the execution plane joins it when it
 exists.
 
-## What was not verified here
+## What has been verified, and on what
 
-Phase A was written on a macOS arm64 machine with no `/dev/kvm` and no Firecracker, Cloud Hypervisor
-or QEMU installed. So:
+Phase A was written on a macOS arm64 machine with no KVM, and then verified on one that has it: an
+Ubuntu 24.04 aarch64 guest with nested virtualization (Apple M3 Pro, `vz`, `/dev/kvm` present),
+running Firecracker v1.16.1 with a 6.1.128 guest kernel.
 
-- Every pure function here has tests and they pass.
-- **No microVM has been booted.** The machine spec has never been handed to a hypervisor, and the
-  egress policy has never filtered a packet.
-- The spec's *shape* is from Firecracker's documented configuration; the claim that a given
-  Firecracker version accepts it is untested and belongs to phase B.
+**Verified by running it:**
 
-That distinction is the whole point of writing it down. The rules are testable and tested; whether
-the thing they configure behaves as described is a claim nobody should accept from this document.
+- The spec `machineSpec` produces **boots a real microVM**. The read-only base image mounts read-only
+  inside the guest and the writable overlay is attached beside it - the two-drive design, working.
+- The ruleset `nftRuleset` produces **filters real packets**, with controls in both directions. With
+  the policy flushed, a guest reached a fake metadata endpoint at `169.254.169.254` and read its
+  payload; with the policy applied, it could not. With the policy flushed it reached a service on the
+  supervising host; with the policy applied it could not. An allowlisted registry stayed reachable
+  throughout, which is the control that says the policy is a policy rather than a blanket deny.
+
+**Two defects were found this way, and neither would have failed a unit test:**
+
+1. **`bootArgs` omitted `init=`.** A machine built from it booted the right kernel and mounted the
+   right read-only root, then ran the image's default init instead of the agent. Nothing errored.
+   Every marker the test looked for was simply absent. It also carried `noapic` and two `i8042`
+   options - x86 settings on an aarch64 machine - and repeated `root=`, `ro` and `pci=off`, which
+   Firecracker appends itself from the drive list.
+2. **The ruleset had no `input` chain.** A packet addressed to the runner *itself* is seen by
+   nftables' `input` hook and never reaches `forward`, so a forward-only ruleset left every service on
+   the supervising host reachable from the guest - which is exactly what "loopback is every service
+   running on the runner host" means. That chain cannot take a `drop` policy, since it also carries
+   the runner's SSH and its link to the control plane, so the guest is denied by the interface it
+   arrives on instead.
+
+Both are the failure this document predicted in its first paragraph: not a boot that fails, a machine
+that works and is wrong.
+
+## What is still not verified
+
+- **No job has run in one of these.** `localExecutor.ts` still executes steps as host processes.
+  What has been proven is that the mechanisms work; what does not exist is the supervisor that claims
+  a job, boots a machine for it, feeds it the source, and collects the result. Until that is written,
+  the roadmap's boxes describe a product behaviour that is not there, so they stay open.
+- **The vsock protocol and the guest agent do not exist.** The guest ran a probe script, not an agent.
+- **No image build pipeline.** The image used was assembled by hand for the test.
+- **Ceilings were accepted, not exercised.** Firecracker took `vcpu_count` and `mem_size_mib`; no test
+  has yet confirmed that a guest which forks endlessly dies inside its own memory rather than the
+  host's.
+- **aarch64 only.** The x86 path most operators would run is untested.
+- **Nothing about the hypervisor's own surface.** A microVM moves the escape from a kernel bug to a
+  hypervisor bug; it does not remove it.

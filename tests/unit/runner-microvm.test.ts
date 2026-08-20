@@ -107,6 +107,38 @@ describe('the guest kernel', () => {
     expect(bootArgs()).toContain('panic=-1')
     expect(bootArgs()).toContain('reboot=k')
   })
+
+  test('hands control to the agent, which is the whole point of booting', () => {
+    /*
+     * This is a regression from phase B rather than a guess. The command line
+     * omitted `init=` entirely, so a machine built from it booted the right
+     * kernel, mounted the right read-only root, and then ran the *image's*
+     * default init instead of the agent - silently, with every marker the test
+     * looked for simply absent.
+     */
+    expect(bootArgs()).toContain('init=/sbin/reviewos-agent')
+    expect(bootArgs('/init')).toContain('init=/init')
+    expect(spec({ init: '/init' }).kernel.bootArgs).toContain('init=/init')
+  })
+
+  test('and says nothing Firecracker will say itself', () => {
+    /*
+     * Firecracker appends `root=`, `ro` and `pci=off` from the drive list - it
+     * knows which drive is the root and whether it is read-only. Saying it again
+     * produced a command line carrying `ro` and `pci=off` twice, which is
+     * harmless and is the signature of somebody guessing.
+     */
+    expect(bootArgs()).not.toContain('root=')
+    expect(bootArgs()).not.toMatch(/\bro\b/)
+    expect(bootArgs()).not.toContain('pci=off')
+  })
+
+  test('and nothing that only means something on x86', () => {
+    // `noapic` and the `i8042` options were carried for a machine this has never
+    // run on. The host it was verified against is aarch64.
+    for (const x86 of ['noapic', 'i8042'])
+      expect(bootArgs()).not.toContain(x86)
+  })
 })
 
 describe('the network device', () => {
