@@ -149,3 +149,38 @@ describe('the scheduler on the box', () => {
     expect((tsCloud as any)?.sites?.reviewos?.scheduler).toBe(true)
   })
 })
+
+/**
+ * The instance's own address, in the environment of both processes.
+ *
+ * It was in neither. Both ran on whatever `.env` shipped - `reviewos.localhost`
+ * - so everything derived from it was wrong in a way only somebody outside the
+ * box could see: the clone box offered visitors a URL pointing at their own
+ * machine, notification emails linked to a host that does not resolve, and a
+ * passkey would have been registered against the wrong relying party. Nothing
+ * about it is visible from inside, which is why it is asserted here.
+ */
+describe('the address the box answers at', () => {
+  const sites = (tsCloud as any)?.sites ?? {}
+
+  test('is in the environment of every server process', () => {
+    for (const name of ['reviewos', 'api']) {
+      const url = String(sites[name]?.env?.APP_URL ?? '')
+
+      expect(url).toStartWith('https://')
+      expect(url).toContain(String(sites[name]?.domain ?? 'reviewos.org'))
+    }
+  })
+
+  test('and carries its scheme, because a consumer joins it to a path', () => {
+    // `SendNotificationJob` builds `${APP_URL}${path}` directly, so a bare host
+    // produces `reviewos.org/pulls/1`, which is not a link. Every consumer that
+    // accepts a bare host accepts a full URL; the reverse is not true.
+    for (const name of ['reviewos', 'api'])
+      expect(() => new URL(String(sites[name]?.env?.APP_URL ?? ''))).not.toThrow()
+  })
+
+  test('and the two processes cannot disagree about it', () => {
+    expect(sites.reviewos?.env?.APP_URL).toBe(sites.api?.env?.APP_URL)
+  })
+})

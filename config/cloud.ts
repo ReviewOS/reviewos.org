@@ -984,6 +984,27 @@ export const tsCloud: TsCloudConfig = {
          * Stacks refuses to deploy this shape now (`apiDeploymentProblem`),
          * so a project cannot ship half of the pair again.
          */
+        /*
+         * The address this instance answers at, which nothing was telling it.
+         *
+         * `APP_URL` was not in either site's environment, so both processes
+         * ran on whatever `.env` shipped - `reviewos.localhost`, or nothing -
+         * and every value derived from it was wrong in a way only somebody
+         * outside could see: the clone box handed visitors a URL pointing at
+         * their own machine, notification emails linked to a host that does
+         * not exist, and a passkey would have been registered against the
+         * wrong relying party.
+         *
+         * With the scheme on it, deliberately. `SendNotificationJob` joins it
+         * to a path directly, so a bare host produces `reviewos.org/pulls/1`,
+         * which is not a link. The consumers that accept a bare host all
+         * accept a full URL; the reverse is not true.
+         *
+         * `domain` above is the same fact for the gateway, and they are read
+         * from the same place so the two cannot drift.
+         */
+        APP_URL: `https://${env.APP_DOMAIN || 'reviewos.org'}`,
+
         PORT_API: String(API_PORT),
 
         /*
@@ -1102,6 +1123,8 @@ export const tsCloud: TsCloudConfig = {
       // folds the resolved production values in underneath these, so the two
       // services cannot end up pointed at different databases.
       env: {
+        // The same address the page site announces. See the note there.
+        APP_URL: `https://${env.APP_DOMAIN || 'reviewos.org'}`,
         DB_CONNECTION: 'postgres',
         DB_HOST: '127.0.0.1',
         DB_PORT: '5432',
