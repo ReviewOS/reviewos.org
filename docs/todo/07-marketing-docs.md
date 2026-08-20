@@ -62,10 +62,26 @@ feature, a page per use case, and comparisons that say plainly what the alternat
       about nothing; if a hosted offering is ever built, this box comes back with it.
 - [ ] Per-feature screenshots, once the review interface renders real data
 
+      **The precondition is met**: the review interface now renders a real diff of real code -
+      `reviewos/linux` #1 is Linux `v6.0...v7.0`, and the files page shows the tree, the hunks, the
+      syntax colour and the mechanical-hunk labels against 80,610 changed files. Verified in a
+      browser, not asserted.
+
+      What is missing is a *capture pipeline*. There is no headless browser in this project's
+      dependencies, so a screenshot taken by hand today is one nobody can reproduce when the
+      interface changes - which is how a marketing page ends up showing a version of the product
+      that no longer exists. The remaining work is a `buddy screenshot` that drives the pages this
+      page embeds, not the act of taking six pictures.
+
 ## Landing page
 
 - [ ] Screenshots of the actual review interface, once phase 4 exists. Placeholders now, replaced
       then; shipping invented screenshots of software that does not exist yet is not acceptable.
+
+      Same position as the box above, and the rule at the end of it is why this is still open rather
+      than closed with something hand-captured: the software exists and renders real data now, but a
+      screenshot nothing can regenerate is a screenshot that goes stale silently. The pipeline comes
+      first.
 - [x] Contrast measured rather than eyeballed: every text pair passes WCAG AA in both themes
 - [x] Remove the leftover template assets in `resources/assets/` (3.1 MB: eight national-park
       illustrations, eight fonts, a demo stylesheet and a demo script). Nothing referenced any of

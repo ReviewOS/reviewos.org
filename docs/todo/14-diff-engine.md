@@ -50,11 +50,21 @@ Numbers, so the work can be checked rather than argued about:
       roadmap named are both real - Linux is at v7.2-rc7 as of this writing - so the exact range
       asked for is the range measured.
 
-      The manifest half is done and is the box above. What is not ticked is the *page*: the request
-      it makes returns 500 on the first attempt through the dev proxy and 200 on the retries, so a
-      scroll-to-the-end measurement would be measuring the retry rather than the engine. Chasing
-      that proxy behaviour is the next thing, and it is the only thing between this box and a
-      number.
+      **The page loads it.** With the API running, `/reviewos/linux/pull/1/files` renders the diff -
+      file tree, hunks, syntax colour, the mechanical-hunk labels - against 80,610 files of real
+      kernel history. Heap sits at 13MB while it does.
+
+      What stops this box being ticked is a number the corpus made visible for the first time: the
+      **client ingests the manifest far slower than the server produces it**. The server streams
+      32,984 files in ninety seconds; the page had 63 files after twelve seconds and 226 after two
+      minutes - roughly a hundred files a minute, which for 80,610 of them is not an afternoon.
+
+      That is the publishing cadence doing what it was built to do - a clock and a work budget, so
+      the main thread stays responsive - and it is now clear the budget is tuned for a large pull
+      request rather than for a kernel release. The engine is not truncating and it is not lying:
+      the count climbs and the label says how many have arrived. But "scrolls smoothly to the end"
+      cannot be claimed when reaching the end would take hours, so this stays open with the
+      bottleneck named: **client ingest, not the server, and not the network.**
 - [x] First diff line painted before the patch has finished downloading, on every diff, at every size
 
       **Measured on `v6.0...v7.0` of Linux**, which is 80,610 files, 12,753,613 insertions and
@@ -75,12 +85,12 @@ Numbers, so the work can be checked rather than argued about:
       range takes 6.2s of CPU by itself - not this codebase buffering, and no amount of streaming
       changes what git has to do first.
 
-      What this also found: **the same URL 500s intermittently through the dev proxy** and succeeds
-      on the retry. Direct to the API on :3008 it never fails; through the frontend proxy on the
-      first request it sometimes does, which is a delivery-path defect in front of a streaming
-      design that works. It is written down here rather than fixed in passing, because "the diff
-      could not be loaded (500)" on a page whose engine streamed 48,000 files correctly is the kind
-      of bug that gets blamed on the engine.
+      The 500 first seen here **was not a proxy defect**, and chasing it is why that is now known:
+      the frontend proxies `/api` to the API server, and the API server was not up yet. Its own log
+      said `ConnectionRefused` and the page dutifully reported a 500. With both running, twenty
+      consecutive requests through the proxy return 200, a cold `curl` through it returns 200 at
+      5.7s and 18MB, and the page loads. The earlier note here called it an intermittent proxy fault;
+      it was a missing process, and the honest correction is worth more than the guess.
 - [x] Scroll at 60fps through a 30k line diff with syntax highlighting on, measured with the
       harness below rather than by feel
 - [ ] Memory after scrolling a 500k line diff end to end settles back near where it started, because
