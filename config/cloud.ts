@@ -814,6 +814,21 @@ export const tsCloud: TsCloudConfig = {
         // than assumed: better to fail the deploy than to serve an instance
         // whose repositories are not there.
         'test -d storage/repos/ || { echo "storage/repos does not resolve" >&2; exit 1; }',
+        /*
+         * Deleted repositories, beside the live ones rather than inside the
+         * release.
+         *
+         * `DELETED_DIRECTORY` is `storage/repos-deleted`, a path relative to
+         * the working directory - which on this box is the release. So a
+         * delete moved the repository into a directory the *next deploy
+         * replaces*, and the promise `app/Actions/Repo/settings.ts` makes in
+         * as many words - "a mistake is a `mv` away from being undone" - was
+         * true until the next release and then quietly was not. Deleting is
+         * the one operation where that gap is the whole point of the design.
+         */
+        'mkdir -p "$(cd ../.. && pwd)/shared/storage/repos-deleted"',
+        'rm -rf storage/repos-deleted',
+        'ln -sfn "$(cd ../.. && pwd)/shared/storage/repos-deleted" storage/repos-deleted',
         // Migrate on every deploy. Without it a fresh box serves the app
         // against a database that does not exist, and every page that reads
         // one renders its empty state - which looks like a working site with
@@ -1131,6 +1146,10 @@ export const tsCloud: TsCloudConfig = {
          */
         'repos=""; for candidate in ../../../*/shared/storage/repos; do [ -d "$candidate" ] || continue; [ -n "$(ls -A "$candidate" 2>/dev/null)" ] || continue; repos="$(cd "$candidate" && pwd)"; break; done; [ -n "$repos" ] || { repos="$(cd ../.. && pwd)/shared/storage/repos"; mkdir -p "$repos"; }; echo "repositories: $repos"; rm -rf storage/repos; ln -sfn "$repos" storage/repos',
         'test -d storage/repos/ || { echo "storage/repos does not resolve" >&2; exit 1; }',
+        // Deleted repositories, in the same place the page site keeps them.
+        // See the note there; the same reasoning, and the same directory, so a
+        // delete through either process is recoverable from one place.
+        'deleted="$(dirname "$(readlink -f storage/repos)")/repos-deleted"; mkdir -p "$deleted"; rm -rf storage/repos-deleted; ln -sfn "$deleted" storage/repos-deleted',
       ],
 
       exclude: ['storage/repos'],

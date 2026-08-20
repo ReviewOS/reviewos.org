@@ -27,6 +27,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tsCloud } from '../../config/cloud'
+import { DELETED_DIRECTORY } from '../../app/Actions/Repo/settings'
 
 const JOBS = join(import.meta.dir, '../../app/Jobs')
 const ROOT = join(import.meta.dir, '../..')
@@ -160,6 +161,37 @@ describe('the scheduler on the box', () => {
  * passkey would have been registered against the wrong relying party. Nothing
  * about it is visible from inside, which is why it is asserted here.
  */
+/**
+ * Storage that outlives a release.
+ *
+ * A release directory is replaced on every deploy. Bare repositories are not
+ * disposable, and neither are the ones somebody deleted: `DELETED_DIRECTORY`
+ * is where a delete moves a repository so that "I deleted the wrong one" stays
+ * a `mv` rather than a restore from backup, and it was landing inside the
+ * release - true until the next deploy, and then quietly not.
+ */
+describe('the storage that outlives a release', () => {
+  const sites = (tsCloud as any)?.sites ?? {}
+
+  test('links both repository directories out of the release', () => {
+    for (const name of ['reviewos', 'api']) {
+      const steps: string[] = sites[name]?.preStart ?? []
+      const joined = steps.join('\n')
+
+      expect(joined).toContain('storage/repos')
+      expect(joined).toContain('storage/repos-deleted')
+    }
+  })
+
+  test('and the name it links is the one the code actually writes to', () => {
+    // A link named something else is a directory nothing uses, and the delete
+    // would go on writing into the release with nobody the wiser.
+    const steps: string[] = sites.reviewos?.preStart ?? []
+
+    expect(steps.join('\n')).toContain(DELETED_DIRECTORY)
+  })
+})
+
 describe('the address the box answers at', () => {
   const sites = (tsCloud as any)?.sites ?? {}
 
