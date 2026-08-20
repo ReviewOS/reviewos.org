@@ -398,6 +398,15 @@ const pageDescription = found
             <p class="profile-hint muted">
               Write this page: put a <code>README.md</code> in a repository called
               <a href="{{ profileRepositoryPath }}">{{ profileRepository }}</a> and it renders here.
+              @if (isOrganization)
+                {{-- Said because it is what an organization arriving from
+                    GitHub already has, and because a page that only names the
+                    name this forge prefers reads as "copy your profile across
+                    by hand". A mirror of `.github` keeps rendering the same
+                    page the upstream organization edits. --}}
+                A mirrored <code>.github</code> works too, read from
+                <code>profile/README.md</code>, which is where it already lives.
+              @endif
             </p>
           @endif
 
