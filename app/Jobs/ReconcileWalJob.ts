@@ -24,7 +24,7 @@ import { reconcilePending } from '../Actions/Git/walReconcile'
  * push was refused".
  */
 export default new Job({
-  name: 'ReconcileWal',
+  name: 'ReconcileWalJob',
   description: 'Settle write-ahead log entries against the refs actually on disk',
   queue: 'git',
   tries: 1,

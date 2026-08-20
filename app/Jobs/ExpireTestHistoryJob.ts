@@ -19,7 +19,7 @@ import { sweepTestExecutions } from '../Actions/Tests/retention'
  * out.
  */
 export default new Job({
-  name: 'ExpireTestHistory',
+  name: 'ExpireTestHistoryJob',
   description: 'Delete per-execution test history past the retention setting',
   queue: 'default',
   tries: 1,

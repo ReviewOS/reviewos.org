@@ -1131,3 +1131,66 @@ to their own timezone gets every timestamp wrong by it.
   here was the wrong one of the two. `/api/health` says both - a queue whose
   oldest job has waited five minutes, and mirrors overdue with nothing errored -
   and the first line was the answer while the second was the one that got read.
+- [x] A job can be found by the name it was dispatched under, which none of them could
+
+  **The reason nothing asynchronous had ever run on this instance, including the
+  work the two boxes above were about.** There is no job registry: `dispatch()`
+  writes the job's `name` into the queue row, the scheduler writes the string
+  passed to `.job()`, and the worker turns either straight into a path -
+  `app/Jobs/<name>.ts`. Every job in this application declared a name without
+  the `Job` suffix its file carries, so every one of them resolved to a file
+  that does not exist.
+
+  On the box that meant the scheduler - which was running, and had been all
+  along - fired all twenty tasks on time and threw `Job MirrorSweep not found`
+  twenty times a minute into a journal nobody tails. The mirrors were never
+  swept, so `/api/health` reported 151 of them overdue; `/explore` had no
+  language on any card, because the measure a push queues had never been
+  runnable either. The queue depth was zero throughout, which reads as healthy.
+
+  Names now match filenames, and `tests/unit/job-resolution.test.ts` checks both
+  directions - a job whose `name` is not its filename, and a `.job()` in the
+  scheduler that names no file. It strips comments before it reads, because the
+  prose above each task quotes the call it is explaining and the first version
+  of the test failed on its own documentation.
+- [x] The queue workers on the box ran a CLI that is not in this layout
+
+  Seven units, written by ts-cloud from `sites.reviewos.queues`, every one of
+  them crash-looping since the day they were declared. Its Stacks driver builds
+  `ExecStart` as
+  `bun <release>/storage/framework/core/buddy/src/cli.ts queue:work`, which is
+  the CLI of a **vendored core**. This application does not have one - it is the
+  core-less layout `buddy new` produces, which is why every other command in
+  `config/cloud.ts` reaches for `node_modules/@stacksjs/buddy/dist/cli.js` - so
+  all seven died on `Module not found` and systemd restarted them every five
+  seconds, 80-odd restarts an hour, for as long as they existed.
+
+  What made it survive a deploy that was watching for exactly this:
+  `systemctl list-units` shows a crash-looping unit as `activating (auto-restart)`, which
+  reads as "starting" at a glance, and the deploy's own verification checks that
+  `/` and `/api/health` answer - which they did, throughout. The driver's flags
+  are the same mistake from the other end: it passes `--sleep`, `--tries` and
+  `--timeout`, which are Artisan's options rather than buddy's.
+
+  Replaced with a `daemon`, which takes the command as written. **One worker for
+  every queue rather than one per queue**: with no `--queue`, the processor
+  reads the distinct queues out of the jobs table and works all of them,
+  re-reading every ten seconds - so a job on a new queue needs no deployment
+  change, which removes the class of bug the box above this one was about. It
+  also stops seven idle Bun processes costing most of a gigabyte on a shared box
+  whose swap is already full. `--verbose` is load-bearing: without it buddy
+  captures the worker's output instead of inheriting it, and the unit's journal
+  is empty whatever happens inside.
+
+  `tests/unit/cloud-queues.test.ts` now checks the command as well as the
+  coverage - the entry it names has to be a file this repository ships.
+- [x] A backfill for the measurements the queue never took
+
+  Fixing the worker does not measure what it did not measure. Languages and
+  contributors are queued by a push and by a mirror sync, so every repository
+  that had been sitting there with an empty card would have kept it until
+  upstream next moved. `buddy repo:measure` runs both over every repository, in
+  process rather than through the queue, printing each as it goes - deliberately
+  not a dispatch, because the instance that needs it most is the one whose
+  worker is still broken, and because an operator running a backfill is watching
+  it.

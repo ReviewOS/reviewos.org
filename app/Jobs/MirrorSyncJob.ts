@@ -19,7 +19,7 @@ import { cancelRequested, markCancelled, markFailed, markRunning, markSucceeded 
  * not to.
  */
 export default new Job({
-  name: 'MirrorSync',
+  name: 'MirrorSyncJob',
   description: 'Fetch a mirrored repository and record what changed',
   queue: 'mirrors',
   tries: 3,

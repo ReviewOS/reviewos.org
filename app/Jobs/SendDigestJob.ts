@@ -27,7 +27,7 @@ import { dbTimestamp } from '../Actions/Support/sql'
  * grouping is `batchNotifications`, tested as a pure function.
  */
 export default new Job({
-  name: 'SendDigest',
+  name: 'SendDigestJob',
   description: 'Send held notifications, grouped by thread',
   queue: 'notifications',
   tries: 2,

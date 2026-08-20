@@ -15,7 +15,7 @@ import { isDue } from '../Actions/Mirror/sync'
  * one finds nothing to fetch.
  */
 export default new Job({
-  name: 'MirrorSweep',
+  name: 'MirrorSweepJob',
   description: 'Enqueue a sync for every mirror whose interval has elapsed',
   queue: 'mirrors',
   tries: 1,

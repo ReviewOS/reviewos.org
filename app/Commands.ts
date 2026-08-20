@@ -134,4 +134,11 @@ export default {
   'db:backfill-shard-key': 'DbBackfillShardKey',
   'search:index': 'SearchIndex',
   'screenshot': 'Screenshot',
+  /*
+   * The languages and contributors on a repository page and an explore card,
+   * for the instance that has repositories the queue never measured. A push
+   * and a mirror sync each queue these; nothing else does, so a repository
+   * that has not changed since the worker was fixed would stay blank forever.
+   */
+  'repo:measure': 'MeasureRepositories',
 } satisfies CommandRegistry

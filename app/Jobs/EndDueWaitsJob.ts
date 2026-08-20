@@ -14,7 +14,7 @@ import { endDueWaits } from '../Actions/Workflow/awaits'
  * none.
  */
 export default new Job({
-  name: 'EndDueWaits',
+  name: 'EndDueWaitsJob',
   description: 'End workflow waits whose sleep or timeout has elapsed',
   queue: 'default',
   tries: 1,

@@ -846,44 +846,59 @@ export const tsCloud: TsCloudConfig = {
       // whatever it held on the day it was deployed.
       scheduler: true,
       /*
-       * The workers, which this box had none of - and that is why the mirrors
-       * stopped.
+       * The worker, and why it is a `daemon` rather than a `queues` entry.
        *
-       * `scheduler: true` writes a unit that runs `buddy schedule:run`, so the
-       * sweep fired on time. What it does is **enqueue**: `MirrorSweep` is a
-       * job on the `mirrors` queue, and `queues` being absent here meant
-       * ts-cloud wrote no worker unit at all. So the sweep was queued every
-       * five minutes and never ran, no `MirrorSyncJob` was ever created, and
-       * every mirror on the instance froze with a clean record and no error to
-       * show for it. The jobs table proves it: rows sitting untouched for days,
-       * and not one of them on `mirrors`, because the job that would have made
-       * them never executed.
+       * `scheduler: true` writes a unit that runs the clock, so the sweep fires
+       * on time. What it does is **enqueue**: `MirrorSweepJob` is a job on the
+       * `mirrors` queue, and until something drains that queue the sweep is a
+       * row in a table. This site declared `queues` for exactly that - and it
+       * did not work, in a way worth writing down.
        *
-       * **Every queue this application uses is named here, and that is not
-       * optional.** ts-cloud's Stacks driver runs each worker as
-       * `queue:work --queue=<name>`, defaulting to `default` - so a queue with
-       * no entry in this list is a queue nothing works, silently and forever.
-       * `tests/unit/cloud-queues.test.ts` fails when a job names a queue this
-       * list does not, because the failure mode is invisible: nothing errors,
-       * the feature just stops happening.
+       * ts-cloud's Stacks driver builds each worker's `ExecStart` as
+       * `bun <release>/storage/framework/core/buddy/src/cli.ts queue:work`,
+       * which is the CLI of a *vendored core*. This application has no
+       * `storage/framework/core` - it is the core-less layout `buddy new`
+       * produces, which is why every other command on this page reaches for
+       * `node_modules/@stacksjs/buddy/dist/cli.js` - so all seven units failed
+       * on `Module not found` and systemd restarted them every five seconds
+       * for as long as they existed. `systemctl list-units` showed seven
+       * workers `activating (auto-restart)`, which reads as "starting" at a
+       * glance, and `/api/health` reported the queue healthy throughout,
+       * because a queue nothing fills has no depth to complain about. The
+       * driver's flags are the same story from the other end: it passes
+       * `--sleep`, `--tries` and `--timeout`, which are Artisan's options and
+       * not buddy's.
        *
-       * One process each. These are almost all waiting on git or on somebody
-       * else's HTTP, so the useful number is bounded by the disk and the
-       * remote rather than by the core count; raise `processes` on whichever
-       * queue's depth stays above zero in `/api/health`.
+       * A daemon takes the command as written, so this one names the CLI that
+       * is actually in the release.
+       *
+       * **One process for every queue, not one process per queue.** With no
+       * `--queue`, the worker reads the distinct queues out of the jobs table
+       * and works all of them, re-reading every ten seconds - so a queue added
+       * to a job in `app/Jobs` needs nothing here, which removes the whole
+       * class of bug where a new queue is silently unworked.
+       * `tests/unit/cloud-queues.test.ts` holds that shape: it accepts a
+       * worker that names no queue, and if one ever does name queues, it
+       * requires them to cover every queue a job uses.
+       *
+       * Concurrency 4, matching `compose.yaml` and `config/deps.ts` so the
+       * three documented ways to run this instance agree. These jobs are
+       * almost all waiting on git or on somebody else's HTTP, so the useful
+       * number is bounded by the disk and the remote rather than by the core
+       * count - but this is a shared box with 16 GB and its swap already full,
+       * and seven idle Bun processes are most of a gigabyte for nothing. Raise
+       * it, rather than the process count, if queue depth in `/api/health`
+       * stays above zero.
+       *
+       * `--verbose` is not decoration. Without it buddy captures the worker's
+       * output instead of inheriting it, and the journal for this unit is
+       * empty whatever happens inside it.
        */
-      queues: [
-        // Push processing, and everything without a queue of its own.
-        { queue: 'default' },
-        // The git side of a push: WAL reconciliation, checkpoints, ref audits.
-        { queue: 'git' },
-        // Mirror sweeps, syncs and metadata imports.
-        { queue: 'mirrors' },
-        // Indexing, and the language and contributor measures.
-        { queue: 'search' },
-        { queue: 'notifications' },
-        { queue: 'webhooks' },
-        { queue: 'emails' },
+      daemons: [
+        {
+          name: 'worker',
+          command: 'bun node_modules/@stacksjs/buddy/dist/cli.js queue:work --concurrency 4 --verbose',
+        },
       ],
       // Bare repositories live on the box and are authoritative there: the
       // mirror fetches into them, and pushes land in them. Packaging a local

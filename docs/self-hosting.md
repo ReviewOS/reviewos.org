@@ -403,18 +403,63 @@ doubles, but a deployment that relies on the lock is a deployment where the host
 that cannot reach the database runs everything twice. Run one, supervised, like
 the worker.
 
-### A worker per queue, not a worker
+### Every queue, worked by something
 
-`buddy queue:work` takes `--queue`, and without one it works `default`. This
-application dispatches onto seven: `default`, `git`, `mirrors`, `search`,
-`notifications`, `webhooks` and `emails`. A queue with no worker is not an
-error - it is a queue that grows quietly while the feature behind it stops
-happening, which is how mirroring, notifications and outbound email can all be
-"configured correctly" and all be dead at once.
+`buddy queue:work` takes `--queue`. **Without one it works every queue it finds**
+- it reads the distinct queues out of the jobs table and re-reads them every ten
+seconds - which is the shape this instance runs, because the alternative is a
+list somebody has to remember to extend. This application dispatches onto seven:
+`default`, `git`, `mirrors`, `search`, `notifications`, `webhooks` and `emails`.
+A queue with no worker is not an error - it is a queue that grows quietly while
+the feature behind it stops happening, which is how mirroring, notifications and
+outbound email can all be "configured correctly" and all be dead at once.
 
-`config/cloud.ts` names every one of them under `sites.reviewos.queues`, and
-`tests/unit/cloud-queues.test.ts` fails when a job names a queue that list does
-not - because nothing else would ever tell you.
+`config/cloud.ts` runs that worker as a `daemon` under `sites.reviewos`, and
+`tests/unit/cloud-queues.test.ts` checks both halves of it: that the queues are
+covered, and that the command naming them names a file this repository actually
+ships.
+
+That second check exists because of how this failed the second time. ts-cloud's
+`queues:` list writes one systemd unit per entry, and its Stacks driver builds
+their `ExecStart` from `storage/framework/core/buddy/src/cli.ts` - the CLI of a
+*vendored core*, which the core-less layout this application uses does not have.
+Seven units, all crash-looping on `Module not found` every five seconds, while
+`systemctl` reported them `activating (auto-restart)` and `/api/health` reported
+the queue perfectly healthy - because a queue nothing fills has no depth to
+complain about. If you deploy through ts-cloud and your queues are silent, read
+`journalctl -u <slug>-<site>-queue-0` before believing the unit list.
+
+### The name a job is dispatched under is the name of its file
+
+There is no job registry. `Job.dispatch()` writes the job's `name` into the
+queue row, the scheduler writes whatever string `.job()` was given, and the
+worker turns either straight into a path: `app/Jobs/<name>.ts`. So a job called
+`MeasureLanguages` in a file called `MeasureLanguagesJob.ts` cannot be run by
+anything, ever, and the only trace is one line per attempt in a journal nobody
+is tailing.
+
+Every job here is named after its own file for that reason, and
+`tests/unit/job-resolution.test.ts` fails when one is not - including for
+`app/Scheduler.ts`, whose twenty tasks were all naming files that did not exist.
+
+### Catching up after the queue was stopped
+
+Fixing a stopped worker does not measure the repositories it did not measure.
+Language breakdowns and contributor counts are queued by a push and by a mirror
+sync, so a repository that has not changed since keeps its empty card until it
+next does - which for a mirror means whenever upstream moves.
+
+```sh
+buddy repo:measure
+```
+
+Runs both measurements over every repository, in this process rather than
+through the queue, printing each one as it goes. `--repository <id>` narrows it
+to one; `--languages` and `--contributors` narrow it to one measure. Safe on a
+live instance and safe to interrupt: each repository's rows are replaced in
+place, so a run that stops halfway leaves what it reached measured.
+
+`buddy search:index` is the same idea for the code-search shards.
 
 ## Pantry runs the instance, not just its dependencies
 

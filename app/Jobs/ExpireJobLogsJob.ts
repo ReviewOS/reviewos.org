@@ -22,7 +22,7 @@ import { logRetentionDays } from '../../config/ci-logs'
  * between available and gone.
  */
 export default new Job({
-  name: 'ExpireJobLogs',
+  name: 'ExpireJobLogsJob',
   description: 'Remove job output older than the configured retention',
   queue: 'default',
   tries: 1,

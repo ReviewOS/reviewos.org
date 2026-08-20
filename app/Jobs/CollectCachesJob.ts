@@ -20,7 +20,7 @@ import process from 'node:process'
  * entry a day past its idle window costs a few gigabytes, not a wrong answer.
  */
 export default new Job({
-  name: 'CollectCaches',
+  name: 'CollectCachesJob',
   description: 'Remove dependency snapshots past the size and age policy',
   queue: 'default',
   tries: 1,

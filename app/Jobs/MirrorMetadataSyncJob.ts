@@ -31,7 +31,7 @@ import { recountOpenIssues } from '../Actions/Repo/counters'
  * of ways to go wrong.
  */
 export default new Job({
-  name: 'MirrorMetadataSync',
+  name: 'MirrorMetadataSyncJob',
   description: 'Import issues, pull requests and review threads from the upstream host',
   queue: 'mirrors',
   tries: 2,

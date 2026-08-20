@@ -12,7 +12,7 @@ import { releaseElapsedWaits } from '../Actions/Workflow/releaseWaits'
  * every instance is none.
  */
 export default new Job({
-  name: 'ReleaseEnvironmentWaits',
+  name: 'ReleaseEnvironmentWaitsJob',
   description: 'Release deploys whose environment wait timer has elapsed',
   queue: 'default',
   tries: 1,

@@ -21,7 +21,7 @@ import { sweepExpiredArtifacts } from '../Actions/Artifact/store'
  * sixty times an hour.
  */
 export default new Job({
-  name: 'ExpireArtifacts',
+  name: 'ExpireArtifactsJob',
   description: 'Remove artifacts whose retention has run out, and the blobs nothing else references',
   queue: 'default',
   tries: 1,

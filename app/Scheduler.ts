@@ -7,6 +7,19 @@ import { schedule } from '@stacksjs/scheduler'
  * Define your scheduled tasks here. Jobs, actions, and shell commands
  * can all be scheduled with a fluent, expressive API.
  *
+ * **The string is a filename, not a title.** `.job('X')` is resolved by opening
+ * `app/Jobs/X.ts` - the framework looks the job up on disk rather than in a
+ * registry - so every name here carries the `Job` suffix the files do. This was
+ * `.job('MirrorSweep')` against a file called `MirrorSweepJob.ts`, and the
+ * result was the worst kind of failure: the scheduler started, fired on time,
+ * logged `Running job: MirrorSweep`, and then threw `Job MirrorSweep not found`
+ * into a journal nobody reads. Every task in this file was doing that, on
+ * production, for as long as the scheduler had been running - which is why 151
+ * mirrors went stale with no error against any of them.
+ *
+ * `tests/unit/job-resolution.test.ts` fails when a name here does not name a
+ * file, because nothing else notices.
+ *
  * @see https://docs.stacksjs.com/scheduling
  */
 export default function () {
@@ -20,7 +33,7 @@ export default function () {
   // a missed hook is not noticed, and rare enough that it is not a poll - the
   // per-mirror interval decides what is actually due.
   schedule
-    .job('MirrorSweep')
+    .job('MirrorSweepJob')
     .everyFiveMinutes()
 
   // Work whose runner stopped talking, returned to the queue.
@@ -31,7 +44,7 @@ export default function () {
   // ask - which never happens on the instance where it matters most, the one
   // whose fleet is busy elsewhere.
   schedule
-    .job('ReclaimLapsedLeases')
+    .job('ReclaimLapsedLeasesJob')
     .everyMinute()
 
   // Hourly, because nothing depends on the exact moment: a download past its
@@ -39,7 +52,7 @@ export default function () {
   // grows forever and one that does not, rather than between available and
   // gone.
   schedule
-    .job('ExpireArtifacts')
+    .job('ExpireArtifactsJob')
     .hourly()
 
   // The write-ahead log's pending rows, settled against the refs on disk.
@@ -48,7 +61,7 @@ export default function () {
   // wrong is exactly the window this leaves open. It only looks at rows past a
   // grace period, so a push still in flight is never voided.
   schedule
-    .job('ReconcileWal')
+    .job('ReconcileWalJob')
     .everyTenMinutes()
 
   /*
@@ -60,7 +73,7 @@ export default function () {
    * It does nothing at all when the log is off.
    */
   schedule
-    .job('CheckpointRepositories')
+    .job('CheckpointRepositoriesJob')
     .daily()
 
   /*
@@ -74,7 +87,7 @@ export default function () {
    * is a bug.
    */
   schedule
-    .job('AuditRefDrift')
+    .job('AuditRefDriftJob')
     .hourly()
 
   /*
@@ -87,7 +100,7 @@ export default function () {
    * a wrong answer.
    */
   schedule
-    .job('CollectCaches')
+    .job('CollectCachesJob')
     .daily()
     .at('03:20')
 
@@ -99,7 +112,7 @@ export default function () {
   // Every five minutes. A digest is worth the wait it saves; it is not worth an
   // hour of latency on a window that just opened.
   schedule
-    .job('SendDigest')
+    .job('SendDigestJob')
     .everyFiveMinutes()
 
   // Tokens close to lapsing, once a day. The thresholds are counted in days, so
@@ -108,7 +121,7 @@ export default function () {
   // makes the message worth reading: a warning that arrives hourly is one
   // people build a filter for, and the filter hides the last notice too.
   schedule
-    .job('WarnExpiringTokens')
+    .job('WarnExpiringTokensJob')
     .daily()
 
   /*
@@ -119,7 +132,7 @@ export default function () {
    * is one they start by hand, which is the rule not existing.
    */
   schedule
-    .job('ReleaseEnvironmentWaits')
+    .job('ReleaseEnvironmentWaitsJob')
     .everyMinute()
 
   /*
@@ -130,7 +143,7 @@ export default function () {
    * only thing that is.
    */
   schedule
-    .job('WakeSleepingRuns')
+    .job('WakeSleepingRunsJob')
     .everyMinute()
 
   /*
@@ -141,7 +154,7 @@ export default function () {
    * is switched off is a cost paid by every instance that never asked.
    */
   schedule
-    .job('ExpireJobLogs')
+    .job('ExpireJobLogsJob')
     .daily()
 
   /*
@@ -153,7 +166,7 @@ export default function () {
    * already waited an hour: asking six times an hour gets the same answer.
    */
   schedule
-    .job('FailImpossibleJobs')
+    .job('FailImpossibleJobsJob')
     .everyTenMinutes()
 
   /*
@@ -165,7 +178,7 @@ export default function () {
    * thing that ends it is a person refreshing the page.
    */
   schedule
-    .job('EndDueWaits')
+    .job('EndDueWaitsJob')
     .everyMinute()
 
   /*
@@ -177,7 +190,7 @@ export default function () {
    * runs.
    */
   schedule
-    .job('EvaluateTestMonitors')
+    .job('EvaluateTestMonitorsJob')
     .hourly()
 
   /*
@@ -189,7 +202,7 @@ export default function () {
    * long enough for a push to notice.
    */
   schedule
-    .job('ExpireTestHistory')
+    .job('ExpireTestHistoryJob')
     .daily()
     .at('03:10')
 
@@ -198,7 +211,7 @@ export default function () {
   // expensive thing this server does and nobody wants to be cloning while it
   // runs.
   schedule
-    .job('RepositoryMaintenance')
+    .job('RepositoryMaintenanceJob')
     .daily()
     .at('03:30')
 
@@ -212,7 +225,7 @@ export default function () {
    * is due, which is nearly every minute.
    */
   schedule
-    .job('DispatchScheduledWorkflows')
+    .job('DispatchScheduledWorkflowsJob')
     .everyMinute()
 
   /*
@@ -226,7 +239,7 @@ export default function () {
    * remote actions, which is the default.
    */
   schedule
-    .job('MirrorActions')
+    .job('MirrorActionsJob')
     .hourly()
 
   // Run a custom action every five minutes

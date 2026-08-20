@@ -26,7 +26,7 @@ import { walMode } from '../../config/git-wal'
  * something that runs while nobody is watching.
  */
 export default new Job({
-  name: 'AuditRefDrift',
+  name: 'AuditRefDriftJob',
   description: 'Compare repository refs against the ledger and report divergence',
   queue: 'git',
   tries: 1,

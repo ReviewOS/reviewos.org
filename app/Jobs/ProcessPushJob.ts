@@ -26,7 +26,7 @@ import { notifyProgramsOnly } from '../Notifications/emit'
  * whose `pushed_at` did not update should still have its issues closed.
  */
 export default new Job({
-  name: 'ProcessPush',
+  name: 'ProcessPushJob',
   description: 'Record a push: the ref updates, the commits, and what they say',
   queue: 'git',
   tries: 3,

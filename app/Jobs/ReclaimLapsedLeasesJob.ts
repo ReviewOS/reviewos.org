@@ -43,7 +43,7 @@ export const CANCEL_GRACE_SECONDS = 120
  * first is the one that keeps it.
  */
 export default new Job({
-  name: 'ReclaimLapsedLeases',
+  name: 'ReclaimLapsedLeasesJob',
   description: 'Return jobs whose runner stopped heartbeating to the queue',
   queue: 'default',
   tries: 1,

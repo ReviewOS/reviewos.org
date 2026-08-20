@@ -15,7 +15,7 @@ import { evaluateMonitors } from '../Actions/Tests/monitors'
  * a test failed wants the check on the run, not a rule about the trend.
  */
 export default new Job({
-  name: 'EvaluateTestMonitors',
+  name: 'EvaluateTestMonitorsJob',
   description: 'Evaluate test monitors, and announce the ones that changed state',
   queue: 'default',
   tries: 1,

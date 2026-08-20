@@ -21,7 +21,7 @@ import { runGit } from '../Actions/Git/git'
  * forever.
  */
 export default new Job({
-  name: 'MeasureContributors',
+  name: 'MeasureContributorsJob',
   description: 'Measure a repository\'s contributors from its history',
   queue: 'search',
   tries: 2,

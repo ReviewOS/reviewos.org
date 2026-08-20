@@ -32,7 +32,7 @@ import { measure, recordSize } from '../Actions/Repo/size'
  * their turn.
  */
 export default new Job({
-  name: 'RepositoryMaintenance',
+  name: 'RepositoryMaintenanceJob',
   description: 'Pack repositories that need it, and remove deletions past the retention window',
   queue: 'git',
   tries: 1,

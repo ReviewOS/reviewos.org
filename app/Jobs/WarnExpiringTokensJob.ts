@@ -21,7 +21,7 @@ import { describeDeadline, warningFor, widestWindowMs } from '../Actions/Tokens/
  * this does is find the candidates, ask, and record the answer.
  */
 export default new Job({
-  name: 'WarnExpiringTokens',
+  name: 'WarnExpiringTokensJob',
   description: 'Warn owners of tokens that are about to expire',
   queue: 'notifications',
   tries: 2,

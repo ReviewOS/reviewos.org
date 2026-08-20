@@ -23,7 +23,7 @@ import { walKeepEntries, walMode } from '../../config/git-wal'
  * still works, and the rest of them still want their turn.
  */
 export default new Job({
-  name: 'CheckpointRepositories',
+  name: 'CheckpointRepositoriesJob',
   description: 'Write a full bundle per repository and prune the log prefix it makes redundant',
   queue: 'git',
   tries: 1,

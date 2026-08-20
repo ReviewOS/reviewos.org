@@ -18,7 +18,7 @@ import { buildShard, writeShard } from '../Actions/CodeIndex/build'
  * means that repository is searched in full.
  */
 export default new Job({
-  name: 'IndexCode',
+  name: 'IndexCodeJob',
   description: 'Build a repository\'s trigram index for instance-wide code search',
   queue: 'search',
   tries: 2,

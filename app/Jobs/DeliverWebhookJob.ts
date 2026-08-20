@@ -39,7 +39,7 @@ const BODY_LIMIT = 4096
  * which is the only question anybody ever asks it.
  */
 export default new Job({
-  name: 'DeliverWebhook',
+  name: 'DeliverWebhookJob',
   description: 'Send one webhook delivery and record the outcome',
   queue: 'webhooks',
   // One try. The retry schedule is `retryDelayMs`, re-queued by this job, so

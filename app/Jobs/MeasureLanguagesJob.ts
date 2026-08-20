@@ -19,7 +19,7 @@ import { runGit } from '../Actions/Git/git'
  * repository rewritten in Rust goes on being listed under Ruby.
  */
 export default new Job({
-  name: 'MeasureLanguages',
+  name: 'MeasureLanguagesJob',
   description: 'Measure a repository\'s language breakdown from its tree',
   queue: 'search',
   tries: 2,

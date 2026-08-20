@@ -15,7 +15,7 @@ import { failImpossibleJobs } from '../Actions/Workflow/impossible'
  * configured instance is always.
  */
 export default new Job({
-  name: 'FailImpossibleJobs',
+  name: 'FailImpossibleJobsJob',
   description: 'Fail queued jobs asking for a capability no runner has',
   queue: 'default',
   tries: 1,

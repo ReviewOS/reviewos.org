@@ -20,7 +20,7 @@ import { REPOSITORY_COLUMNS, REPOSITORY_INDEX, repositoryDocuments } from '../Ac
  * question with an alarming-sounding answer and a boring cause.
  */
 export default new Job({
-  name: 'IndexRepository',
+  name: 'IndexRepositoryJob',
   description: 'Index one repository, or rebuild the whole corpus',
   queue: 'search',
   tries: 3,

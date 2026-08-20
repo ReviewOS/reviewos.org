@@ -19,7 +19,7 @@ import { wakeSleepingRuns } from '../Actions/Workflow/wake'
  * place deciding it would eventually disagree with the first.
  */
 export default new Job({
-  name: 'WakeSleepingRuns',
+  name: 'WakeSleepingRunsJob',
   description: 'Put an orchestrator back in the queue when its sleep is due',
   tries: 1,
   backoff: 3,

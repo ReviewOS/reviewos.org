@@ -31,7 +31,7 @@ import { dbTimestamp } from '../Actions/Support/sql'
  * accept the fourth - at which point the row says so and stops.
  */
 export default new Job({
-  name: 'SendNotification',
+  name: 'SendNotificationJob',
   description: 'Deliver one notification on one channel',
   queue: 'notifications',
   tries: 3,
